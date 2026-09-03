@@ -23,20 +23,25 @@
  * ⛔ Nor was suppressing it ever an option: ADR-0013 requires every `NagSuppressions` entry to be "its own
  * reviewed change with its own diff", through the `AcceptedNagFindings` register. Fixing is the only route.
  *
- * ## Why this is a SOURCE guard rather than a template one
+ * ## ⚠️ What this file is NOT, since 2026-09-03: it is no longer the SQS4 control
  *
- * `transportSecurity.test.ts` proves the MECHANISM end to end — that `enforceSSL` emits a real
- * `AWS::SQS::QueuePolicy` carrying an `aws:SecureTransport: false` Deny, and that cdk-nag's own rule agrees —
- * but it synthesizes ONE app: the prod platform. It cannot simply be widened, and the reason is measured
- * rather than aesthetic: `infrastructureManifest.test.ts` records that "every service app calls
- * `ec2.Vpc.fromLookup` … so synth needs AWS credentials and an uncached context; `RecipeWorkersStack`
- * additionally throws unless the service has been BUILT; and each entrypoint requires between one and nine
- * environment variables." A completeness claim therefore cannot be discharged at template level, and a
- * mechanism claim cannot be discharged at source level.
+ * When this guard was written it stood in for `AwsSolutions-SQS4` itself, and its own header conceded that
+ * it was "a PROXY for this table's row, not the row itself". That gap is now closed by
+ * `tests/nagRulesAtZero.integration.test.ts`, which synthesizes EVERY CDK app hermetically and asserts that
+ * the real `AwsSolutions-SQS4` / `-SNS3` rules report zero non-compliance — so the proxy argument
+ * ("declaration implies the policy, because CDK emits it") no longer has to be believed.
  *
- * ⛔ So the two suites make DIFFERENT claims and are verified DIFFERENTLY, and must not be merged — the
- * two-map shape ADR-0027 §6 argues for. `transportSecurity.test.ts` answers *"does this property produce the
- * control?"*; this file answers *"is any construction site missing the property?"*, across every CDK app.
+ * This file keeps the half that guard cannot make: `encryption` and `retentionPeriod` raise NO cdk-nag
+ * finding at all (see the two sections below — SSE-SQS is a default, and there is no retention rule), so
+ * they are invisible to a rule-driven control and visible only here. `enforceSSL` stays in the baseline
+ * because the three properties are one baseline, argued together, and because a source guard names the LINE
+ * to edit where a rule names a synthesized resource path.
+ *
+ * ⛔ Three suites now make three DIFFERENT claims about the same resources, and they must not be merged.
+ * `transportSecurity.test.ts` answers *"does `enforceSSL` produce a real deny, in the emitted template?"*;
+ * `nagRulesAtZero.integration.test.ts` answers *"does the RULE report zero, in every app?"*; this file
+ * answers *"is any construction site missing a baseline property?"*. Merging any two would trade a claim for
+ * a shorter file.
  *
  * ## ⚠️ Scope: it asserts DECLARATION, never VALUE (except `enforceSSL`)
  *
@@ -65,15 +70,12 @@
  *
  * DESIGN PATTERN: Specification — one predicate over a discovered subject set, applied uniformly. The
  * discovery is deliberately the same shape as `natEgressConsumers.test.ts`'s: read the source, enumerate
- * nothing, so a queue declared tomorrow joins the subject set the day it is written.
+ * nothing, so a queue declared tomorrow joins the subject set the day it is written. It moved to
+ * `messagingConstructSites.ts` when the rule-level guard needed the same census as its non-vacuity floor.
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-
-import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { isTestFile, objectProperties, parse, presentFiles, referenceText, repoRoot, visit } from './serviceSources.js';
+import { queueSites, repositorySites } from './messagingConstructSites.js';
 
 /**
  * The properties every SQS queue in this repository must declare at its construction site.
@@ -83,90 +85,7 @@ import { isTestFile, objectProperties, parse, presentFiles, referenceText, repoR
  */
 const BASELINE_PROPERTIES = ['enforceSSL', 'encryption', 'retentionPeriod'] as const;
 
-/** One `new …Queue(scope, id, { … })` site, as this guard sees it. */
-interface QueueSite {
-    /** Repo-relative path of the file that constructs it. */
-    readonly file: string;
-    /** The construct id literal, when it is a plain string — for a readable failure. */
-    readonly id: string;
-    /** Property names declared in the props object literal. */
-    readonly declared: ReadonlySet<string>;
-    /** Whether `enforceSSL` is the `true` keyword (not merely present). */
-    readonly enforcesSsl: boolean;
-}
-
-/**
- * Every SQS queue construction in one source file.
- *
- * Matched on the LAST segment of the callee reference (`sqs.Queue`, `aws_sqs.Queue`, a bare `Queue`), so
- * `sqs.CfnQueue` and `Queue.fromQueueArn` are correctly not queues this rule governs — the first is the
- * escape hatch a template-level guard would have to judge instead, the second is an import.
- *
- * @param file - Repo-relative path, used only in failure messages.
- * @param contents - The file's text.
- * @returns One entry per construction site, in source order. Pure.
- */
-export function queueSites(file: string, contents: string): readonly QueueSite[] {
-    const sites: QueueSite[] = [];
-
-    visit(parse({ file, contents }), (node) => {
-        if (!ts.isNewExpression(node)) {
-            return;
-        }
-
-        const callee = referenceText(node.expression);
-
-        if (callee === undefined || callee.split('.').at(-1) !== 'Queue') {
-            return;
-        }
-
-        const [, idArgument, propsArgument] = node.arguments ?? [];
-        const id =
-            idArgument !== undefined && ts.isStringLiteral(idArgument) ? idArgument.text : `${file} (unnamed queue)`;
-        // An ABSENT props argument is an empty declaration, never a pass: `new sqs.Queue(this, 'X')` declares
-        // none of the baseline, which is exactly what this guard exists to catch.
-        const literal =
-            propsArgument !== undefined && ts.isObjectLiteralExpression(propsArgument) ? propsArgument : undefined;
-        // ⛔ PRESENCE is read from the RAW property list, not from `objectProperties` — which skips shorthand
-        // by design (`serviceSources.ts`: "a gate that needs a literal VALUE cannot resolve either"). Here the
-        // question is only whether the property was DECLARED, and `{ retentionPeriod }` declares it. Reading
-        // presence through `objectProperties` would report a legitimate shorthand as an omission — the same
-        // false negative `natEgressConsumers.test.ts` records having to handle.
-        const declared = new Set(
-            (literal?.properties ?? []).flatMap((property) => {
-                if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
-                    return [];
-                }
-
-                return ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? [property.name.text] : [];
-            }),
-        );
-
-        sites.push({
-            file,
-            id,
-            declared,
-            // `true` the KEYWORD, not merely present: `enforceSSL: false` and `enforceSSL: someFlag` both
-            // declare the property while denying nothing, and a presence check would pass both. ⚠️ A SHORTHAND
-            // `{ enforceSSL }` is therefore refused too, deliberately: this is the one baseline property whose
-            // VALUE is the control, and a value the reader cannot resolve is not a value it may assume.
-            enforcesSsl:
-                literal !== undefined &&
-                objectProperties(literal).get('enforceSSL')?.kind === ts.SyntaxKind.TrueKeyword,
-        });
-    });
-
-    return sites;
-}
-
-/** Every queue construction site in the repository's non-test TypeScript sources. */
-function repositoryQueueSites(): readonly QueueSite[] {
-    return presentFiles(['packages/**/*.ts'])
-        .filter((file) => !isTestFile(file))
-        .flatMap((file) => queueSites(file, readFileSync(path.join(repoRoot, file), 'utf8')));
-}
-
-const sites = repositoryQueueSites();
+const sites = repositorySites('Queue');
 
 describe('SQS queue baseline declarations', () => {
     it('finds every queue construction in the repository', () => {

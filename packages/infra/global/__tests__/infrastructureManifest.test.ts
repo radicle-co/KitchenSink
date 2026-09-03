@@ -30,6 +30,15 @@
  * construct reached through a NON-relative import is not followed (it is counted and named), and a name
  * built from anything other than a literal or a plain reference chain renders as `{?}`.
  *
+ * ⚠️ ONE CLAUSE ABOVE HAS BEEN OVERTAKEN, and it was cited elsewhere as a reason not to synthesize. "synth
+ * needs AWS credentials and an uncached context" is true of a synth that RESOLVES its lookups; seeding
+ * `CDK_CONTEXT_JSON` makes `Vpc.fromLookup` answer locally, and `tests/nagRulesAtZero.integration.test.ts`
+ * now synthesizes seven of the eight apps that way with no credentials and no network. The argument for the
+ * AST reading here is UNCHANGED and does not rest on that clause: it rests on "needs no BUILD", which is
+ * what a regenerate-and-diff staleness gate on a committed artifact requires. ⛔ Do not cite this paragraph
+ * as evidence that a synth-based guard is impossible — it is evidence that a synth-based GENERATOR cannot be
+ * staleness-gated.
+ *
  * ## Why nothing is enumerated
  *
  * Both axes are derived. The apps come from {@link cdkApps} (content, not path convention); the stacks and

@@ -10,16 +10,40 @@ npm run docs:serve --workspace=@kitchensink/docs-site   # serve the production b
 npm run test       --workspace=@kitchensink/docs-site   # the ingestion layer's unit + guard tiers
 ```
 
-The site is published to a **private Vercel project** by `.github/workflows/docs.yml`, on every push
-to `main` and on demand. It is readable only by the Vercel team: Vercel Authentication is scoped to
-**All Deployments**, and the project has **no custom domain** — deliberately, because ADR-0001
-measured that "a registered custom domain is exempt from deployment protection". The corpus names the
-AWS account id, the `azp` trust boundary and credential handling, so that is a security requirement
-rather than a preference. The workflow asserts the project's protection scope BEFORE it publishes and
-proves it afterwards with an unauthenticated request;
-`packages/infra/global/__tests__/docsSiteDeployGuards.test.ts` asserts that both of those checks, and
-the absence of any domain-attaching step, are still there. The workflow's own header lists exactly what
-the owner must create in Vercel and GitHub.
+## ⛔ The site is PUBLIC
+
+`.github/workflows/docs.yml` publishes it to Vercel on every push to `main`, and on demand, **with no
+login in front of it.** Anyone with the URL can read all of it.
+
+That is an owner ruling, and it reverses the original design. This package was built to publish behind
+Vercel Authentication scoped to All Deployments, and the workflow refused to deploy unless the API
+reported that scope. The protection is **not available on this team's plan, and it fails open**:
+measured 2026-09-02, the API accepts the `ssoProtection` setting and does not enforce it, and a real
+preview deployment served real content to an anonymous request. An assertion against an API that lies is
+worse than no assertion, because it is what everyone downstream relies on. ⛔ Do not re-add it on the
+strength of the API accepting the setting; that is exactly what was already tried.
+
+The control moved from "nobody can read it" to **"there is nothing in it worth reading"**, which holds
+only because two things enforce it:
+
+- **The allowlist** (`include` in `src/content/contentRegistry.ts`) — `docs/` also holds working
+  material that is correspondence rather than documentation, and none of it ships. Widening a glob
+  publishes whatever it reaches.
+- **The AWS account id is absent, and checked.** A document that needs to name the account it measured
+  against writes `` `<aws-account-id>` `` instead of the digits. `docs.yml` scans the BUILT site before
+  the artifact is uploaded — on pull requests too, so an offending document is red before it merges —
+  and `packages/infra/global/__tests__/assertNoAwsAccountIds.test.ts` scans the sources on the ordinary
+  test tier. Both run `scripts/assertNoAwsAccountIds.mjs`, which DERIVES the ids from the repository's
+  own ARNs rather than hardcoding one, so neither the guard nor its failure output ever restates the
+  value. If either goes red, scrub the document — do not weaken the guard.
+
+The project keeps **no custom domain and no branch domain**, still — the reason is no longer protection
+(nothing is protected) but ADR-0001 item 2's measurement that a branch domain resolves to the wrong
+deployment, plus the plain fact that one generated `*.vercel.app` is all the site needs.
+`packages/infra/global/__tests__/docsSiteDeployGuards.test.ts` asserts that the workflow never grows a
+domain-attaching step, that the account-id scan gates the artifact, and that the post-deploy probe
+demands a `200` carrying this site's own generator tag. The workflow's own header lists exactly what the
+owner must create in Vercel and GitHub.
 
 `DOCS_SITE_URL` supplies the site's canonical URL at build time; a local build has no deployment
 identity and falls back to an unresolvable placeholder.

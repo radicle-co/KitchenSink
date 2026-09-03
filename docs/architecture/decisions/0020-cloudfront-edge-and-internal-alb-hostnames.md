@@ -115,7 +115,7 @@ certificate on the listener and fails the TLS handshake — the same trap `foodS
 `@kitchensink/infra-alb`, which returns the fully-qualified host and its zone-relative record name together
 so the listener rule, the Route 53 record and the CloudFront origin cannot be spelled apart.
 
-**Verified live, 2026-08-16** (account `040663841500`): certificate `d0b2de77-…` issued for
+**Verified live, 2026-08-16** (the project's AWS account, `<aws-account-id>`): certificate `d0b2de77-…` issued for
 `*.internal.commise.app` in 162 seconds; the prod ALB presents it for a 3-label SNI host; all three internal
 names answer `200` with `ssl_verify_result 0` and each returns its own service; an unmatched
 `nope.internal.commise.app` still receives ADR-0003's default `404`.

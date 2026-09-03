@@ -1,24 +1,57 @@
 // @vitest-environment node
 /**
- * Repo-wide guard: the documentation site is published PRIVATELY, and stays that way.
+ * Repo-wide guard: the documentation site is published PUBLICLY, on purpose, with the one control that
+ * makes that safe — and it keeps exactly one address.
  *
- * ## The failure this catches
+ * ## ⛔ THIS FILE WAS REWRITTEN. What it used to assert is now FALSE.
  *
- * `.github/workflows/docs.yml` publishes `packages/tools/docs-site` — a rendering of `docs/**` that
- * includes the AWS account id, the `azp` trust-boundary reasoning behind ADR-0001, and eighteen files
- * that discuss credential handling. The owner's ruling is: deploy PROTECTED, with NO custom domain.
+ * The previous version of this file asserted the opposite posture: that `docs.yml` refused to publish
+ * unless the Vercel API reported `ssoProtection.deploymentType == "all"`, and that an unauthenticated
+ * request to the published site was REFUSED — a `200` being the failure it existed to catch. Three of
+ * its cases (`flags a deploy with no pre-flight protection assertion`, `flags a protection assertion
+ * that runs AFTER the corpus is already published`, `flags a probe that would report success on a page
+ * it was actually served`) asserted a guarantee that does not exist.
  *
- * That ruling is one Vercel setting and one absent step away from being false, and BOTH failure modes
- * are silent. ADR-0001 records the measurement that makes the domain half a security rule rather than
- * a preference:
+ * That protection is **not available on this team's Vercel plan, and it fails OPEN**: measured
+ * 2026-09-02, the API ACCEPTS the `ssoProtection` setting and does not enforce it, and a real preview
+ * deployment served real content to an anonymous request. So the old gate was reporting a guarantee
+ * nobody held — the worst possible state for a security control, and strictly worse than none, because
+ * it is what everyone downstream was relying on.
  *
- * > "A registered custom domain is exempt from deployment protection."
+ * The owner's ruling is therefore: **publish publicly**, and move the control from "nobody can read it"
+ * to "there is nothing in it worth reading". The coverage those three cases carried did not vanish, it
+ * MOVED, and this file follows it:
  *
- * So attaching a domain to the docs project — the single most natural "improvement" anyone would make
- * to a docs deploy, and one this repository already has scripts for — would publish the whole corpus
- * to the internet, with every check still green. The other half is Vercel's own default: "Standard
- * Protection" leaves PRODUCTION domains (including the project's `<name>.vercel.app`) public, and
- * only the `all` scope closes that.
+ *  | Old assertion                                     | Where its job went now                                    |
+ *  | ------------------------------------------------- | --------------------------------------------------------- |
+ *  | `ssoProtection` is `all` before the deploy         | DELETED — the API answer was not evidence of anything      |
+ *  | that assertion runs BEFORE the publish             | DELETED with it                                            |
+ *  | an unauthenticated request is REFUSED              | INVERTED → {@link findPublicationGaps}: it must be SERVED  |
+ *  | (nothing)                                          | NEW → {@link findAccountIdScanGaps}: the corpus is scanned |
+ *  | no custom domain is ever attached                  | KEPT → {@link findDomainAttachments}, re-justified below   |
+ *  | an unconfigured deploy fails loudly                | KEPT → {@link findSilentSkips}, unchanged                  |
+ *
+ * ## The two failures this file now exists to catch
+ *
+ *  1. **The corpus regains an AWS account id and nobody notices.** Confidentiality is no longer access
+ *     control; it is the absence of the thing. `docs.yml` must scan the BUILT output before the artifact
+ *     is uploaded — before a deploy is even possible, and on pull requests too, so the offending document
+ *     is red before it merges. Deleting that step, moving it after the upload, or gating it behind an
+ *     `if:` that skips pull requests each restores the leak with every check green.
+ *  2. **The site silently stops serving.** With protection gone, the failure mode flipped: the danger is
+ *     no longer "a stranger reads it" but "nobody can, and the workflow says it deployed". A CLI that
+ *     exits 0 having aliased a broken build, a production alias never moved (exactly what ADR-0001
+ *     recorded for the web previews, where PR #73 served a stale build for days), or protection getting
+ *     switched on by hand all look identical to success from inside the job. So the probe must demand a
+ *     `200` **carrying this site's own generator tag** — Vercel's error and login pages are perfectly
+ *     healthy `200`s from a different origin.
+ *
+ * And one that did not change: **the project must keep exactly one address.** The old justification was
+ * that a custom domain is exempt from deployment protection; there is no protection now, so that reason
+ * is gone. Two independent ones remain, and they are why the analyzer survived the rewrite rather than
+ * being deleted with the posture it was written for: ADR-0001 item 2 MEASURED that a Vercel branch
+ * domain resolves to the WRONG deployment (so a second address would sometimes serve a stale corpus
+ * while the probe reported the fresh one healthy), and nothing needs one.
  *
  * ## Why the analyzers are pure, and why the fixtures are the real evidence
  *
@@ -28,42 +61,61 @@
  * established, for the reason stated there: a `toEqual([])` against a tree that happens to be clean
  * passes just as well when the analyzer is broken.
  *
- * The negative controls are not decoration. `findDomainAttachments` has to tell a step that ATTACHES
- * a domain from the step that merely READS the project's `alias[]` to probe it — both contain the
- * word `alias`, and the probe is the thing proving the site is private, so an over-eager matcher would
- * force the removal of the very check this file exists to require.
+ * The negative controls are not decoration. {@link findDomainAttachments} has to tell a step that
+ * ATTACHES a domain from the step that merely READS the project's `alias[]` to check it — both contain
+ * the word `alias`, and one of those steps is the check itself, so an over-eager matcher would force the
+ * removal of the very assertion this file requires.
  *
- * ## Mutation evidence (every assertion below has been watched fail)
+ * ## Mutation evidence — every one of these was APPLIED and watched fail
  *
- * Analyzer mutations, then transient edits to the REAL workflow (restored and re-verified with
- * `git status --porcelain` + a re-run):
+ * Two rounds, both driven by a harness that restores after each case and re-verifies the restore with
+ * `md5sum -c`. ⛔ It restores by COPY, never `git checkout`: the working tree is ahead of `HEAD` while
+ * this lands, and a `git checkout --` restore silently reverts the change under test along with the
+ * mutation. That was tried once, and it destroyed both edited files.
  *
- *   1. **Domain attachment** — `FORBIDDEN_DOMAIN_PATTERNS` emptied → every positive fixture passes and
- *      the real-tree assertion passes vacuously, which is why `it('is not vacuous', …)` pins the
- *      pattern list and each pattern is exercised by its own fixture. Real tree: adding a
- *      `curl -X POST …/v10/projects/$P/domains` step to `docs.yml`'s deploy job produced
- *      `deploy::Attach the docs domain -> adds a project-domain to the docs project`.
- *   2. **Protection ordering** — dropping the `index < deployIndex` comparison lets the
- *      posture-after-deploy fixture pass, i.e. a project whose protection is only checked AFTER the
- *      corpus is already published. Deleting the probe term lets the never-probed fixture pass. Real
- *      tree: replacing the posture step's `if [ "${scope}" != "all" ]` with `if false` produced
- *      `deploy -> nothing asserts ssoProtection is 'all' before the deploy`; deleting the `200)` case
- *      from the probe produced `deploy -> the unauthenticated probe does not treat a 200 as a
- *      failure`.
- *      ⚠️ **A HOLE THIS RUN FOUND, recorded because it is the whole argument for doing it.** The
- *      first version of the posture predicate asked only for `'all'` ANYWHERE in the step body, and
- *      the `if false` mutation walked straight past it — the step's own `::error::` message contains
- *      the words "not 'all'". The guard was being satisfied by PROSE while the check it was guarding
- *      did nothing. It now requires the COMPARISON (`[!=]= "all"`). Do not relax that back to a bare
- *      token match.
- *   3. **Loud-when-unconfigured** — deleting the `exit 1` requirement lets the notice-and-carry-on
- *      fixture pass; deleting the job-`if` term lets the greyed-out-job fixture pass. Real tree:
- *      changing the deploy job's `if:` to `vars.DOCS_VERCEL_PROJECT_ID != ''` produced
- *      `deploy -> skips instead of failing when configuration is absent` (and reds the structural
- *      `if:` assertion at the foot of this file too — two independent detections of one edit).
+ * **Round 1 — break the ANALYZER, watch its own fixtures go red.** (Without this round, every predicate
+ * below could be `if (false)` and the real-tree round would still be green, because the real workflow is
+ * clean.)
  *
- * The four real-tree edits were applied by a scripted harness that restores the file after each case
- * and verifies the restore with `md5sum -c`; the workflow was byte-identical afterwards.
+ *   • `FORBIDDEN_DOMAIN_PATTERNS` emptied → `flags a step that binds a custom domain`. This is what
+ *     `it('is not vacuous', …)` and the per-pattern fixtures exist for.
+ *   • `scanIndex > uploadIndex` → `if (false)` → `flags a scan that runs AFTER the artifact is uploaded`.
+ *   • `scan?.if !== undefined` → `if (false)` → `flags a scan gated behind an if:`.
+ *   • `SCRUB_SCRIPT` widened to `/(?:)/` → `flags an artifact produced without any account-id scan`.
+ *   • the `200`-arm direction check → `if (false)` → `flags the RETIRED private-site probe`.
+ *   • the `content="Docusaurus` term → `if (false)` → `flags a probe that would accept a Vercel error
+ *     page as a healthy site`.
+ *   • `testsForAbsence && !/exit\s+1/` → `if (false)` → `flags a step that notices the missing
+ *     configuration and carries on`.
+ *   • `REQUIRED_CONFIG.test(definition.if …)` → `if (false)` → `flags a job that greys itself out`.
+ *
+ * **Round 2 — break the REAL `docs.yml`, watch the real-tree assertions go red.**
+ *
+ *   • Deleting the `Assert the built site carries no AWS account id` step →
+ *     `build -> nothing scans the built site for an AWS account id`.
+ *   • Adding `if: github.event_name != 'pull_request'` to that step →
+ *     `build::Assert the built site carries no AWS account id -> the account-id scan is skipped on pull
+ *     requests`. ⚠️ THE MUTATION MOST LIKELY TO BE MADE IN GOOD FAITH — every neighbouring step carries
+ *     exactly that `if:`.
+ *   • Moving the scan below the upload → `build -> the account-id scan runs AFTER the artifact is
+ *     uploaded`.
+ *   • Replacing the probe's `content="Docusaurus` arm with `*)` → `deploy -> the probe accepts any 200,
+ *     not only this site`.
+ *   • Adding `failed="${failed} served the content"` to the probe's `200)` arm → `deploy -> the probe
+ *     treats a served page as a FAILURE, which is the retired private-site posture`.
+ *   • Changing the deploy job's `if:` to `vars.DOCS_VERCEL_PROJECT_ID != ''` → `deploy -> skips instead
+ *     of failing when configuration is absent`, AND the structural `if:` assertion at the foot of this
+ *     file — two independent detections of one edit.
+ *   • Adding a `curl -X POST …/v10/projects/$P/domains` step to the deploy job →
+ *     `deploy::Attach the docs domain -> adds a project-domain to the docs project`.
+ *
+ * ⚠️ **A HOLE CARRIED FORWARD FROM THE OLD FILE, because the lesson outlived the posture.** Its
+ * protection predicate originally asked only for `'all'` ANYWHERE in the step body, and an `if false`
+ * mutation walked straight past it — the step's own `::error::` message contained the words "not 'all'".
+ * A guard satisfied by PROSE is satisfied by a step that checks nothing. Every predicate here therefore
+ * matches a SHAPE that cannot appear in an error message: the exact string `content="Docusaurus` (the
+ * step's failure message says "a Docusaurus page", which does NOT match), a `200)` case arm, and a
+ * script path. Do not relax any of them to a bare word.
  */
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -78,6 +130,9 @@ const WORKFLOW_PATH = join(repoRoot, '.github/workflows/docs.yml');
 
 /** The job that performs the outward publish. Named here once so every analyzer agrees. */
 const DEPLOY_JOB = 'deploy';
+
+/** The job that renders the site and produces the artifact everything downstream consumes. */
+const BUILD_JOB = 'build';
 
 interface WorkflowStep {
     readonly name?: string;
@@ -134,7 +189,7 @@ function stepLabel(step: WorkflowStep): string {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Analyzer 1 — nothing here may give the docs project a second, protection-exempt address
+// Analyzer 1 — nothing here may give the docs project a second address
 // ---------------------------------------------------------------------------------------------------------
 
 /**
@@ -145,9 +200,9 @@ function stepLabel(step: WorkflowStep): string {
  *
  *  - a project-domain binding (`…/projects/{id}/domains`, `vercel domains add`)
  *  - a deployment alias (`…/deployments/{id}/aliases`, `vercel alias`)
- *  - a Vercel BRANCH domain — ADR-0001 item 2 measured that `gitBranch` re-enables protection but then
- *    resolves to the wrong deployment, so it is forbidden here for the same reason it is forbidden
- *    there
+ *  - a Vercel BRANCH domain — ADR-0001 item 2 MEASURED that `gitBranch` resolves to the wrong
+ *    deployment, which would let a stale corpus be served from one address while the probe reports the
+ *    fresh one healthy
  *  - DNS that resolves a name to Vercel at all (`cname.vercel-dns.com`, Route 53)
  */
 const FORBIDDEN_DOMAIN_PATTERNS: readonly { readonly id: string; readonly pattern: RegExp }[] = [
@@ -179,7 +234,70 @@ function findDomainAttachments(workflow: Workflow): readonly string[] {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Analyzer 2 — protection is asserted before publishing, and PROVED after
+// Analyzer 2 — the corpus is scanned for an AWS account id before it can be published
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * The gate that replaced deployment protection.
+ *
+ * Matched by SCRIPT PATH rather than by a word like "account": the script is the one authoritative
+ * implementation (it DERIVES the ids from the repository's own ARNs rather than hardcoding one), and a
+ * path cannot be satisfied by an error message that happens to mention accounts.
+ */
+const SCRUB_SCRIPT = /scripts\/assertNoAwsAccountIds\.mjs/;
+
+/** The step that hands the rendered bytes to everything downstream. */
+function uploadStepIndex(steps: readonly WorkflowStep[]): number {
+    return steps.findIndex((step) => /actions\/upload-artifact/.test(step.uses ?? ''));
+}
+
+/**
+ * Failures of the scan-before-publish contract in the job that produces the artifact.
+ *
+ * Three separate ways to reintroduce the leak with every check green, so three separate violations:
+ * not scanning at all, scanning after the bytes have already left the job, and gating the scan behind
+ * an `if:` that skips the pull requests where an author would actually see it.
+ */
+function findAccountIdScanGaps(workflow: Workflow): readonly string[] {
+    const violations: string[] = [];
+
+    for (const [job, definition] of Object.entries(workflow.jobs ?? {})) {
+        const steps = definition.steps ?? [];
+        const uploadIndex = uploadStepIndex(steps);
+
+        if (uploadIndex === -1) {
+            continue;
+        }
+
+        const scanIndex = steps.findIndex((step) => SCRUB_SCRIPT.test(step.run ?? ''));
+
+        if (scanIndex === -1) {
+            violations.push(`${job} -> nothing scans the built site for an AWS account id`);
+
+            continue;
+        }
+
+        // ⛔ ORDER IS THE PROPERTY. A scan after the upload cannot stop the artifact existing, and the
+        // artifact is the only thing the deploy job consumes.
+        if (scanIndex > uploadIndex) {
+            violations.push(`${job} -> the account-id scan runs AFTER the artifact is uploaded`);
+        }
+
+        const scan = steps[scanIndex];
+
+        // ⚠️ The good-faith mutation. Every neighbouring step carries this `if:` because it only makes
+        // sense on a run that can deploy — copying it onto the scan is the natural thing to do, and it
+        // is precisely what removes the gate from the pull request where the document is being written.
+        if (scan?.if !== undefined) {
+            violations.push(`${job}::${stepLabel(scan)} -> the account-id scan is skipped on pull requests`);
+        }
+    }
+
+    return [...violations].sort();
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Analyzer 3 — the published site is proved to SERVE, and to be this site
 // ---------------------------------------------------------------------------------------------------------
 
 /** Index of the step that performs the outward publish, or `-1`. */
@@ -188,16 +306,36 @@ function deployStepIndex(steps: readonly WorkflowStep[]): number {
 }
 
 /**
- * Failures of the two-sided protection contract in the deploying job.
+ * The body of a `case` arm, from its pattern to the `;;` that ends it.
  *
- * BEFORE the publish: something must read the project's `ssoProtection` and refuse anything but the
- * `all` scope — the pre-condition is what prevents an exposure window, because a check that only runs
- * afterwards discovers the leak by causing it.
- *
- * AFTER the publish: something must make an UNAUTHENTICATED request and treat a `200` as a failure —
- * the only evidence that is about behaviour rather than configuration.
+ * Pure. Used to read the DIRECTION of the `200` arm — which term is the one a mutation would flip while
+ * leaving every keyword this analyzer looks for still present in the file.
  */
-function findProtectionGaps(workflow: Workflow): readonly string[] {
+function caseArmBody(run: string, arm: string): string | undefined {
+    const start = run.indexOf(arm);
+
+    if (start === -1) {
+        return undefined;
+    }
+
+    const end = run.indexOf(';;', start);
+
+    return run.slice(start + arm.length, end === -1 ? undefined : end);
+}
+
+/**
+ * Failures of the post-deploy contract in the deploying job.
+ *
+ * The site is PUBLIC, so a served page is the pass. What must hold:
+ *
+ *  - something probes the published address AFTER the publish (a configuration check is not evidence);
+ *  - the `200` arm treats a served page as SUCCESS — the retired private-site probe failed on exactly
+ *    that arm, and re-adding it would take the site dark while reporting green;
+ *  - a status other than `200` ends the run, rather than being logged;
+ *  - a `200` is not enough on its own: the body must carry this site's own generator tag, because
+ *    Vercel's error and login pages are healthy `200`s from a different origin.
+ */
+function findPublicationGaps(workflow: Workflow): readonly string[] {
     const violations: string[] = [];
 
     for (const [job, definition] of Object.entries(workflow.jobs ?? {})) {
@@ -208,32 +346,32 @@ function findProtectionGaps(workflow: Workflow): readonly string[] {
             continue;
         }
 
-        const postureIndex = steps.findIndex(
-            (step, index) =>
-                index < deployIndex &&
-                /ssoProtection/.test(step.run ?? '') &&
-                // ⚠️ The COMPARISON, not the word. The first version of this asked only for `'all'`
-                // anywhere in the body, and a mutation that replaced the real test with `if false`
-                // sailed past it — because the step's own error message says "not 'all'". A guard
-                // satisfied by prose is satisfied by a step that checks nothing.
-                /[!=]=\s*["']all["']/.test(step.run ?? '') &&
-                /exit\s+1/.test(step.run ?? ''),
-        );
-
-        if (postureIndex === -1) {
-            violations.push(`${job} -> nothing asserts ssoProtection is 'all' before the deploy`);
-        }
-
         const probes = steps.filter((step, index) => index > deployIndex && /\bcurl\b/.test(step.run ?? ''));
 
         if (probes.length === 0) {
             violations.push(`${job} -> nothing probes the published site after the deploy`);
+
             continue;
         }
 
-        // `200)` is the case arm; the point is that a served page is a FAILURE, not a success.
-        if (!probes.some((step) => /200\)/.test(step.run ?? '') && /exit\s+1/.test(step.run ?? ''))) {
-            violations.push(`${job} -> the unauthenticated probe does not treat a 200 as a failure`);
+        const bodies = probes.map((step) => step.run ?? '');
+
+        if (!bodies.some((run) => /exit\s+1/.test(run))) {
+            violations.push(`${job} -> the probe never fails, whatever the published site answers`);
+        }
+
+        // The retired posture, structurally: a `200` arm that records a failure.
+        if (bodies.some((run) => /(?:failed=|exit\s+1)/.test(caseArmBody(run, '200)') ?? ''))) {
+            violations.push(
+                `${job} -> the probe treats a served page as a FAILURE, which is the retired private-site posture`,
+            );
+        }
+
+        // ⛔ The EXACT marker string, not the word "Docusaurus" — the step's own failure message says
+        // "a Docusaurus page", so a bare word match would be satisfied by prose while the check that
+        // discriminates this site from a Vercel login page had been deleted.
+        if (!bodies.some((run) => run.includes('content="Docusaurus'))) {
+            violations.push(`${job} -> the probe accepts any 200, not only this site`);
         }
     }
 
@@ -241,7 +379,7 @@ function findProtectionGaps(workflow: Workflow): readonly string[] {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Analyzer 3 — an unconfigured deploy fails LOUDLY; it never skips
+// Analyzer 4 — an unconfigured deploy fails LOUDLY; it never skips
 // ---------------------------------------------------------------------------------------------------------
 
 /** Environment names whose absence must stop the deploy rather than quietly disable it. */
@@ -305,7 +443,7 @@ function stepsFixture(...steps: readonly string[]): Workflow {
     return fixture([...jobHeader, ...steps, ''].join('\n'));
 }
 
-describe('the docs site never acquires a protection-exempt address', () => {
+describe('the docs site never acquires a second address', () => {
     it('is not vacuous: every forbidden mechanism has its own pattern', () => {
         // A pattern list that shrank silently is the way this guard rots into decoration.
         expect(FORBIDDEN_DOMAIN_PATTERNS.map((entry) => entry.id)).toEqual([
@@ -371,13 +509,13 @@ describe('the docs site never acquires a protection-exempt address', () => {
         expect(found).toEqual(['deploy::Reuse the web scripts -> adds a preview-domain-script to the docs project']);
     });
 
-    it('does NOT flag reading the project alias list, which is how the probe finds what to check', () => {
+    it('does NOT flag reading the project alias list, which is how the address check finds what to look at', () => {
         // The discriminating negative control. This step contains "alias" and talks to the Vercel API,
-        // and it is the step that PROVES the site is private — a matcher that flagged it would force
-        // the removal of the guarantee.
+        // and it is the step that ASSERTS the project has one address — a matcher that flagged it would
+        // force the removal of the assertion.
         const found = findDomainAttachments(
             stepsFixture(
-                '            - name: Verify the site is private',
+                '            - name: Assert the docs project has no second address',
                 '              run: |',
                 '                  curl -sS "https://api.vercel.com/v9/projects/$P?teamId=$T" | jq -r \'.alias[]?.domain\'',
             ),
@@ -395,12 +533,84 @@ describe('the docs site never acquires a protection-exempt address', () => {
 // Analyzer 2 — fixtures
 // ---------------------------------------------------------------------------------------------------------
 
-const POSTURE_STEP = [
-    '            - name: Assert private',
-    '              run: |',
-    '                  scope=$(jq -r .ssoProtection.deploymentType <<< "$P")',
-    '                  if [ "$scope" != "all" ]; then echo "::error::open"; exit 1; fi',
+const SCAN_STEP = [
+    '            - name: Assert the built site carries no AWS account id',
+    '              run: node scripts/assertNoAwsAccountIds.mjs packages/tools/docs-site/build',
 ];
+
+const UPLOAD_STEP = [
+    '            - name: Upload the built site',
+    '              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2',
+    '              with:',
+    '                  name: docs-site',
+];
+
+function buildFixture(...steps: readonly string[]): Workflow {
+    return fixture(
+        [
+            'name: fixture',
+            'on: [push]',
+            'jobs:',
+            '    build:',
+            '        runs-on: ubuntu-latest',
+            '        steps:',
+            ...steps,
+            '',
+        ].join('\n'),
+    );
+}
+
+describe('the corpus is scanned for an AWS account id before it can be published', () => {
+    it('flags an artifact produced without any account-id scan', () => {
+        // ⛔ The whole ruling rests on this step existing. The site is public; nothing else stops an
+        // account id reaching the internet.
+        expect(findAccountIdScanGaps(buildFixture(...UPLOAD_STEP))).toEqual([
+            'build -> nothing scans the built site for an AWS account id',
+        ]);
+    });
+
+    it('flags a scan that runs AFTER the artifact is uploaded', () => {
+        // Order is the property: the artifact is the only thing the deploy job consumes, so a scan
+        // after the upload cannot stop the bytes existing.
+        expect(findAccountIdScanGaps(buildFixture(...UPLOAD_STEP, ...SCAN_STEP))).toEqual([
+            'build -> the account-id scan runs AFTER the artifact is uploaded',
+        ]);
+    });
+
+    it('flags a scan gated behind an `if:`, which is the mutation most likely to be made in good faith', () => {
+        // Every neighbouring step carries `if: github.event_name != 'pull_request'` because it only
+        // makes sense on a run that can deploy. Copying it onto the scan removes the gate from exactly
+        // the pull request where the offending document is being written.
+        const found = findAccountIdScanGaps(
+            buildFixture(
+                '            - name: Assert the built site carries no AWS account id',
+                "              if: github.event_name != 'pull_request'",
+                '              run: node scripts/assertNoAwsAccountIds.mjs packages/tools/docs-site/build',
+                ...UPLOAD_STEP,
+            ),
+        );
+
+        expect(found).toEqual([
+            'build::Assert the built site carries no AWS account id -> the account-id scan is skipped on pull requests',
+        ]);
+    });
+
+    it('does NOT flag a scan that gates the upload', () => {
+        expect(findAccountIdScanGaps(buildFixture(...SCAN_STEP, ...UPLOAD_STEP))).toEqual([]);
+    });
+
+    it('the real docs.yml scans the built site before uploading it, on every event', () => {
+        const workflow = realWorkflow();
+
+        // Anti-vacuity: the analyzer only says anything about a job that actually produces an artifact.
+        expect(uploadStepIndex(workflow.jobs?.[BUILD_JOB]?.steps ?? [])).toBeGreaterThan(-1);
+        expect(findAccountIdScanGaps(workflow)).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Analyzer 3 — fixtures
+// ---------------------------------------------------------------------------------------------------------
 
 const DEPLOY_STEP = [
     '            - name: Deploy to Vercel',
@@ -408,64 +618,96 @@ const DEPLOY_STEP = [
 ];
 
 const PROBE_STEP = [
-    '            - name: Verify unauthenticated',
+    '            - name: Verify the published site actually serves',
     '              run: |',
-    '                  code=$(curl -o /dev/null -w "%{http_code}" "$URL")',
+    '                  code=$(curl -o response.html -w "%{http_code}" "$URL")',
+    '                  body=$(cat response.html)',
     '                  case "$code" in',
-    '                    401|403) echo ok ;;',
-    '                    200) echo "::error::served"; exit 1 ;;',
-    '                    *) echo "::error::unknown"; exit 1 ;;',
+    '                    200)',
+    '                      case "$body" in',
+    '                        *\'name="generator" content="Docusaurus\'*) echo ok ;;',
+    '                        *) failed="wrong site" ;;',
+    '                      esac ;;',
+    '                    *) failed="$code" ;;',
     '                  esac',
+    '                  if [ -n "$failed" ]; then echo "::error::not serving"; exit 1; fi',
 ];
 
-describe('the docs deploy is fenced by a protection assertion on both sides', () => {
-    it('flags a deploy with no pre-flight protection assertion', () => {
-        const found = findProtectionGaps(stepsFixture(...DEPLOY_STEP, ...PROBE_STEP));
-
-        expect(found).toEqual(["deploy -> nothing asserts ssoProtection is 'all' before the deploy"]);
-    });
-
-    it('flags a protection assertion that runs AFTER the corpus is already published', () => {
-        // The ordering IS the safety property: a check that only runs afterwards discovers the leak by
-        // causing it.
-        const found = findProtectionGaps(stepsFixture(...DEPLOY_STEP, ...POSTURE_STEP, ...PROBE_STEP));
-
-        expect(found).toEqual(["deploy -> nothing asserts ssoProtection is 'all' before the deploy"]);
-    });
-
+describe('the published docs site is proved to serve, and to be this site', () => {
     it('flags a deploy that is never probed from outside', () => {
-        const found = findProtectionGaps(stepsFixture(...POSTURE_STEP, ...DEPLOY_STEP));
+        const found = findPublicationGaps(stepsFixture(...DEPLOY_STEP));
 
         expect(found).toEqual(['deploy -> nothing probes the published site after the deploy']);
     });
 
-    it('flags a probe that would report success on a page it was actually served', () => {
+    it('flags a probe that reports whatever it got and carries on', () => {
         const weak = [
-            '            - name: Verify unauthenticated',
+            '            - name: Verify',
             '              run: |',
             '                  code=$(curl -o /dev/null -w "%{http_code}" "$URL")',
             '                  echo "got $code"',
         ];
-        const found = findProtectionGaps(stepsFixture(...POSTURE_STEP, ...DEPLOY_STEP, ...weak));
+        const found = findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...weak));
 
-        expect(found).toEqual(['deploy -> the unauthenticated probe does not treat a 200 as a failure']);
+        expect(found).toEqual([
+            'deploy -> the probe accepts any 200, not only this site',
+            'deploy -> the probe never fails, whatever the published site answers',
+        ]);
     });
 
-    it('does NOT flag a correctly fenced deploy', () => {
-        expect(findProtectionGaps(stepsFixture(...POSTURE_STEP, ...DEPLOY_STEP, ...PROBE_STEP))).toEqual([]);
+    it('flags the RETIRED private-site probe, which fails on a served page', () => {
+        // ⛔ THE REGRESSION THIS ANALYZER EXISTS FOR. The owner ruled the site public; a probe that
+        // fails on a `200` would take it dark while every check stayed green, and it is the shape this
+        // very file used to require.
+        const retired = [
+            '            - name: Verify an unauthenticated request cannot read the site',
+            '              run: |',
+            '                  code=$(curl -o /dev/null -w "%{http_code}" "$URL")',
+            '                  case "$code" in',
+            '                    401|403) echo "  refused" ;;',
+            '                    200) failed="served the content" ;;',
+            '                    *) failed="unrecognised" ;;',
+            '                  esac',
+            '                  if [ -n "$failed" ]; then echo "::error::not private"; exit 1; fi',
+        ];
+        const found = findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...retired));
+
+        expect(found).toEqual([
+            'deploy -> the probe accepts any 200, not only this site',
+            'deploy -> the probe treats a served page as a FAILURE, which is the retired private-site posture',
+        ]);
     });
 
-    it('the real docs.yml asserts protection before publishing and proves it afterwards', () => {
+    it('flags a probe that would accept a Vercel error page as a healthy site', () => {
+        const anyTwoHundred = [
+            '            - name: Verify',
+            '              run: |',
+            '                  code=$(curl -o /dev/null -w "%{http_code}" "$URL")',
+            '                  case "$code" in',
+            '                    200) echo ok ;;',
+            '                    *) echo "::error::down"; exit 1 ;;',
+            '                  esac',
+        ];
+        const found = findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...anyTwoHundred));
+
+        expect(found).toEqual(['deploy -> the probe accepts any 200, not only this site']);
+    });
+
+    it('does NOT flag a probe that demands a 200 carrying this site', () => {
+        expect(findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...PROBE_STEP))).toEqual([]);
+    });
+
+    it('the real docs.yml proves the site serves after publishing it', () => {
         const workflow = realWorkflow();
 
         // Anti-vacuity: the analyzer only says anything about a job that actually deploys.
         expect(deployStepIndex(workflow.jobs?.[DEPLOY_JOB]?.steps ?? [])).toBeGreaterThan(-1);
-        expect(findProtectionGaps(workflow)).toEqual([]);
+        expect(findPublicationGaps(workflow)).toEqual([]);
     });
 });
 
 // ---------------------------------------------------------------------------------------------------------
-// Analyzer 3 — fixtures
+// Analyzer 4 — fixtures
 // ---------------------------------------------------------------------------------------------------------
 
 describe('an unconfigured docs deploy fails loudly instead of skipping', () => {
@@ -548,9 +790,9 @@ describe('docs.yml structure', () => {
     });
 
     it("targets its OWN Vercel project, never the web app's", () => {
-        // ⛔ `VERCEL_PROJECT_ID` is the web app, whose project carries the product's custom domains —
-        // and ADR-0001 measured that a registered custom domain is exempt from deployment protection.
-        // Publishing this corpus there would defeat the whole ruling in one variable.
+        // ⛔ `VERCEL_PROJECT_ID` is the web app, whose project carries the product's custom domains and
+        // its own deployment history. A second content source inside it would put the documentation on
+        // the product's addresses.
         const body = readFileSync(WORKFLOW_PATH, 'utf8');
 
         expect(body).toMatch(/vars\.DOCS_VERCEL_PROJECT_ID/);
@@ -571,5 +813,22 @@ describe('docs.yml structure', () => {
 
     it('binds the Vercel token to a named deployment environment', () => {
         expect(realWorkflow().jobs?.[DEPLOY_JOB]?.environment).toBe('Docs');
+    });
+
+    it('says in its own header that the site is PUBLIC', () => {
+        // ⛔ The single most consequential fact about this pipeline, and the one a future reader will
+        // assume the opposite of — every other deploying workflow here fronts something authenticated.
+        // Somebody widening `CONTENT_SOURCES` needs to meet this sentence before they meet the filter.
+        const header = readFileSync(WORKFLOW_PATH, 'utf8').split('\nname: Docs site')[0] ?? '';
+
+        expect(header).toMatch(/THIS SITE IS PUBLIC/);
+        expect(header).toMatch(/contentRegistry\.ts/);
+    });
+
+    it('hardcodes no AWS account id, which is the naive way to write the gate it runs', () => {
+        // ⛔ The gate this workflow invokes DERIVES the ids it searches for. Spelling one out here — in
+        // a file read far more often than the document it was scrubbed out of — would publish the value
+        // in order to assert that it must not be published.
+        expect(readFileSync(WORKFLOW_PATH, 'utf8')).not.toMatch(/\d{12}/);
     });
 });

@@ -7,7 +7,7 @@ from CI (`prod-deploy.yml` fires on `packages/infra/global/**` and `ApplyImmedia
 
 |                   |                                                                                                    |
 | ----------------- | -------------------------------------------------------------------------------------------------- |
-| Account / region  | `040663841500` / `us-east-1`                                                                       |
+| Account / region  | the project's AWS account (`<aws-account-id>`) / `us-east-1`                                       |
 | Sandbox           | `kitchensink-data-sandbox-…-p76w6xmz1xlk` — **already 18.3** on arrival, upgraded 2026-08-22T05:19 |
 | Production        | `kitchensink-data-prod-…-ci1yhovuyivm` — **16.13 → 18.3**, 2026-08-25                              |
 | Rollback snapshot | `kitchensink-data-prod-pre-pg18-202608250618` — `available`, **16.13**, 100 GB                     |

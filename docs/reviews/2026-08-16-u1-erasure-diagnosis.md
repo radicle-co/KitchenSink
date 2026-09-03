@@ -1,8 +1,9 @@
 # U1 — Is the erasure failure provisioning, a stale deploy, or a code defect?
 
 **Date** 2026-08-16 · **Plan** `docs/plans/2026-08-15-001-feat-pr91-foundation-hardening-plan.md` U1 ·
-**Requirements** R3.1, R3.2 · **Method** read-only AWS describes against account `040663841500`,
-us-east-1, profile `default`, plus source reading. No resource was modified by this investigation.
+**Requirements** R3.1, R3.2 · **Method** read-only AWS describes against the project's AWS account
+(`<aws-account-id>`), us-east-1, profile `default`, plus source reading. No resource was modified by this
+investigation.
 
 U1 exists to stop U2 from writing erasure code against a guess. The answer is that **the three symptoms
 have three different causes, and none of them is a code defect in the erasure path.** One is a stale

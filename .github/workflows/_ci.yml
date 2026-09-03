@@ -1072,6 +1072,51 @@ jobs:
             - name: Build the recipe-workers lambda bundle (the synth spec needs it)
               run: npx turbo run build --filter=@kitchensink/recipe-workers
 
+            # ⛔ THE LOCAL PARSE TIER RUNS THE DEPLOYED `handler.py`, SO THIS RUNNER NEEDS THE ENGINE.
+            #
+            # `localParsePath.integration.test.ts` drives the shipped local wiring, and `localCrfEngine.ts`
+            # puts `packages/services/ingredient-parser/src/handler.py` behind the `LambdaClient` seam as a
+            # subprocess. It landed with no install step here, so this job failed on EVERY run of its branch:
+            #
+            #     ModuleNotFoundError: No module named 'ingredient_parser'
+            #
+            # ⛔ The suite's header claimed that was survivable ("the CRF leg answers ABSENCE … and the line
+            # still lands"). It is not, and the claim has been corrected: `handlers/parseLine.ts` treats
+            # everything an ENGINE throws as TRANSIENT and re-throws BEFORE any landing, deliberately —
+            # ADR-0026's 2026-08-31 update puts "a CRF invocation failure" in the transient set so an outage
+            # cannot become a line's permanent answer. An absent engine is therefore no run at all.
+            #
+            # ⛔ NOT `bundle:lambda` / `infra/bin/buildAsset.ts`, even though that script already knows how to
+            # install this engine. It installs `--platform manylinux2014_aarch64 --python-version 3.13
+            # --only-binary=:all:` into a `--target` directory: arm64 / CPython 3.13 wheels for the Lambda,
+            # which this x86-64 runner's interpreter cannot load. Reusing it here would stage an asset, not
+            # make `import ingredient_parser` work. So this uses the SAME two steps the `services` unit group
+            # and the self-contained job already use — the third instance of an established pattern, not a
+            # second way to install the engine.
+            #
+            # ⛔ The pin is DERIVED from `requirements.txt`, never restated: ADR-0025 calls it load-bearing
+            # three times over, and a literal version in YAML is a fourth copy kept in step by memory.
+            #
+            # ⚠️ NOT cached. Measured on this repo's own runs, the identical step costs 8-9s in the two jobs
+            # that already carry it; a cache adds a key, a restore, a save and an eviction failure mode to
+            # save that. `node_modules` is cached because it costs minutes, not seconds.
+            - name: Install the CRF ingredient parser (the local parse tier runs the real handler.py)
+              run: python3 -m pip install --user --requirement packages/services/ingredient-parser/requirements.txt
+
+            # The tier guards on engine availability so a developer without Python is not blocked, which
+            # means a failed install would read here as a SKIPPED tier and a green job. Observing the import
+            # is what makes that impossible. `import ingredient_parser` rather than only the metadata
+            # version, because that is the exact statement `handler.py` makes on line 38 — and it is the
+            # statement that loads `python-crfsuite` and the CRF model, which metadata alone never touches.
+            - name: Assert the CRF engine is importable — the local parse tier must not silently skip
+              run: |
+                  set -uo pipefail
+                  if ! version=$(python3 -c "import ingredient_parser, importlib.metadata as m; print(m.version('ingredient-parser-nlp'))" 2>&1); then
+                      echo "::error::the CRF engine is not importable on this runner (${version}). localParsePath.integration.test.ts guards on availability, so it would SKIP and this job would report green having never crossed the CRF leg at all. Fix the install step above; do not let this job pass without the engine." >&2
+                      exit 1
+                  fi
+                  echo "CRF engine importable: ingredient-parser-nlp ${version}"
+
             - name: Run recipe-workers integration tests
               env:
                   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/recipe_workers_test
@@ -1173,6 +1218,20 @@ jobs:
               #
               # ⛔ `python3 -m pip`, not bare `pip`: this must land in the interpreter that later IMPORTS it.
               run: python3 -m pip install --user --requirement packages/services/ingredient-parser/requirements.txt
+            # ⛔ The install SUCCEEDING is not the engine WORKING, and both tiers below guard on availability
+            # (`describe.skip` for cookbook-import's parse comparison, a probe in the parser's own handler
+            # tier). So a pip install that landed a distribution whose native extension will not load would
+            # read here as two skipped tiers and a green job — a tier CI calls but cannot run is a tier that
+            # does not exist (§7.1). This is the same observation the `services` unit group makes for
+            # `crfEngineVersionParity.test.ts`, for the same reason, and it was missing here.
+            - name: Assert the CRF engine is importable — neither tier below may silently skip
+              run: |
+                  set -uo pipefail
+                  if ! version=$(python3 -c "import ingredient_parser, importlib.metadata as m; print(m.version('ingredient-parser-nlp'))" 2>&1); then
+                      echo "::error::the CRF engine is not importable on this runner (${version}). cookbook-import's parse comparison and the ingredient-parser handler tier both guard on availability, so they would SKIP and this job would report green having proved nothing about the engine." >&2
+                      exit 1
+                  fi
+                  echo "CRF engine importable: ingredient-parser-nlp ${version}"
             - name: Run cookbook-import integration tests
               run: npm run test:integration --workspace=@kitchensink/cookbook-import
             # The CRF engine's own deployable (ADR-0025). Two tiers no unit test can stand in for: the

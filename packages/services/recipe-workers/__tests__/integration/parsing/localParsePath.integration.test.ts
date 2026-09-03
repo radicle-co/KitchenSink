@@ -25,10 +25,24 @@
  *  - **No `DATABASE_URL` / no LocalStack** — the whole file skips. CI provides both
  *    (`integration-recipe-workers`: Postgres with the recipe migrations applied, LocalStack `SERVICES:
  *    s3,sqs`), so the crossing RUNS in CI whether or not a developer has Docker.
- *  - **No `ingredient-parser-nlp` for the local interpreter** — the CRF leg answers ABSENCE, which is
- *    ADR-0026 §3's `single-engine`, and the line still lands. That is not a hole in the test: it is the
- *    behaviour a machine without the Python engine must have, and it is asserted as such. The one
- *    assertion that needs the engine says so and probes for it.
+ *  - **No `ingredient-parser-nlp` for the local interpreter** — the whole file skips, and CI asserts that
+ *    this can never be the CI answer (see below).
+ *
+ * ## ⛔ CORRECTED 2026-09-03: an absent CRF engine is NOT survivable, and this file used to claim it was
+ *
+ * The header said the CRF leg "answers ABSENCE, which is ADR-0026 §3's `single-engine`, and the line still
+ * lands". That is false against the shipped code, and the false claim is why the engine gate sat on ONE `it`
+ * while the shared `beforeAll` needed it: `handlers/parseLine.ts` pushes everything an ENGINE throws into
+ * `transientFailures` and re-throws BEFORE any landing — deliberately, because ADR-0026's 2026-08-31 update
+ * puts "a CRF invocation failure" in the transient set so an outage cannot become a line's PERMANENT answer.
+ * `crfInvoke.ts` says the same from the other side: "an adapter that returns absence instead of throwing is
+ * reported NOWHERE, which is exactly how this shipped."
+ *
+ * So the engine is a PRECONDITION of this whole file, not of one assertion in it, and `canRun` now says so.
+ * The consequence CI must not inherit is a vacuous skip, which `_ci.yml`'s
+ * `integration-recipe-workers` closes by OBSERVING `import ingredient_parser` and failing the job if it does
+ * not answer — the same pairing the `services` unit group uses for `crfEngineVersionParity.test.ts`, and the
+ * one `pythonEngineTierWiring.test.ts` now asserts for every python-dependent tier.
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -52,7 +66,6 @@ import { ENGINE_HANDLER_DIR, pinnedCrfEngineVersion } from '../../../src/local/l
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 /** CI sets `AWS_ENDPOINT_URL` and `S3_ENDPOINT`; `local:up` developers set `SQS_ENDPOINT`. Any of them. */
 const SQS_ENDPOINT = process.env['SQS_ENDPOINT'] ?? process.env['AWS_ENDPOINT_URL'] ?? process.env['S3_ENDPOINT'];
-const canRun = Boolean(DATABASE_URL) && Boolean(SQS_ENDPOINT);
 
 /** The queue this file provisions for itself, as the S3 specs provision their buckets. */
 const QUEUE_NAME = 'local-parse-path-integration';
@@ -62,6 +75,11 @@ const digest = (value: string): string => createHash('sha256').update(value).dig
 
 /**
  * Whether the CRF engine is importable by the local interpreter.
+ *
+ * ⛔ A PRECONDITION of the whole file, not of one assertion — see the header. `python3 -c "import
+ * ingredient_parser"` is the exact statement `handler.py` makes on line 38, so this probe and the subject
+ * fail together or not at all; reading the distribution's metadata instead would answer `true` for an
+ * install whose native extension does not load.
  *
  * @returns `true` when `ingredient_parser` loads. Impure.
  * @sideEffect Spawns a Python process once.
@@ -75,6 +93,15 @@ function crfEngineAvailable(): boolean {
         return false;
     }
 }
+
+/**
+ * Every precondition this crossing needs, in one place.
+ *
+ * CI provides all three (`integration-recipe-workers`: Postgres with the recipe migrations applied,
+ * LocalStack `SERVICES: s3,sqs`, and the pinned CRF engine), and it ASSERTS the engine separately so this
+ * gate can never turn a broken install into a green run of nothing.
+ */
+const canRun = Boolean(DATABASE_URL) && Boolean(SQS_ENDPOINT) && crfEngineAvailable();
 
 describe.skipIf(!canRun)('the LOCAL parse path, end to end (integration)', () => {
     let pool: pg.Pool;
@@ -226,23 +253,22 @@ describe.skipIf(!canRun)('the LOCAL parse path, end to end (integration)', () =>
         ).toContain('llm');
     });
 
-    it.skipIf(!crfEngineAvailable())(
-        '⛔ the CRF leg answered from the DEPLOYED handler, under the pinned engine version',
-        async () => {
-            // Runs the real `packages/services/ingredient-parser/src/handler.py`. Skipped where the engine
-            // is not installed — on such a machine the leg is ABSENCE (ADR-0026 §3), which the previous test
-            // already proves is survivable because the line lands anyway.
-            expect(ENGINE_HANDLER_DIR).toMatch(/ingredient-parser[/\\]src$/u);
+    it('⛔ the CRF leg answered from the DEPLOYED handler, under the pinned engine version', async () => {
+        // Runs the real `packages/services/ingredient-parser/src/handler.py`. ⚠️ The per-`it`
+        // `skipIf(!crfEngineAvailable())` this case carried was REMOVED rather than kept as harmless
+        // belt-and-braces: it said the surrounding cases run without the engine, which is the false
+        // claim the header now corrects, and it is why nobody noticed the shared `beforeAll` needed it
+        // too. The precondition is the describe's.
+        expect(ENGINE_HANDLER_DIR).toMatch(/ingredient-parser[/\\]src$/u);
 
-            const cached = await pool.query(
-                `SELECT engine_version FROM ingredient_parse_cache WHERE line_digest = $1 AND engine = 'crf'`,
-                [lineDigest(LINE, digest)],
-            );
+        const cached = await pool.query(
+            `SELECT engine_version FROM ingredient_parse_cache WHERE line_digest = $1 AND engine = 'crf'`,
+            [lineDigest(LINE, digest)],
+        );
 
-            expect(cached.rows.length, 'the CRF engine is installed but contributed no answer').toBe(1);
-            expect((cached.rows[0] as { engine_version: string }).engine_version).toBe(pinnedCrfEngineVersion());
-        },
-    );
+        expect(cached.rows.length, 'the CRF engine is installed but contributed no answer').toBe(1);
+        expect((cached.rows[0] as { engine_version: string }).engine_version).toBe(pinnedCrfEngineVersion());
+    });
 
     it('⛔ a stale digest is a TERMINAL discard: nothing lands, and the message is still acknowledged', async () => {
         // R17 across the WIRE this time, not through a direct call: the consumer must delete a message whose

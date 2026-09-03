@@ -1120,7 +1120,15 @@ describe('every deployable service', () => {
 
     it('yielded EMF emitters in more than one service (non-vacuity)', () => {
         expect(emitting.length).toBeGreaterThanOrEqual(3);
-        expect(emitting.flatMap((service) => serviceEmitters(service)).length).toBeGreaterThanOrEqual(4);
+        // ⚠️ A FLOOR, not a census — it exists so an extraction that silently found nothing cannot pass, and
+        // it must not be read as "the tree has N emitters". It was 4 until 2026-09-02, when recipe-service's
+        // two EMF envelopes (`account/erasureMetrics.ts`, `ingredients/resolution/mappingPromotionAudit.ts`)
+        // were consolidated into `common/emfMetricLine.ts` — the AWS spec is one piece of knowledge, and the
+        // sibling services already own one copy each. Consolidation is the direction this repo WANTS, so a
+        // floor that fell one below it is lowered rather than the consolidation being undone; the rule this
+        // file enforces (`identifierDimensionViolations`) is untouched, and every consolidated emitter is
+        // still discovered, since the gate anchors on the `_aws` directive wherever it is written.
+        expect(emitting.flatMap((service) => serviceEmitters(service)).length).toBeGreaterThanOrEqual(3);
     });
 
     it('exercised BOTH extraction paths, so neither can have silently stopped working', () => {

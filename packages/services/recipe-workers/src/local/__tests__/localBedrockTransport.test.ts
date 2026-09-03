@@ -48,12 +48,29 @@ describe('the local Bedrock substitute', () => {
     it('⛔ reaches no network at all — it imports no AWS SDK value', () => {
         // A structural claim a behavioural test cannot make: the fake must be incapable of calling AWS, not
         // merely observed not to. A value import of the SDK would be the one way that changes.
-        const source = readFileSync(path.join(MODULE_DIR, '..', 'localBedrockTransport.ts'), 'utf8');
-        const awsImports = [...source.matchAll(/^import\s+(type\s+)?[^;]*?from\s+'(@aws-sdk\/[^']+)'/gmu)];
+        const awsImport = /^import\s+(type\s+)?[^;]*?from\s+'(@aws-sdk\/[^']+)'/gmu;
 
-        expect(awsImports.length, 'the fake should import AWS types only, if anything').toBeGreaterThan(0);
+        // ⚠️ VACUITY GUARD, proved against a SAMPLE rather than against the module. This previously
+        // asserted the module itself carried at least one AWS import ("types only, if anything"), which
+        // made importing NONE AT ALL — the strongest possible outcome — a failure. It fired on 2026-09-02
+        // when the vendor type was replaced by `Parameters<ConverseTransport>[0]`, deriving from the port
+        // this module implements instead of reaching past it to the SDK. The regex still has to be shown
+        // capable of seeing both shapes, or the real assertion below could pass by matching nothing.
+        const sample = ["import type { A } from '@aws-sdk/client-x';", "import { B } from '@aws-sdk/client-y';"].join(
+            '\n',
+        );
+        const sampled = [...sample.matchAll(awsImport)];
+
+        expect(sampled.map((match) => match[2])).toEqual(['@aws-sdk/client-x', '@aws-sdk/client-y']);
+        expect(sampled.filter((match) => match[1] === undefined).map((match) => match[2])).toEqual([
+            '@aws-sdk/client-y',
+        ]);
+
+        // The real claim: whatever this module imports, none of it is an AWS SDK VALUE.
+        const source = readFileSync(path.join(MODULE_DIR, '..', 'localBedrockTransport.ts'), 'utf8');
+
         expect(
-            awsImports.filter((match) => match[1] === undefined).map((match) => match[2]),
+            [...source.matchAll(awsImport)].filter((match) => match[1] === undefined).map((match) => match[2]),
             'a VALUE import of an AWS SDK client would give the offline fake a way to reach AWS',
         ).toEqual([]);
     });

@@ -104,7 +104,16 @@ export function AuthoredFoodCreateForm({ state, copy, actions }: AuthoredFoodCre
 
         return (
             <View key={name} style={styles.field}>
-                <Text style={styles.fieldLabel}>{label}</Text>
+                {/*
+                 * VISUAL ONLY — the input below already carries `label` as its accessible NAME, so exposing
+                 * this node too announces it twice and puts a SECOND element with that exact text on screen.
+                 * `ParsePasteForm.native.tsx` carries the same note: the duplicate is what makes a
+                 * label-targeted tap ambiguous, and the label resolving to an inert `Text` is why the U9
+                 * flow's field tap found nothing to focus.
+                 */}
+                <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.fieldLabel}>
+                    {label}
+                </Text>
                 <TextInput
                     accessibilityLabel={label}
                     value={state.draft[name]}

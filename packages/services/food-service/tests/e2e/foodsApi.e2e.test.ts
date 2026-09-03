@@ -65,6 +65,9 @@ const adminToken = mintToken(keypair.privateKeyPem, {
     scopes: ['food:admin'],
 });
 const m2mToken = mintToken(keypair.privateKeyPem, { sub: 'svc_e2e', azp: M2M_AZP });
+// A genuinely-signed USER token that carries NO `external_id` — the first-token sync race, before identity
+// has backfilled the app-user ULID to Clerk. Verifies fine; resolves to no requester key (CR-002/U1).
+const unsyncedUserToken = mintToken(keypair.privateKeyPem, { sub: 'user_unsynced_e2e', azp: APP_AZP });
 const expiredToken = mintToken(keypair.privateKeyPem, {
     sub: 'user_e2e',
     externalId: USER_ULID,
@@ -262,6 +265,43 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
 
             const requesters = await pool.query('SELECT requester_id FROM fetch_requesters');
             expect(requesters.rows.map((row) => row.requester_id)).toEqual(['svc_e2e']);
+        });
+
+        /**
+         * CR-002/U1 + U11 (`42d82783`): a verified user token with NO `external_id` defers with
+         * `401 { code: IDENTITY_SYNC_PENDING }` — on READS as well as writes, because `search`/`getFood`
+         * scope the caller's own authored (private) foods by that key, so serving them unscoped would return a
+         * DIFFERENT result set rather than the caller's.
+         *
+         * ⚠️ This is the ONLY end-to-end witness of that behaviour. It exists because the change that
+         * introduced it went unasserted: the sole suite that happened to exercise it (`authDos.e2e.test.ts`)
+         * did so ACCIDENTALLY, with the one token in `tests/e2e` minted without an `external_id`, and read the
+         * result as a bare `401` it could not tell from a signature failure. Giving that suite a synced token
+         * — the correct repair for the shedder it actually tests — would have retired the coverage entirely.
+         *
+         * The distinction from a plain `UNAUTHORIZED` is the assertion that matters: the two are both `401`
+         * and mean opposite things to a client (refresh the token and retry vs. sign in again).
+         */
+        it('defers a verified user token with no external_id → 401 IDENTITY_SYNC_PENDING, on reads and writes', async () => {
+            const read = await call('GET', '/api/v1/foods/search?query=x', { token: unsyncedUserToken });
+            expect(read.status).toBe(401);
+            expect(read.body).toMatchObject({ code: 'IDENTITY_SYNC_PENDING' });
+
+            const write = await call('POST', '/api/v1/foods', {
+                token: unsyncedUserToken,
+                body: { name: 'unsynced broccoli' },
+            });
+            expect(write.status).toBe(401);
+            expect(write.body).toMatchObject({ code: 'IDENTITY_SYNC_PENDING' });
+
+            // It is NOT the guard's rejection: a bad token is the same status with a different code.
+            const rejected = await call('GET', '/api/v1/foods/search?query=x', { token: 'not-a-jwt' });
+            expect(rejected.status).toBe(401);
+            expect(rejected.body).toMatchObject({ code: 'UNAUTHORIZED' });
+
+            // Fails closed: the deferred write enqueued nothing (SC-010).
+            expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(0);
+            expect((await pool.query('SELECT count(*)::int AS n FROM fetch_queue')).rows[0].n).toBe(0);
         });
 
         it('rejects /refetch without the food:admin scope → 403, allows it with the scope → 202', async () => {

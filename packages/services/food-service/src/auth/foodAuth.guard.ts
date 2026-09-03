@@ -150,8 +150,14 @@ export class FoodAuthGuard implements NestMiddleware {
 
         // Identity from the verified token ONLY — a forged x-debug-sub / x-authorizer-context is ignored.
         // `userId` (the app-user ULID from `external_id`) is THE user requester key (CR-002/U1/R5); it is
-        // surfaced here but NOT enforced-present in the guard — reads work without it, and only the enqueue
-        // paths defer on its absence (see FoodsController.requireRequesterId). A `svc_*` principal has none.
+        // surfaced here but NOT enforced-present in the guard. Absence is a route-level decision, taken in
+        // `FoodsController.requireRequesterId` (→ `401 IDENTITY_SYNC_PENDING`), not here — a `svc_*` principal
+        // has no `external_id` at all and must still be admitted.
+        //
+        // ⚠️ It is NOT true that "reads work without it": U11 (`42d82783`) made `GET /foods/search` — and
+        // `getFood` — resolve a requester key too, because a caller's own authored (private) foods are scoped
+        // by it, so a read without the key would silently return a DIFFERENT result set rather than the
+        // caller's. Every `/api/v1/foods/*` route that can surface authored rows defers on its absence.
         req.user = {
             sub: claims.sub,
             userId: claims.userId,

@@ -171,3 +171,79 @@ The only thing that changes is how _often_ that path is exercised. The `pr-{N}` 
    host rule and food's auth; it does not prove the ECS task's own egress path (public subnet → IGW → ALB).
    Closing that would need an unauthenticated recipe endpoint that reports its dependency's state, which does
    not exist today.
+
+## Update (2026-09-02) — the gate closes the deploy GRAPH, and prod gets it first
+
+This ADR's four conditions all ask one question: **should THIS leg run?** They cannot ask the other question a
+per-leg gate owes — **is the leg this one DEPENDS ON running too** — and that gap was live in production.
+
+### The failure
+
+`prod-deploy.yml` gated every leg independently on a `dorny/paths-filter` group, so a change touching only
+`packages/services/identity-webhooks/**` set `deploy_webhooks=true` and `deploy_global=false`. ADR-0028 had
+moved the identity ECS log group into `ServiceLogsStack` — a child of the **global** app — recording that it
+"already deploys before both consumers, so no deploy order changed". That is true of the **order** and false of
+the **gate**: the earlier leg does not run at all.
+
+Measured against the live account on 2026-09-02: **`kitchensink-service-logs-prod` does not exist.** ADR-0028
+added it on 2026-08-30 and prod has had no platform deploy since, so the next webhooks-only merge would have
+died inside `cdk deploy` on `No export named kitchensink-service-logs-prod:IdentityServiceLogGroupName found`.
+`IdentityServiceStack` resolves the same export, so an identity-only merge had the identical hole — a second
+consumer the report never named, and which only a derivation found.
+
+`DependsOn` cannot leave a stack and nothing orders two `cdk deploy` invocations (ADR-0022 §5), so a
+`Fn.importValue` crossing a CDK **app** boundary is the one edge only the pipeline can honour.
+
+### Decision — a fifth condition, DERIVED
+
+> A producer leg also deploys when a leg that IS deploying imports an export the account does not publish.
+
+Three parts, each with one owner:
+
+1. **The edges are read from the CDK source.** `scripts/infrastructureManifest.mjs` (schema 2) collects every
+   `Fn.importValue` by AST, joins each to the app declaring the producing stack, and projects the cross-app
+   ones to `docs/generated/infrastructure/cross-app-imports.tsv` under the manifest's existing
+   regenerate-and-diff staleness gate. ⛔ **Never a hand-maintained table.** A copy of a list cannot detect
+   that the list grew — the ALB priority collision, the stale NAT consumer list and ADR-0025's asset guard all
+   cost this repository the same lesson. A `Fn.importValue` written tomorrow is covered tomorrow.
+2. **Which edges are unmet is I/O.** `deploy-gate.sh unmet-imports` resolves each export through
+   `.github/scripts/cfn-export.sh` — never an open-coded `list-exports --query`, which is wrong per page
+   (ADR-0005).
+3. **Forcing a leg is a pure decision.** `deploy-gate.sh close` takes the unmet edges and the current flags
+   and returns the closed flags, in the same pure/impure split `decide`/`evaluate` already use.
+
+### Three things that look arbitrary and are not
+
+- **The rule is NARROW: only a DEPLOYING consumer forces its producer.** "Force the producer whenever any
+  consumer leg runs" makes every prod deploy a full platform rollout — RDS, VPC and edge — for a webhooks
+  typo. "Force it whenever anything is missing" does the same from an unrelated leg. This fires only where the
+  deploy would otherwise FAIL, so it stops firing the moment the platform is whole.
+- **An unknown CONSUMER is ignored; an unknown PRODUCER is refused.** `@commise/web`'s router imports from the
+  platform and is shipped by Vercel, so erroring on it would red every prod deploy. A missing PRODUCER means a
+  leg IS deploying and what it depends on is not something this workflow can force — a hole no gate can close,
+  which somebody has to decide about. `crossAppImportClosure.test.ts` turns that into a commit-time failure.
+- **`unmet-imports` calls `sts get-caller-identity` first.** `cfn-export.sh --optional` cannot tell "the export
+  is absent" from "the CLI failed" — it answers empty for both. Without the precondition a credentials glitch
+  would mark every cross-app export missing and force a full platform rollout to production as a side effect:
+  the exact blast radius the narrow rule exists to avoid, arriving through the back door.
+
+`Configure AWS credentials` moved above `Compute deploy flags` so the probe can run before the flags every
+later `if:` reads. `sandbox-identity-deploy.yml` already had that order for the same reason.
+
+### Residual risks
+
+5. **Only `prod-deploy.yml` is closed.** `sandbox-identity-deploy.yml` still probes a **hand-written** two-stack
+   list (`kitchensink-network-sandbox`, `kitchensink-alb-sandbox`) to decide `global_missing` — and it is
+   already stale by exactly this defect: `kitchensink-service-logs-sandbox` is imported by two of its own legs
+   and is not probed. Replacing that list with this closure is the obvious follow-up.
+6. **`sandbox-deploy.yml` cannot be closed from inside itself.** Its per-PR food and recipe stacks import from
+   the `sandbox` platform, which a DIFFERENT workflow deploys, so no flag it owns can force the producer. That
+   is a cross-workflow ordering problem this mechanism does not address.
+7. **The probe costs one paginated `list-exports` per distinct export** (~30 on prod, a few seconds each). It
+   runs on every prod deploy. Reading the full export list once would be cheaper and would stand up a second
+   export-resolution mechanism beside `cfn-export.sh`; DRY won.
+8. **A placeholder that is neither `{stage}` nor `{baseStage}` is read as the deploy stage.** The manifest's
+   placeholder is the CDK author's local variable name (`WebhooksStack` alone uses `deployStage` and
+   `identityStage`), which a hermetic AST read cannot classify further. That reading is exact whenever the two
+   stages coincide — every prod deploy — and `deploy_gate_resolve_export` REFUSES rather than guessing when
+   they differ.

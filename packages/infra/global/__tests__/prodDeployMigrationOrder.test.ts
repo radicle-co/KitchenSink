@@ -210,7 +210,7 @@ function commandPosition(
     requiredText?: readonly string[],
 ): CommandPosition | undefined {
     for (const step of steps) {
-        const run = step.run ?? '';
+        const run = shellCode(step.run ?? '');
 
         if (requiredText !== undefined && !requiredText.some((text) => run.includes(text))) {
             continue;
@@ -224,6 +224,32 @@ function commandPosition(
     }
 
     return undefined;
+}
+
+/**
+ * A step's script with its full-line `#` comments blanked out — the EXECUTABLE half of it.
+ *
+ * ⛔ Every question this file asks is about where a command RUNS, and a comment does not run. Reading prose
+ * was wrong in both directions. It produced a false positive the moment a step explained the ordering it
+ * participates in: `Compute deploy flags` mentions the `cdk deploy … --app` steps below it while naming three
+ * service entrypoints, and was read as deploying all three at step 4 — ahead of every bundle. Worse, it left
+ * a false NEGATIVE standing: a commented-out deploy naming a service path satisfied 'resolves every migration
+ * step to a cdk deploy step that actually exists', so deleting a real deploy while leaving its comment behind
+ * would have passed.
+ *
+ * Comment lines are BLANKED rather than removed so every offset this file compares stays exactly where it
+ * was — the ordering assertions are positional. Only a line whose first non-whitespace character is `#`
+ * counts, so a `#` inside an expansion such as `"${#items[@]}"` is untouched; same rule as
+ * `sandboxReclamationReachability.test.ts`'s `shellLines`, which exists for the same reason.
+ *
+ * @param run - A step's `run:` body.
+ * @returns The body with comment lines blanked, same length. Pure.
+ */
+function shellCode(run: string): string {
+    return run
+        .split('\n')
+        .map((line) => (/^\s*#/u.test(line) ? ' '.repeat(line.length) : line))
+        .join('\n');
 }
 
 /**
@@ -759,7 +785,9 @@ function commandPositions(
     requiredText: readonly string[],
 ): readonly CommandPosition[] {
     return steps.flatMap((step) => {
-        const run = step.run ?? '';
+        // Code, not prose — see `shellCode` above. Its singular sibling reads the same way, and a divergence
+        // here would make one assertion see a deploy the other does not.
+        const run = shellCode(step.run ?? '');
 
         if (!requiredText.some((text) => run.includes(text))) {
             return [];
@@ -903,5 +931,48 @@ describe('a stack that shares a service database is ordered behind that schema, 
         expect(missing, 'these services own a migration runner but no longer order it against their own stack').toEqual(
             [],
         );
+    });
+});
+
+/**
+ * Every position in this file is "where a command RUNS", and a comment does not run. Reading prose was wrong
+ * in BOTH directions, so both are pinned here rather than only the one that happened to bite.
+ */
+describe('the position readers read code, not prose', () => {
+    const step = (index: number, run: string): IndexedStep => ({ index, run });
+
+    it('does not read a step that MENTIONS a deploy as one that performs it', () => {
+        // The false positive. `Compute deploy flags` explains the `cdk deploy … --app` steps below it while
+        // naming three service entrypoints, and was read as deploying all three at step 4 — ahead of every
+        // Lambda bundle, which made three genuine orderings look violated.
+        const mentioned = [
+            step(0, '# the cdk deploy of packages/services/identity/infra happens later\necho hello'),
+            step(1, 'npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all'),
+        ];
+
+        expect(commandPosition(mentioned, /cdk deploy/u, ['packages/services/identity/infra'])?.step).toBe(1);
+    });
+
+    it('does not accept a COMMENTED-OUT deploy as proof that one exists', () => {
+        // The false negative, which stood unnoticed and is the more dangerous half: deleting a real deploy
+        // while leaving its comment behind would have satisfied 'resolves every migration step to a cdk
+        // deploy step that actually exists'.
+        const commentedOut = [step(0, '# npx cdk deploy --app "node packages/services/food-service/infra/x.js"')];
+
+        expect(commandPosition(commentedOut, /cdk deploy/u, ['packages/services/food-service/infra'])).toBeUndefined();
+    });
+
+    it('preserves offsets, because the ordering assertions are positional', () => {
+        // Blanking rather than deleting: a comment line that shortened the body would shift every offset
+        // after it and silently reorder two commands inside one step.
+        const body = '# a comment\nnpx cdk deploy --app "packages/services/identity/infra/bin/app.ts"';
+
+        expect(commandPosition([step(0, body)], /cdk deploy/u)?.offset).toBe(body.indexOf('cdk deploy'));
+    });
+
+    it('leaves a `#` that is not a comment alone', () => {
+        // `"${#items[@]}"` is an expansion, not a comment. Only a line whose first non-whitespace character
+        // is `#` is blanked.
+        expect(shellCode('echo "${#items[@]}"')).toBe('echo "${#items[@]}"');
     });
 });

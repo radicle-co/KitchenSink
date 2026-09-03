@@ -1,0 +1,69 @@
+# GENERATED FILE — DO NOT EDIT. Run `npm run infra:manifest`.
+#
+# Every CDK-app boundary a `Fn.importValue` crosses. The CONSUMER cannot deploy until the PRODUCER
+# has: `DependsOn` does not leave a stack and nothing orders two `cdk deploy` invocations
+# (ADR-0022 §5). `.github/scripts/deploy-gate.sh close` reads this to force a producer leg whose
+# exports a deploying consumer needs.
+#
+# consumer entrypoint	producer entrypoint	export name ({stage}/{baseStage} substituted by the caller)
+packages/apps/commise/web/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{stage}:CertificateArn
+packages/apps/commise/web/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{stage}:HostedZoneId
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbArn
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbDnsName
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:DatabaseEndpoint
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:DatabasePort
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:DatabaseResourceId
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:FoodDatabaseName
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{baseStage}:HostedZoneId
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:AlbSecurityGroupId
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:DatabaseSecurityGroupId
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:ServiceSecurityGroupId
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{identityStage}:HandleSyncTopicArn
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:ArchiveBucketName
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DatabaseEndpoint
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DatabasePort
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DatabaseSecretArn
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DeletionQueueArn
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:MediaBucketName
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:MigrationPlanSecretArn
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:SecretArn
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{stage}:HostedZoneId
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:DatabaseSecurityGroupId
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:LambdaSecurityGroupId
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-service-logs-{deployStage}:IdentityServiceLogGroupName
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{stage}:SharedAlbArn
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{stage}:SharedAlbCanonicalHostedZoneId
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{stage}:SharedAlbDnsName
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{stage}:SharedAlbHttpsListenerArn
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:ArchiveBucketName
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DatabaseEndpoint
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DatabaseName
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DatabasePort
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DatabaseSecretArn
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DeletionQueueArn
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:HandleSyncTopicArn
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:MediaBucketName
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:MigrationPlanSecretArn
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:SecretArn
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{stage}:HostedZoneId
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:AlbSecurityGroupId
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:DatabaseSecurityGroupId
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:LambdaSecurityGroupId
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:ServiceSecurityGroupId
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-service-logs-{stage}:IdentityServiceLogGroupName
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbArn
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbDnsName
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:ArchiveBucketName
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:DatabaseEndpoint
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:DatabasePort
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:DatabaseResourceId
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:MediaBucketName
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{baseStage}:RecipeDatabaseName
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{baseStage}:HostedZoneId
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:AlbSecurityGroupId
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:DatabaseSecurityGroupId
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:ServiceSecurityGroupId

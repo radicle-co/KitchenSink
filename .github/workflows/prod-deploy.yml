@@ -125,6 +125,44 @@ jobs:
                         - 'packages/services/ingredient-parser/**'
                         - 'packages/shared/recipe-core/**'
 
+            # ⚠️ MOVED UP (2026-09-02), from below the build steps. The deploy-graph closure in `Compute
+            # deploy flags` resolves CloudFormation exports, so the credentials have to be in scope BEFORE the
+            # flags are computed — every `if:` in this file reads those flags, and a probe that ran after them
+            # could not change one. `sandbox-identity-deploy.yml` already had this order for the same reason
+            # (its `global_missing` probe calls `describe-stacks` from the flags step). Nothing between here
+            # and its old position needs AWS, so the move is free; `prodDeployBuildOrder.test.ts` and
+            # `prodDeployMigrationOrder.test.ts` pin the orderings that DO matter, and neither involves it.
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+
+            # ⛔ THE HALF A PATH DIFF CANNOT SEE. `dorny/paths-filter` answers "did this leg's sources change";
+            # it cannot answer "is the leg this one DEPENDS ON going to run". Those are different questions and
+            # only the first was ever asked here.
+            #
+            # ADR-0028 moved the identity log group into `ServiceLogsStack`, a child of the GLOBAL app, and
+            # recorded that it "already deploys before both consumers, so no deploy order changed" — true of
+            # the ORDER, false of the GATE. Both `WebhooksStack` and `IdentityServiceStack` `Fn.importValue`
+            # that stack's export, and a change touching only one of their packages left `deploy_global=false`.
+            # Measured against the account on 2026-09-02: `kitchensink-service-logs-prod` DOES NOT EXIST, so
+            # the next such merge would have died inside `cdk deploy` on `No export named … found`.
+            #
+            # ⛔ The edges are DERIVED, never listed. `scripts/infrastructureManifest.mjs` reads every
+            # `Fn.importValue` out of the CDK source by AST and projects the cross-APP ones to
+            # `docs/generated/infrastructure/cross-app-imports.tsv` under a regenerate-and-diff staleness gate,
+            # so a new one is covered the day it is written. `crossAppImportClosure.test.ts` asserts that every
+            # app in that file which this workflow deploys is wired into the closure below.
+            #
+            # This step only REPORTS which exports are absent; forcing a leg is the pure decision in
+            # `deploy-gate.sh close`, invoked from the flags step.
+            - name: Probe the cross-app exports this deploy's stacks import
+              id: imports
+              run: |
+                  bash .github/scripts/deploy-gate.sh unmet-imports "${DEFAULT_AWS_REGION}" "${STAGE}" "${STAGE}"
+
             - name: Compute deploy flags
               id: flags
               # Every `${{ … }}` arrives through `env:` and is read as a quoted shell variable, never
@@ -137,6 +175,7 @@ jobs:
                   CHANGED_WEBHOOKS: ${{ steps.changes.outputs.webhooks }}
                   CHANGED_FOOD: ${{ steps.changes.outputs.food }}
                   CHANGED_RECIPE: ${{ steps.changes.outputs.recipe }}
+                  UNMET_IMPORTS: ${{ steps.imports.outputs.unmet_imports }}
               run: |
                   deploy_global=false
                   deploy_service=false
@@ -161,17 +200,32 @@ jobs:
                   if [ "$CHANGED_WEBHOOKS" = "true" ]; then deploy_webhooks=true; fi
                   if [ "$CHANGED_FOOD" = "true" ]; then deploy_food=true; fi
                   if [ "$CHANGED_RECIPE" = "true" ]; then deploy_recipe=true; fi
+                  # ⛔ CLOSE THE DEPLOY GRAPH — a leg must never deploy without the producer of the exports its
+                  # stacks `Fn.importValue`. `close` is a PURE function of the flags above and the unmet edges
+                  # the probe step published; the edge list itself is DERIVED from the CDK source (see that
+                  # step's comment). Each app this workflow deploys is named ONCE here, and
+                  # `crossAppImportClosure.test.ts` derives the same set from the `cdk deploy --app` steps
+                  # below and from the generated edge file, so this list cannot silently fall behind either.
+                  # `deploy_recipe` appears three times because it gates three CDK apps.
+                  closed=$(bash .github/scripts/deploy-gate.sh close "$UNMET_IMPORTS" \
+                    "deploy_global=$deploy_global@packages/infra/global/bin/app.ts" \
+                    "deploy_service=$deploy_service@packages/services/identity/infra/bin/app.ts" \
+                    "deploy_webhooks=$deploy_webhooks@packages/services/identity-webhooks/infra/bin/app.ts" \
+                    "deploy_food=$deploy_food@packages/services/food-service/infra/bin/app.ts" \
+                    "deploy_recipe=$deploy_recipe@packages/services/recipe-service/infra/bin/app.ts" \
+                    "deploy_recipe=$deploy_recipe@packages/services/recipe-workers/infra/bin/app.ts" \
+                    "deploy_recipe=$deploy_recipe@packages/services/ingredient-parser/infra/bin/app.ts")
+                  # ⚠️ Derived from the CLOSED flags, never the raw ones: a leg the closure forced still owes
+                  # its schema, and reading the pre-closure value would skip the ADR-0022 §4 safety net for
+                  # exactly the deploy that was added late.
                   run_migrations=false
-                  if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
+                  if printf '%s\n' "$closed" | grep -qxE 'deploy_(service|webhooks)=true'; then run_migrations=true; fi
                   {
-                    echo "deploy_global=$deploy_global"
-                    echo "deploy_service=$deploy_service"
-                    echo "deploy_webhooks=$deploy_webhooks"
+                    printf '%s\n' "$closed"
                     echo "run_migrations=$run_migrations"
-                    echo "deploy_food=$deploy_food"
-                    echo "deploy_recipe=$deploy_recipe"
                   } >> "$GITHUB_OUTPUT"
-                  echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations food=$deploy_food recipe=$deploy_recipe"
+                  printf '%s\n' "$closed"
+                  echo "migrations=$run_migrations"
 
             - name: Setup Node.js
               uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -260,13 +314,6 @@ jobs:
             - name: Stage the CRF Lambda asset (pip, arm64 / CPython 3.13)
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: npm run bundle:lambda --workspace=packages/services/ingredient-parser
-
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-              with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
 
             - name: Resolve AWS Account ID
               id: account

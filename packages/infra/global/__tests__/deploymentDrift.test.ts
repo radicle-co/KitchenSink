@@ -193,7 +193,7 @@ describe('diffHandlers', () => {
 });
 
 const MANIFEST = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     claim: 'declares, not deploys',
     generator: 'scripts/infrastructureManifest.mjs',
     apps: [
@@ -224,12 +224,19 @@ const MANIFEST = {
                             notes: [],
                         },
                     ],
+                    importedExports: [],
                     unclassifiedConstructs: [],
                     unfollowedConstructs: [],
                 },
             ],
+            importedExports: [],
         },
     ],
+    // Schema 2's deploy graph. Empty here on purpose: `recipe-workers` genuinely imports nothing across an
+    // app boundary (it takes its platform inputs as env, not `Fn.importValue`), and this fixture is about
+    // handler drift rather than deploy ordering.
+    crossAppImports: [],
+    unresolvedImports: [],
 };
 
 describe('toSourceEntrypoint', () => {

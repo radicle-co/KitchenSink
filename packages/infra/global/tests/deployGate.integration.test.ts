@@ -258,3 +258,248 @@ describe('deploy-gate.sh evaluate — the gate is wired to the real CloudFormati
         expect(result.output).toBe('');
     });
 });
+
+/**
+ * ## `unmet-imports` — the IMPURE half of the deploy-graph closure
+ *
+ * `deployGate.test.ts` covers `close`, which is a pure function of the unmet edges. This covers everything
+ * that decides WHICH edges are unmet: reading the derived edge file, substituting the stage, and resolving
+ * each export against CloudFormation.
+ *
+ * ⛔ The export lookup goes through `.github/scripts/cfn-export.sh` and nowhere else. `list-exports` pages at
+ * 100 items and the CLI applies `--query` to EACH PAGE, so the obvious one-liner emits the value AND a
+ * literal `None` — it was wrong in ten places, and ADR-0005 records it as a defect on sight. The stub below
+ * therefore answers the way the REAL CLI does, two lines per lookup, so a regression to the naive idiom would
+ * make the gate read a present export as `"VALUE\nNone"` and fail here rather than in production.
+ */
+const CFN_STUB = `#!/usr/bin/env bash
+if [ "\${1}" = 'sts' ]; then
+  if [ "\${AWS_STUB_STS}" = 'FAIL' ]; then
+    echo 'Unable to locate credentials' >&2
+    exit 255
+  fi
+  echo '000000000000'
+  exit 0
+fi
+# Extract the export name out of the JMESPath query, exactly as cfn-export.sh builds it.
+query=''
+for arg in "\${@}"; do
+  case "\${arg}" in *"Exports[?Name=="*) query="\${arg}" ;; esac
+done
+name="\${query#*Name==\\'}"
+name="\${name%%\\'*}"
+# Two lines, like the real paginated CLI: the matching page's answer, then a non-matching page's None.
+case " \${AWS_STUB_PRESENT_EXPORTS} " in
+  *" \${name} "*) echo "value-of-\${name}" ;;
+  *) echo 'None' ;;
+esac
+echo 'None'
+`;
+
+interface UnmetResult {
+    readonly status: number;
+    readonly stdout: string;
+    readonly stderr: string;
+    readonly output: string;
+}
+
+/**
+ * Run the real `unmet-imports` subcommand against a stub CloudFormation and a temporary edge file.
+ *
+ * @param options - The edge-file body, which exports the account publishes, and the two stages.
+ * @returns Exit status, both streams, and `$GITHUB_OUTPUT`.
+ * @sideEffect Spawns `bash`, writes to a temp directory.
+ */
+const unmetImports = (options: {
+    readonly edges: string;
+    readonly present?: readonly string[];
+    readonly stage?: string;
+    readonly baseStage?: string;
+    readonly sts?: string;
+    readonly edgeFile?: string;
+}): UnmetResult => {
+    const token = Math.random().toString(36).slice(2);
+    const stubDir = join(workdir, `cfn-${token}`);
+
+    mkdirSync(stubDir, { recursive: true });
+    writeFileSync(join(stubDir, 'aws'), CFN_STUB);
+    chmodSync(join(stubDir, 'aws'), 0o755);
+
+    const edgeFile = options.edgeFile ?? join(workdir, `edges-${token}.tsv`);
+
+    if (options.edgeFile === undefined) {
+        writeFileSync(edgeFile, options.edges);
+    }
+
+    const outputFile = join(workdir, `imports-output-${token}.txt`);
+
+    writeFileSync(outputFile, '');
+
+    const result = spawnSync(
+        'bash',
+        [SCRIPT, 'unmet-imports', 'us-east-1', options.stage ?? 'prod', options.baseStage ?? 'prod', edgeFile],
+        {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${stubDir}:${process.env['PATH'] ?? ''}`,
+                AWS_STUB_PRESENT_EXPORTS: (options.present ?? []).join(' '),
+                AWS_STUB_STS: options.sts ?? 'OK',
+                GITHUB_OUTPUT: outputFile,
+            },
+        },
+    );
+
+    return {
+        status: result.status ?? -1,
+        stdout: result.stdout ?? '',
+        stderr: result.stderr ?? '',
+        output: readFileSync(outputFile, 'utf8'),
+    };
+};
+
+/** One edge row, in the generated file's tab-separated shape. */
+const edge = (consumer: string, producer: string, exportName: string): string =>
+    `${consumer}\t${producer}\t${exportName}`;
+
+const WEBHOOKS_APP = 'packages/services/identity-webhooks/infra/bin/app.ts';
+const GLOBAL_APP = 'packages/infra/global/bin/app.ts';
+const FOOD_APP = 'packages/services/food-service/infra/bin/app.ts';
+
+describe('deploy-gate.sh unmet-imports — the derived graph meets the real account', () => {
+    it('reports an export the account does not publish, resolved to the deploy stage', () => {
+        // The live defect: `kitchensink-service-logs-prod` did not exist on 2026-09-02.
+        const result = unmetImports({
+            edges: `${edge(WEBHOOKS_APP, GLOBAL_APP, 'kitchensink-service-logs-{stage}:IdentityServiceLogGroupName')}\n`,
+            present: [],
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.output).toContain(
+            `unmet_imports=${WEBHOOKS_APP}>${GLOBAL_APP}>kitchensink-service-logs-prod:IdentityServiceLogGroupName`,
+        );
+    });
+
+    it('reports NOTHING when the account publishes the export', () => {
+        const result = unmetImports({
+            edges: `${edge(WEBHOOKS_APP, GLOBAL_APP, 'kitchensink-service-logs-{stage}:IdentityServiceLogGroupName')}\n`,
+            present: ['kitchensink-service-logs-prod:IdentityServiceLogGroupName'],
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.output.trim()).toBe('unmet_imports=');
+    });
+
+    it('survives the PAGINATED `None` the real CLI emits, rather than reading it as a value', () => {
+        // ⛔ The bug `cfn-export.sh` exists for. The stub answers two lines per lookup, as the real CLI does
+        // across pages; a caller that took the raw output would compare `"value…\nNone"` against emptiness
+        // and get the right answer for the wrong reason — or, on the other page order, read `None` as a
+        // value and report a MISSING export as present. Both directions are covered by the two cases here.
+        const present = unmetImports({
+            edges: `${edge(FOOD_APP, GLOBAL_APP, 'kitchensink-alb-{baseStage}:SharedAlbArn')}\n`,
+            present: ['kitchensink-alb-prod:SharedAlbArn'],
+        });
+
+        expect(present.output.trim()).toBe('unmet_imports=');
+        expect(present.stdout).not.toContain('None');
+    });
+
+    it('substitutes `{baseStage}` from the BASE stage, not the deploy stage', () => {
+        // ADR-0006: a `pr-{N}` service imports the SANDBOX platform. Substituting the deploy stage here would
+        // probe `kitchensink-alb-pr-73`, find nothing, and force a platform deploy on every single push.
+        const result = unmetImports({
+            edges: `${edge(FOOD_APP, GLOBAL_APP, 'kitchensink-alb-{baseStage}:SharedAlbArn')}\n`,
+            present: ['kitchensink-alb-sandbox:SharedAlbArn'],
+            stage: 'pr-73',
+            baseStage: 'sandbox',
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.output.trim()).toBe('unmet_imports=');
+    });
+
+    it('probes each distinct export ONCE, however many edges name it', () => {
+        // Two consumers of one export is the ADR-0028 shape exactly. Re-probing per edge would multiply the
+        // CloudFormation calls by the fan-out for no new information.
+        const result = unmetImports({
+            edges:
+                `${edge(WEBHOOKS_APP, GLOBAL_APP, 'kitchensink-data-{stage}:SecretArn')}\n` +
+                `${edge(FOOD_APP, GLOBAL_APP, 'kitchensink-data-{stage}:SecretArn')}\n`,
+            present: [],
+        });
+
+        expect(result.stdout).toContain('1 of 1 cross-app exports are absent');
+        expect(result.output).toContain(`${WEBHOOKS_APP}>${GLOBAL_APP}>kitchensink-data-prod:SecretArn`);
+        expect(result.output).toContain(`${FOOD_APP}>${GLOBAL_APP}>kitchensink-data-prod:SecretArn`);
+    });
+
+    it('ignores the generated file’s comment header', () => {
+        const result = unmetImports({
+            edges: `# GENERATED FILE — DO NOT EDIT.\n#\n# consumer\tproducer\texport\n`,
+            present: [],
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.output.trim()).toBe('unmet_imports=');
+    });
+
+    it('REFUSES an edge file that reports an import with no resolvable producer', () => {
+        // ⛔ A `#!` line is the manifest saying it could not name a producer. Closing a graph with a known
+        // hole would publish a guarantee the gate cannot make — it would look complete and cover less.
+        const result = unmetImports({
+            edges: `#!\tsomething imports 'kitchensink-mystery-{stage}:X', but no CDK app declares it\n`,
+            present: [],
+        });
+
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain('no resolvable producer');
+    });
+
+    it('REFUSES a missing edge file rather than reading absence as an empty graph', () => {
+        // An empty answer here means "no leg needs forcing", which is exactly what a missing file would
+        // silently produce. That is the green-over-nothing failure this repository keeps paying for.
+        const result = unmetImports({ edges: '', edgeFile: join(workdir, 'no-such-edges.tsv') });
+
+        expect(result.status).toBe(2);
+        expect(result.output).toBe('');
+    });
+
+    it('REFUSES when the credentials are broken, instead of calling every export absent', () => {
+        // ⛔ `cfn-export.sh --optional` cannot tell "the export is absent" from "the CLI failed" — it answers
+        // empty for both. Without this precondition a credentials glitch would mark EVERY cross-app export
+        // missing and force a full platform rollout to production as a side effect: the exact blast radius
+        // the narrow closure rule exists to avoid, arriving through the back door.
+        const result = unmetImports({
+            edges: `${edge(WEBHOOKS_APP, GLOBAL_APP, 'kitchensink-data-{stage}:SecretArn')}\n`,
+            present: ['kitchensink-data-prod:SecretArn'],
+            sts: 'FAIL',
+        });
+
+        expect(result.status).toBe(2);
+        expect(result.output).toBe('');
+    });
+
+    it('REFUSES a stage it cannot classify when the two stages differ, instead of guessing', () => {
+        // A placeholder that is neither `{stage}` nor `{baseStage}` is the CDK author's local variable name
+        // (`WebhooksStack` alone uses `deployStage` and `identityStage`). Reading it as the deploy stage is
+        // right whenever the two stages coincide and a GUESS when they do not, so it refuses instead.
+        const result = unmetImports({
+            edges: `${edge(WEBHOOKS_APP, GLOBAL_APP, 'kitchensink-data-{identityStage}:SecretArn')}\n`,
+            stage: 'pr-73',
+            baseStage: 'sandbox',
+        });
+
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain('refusing to guess');
+    });
+
+    it('resolves an unclassifiable stage when both stages agree, which is every prod deploy', () => {
+        const result = unmetImports({
+            edges: `${edge(WEBHOOKS_APP, GLOBAL_APP, 'kitchensink-data-{identityStage}:SecretArn')}\n`,
+            present: ['kitchensink-data-prod:SecretArn'],
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.output.trim()).toBe('unmet_imports=');
+    });
+});

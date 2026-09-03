@@ -234,24 +234,14 @@ describe.skipIf(!hasDatabaseUrl)('the user id is a corroboration counter (owner 
             ).resolves.toBeDefined();
         });
 
-        it('⛔ stores a memo’s phrase with no user id to supply — the write path has no such field', async () => {
-            await dal.recordMemo({
-                normalizedKey: key(PHRASE_A),
-                foodId: FOOD_A,
-                sourcePhrase: PHRASE_A,
-                verifiedBy: 'test-model',
-            });
-
-            const { rows } = await pool.query<{ source_phrase: string | null; verified_by: string }>(
-                'SELECT source_phrase, verified_by FROM ingredient_resolution_memos WHERE normalized_key = $1',
-                [key(PHRASE_A)],
-            );
-
-            // The phrase is remembered, in full, because it is the two-way door migration 0021 kept it for —
-            // not because anybody is being attributed.
-            expect(rows[0]?.source_phrase).toBe(PHRASE_A);
-            expect(rows[0]?.verified_by).toBe('test-model');
-        });
+        // ⚠️ A fourth case stood here — "stores a memo's phrase with no user id to supply — the write path has
+        // no such field" — driven through `ResolutionMappingsDal.recordMemo`. That method was an UNCALLED
+        // second writer of `ingredient_resolution_memos` (the live one is `recipe-workers`'
+        // `rememberAgreement`) and was deleted on 2026-09-02, so the case was asserting a claim about a write
+        // path that did not exist. Its claim survives twice over, both DAL-free and both stronger: `⛔ leaves
+        // the memo tier with NO person column at all` above reads the column set out of
+        // `information_schema`, and `resolutionMappingsSchema.integration.test.ts`'s `⛔ ACCEPTS a phrase that
+        // belongs to nobody` inserts the row and reads the phrase back.
     });
 
     describe('⛔ the counter: TWO distinct users promote, ONE user twice does not', () => {

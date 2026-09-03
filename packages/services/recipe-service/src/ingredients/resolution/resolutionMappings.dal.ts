@@ -41,6 +41,17 @@
  * mapping can name a food that no longer exists. That is a READER's problem, handled by the tier treating an
  * unresolvable mapping as a miss — never this DAL's, which would otherwise need to call another service to
  * answer a query.
+ *
+ * ## ⛔ OVER `ingredient_resolution_memos` THIS REPOSITORY IS READ-ONLY, and that is not an oversight
+ *
+ * {@link ResolutionMappingsDal.findMemo} is the memo tier's read; there is no matching write, because a memo
+ * records that the VERIFICATION GATE agreed — and the gate is `recipe-workers`' `verifyLine` Lambda, the only
+ * holder of `bedrock:InvokeModel` (ADR-0024 §4b). This service cannot verify anything, so it can never have an
+ * agreement to record. A `recordMemo` upsert stood here until 2026-09-02, uncalled by anything but its own
+ * suites while `recipe-workers`' `createVerdictStore().rememberAgreement` issued the live statement; it was
+ * deleted on the rule the parse-cache DAL established (`b25c5d3a`) — this service owns a DAL over a
+ * worker-written table IFF it genuinely READS it. Do not restore it: a second bearer of a statement contract
+ * that no compiler and no test can check against the live statement is the redundant machinery that drifts.
  */
 import { sql } from 'drizzle-orm';
 import type { NormalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
@@ -137,21 +148,6 @@ export interface MemoHit {
     readonly match: 'exact' | 'near';
     /** Trigram similarity to the query key, in `[0, 1]`. Always `1` for an exact hit. */
     readonly similarity: number;
-}
-
-/** A machine-derived resolution the verification gate agreed with (R21). */
-export interface VerifiedMemo {
-    readonly normalizedKey: NormalizedIngredientKey;
-    readonly foodId: string;
-    readonly sourcePhrase: string;
-    /**
-     * The identifier of the model that AGREED with this resolution.
-     *
-     * ⛔ REQUIRED, and that is the enforcement of "an embedding entry is written only for a resolution the
-     * verification gate agreed with": a caller with no model identifier to record has no agreement to record,
-     * and cannot construct this value.
-     */
-    readonly verifiedBy: string;
 }
 
 /** The raw shape of a mapping row as projected by this DAL's reads. */
@@ -396,39 +392,6 @@ export class ResolutionMappingsDal {
         `);
 
         return inserted.rows[0]?.id;
-    }
-
-    /**
-     * Record a machine-derived resolution the verification gate agreed with (R21).
-     *
-     * Upserts on the phrase: a re-verification under a newer model REPLACES the memo rather than accumulating
-     * beside it, because a memo is a food id rather than a vector — a newer judge's answer supersedes an
-     * older one rather than being incomparable to it.
-     *
-     * ⛔ THERE IS NO PERSON ON THIS ROW, and that is the tier's defining asymmetry with the two correction
-     * tiers rather than an omission. A memo is the MODEL's conclusion — nobody asserted it — so there is no
-     * correction here and nothing to count, which is the only reason the sibling tables keep a `user_id` at
-     * all. Migration 0026 had added an `owner_id` purely so an erasure sweep had a predicate; the 2026-08-25
-     * owner ruling (ADR-0027) removed both the sweep and the column.
-     *
-     * ⚠️ Nothing in U10 calls this. It exists so the tier's write bar — "only a resolution the gate agreed
-     * with, and record which model agreed" — is expressed as a REQUIRED field on the input type rather than a
-     * sentence in a plan, before U11 has a writer to forget it.
-     *
-     * @param memo - The phrase, the resolved food, and the model that agreed.
-     * @sideEffect Inserts into or updates `ingredient_resolution_memos`.
-     */
-    public async recordMemo(memo: VerifiedMemo, writer: Writer = this.db): Promise<void> {
-        await writer.execute(sql`
-            INSERT INTO ingredient_resolution_memos
-                (normalized_key, food_id, source_phrase, verified_by)
-            VALUES (${memo.normalizedKey}, ${memo.foodId}, ${memo.sourcePhrase}, ${memo.verifiedBy})
-            ON CONFLICT (normalized_key) DO UPDATE
-                SET food_id = EXCLUDED.food_id,
-                    source_phrase = EXCLUDED.source_phrase,
-                    verified_by = EXCLUDED.verified_by,
-                    verified_at = now()
-        `);
     }
 
     /**

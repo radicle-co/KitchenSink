@@ -38,13 +38,21 @@
  * ## ⚠️ What this suite does NOT cover, and where the other half lives
  *
  * Its subject set is ONE app: the prod platform (`GlobalStack` + `CostGuardrailsStack`). Every queue in every
- * other CDK app — `RecipeWorkersStack`'s ten, most of all — was outside it, and two of those shipped with no
+ * other CDK app — `RecipeWorkersStack`'s ten, most of all — is outside it, and two of those shipped with no
  * `enforceSSL` at all while cdk-nag reported `AwsSolutions-SQS4` against them into that app's advisory
- * channel. So this suite proves the MECHANISM (that the property emits a real `QueuePolicy` deny, and that
- * cdk-nag's own rule agrees) and `queueBaselineDeclarations.test.ts` proves COMPLETENESS (that no
- * construction site anywhere in the repository omits the property), reading the SOURCE because a synth-based
- * reader cannot boot every app. ⛔ Two claims, verified two ways — do not merge them, and do not add a
- * duplicate of either assertion to the other file.
+ * channel. So this suite proves the MECHANISM: that the property emits a real `QueuePolicy` deny in the
+ * TEMPLATE, that the deny COEXISTS with the budgets grants in one document, and that cdk-nag's own rule
+ * agrees.
+ *
+ * ⚠️ COMPLETENESS is elsewhere, and this file's earlier claim about where has been overturned. It used to
+ * read "…`queueBaselineDeclarations.test.ts` proves COMPLETENESS …, reading the SOURCE because a synth-based
+ * reader cannot boot every app." That last clause was measured FALSE on 2026-09-03: every CDK app
+ * synthesizes hermetically in ~15 s with `CDK_CONTEXT_JSON` seeding the context-provider cache, and
+ * `tests/nagRulesAtZero.integration.test.ts` now runs the REAL `AwsSolutions-SQS4` / `-SNS3` rules over all
+ * of them. The source guard keeps the properties no rule reports on (`encryption`, `retentionPeriod`).
+ *
+ * ⛔ Three claims, verified three ways — do not merge them, and do not add a duplicate of any assertion to
+ * another of the files.
  */
 import { App } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';

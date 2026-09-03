@@ -3,7 +3,7 @@
 - **Status:** Accepted — implemented. `attachSecurityChecks(app)` is called from all seven CDK app entrypoints; findings are reported as CDK warnings. **Burn-down pass #1 is done (115 → 62) — see "Update (2026-08-07)" for the record, the three escalations awaiting an owner decision, and the remaining backlog.**
 - **Date:** 2026-08-07
 - **Area:** IaC security · CDK Aspects · prod-template stability
-- **Related:** `docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md` (no-prod-diff), `0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md` (no-prod-diff), `packages/infra/security/**`, `packages/infra/global/__tests__/cdk-nag-{attachment,template-parity,synth.integration}.test.ts`
+- **Related:** `docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md` (no-prod-diff), `0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md` (no-prod-diff), `packages/infra/security/**`, `packages/infra/global/__tests__/cdk-nag-{attachment,template-parity,synth.integration}.test.ts`, `packages/infra/global/tests/nagRulesAtZero.integration.test.ts`
 
 ## ⚠️ Before you change this — the two traps
 
@@ -65,7 +65,7 @@ The first burn-down pass. **115 findings → 62** across the seven prod apps, wi
 | Rule                                   | Before | After  | Disposition                                                                                                 |
 | -------------------------------------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------- |
 | `L1` non-latest Lambda runtime         | 19     | **2**  | **FIXED** — `nodejs24.x`                                                                                    |
-| `SQS4` / `SNS3` no TLS-only policy     | 13     | **0**  | **FIXED** — `enforceSSL` / an explicit deny statement                                                       |
+| `SQS4` / `SNS3` no TLS-only policy     | 13     | **0**  | **FIXED**, and since 2026-09-03 **MECHANISED** — see the two updates below; the zero regressed once first   |
 | `ECS2` plaintext task env              | 5      | **0**  | Accepted (re-verified)                                                                                      |
 | `IAM5` wildcards                       | 31     | **20** | 11 removed by **narrowing real over-grants**; the residual object-key wildcard accepted with a scoped regex |
 | `EC23` `0.0.0.0/0` on the ALB SG       | 1      | **0**  | Accepted (ADR-0003)                                                                                         |
@@ -202,3 +202,78 @@ now carries the same mechanism claim, template-derived, for its own ten queues.
 runs the `SQS4` rule across all seven apps and asserts the count is zero. Declaration implies the policy
 (CDK emits it), so the proxy is sound — but a future finding of this class in an app whose queues are not
 constructed through `sqs.Queue` would still land in the advisory channel unobserved.
+
+**⛔ That residual is CLOSED — see the next section. Read it before citing the paragraph above.**
+
+## Update (2026-09-03, later) — the row is now MECHANISED: the real rules run over every app
+
+The residual above ("nothing runs the `SQS4` rule across all seven apps and asserts the count is zero") is
+discharged by `packages/infra/global/tests/nagRulesAtZero.integration.test.ts`. Owner ruling, same day, on
+whether any queue or topic should be exempt from TLS enforcement: **no — enforce it everywhere, and make the
+burn-down a control rather than a number in a table.**
+
+### The finding that came first: nothing needed enforcing
+
+Every queue and every topic in the repository ALREADY declares its TLS deny — **12 queues and 7 topics, all
+19 compliant**, verified by running the rules rather than by reading the source. The two parse queues were
+the whole regression and they were fixed hours earlier. So this change adds **no** `enforceSSL` and moves
+**no** synthesized template; `cdkNagTemplateParity.test.ts` and every stack snapshot are untouched, by
+construction rather than by inspection. `CostAlertTopic` is compliant through the hand-built deny statement
+in its existing `TopicPolicy` (the trap recorded above), which the rule accepts — now asserted rather than
+assumed.
+
+### What the control actually does
+
+It discovers the CDK apps from `cdkApps()` (content-derived, the same reading `cdkAppDeployCoverage.test.ts`
+uses), runs each entrypoint in a child process, and reads cdk-nag's own
+`AwsSolutions-…-NagReport.csv` compliance reports out of the emitted cloud assembly. For every rule in
+`RULES_AT_ZERO` it asserts that every row is `Compliant` — so `Non-Compliant`, `Suppressed` and `UNKNOWN` all
+red. `RULES_AT_ZERO` is the register this ADR's table has been missing: **a rule joins it the day its
+burn-down reaches zero, in the change that lands that zero**, and from then on the table's number is an
+assertion. `SNS3` and `SQS4` are its first two members.
+
+⛔ **The premise the earlier guards settled for is measured FALSE.** They cited
+`infrastructureManifest.test.ts`'s "synth needs AWS credentials and an uncached context …". `CDK_CONTEXT_JSON`
+pre-seeds the context-provider cache so `Vpc.fromLookup` never calls AWS (the trick `recipe-workers`'
+own app-synth spec already used); `CDK_OUTDIR` redirects the assembly; the environment variables are ONE
+shared block of ~20 keys, because no two entrypoints disagree about what a key means. All eight apps
+synthesize with **no credentials and no network**, at prod, in ~15 s.
+
+### The two honest limits, and the assertion that keeps each honest
+
+| Limit                                                                                  | Why                                                                                                         | What stops it being a hole                                                                                                                               |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Synthesizes at ONE stage (`prod`), so stage-conditional resources elsewhere are unseen | Two stages doubles the cost for resources that today differ only in `SandboxSchedulerStack` and `EdgeStack` | The rule census must be ≥ the SOURCE census (`messagingConstructSites.ts`). A queue that exists only at another stage raises one and not the other → red |
+| `ingredient-parser` is not synthesized                                                 | It refuses until `python3 -m pip` fetches ~90 MB of arm64 wheels from PyPI (ADR-0025)                       | Same census comparison. **Proven by mutation**: a queue added there reds with `expected 12 to be >= 13`; a topic, `expected 7 to be >= 8`                |
+
+### Mutation evidence (every claim above was made to fail)
+
+| Mutation                                                         | Result                                                                                    |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Drop `enforceSSL` from `RecipeParseQueue`                        | `reports only Compliant rows for AwsSolutions-SQS4` reds, naming the resource AND the app |
+| Drop `enforceSSL` from `FoodAlarmTopic`                          | `…for AwsSolutions-SNS3` reds — coverage NO source guard had, since none reads topics     |
+| Add an `acceptNagFindings` SQS4 suppression to a COMPLIANT queue | Still green, correctly: cdk-nag reports `Compliant`; there was nothing to hide            |
+| …the same suppression on a queue whose `enforceSSL` was dropped  | Reds with `Suppressed …` — a suppression cannot launder a rule held at zero               |
+| Add a queue / a topic to the unsynthesized `ingredient-parser`   | The census comparison reds in both directions                                             |
+
+Its own negative control is a fixture app with a bare `Queue` and a bare `Topic`, synthesized in-process
+through the real `attachSecurityChecks` and read with the same reader — so "no non-compliant row" cannot be
+satisfied by a reader that found nothing, a pack that never attached, or a rule that stopped evaluating.
+
+### What is now MECHANISED versus merely MEASURED
+
+| Burn-down row                                                            | Status                                                                                         |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `SQS4` / `SNS3` = 0                                                      | **MECHANISED** — asserted per-app by `nagRulesAtZero.integration.test.ts` on every CI run      |
+| `L1` (2 residual, CDK's own `Provider` functions)                        | MEASURED — and additionally pinned by `lambdaRuntime.ts`'s own suite                           |
+| `ECS2`, `EC23`, `APIG4`/`COG4`, `APIG3`/`CFR1`/`CFR2`                    | MEASURED — accepted via the register; the register's key set and the prod allowlist are pinned |
+| `IAM4` (27), `IAM5` (20), `EC26`/`EC28`/`EC29`, `RDS11`, `APIG2`, `CFR3` | MEASURED only — a count in a table, with nothing re-checking it                                |
+| `S1`, `ELB2`, `VPC7`, `SMG4`, `RDS3`, `RDS10`                            | MEASURED only — deferred / escalated, above                                                    |
+
+⚠️ **Residual, stated plainly.** (1) Only rows at zero can join `RULES_AT_ZERO`, so the un-burnt-down majority
+of the table is still a measurement — the mechanism now exists, but each row still needs its burn-down.
+(2) The census cross-check bounds the two limits above by COUNT, not by identity: it would not notice a
+stage-only queue being swapped for a differently-named one, only a change in how many exist. (3) The
+suite's own numbers for that comparison come from `queueBaselineDeclarations.test.ts`'s reader, so a defect in
+that AST reading weakens the cross-check — which is why that reader keeps its own per-property negative
+control.

@@ -137,11 +137,19 @@
 #   check nobody reads" failure that `deployGateStepGuards.test.ts` was written for on the same day. A red
 #   gate is only a gate while someone acts on it.
 #
-# CURRENT MEASUREMENT (2026-09-02, offline, after the repair above): **38 findings — 22 declared per-site
-#   ignores, 16 suppressed, 0 shown at EVERY severity.** `--persona pedantic --min-severity informational
-#   --strict-collection .github/` exits 0. The growth from the 2026-08-11 line below is workflow growth
-#   (more `services:` containers and more checkouts), not a weakening: the declared ignores are still only
-#   `unpinned-images` + the 2 deliberate `artipacked`, and nothing new was annotated away to reach 0.
+# CURRENT MEASUREMENT (2026-09-02, offline, after the repair above AND after `docs.yml` grew its deploy
+#   job): **38 findings — 22 declared per-site ignores, 16 suppressed, 0 shown at EVERY severity.**
+#   `--persona pedantic --min-severity informational --strict-collection .github/` exits 0. The growth
+#   from the 2026-08-11 line below is workflow growth (more `services:` containers and more checkouts),
+#   not a weakening: the declared ignores are still only `unpinned-images` + the 2 deliberate
+#   `artipacked`, and nothing new was annotated away to reach 0.
+#   ⚠️ `docs.yml`'s new `deploy` job moved NO number, which is worth stating rather than assuming: every
+#   count above is identical before and after it. It reads `secrets.VERCEL_TOKEN`, which would normally
+#   add a `secrets-outside-env` finding — that audit is `auditor`-persona and this gate runs `pedantic`,
+#   AND the job is bound to a `Docs` GitHub Environment anyway, so the finding would not exist at
+#   `auditor` either. It performs no checkout at all (deliberately — see that file's header on Vercel's
+#   git-author seat block), so it contributes no `artipacked`; both `${{ … }}` uses sit in `env:` blocks,
+#   so it contributes no `template-injection`; and both its jobs carry a commented `permissions:`.
 #
 # PRIOR MEASUREMENT (2026-08-11, offline, after the Environments work below): **22 findings — 18 declared
 #   per-site ignores (16 unpinned-images + 2 artipacked), 4 suppressed, 0 shown at EVERY severity.**

@@ -81,6 +81,39 @@ describe('IngredientPicker — the U16 create-your-own-food vertical', () => {
         expect(create).not.toHaveBeenCalled();
     });
 
+    /**
+     * ⛔ THE MIXED INVALID STATE — a state the suite had no case for at all, and the one the product got
+     * wrong. A cook types ONE macro out of range and has not reached the other three yet. Validation used
+     * to answer every presence question first and RETURN before the range authority ran, so the three
+     * untouched fields each said `Required` while the field actually at fault said NOTHING — and only
+     * named itself on a SECOND submit, once everything else was already correct.
+     *
+     * TWO assertions, because they fail for different reasons. The ordered list of alerts — calories,
+     * protein, carbs, fat, the form's own DOM order, with no entry for `name` because the affordance
+     * prefilled it from the query — is what catches a stray fifth alert or a missing one. The accessible
+     * DESCRIPTION is what catches the thing the bug actually was: the verdict has to be ATTACHED to the
+     * field at fault, and a positional list alone would still pass the day someone reorders the inputs.
+     */
+    it('⛔ names the out-of-range field WHILE other fields are still empty — one submit, every verdict', async () => {
+        const { client, user } = mount();
+        const create = vi.spyOn(client, 'createAuthoredFoodViaPicker');
+
+        await openForm(user);
+        await user.type(screen.getByLabelText('Carbs (g)'), '150');
+        await user.click(screen.getByRole('button', { name: 'Create and add' }));
+
+        expect(screen.getAllByRole('alert').map((node) => node.textContent)).toEqual([
+            'Required',
+            'Required',
+            'Outside the allowed range',
+            'Required',
+        ]);
+        // The association, read the way a screen reader reads it (`aria-invalid` + `aria-describedby`).
+        expect(screen.getByLabelText('Carbs (g)')).toHaveAccessibleDescription('Outside the allowed range');
+        expect(screen.getByLabelText('Calories (kcal)')).toHaveAccessibleDescription('Required');
+        expect(create).not.toHaveBeenCalled();
+    });
+
     it('creates and ATTACHES in one flow — the resolved line reaches onSelect and the picker resets', async () => {
         const { client, user, onSelect } = mount();
         const admitted = makeIngredient({ id: 'ing-a1', name: 'grandma blend', foodId: 'F_new' });

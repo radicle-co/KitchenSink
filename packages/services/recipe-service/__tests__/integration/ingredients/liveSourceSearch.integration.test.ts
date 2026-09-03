@@ -208,6 +208,52 @@ describe('the on-demand live source search over a REAL food-service socket (inte
         expect(error.getResponse()).toMatchObject({ code: 'SOURCE_UNAVAILABLE' });
     });
 
+    /**
+     * ⛔ THE CASE THIS SUITE WAS MISSING, AND THE ONLY TIER THAT CAN HOLD IT. Every case above answers ON a
+     * socket, so all of them exercise food's RESPONSE vocabulary; none of them ever asked what happens when
+     * there is no socket at all. That is not a hypothetical — it is how the heavy k6 job and the
+     * `recipes/ingredient-usda-search` Maestro flow both run food (`FOOD_SERVICE_URL` at a port with nothing
+     * listening), and it is where the collapse hid: the client folds a raw transport failure into the same
+     * `FetchUnavailableError` it raises for a response-borne `503`, so a dead service was reported to the
+     * cook as "USDA searches are rate-limited and the limit is used up right now".
+     *
+     * A mocked client cannot prove this — the fold happens inside the client, at the boundary the mock
+     * replaces. Only a genuinely refused connection reaches it.
+     */
+    it('translates an UNREACHABLE food service into SOURCE_UNAVAILABLE, never SOURCE_BUSY', async () => {
+        // A port that is genuinely closed: bind one, learn its number, hand it back. Connecting is refused.
+        const probe = createServer();
+
+        await new Promise<void>((resolve) => {
+            probe.listen(0, '127.0.0.1', resolve);
+        });
+        const deadPort = (probe.address() as AddressInfo).port;
+
+        await new Promise<void>((resolve) => {
+            probe.close(() => {
+                resolve();
+            });
+        });
+
+        const deadClients = new FoodServiceClients({
+            baseUrl: `http://127.0.0.1:${String(deadPort)}`,
+            typeaheadTimeoutMs: 150,
+        });
+        const deadService = new IngredientsService(
+            makeDal(),
+            deadClients,
+            new FoodCatalogGateway(deadClients, { enabled: true }),
+        );
+
+        const error = (await deadService
+            .searchLive(callerToken(CALLER_SECRET), 'broccoli')
+            .catch((thrown: unknown) => thrown)) as HttpException;
+
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.getStatus()).toBe(HttpStatus.BAD_GATEWAY);
+        expect(error.getResponse()).toMatchObject({ code: 'SOURCE_UNAVAILABLE' });
+    });
+
     it('refuses a below-minimum query WITHOUT touching the socket at all (003-FR-010a)', async () => {
         const error = (await service
             .searchLive(callerToken(CALLER_SECRET), 'br')

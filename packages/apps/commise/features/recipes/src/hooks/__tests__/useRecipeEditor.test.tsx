@@ -21,7 +21,8 @@
  * below drives the CURRENT `overwrite`/`keepServer` names, now that both platform containers are wired onto
  * them.
  */
-import { act, renderHook } from '@testing-library/react';
+import { act, render, renderHook, screen } from '@testing-library/react';
+import { Suspense, type JSX } from 'react';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, VersionConflictSide } from '@kitchensink/recipe-core';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
@@ -1635,5 +1636,97 @@ describe('autoSaveDraft — the unattended command, and what it deliberately doe
         rerender();
 
         expect(result.current.autoSaveDraft).toBe(first);
+    });
+});
+
+/**
+ * `submitDraftRef` — the stable-handle wrapper `autoSaveDraft` calls through, and the ONE thing about it
+ * that has to be right: it must carry the implementation from the render that COMMITTED.
+ *
+ * ⛔ It used to be assigned in the render BODY, which React documents as forbidden ("do not write or read
+ * `ref.current` during rendering") for a reason this hook can pay in data loss rather than a warning. A ref
+ * write is not part of the render's work, so React never rolls it back: a render it DISCARDS — a sibling
+ * suspends, a transition is interrupted — still advances the ref to that abandoned pass's closure, and the
+ * committed tree then calls through a `submitDraft` that closes over a `recipeId` the user never landed on.
+ * The unattended write goes to the WRONG RECIPE, carrying this recipe's draft and this recipe's
+ * `expectedVersion` — a silent overwrite with no error path, because every guard in `autoSaveDraft` reads
+ * the COMMITTED `query.data` and passes.
+ *
+ * The repair is React's documented shape: assign in an effect, which a discarded render never runs. This
+ * case is driven through Suspense for the same reason `useReturnFocusOnClose.test.tsx` is — it is the one
+ * way to discard a render deterministically — and it was watched failing on the render-body assignment.
+ */
+describe('autoSaveDraft — it writes to the recipe that COMMITTED, not one React discarded', () => {
+    /** A Suspense gate the test opens by hand. `done` is what lets React's retry render past the throw. */
+    interface Gate {
+        readonly promise: Promise<void>;
+        readonly open: () => void;
+        done: boolean;
+    }
+
+    function makeGate(): Gate {
+        let release = (): void => undefined;
+        const promise = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const gate: Gate = { promise, open: release, done: false };
+
+        void promise.then(() => {
+            gate.done = true;
+        });
+
+        return gate;
+    }
+
+    /** Suspends the render pass it is part of until {@link Gate.open} is called. */
+    function Suspender({ gate }: { readonly gate: Gate | null }): null {
+        if (gate !== null && !gate.done) {
+            throw gate.promise;
+        }
+
+        return null;
+    }
+
+    /** Published during render so the enclosing test can hold the COMMITTED render's own `autoSaveDraft`. */
+    let published: ReturnType<typeof useRecipeEditor> | undefined;
+
+    function Probe({ recipeId }: { readonly recipeId: string }): null {
+        published = useRecipeEditor(recipeId, { onSaved: vi.fn(), locale: 'en' });
+
+        return null;
+    }
+
+    it('does not adopt the submit implementation from a render React threw away', () => {
+        // One query double per recipe, so the discarded pass genuinely sees a DIFFERENT recipe.
+        useRecipeMock.mockImplementation((id: string) =>
+            recipeQuery({ data: makeRecipeDetail({ id, title: `Title of ${id}`, currentVersion: 3 }) }),
+        );
+        const mutation = updateMutation();
+        useUpdateRecipeMock.mockReturnValue(mutation);
+
+        const tree = (recipeId: string, gate: Gate | null): JSX.Element => (
+            <Suspense fallback={<p>loading</p>}>
+                <Probe recipeId={recipeId} />
+                <Suspender gate={gate} />
+            </Suspense>
+        );
+
+        const { rerender } = render(tree('rec_A', null));
+
+        // The committed editor: seeded from rec_A, and the handle a timer already holds.
+        expect(published?.state.status).toBe('editing');
+        const autoSaveFromTheCommittedRender = published?.autoSaveDraft;
+
+        // ONE update both navigates to rec_B and suspends a sibling: React renders the probe (which writes
+        // the ref under the old shape), then hits the throw and abandons the whole pass.
+        rerender(tree('rec_B', makeGate()));
+
+        expect(screen.getByText('loading')).toBeTruthy();
+
+        // The auto-save timer armed against rec_A fires while that pass is parked.
+        act(() => autoSaveFromTheCommittedRender?.());
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+        expect(mutation.mutate.mock.calls[0]?.[0]).toMatchObject({ id: 'rec_A' });
     });
 });

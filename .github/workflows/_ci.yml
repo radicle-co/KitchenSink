@@ -1728,6 +1728,23 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
+            # ⛔ DERIVED, never a list of package names — and this job is the third place the class has
+            # bitten. Several workspace packages export BUILT js only (`@kitchensink/infra-alb`,
+            # `@kitchensink/infra-security`), so a `--workspace=` run, which does NOT go through turbo,
+            # resolves nothing and vitest dies with "Failed to resolve entry for package". Two other jobs
+            # already carry a hand-written `[ -n "$(ls -A …/dist)" ] || npm run build --workspace=X` step
+            # each; a third copy is what Metz's rule of three exists to stop.
+            #
+            # `^...` is turbo's DEPENDENCY selector: build everything `@kitchensink/infra-global` depends on
+            # and not the package itself. A dependency added tomorrow is covered the day it is added, which
+            # a named list cannot be. Measured 2026-09-03: it builds 13 packages including `infra-alb`.
+            #
+            # This went red the moment `nagRulesAtZero.integration.test.ts` reached `EdgeStack`, which
+            # imports `@kitchensink/infra-alb`. It passed locally on a tree that still held a stale `dist/`
+            # from an earlier build — the exact reason a build-order change has to be proved from a clean
+            # state, because otherwise the failure is invisible until CI.
+            - name: Build the workspace dependencies this per-workspace run cannot build itself
+              run: npx turbo run build --filter=@kitchensink/infra-global^...
             - name: Run infra integration tests
               run: npm run test:integration --workspace=@kitchensink/infra-global
 

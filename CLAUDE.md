@@ -158,7 +158,7 @@ This is a TypeScript monorepo using **npm workspaces** and **Turborepo** for the
 
 | Path                                  | Package                                                    | Description                                                                                                 |
 | ------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `packages/apps/commise/web`           | `@commise/web`                                             | Next.js 15 web app (React 19, Tailwind CSS v4)                                                              |
+| `packages/apps/commise/web`           | `@commise/web`                                             | Next.js 16 web app (React 19, Tailwind CSS v4)                                                              |
 | `packages/apps/commise/mobile`        | `@commise/mobile`                                          | Expo 57 / React Native 0.86 mobile app (new-architecture only)                                              |
 | `packages/apps/commise/ui`            | `@commise/ui`                                              | Shared design-system tokens + Clerk components (Tamagui-compatible)                                         |
 | `packages/services/identity`          | `@kitchensink/identity-service`                            | NestJS 11 REST service on ECS/Fargate; Drizzle ORM + RDS PostgreSQL 18                                      |

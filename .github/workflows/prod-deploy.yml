@@ -391,6 +391,18 @@ jobs:
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "node packages/infra/global/dist/bin/app.js"
 
+            # The platform tier's half of the staleness question — see the recipe-workers drift step below
+            # for the full argument and the `--warn-only` promotion condition. Run by hand against prod
+            # before this landed, it reported every platform stack `untagged` (expected — the stamp is new)
+            # and found one genuine, previously invisible fact: `kitchensink-service-logs-prod` DOES NOT
+            # EXIST. ADR-0028 added that stack on 2026-08-30 and prod has not had a platform deploy since,
+            # so `WebhooksStack` is draining a log group nothing creates.
+            - name: Report global infra deployment drift (declared vs running)
+              if: steps.flags.outputs.deploy_global == 'true'
+              run: |
+                  bash .github/scripts/verify-deployment.sh drift "${DEFAULT_AWS_REGION}" "${STAGE}" \
+                    "node packages/infra/global/dist/bin/app.js" --warn-only
+
             - name: Resolve Identity VPC ID
               id: identity-vpc
               run: |
@@ -797,6 +809,33 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "npx tsx packages/services/recipe-workers/infra/bin/app.ts"
+
+            # ⛔ The question every step above is structurally unable to ask: is PROD running the code THIS
+            # COMMIT declares? Every input to `verify` is the deploy itself, so it reports green whenever the
+            # last deploy went fine — even if that deploy was a month ago and this run skipped its own.
+            #
+            # This is the exact hole `docs/architecture/2026-08-28-ingredient-pipeline-state.md` §1 fell
+            # through. It marked `verifyLine` and thirteen other handlers ✅ deployed; the account held SIX
+            # Lambdas in `kitchensink-recipe-workers-prod`, last updated 2026-08-02, with the branch 600+
+            # commits ahead, and neither `verifyLine` nor `parseLine` existed anywhere. Run by hand against
+            # prod before this landed, this step names all ten missing handlers and the six kebab-cased ones
+            # still running from the pre-§1-rename build.
+            #
+            # ⚠️ `--warn-only`, and the promotion condition is written down rather than left to taste. Two
+            # reasons, both temporary and both about being wrong in the safe direction:
+            #   1. every stack in the account is `untagged` until its first deploy carrying the provenance
+            #      stamp, so a failing gate would red prod on a baseline nobody can act on;
+            #   2. whether `cdk deploy` re-deploys a stack whose TEMPLATE is unchanged and whose TAGS moved
+            #      has been reasoned about (the CLI's `canSkipDeploy` compares tags) and NOT executed here.
+            #      Blocking prod deploys on an unverified assumption is the wrong risk to take for a
+            #      reporting feature.
+            # Promote to a hard failure by dropping `--warn-only`, once prod has deployed with the stamp and
+            # this report reads clean. The report lands in the job summary and as an annotation either way.
+            - name: Report recipe-workers deployment drift (declared vs running)
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  bash .github/scripts/verify-deployment.sh drift "${DEFAULT_AWS_REGION}" "${STAGE}" \
+                    "npx tsx packages/services/recipe-workers/infra/bin/app.ts" --warn-only
 
             - name: CDK Deploy (recipe service)
               if: steps.flags.outputs.deploy_recipe == 'true'

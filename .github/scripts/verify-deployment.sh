@@ -54,8 +54,24 @@
 #     verify-deployment.sh verify         <region> <cdkAppCommand>
 #     verify-deployment.sh verify-stacks  <region> <stackName> [<stackName> …]
 #     verify-deployment.sh stacks         <cdkAppCommand>
+#     verify-deployment.sh drift          <region> <stage> <cdkAppCommand> [--warn-only]
 #     verify-deployment.sh classify-resource  <ResourceStatus>
 #     verify-deployment.sh classify-reference <envKey> <envValue>
+#
+# ## `drift` — the question every check above is structurally unable to ask
+#
+# Everything above asks whether THIS deploy landed. None of it can ask whether the account is running the
+# code this commit declares, because every input is the deploy itself. That is the gap
+# `docs/architecture/2026-08-28-ingredient-pipeline-state.md` §1 fell through: it claimed `verifyLine` and
+# thirteen other handlers were deployed while `kitchensink-recipe-workers-prod` held SIX Lambdas and had
+# last been updated on 2026-08-02, with the branch 600+ commits ahead. Every check here was green, because
+# every check here was about a deploy that had gone fine — a month earlier.
+#
+# `drift` reads the `CommitSha` STACK tag `@kitchensink/infra-security`'s `stampCommitProvenance` writes,
+# compares it against the commit under consideration, and compares the DECLARED Lambda handlers in
+# `docs/generated/infrastructure/manifest.json` against the handlers actually running. It is a thin shell
+# over `scripts/deploymentDrift.mjs`, which owns the pure comparison and is unit-tested there — the same
+# pure/impure split the classifiers above use, one language over.
 #
 # Exit status: 0 = everything verified, 1 = findings (each reported as `::error::`), 2 = misuse. A misuse
 # NEVER exits 0 — a verifier that answers "nothing wrong" on malformed input is how an unverified deploy
@@ -558,6 +574,35 @@ verify_deployment_verify() {
     verify_deployment_verify_stacks "$region" $names
 }
 
+# verify_deployment_drift <region> <stage> <cdkAppCommand> [--warn-only]
+#
+# Is the account running the code this commit declares? See the header's `drift` section.
+#
+# ⛔ It does NOT synthesise. Every other subcommand here derives its subject from `cdk ls`, which needs the
+# service BUILT and AWS credentials for `Vpc.fromLookup`; this one reads the COMMITTED manifest instead, so
+# it can be run against any stage from any checkout — including, deliberately, to ask "is prod stale?"
+# without deploying anything. `infrastructureManifest.test.ts` is what keeps that manifest honest.
+#
+# @sideEffect Runs node, reads the committed manifest, and calls CloudFormation + Lambda (read-only).
+verify_deployment_drift() {
+    local region="${1-}" stage="${2-}" app="${3-}"
+
+    if [ "$#" -lt 3 ] || [ -z "$region" ] || [ -z "$stage" ] || [ -z "$app" ]; then
+        echo "usage: verify-deployment.sh drift <region> <stage> <cdkAppCommand> [--warn-only]" >&2
+
+        return 2
+    fi
+    shift 3
+
+    # Resolved from this script's own location, never from `$PWD`: a workflow that changed working directory
+    # would otherwise get "module not found" and a step that looks broken rather than a check that ran.
+    local root
+    root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+
+    AWS_REGION="$region" node "${root}/scripts/deploymentDrift.mjs" \
+        --region "$region" --stage "$stage" --app "$app" "$@"
+}
+
 # CLI dispatch — only when executed directly, never when sourced.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     case "${1-}" in
@@ -581,8 +626,12 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             verify_deployment_verify "$@"
             ;;
+        drift)
+            shift
+            verify_deployment_drift "$@"
+            ;;
         *)
-            echo "usage: verify-deployment.sh verify|verify-stacks|stacks|classify-resource|classify-reference …" >&2
+            echo "usage: verify-deployment.sh verify|verify-stacks|stacks|drift|classify-resource|classify-reference …" >&2
             exit 2
             ;;
     esac

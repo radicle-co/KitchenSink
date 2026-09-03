@@ -1176,6 +1176,27 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "npx tsx packages/services/recipe-workers/infra/bin/app.ts"
+            # ⛔ The question the step above is structurally unable to ask: is the account running the code
+            # THIS COMMIT declares? Every input to `verify` is the deploy itself, so it is green whenever the
+            # last deploy went fine — even if that was a month ago. That is the gap
+            # `docs/architecture/2026-08-28-ingredient-pipeline-state.md` §1 fell through when it claimed
+            # `verifyLine` and thirteen other handlers were live while `kitchensink-recipe-workers-prod` held
+            # SIX Lambdas, last touched 2026-08-02, with the branch 600+ commits ahead.
+            #
+            # ⚠️ `--warn-only`, deliberately, and the promotion condition is written down rather than left to
+            # taste. Two reasons, both temporary:
+            #   1. every stack in every account is `untagged` until its first deploy carrying the provenance
+            #      stamp, so a failing gate would red on a baseline nobody can act on;
+            #   2. whether `cdk deploy` re-deploys a stack whose TEMPLATE is unchanged and whose tags moved
+            #      has not been executed here — only reasoned about from the CLI's `canSkipDeploy`. Failing
+            #      prod deploys on an unverified assumption is the wrong direction to be wrong in.
+            # Promote to a hard failure (drop `--warn-only`) once a full stage has deployed with the stamp
+            # and the report reads clean. The report itself lands in the job summary either way.
+            - name: Report recipe-workers deployment drift (declared vs running)
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  bash .github/scripts/verify-deployment.sh drift "${DEFAULT_AWS_REGION}" "${STAGE}" \
+                    "npx tsx packages/services/recipe-workers/infra/bin/app.ts" --warn-only
             # Pass 2 — the service, which can only synth once the SSM parameters above exist.
             - name: CDK Deploy — recipe service
               if: steps.gate.outputs.deploy == 'true'

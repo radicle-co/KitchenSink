@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
-import { attachSecurityChecks } from '@kitchensink/infra-security';
+import { attachSecurityChecks, stampCommitProvenance } from '@kitchensink/infra-security';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
@@ -28,6 +28,12 @@ Tags.of(app).add('Environment', stage.startsWith('pr-') ? stage : 'global');
 // same posture `lambdaRuntime.ts` records for the framework-onEvent functions. `pythonLambdaRuntime.test.ts`
 // asserts that the finding's presence is EXPLAINED by that ceiling and flips when the ceiling moves.
 attachSecurityChecks(app);
+// The COMMIT this deploy was built from, recorded as a CloudFormation STACK tag so
+// `scripts/deploymentDrift.mjs` can answer "is what is running the code we think it is?". A stack
+// tag, never `Tags.of(app)`: the aspect form would rewrite every taggable resource on every commit,
+// breaching the ADR-0002/ADR-0008 no-prod-diff line for a fact about the BUILD rather than about any
+// resource. See @kitchensink/infra-security.
+stampCommitProvenance(app);
 
 const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
 const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];

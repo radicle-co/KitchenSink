@@ -556,10 +556,10 @@ jobs:
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
               run: node packages/services/recipe-service/tests/load/prepare-db.mjs
-            # The S3 buckets + the account-erasure SQS queue the booted service and the fixture step address.
+            # The S3 buckets + the SQS queues the booted service and the fixture step address.
             # LocalStack starts with an EMPTY account, so without this the erasure accept path's SendMessage
             # fails (NonExistentQueue → 500, not the asserted 202) and the archive PUT fails (NoSuchBucket).
-            - name: Bootstrap LocalStack (S3 buckets + account-erasure queue)
+            - name: Bootstrap LocalStack (S3 buckets + the service's SQS queues)
               env:
                   AWS_ACCESS_KEY_ID: test
                   AWS_SECRET_ACCESS_KEY: test
@@ -572,6 +572,17 @@ jobs:
                   # required to boot — but without it every recipe write in the load run logs an error, and
                   # a log full of expected errors is where a real one hides.
                   aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-verification
+                  # ⛔ U9's parse-line queue. MISSING SINCE U9 SHIPPED (5c217859 added RECIPE_PARSE_QUEUE_URL
+                  # to both boot steps and the k6 script, but never this line), and its absence is INVISIBLE
+                  # to k6 by construction: `ParseJobsService.enqueueOrMark` CONVERTS a send failure into a
+                  # 202 whose lines are all `failed_retryable`, and the scenario's check deliberately accepts
+                  # `running` OR `partial` because a real enqueue failure under load must not fail the run.
+                  # So without this queue every create takes the failure branch, ZERO SendMessageBatch calls
+                  # are ever issued, and the scenario reports green while measuring nothing — the concurrent
+                  # fan-out it exists to bound (p95 bounded by the SLOWEST batch, not the sum) never happens.
+                  # MEASURED against the real image: no queue → `"status":"partial"`, all lines
+                  # `failed_retryable`; queue present → `"status":"running"`, lines `pending`.
+                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-parse-line
                   # Fail loudly HERE (with the actual URL in the log) rather than as an opaque k6 threshold
                   # breach if the queue is not addressable where the service is pointed. Asserted on the PATH
                   # only, deliberately: the SQS client overrides the host via SQS_ENDPOINT and uses just the
@@ -695,6 +706,42 @@ jobs:
                   k6 run --summary-export=k6-parse-job-summary.json tests/load/parseJobCreate.load.js
                   k6 run --summary-export=k6-correction-summary.json tests/load/ingredientCorrection.load.js
                   k6 run --summary-export=k6-analytics-ingest-summary.json tests/load/analyticsIngest.load.js
+            # ⛔ THE GUARD AGAINST THE PARSE-JOB SCENARIO GOING QUIET, the sibling of the food stub's counters
+            # below. k6's thresholds cannot tell a real fan-out from a short-circuit here, and the scenario's
+            # own check CANNOT either — `enqueueOrMark` converts a send failure into a `202 partial`, and the
+            # check accepts `running` OR `partial` on purpose, because an enqueue failure under load is a
+            # legitimate answer rather than a defect. So a missing queue, a mis-addressed URL, or a producer
+            # regression all report GREEN while zero SendMessageBatch calls are made. SQS's own counter is the
+            # thing that can tell the difference: nothing consumes this queue in this job, so every message the
+            # run enqueued is still sitting in it.
+            #
+            # The floor is DERIVED, never a magic number: the smaller of the two paste shapes is 8 lines, so a
+            # run that truly fanned out sent at least 8 messages per iteration. Half of that absorbs whatever
+            # sends genuinely failed under pressure while staying four orders of magnitude above the ZERO a
+            # missing queue produces — which is the failure this exists to catch, and which it did not catch.
+            - name: Assert the parse-job scenario actually enqueued (U9 fan-out was exercised)
+              working-directory: packages/services/recipe-service
+              env:
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_DEFAULT_REGION: us-east-1
+              run: |
+                  ENQUEUED=$(aws --endpoint-url=http://localhost:4566 sqs get-queue-attributes \
+                      --queue-url http://localhost:4566/000000000000/recipe-parse-line \
+                      --attribute-names ApproximateNumberOfMessages \
+                      --query 'Attributes.ApproximateNumberOfMessages' --output text)
+                  echo "parse-line queue depth after the load run: ${ENQUEUED}"
+                  ENQUEUED="${ENQUEUED}" node -e '
+                      const summary = require("./k6-parse-job-summary.json");
+                      const iterations = summary.metrics.iterations.count;
+                      const enqueued = Number(process.env.ENQUEUED);
+                      const floor = Math.floor(iterations * 4);
+                      if (!(enqueued >= floor)) {
+                          console.error(`::error::the parse-job fan-out was not exercised — ${iterations} iterations enqueued ${enqueued} messages, below the ${floor} floor (a missing or mis-addressed RECIPE_PARSE_QUEUE_URL reports 202-partial and looks green)`);
+                          process.exit(1);
+                      }
+                      console.log(`parse-job fan-out exercised: ${iterations} iterations, ${enqueued} messages enqueued (floor ${floor}).`);
+                  '
             # ── The deferred-nutrition batch (ADR-0021 §4 + its residual-risk note) ────────────────────
             #
             # This scenario is the ONE that needs food to ANSWER, and it is why it has its own steps. Its

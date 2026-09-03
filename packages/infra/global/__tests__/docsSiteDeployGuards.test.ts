@@ -306,34 +306,28 @@ function deployStepIndex(steps: readonly WorkflowStep[]): number {
 }
 
 /**
- * The body of a `case` arm, from its pattern to the `;;` that ends it.
- *
- * Pure. Used to read the DIRECTION of the `200` arm — which term is the one a mutation would flip while
- * leaving every keyword this analyzer looks for still present in the file.
- */
-function caseArmBody(run: string, arm: string): string | undefined {
-    const start = run.indexOf(arm);
-
-    if (start === -1) {
-        return undefined;
-    }
-
-    const end = run.indexOf(';;', start);
-
-    return run.slice(start + arm.length, end === -1 ? undefined : end);
-}
-
-/**
  * Failures of the post-deploy contract in the deploying job.
  *
- * The site is PUBLIC, so a served page is the pass. What must hold:
+ * ⚠️ REWRITTEN 2026-09-03 to prove a DIFFERENT contract, on an owner ruling. It previously required an
+ * HTTP probe of every published address demanding a `200` carrying this site's generator tag. That rule
+ * encoded whether the site was READABLE, which flipped three times in one day — private, public, private
+ * again — and each flip made this analyzer assert the opposite of the truth. A gate that must be rewritten
+ * whenever an unrelated setting changes is one that will eventually be rewritten wrongly.
  *
- *  - something probes the published address AFTER the publish (a configuration check is not evidence);
- *  - the `200` arm treats a served page as SUCCESS — the retired private-site probe failed on exactly
- *    that arm, and re-adding it would take the site dark while reporting green;
- *  - a status other than `200` ends the run, rather than being logged;
- *  - a `200` is not enough on its own: the body must carry this site's own generator tag, because
- *    Vercel's error and login pages are healthy `200`s from a different origin.
+ * ⛔ It was also not honest about what it could see. With protection ON, Vercel answers `302` to
+ * `vercel.com/sso-api`, and following that redirect lands on a `200` login page whose body ECHOES THE
+ * REQUESTED PATH — so a probe asking "did I get my page?" can match its own route inside the login markup
+ * and report success. That false positive was observed against the real site while verifying it.
+ *
+ * The contract is therefore narrowed to what this job is responsible for: DID THE DEPLOYMENT LAND?
+ * What must hold:
+ *
+ *  - something checks the deployment AFTER the publish (a configuration check is not evidence);
+ *  - it asks Vercel's deployments API, whose answer is indifferent to protection, domains and readers;
+ *  - it requires `READY` specifically — accepting any state would pass `ERROR` and `CANCELED`;
+ *  - a state that is not `READY`, or an answer it could not parse, ends the run rather than being logged;
+ *  - ⛔ it does NOT gate on HTTP reachability, because that is the owner's protection decision, not a CI
+ *    invariant — re-adding such a probe is the regression this analyzer now exists to catch.
  */
 function findPublicationGaps(workflow: Workflow): readonly string[] {
     const violations: string[] = [];
@@ -346,32 +340,35 @@ function findPublicationGaps(workflow: Workflow): readonly string[] {
             continue;
         }
 
-        const probes = steps.filter((step, index) => index > deployIndex && /\bcurl\b/.test(step.run ?? ''));
+        const after = steps.filter((_, index) => index > deployIndex);
+        const checks = after.filter((step) => /api\.vercel\.com\/v\d+\/deployments/.test(step.run ?? ''));
 
-        if (probes.length === 0) {
-            violations.push(`${job} -> nothing probes the published site after the deploy`);
+        // ⛔ Checked BEFORE the early exit below: replacing the READY check WITH a reachability probe is
+        // the most likely way this regresses, and reporting only "nothing checks the state" would name the
+        // symptom while leaving the cause unnamed.
+        if (after.some((step) => /content="Docusaurus/.test(step.run ?? ''))) {
+            violations.push(`${job} -> a reachability probe is back; readability is not a CI invariant`);
+        }
+
+        if (checks.length === 0) {
+            violations.push(`${job} -> nothing checks the deployment state after the deploy`);
 
             continue;
         }
 
-        const bodies = probes.map((step) => step.run ?? '');
+        const bodies = checks.map((step) => step.run ?? '');
+
+        if (!bodies.some((run) => /readyState/.test(run))) {
+            violations.push(`${job} -> the check never reads readyState`);
+        }
+
+        // ⛔ The literal state, not the word: a message mentioning "ready" is prose, not a comparison.
+        if (!bodies.some((run) => /["'`]READY["'`]|=\s*READY|!=\s*"READY"/.test(run))) {
+            violations.push(`${job} -> the check does not require READY specifically`);
+        }
 
         if (!bodies.some((run) => /exit\s+1/.test(run))) {
-            violations.push(`${job} -> the probe never fails, whatever the published site answers`);
-        }
-
-        // The retired posture, structurally: a `200` arm that records a failure.
-        if (bodies.some((run) => /(?:failed=|exit\s+1)/.test(caseArmBody(run, '200)') ?? ''))) {
-            violations.push(
-                `${job} -> the probe treats a served page as a FAILURE, which is the retired private-site posture`,
-            );
-        }
-
-        // ⛔ The EXACT marker string, not the word "Docusaurus" — the step's own failure message says
-        // "a Docusaurus page", so a bare word match would be satisfied by prose while the check that
-        // discriminates this site from a Vercel login page had been deleted.
-        if (!bodies.some((run) => run.includes('content="Docusaurus'))) {
-            violations.push(`${job} -> the probe accepts any 200, not only this site`);
+            violations.push(`${job} -> the check never fails, whatever state Vercel reports`);
         }
     }
 
@@ -617,87 +614,80 @@ const DEPLOY_STEP = [
     '              run: npx vercel deploy --prebuilt --prod --token "$T"',
 ];
 
-const PROBE_STEP = [
-    '            - name: Verify the published site actually serves',
+/** The shipped shape: ask Vercel's deployments API and require READY. */
+const READY_CHECK_STEP = [
+    '            - name: Verify the deployment reached READY',
     '              run: |',
-    '                  code=$(curl -o response.html -w "%{http_code}" "$URL")',
-    '                  body=$(cat response.html)',
-    '                  case "$code" in',
-    '                    200)',
-    '                      case "$body" in',
-    '                        *\'name="generator" content="Docusaurus\'*) echo ok ;;',
-    '                        *) failed="wrong site" ;;',
-    '                      esac ;;',
-    '                    *) failed="$code" ;;',
-    '                  esac',
-    '                  if [ -n "$failed" ]; then echo "::error::not serving"; exit 1; fi',
+    '                  response=$(curl -H "Authorization: Bearer $T" \\',
+    '                    "https://api.vercel.com/v13/deployments/${host}?teamId=$TEAM")',
+    "                  state=$(printf '%s' \"$response\" | jq -r '.readyState // empty')",
+    '                  if [ -z "$state" ]; then echo "::error::unreadable"; exit 1; fi',
+    '                  if [ "$state" != "READY" ]; then echo "::error::not ready"; exit 1; fi',
 ];
 
-describe('the published docs site is proved to serve, and to be this site', () => {
-    it('flags a deploy that is never probed from outside', () => {
-        const found = findPublicationGaps(stepsFixture(...DEPLOY_STEP));
+describe('the docs deployment is proved to have LANDED', () => {
+    // ⚠️ REWRITTEN 2026-09-03 with the analyzer above. These cases used to assert an HTTP probe demanding
+    // a `200` carrying this site's generator tag. That contract was retired on an owner ruling: whether the
+    // site is READABLE is a protection setting the owner flips, not a CI invariant, and encoding it here
+    // made the suite assert the opposite of the truth each time it flipped.
 
-        expect(found).toEqual(['deploy -> nothing probes the published site after the deploy']);
-    });
-
-    it('flags a probe that reports whatever it got and carries on', () => {
-        const weak = [
-            '            - name: Verify',
-            '              run: |',
-            '                  code=$(curl -o /dev/null -w "%{http_code}" "$URL")',
-            '                  echo "got $code"',
-        ];
-        const found = findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...weak));
-
-        expect(found).toEqual([
-            'deploy -> the probe accepts any 200, not only this site',
-            'deploy -> the probe never fails, whatever the published site answers',
+    it('flags a deploy whose landing is never checked', () => {
+        expect(findPublicationGaps(stepsFixture(...DEPLOY_STEP))).toEqual([
+            'deploy -> nothing checks the deployment state after the deploy',
         ]);
     });
 
-    it('flags the RETIRED private-site probe, which fails on a served page', () => {
-        // ⛔ THE REGRESSION THIS ANALYZER EXISTS FOR. The owner ruled the site public; a probe that
-        // fails on a `200` would take it dark while every check stayed green, and it is the shape this
-        // very file used to require.
-        const retired = [
-            '            - name: Verify an unauthenticated request cannot read the site',
+    it('flags a check that reads the state and carries on regardless', () => {
+        const weak = [
+            '            - name: Look at it',
             '              run: |',
-            '                  code=$(curl -o /dev/null -w "%{http_code}" "$URL")',
-            '                  case "$code" in',
-            '                    401|403) echo "  refused" ;;',
-            '                    200) failed="served the content" ;;',
-            '                    *) failed="unrecognised" ;;',
-            '                  esac',
-            '                  if [ -n "$failed" ]; then echo "::error::not private"; exit 1; fi',
+            '                  curl "https://api.vercel.com/v13/deployments/x" | jq -r .readyState',
+            '                  echo "state was READY or something"',
         ];
+
+        // Both rules fire, and that is correct: the step neither compares against READY nor exits.
+        expect(findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...weak))).toEqual([
+            'deploy -> the check does not require READY specifically',
+            'deploy -> the check never fails, whatever state Vercel reports',
+        ]);
+    });
+
+    it('flags a check that accepts any state rather than READY', () => {
+        const anyState = [
+            '            - name: Check it',
+            '              run: |',
+            '                  state=$(curl "https://api.vercel.com/v13/deployments/x" | jq -r .readyState)',
+            '                  if [ -z "$state" ]; then exit 1; fi',
+        ];
+
+        // ⛔ This is the mutation that matters: ERROR and CANCELED are states too, and a check that only
+        // asserts "some state came back" passes a deployment that failed to build.
+        expect(findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...anyState))).toEqual([
+            'deploy -> the check does not require READY specifically',
+        ]);
+    });
+
+    it('⛔ flags the RETIRED reachability probe if anyone re-adds it', () => {
+        const retired = [
+            '            - name: Verify the published site actually serves',
+            '              run: |',
+            '                  body=$(curl "$URL")',
+            '                  case "$body" in',
+            '                    *\'name="generator" content="Docusaurus\'*) echo ok ;;',
+            '                    *) echo "::error::not serving"; exit 1 ;;',
+            '                  esac',
+        ];
+
         const found = findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...retired));
 
-        expect(found).toEqual([
-            'deploy -> the probe accepts any 200, not only this site',
-            'deploy -> the probe treats a served page as a FAILURE, which is the retired private-site posture',
-        ]);
+        expect(found).toContain('deploy -> a reachability probe is back; readability is not a CI invariant');
     });
 
-    it('flags a probe that would accept a Vercel error page as a healthy site', () => {
-        const anyTwoHundred = [
-            '            - name: Verify',
-            '              run: |',
-            '                  code=$(curl -o /dev/null -w "%{http_code}" "$URL")',
-            '                  case "$code" in',
-            '                    200) echo ok ;;',
-            '                    *) echo "::error::down"; exit 1 ;;',
-            '                  esac',
-        ];
-        const found = findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...anyTwoHundred));
-
-        expect(found).toEqual(['deploy -> the probe accepts any 200, not only this site']);
+    it('does NOT flag the shipped READY check', () => {
+        expect(findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...READY_CHECK_STEP))).toEqual([]);
     });
 
-    it('does NOT flag a probe that demands a 200 carrying this site', () => {
-        expect(findPublicationGaps(stepsFixture(...DEPLOY_STEP, ...PROBE_STEP))).toEqual([]);
-    });
-
-    it('the real docs.yml proves the site serves after publishing it', () => {
+    it('the real docs.yml proves the deployment landed after publishing it', () => {
         const workflow = realWorkflow();
 
         // Anti-vacuity: the analyzer only says anything about a job that actually deploys.

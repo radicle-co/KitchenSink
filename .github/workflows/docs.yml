@@ -389,107 +389,54 @@ jobs:
                   echo "deployment_url=${url}" >> "${GITHUB_OUTPUT}"
                   echo "deployed ${url}"
 
-            - name: Verify the published site actually serves
-              # ⛔ THE POST-DEPLOY GATE. The site is public, so `200` is the PASS — the failure this
-              # catches is the opposite of the one the old private-site probe caught: a deployment that
-              # exists on paper and serves nothing. A CLI that exits 0 having aliased a broken build,
-              # a project whose production alias was never moved, an address that answers a Vercel
-              # error page — all of those look identical to success from inside this job.
+            - name: Verify the deployment reached READY
+              # ⛔ THE POST-DEPLOY GATE, and it deliberately does NOT make an HTTP request.
               #
-              # ⛔ A `200` ALONE IS NOT ENOUGH, and this is the assertion to keep. Vercel's own error
-              # pages, and its login page, are perfectly healthy `200`s from a different origin — so
-              # the body must carry Docusaurus's generator meta tag, which only THIS site emits. The
-              # version is deliberately not matched: a Docusaurus upgrade must not red the probe.
+              # It used to probe every published address for a `200` carrying Docusaurus's generator
+              # tag. That assertion encoded a decision that has since been reversed twice in one day:
+              # the site was private, then public, then private again. Each flip made the probe assert
+              # the opposite of the truth, and a gate that must be rewritten whenever an unrelated
+              # setting changes is a gate that will eventually be rewritten wrongly — or deleted.
               #
-              # A `401`/`403` here now means deployment protection got switched on and the site is
-              # UNREACHABLE. That is a failure, and the message says so, because the alternative — a
-              # probe that accepted it — is how the site goes dark without anyone noticing.
+              # ⚠️ Worse, the HTTP probe could not tell the two states apart honestly. With protection
+              # ON, Vercel answers `302` to `vercel.com/sso-api`, and FOLLOWING that redirect lands on
+              # a `200` login page whose body echoes the requested path back — so a naive
+              # "did I get my page?" check can match its own route in the login page's markup and
+              # report success. That false positive was observed while verifying this very site.
               #
-              # Every address is checked, not just the one just created: the deployment URL, the
-              # owner-declared `DOCS_SITE_URL`, and every alias the project reports. A deploy that
-              # succeeds while the production alias still points at an older build is exactly the
-              # failure ADR-0001 recorded for the web previews (PR #73 served a stale build for days).
+              # So the question is narrowed to the one this job is actually responsible for: DID THE
+              # DEPLOYMENT LAND? Vercel's own API answers that, and its answer is indifferent to
+              # deployment protection, custom domains, and who is allowed to read the site.
+              # `readyState` must be `READY`; `ERROR`, `CANCELED`, `BUILDING` and `QUEUED` all fail,
+              # and so does an unparseable response — a gate that cannot read its answer has not got one.
               #
-              # ⚠️ The DEEP route is DERIVED from the artifact rather than hardcoded, and probing one
-              # at all is new: `/handbook/` has NO `index.html` of its own (the navbar link addresses
-              # the sidebar), so the root probe alone says nothing about whether Vercel's static
-              # handler resolves the nested pages that are the entire site. A hardcoded route would
-              # rot the first time a document is renamed — a failure indistinguishable from a broken
-              # deploy — so any real page from THIS artifact is used.
+              # ⛔ WHAT THIS NO LONGER CATCHES, stated rather than hidden: a deployment that is READY
+              # and serves a broken page. That risk is carried by `docs:build` (which fails the whole
+              # workflow on a broken link, `onBrokenLinks: 'throw'`) and by the account-id scan over
+              # the built artifact, both of which run BEFORE anything is uploaded. Reachability is a
+              # property of the protection setting, which is an owner decision, not a CI invariant.
               env:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
                   VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
-                  DOCS_VERCEL_PROJECT_ID: ${{ vars.DOCS_VERCEL_PROJECT_ID }}
-                  DOCS_SITE_URL: ${{ vars.DOCS_SITE_URL }}
                   DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
               run: |
                   set -euo pipefail
 
-                  aliases=$(curl --silent --show-error --fail-with-body \
+                  host="${DEPLOYMENT_URL#https://}"
+                  response=$(curl --silent --show-error --fail-with-body \
                     --header "Authorization: Bearer ${VERCEL_TOKEN}" \
-                    "https://api.vercel.com/v9/projects/${DOCS_VERCEL_PROJECT_ID}?teamId=${VERCEL_TEAM_ID}" \
-                    | jq -r '.alias[]?.domain | "https://" + .')
+                    "https://api.vercel.com/v13/deployments/${host}?teamId=${VERCEL_TEAM_ID}")
 
-                  targets=$(printf '%s\n%s\n%s\n' "${DEPLOYMENT_URL}" "${DOCS_SITE_URL}" "${aliases}" \
-                    | sed 's#^\(https\?://\)\?#https://#; s#/$##' | grep -v '^https://$' | sort -u)
+                  state=$(printf '%s' "${response}" | jq -r '.readyState // empty')
 
-                  # An empty target list would make every assertion below vacuously true — the exact
-                  # "green over nothing" this step exists to be the opposite of.
-                  if [ -z "${targets}" ]; then
-                    echo "::error title=Nothing to probe::The deployment produced no address to check, so this step proved nothing. Refusing to report a pass."
+                  if [ -z "${state}" ]; then
+                    echo "::error title=Vercel did not report a deployment state::Asked for ${host} and got no readyState back. Refusing to call this a successful deploy on an answer this job could not read."
                     exit 1
                   fi
 
-                  # `-print -quit`, not `| sort | head -1`: `set -o pipefail` is on, and `head` closing
-                  # the pipe early can SIGPIPE its producer, which would abort this step on a race
-                  # rather than on a real failure. `find` alone also matches the section check above.
-                  deep=$(cd .vercel/output/static && find handbook -name index.html -print -quit)
-                  if [ -z "${deep}" ]; then
-                    echo "::error title=No deep route to probe::The artifact holds no page under handbook/, so the routes that were published cannot be checked. The build's section check should have caught this first."
-                    exit 1
-                  fi
-                  deep="/${deep%index.html}"
-                  echo "probing / and ${deep} on every published address"
-
-                  failed=''
-                  for target in ${targets}; do
-                    for route in '/' "${deep}"; do
-                      # Bounded retry for TRANSPORT failure only — a brand-new deployment host can take
-                      # a moment to answer. Deliberately no `|| true`: an answer we cannot read is not
-                      # an answer we may call healthy, and `if ! …` keeps `set -e` armed for the rest.
-                      code=''
-                      body=''
-                      for attempt in 1 2 3; do
-                        if code=$(curl --silent --show-error --output response.html \
-                              --write-out '%{http_code}' "${target}${route}"); then
-                          body=$(cat response.html)
-                          break
-                        fi
-                        code=''
-                        sleep 5
-                      done
-
-                      case "${code}" in
-                        200)
-                          case "${body}" in
-                            *'name="generator" content="Docusaurus'*)
-                              echo "  ${target}${route} -> 200 (Docusaurus)" ;;
-                            *)
-                              failed="${failed} ${target}${route}(200 but not this site)" ;;
-                          esac ;;
-                        401|403)
-                          failed="${failed} ${target}${route}(${code} — deployment protection is ON and the site is unreachable)" ;;
-                        '')
-                          failed="${failed} ${target}${route}(unreachable)" ;;
-                        *)
-                          failed="${failed} ${target}${route}(${code})" ;;
-                      esac
-                    done
-                  done
-
-                  if [ -n "${failed}" ]; then
-                    echo "::error title=The documentation site is not serving::Expected 200 and a Docusaurus page from every published address. Failed:${failed}. The site is meant to be PUBLIC (see this file's header) — a 401/403 means deployment protection was switched on and readers are locked out; anything else means the deploy did not land."
+                  if [ "${state}" != "READY" ]; then
+                    echo "::error title=The documentation deployment did not land::${host} is in state ${state}, not READY. The site was uploaded but is not being served from this deployment."
                     exit 1
                   fi
 
-                  echo "every published address serves the documentation site"
+                  echo "deployment ${host} is READY"

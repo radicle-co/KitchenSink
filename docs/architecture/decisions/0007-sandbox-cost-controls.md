@@ -29,6 +29,11 @@ Sandbox does not need production sizing, production observability depth, or 24/7
 pair — **stop at 00:00 ET, start at 09:00 ET, daily**, `timezone: America/New_York` (DST-correct) —
 targeting a small Lambda that, scoped to sandbox resources by name/tag:
 
+> ⚠️ The 09:00 start was DELETED by [ADR-0028](0028-on-demand-sandbox.md) §5 (2026-08-27) and **RESTORED**
+> by its Update of 2026-09-03, so this pair is again what ships. Read that Update before removing it a
+> second time: §5's premise — that a start would resurrect the whole tier — expired when ADR-0028's own
+> 2026-08-30 amendment made the ALB and identity service _deleted stacks_, which a schedule cannot recreate.
+
 - stops / starts the sandbox RDS instance (`rds:StopDBInstance` / `StartDBInstance`);
 - scales sandbox ECS services to `0` and back to their prior desired count (`ecs:UpdateService`);
 - stops / starts the sandbox NAT EC2 instance (`ec2:StopInstances` / `StartInstances`).

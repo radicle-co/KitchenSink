@@ -323,3 +323,100 @@ mutation-checked: pointing the drain back at the identity service fails 1 synth 
   unimported export.
 - The ~$11.13/month of sandbox RDS gp3 storage remains, as does the note that shrinking it needs a deliberate
   instance replacement (`6056779c` reverted an attempt that wedged the data stack).
+
+## Update (2026-09-03) — the 09:00 start is RESTORED, and the reconciler stops nothing
+
+Owner ruling, verbatim:
+
+> "when the sandbox goes down, we shouldn't take all of RDS down; just clean up the current PR sandbox
+> tables. The RDS should still be stopped and started on the original schedule."
+
+### What changes, and what explicitly does not
+
+| §                                                 | Status                                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| §1 button, §2 midnight expiry, §4 gate            | **Unchanged.** A preview still starts by a press and dies at midnight ET of the day it started.                    |
+| §3 first half (hourly reaping)                    | **Unchanged.**                                                                                                     |
+| §3 second half ("stops the shared sandbox tier")  | **WITHDRAWN.** The reconciler no longer invokes `{"action":"stop"}`.                                               |
+| §5 ("ADR-0007's 09:00 start schedule is deleted") | **REVERSED.** `SandboxStartSchedule` is restored under its original construct id, `hour: '9'`, `America/New_York`. |
+| Update (2026-08-30), ALB + identity reclamation   | **Unchanged, and load-bearing to this decision** — see below.                                                      |
+
+The RDS instance and the NAT are back on ONE clock: stop 00:00 ET, start 09:00 ET, both owned by
+`SandboxSchedulerStack`. Nothing else in the repository stops them.
+
+### The premise that expired
+
+§5's whole argument was that a daily start "would resurrect the whole tier every weekday morning regardless
+of intent, silently undoing the reaper". That was true on 2026-08-27, when the shared ALB and identity
+service were merely STOPPED and a `start` therefore brought the entire environment back.
+
+The Update of 2026-08-30 — in this same ADR — made them **deleted stacks**. **A schedule cannot create a
+stack.** So the set of things a 09:00 start can now resurrect is exactly the two resources that were only
+ever stoppable: the sandbox RDS instance and the NAT EC2 instance. The reaper is not undone by that, because
+the reaper's subjects (per-PR stacks, the ALB, the identity service) are not things a `StartDBInstance` or
+`StartInstances` call can bring back. §5 was correct reasoning applied to a fact that its own successor
+amendment retired six days later — the same shape as ADR-0004's four-consumer list, and the reason
+`natEgressConsumers.test.ts` exists.
+
+### Why the reconciler's stop goes, rather than merely being narrowed
+
+Leaving the reconciler with a stop and adding a schedule with a start gives the pair two different triggers:
+a stop that fires whenever no preview happens to be live, and a start that fires at 09:00. Those disagree
+constantly — a preview reaped at 02:00 stops the database, 09:00 starts it, and the hourly reconciler stops
+it again at 09:17. Worse, they disagree ASYMMETRICALLY on the ECS bookkeeping: `runStop` writes each
+service's prior desired count to SSM and `runStart` deliberately refuses to guess when it is missing, so a
+stop that fires on a schedule the start does not mirror is what leaves that bookkeeping half-applied.
+
+⛔ The removed step's ORDERING constraint is discharged, not dropped. The 2026-08-30 amendment required the
+ALB/identity delete to run BEFORE the scheduler's stop, because draining ECS tasks into an environment with
+no database is what produced the `NotStabilized` wedge. With no stop in that workflow, the delete cannot be
+followed by one. `sharedTierLifecycle.test.ts` asserts the absence in both directions: no `{"action":"stop"}`
+invocation, and no hand-rolled `stop-db-instance` / `--desired-count 0` equivalent — the latter because
+reimplementing the stop by hand is the exact defect this ADR records in the reconciler's first draft.
+
+`steps.inuse` is KEPT. It still gates the ALB and identity reclaim, which is a stack delete and not an RDS
+operation, and which the ruling does not touch.
+
+### Cost
+
+The sandbox RDS (`db.t4g.micro`) and the `t4g.nano` NAT now run 09:00–00:00 daily instead of only when
+someone presses the button. **+$8–9/month**, against this ADR's measured $398/month baseline — about 2%,
+and accepted by the owner as the price of a database that is up when someone reaches for it.
+
+The offsetting benefit is not only convenience. `sandbox-wake.sh` exists because ADR-0007's stop window and
+ADR-0022's in-stack migration Trigger compose into `UPDATE_ROLLBACK_FAILED`: a deploy landing between 00:00
+and 09:00 ran its migration against a stopped instance, failed, and then failed its ROLLBACK for the same
+reason — a state that needed a human with `continue-update-rollback --resources-to-skip`. Restoring the
+start shrinks the window in which that is reachable at all from "any hour the reconciler last stopped it"
+back to the documented 00:00–09:00, which is what the wake script was written and tested against.
+
+### Consequences
+
+- **The shared sandbox database is up 09:00–00:00 ET every day**, whether or not a preview is live. This is
+  the ruling, stated plainly: it is no longer coupled to preview lifetime in either direction.
+- ADR-0007's original "cold start each morning" consequence returns, unchanged: the instance takes a few
+  minutes to become `available` at 09:00 ET.
+- The ALB and identity service remain on the ON-DEMAND lifecycle of the 2026-08-30 amendment. The tier is
+  therefore no longer uniform — two resources on a clock, two on a button — and that asymmetry is deliberate:
+  one pair can be stopped and the other can only be deleted.
+
+### Residual risk
+
+- ⚠️ **The reclaim can now run against a stopped database, and that was already true.** The ALB/identity
+  delete fires on any hourly pass where nothing is live, including between 00:00 and 09:00 when the schedule
+  has stopped the instance — draining ECS tasks into an environment with no database, the `NotStabilized`
+  shape. This change does not introduce it (the previous ordering only protected against the stop issued in
+  the SAME run, not against one issued eight hours earlier) and does not fix it. The cure, if it bites, is
+  `sandbox-wake.sh ensure` ahead of the reclaim, exactly as the teardown script now does.
+- **Nothing asserts the restored schedule end-to-end.** `SandboxSchedulerStack.test.ts` pins both cron
+  expressions, both actions, and the PAIRING of each action to its own hour (a start at midnight and a stop
+  at nine synthesizes cleanly and would otherwise pass). The AWS-side behaviour — that EventBridge fires it
+  and `runStart` finds its SSM parameters — is unexercised until 09:00 ET after the next deploy of
+  `packages/infra/global` at stage `sandbox`.
+- **The 7-day RDS auto-restart backstop is now redundant but still correct.** The stop remains the thing
+  that catches it in weeks when GitHub Actions does not run; the start simply means the instance was not
+  going to be stopped for seven days anyway.
+- The per-PR logical databases are reclaimed by `teardown-sandbox-pr.sh` (see its §1), which is the "just
+  clean up the current PR sandbox tables" half of the ruling. That path was broken for recipe previews until
+  this same change; the census in `db-bootstrap/perPrInventory.ts` is what will say whether the backlog it
+  left is bounded.

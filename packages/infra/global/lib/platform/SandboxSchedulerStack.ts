@@ -23,7 +23,7 @@ export interface SandboxSchedulerStackProps extends StackProps {
 }
 
 /**
- * Sandbox nightly-shutdown scheduler (ADR-0007).
+ * Sandbox nightly-shutdown scheduler (ADR-0007, amended by ADR-0028 and its Update of 2026-09-03).
  *
  * Provisions a least-privilege Lambda plus an EventBridge Scheduler pair — STOP at 00:00 ET and START
  * at 09:00 ET, daily, `America/New_York` (DST-correct) — that stops/starts the sandbox RDS instance,
@@ -37,6 +37,7 @@ export interface SandboxSchedulerStackProps extends StackProps {
  * survive per-PR cleanup — it is never a `pr-{N}` resource (ADR-0005).
  *
  * @implements ADR-0007
+ * @implements ADR-0028
  */
 export class SandboxSchedulerStack extends Stack {
     /** The scheduler Lambda's name (exported for ops/manual invocation). */
@@ -149,34 +150,59 @@ export class SandboxSchedulerStack extends Stack {
             }),
         );
 
-        // ── Nightly STOP at 00:00 ET, DST-correct ────────────────────────────────────────────────
+        // ── Nightly STOP at 00:00 ET and START at 09:00 ET, DST-correct ──────────────────────────
         //
-        // ⚠️  ADR-0028 REMOVED the 09:00 start this pair used to carry. Under the on-demand sandbox the tier
-        // is not a permanent thing that sleeps — it comes up when someone presses the button in GitHub and
-        // dies at midnight. A daily 09:00 start would resurrect the whole tier every weekday morning
-        // regardless of whether anyone wanted it, silently undoing the reaper and restoring the bill.
+        // ⚠️  ADR-0028 DELETED the 09:00 start; the Update of 2026-09-03 RESTORED it. Read why before
+        // deleting it again — the reasoning that removed it was correct and its premise has since expired.
         //
-        // The STOP stays, and it is NOT merely a backstop: AWS auto-restarts a stopped RDS instance after
-        // SEVEN DAYS. With the sandbox idle for a week the database comes back on its own and bills until a
-        // human notices. This catches that within a day, every time — including in the weeks when GitHub's
-        // best-effort scheduled workflows do not run at all.
+        // ADR-0028's argument was that a daily start "would resurrect the whole tier every weekday morning
+        // regardless of whether anyone wanted it". That held while the shared ALB and identity service were
+        // merely STOPPED. ADR-0028's own amendment of 2026-08-30 made them DELETED STACKS, and a schedule
+        // cannot create a stack — so what a start can now resurrect is exactly the two resources that were
+        // only ever stoppable: the sandbox RDS instance and the NAT EC2 instance. The owner ruled on
+        // 2026-09-03 that those two follow the original clock: "The RDS should still be stopped and started
+        // on the original schedule."
+        //
+        // ⛔ The pair is EXACT INVERSES because `runStop`/`runStart` are: `runStop` records each ECS
+        // service's prior desired count in SSM and `runStart` deliberately refuses to guess when that
+        // parameter is missing. Scheduling one without the other leaves that bookkeeping half-applied.
+        //
+        // The STOP is not merely a backstop: AWS auto-restarts a stopped RDS instance after SEVEN DAYS, and
+        // this catches that within a day, every time — including in the weeks when GitHub's best-effort
+        // scheduled workflows do not run at all. The START carries the mirror property: a deploy landing in
+        // the old 00:00-09:00 window no longer meets a stopped database, which is the ADR-0007 x ADR-0022
+        // `UPDATE_ROLLBACK_FAILED` wedge that `sandbox-wake.sh` was written after.
+        //
         // Supply `day` (day-of-month) only — the CDK helper rejects setting both day and weekDay, and
         // fills the unset weekDay field with `?`, yielding the intended `cron(0 0 * * ? *)`.
-        const stopExpression = scheduler.ScheduleExpression.cron({
-            minute: '0',
-            hour: '0',
-            day: '*',
-            month: '*',
-            year: '*',
-            timeZone: TimeZone.AMERICA_NEW_YORK,
-        });
+        const dailyAt = (hour: string): scheduler.ScheduleExpression =>
+            scheduler.ScheduleExpression.cron({
+                minute: '0',
+                hour,
+                day: '*',
+                month: '*',
+                year: '*',
+                timeZone: TimeZone.AMERICA_NEW_YORK,
+            });
 
         new scheduler.Schedule(this, 'SandboxStopSchedule', {
-            schedule: stopExpression,
+            schedule: dailyAt('0'),
             target: new schedulerTargets.LambdaInvoke(schedulerFn, {
                 input: scheduler.ScheduleTargetInput.fromObject({ action: 'stop' }),
             }),
             description: 'Stop the sandbox tier nightly at 00:00 America/New_York (ADR-0007, ADR-0028)',
+        });
+
+        // ⚠️ The construct id is the ORIGINAL one this schedule carried before `ccae565f` removed it.
+        // EventBridge Scheduler names the schedule from the construct path, so reintroducing it under a new
+        // id would leave the old name orphaned in the account if the delete ever failed, and would make the
+        // restore invisible in `cdk diff` as a rename rather than a re-creation.
+        new scheduler.Schedule(this, 'SandboxStartSchedule', {
+            schedule: dailyAt('9'),
+            target: new schedulerTargets.LambdaInvoke(schedulerFn, {
+                input: scheduler.ScheduleTargetInput.fromObject({ action: 'start' }),
+            }),
+            description: 'Start the sandbox tier daily at 09:00 America/New_York (ADR-0007, ADR-0028)',
         });
     }
 }

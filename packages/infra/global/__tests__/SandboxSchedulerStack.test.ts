@@ -1,20 +1,29 @@
 /**
- * ADR-0007 sandbox scheduler infra: a least-privilege Lambda + a nightly STOP at 00:00
- * America/New_York, created by GlobalStack ONLY for the sandbox stage (prod gets nothing → no prod diff,
- * ADR-0002 discipline).
+ * ADR-0007 sandbox scheduler infra: a least-privilege Lambda + the nightly STOP/START PAIR — 00:00 and
+ * 09:00 America/New_York — created by GlobalStack ONLY for the sandbox stage (prod gets nothing → no prod
+ * diff, ADR-0002 discipline).
  *
- * ## Why the 09:00 START was removed (ADR-0028)
+ * ## The 09:00 START was removed by ADR-0028 and RESTORED on 2026-09-03. Read why before removing it again.
  *
- * ADR-0007 paired the nightly stop with a 09:00 restart, on the assumption that the sandbox is a permanent
- * tier that merely sleeps. Under the on-demand sandbox it is not: it comes up when someone presses the
- * button and dies at midnight. A daily 09:00 start would resurrect the whole tier every weekday morning
- * whether or not anybody wanted it — silently undoing the reaper and restoring the bill this was written to
- * remove.
+ * ADR-0028 deleted the start on one argument: it "would resurrect the whole tier every weekday morning
+ * regardless of intent, silently undoing the reaper". That was true when it was written, and its premise
+ * has since expired.
  *
- * The STOP survives, and not merely as a backstop. AWS auto-restarts a stopped RDS instance after SEVEN
- * DAYS. With the sandbox idle for a week the database returns by itself and bills until someone notices;
- * the nightly stop is what catches it, within a day, every time. `sandbox-reconcile.yml` converges the same
- * state hourly, so the two agree — but the schedule is the one that works when GitHub Actions does not.
+ * ADR-0028's own amendment of 2026-08-30 made the shared ALB and identity service **deleted stacks** rather
+ * than stopped ones. A schedule cannot create a stack. So after the reaper has run there is nothing for a
+ * start to resurrect except the two things that were only ever STOPPED — the RDS instance and the NAT — and
+ * those are the two the owner has ruled must follow the original clock (2026-09-03): _"The RDS should still
+ * be stopped and started on the original schedule."_
+ *
+ * The STOP was never merely a backstop and still is not: AWS auto-restarts a stopped RDS instance after
+ * SEVEN DAYS, and the nightly stop is what catches that within a day, every time — including in the weeks
+ * when GitHub's best-effort scheduled workflows do not run at all. The START now carries the same property
+ * in the other direction: a deploy landing inside the old 00:00–09:00 window no longer meets a stopped
+ * database (ADR-0007 × ADR-0022, the `UPDATE_ROLLBACK_FAILED` wedge `sandbox-wake.sh` was written after).
+ *
+ * ⛔ The two schedules are EXACT INVERSES on purpose, because `runStop` and `runStart` are: `runStop`
+ * records each service's prior desired count in SSM and `runStart` refuses to guess when it is missing.
+ * Scheduling one without the other is what leaves that bookkeeping half-applied.
  */
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
@@ -50,37 +59,54 @@ describe('SandboxSchedulerStack (ADR-0007)', () => {
     it('creates exactly two EventBridge schedules, both in America/New_York', () => {
         const template = schedulerTemplate();
 
-        template.resourceCountIs('AWS::Scheduler::Schedule', 1);
+        template.resourceCountIs('AWS::Scheduler::Schedule', 2);
 
         const schedules = Object.values(template.findResources('AWS::Scheduler::Schedule')).map(
             (resource: any) => resource.Properties,
         );
 
         for (const schedule of schedules) {
+            // DST-correct by timezone, never by a UTC hour. `America/New_York` is UTC-4 for eight months and
+            // UTC-5 for four; a UTC cron would drift an hour twice a year and the drift is invisible until a
+            // deploy lands in a window that was supposed to be open.
             expect(schedule.ScheduleExpressionTimezone).toBe('America/New_York');
         }
 
+        // Both expressions PINNED, not merely counted. `day: '*'` with the weekDay field left as `?` is what
+        // the CDK helper emits, and it is the difference between "every day" and a synth error — asserting
+        // only the count would let a `cron(0 9 ? * * *)` typo through.
         const expressions = schedules.map((schedule: any) => schedule.ScheduleExpression).sort();
-        expect(expressions).toEqual(['cron(0 0 * * ? *)']);
+        expect(expressions).toEqual(['cron(0 0 * * ? *)', 'cron(0 9 * * ? *)']);
     });
 
-    it('passes the stop action to the Lambda target as structured input', () => {
+    it('passes stop and start to the Lambda target as structured input, one each', () => {
         const template = schedulerTemplate();
         const inputs = Object.values(template.findResources('AWS::Scheduler::Schedule')).map((resource: any) =>
             JSON.parse(resource.Properties.Target.Input),
         );
 
-        expect(inputs).toEqual([{ action: 'stop' }]);
+        // ⛔ Set equality, not "contains a stop". `runStop` writes each ECS service's prior desired count to
+        // SSM and `runStart` deliberately REFUSES to guess when that parameter is missing — so a schedule
+        // that stops without a matching start strands whatever it scaled down, and a duplicate of either
+        // action fires the bookkeeping twice.
+        expect([...inputs].sort((a, b) => String(a.action).localeCompare(String(b.action)))).toEqual([
+            { action: 'start' },
+            { action: 'stop' },
+        ]);
     });
 
-    it('schedules NO automatic start — the button is the only way up (ADR-0028)', () => {
-        const template = schedulerTemplate();
-        const inputs = Object.values(template.findResources('AWS::Scheduler::Schedule')).map((resource: any) =>
-            JSON.parse(resource.Properties.Target.Input),
+    it('pairs each action with its own hour, so the two cannot be swapped unnoticed', () => {
+        // The previous assertion proves both actions exist and the one before it proves both hours exist.
+        // Neither catches the two being crossed — a start at midnight and a stop at nine, which synthesizes
+        // cleanly, passes both, and shuts the sandbox down for the entire working day.
+        const byAction = Object.fromEntries(
+            Object.values(schedulerTemplate().findResources('AWS::Scheduler::Schedule')).map((resource: any) => [
+                JSON.parse(resource.Properties.Target.Input).action,
+                resource.Properties.ScheduleExpression,
+            ]),
         );
 
-        expect(inputs).not.toContainEqual({ action: 'start' });
-        expect(JSON.stringify(template.findResources('AWS::Scheduler::Schedule'))).not.toContain('cron(0 9');
+        expect(byAction).toEqual({ stop: 'cron(0 0 * * ? *)', start: 'cron(0 9 * * ? *)' });
     });
 
     it('scopes IAM to exactly the rds/ecs/ec2/ssm actions it needs (no service-wildcard admin)', () => {
@@ -134,11 +160,11 @@ describe('GlobalStack scheduler guard (ADR-0007 / no prod diff)', () => {
             domainName: 'example.com',
         });
 
-    it('creates the SandboxSchedulerStack (with its ONE stop schedule) ONLY for the sandbox stage', () => {
+    it('creates the SandboxSchedulerStack (with BOTH schedules) ONLY for the sandbox stage', () => {
         const sandbox = makeGlobal('sandbox');
 
         expect(sandbox.sandboxScheduler).toBeInstanceOf(SandboxSchedulerStack);
-        Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 1);
+        Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 2);
     });
 
     it('creates no scheduler for prod (guard leaves it undefined → prod template unchanged)', () => {

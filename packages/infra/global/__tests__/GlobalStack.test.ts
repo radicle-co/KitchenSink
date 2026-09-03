@@ -90,11 +90,15 @@ describe('GlobalStack child export contract (what services import)', () => {
 });
 
 describe('GlobalStack sandbox-scheduler guard (ADR-0007 / no prod diff)', () => {
-    it('creates the SandboxSchedulerStack (1 stop schedule, ADR-0028) ONLY for the sandbox stage', () => {
+    it('creates the SandboxSchedulerStack (the stop/start PAIR, ADR-0028 Update 2026-09-03) ONLY for the sandbox stage', () => {
         const sandbox = makeGlobal('sandbox');
 
         expect(sandbox.sandboxScheduler).toBeInstanceOf(SandboxSchedulerStack);
-        Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 1);
+        // Two: the 00:00 ET stop and the 09:00 ET start restored by ADR-0028's Update of 2026-09-03. What
+        // this file is actually guarding is the GUARD — that prod and dev get no scheduler at all — so it
+        // asserts only the count; the expressions, actions and their pairing are pinned by
+        // `SandboxSchedulerStack.test.ts`, which owns that decision.
+        Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 2);
     });
 
     it('creates no scheduler for prod or an unspecified stage (guard leaves it undefined)', () => {

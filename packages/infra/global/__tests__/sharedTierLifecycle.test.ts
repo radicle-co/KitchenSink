@@ -17,9 +17,17 @@
  * resolve through it, and reclaiming shared infrastructure while a preview teardown is still running is how
  * a half-deleted preview becomes unreachable-and-unreclaimable.
  *
- * **2. Delete BEFORE the scheduler stops the RDS and NAT.** Deleting an ECS service drains its tasks; doing
- * that after the database and the NAT are stopped means the drain happens in an environment where the tasks
- * cannot reach anything, which is the shape that produced the `NotStabilized` wedge repaired on 2026-08-30.
+ * **2. The reconciler does not stop the RDS and NAT AT ALL** (owner ruling, 2026-09-03). It used to invoke
+ * the scheduler Lambda with `{"action":"stop"}` as its last step, which took the shared DATABASE down every
+ * time no preview happened to be live. The owner's ruling is that per-PR cleanup reclaims the per-PR
+ * databases and nothing else, while _"the RDS should still be stopped and started on the original
+ * schedule"_ — so that lifecycle belongs entirely to `SandboxSchedulerStack`'s 00:00/09:00 ET pair and this
+ * workflow must not carry a second, differently-triggered copy of it.
+ *
+ * The ordering constraint that step used to carry is not lost, it is DISCHARGED: the reason the delete had
+ * to precede the stop was that draining ECS tasks into an environment with no database produced the
+ * `NotStabilized` wedge repaired on 2026-08-30. With no stop in this workflow, the delete can no longer be
+ * followed by one.
  *
  * **3. Create BEFORE the preview deploys are dispatched.** `identity.sandbox.commise.app` is the ONE
  * identity service every preview signs in against (ADR-0001). Dispatch the previews first and they come up,
@@ -90,15 +98,30 @@ describe('shared sandbox tier lifecycle (ADR-0028, amended 2026-08-30)', () => {
             expect(condition).toContain("steps.inuse.outputs.busy == 'false'");
         });
 
-        it('deletes the tier AFTER the per-PR teardown and BEFORE the RDS and NAT are stopped', () => {
+        it('deletes the tier AFTER the per-PR teardown', () => {
             const teardown = indexOfRun(steps, 'teardown-sandbox-pr.sh');
             const sharedTier = indexOfRun(steps, 'sandbox-shared-tier.sh');
-            const schedulerStop = indexOfRun(steps, '"action":"stop"');
 
             expect(teardown).toBeGreaterThanOrEqual(0);
-            expect(schedulerStop).toBeGreaterThanOrEqual(0);
             expect(sharedTier).toBeGreaterThan(teardown);
-            expect(sharedTier).toBeLessThan(schedulerStop);
+        });
+
+        it('NEVER stops the shared RDS or NAT — that clock belongs to the scheduler alone', () => {
+            // ⛔ The owner's ruling of 2026-09-03, asserted rather than described. The reconciler used to end
+            // by invoking the scheduler Lambda with `{"action":"stop"}` whenever no preview was live, which
+            // is what "took all of RDS down" on a preview's teardown. The stop and the start are now ONE
+            // decision, expressed once, in `SandboxSchedulerStack`'s 00:00/09:00 ET pair.
+            //
+            // Matched on the ACTION, not on the function name: a future step could rediscover the scheduler
+            // by a different route, and what is forbidden is the stop, not the lookup.
+            expect(steps.filter((step) => (step.run ?? '').includes('"action":"stop"'))).toEqual([]);
+
+            // The mirror direction, so this cannot be satisfied by reimplementing the stop by hand — the
+            // exact defect ADR-0028 records in the reconciler's first draft, where a raw
+            // `aws ecs update-service --desired-count 0` skipped the SSM bookkeeping `runStart` needs.
+            for (const step of steps) {
+                expect(step.run ?? '').not.toMatch(/stop-db-instance|stop-instances|--desired-count[= ]+0/u);
+            }
         });
     });
 

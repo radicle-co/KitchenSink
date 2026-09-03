@@ -151,6 +151,32 @@ describe('IngredientPicker (mobile) — the U16 create-your-own-food vertical', 
         expect(mutate).not.toHaveBeenCalled();
     });
 
+    /**
+     * ⛔ THE MIXED INVALID STATE, mirrored from web. The verdicts come from the SHARED
+     * `validateAuthoredFoodDraft`, so a regression on one platform is a regression on both — which is
+     * exactly why both leaves assert it rather than trusting the model test alone.
+     */
+    it('⛔ names the out-of-range field WHILE other fields are still empty — one submit, every verdict', () => {
+        const mutate = vi.fn();
+
+        useCreateAuthoredFoodViaPickerMock.mockReturnValue(idleMutation({ mutate }));
+        openForm();
+        fireEvent.change(screen.getByLabelText('Carbs (g)'), { target: { value: '150' } });
+        fireEvent.click(screen.getByLabelText('Create and add'));
+
+        // ⛔ ORDERED, not counted, and for the SAME reason the web mirror gives: a count plus a
+        // `getByText` would pass with the range verdict landing on the WRONG macro, which is one field
+        // over from the bug itself. The leaf renders one alert per field in the fixed macro order, so the
+        // list IS the association. No entry for `name` — the affordance prefilled it from the query.
+        expect(screen.getAllByRole('alert').map((node) => node.textContent)).toEqual([
+            'Required',
+            'Required',
+            'Outside the allowed range',
+            'Required',
+        ]);
+        expect(mutate).not.toHaveBeenCalled();
+    });
+
     it('creates and ATTACHES in one flow — the resolved line reaches onResolve and the form closes', () => {
         const admitted = makeIngredient({ id: 'ing-a1', name: 'grandma blend', foodId: 'F_new' });
 

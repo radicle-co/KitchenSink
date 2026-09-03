@@ -19,13 +19,22 @@ import { signInWithTicket } from './utils/auth';
  * the second one is what navigates. A spec that only asserted the FAB opens something would pass against a
  * dial whose destination went nowhere — which is exactly the shape this ruling could have shipped.
  *
- * ⛔ Exactly ONE destination is asserted. Scan / Import / AI belong to features 004 and 005 and are not
- * rendered at all — promising a stopped feature is worse than omitting it.
+ * ⛔ THE WHOLE DESTINATION LIST IS ASSERTED, in order, and it is TWO entries — not one.
+ *
+ * ⚠️ REWRITTEN (2026-09-03). This asserted `toHaveCount(1)` and had failed on every run of this branch
+ * since plan U9 landed, because U9 made good on the shape U34 was BUILT for: "Paste an Ingredient List"
+ * is the second destination, and it cost one list entry rather than a redesign (`RecipeList.tsx`'s own
+ * comment says so, and `parseIngredients.spec.ts` reaches the paste surface through it). A count of one
+ * was therefore a claim about a product that no longer exists — and the fix is not to relax the count but
+ * to name what is there: the exact labels, in the exact order, which is strictly stronger than any count
+ * and fails on an added entry, a removed one, a renamed one, AND on the primary path being demoted out of
+ * first position. Scan / Import / AI still belong to features 004 and 005 and are still not rendered at
+ * all — promising a stopped feature is worse than omitting it, and this assertion is what keeps that true.
  *
  * Selectors are role/label only (repo policy); no `data-testid`, no `waitForTimeout`.
  */
 test.describe('create SpeedDial (U34)', () => {
-    test('opens the dial and reaches the create wizard from its one destination', async ({ page }) => {
+    test('opens the dial, discloses both destinations, and reaches the create wizard', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
@@ -62,9 +71,10 @@ test.describe('create SpeedDial (U34)', () => {
 
         const menu = page.getByRole('menu', { name: 'Create a recipe' });
         await expect(menu).toBeVisible();
-        // ONE destination, asserted as a count rather than as "the one I looked for is present" — the latter
-        // passes just as well against a dial that also renders three dead ones.
-        await expect(menu.getByRole('menuitem')).toHaveCount(1);
+        // The WHOLE list, in order — not "the one I looked for is present", which passes just as well
+        // against a dial that also renders three dead ones. `Create from Scratch` staying FIRST is part of
+        // the assertion: U34's ruling is that adding a destination must not move the primary path.
+        await expect(menu.getByRole('menuitem')).toHaveText(['Create from Scratch', 'Paste an Ingredient List']);
         // Opening alone must navigate NOWHERE: the second press is the one that creates.
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
 

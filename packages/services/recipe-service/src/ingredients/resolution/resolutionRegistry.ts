@@ -34,7 +34,8 @@
  *
  *  1. **curated** — `curated-mapping`. A person said what this phrase means (R19).
  *  2. **memo** — `remembered-verification`. A row recording that the verification gate AGREED an identity;
- *     `VerifiedMemo.verifiedBy` is REQUIRED, so such a row cannot exist without that agreement. ⚠️ That is a
+ *     the writer's `AgreementRow.modelId` (`recipe-workers`' `verification/verdictStore.ts` — the only writer
+ *     of this table) is REQUIRED, so such a row cannot exist without that agreement. ⚠️ That is a
  *     fact about the STORED key, which is exactly why `decideMemoTier` answers only on an EXACT key and
  *     defers the k-NN branch — read its docstring before changing either.
  *  3. **lexical** — `catalog-ranking`. KTD-A's own words: ZERO initial authority. It is the gate's INPUT.

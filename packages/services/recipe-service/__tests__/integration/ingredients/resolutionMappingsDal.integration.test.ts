@@ -100,6 +100,28 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
         });
     }
 
+    /**
+     * Seed one memo row directly.
+     *
+     * ⛔ RAW SQL, and deliberately not a DAL method. This DAL is the memo tier's READER; the only writer of
+     * `ingredient_resolution_memos` is `recipe-workers`' `createVerdictStore().rememberAgreement`, which this
+     * package cannot import (recipe-workers exports `./infra` alone, and `common/db.ts` records the refusal to
+     * couple the two in the other direction). `ResolutionMappingsDal.recordMemo` used to stand in — an
+     * uncalled second writer of the same statement, deleted 2026-09-02. Seeding through it made these read
+     * specs look like round-trips they were never running: nothing in production wrote a memo that way.
+     *
+     * @param normalizedKey - The key the row is stored under.
+     * @param foodId - The remembered food.
+     * @sideEffect Inserts into `ingredient_resolution_memos`.
+     */
+    async function seedMemo(normalizedKey: NormalizedIngredientKey, foodId: string): Promise<void> {
+        await pool.query(
+            `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
+             VALUES ($1, $2, $3, 'test-model-v1')`,
+            [normalizedKey, foodId, normalizedKey],
+        );
+    }
+
     describe('findInForce — tier 1 precedence (R19)', () => {
         it('returns nothing when the phrase has never been corrected', async () => {
             expect(await dal.findInForce(key('unseen phrase'), AUTHOR_A)).toBeUndefined();
@@ -306,12 +328,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
 
     describe('memos — the machine-derived tier (R14, R21)', () => {
         it('answers an EXACT key before it ever considers a neighbour', async () => {
-            await dal.recordMemo({
-                normalizedKey: key('vanilla extract'),
-                foodId: FOOD_A,
-                sourcePhrase: 'Vanilla extract',
-                verifiedBy: 'test-model-v1',
-            });
+            await seedMemo(key('vanilla extract'), FOOD_A);
 
             const hit = await dal.findMemo(key('vanilla extract'));
 
@@ -319,12 +336,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
         });
 
         it('answers a NEAR-TWIN the knowledge base has never seen verbatim (AE8)', async () => {
-            await dal.recordMemo({
-                normalizedKey: key('all-purpose flour'),
-                foodId: FOOD_A,
-                sourcePhrase: 'All-purpose flour',
-                verifiedBy: 'test-model-v1',
-            });
+            await seedMemo(key('all-purpose flour'), FOOD_A);
 
             // ⚠️ MEASURED, not assumed: `pg_trgm` splits on non-alphanumerics, so `all-purpose` and
             // `all purpose` produce IDENTICAL trigram sets and score 1.0 — while the keys themselves differ,
@@ -339,12 +351,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
         });
 
         it('answers a twin that is genuinely LESS similar, above the floor', async () => {
-            await dal.recordMemo({
-                normalizedKey: key('unbleached bread flour'),
-                foodId: FOOD_B,
-                sourcePhrase: 'Unbleached bread flour',
-                verifiedBy: 'test-model-v1',
-            });
+            await seedMemo(key('unbleached bread flour'), FOOD_B);
 
             const hit = await dal.findMemo(key('unbleached bread flours'));
 
@@ -357,42 +364,12 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
         });
 
         it('refuses a neighbour that is merely the CLOSEST rather than close ENOUGH', async () => {
-            await dal.recordMemo({
-                normalizedKey: key('smoked paprika'),
-                foodId: FOOD_A,
-                sourcePhrase: 'Smoked paprika',
-                verifiedBy: 'test-model-v1',
-            });
+            await seedMemo(key('smoked paprika'), FOOD_A);
 
             // A k-NN search ALWAYS returns something when the table is non-empty — that is what makes an
             // unbounded nearest-neighbour tier dangerous rather than merely imprecise. The similarity floor is
             // the whole difference between "resolves a near-twin" and "resolves anything at all".
             expect(await dal.findMemo(key('bay leaves'))).toBeUndefined();
-        });
-
-        it('re-verification under a newer model REPLACES the memo', async () => {
-            await dal.recordMemo({
-                normalizedKey: key('golden syrup'),
-                foodId: FOOD_A,
-                sourcePhrase: 'Golden syrup',
-                verifiedBy: 'test-model-v1',
-            });
-            await dal.recordMemo({
-                normalizedKey: key('golden syrup'),
-                foodId: FOOD_B,
-                sourcePhrase: 'Golden syrup',
-                verifiedBy: 'test-model-v2',
-            });
-
-            expect((await dal.findMemo(key('golden syrup')))?.foodId).toBe(FOOD_B);
-
-            const { rows } = await pool.query<{ verified_by: string }>(
-                'SELECT verified_by FROM ingredient_resolution_memos WHERE normalized_key = $1',
-                [key('golden syrup')],
-            );
-
-            expect(rows).toHaveLength(1);
-            expect(rows[0]!.verified_by).toBe('test-model-v2');
         });
     });
 });

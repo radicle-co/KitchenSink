@@ -112,8 +112,9 @@ export type CascadeTierId = Exclude<ResolutionTierId, 'llm'>;
  *
  *  - **`curated-mapping`** — a person said what this phrase means. R19 puts it above every other tier: no
  *    ranking metric and no model output displaces a human ruling.
- *  - **`remembered-verification`** — a row recording that the verification gate AGREED an identity.
- *    `VerifiedMemo.verifiedBy` is REQUIRED precisely so such a row cannot exist without that agreement, and
+ *  - **`remembered-verification`** — a row recording that the verification gate AGREED an identity. The
+ *    writer's `AgreementRow.modelId` (`recipe-workers`' `verification/verdictStore.ts`) is REQUIRED precisely
+ *    so such a row cannot exist without that agreement, and
  *    the retrieval clears the tier's own `MEMO_SIMILARITY_FLOOR`. Consulting it before a fresh catalog
  *    search is asking a question that has already been answered before paying to answer it again.
  *  - **`catalog-ranking`** — a search result. KTD-A's own words: ZERO initial authority. It is the gate's

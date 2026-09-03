@@ -124,14 +124,25 @@ describe.skipIf(!hasDatabaseUrl)('cascade precedence against a real knowledge ba
         await pool.end();
     });
 
-    /** Remember a gate-agreed resolution for `phrase`, through the real DAL. */
+    /**
+     * Remember a gate-agreed resolution for `phrase`.
+     *
+     * ⛔ RAW SQL. The only writer of `ingredient_resolution_memos` is `recipe-workers`'
+     * `createVerdictStore().rememberAgreement`, which this package cannot import (recipe-workers exports
+     * `./infra` alone). This seeded through `ResolutionMappingsDal.recordMemo` until 2026-09-02, when that
+     * uncalled second writer of the same statement was deleted — the DAL here is the memo tier's READER, and
+     * these specs are about what the cascade does with a row that already exists.
+     *
+     * @param phrase - The phrase to remember, inside this suite's key namespace.
+     * @param foodId - The food the gate agreed the phrase means.
+     * @sideEffect Inserts into `ingredient_resolution_memos`.
+     */
     async function remember(phrase: string, foodId: string): Promise<void> {
-        await mappings.recordMemo({
-            normalizedKey: normalizedIngredientKey(`${PREFIX} ${phrase}`)!,
-            foodId,
-            sourcePhrase: `${PREFIX} ${phrase}`,
-            verifiedBy: VERIFIER,
-        });
+        await pool.query(
+            `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
+             VALUES ($1, $2, $3, $4)`,
+            [normalizedIngredientKey(`${PREFIX} ${phrase}`), foodId, `${PREFIX} ${phrase}`, VERIFIER],
+        );
     }
 
     /** Make food-service answer for whichever food the cascade admits. */

@@ -181,6 +181,32 @@ describe.skipIf(!canRun)('createVerdictStore (integration)', () => {
         expect(rows[0]).toMatchObject({ food_id: '01M13XBBPQQNBDNTMH0BQ4BYJ2', verified_by: 'amazon.nova-micro-v1:0' });
     });
 
+    it('upserts the memo on the normalized key: a newer model REPLACES the remembered food, never duplicating it', async () => {
+        // PORTED from `recipe-service`'s `resolutionMappingsDal.integration.test.ts`, which asserted this of
+        // `ResolutionMappingsDal.recordMemo` — a second, uncalled writer of this table, now deleted. The claim
+        // is `rememberAgreement`'s and had no test on the LIVE statement: the sibling schema suite
+        // (`resolutionMappingsSchema.integration.test.ts`) proves the TABLE supports the upsert by issuing its
+        // own SQL, which says nothing about the statement this store actually sends.
+        //
+        // The rule it pins is the one the module docstring gives: `DO UPDATE` rather than `DO NOTHING`, so a
+        // re-verification under a newer judge supersedes the older answer instead of being silently dropped —
+        // a memo is a food id, not a vector, so a newer answer is comparable to the old one and beats it.
+        const phrase = `${KEY_PREFIX} Golden Syrup`;
+
+        await store.rememberAgreement({ phrase, foodId: '01M13XKKV183RCVG7NB8T0NFKF', modelId: 'model-v1' });
+        await store.rememberAgreement({ phrase, foodId: '01M13XBBPQQNBDNTMH0BQ4BYJ2', modelId: 'model-v2' });
+
+        const { rows } = await pool.query<{ food_id: string; verified_by: string }>(
+            `SELECT food_id, verified_by FROM ingredient_resolution_memos WHERE normalized_key = $1`,
+            [normalizedIngredientKey(phrase)],
+        );
+
+        // Exactly ONE row — a memo that accumulated beside its predecessor would make the tier's `LIMIT 1`
+        // exact read return whichever row the planner happened to reach first.
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toEqual({ food_id: '01M13XBBPQQNBDNTMH0BQ4BYJ2', verified_by: 'model-v2' });
+    });
+
     it('⛔ PINS the grain: the stored key IS normalizedIngredientKey(phrase), the value the cascade queries with', async () => {
         // The whole 0041 repair is this identity (owner ruling 2026-08-31): the memo tier's read side asks
         // `normalizedIngredientKey(name)` for the phrase a picker types, so the write side must produce the

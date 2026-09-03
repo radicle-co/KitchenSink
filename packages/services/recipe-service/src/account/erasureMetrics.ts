@@ -10,11 +10,12 @@
  * job, which a volume alarm watches (the CDK alarm is a noted seam — see the module docstring on the
  * controller/service).
  *
- * EMF (a structured stdout line CloudWatch auto-extracts from the Fargate log group) rather than
- * `PutMetricData`: no extra SDK client, no `cloudwatch:PutMetricData` grant on the task role, one log
- * line. Mirrors the recipe-workers sweeper metrics and the food worker's `emitMetric`. The emitted
- * namespace + name are the alarm contract, so they are exported constants the CDK alarm references.
+ * The ENVELOPE is not written here — `common/emfMetricLine.ts` owns it, because its shape is the AWS EMF
+ * spec's and not this metric's. What stays here is what is genuinely this metric's: the namespace and name
+ * (the alarm contract, so they are exported constants the CDK alarm references) and the decision to carry the
+ * `ownerId` as a field rather than a dimension.
  */
+import { buildStageCountMetricLine, resolveMetricStage } from '../common/emfMetricLine.js';
 
 /** CloudWatch namespace every service-principal erasure metric is published under. */
 export const SERVICE_PRINCIPAL_ERASURE_NAMESPACE = 'Commise/RecipeAccount';
@@ -32,18 +33,6 @@ export interface ServicePrincipalErasureMetricInput {
 }
 
 /**
- * Resolve the deploy stage the metric is dimensioned by. Reads `STAGE` (the deploy stage marker used
- * across this repo's infra) and falls back to `NODE_ENV`, then a literal — a metric with a missing stage
- * is still emitted (alarms fail toward firing) rather than dropped.
- *
- * @returns The stage label. Impure (reads env).
- * @sideEffect Reads `process.env`.
- */
-function resolveStage(): string {
-    return process.env['STAGE'] ?? process.env['NODE_ENV'] ?? 'unknown';
-}
-
-/**
  * Emits the service-principal erasure volume metric. Injected into `ErasureService`,
  * with the line sink defaulting to `console.log` (overridden in tests).
  */
@@ -53,7 +42,7 @@ export class ServicePrincipalErasureMetrics {
      * @param sink - The line sink (defaults to `console.log`; injected in tests).
      */
     public constructor(
-        private readonly stage: string = resolveStage(),
+        private readonly stage: string = resolveMetricStage(),
         private readonly sink: (line: string) => void = console.log,
     ) {}
 
@@ -68,20 +57,11 @@ export class ServicePrincipalErasureMetrics {
      */
     public recordServicePrincipalErasure(input: ServicePrincipalErasureMetricInput): void {
         this.sink(
-            JSON.stringify({
-                _aws: {
-                    Timestamp: Date.now(),
-                    CloudWatchMetrics: [
-                        {
-                            Namespace: SERVICE_PRINCIPAL_ERASURE_NAMESPACE,
-                            Dimensions: [['Stage']],
-                            Metrics: [{ Name: SERVICE_PRINCIPAL_ERASURE_METRIC, Unit: 'Count' }],
-                        },
-                    ],
-                },
-                Stage: this.stage,
-                ownerId: input.ownerId,
-                [SERVICE_PRINCIPAL_ERASURE_METRIC]: 1,
+            buildStageCountMetricLine({
+                namespace: SERVICE_PRINCIPAL_ERASURE_NAMESPACE,
+                metricName: SERVICE_PRINCIPAL_ERASURE_METRIC,
+                stage: this.stage,
+                properties: { ownerId: input.ownerId },
             }),
         );
     }

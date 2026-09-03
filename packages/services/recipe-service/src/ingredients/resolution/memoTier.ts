@@ -21,9 +21,10 @@
  * in U10 writes a memo … the gate is U11's"; U11 shipped, and reasoning from the stale sentence is how the
  * near-match hazard below was nearly filed as a future precondition instead of a live one.
  *
- * ⚠️ `ResolutionMappingsDal.recordMemo` — this service's own write method — has NO production caller; the
- * live writer issues its own SQL from the worker. Two writers of one table, one of them dead. Worth
- * consolidating, and worth knowing before concluding anything about who fills this tier.
+ * ⚠️ There used to be a SECOND writer — `ResolutionMappingsDal.recordMemo`, in this service, with no
+ * production caller. It was deleted on 2026-09-02: this service holds no `bedrock:InvokeModel` grant, so it
+ * can never hold the agreement a memo records, and a second uncalled bearer of the same statement is the
+ * shape that drifts. `ResolutionMappingsDal` is now READ-ONLY over this table, deliberately.
  */
 import type { MemoHit, ResolutionMappingsDal } from './resolutionMappings.dal.js';
 import type { ResolutionTier, TierOutcome } from './resolutionCascade.js';
@@ -33,7 +34,7 @@ import type { ResolutionTier, TierOutcome } from './resolutionCascade.js';
  *
  * ## ⛔ ONLY AN EXACT KEY ANSWERS — the near branch DEFERS, and that is a safety rule, not a simplification
  *
- * `VerifiedMemo.verifiedBy` is a fact about the STORED key. On the k-NN branch nobody — no human, no model —
+ * A memo's `verified_by` is a fact about the STORED key. On the k-NN branch nobody — no human, no model —
  * ever agreed that the phrase being ASKED about means this food, so a near hit is a retrieval guess of the
  * same epistemic class as a lexical top hit, at a floor (`MEMO_SIMILARITY_FLOOR = 0.5`) the DAL's own
  * docstring calls the midpoint of the trigram scale.

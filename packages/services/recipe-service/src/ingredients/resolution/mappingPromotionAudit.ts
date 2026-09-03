@@ -29,7 +29,12 @@
  * searchable per user and pseudonymised on the way out.
  *
  * So: the METRIC is a count dimensioned by stage alone, and the IDENTIFIERS are a structured log context.
+ *
+ * ⚠️ The ENVELOPE itself is `common/emfMetricLine.ts`'s, not this module's — its shape is the AWS EMF spec's,
+ * with one reason to change, so it is written once for the service. What is this module's is the alarm
+ * contract below and the split that puts the identifiers on the log sink.
  */
+import { buildStageCountMetricLine, resolveMetricStage } from '../../common/emfMetricLine.js';
 
 /** CloudWatch namespace every mapping-promotion metric is published under. */
 export const MAPPING_PROMOTION_NAMESPACE = 'Commise/RecipeResolution';
@@ -57,17 +62,6 @@ export interface MappingPromotionAuditInput {
 /** The structured-log sink: a message plus a context object, matching Nest's `Logger.log` shape. */
 export type AuditLogSink = (message: string, context: Record<string, unknown>) => void;
 
-/**
- * Resolve the deploy stage the metric is dimensioned by. Reads `STAGE`, falling back to `NODE_ENV` and then a
- * literal — a metric with a missing stage is still emitted (alarms fail toward firing) rather than dropped.
- *
- * @returns The stage label.
- * @sideEffect Reads `process.env`.
- */
-function resolveStage(): string {
-    return process.env['STAGE'] ?? process.env['NODE_ENV'] ?? 'unknown';
-}
-
 export class MappingPromotionAudit {
     /**
      * @param stage - The deploy-stage dimension value (defaults to the resolved `STAGE`/`NODE_ENV`).
@@ -75,7 +69,7 @@ export class MappingPromotionAudit {
      * @param logSink - The structured-log sink carrying the identifiers (injected from Nest's `Logger`).
      */
     public constructor(
-        private readonly stage: string = resolveStage(),
+        private readonly stage: string = resolveMetricStage(),
         private readonly metricSink: (line: string) => void = console.log,
         private readonly logSink: AuditLogSink = () => undefined,
     ) {}
@@ -87,22 +81,13 @@ export class MappingPromotionAudit {
      * @sideEffect Writes one EMF line to stdout and one structured log line.
      */
     public recordPromotion(input: MappingPromotionAuditInput): void {
+        // ⛔ No `properties` — see the module docstring. The identifiers go on the SCRUBBED log line below,
+        // and a field here would fix the bill while leaving the privacy hazard fully intact.
         this.metricSink(
-            JSON.stringify({
-                _aws: {
-                    Timestamp: Date.now(),
-                    CloudWatchMetrics: [
-                        {
-                            Namespace: MAPPING_PROMOTION_NAMESPACE,
-                            // ⛔ Stage ALONE. See the module docstring: an author or phrase dimension has
-                            // cardinality equal to the user base and buys nothing chartable.
-                            Dimensions: [['Stage']],
-                            Metrics: [{ Name: MAPPING_PROMOTION_METRIC, Unit: 'Count' }],
-                        },
-                    ],
-                },
-                Stage: this.stage,
-                [MAPPING_PROMOTION_METRIC]: 1,
+            buildStageCountMetricLine({
+                namespace: MAPPING_PROMOTION_NAMESPACE,
+                metricName: MAPPING_PROMOTION_METRIC,
+                stage: this.stage,
             }),
         );
 

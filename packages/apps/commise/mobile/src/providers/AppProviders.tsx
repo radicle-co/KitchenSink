@@ -13,6 +13,14 @@
  * This is a pure extraction (Facade pattern) — the tree and its order are UNCHANGED from what `App.tsx`
  * hand-stacked before; only the composition now lives in one reusable, testable place. `App.tsx` keeps
  * ownership of everything that is NOT a provider (font loading, the status bar, `AuthGate`, the navigator).
+ *
+ * ⚠️ Read as SHAPE this is props → JSX with one `useState`, which is the profile of a render leaf exactly.
+ * It is ORCHESTRATION all the same, for the same reason the web facade is: the identity of what it mounts —
+ * the query cache, the Clerk session and its secure-store token cache, the recipe client — is the app's data
+ * and auth capability, and the ENFORCED order between them is a decision this component owns alone.
+ *
+ * @pattern Facade over the app's six-deep provider stack — one composition root, so a caller mounts one
+ *     component instead of remembering an order whose violation only shows up at runtime.
  */
 import { ClerkProvider } from '@clerk/expo';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

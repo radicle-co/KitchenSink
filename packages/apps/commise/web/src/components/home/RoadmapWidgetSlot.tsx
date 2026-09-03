@@ -12,6 +12,11 @@
  * Rendering through the loader seam (rather than a second id→component map in the host) is what keeps the
  * placeholder ids in ONE place: the shared roadmap registry binds id → skeleton once, and the host just draws
  * whatever the descriptor resolves. Adding a roadmap widget needs no edit here.
+ *
+ * ⚠️ "Slot" + a loader seam + code-splitting read as registry plumbing, but this is PRESENTATIONAL: it
+ * starts no request, owns no state, and decides nothing — it draws whatever a prop resolves to. Its native
+ * twin says the same thing through `React.lazy` + `Suspense` rather than `next/dynamic`, and that spelling
+ * difference must not put the two leaves on different layers.
  */
 import type { HomeWidgetDescriptor } from '@commise/features-core';
 import dynamic from 'next/dynamic';

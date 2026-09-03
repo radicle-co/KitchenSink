@@ -17,6 +17,15 @@
  * directly (no ref), and the client is only reconstructed on the rare render where `getToken` itself
  * changes — which is exactly when a rebuild is actually needed. A client retry of the first-token
  * identity-sync race (`forceRefresh`) still maps to Clerk's `skipCache`.
+ *
+ * ⚠️ It renders only `children`, which is the canonical render-leaf tell — and it is ORCHESTRATION
+ * anyway. What it renders is not the point; what it CONSTRUCTS is. Every recipe read and write in the
+ * subtree runs against the query cache and the authenticated client built here, so this is where the
+ * feature's data capability is decided, and a second `QueryClient` mounted alongside would silently split
+ * the cache.
+ *
+ * @pattern Composition root (Facade) over the recipe subtree's query cache and token-minting client — a leaf
+ *     asks for neither, and the enforced provider order lives in one place rather than in every caller.
  */
 import { useAuth } from '@clerk/nextjs';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';

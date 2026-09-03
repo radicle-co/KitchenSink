@@ -70,6 +70,16 @@
  * owned entirely by the Root — the composing container does not place or wire it; it renders itself (via the
  * shared `@commise/ui/confirm-dialog` `ConfirmDialog`, house pattern B6) whenever `<Wizard>` is mounted,
  * keyed off `isDirty` (from `useDiscardGuard.js`) and internal `pendingAction` state.
+ *
+ * ⚠️ It calls itself a SHELL and renders none of the fields, so it reads as layout — but it is
+ * ORCHESTRATION. Every navigation primitive arrives as a prop and it still DECIDES: `requestGoNext` /
+ * `requestGoPrev` / `requestGoToStep` / `requestCancel` each interpose the attempted-set and the discard
+ * guard between the intent and the prop it eventually calls, so a `Next` can be refused and a `Cancel` can
+ * be deferred until the cook answers. That interposition is the component's own statechart, not the
+ * container's.
+ *
+ * @pattern Compound Component (Root + context + parts) composed with a discard-guard statechart —
+ *     `pendingAction` holds a navigation the cook has not yet confirmed, so no part has to know it was asked.
  */
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';

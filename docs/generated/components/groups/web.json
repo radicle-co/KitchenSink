@@ -7,12 +7,12 @@
         "components": 89,
         "implementations": 89,
         "props": 113,
-        "documentedComponents": 79,
-        "implementationsWithModuleDoc": 61,
+        "documentedComponents": 80,
+        "implementationsWithModuleDoc": 62,
         "implementationsWithComponentDoc": 61,
         "documentedProps": 70,
-        "classifiedComponents": 22,
-        "componentsWithPatternTag": 12,
+        "classifiedComponents": 28,
+        "componentsWithPatternTag": 16,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1707,8 +1707,10 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/app",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Composition root binding the signed-in profile read and the app-wide capability set to the pure\n    `HomeChrome` shell — the one place chrome learns who is signed in and what is deployed."
+            ],
             "platforms": [
                 "web"
             ],
@@ -1721,11 +1723,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/app/AppShell.tsx",
                     "dir": "packages/apps/commise/web/src/components/app",
-                    "moduleDoc": "components/app/AppShell — the app-wide navigation shell (web; W1/L9, FR-044/FR-046).\n\nWraps an authenticated surface in the shared {@link HomeChrome}: the desktop left sidebar, the sticky top\nbar, and — below the `lg` breakpoint — the bottom tab bar + hamburger drawer. Every authenticated route\n(Home, the recipe list, …) renders inside this ONE shell so the navigation is consistent across the app\ninstead of living only on Home; each surface passes its own `activeId` for the active destination.\n\n`liveCapabilities` is the set of deployed backend capabilities — an app-wide fact, not a per-page one — so\nit is owned here once and reused by every surface (and by Home's widget curation). The responsive cutover\nis the shared `lg` token (see HomeSidebar / HomeTabBar): sidebar at desktop widths, bottom nav at tablet +\nmobile widths.\n\n**The top bar names the SURFACE, resolved here from a `titleId`.** It used to render one hard-coded 'Home'\nfor all 15 shell-hosted routes. A route passes a {@link ShellSurfaceId} rather than a resolved string\nbecause those routes are SERVER components with no locale context while this shell (a client component)\nalready has it — and an id-keyed copy record makes a surface without a title a COMPILE error instead of a\nblank bar. `titleId` is optional and defaults to Home, so a caller that says nothing behaves exactly as\nbefore. See `components/app/shellSurfaces.ts` for why surfaces are a separate axis from nav destinations.",
+                    "moduleDoc": "components/app/AppShell — the app-wide navigation shell (web; W1/L9, FR-044/FR-046).\n\nWraps an authenticated surface in the shared {@link HomeChrome}: the desktop left sidebar, the sticky top\nbar, and — below the `lg` breakpoint — the bottom tab bar + hamburger drawer. Every authenticated route\n(Home, the recipe list, …) renders inside this ONE shell so the navigation is consistent across the app\ninstead of living only on Home; each surface passes its own `activeId` for the active destination.\n\n`liveCapabilities` is the set of deployed backend capabilities — an app-wide fact, not a per-page one — so\nit is owned here once and reused by every surface (and by Home's widget curation). The responsive cutover\nis the shared `lg` token (see HomeSidebar / HomeTabBar): sidebar at desktop widths, bottom nav at tablet +\nmobile widths.\n\n**The top bar names the SURFACE, resolved here from a `titleId`.** It used to render one hard-coded 'Home'\nfor all 15 shell-hosted routes. A route passes a {@link ShellSurfaceId} rather than a resolved string\nbecause those routes are SERVER components with no locale context while this shell (a client component)\nalready has it — and an id-keyed copy record makes a surface without a title a COMPILE error instead of a\nblank bar. `titleId` is optional and defaults to Home, so a caller that says nothing behaves exactly as\nbefore. See `components/app/shellSurfaces.ts` for why surfaces are a separate axis from nav destinations.\n\n⚠️ It is ORCHESTRATION, and exactly ONE line makes it so: `useUserProfile()`, the read that puts the\nsigned-in cook's name in the top bar. Everything else here is layout, so the component reads as a wrapper\nand the split between it and {@link HomeChrome} — which owns no data at all — is invisible unless stated.\nThe rule the pair encodes: data enters the chrome HERE, and never below.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "components/app/AppShell — the app-wide navigation shell (web; W1/L9, FR-044/FR-046)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition root binding the signed-in profile read and the app-wide capability set to the pure\n    `HomeChrome` shell — the one place chrome learns who is signed in and what is deployed."
                         }
                     ],
                     "description": "The authenticated app shell. Resolves the chrome copy, the surface title, the active locale, and the viewer\nname, then renders {@link HomeChrome} around `children`.",
@@ -1799,7 +1805,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2083,8 +2089,10 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/auth",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Command over the closure sequence — `deleteMe` then the load-safe, VERIFIED sign-out, issued as\n    one transition so a closed account can never be left holding a live session."
+            ],
             "platforms": [
                 "web"
             ],
@@ -2097,11 +2105,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/auth/AccountCloseForm.tsx",
                     "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "auth/AccountCloseForm — the account CLOSURE control (web; CR-002 / U4b).\n\nClosure is the RECOVERABLE action: it deactivates the account (identity ban + tombstone) but RETAINS the\nuser's data, which can be restored. This supersedes the old `AccountDeleteForm`, whose copy wrongly claimed\nthe same `DELETE /api/v1/users/me` call \"permanently deleted\" \"all your data\" — the exact conflation U4b fixes.\nIrreversible ERASURE is a SEPARATE control (`AccountEraseForm`).\n\nBuilt on the design-system `ConfirmDialog` (`@commise/ui/confirm-dialog`), which owns the focus trap,\nEscape/backdrop dismiss, and `role=\"alertdialog\"` wiring. All copy is localized (`accountDangerMessages`),\nnever hard-coded.\n\nLeaving the app after closure goes through the app's one sign-out command,\n`useSignOutAndLeave` — which awaits the revoke and only then\nreplaces the document (a router-level redirect re-renders the authenticated shell from a payload resolved\nfor the session that was just destroyed), and VERIFIES the session actually ended before doing so (B23: a\nsign-out issued before clerk-js has loaded resolves without revoking anything). A failure to leave surfaces\nin the same alert as a failure to close — by then the closure has been accepted, so it is never silent.",
+                    "moduleDoc": "auth/AccountCloseForm — the account CLOSURE control (web; CR-002 / U4b).\n\nClosure is the RECOVERABLE action: it deactivates the account (identity ban + tombstone) but RETAINS the\nuser's data, which can be restored. This supersedes the old `AccountDeleteForm`, whose copy wrongly claimed\nthe same `DELETE /api/v1/users/me` call \"permanently deleted\" \"all your data\" — the exact conflation U4b fixes.\nIrreversible ERASURE is a SEPARATE control (`AccountEraseForm`).\n\nBuilt on the design-system `ConfirmDialog` (`@commise/ui/confirm-dialog`), which owns the focus trap,\nEscape/backdrop dismiss, and `role=\"alertdialog\"` wiring. All copy is localized (`accountDangerMessages`),\nnever hard-coded.\n\nLeaving the app after closure goes through the app's one sign-out command,\n`useSignOutAndLeave` — which awaits the revoke and only then\nreplaces the document (a router-level redirect re-renders the authenticated shell from a payload resolved\nfor the session that was just destroyed), and VERIFIES the session actually ended before doing so (B23: a\nsign-out issued before clerk-js has loaded resolves without revoking anything). A failure to leave surfaces\nin the same alert as a failure to close — by then the closure has been accepted, so it is never silent.\n\n⚠️ It is ORCHESTRATION, which a button plus a dialog does not look like: the account-closing call and the\nverified sign-out both live inside one handler, and the render body is three elements. Its sibling\n`AccountEraseForm` already declares the same layer for the same reason — the two danger-zone controls sit\non one surface, and a reader who classified one of them as a leaf would put the next write in the wrong\nplace.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "auth/AccountCloseForm — the account CLOSURE control (web; CR-002 / U4b)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Command over the closure sequence — `deleteMe` then the load-safe, VERIFIED sign-out, issued as\n    one transition so a closed account can never be left holding a live session."
                         }
                     ],
                     "description": "",
@@ -2123,7 +2135,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2135,22 +2147,33 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/auth",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Command over the profile PATCH — the write and the `router.refresh()` that makes it visible are\n    issued as ONE action, so a saved change can never be left invisible on the surface that saved it."
+            ],
             "platforms": [
                 "web"
             ],
             "crossPlatform": false,
             "propsDiverge": false,
-            "documented": false,
+            "documented": true,
             "implementations": [
                 {
                     "name": "AccountEditForm",
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/auth/AccountEditForm.tsx",
                     "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "",
-                    "moduleTags": [],
+                    "moduleDoc": "components/auth/AccountEditForm — the signed-in cook's own profile edit (web).\n\nTwo labelled fields (display name, avatar URL) over the identity service's `PATCH /users/me`, submitted\ninside a `useTransition` so the control disables itself for the round-trip, followed by a\n`router.refresh()` — the server components above this form hold the old profile, so without the refresh a\nsuccessful save shows the previous name until the next navigation.\n\n⚠️ It is ORCHESTRATION, and it is the archetype of the component that does not look it: a `<form>` with\ntwo controlled inputs and a submit button is the shape of a render leaf. The mutation is four lines inside\na handler. A render leaf may not fetch or mutate (CLAUDE.md rule 3), so classifying this one as a leaf\nwould mean moving the write out — which is precisely the decision a reader needs the layer stated to make.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/AccountEditForm — the signed-in cook's own profile edit (web)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Command over the profile PATCH — the write and the `router.refresh()` that makes it visible are\n    issued as ONE action, so a saved change can never be left invisible on the surface that saved it."
+                        }
+                    ],
                     "description": "",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
@@ -2179,7 +2202,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2601,7 +2624,7 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home/chrome",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -2615,7 +2638,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeChrome — the Home app shell (web; US-000 / FR-046).\n\nAssembles the four renderings of the Home navigation into the mockup's layout: the desktop\n{@link HomeSidebar}, the sticky {@link HomeTopBar}, the mobile {@link HomeTabBar}, and the hamburger-driven\n{@link HomeMobileNav} drawer — with the surface content (`children`) in the `<main>` landmark between them.\n\nIt owns only the two pieces of ephemeral chrome state — whether the desktop rail is collapsed and whether\nthe mobile drawer is open — because they are pure view state with no home for them elsewhere. Everything\nthat decides WHAT the nav shows (destinations, reachability, active id) is derived from props, so the shell\nhas no product knowledge of its own to drift.",
+                    "moduleDoc": "home/chrome/HomeChrome — the Home app shell (web; US-000 / FR-046).\n\nAssembles the four renderings of the Home navigation into the mockup's layout: the desktop\n{@link HomeSidebar}, the sticky {@link HomeTopBar}, the mobile {@link HomeTabBar}, and the hamburger-driven\n{@link HomeMobileNav} drawer — with the surface content (`children`) in the `<main>` landmark between them.\n\nIt owns only the two pieces of ephemeral chrome state — whether the desktop rail is collapsed and whether\nthe mobile drawer is open — because they are pure view state with no home for them elsewhere. Everything\nthat decides WHAT the nav shows (destinations, reachability, active id) is derived from props, so the shell\nhas no product knowledge of its own to drift.\n\n⚠️ That makes it PRESENTATIONAL, and it is worth saying because the pair above it splits the other way:\n`AppShell` — one component up, same \"shell\" vocabulary — reads the signed-in profile and sits on the far\nside of the line. That line is exactly the `useUserProfile()` call, which lives there and must not move\nhere.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2710,7 +2733,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -3485,7 +3508,7 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -3499,7 +3522,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/RoadmapWidgetSlot.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/RoadmapWidgetSlot — the host slot for a roadmap skeleton placeholder (web).\n\nThe Home composition root renders one slot per curated widget id. Where `RecipeWidgetSlot` is the\nbespoke slot for the live recipe widget (it wires the recipe data prop), THIS is the generic slot for a\n`PlaceholderHomeWidgetDescriptor`: it code-splits the platform skeleton through the descriptor's own\nloader seam (`descriptor.load`, bound to a host-owned skeleton in `roadmapFeature.ts`) via `next/dynamic`,\nand renders it with no props — a placeholder has no data to feed.\n\nRendering through the loader seam (rather than a second id→component map in the host) is what keeps the\nplaceholder ids in ONE place: the shared roadmap registry binds id → skeleton once, and the host just draws\nwhatever the descriptor resolves. Adding a roadmap widget needs no edit here.",
+                    "moduleDoc": "home/RoadmapWidgetSlot — the host slot for a roadmap skeleton placeholder (web).\n\nThe Home composition root renders one slot per curated widget id. Where `RecipeWidgetSlot` is the\nbespoke slot for the live recipe widget (it wires the recipe data prop), THIS is the generic slot for a\n`PlaceholderHomeWidgetDescriptor`: it code-splits the platform skeleton through the descriptor's own\nloader seam (`descriptor.load`, bound to a host-owned skeleton in `roadmapFeature.ts`) via `next/dynamic`,\nand renders it with no props — a placeholder has no data to feed.\n\nRendering through the loader seam (rather than a second id→component map in the host) is what keeps the\nplaceholder ids in ONE place: the shared roadmap registry binds id → skeleton once, and the host just draws\nwhatever the descriptor resolves. Adding a roadmap widget needs no edit here.\n\n⚠️ \"Slot\" + a loader seam + code-splitting read as registry plumbing, but this is PRESENTATIONAL: it\nstarts no request, owns no state, and decides nothing — it draws whatever a prop resolves to. Its native\ntwin says the same thing through `React.lazy` + `Suspense` rather than `next/dynamic`, and that spelling\ndifference must not put the two leaves on different layers.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3533,7 +3556,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -4889,8 +4912,10 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Composition root (Facade) over the recipe subtree's query cache and token-minting client — a leaf\n    asks for neither, and the enforced provider order lives in one place rather than in every caller."
+            ],
             "platforms": [
                 "web"
             ],
@@ -4903,8 +4928,13 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeProviders.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Client provider tree for the recipe feature: a TanStack Query `QueryClientProvider` plus the\n`RecipeServiceProvider` that hands a configured {@link RecipeServiceClient} to every recipe hook\n(`useRecipes`, `useRecipe`, …). Mounted once inside `[locale]/layout.tsx` (within `ClerkProvider`, so\n`useAuth` has its context), so all recipe routes share one query cache and one authenticated client.\n\nThe client's base origin is injected from `NEXT_PUBLIC_API_URL` (never hardcoded — CODING_STANDARDS\n§12), defaulting to the local identity/recipe API for `npm run dev`. Its bearer token is minted per\nrequest from Clerk's session (`useAuth().getToken`). B14: this used to be bridged into the\nonce-constructed client via a ref reassigned on every render pass — the render-mutated-ref smell §3\nforbids. Clerk's `getToken` is itself a `useCallback` keyed on its\n`IsomorphicClerk` instance (stable across ordinary re-renders, and only changes identity on a genuine\nidentity swap — sign-in/out, or hydration handing off from the SSR placeholder), so the client is\ninstead `useMemo`'d with `getToken` as its dependency: the token callback closes over `getToken`\ndirectly (no ref), and the client is only reconstructed on the rare render where `getToken` itself\nchanges — which is exactly when a rebuild is actually needed. A client retry of the first-token\nidentity-sync race (`forceRefresh`) still maps to Clerk's `skipCache`.",
-                    "moduleTags": [],
+                    "moduleDoc": "Client provider tree for the recipe feature: a TanStack Query `QueryClientProvider` plus the\n`RecipeServiceProvider` that hands a configured {@link RecipeServiceClient} to every recipe hook\n(`useRecipes`, `useRecipe`, …). Mounted once inside `[locale]/layout.tsx` (within `ClerkProvider`, so\n`useAuth` has its context), so all recipe routes share one query cache and one authenticated client.\n\nThe client's base origin is injected from `NEXT_PUBLIC_API_URL` (never hardcoded — CODING_STANDARDS\n§12), defaulting to the local identity/recipe API for `npm run dev`. Its bearer token is minted per\nrequest from Clerk's session (`useAuth().getToken`). B14: this used to be bridged into the\nonce-constructed client via a ref reassigned on every render pass — the render-mutated-ref smell §3\nforbids. Clerk's `getToken` is itself a `useCallback` keyed on its\n`IsomorphicClerk` instance (stable across ordinary re-renders, and only changes identity on a genuine\nidentity swap — sign-in/out, or hydration handing off from the SSR placeholder), so the client is\ninstead `useMemo`'d with `getToken` as its dependency: the token callback closes over `getToken`\ndirectly (no ref), and the client is only reconstructed on the rare render where `getToken` itself\nchanges — which is exactly when a rebuild is actually needed. A client retry of the first-token\nidentity-sync race (`forceRefresh`) still maps to Clerk's `skipCache`.\n\n⚠️ It renders only `children`, which is the canonical render-leaf tell — and it is ORCHESTRATION\nanyway. What it renders is not the point; what it CONSTRUCTS is. Every recipe read and write in the\nsubtree runs against the query cache and the authenticated client built here, so this is where the\nfeature's data capability is decided, and a second `QueryClient` mounted alongside would silently split\nthe cache.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Composition root (Facade) over the recipe subtree's query cache and token-minting client — a leaf\n    asks for neither, and the enforced provider order lives in one place rather than in every caller."
+                        }
+                    ],
                     "description": "Provide the recipe query client + service client to the subtree.",
                     "tags": [
                         {
@@ -4923,7 +4953,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

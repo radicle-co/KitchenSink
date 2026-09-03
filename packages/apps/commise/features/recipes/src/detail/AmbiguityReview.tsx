@@ -16,6 +16,14 @@
  * DESIGN PATTERN: platform leaf over shared pure models (`ambiguityReviewGroups`, `ambiguousNotice`,
  * `cloneUnboundBannerText`) + the shared correction controller — the `RecipeDetailBody` /
  * `needsReviewSurface` composition, extended.
+ *
+ * ⚠️ ORCHESTRATION, and the exported component's own body is what hides it: read alone, it derives groups
+ * from an `ingredients` prop and toggles two booleans — a leaf. The reads and the writes live ONE component
+ * down, in the private `AmbiguityReviewRow` in this same file, which is where the live suggest and the
+ * correction mutation are mounted. The layer belongs to the file's surface, not to the outer function.
+ *
+ * @pattern Collection of independently-resolving rows — each row owns its own suggest read and correction
+ *     write (Command), which is what lets one row's failed pick retry without touching the rest of the batch.
  */
 import { useMessages } from '@commise/i18n/react';
 import { useSuggestIngredients } from '@kitchensink/recipe-service-client/hooks';

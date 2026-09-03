@@ -3,6 +3,11 @@
 /**
  * @module @commise/features-recipes/nutrition — the deferred figure's boundary NESTING, stated once (web).
  *
+ * ⚠️ It is PRESENTATIONAL, which its name and its imports argue against: `ErrorBoundary` + `Suspense` +
+ * a `resetKeys` signal read as infrastructure that owns something. It owns nothing — no fetch, no mutation,
+ * no state. Every promise, every reset key and every piece of copy arrives as a prop, and the two public
+ * components above it are where the deciding happens.
+ *
  * **Pattern: Template Method / Layout component.** Two surfaces suspend on a deferred calorie lookup —
  * `RecipeNutritionBoundary` (ONE recipe's promise) and `RecipeNutritionSlot` (one recipe's
  * SELECTION out of a page-wide batch promise) — and they differ ONLY in what suspends inside. Everything

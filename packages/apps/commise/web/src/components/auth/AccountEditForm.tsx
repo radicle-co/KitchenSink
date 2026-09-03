@@ -1,5 +1,21 @@
 'use client';
 
+/**
+ * @module components/auth/AccountEditForm — the signed-in cook's own profile edit (web).
+ *
+ * Two labelled fields (display name, avatar URL) over the identity service's `PATCH /users/me`, submitted
+ * inside a `useTransition` so the control disables itself for the round-trip, followed by a
+ * `router.refresh()` — the server components above this form hold the old profile, so without the refresh a
+ * successful save shows the previous name until the next navigation.
+ *
+ * ⚠️ It is ORCHESTRATION, and it is the archetype of the component that does not look it: a `<form>` with
+ * two controlled inputs and a submit button is the shape of a render leaf. The mutation is four lines inside
+ * a handler. A render leaf may not fetch or mutate (CLAUDE.md rule 3), so classifying this one as a leaf
+ * would mean moving the write out — which is precisely the decision a reader needs the layer stated to make.
+ *
+ * @pattern Command over the profile PATCH — the write and the `router.refresh()` that makes it visible are
+ *     issued as ONE action, so a saved change can never be left invisible on the surface that saved it.
+ */
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@commise/ui/button';

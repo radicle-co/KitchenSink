@@ -5,10 +5,10 @@
         "boolean-prop-selects-subtree": 2,
         "cross-platform-props-diverge": 4,
         "missing-component-doc": 97,
-        "missing-module-doc": 30,
+        "missing-module-doc": 29,
         "platform-singleton": 15,
         "ref-api": 9,
-        "unclassified-layer": 144,
+        "unclassified-layer": 130,
         "undocumented-prop": 79
     },
     "findings": [
@@ -643,14 +643,6 @@
             "evidence": []
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "features-recipes/detail/AmbiguityReview",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/AmbiguityReview.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "features-recipes/detail/PhotoCarousel",
@@ -1106,14 +1098,6 @@
         {
             "rule": "unclassified-layer",
             "severity": "gap",
-            "component": "features-recipes/nutrition/NutritionBoundaryShell",
-            "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/NutritionBoundaryShell.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
             "component": "features-recipes/nutrition/RecipeCalorieChip",
             "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/RecipeCalorieChip.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
@@ -1464,14 +1448,6 @@
                 "web: canAdvanceFrom children goNext goPrev goToStep isDirty mode onCancel publish saveDraft step stepErrors submitting values",
                 "native: canAdvanceFrom goNext goPrev goToStep isDirty mode onCancel publish saveDraft step stepErrors submitting values"
             ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "features-recipes/wizard/Wizard",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/Wizard.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
         },
         {
             "rule": "undocumented-prop",
@@ -2461,14 +2437,6 @@
             ]
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/app/AppShell",
-            "sourcePath": "packages/apps/commise/web/src/components/app/AppShell.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "ambiguous-layer-signal",
             "severity": "review",
             "component": "web/components/app/RouteErrorBoundary",
@@ -2493,35 +2461,11 @@
             "evidence": []
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/auth/AccountCloseForm",
-            "sourcePath": "packages/apps/commise/web/src/components/auth/AccountCloseForm.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "web/components/auth/AccountEditForm",
             "sourcePath": "packages/apps/commise/web/src/components/auth/AccountEditForm.tsx",
             "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
-            "rule": "missing-module-doc",
-            "severity": "gap",
-            "component": "web/components/auth/AccountEditForm",
-            "sourcePath": "packages/apps/commise/web/src/components/auth/AccountEditForm.tsx",
-            "message": "the file has no module docblock",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/auth/AccountEditForm",
-            "sourcePath": "packages/apps/commise/web/src/components/auth/AccountEditForm.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },
         {
@@ -2654,14 +2598,6 @@
         {
             "rule": "unclassified-layer",
             "severity": "gap",
-            "component": "web/components/home/chrome/HomeChrome",
-            "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
             "component": "web/components/home/chrome/HomeIcon",
             "sourcePath": "packages/apps/commise/web/src/components/home/chrome/icons.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
@@ -2748,14 +2684,6 @@
             "severity": "gap",
             "component": "web/components/home/HomeWidgetSurface",
             "sourcePath": "packages/apps/commise/web/src/components/home/HomeWidgetSurface.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/home/RoadmapWidgetSlot",
-            "sourcePath": "packages/apps/commise/web/src/components/home/RoadmapWidgetSlot.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },
@@ -2924,14 +2852,6 @@
             ]
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/recipes/RecipeProviders",
-            "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeProviders.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "mobile/AppRoot",
@@ -3043,14 +2963,6 @@
             "severity": "gap",
             "component": "mobile/components/home/HomeWidgetSurface",
             "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "mobile/components/home/RoadmapWidgetSlot",
-            "sourcePath": "packages/apps/commise/mobile/src/components/home/RoadmapWidgetSlot.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },
@@ -3173,30 +3085,6 @@
             "evidence": []
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "mobile/i18n/LocaleProvider",
-            "sourcePath": "packages/apps/commise/mobile/src/i18n/LocaleProvider.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "mobile/providers/AppProviders",
-            "sourcePath": "packages/apps/commise/mobile/src/providers/AppProviders.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "mobile/providers/RecipeServiceGate",
-            "sourcePath": "packages/apps/commise/mobile/src/providers/RecipeServiceGate.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "mobile/screens/AccountSettingsScreen",
@@ -3249,14 +3137,6 @@
             "severity": "gap",
             "component": "mobile/screens/CollectionsScreen",
             "sourcePath": "packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "mobile/screens/HomeScreen",
-            "sourcePath": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },

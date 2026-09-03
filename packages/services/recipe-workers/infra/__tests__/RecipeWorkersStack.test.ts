@@ -896,6 +896,25 @@ describe('RecipeWorkersStack — account erasure', () => {
         });
     });
 
+    it('publishes the schema migration runner as a drop door teardown can find', () => {
+        // ⛔ THE DOOR TO THIS PREVIEW'S LOGICAL DATABASE. `teardown-sandbox-pr.sh` §1 discovers per-PR
+        // database drop doors BY SHAPE — any stack output whose key matches `^[A-Za-z]+MigrationFunctionName$`
+        // — across the stacks a PR actually has. This stack ships a migration runner, and that runner's
+        // in-deploy trigger calls `ensureDatabaseExists`, so a workers deploy CREATES
+        // `kitchensink_recipes_pr_{N}` whether or not `RecipeServiceStack` ever lands.
+        //
+        // It often does not. `deploy-recipe` deploys workers first (they publish the SSM parameters above,
+        // which the service resolves at synth) with two hard-failing steps before the service's own
+        // `cdk deploy`; ADR-0007 × ADR-0022 additionally wedged `kitchensink-recipe-service-pr-91` in
+        // `UPDATE_ROLLBACK_FAILED` against the nightly-stopped RDS. In every such state the only stack the
+        // PR has is this one, and without this output teardown finds no door and the database leaks —
+        // silently, because the stack deletes cleanly and the database is not its resource.
+        const outputs = template.toJSON().Outputs ?? {};
+        const doors = Object.keys(outputs).filter((key) => /^[A-Za-z]+MigrationFunctionName$/.test(key));
+
+        expect(doors).toEqual(['RecipeWorkersMigrationFunctionName']);
+    });
+
     it('does NOT export the queue via CfnOutput exportName (no cross-stack lock)', () => {
         // Guards the decision above against a well-meaning "let's just export it" revert.
         const outputs = template.toJSON().Outputs ?? {};

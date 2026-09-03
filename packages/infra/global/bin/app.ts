@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
-import { attachSecurityChecks } from '@kitchensink/infra-security';
+import { attachSecurityChecks, stampCommitProvenance } from '@kitchensink/infra-security';
 
 import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
 import { EdgeStack } from '../lib/platform/EdgeStack.js';
@@ -21,6 +21,12 @@ Tags.of(app).add('Environment', 'global');
 // Annotation-only, so it does not change synthesized output (the ADR-0002/ADR-0008 no-prod-diff line);
 // `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` asserts that byte-for-byte.
 attachSecurityChecks(app);
+// The COMMIT this deploy was built from, recorded as a CloudFormation STACK tag so
+// `scripts/deploymentDrift.mjs` can answer "is what is running the code we think it is?". A stack
+// tag, never `Tags.of(app)`: the aspect form would rewrite every taggable resource on every commit,
+// breaching the ADR-0002/ADR-0008 no-prod-diff line for a fact about the BUILD rather than about any
+// resource. See @kitchensink/infra-security.
+stampCommitProvenance(app);
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
 const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
 const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];

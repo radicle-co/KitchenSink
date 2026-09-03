@@ -2,6 +2,7 @@ export { AcceptedNagFindings, acceptNagFindings, type AcceptedNagFinding } from 
 export { AdvisoryAnnotationLogger } from './AdvisoryAnnotationLogger.js';
 export { AdvisoryAwsSolutionsChecks } from './AdvisoryAwsSolutionsChecks.js';
 export { attachSecurityChecks } from './attachSecurityChecks.js';
+export { COMMIT_TAG_KEY, UNKNOWN_COMMIT, resolveCommitSha, stampCommitProvenance } from './commitProvenance.js';
 export { CONTAINER_INSIGHTS_TIER } from './containerInsights.js';
 export { clerkAuthEnvironment, clerkAuthParameterPrefix } from './clerkAuthEnvironment.js';
 export { subscribeAlarmEmail } from './alarmSubscription.js';

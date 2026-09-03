@@ -3,7 +3,7 @@ import { config as dotenvConfig } from 'dotenv';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { attachSecurityChecks } from '@kitchensink/infra-security';
+import { attachSecurityChecks, stampCommitProvenance } from '@kitchensink/infra-security';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
@@ -16,6 +16,12 @@ Tags.of(app).add('Environment', 'global');
 // U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
 // annotation-only so the synthesized template is unchanged. See @kitchensink/infra-security.
 attachSecurityChecks(app);
+// The COMMIT this deploy was built from, recorded as a CloudFormation STACK tag so
+// `scripts/deploymentDrift.mjs` can answer "is what is running the code we think it is?". A stack
+// tag, never `Tags.of(app)`: the aspect form would rewrite every taggable resource on every commit,
+// breaching the ADR-0002/ADR-0008 no-prod-diff line for a fact about the BUILD rather than about any
+// resource. See @kitchensink/infra-security.
+stampCommitProvenance(app);
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
 const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
 const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];

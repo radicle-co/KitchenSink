@@ -32,3 +32,10 @@ packages/services/ingredient-parser/build
 
 # Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
 .tmp-test
+
+# The generated infrastructure manifest and its rendered view. DERIVED output written by
+# `npm run infra:manifest`, guarded by a regenerate-and-diff in `infrastructureManifest.test.ts`, so any
+# reformatting here — even a harmless one — reads as staleness and reds that gate until the generator is
+# re-run. Same argument as the OpenAPI entry above; the difference is that this one is not a coincidence,
+# because the Markdown carries wide tables Prettier would reflow. The generator, not Prettier, owns the bytes.
+docs/generated/infrastructure

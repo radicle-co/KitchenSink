@@ -1,0 +1,8 @@
+node_modules
+
+# Docusaurus build artefacts — generated output, not source.
+build
+.docusaurus
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch.
+.tmp-test

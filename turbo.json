@@ -150,6 +150,27 @@
             "outputs": [],
             "cache": false
         },
+        // ⛔ THE DOCUMENTATION STALENESS GUARD MUST NOT CACHE ON ITS OWN PACKAGE ALONE — the same defect,
+        // and the same reasoning, as `@kitchensink/infra-global#test` above.
+        //
+        // This package's `test` script runs a regenerate-and-diff over EVERY `.tsx` file in
+        // `packages/apps/commise/**` plus the `@commise/ui` token modules, and compares the result with the
+        // committed bytes under `docs/generated/`. The base `test` task declares no `inputs`, so turbo would
+        // hash only this package's own files: edit a component, do not regenerate, and the gate serves a
+        // cache hit and reports green — which is precisely the rot the artifact exists to prevent.
+        //
+        // ⚠️ `inputs` CANNOT express it, for the reason measured and written up on infra-global: turbo does
+        // not hash files belonging to ANOTHER workspace package into a task's inputs. And the `dependsOn`
+        // edge is not a substitute either — it would order the app packages' builds, not invalidate on their
+        // SOURCES. An always-run task is honest; it costs ~9s.
+        //
+        // A package-task entry REPLACES the base task rather than merging with it, so `^build` is repeated
+        // deliberately: the token emitter imports `@commise/ui`'s built entry point.
+        "@kitchensink/docgen-components#test": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
+        },
         "test:integration": {
             "dependsOn": ["^build"],
             "outputs": []

@@ -766,3 +766,77 @@ the committed value stops mattering.
    grepped and found none, and all three services' real-schema audits pass.
 6. **The `deploymentDrift.mjs` `bash` shell-out remains** (rejected as not injectable, but it is still an
    unnecessary subprocess — see #27).
+
+---
+
+## Addendum (2026-09-04) — reconciling the duplicated `commentTriggerGuard` dispatch
+
+`commentTriggerGuard.test.ts:195` was dispatched to two agents. The workflows agent's fix landed first
+(`d5fbe696`); mine (`34e98b96`) was held back because neither version was a superset of the other. This
+addendum records the reconciliation, done against the branch tip rather than by re-applying my version.
+
+### The two versions actually disagreed on three axes, not one
+
+The coordinator's summary was that theirs adds `secrets: inherit` and mine adds a bare-word exclusion. Read
+side by side, that is not quite the split — **both** versions already excluded the bare word, by the same
+mechanism (requiring `.` or `[` after the identifier). The real differences:
+
+| Axis                                  | Workflows agent (`d5fbe696`)        | Mine (`34e98b96`)                                               | Union takes |
+| ------------------------------------- | ----------------------------------- | --------------------------------------------------------------- | ----------- |
+| `secrets.NAME`                        | ✅                                  | ✅                                                              | either      |
+| `secrets['NAME']`                     | ✅ `\[` — any index, incl. computed | ⚠️ `\[\s*['"]` — quote required, so `secrets[format(…)]` missed | **theirs**  |
+| whole context to a function           | ⚠️ `toJSON(secrets)` only           | ✅ `[(,]\s*secrets\s*[),]` — any function                       | **mine**    |
+| `secrets: inherit` / `secrets:` map   | ✅                                  | ❌ absent                                                       | **theirs**  |
+| `\b` anchor (keeps `mysecrets.x` out) | ✅                                  | ❌ absent                                                       | **theirs**  |
+| bare word excluded                    | ✅                                  | ✅                                                              | either      |
+
+So each version was stronger on two axes. The union is theirs' `\b` + broad index + forwarded key, plus my
+generic function-argument form.
+
+### What changed
+
+The fused alternation became a **named map**, `SECRET_REFERENCE_FORMS` (`dot`, `index`, `wholeContext`,
+`forwardedKey`), read through a `referencesSecrets(body, forms?)` helper whose `forms` parameter exists so
+the suite can remove one form at a time. A fused regex can only be tested as a whole, which is how one
+alternative silently stops matching anything and nobody notices.
+
+### The union is proved, not asserted
+
+Per the instruction, each spelling has a case that goes red when that spelling is removed from the detector.
+The proof is permanent (`each reach-the-secrets-context spelling is load-bearing`): for every form, its own
+sample is detected with the full set and **not** detected once that form is dropped — which also proves no
+other form covers it. Verified live by mutating each form to one that never matches:
+
+| Mutated form    | Result                                                                              |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `wholeContext`  | 2 red — the `toJSON(secrets)` fixture and its form-level case                       |
+| `forwardedKey`  | 2 red — the `secrets: inherit` fixture and its form-level case                      |
+| `dot` + `index` | 9 red — including the real-tree pin, so the actual workflows depend on the dot form |
+
+Bare-word exclusion is covered both end-to-end (a job whose step is named "fetch secrets from Secrets
+Manager", holding no secret and no write grant, is **not** flagged) and at matcher level (`fetch secrets…`,
+the lone word `secrets`, and `mysecrets.value` all read as no reference).
+
+Suite: **31/31**, up from 18. Typecheck, lint and Prettier clean. The real-tree pin still resolves to exactly
+`claude.yml::claude`, so the widened detector costs no false positive on the actual workflows.
+
+### ⚠️ Found during reconciliation, NOT fixed — a false-positive class both versions share
+
+Both detectors match `secrets.NAME` anywhere in the serialised job, including text that is not an expression
+at all. GitHub only evaluates the `secrets` context inside `${{ … }}`, so two real shapes in this repo are
+mis-read as privilege:
+
+1. **`.github/workflows/docs.yml:285`** — `missing="${missing} secrets.VERCEL_TOKEN"`, a literal string in a
+   `run:` step naming a secret in an error message.
+2. A `run:` step invoking a script whose filename contains the word, e.g. `scripts/fetch-secrets.mjs`
+   (`packages/apps/commise/{web,mobile}/scripts/fetch-secrets.mjs` both exist). The `-` is a word boundary,
+   so `\b` does not help.
+
+Neither fires today, because the guard only examines workflows with an untrusted-actor trigger and neither
+`docs.yml` nor the app scripts sit in one — so this is **latent**, not live. It matters because the guard's
+own contract is that it "must never invent a privilege, only fail to miss one", and a guard that fires on an
+error message is one somebody eventually deletes.
+
+The remedy is to require the expression wrapper (`${{ … }}`) for the `dot`, `index` and `wholeContext` forms,
+leaving `forwardedKey` as the YAML key it is. That is a **third** design rather than the union I was asked to
+produce, so it is reported here instead of being applied silently. Worth its own change.

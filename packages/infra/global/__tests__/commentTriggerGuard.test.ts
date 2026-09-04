@@ -187,18 +187,45 @@ function needsOf(job: WorkflowJob): readonly string[] {
 }
 
 /**
- * Every spelling through which a workflow expression can reach the `secrets` context:
+ * Every spelling through which a job can reach the `secrets` context, ONE named form each.
  *
- *   - `secrets.NAME`            — the dot form;
- *   - `secrets['NAME']`         — the index form, valid and dot-free;
- *   - `toJSON(secrets)`         — the whole context at once, with no name to match on;
- *   - `secrets: inherit` / `secrets:` map — forwarding to a reusable workflow (a YAML key, so it survives
- *                                 serialisation as `"secrets":`).
+ *   - `dot`          — `secrets.NAME`;
+ *   - `index`        — `secrets['NAME']`, and any computed index: valid, and dot-free;
+ *   - `wholeContext` — the context passed to a function, `toJSON(secrets)` being the one that matters, since
+ *                      it hands over every secret at once with no name to match on;
+ *   - `forwardedKey` — `secrets: inherit` or a `secrets:` map forwarding to a reusable workflow. A YAML KEY
+ *                      rather than an expression, so it survives serialisation as `"secrets":`.
  *
- * Anchored on a word boundary so prose such as "read stage-scoped secrets from Secrets Manager" in a step
- * name cannot count: the guard must never invent a privilege, only fail to miss one.
+ * Each is anchored so that the BARE word cannot count: the dot and index forms require the identifier to be
+ * *used* as a context, and `\b` keeps `mysecrets.x` out. Prose such as a step named "fetch secrets from
+ * Secrets Manager" is therefore not a finding — this guard "must never invent a privilege, only fail to miss
+ * one", and a guard that fires on an English sentence is one somebody eventually deletes.
+ *
+ * ⚠️ Kept as a NAMED MAP, not one fused alternation, so each form can be proved load-bearing: the suite
+ * removes one form at a time and asserts the matching sample stops being detected. A fused regex can only be
+ * tested as a whole, which is how an alternative silently stops matching anything and nobody notices.
  */
-const SECRET_REFERENCE = /\bsecrets\s*(?:\.\s*[A-Za-z_]|\[)|toJSON\s*\(\s*secrets\s*\)|"secrets"\s*:/;
+const SECRET_REFERENCE_FORMS = {
+    dot: /\bsecrets\s*\.\s*[A-Za-z_]/,
+    index: /\bsecrets\s*\[/,
+    wholeContext: /[(,]\s*secrets\s*[),]/,
+    forwardedKey: /"secrets"\s*:/,
+} as const;
+
+/** The name of one reach-the-context spelling. */
+type SecretReferenceForm = keyof typeof SECRET_REFERENCE_FORMS;
+
+/**
+ * Whether serialised workflow text reaches the `secrets` context by any of the forms given.
+ *
+ * @param body - The serialised job (plus workflow-level `env`).
+ * @param forms - The spellings to look for; defaults to all of them. A subset is what lets the suite prove
+ *                each form is load-bearing by removing it.
+ * @returns `true` when any form matches. Pure.
+ */
+function referencesSecrets(body: string, forms: readonly RegExp[] = Object.values(SECRET_REFERENCE_FORMS)): boolean {
+    return forms.some((pattern) => pattern.test(body));
+}
 
 /**
  * Whether a job carries privilege worth gating: it names a secret (directly or by forwarding the whole
@@ -216,7 +243,7 @@ const SECRET_REFERENCE = /\bsecrets\s*(?:\.\s*[A-Za-z_]|\[)|toJSON\s*\(\s*secret
 function isPrivileged(job: WorkflowJob, doc: WorkflowDocument): boolean {
     const body = JSON.stringify({ env: doc.env, job });
 
-    if (SECRET_REFERENCE.test(body)) {
+    if (referencesSecrets(body)) {
         return true;
     }
 
@@ -610,6 +637,52 @@ jobs:
             - run: echo '\${{ toJSON(secrets) }}' > /tmp/all
 `;
 
+/**
+ * The fourth spelling: no expression at all. `secrets: inherit` hands a reusable workflow EVERY secret, and
+ * it is a YAML key, so it survives serialisation as `"secrets":` rather than as `${{ … }}` text.
+ */
+const FORWARDED_SECRETS = `name: forwarded
+on:
+    issue_comment:
+        types: [created]
+jobs:
+    agent:
+        if: contains(github.event.comment.body, '@bot')
+        uses: ./.github/workflows/_ci.yml
+        secrets: inherit
+`;
+
+/**
+ * The negative control for the bare word. This job names no secret and holds no write grant; it merely says
+ * "secrets" in English, in a step name and a comment. A guard that fires here is inventing a privilege.
+ */
+const MENTIONS_SECRETS_IN_PROSE = `name: prose
+on:
+    issue_comment:
+        types: [created]
+permissions:
+    contents: read
+jobs:
+    echo:
+        if: contains(github.event.comment.body, '@bot')
+        runs-on: ubuntu-latest
+        steps:
+            # This job reads no secrets at all.
+            - name: fetch secrets from Secrets Manager
+              run: echo "no secrets here"
+`;
+
+/**
+ * One representative sample per spelling, serialised the way `isPrivileged` sees it, so each form can be
+ * proved LOAD-BEARING by removing it and watching its own sample stop being detected.
+ */
+const FORM_SAMPLES: Record<SecretReferenceForm, string> = {
+    dot: '{"env":null,"job":{"steps":[{"with":{"token":"${{ secrets.LONG_LIVED_TOKEN }}"}}]}}',
+    index: `{"env":null,"job":{"steps":[{"with":{"token":"\${{ secrets['LONG_LIVED_TOKEN'] }}"}}]}}`,
+    wholeContext: '{"env":null,"job":{"steps":[{"run":"echo \'${{ toJSON(secrets) }}\'"}]}}',
+    forwardedKey: '{"env":null,"job":{"uses":"./.github/workflows/_ci.yml","secrets":"inherit"}}',
+};
+
 // ── Assertions ────────────────────────────────────────────────────────────────────────────────────────
 
 describe('comment-triggered privileged jobs are gated on author_association', () => {
@@ -696,6 +769,16 @@ describe('comment-triggered privileged jobs are gated on author_association', ()
             ]);
         });
 
+        it('flags `secrets: inherit`, which forwards EVERY secret to a reusable workflow', () => {
+            expect(findUnguardedPrivilegedJobs(fixture({ 'forwarded.yml': FORWARDED_SECRETS }))).toEqual([
+                'forwarded.yml::agent::issue_comment',
+            ]);
+        });
+
+        it('does NOT flag a job that only says "secrets" in English', () => {
+            expect(findUnguardedPrivilegedJobs(fixture({ 'prose.yml': MENTIONS_SECRETS_IN_PROSE }))).toEqual([]);
+        });
+
         it('flags `toJSON(secrets)` — the whole context, with no name to match on', () => {
             expect(findUnguardedPrivilegedJobs(fixture({ 'tojson.yml': TOJSON_SECRET }))).toEqual([
                 'tojson.yml::agent::issue_comment',
@@ -734,6 +817,43 @@ describe('comment-triggered privileged jobs are gated on author_association', ()
 
         it('does NOT flag the correct fromJSON membership test', () => {
             expect(findWeakAssociationSets(fixture({ 'guarded.yml': FOUR_BRANCH_GUARDED }))).toEqual([]);
+        });
+    });
+
+    /**
+     * Every spelling in the union is LOAD-BEARING, proved by removal rather than asserted.
+     *
+     * This detector was reconciled from two independently-written versions during the PR #91 review, and
+     * neither was a superset of the other — so "the union covers all four" is exactly the claim that needs
+     * evidence, not a comment. For each form the suite removes THAT form and asserts its own sample stops
+     * being detected: if a form ever stops matching anything (a rewrite, a fused alternation, an escaping
+     * mistake), its removal becomes a no-op and the test goes red.
+     */
+    describe('each reach-the-secrets-context spelling is load-bearing', () => {
+        const formNames = Object.keys(SECRET_REFERENCE_FORMS) as SecretReferenceForm[];
+
+        it('covers all four spellings — the union nothing had on its own', () => {
+            expect(formNames).toEqual(['dot', 'index', 'wholeContext', 'forwardedKey']);
+        });
+
+        it.each(formNames)('detects the %s spelling with the full form set', (name) => {
+            expect(referencesSecrets(FORM_SAMPLES[name])).toBe(true);
+        });
+
+        it.each(formNames)('STOPS detecting the %s spelling once that form is removed', (name) => {
+            const without = formNames.filter((other) => other !== name).map((other) => SECRET_REFERENCE_FORMS[other]);
+
+            expect(referencesSecrets(FORM_SAMPLES[name], without)).toBe(false);
+        });
+
+        // The bare word, at the level of the matcher itself rather than a whole workflow — the property that
+        // keeps this guard from firing on an English sentence.
+        it.each([
+            'a step named "fetch secrets from Secrets Manager"',
+            'the word secrets on its own',
+            'a longer identifier such as mysecrets.value',
+        ])('does not treat %s as reaching the context', (text) => {
+            expect(referencesSecrets(JSON.stringify({ env: null, job: { steps: [{ name: text }] } }))).toBe(false);
         });
     });
 });

@@ -258,11 +258,30 @@ describe('deletion-worker handler', () => {
             ).rejects.toThrow(/incomplete/i);
         });
 
-        it('missing userId → cannot fan out, logs and no-ops (never a raw sub-keyed erase)', async () => {
-            await handler(makeSqsEvent({ identityId: 'user_abc', event: 'erasure' }), makeContext());
+        /**
+         * REWRITTEN (was "missing userId → cannot fan out, logs and no-ops"). That test pinned an
+         * acknowledge-and-skip: the branch `return`ed, Lambda's SQS source deleted the message, and the
+         * recipe/food fan-out for that user was skipped permanently with only a `warn` to show for it —
+         * the opposite of `deletionQueue.schema.ts`'s own disposition for an invalid message. Every producer
+         * sets `userId` on an erasure, so its absence is our bug and must REJECT: throw, so SQS retries and
+         * then DLQs to the alarm. The sinks are asserted, not just the throw: no Clerk delete either, because
+         * destroying the account and then dropping the message would strand the user's data half-erased.
+         */
+        it.each([
+            ['absent', {}],
+            ['empty', { userId: '' }],
+        ])(
+            'an erasure with a %s userId is REJECTED (throws → retry → DLQ), never acknowledged',
+            async (_label, userIdField) => {
+                await expect(
+                    handler(makeSqsEvent({ identityId: 'user_abc', event: 'erasure', ...userIdField }), makeContext()),
+                ).rejects.toThrow();
 
-            expect(mockRunErasureFanout).not.toHaveBeenCalled();
-        });
+                expect(mockRunErasureFanout).not.toHaveBeenCalled();
+                expect(mockDeleteUserFn).not.toHaveBeenCalled();
+                expect(mockEraseIdentityRow).not.toHaveBeenCalled();
+            },
+        );
 
         it('a missing fan-out env var fails LOUD (getErasureFanoutConfig throws → SQS retry)', async () => {
             delete process.env['SERVICE_ERASURE_SIGNING_KEY'];

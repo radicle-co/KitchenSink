@@ -54,6 +54,7 @@ import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
 
 import { getDb } from '../src/common/db.js';
+import { idpDeletionMessageSchema } from '../src/common/deletionQueue.schema.js';
 import { resetConfigCacheForTests } from '../src/config/env.js';
 import { deleteUser } from '../src/common/identityClient.js';
 import { handler as rawHandler } from '../src/handlers/tombstoneSweep.js';
@@ -239,12 +240,16 @@ describe.skipIf(!hasDatabaseUrl)('tombstone-sweep selection predicate (integrati
     });
 
     it('enqueues the downstream recipe/food erasure legs for exactly the erased rows (U3/U4 seam)', async () => {
+        // Parsed through the CONSUMER's schema, not a cast: the sweep is a producer of the deletion queue and
+        // `deletion-worker` rejects an `erasure` without a `userId` (retry → DLQ) rather than acknowledging
+        // it. A body the schema refuses here is a body the worker would refuse in production — the
+        // producer/consumer contract, asserted over real rows the sweep selected from real Postgres.
         const bodies = vi
             .mocked(SendMessageCommand)
-            .mock.calls.map((call) => JSON.parse(call[0]!.MessageBody as string) as { userId: string; event: string });
+            .mock.calls.map((call) => idpDeletionMessageSchema.parse(JSON.parse(call[0]!.MessageBody as string)));
 
         expect(bodies).toHaveLength(2);
-        expect(bodies.map((body) => body.userId).sort()).toEqual([population.expired, population.justExpired].sort());
         expect(bodies.every((body) => body.event === 'erasure')).toBe(true);
+        expect(bodies.map((body) => body.userId).sort()).toEqual([population.expired, population.justExpired].sort());
     });
 });

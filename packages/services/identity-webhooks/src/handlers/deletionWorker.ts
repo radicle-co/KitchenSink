@@ -163,13 +163,13 @@ const processRecord = async (record: SQSRecord, dbCtx: DbContext): Promise<void>
             // The identity ROW scrub was done by the enqueuer (the tombstone-sweep, or the identity service
             // acting on the user's own request); this branch owns the Clerk delete and the cross-service
             // legs (recipe FIRST for R9, then food/R11).
-            if (message.userId === undefined || message.userId === '') {
-                logger.warn('deletion-worker: erasure message missing userId; cannot fan out', {
-                    identityId: message.identityId,
-                });
-
-                return;
-            }
+            //
+            // `message.userId` is a `string` here BY THE SCHEMA — the `erasure` variant of
+            // `idpDeletionMessageSchema` requires it, so a message without one never reaches this arm: it is
+            // rejected in `parseMessage`, throws, and takes the retry → DLQ → alarm path with every other
+            // invalid message. This arm used to check for it and `return` on absence, and a `return` is an
+            // ACKNOWLEDGEMENT to the SQS event source — the message was deleted and that user's recipe/food
+            // erasure silently never happened.
 
             // ⛔ CLERK FIRST, THEN THE DATA — and never the other way round.
             //

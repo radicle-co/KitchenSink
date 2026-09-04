@@ -126,6 +126,16 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             { file: 'packages/services/food-service/src/foods/seed/clearCli.errors.ts', classes: 4, components: 0 },
             { file: 'packages/services/food-service/src/foods/seed/reseedCli.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/recipe-service/src/ingredients/unlinkCli.errors.ts', classes: 2, components: 0 },
+            // Extracted 2026-09-04 when the misrouted-delivery fix made the handler export two classes.
+            // Same ruling as its siblings above: the unit is "the refusals this worker can raise", and both
+            // are about one boundary — an SQS body that is not a usable erasure instruction, and a body
+            // naming an owner this database holds no job for. The handler re-exports them, so the split is
+            // invisible to importers.
+            {
+                file: 'packages/services/recipe-workers/src/handlers/accountErasureWorker.errors.ts',
+                classes: 2,
+                components: 0,
+            },
             { file: 'packages/services/food-service/src/sources/foodSource.errors.ts', classes: 4, components: 0 },
         ],
     },

@@ -64,4 +64,44 @@ describe('ImportLedger', () => {
 
         expect(() => ImportLedger.load(path)).toThrow(/unreadable/i);
     });
+
+    /**
+     * Valid JSON that is NOT a ledger is just as corrupt as unparseable text, and it used to be accepted:
+     * `JSON.parse` was cast to the entry map, so `[]` loaded as an empty ledger (every recipe re-imported),
+     * `null` threw an opaque `Object.entries` TypeError, and an entry with no `recipeId` was reported as
+     * imported with an audit trail pointing at nothing. Each is a fail-closed refusal now.
+     */
+    it.each([
+        ['an array', '[]'],
+        ['null', 'null'],
+        ['a string', '"12350::BEET SOUP"'],
+        ['an entry that is null', '{ "12350::BEET SOUP": null }'],
+        [
+            'an entry whose recipeId is not a string',
+            '{ "12350::BEET SOUP": { "recipeId": 7, "importedAt": "2026-09-03T00:00:00.000Z" } }',
+        ],
+        [
+            'an entry with an empty recipeId',
+            '{ "12350::BEET SOUP": { "recipeId": "", "importedAt": "2026-09-03T00:00:00.000Z" } }',
+        ],
+        ['an entry with no importedAt', '{ "12350::BEET SOUP": { "recipeId": "recipe-1" } }'],
+        [
+            'an entry whose importedAt is not ISO 8601',
+            '{ "12350::BEET SOUP": { "recipeId": "recipe-1", "importedAt": "yesterday" } }',
+        ],
+    ])('THROWS on a well-formed JSON file that is not a ledger: %s', (_label, contents) => {
+        const path = ledgerPath();
+        ImportLedger.load(path).record(12350, 'BEET SOUP', 'recipe-1');
+        writeFileSync(path, contents, 'utf-8');
+
+        expect(() => ImportLedger.load(path)).toThrow(/unreadable/i);
+    });
+
+    it('accepts exactly what it writes — an empty object is an empty ledger', () => {
+        const path = ledgerPath();
+        ImportLedger.load(path).record(12350, 'BEET SOUP', 'recipe-1');
+        writeFileSync(path, '{}\n', 'utf-8');
+
+        expect(ImportLedger.load(path).size).toBe(0);
+    });
 });

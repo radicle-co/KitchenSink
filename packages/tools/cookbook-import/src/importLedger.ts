@@ -18,14 +18,28 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { z } from 'zod';
 
 /** What the ledger remembers about one imported recipe. */
-export interface LedgerEntry {
+const ledgerEntrySchema = z.object({
     /** The recipe id the service assigned. */
-    readonly recipeId: string;
+    recipeId: z.string().min(1),
     /** When it was created, ISO 8601. */
-    readonly importedAt: string;
-}
+    importedAt: z.iso.datetime(),
+});
+
+/**
+ * The file's shape: `{ "<ebookId>::<title>": LedgerEntry }`.
+ *
+ * ⚠️ Parsed, not cast. `JSON.parse` used to be asserted straight to this shape, so `[]` loaded as an EMPTY
+ * ledger — re-importing every recipe it had recorded, which is the one failure the ledger exists to prevent —
+ * `null` died on `Object.entries` with a message naming no file, and an entry with no `recipeId` was reported
+ * as imported with an audit trail pointing at nothing. Well-formed JSON that is not a ledger is corrupt.
+ */
+const ledgerFileSchema = z.record(z.string(), ledgerEntrySchema);
+
+/** What the ledger remembers about one imported recipe. */
+export type LedgerEntry = z.infer<typeof ledgerEntrySchema>;
 
 /** The identity of a recipe within the corpus: the book, plus the heading it was printed under. */
 export function ledgerKey(ebookId: number, title: string): string {
@@ -62,7 +76,7 @@ export class ImportLedger {
         const raw = readFileSync(path, 'utf-8');
 
         try {
-            const parsed = JSON.parse(raw) as Record<string, LedgerEntry>;
+            const parsed = ledgerFileSchema.parse(JSON.parse(raw));
 
             return new ImportLedger(path, new Map(Object.entries(parsed)));
         } catch (error) {

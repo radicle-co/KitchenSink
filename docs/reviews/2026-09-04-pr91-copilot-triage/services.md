@@ -219,6 +219,14 @@ operator can read past; nothing consumed it, so it was not a guard.
    operator can say which they meant. A dry run is never asked to type it — making a look harder than a delete
    is how operators learn to skip the look — and a dry run now **reports** the token, closing the loop: the
    look tells you what to type, so the typed value describes the thing rather than the belief.
+
+    ⚠️ Two things about the host field, one load-bearing and one a limitation. The load-bearing one: it is
+    discriminating _because of_ ADR-0002's per-stage VPC CIDRs — a prod RDS answers from `10.0.x.x` and a
+    sandbox one from `10.1.x.x`, so the two can never coincide. If those CIDRs are ever collapsed, this guard
+    weakens and should be revisited. The limitation: `inet_server_addr()` is a private IP, so an RDS failover
+    between the dry run and the destructive run invalidates the token. That fails **closed** — the run is
+    refused and the operator re-runs the dry run, which the refusal message tells them to do.
+
 3. **`probe-off-server`** (clear only): the recipe-linkage probe must reach the same server as the catalog.
    The two URLs are supplied separately, so mixing them is what this two-service task is most exposed to — and
    "zero links remain" answered from another stage reads as permission to delete this one's whole catalog.

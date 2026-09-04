@@ -138,6 +138,13 @@ function refuseStageDatabaseMismatch(stage: string, target: DatabaseTarget): Int
  *     operator can say which one they meant. A dry run is never asked to type it — making a LOOK harder than
  *     a delete is how operators learn to skip the look.
  *
+ * ⚠️ THE HOST IS DISCRIMINATING BECAUSE OF ADR-0002, not by luck: the per-stage VPC CIDRs put prod's RDS on
+ * `10.0.x.x` and sandbox's on `10.1.x.x`, so the two can never report the same address. If those CIDRs are
+ * ever collapsed into one range, mechanism 2 weakens to "same database name, same host" and this guard must
+ * be revisited. ⚠️ And `inet_server_addr()` is a private IP, so an RDS failover between the dry run and the
+ * destructive run invalidates the token — that fails CLOSED (the run is refused, and the message says to
+ * re-run the dry run), which is the correct direction for a guard to break in.
+ *
  * @param intent - What the operator supplied.
  * @param target - Where the connection landed, as the server reports it.
  * @returns The refusal, or `undefined` when the declaration is bound to the target. Pure.

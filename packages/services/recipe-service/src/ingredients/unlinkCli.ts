@@ -261,6 +261,11 @@ export function describeTargetToken(target: DatabaseTarget): string {
  *     `kitchensink_recipes`, so only the host distinguishes them and only the operator can say which they
  *     meant. A dry run is never asked to type it.
  *
+ * ⚠️ The host is discriminating because of ADR-0002's per-stage VPC CIDRs (prod `10.0.x.x`, sandbox
+ * `10.1.x.x`), not by luck — collapsing those ranges would weaken this guard. And `inet_server_addr()` is a
+ * private IP, so an RDS failover between the dry run and the write invalidates the token: that fails CLOSED,
+ * which is the correct direction. Food-service's `operatorIntent.ts` carries the same note.
+ *
  * @param options - The validated CLI options.
  * @param target - Where the connection landed, as the server reports it.
  * @returns The refusal, or `undefined` when the declaration is bound to the target. Pure.

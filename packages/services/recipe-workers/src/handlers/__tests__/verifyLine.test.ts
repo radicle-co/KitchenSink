@@ -31,7 +31,12 @@ import {
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
 
-import { INPUT_BOUND_EXCEEDED_METRIC_NAME } from '../../common/spendMetrics.js';
+import {
+    INPUT_BOUND_EXCEEDED_METRIC_NAME,
+    RESIDENCY_REFUSED_METRIC_NAME,
+    SPEND_METRIC_NAMESPACE,
+} from '../../common/spendMetrics.js';
+import type { EmfMetric } from '../../common/metrics.js';
 import { processVerification, type VerificationDeps } from '../verifyLine.js';
 
 const MESSAGE = {
@@ -362,6 +367,44 @@ describe('the invocation id, and the identity it is not', () => {
         expect(d.spies.recordVerdict).not.toHaveBeenCalled();
         expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
         expect(d.spies.bandRecord).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⛔ THE REFUSAL MUST BE VISIBLE, and a log line is not visibility for this package.
+     *
+     * Every other way this handler can go quiet leaves a trace an alarm already watches: a throw becomes DLQ
+     * depth, a settle failure becomes `VerificationSettleFailures`. This branch acknowledges the message,
+     * writes no row, and reserves nothing — so `VerificationSpendMicros` merely goes flat, which no alarm
+     * distinguishes from a quiet hour.
+     *
+     * ⚠️ AND THE LOG IS NOT AN ALERT HERE. `recipe-workers` has no `SubscriptionFilter` and no metric filter:
+     * the only log drain in this repository is `WebhooksStack`'s, whose three targets are the webhook, the API
+     * and the identity ECS service. So `logger.error` lands in CloudWatch Logs with nothing subscribed to it.
+     * This metric is the alert, and it carries `CallSite` for the same reason
+     * `VerificationInputBoundExceeded` does: WHICH leg went dark is the whole diagnostic.
+     */
+    it('EMITS the refusal so a dark gate is visible — the log alone reaches nothing', async () => {
+        const d = depsForModel(PROFILE_MODEL_ID);
+        await processVerification(d, MESSAGE);
+
+        const emitted = d.spies.emit.mock.calls
+            .map((call) => call[0] as EmfMetric)
+            .find((metric) => metric?.name === RESIDENCY_REFUSED_METRIC_NAME);
+
+        expect(emitted).toBeDefined();
+        expect(emitted?.namespace).toBe(SPEND_METRIC_NAMESPACE);
+        expect(emitted?.value).toBe(1);
+        expect(emitted?.dimensions).toEqual({ CallSite: 'verification-gate' });
+    });
+
+    it('stays silent on that metric when the model IS cleared', async () => {
+        // The non-vacuity floor: an emitter that fired unconditionally would satisfy the test above.
+        const d = depsForModel('amazon.nova-micro-v1:0');
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.emit.mock.calls.map((call) => (call[0] as EmfMetric)?.name)).not.toContain(
+            RESIDENCY_REFUSED_METRIC_NAME,
+        );
     });
 
     it('refuses the shipped PARSE model too — it is the same table, judged the same way', async () => {

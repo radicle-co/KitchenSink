@@ -1124,12 +1124,12 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         const alarms = template.findResources('AWS::CloudWatch::Alarm');
         // A COUNT, not a roster. It exists so a regression that silently DROPS an alarm trips here, and so a
         // new one has to be a deliberate edit; the loop below is what actually checks each alarm can page.
-        // ⚠️ It was 11, then 15, and is now 16: the parse leg's CRF-availability, DLQ and throttle alarms,
-        // the handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found missing, and now
-        // ADR-0024 layer 1's input-bound alarm. The earlier revision of this comment named all eleven, which
-        // is the copied list this repository keeps learning not to write — so what the number guards is
-        // stated instead of which alarms make it up.
-        expect(Object.keys(alarms)).toHaveLength(16);
+        // ⚠️ It was 11, then 15, then 16, and is now 17: the parse leg's CRF-availability, DLQ and throttle
+        // alarms, the handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found missing,
+        // ADR-0024 layer 1's input-bound alarm, and now §4b's residency-refusal alarm. The earlier revision
+        // of this comment named all eleven, which is the copied list this repository keeps learning not to
+        // write — so what the number guards is stated instead of which alarms make it up.
+        expect(Object.keys(alarms)).toHaveLength(17);
 
         for (const [name, alarm] of Object.entries(alarms)) {
             const actions = alarm.Properties?.AlarmActions as { Ref: string }[] | undefined;
@@ -1320,6 +1320,38 @@ describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => 
      * is now the third thing, and this is where that is observable: the fan-out statements were the sole
      * source of any non-deploy-region ARN, so their absence IS the absence of the reach.
      */
+    /**
+     * ⛔ THE ALARM THAT MAKES A DARK GATE VISIBLE (ADR-0024 §4b).
+     *
+     * The residency refusal is the one failure on this path that leaves NO other trace: the message is
+     * acknowledged, no verdict row is written, nothing is reserved — so DLQ depth stays flat, the Lambda
+     * `Errors` metric stays flat, and `VerificationSpendMicros` merely goes quiet, which is what a slow hour
+     * looks like too. ⚠️ And `recipe-workers` has no log `SubscriptionFilter` and no metric filter anywhere
+     * (the repository's only log drain is `WebhooksStack`'s, targeting the webhook, the API and the identity
+     * ECS service), so the `logger.error` beside this metric reaches nothing that alarms.
+     *
+     * It should read ZERO forever — the shape `VerificationCacheTokensAlarm` already uses — because both the
+     * parse pin and the SSM seed are residency-clear and `parseLine.test.ts` keeps the former that way. A
+     * non-zero value means a model id was pointed somewhere 016 has not cleared, and nothing is being
+     * verified or parsed until it is pointed back.
+     */
+    it('alarms on a residency refusal, on the Stage rollup, at zero', () => {
+        const alarms = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { MetricName: 'VerificationResidencyRefused' },
+        });
+        const [alarm] = Object.values(alarms);
+
+        expect(alarm, 'no alarm watches the residency refusal — a dark gate would be invisible').toBeDefined();
+        expect(alarm?.Properties?.Namespace).toBe('Commise/RecipeVerification');
+        expect(alarm?.Properties?.Threshold).toBe(0);
+        expect(alarm?.Properties?.ComparisonOperator).toBe('GreaterThanThreshold');
+        // ⚠️ `Stage` ALONE, and this suite's `synth()` deploys the `sandbox` stage. `emitMetric` publishes
+        // `[['Stage'], ['Stage','CallSite']]`, so the rollup exists and an alarm selecting the faceted set
+        // would watch one leg and miss the other.
+        expect(alarm?.Properties?.Dimensions).toEqual([{ Name: 'Stage', Value: 'sandbox' }]);
+        expect(alarm?.Properties?.AlarmActions, 'an alarm nobody is paged by is a dashboard').toBeDefined();
+    });
+
     it('names no region outside the deploy region, and neither unwarranted profile', () => {
         const arns = bedrockStatements(template).flatMap(({ resources }) => resources);
 
@@ -1376,6 +1408,12 @@ describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => 
      */
     it('emits NO inference-profile grant and NO conditioned fan-out — the shipped table clears no profile', () => {
         const statements = bedrockStatements(template);
+
+        // ⛔ ITS OWN NON-VACUITY FLOOR. Three `toEqual([])` assertions are all satisfied by an extractor that
+        // stopped matching anything — the failure mode that turns a guard into a green no-op. A floor in the
+        // sibling test does not protect this one.
+        expect(statements.length, 'no bedrock statement was discovered — this proves nothing').toBeGreaterThan(0);
+
         const cleared = Object.entries(BEDROCK_MODEL_REGISTRY).filter(
             ([modelId, entry]) =>
                 entry.invocation.invocationId !== modelId && residencyClearance(entry, 'us-east-1') !== 'unapproved',

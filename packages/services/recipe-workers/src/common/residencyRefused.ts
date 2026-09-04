@@ -60,9 +60,16 @@ export class ResidencyRefusedError extends Error {
 /**
  * Whether an unknown value is a {@link ResidencyRefusedError}.
  *
- * ⚠️ A property check rather than `instanceof` alone: the error crosses a bundle boundary (the pipeline
- * catches it in `recipe-import-core` and the handler re-reads it here), and `instanceof` is unreliable when
- * two copies of a class can exist. The same reason every `is*` guard in this repository is written this way.
+ * ⚠️ `instanceof` FIRST, and that arm is what actually fires: `parsePipeline.ts` takes the rejection reason
+ * off `Promise.allSettled` and hands the SAME object to `onTierFailure` — no serialization, no second class
+ * identity — so the object the handler tests is the object `gatedConverse` threw. The name check behind it is
+ * belt-and-braces for a future bundling split, not a live requirement.
+ *
+ * ⚠️ An earlier version of this comment claimed the error "crosses a bundle boundary" and that "every `is*`
+ * guard in this repository is written this way". Both were false: the pipeline never re-creates it, and the
+ * neighbouring guards (`crfInvoke.ts`, `@kitchensink/bedrock-client`'s `errors.ts`, `verificationPrompt.ts`)
+ * are all bare `instanceof`. Left corrected rather than deleted, because the wrong version is the kind a
+ * reader copies.
  *
  * @param error - Any caught value.
  * @returns Whether it is a residency refusal. Pure.

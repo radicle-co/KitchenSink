@@ -1176,6 +1176,14 @@
                         },
                         {
                             "kind": "alarm",
+                            "logicalId": "VerificationResidencyRefusedAlarm",
+                            "nameTemplate": "kitchensink-recipe-verification-residency-{stage}",
+                            "handler": null,
+                            "condition": null,
+                            "notes": []
+                        },
+                        {
+                            "kind": "alarm",
                             "logicalId": "CrfEngineUnavailableAlarm",
                             "nameTemplate": "kitchensink-recipe-parse-crf-unavailable-{stage}",
                             "handler": null,

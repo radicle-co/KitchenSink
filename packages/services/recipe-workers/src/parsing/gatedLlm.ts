@@ -65,7 +65,12 @@ import {
     type RetryParsePort,
 } from '@kitchensink/recipe-import-core';
 
-import { INPUT_BOUND_EXCEEDED_METRIC_NAME, SPEND_METRIC_NAME, SPEND_METRIC_NAMESPACE } from '../common/spendMetrics.js';
+import {
+    INPUT_BOUND_EXCEEDED_METRIC_NAME,
+    RESIDENCY_REFUSED_METRIC_NAME,
+    SPEND_METRIC_NAME,
+    SPEND_METRIC_NAMESPACE,
+} from '../common/spendMetrics.js';
 import { ResidencyRefusedError } from '../common/residencyRefused.js';
 import { isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
 import type { EmfMetric } from '../common/metrics.js';
@@ -147,6 +152,17 @@ export async function gatedConverse(deps: GatedLlmDeps, call: GatedCall): Promis
         // compile-time constant (`PARSE_LEG_MODEL_ID`), not an SSM value, and `parseLine.test.ts` asserts
         // that every model this handler pins is residency-clear. Reaching this branch in the shipped
         // configuration takes a code change that fails that test.
+        // ⚠️ THE METRIC IS THE ALERT, NOT THE LOG — `recipe-workers` has no log drain (see
+        // `spendMetrics.ts`'s `RESIDENCY_REFUSED_METRIC_NAME`). Attributed, because which leg went dark is
+        // the diagnostic and the four legs do not all pin the same model.
+        deps.emit({
+            namespace: SPEND_METRIC_NAMESPACE,
+            name: RESIDENCY_REFUSED_METRIC_NAME,
+            unit: 'Count',
+            stage: deps.stage,
+            value: 1,
+            dimensions: { CallSite: call.callSite },
+        });
         logger.error('parse-leg model is not cleared for residency; the LLM leg was not called', {
             callSite: call.callSite,
             modelId: plan.modelId,

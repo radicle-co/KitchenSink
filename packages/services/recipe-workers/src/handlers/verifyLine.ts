@@ -85,6 +85,7 @@ import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { createSpendLedger, isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
 import {
     INPUT_BOUND_EXCEEDED_METRIC_NAME,
+    RESIDENCY_REFUSED_METRIC_NAME,
     SETTLE_FAILURE_METRIC_NAME,
     SPEND_METRIC_NAME,
     SPEND_METRIC_NAMESPACE,
@@ -451,8 +452,19 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         // the gate — whereas a written verdict would manufacture the wrong-DISAGREE outcome U11 ranks as
         // unacceptable, in bulk, for a reason that is about AWS and 016 rather than about any recipe.
         //
-        // ⚠️ `logger.error` and not `warn`: this is a configuration fault that silently stops verification
-        // altogether, and an absent verdict makes it invisible everywhere else. The log IS the alert.
+        // ⚠️ THE METRIC IS THE ALERT, NOT THE LOG. `recipe-workers` has no log `SubscriptionFilter` and no
+        // metric filter — the repository's only drain is `WebhooksStack`'s, targeting the webhook, the API
+        // and the identity ECS service — so this `logger.error` reaches nothing that pages anyone. Everything
+        // else about this branch is silent by design (no throw, no verdict, no reservation), which is exactly
+        // why the emission below is not decoration.
+        deps.emit({
+            namespace: SPEND_METRIC_NAMESPACE,
+            name: RESIDENCY_REFUSED_METRIC_NAME,
+            unit: 'Count',
+            stage: deps.stage,
+            value: 1,
+            dimensions: { CallSite: VERIFICATION_GATE_CALL_SITE },
+        });
         logger.error('verification model is not cleared for residency; the line was not checked', {
             modelId: plan.modelId,
             deployRegion: plan.deployRegion,

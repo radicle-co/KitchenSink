@@ -24,7 +24,7 @@ import { FOODNESS_MAX_OUTPUT_TOKENS, FOODNESS_MODEL_ID } from '@kitchensink/reci
 import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
 import type { ConverseRequest } from '@kitchensink/bedrock-client';
 
-import { INPUT_BOUND_EXCEEDED_METRIC_NAME } from '../../common/spendMetrics.js';
+import { INPUT_BOUND_EXCEEDED_METRIC_NAME, RESIDENCY_REFUSED_METRIC_NAME } from '../../common/spendMetrics.js';
 import { ResidencyRefusedError, isResidencyRefusedError } from '../../common/residencyRefused.js';
 import {
     createGatedFoodnessValidator,
@@ -242,13 +242,36 @@ describe('gatedConverse — a residency-unapproved model', () => {
         }
     });
 
+    /**
+     * ⛔ THE REFUSAL MUST BE VISIBLE. `recipe-workers` has no log `SubscriptionFilter` and no metric filter —
+     * the repository's only log drain is `WebhooksStack`'s, whose three targets are the webhook, the API and
+     * the identity ECS service — so `logger.error` reaches nothing that alarms. A silenced parse leg is
+     * otherwise invisible: lines simply stop landing.
+     */
+    it('EMITS the refusal, attributed to the leg that was silenced', async () => {
+        const { deps, emit } = makeDeps({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+
+        await createGatedMeasurementValidator(deps, NOVA_2_LITE_MODEL_ID)
+            .judge('2 cups flour', PARSE)
+            .catch(() => undefined);
+
+        const emitted = emit.mock.calls
+            .map((call) => call[0])
+            .find((metric) => metric?.name === RESIDENCY_REFUSED_METRIC_NAME);
+
+        expect(emitted).toBeDefined();
+        expect(emitted?.value).toBe(1);
+        expect(emitted?.dimensions).toEqual({ CallSite: 'measurement-validator' });
+    });
+
     it('still calls a residency-CLEARED model — the gate is the marker, not the shape of the id', async () => {
         // Non-vacuity: every assertion above would also pass if the spine had simply stopped working.
-        const { deps, converse } = makeDeps({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+        const { deps, converse, emit } = makeDeps({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
 
         await createGatedMeasurementValidator(deps, NOVA_LITE_MODEL_ID).judge('2 cups flour', PARSE);
 
         expect(converse).toHaveBeenCalledTimes(1);
+        expect(emit.mock.calls.map((call) => call[0]?.name)).not.toContain(RESIDENCY_REFUSED_METRIC_NAME);
     });
 
     it('leaves the FOODNESS validator alone — it pins Nova Micro, which residency clears', async () => {

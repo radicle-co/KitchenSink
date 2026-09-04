@@ -1681,6 +1681,41 @@ export class RecipeWorkersStack extends Stack {
         });
         cacheTokenAlarm.addAlarmAction(alarmAction);
 
+        // ⛔ ADR-0024 §4b — THE ONLY TRACE A RESIDENCY REFUSAL LEAVES. When `planReservation` refuses a model
+        // whose inference profile leaves this region uncleared, the gate acknowledges the message and the
+        // parse leg lands nothing: no verdict row, no reservation, no throw. So DLQ depth stays flat, Lambda
+        // `Errors` stays flat, and `VerificationSpendMicros` merely goes quiet — which is what a slow hour
+        // looks like. Every leg would be dark with every other alarm green.
+        //
+        // ⚠️ AND THE `logger.error` BESIDE THE EMISSION IS NOT A SUBSTITUTE: this package has no
+        // `logs.SubscriptionFilter` and no metric filter anywhere. The repository's only log drain is
+        // `WebhooksStack`'s, whose three targets are the webhook Lambda, the API access log and the identity
+        // ECS service — nothing forwards a recipe-workers log line to Sentry or to anything else.
+        //
+        // Zero forever, like `VerificationCacheTokensAlarm`: the SSM seed is Nova Micro and the parse pin is
+        // Nova Lite v1, both residency-clear, and `parseLine.test.ts` keeps the latter that way. A datapoint
+        // means a model id now points somewhere 016 has not cleared, and the remedy is a model id — never a
+        // retry, because the refusal is deterministic in (model, region).
+        const residencyRefusedAlarm = new cloudwatch.Alarm(this, 'VerificationResidencyRefusedAlarm', {
+            alarmName: `kitchensink-recipe-verification-residency-${props.stage}`,
+            alarmDescription:
+                'A Bedrock call was refused because the model is not cleared to leave the deploy region (ADR-0024 §4b). Nothing is being verified or parsed on that leg; the remedy is a model id, not a retry.',
+            metric: new cloudwatch.Metric({
+                namespace: VERIFICATION_METRIC_NAMESPACE,
+                metricName: 'VerificationResidencyRefused',
+                // ⚠️ `Stage` ALONE, per the emitter's `[['Stage'], ['Stage','CallSite']]` dimension sets: the
+                // rollup catches whichever leg went dark, where a faceted selector would watch only one.
+                dimensionsMap: { Stage: props.stage },
+                statistic: 'Sum',
+                period: Duration.minutes(5),
+            }),
+            threshold: 0,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        residencyRefusedAlarm.addAlarmAction(alarmAction);
+
         // ── the parse leg's own alarms (the DETECTION half of the never-deployed CRF defect) ───────
         //
         // ⛔ WHAT THESE EXIST FOR. `kitchensink-ingredient-parser-{stage}` had never been deployed to any

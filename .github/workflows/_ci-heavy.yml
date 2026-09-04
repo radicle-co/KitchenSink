@@ -158,6 +158,24 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
         steps:
+            # ⛔ SANDBOX-ONLY, and refused LOUDLY rather than skipped. This job USES `inputs.stage` for a
+            # write: the `load-secrets` + `ensure-signin-user.mjs` steps below provision the shared Clerk
+            # sign-in test user into THAT stage's tenant — while everything it then measures is
+            # stage-independent (the recipe service it drives is the runner-local container under the
+            # dev-auth bypass). On `prod` that is a mutation of the production Clerk instance in exchange for
+            # a result that says nothing about production, and `ci-full.yml`'s dispatcher offers `prod` as a
+            # stage. A job-level `if:` would SKIP silently — a green heavy run whose mobile tier ran nothing,
+            # the outcome this repo's guards exist to make impossible — so this fails the job with the reason
+            # instead, FIRST, before any stage secret is loaded. `maestroStageGuard.test.ts` executes this
+            # body under both stages and pins its position.
+            - name: Refuse any stage but sandbox (this tier writes to the stage's Clerk tenant)
+              env:
+                  STAGE: ${{ inputs.stage }}
+              run: |
+                  if [ "${STAGE}" != 'sandbox' ]; then
+                      echo "::error::the Maestro tier is sandbox-only — it provisions a Clerk sign-in test user in the '${STAGE}' tenant and tests nothing that is prod-shaped. Dispatch it with stage=sandbox, or with run_mobile_maestro=false."
+                      exit 1
+                  fi
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   # No job here performs a git push/fetch/remote operation (verified), so the

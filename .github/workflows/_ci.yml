@@ -2469,9 +2469,11 @@ jobs:
                   path: packages/apps/commise/web/playwright-report
                   retention-days: 7
                   if-no-files-found: ignore
-            # U10a half 1 — hand the visual-regression PNGs to Argos for comparison. `npx --yes` rather than a
-            # devDependency ON PURPOSE: adding one without regenerating package-lock.json would break every
-            # `npm ci` in the pipeline, and this is the only place the CLI is ever invoked.
+            # U10a half 1 — hand the visual-regression PNGs to Argos for comparison. The CLI is a devDependency
+            # of `@commise/web` (the package whose screenshots these are) and is invoked with `--no-install`,
+            # so the version that runs is the one the lockfile pins and Dependabot bumps. It used to be
+            # `npx --yes @argos-ci/cli@6`, a major-only range that let the registry choose the minor on the
+            # day — `postPruneToolchain.test.ts` refuses any `npx` the lockfile does not provide.
             #
             # Gated on the `ARGOS_ENABLED` repository VARIABLE (not a secret) so the step is inert until the
             # Argos project exists and is linked to this repository. Without that one-time setup the upload
@@ -2485,7 +2487,7 @@ jobs:
             # must be visible rather than green.
             - name: Upload visual-regression screenshots to Argos
               if: ${{ steps.merge.outputs.merged == 'true' && vars.ARGOS_ENABLED == 'true' }}
-              run: npx --yes @argos-ci/cli@6 upload packages/apps/commise/web/screenshots --build-name web
+              run: npx --no-install argos upload packages/apps/commise/web/screenshots --build-name web
             # U10a half 2 — the mockup-fidelity artifact (wireframe/implementation image pairs, report.json and
             # a side-by-side index.html). Uploaded on PASS as well as failure: it is a REVIEW artifact, not a
             # failure diagnostic, and its whole purpose is to be read on a green run.

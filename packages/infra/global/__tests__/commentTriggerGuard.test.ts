@@ -67,6 +67,11 @@
  * term makes `tolerant-need.yml` pass. Real tree: removing the association check from the
  * `pull_request_review` branch of `claude.yml` produced
  * `claude.yml::claude::pull_request_review` — which is the exact mutation the review comment described.
+ *
+ * Three more positive fixtures were added on review of PR #91, each watched fail against the then-current
+ * `isPrivileged`: a secret placed in the WORKFLOW-level `env:` (invisible to a job-only serialisation), the
+ * index spelling `secrets['NAME']`, and `toJSON(secrets)` — the last two valid and dot-free, so the dot-only
+ * matcher read the job as unprivileged and the guard did not apply to it at all.
  */
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -93,6 +98,7 @@ interface WorkflowJob {
 interface WorkflowDocument {
     readonly on?: Readonly<Record<string, unknown>> | readonly string[] | string;
     readonly permissions?: Readonly<Record<string, string>> | string;
+    readonly env?: Readonly<Record<string, unknown>>;
     readonly jobs?: Readonly<Record<string, WorkflowJob>>;
 }
 
@@ -181,17 +187,36 @@ function needsOf(job: WorkflowJob): readonly string[] {
 }
 
 /**
+ * Every spelling through which a workflow expression can reach the `secrets` context:
+ *
+ *   - `secrets.NAME`            — the dot form;
+ *   - `secrets['NAME']`         — the index form, valid and dot-free;
+ *   - `toJSON(secrets)`         — the whole context at once, with no name to match on;
+ *   - `secrets: inherit` / `secrets:` map — forwarding to a reusable workflow (a YAML key, so it survives
+ *                                 serialisation as `"secrets":`).
+ *
+ * Anchored on a word boundary so prose such as "read stage-scoped secrets from Secrets Manager" in a step
+ * name cannot count: the guard must never invent a privilege, only fail to miss one.
+ */
+const SECRET_REFERENCE = /\bsecrets\s*(?:\.\s*[A-Za-z_]|\[)|toJSON\s*\(\s*secrets\s*\)|"secrets"\s*:/;
+
+/**
  * Whether a job carries privilege worth gating: it names a secret (directly or by forwarding the whole
  * context to a reusable workflow), or it holds any `write` permission on the automatic token.
  *
  * Serialised rather than walked field-by-field, because a secret can appear in a step's `with:`, a step's
  * `env:`, a job-level `env:`, a container's credentials, or a `secrets:` block on a `uses:` job — and a
  * walker that enumerates today's locations quietly stops covering tomorrow's.
+ *
+ * ⚠️ The WORKFLOW-level `env:` is serialised with the job, because every job inherits it: a secret placed
+ * there reaches every step of a comment-triggered job while the job's own text names nothing. A job-only
+ * serialisation was blind to exactly that shape (review of PR #91), and to the two dot-free spellings
+ * `SECRET_REFERENCE` now covers.
  */
 function isPrivileged(job: WorkflowJob, doc: WorkflowDocument): boolean {
-    const body = JSON.stringify(job);
+    const body = JSON.stringify({ env: doc.env, job });
 
-    if (/secrets\s*\.\s*[A-Za-z_]/.test(body) || /"secrets"\s*:/.test(body)) {
+    if (SECRET_REFERENCE.test(body)) {
         return true;
     }
 
@@ -539,6 +564,52 @@ jobs:
         runs-on: ubuntu-latest
 ${SECRET_STEP}`;
 
+/**
+ * The secret sits in the WORKFLOW-level `env:`, which every job inherits — and the job itself names no
+ * secret. A serialisation of the job alone cannot see it.
+ */
+const WORKFLOW_ENV_SECRET = `name: inherited
+on:
+    issue_comment:
+        types: [created]
+env:
+    API_TOKEN: \${{ secrets.LONG_LIVED_TOKEN }}
+jobs:
+    agent:
+        if: contains(github.event.comment.body, '@bot')
+        runs-on: ubuntu-latest
+        steps:
+            - run: curl --oauth2-bearer "$API_TOKEN" https://example.invalid
+`;
+
+/** The index form of the secrets context: a valid spelling that carries no dot. */
+const BRACKET_SECRET = `name: bracket
+on:
+    issue_comment:
+        types: [created]
+jobs:
+    agent:
+        if: contains(github.event.comment.body, '@bot')
+        runs-on: ubuntu-latest
+        steps:
+            - uses: third/party@v1
+              with:
+                  token: \${{ secrets['LONG_LIVED_TOKEN'] }}
+`;
+
+/** The whole context at once — no name, no dot, no bracket. */
+const TOJSON_SECRET = `name: tojson
+on:
+    issue_comment:
+        types: [created]
+jobs:
+    agent:
+        if: contains(github.event.comment.body, '@bot')
+        runs-on: ubuntu-latest
+        steps:
+            - run: echo '\${{ toJSON(secrets) }}' > /tmp/all
+`;
+
 // ── Assertions ────────────────────────────────────────────────────────────────────────────────────────
 
 describe('comment-triggered privileged jobs are gated on author_association', () => {
@@ -609,6 +680,25 @@ describe('comment-triggered privileged jobs are gated on author_association', ()
         it('flags a write-granting job even when it holds no secret', () => {
             expect(findUnguardedPrivilegedJobs(fixture({ 'write-grant.yml': WRITE_GRANT }))).toEqual([
                 'write-grant.yml::labeller::issue_comment',
+            ]);
+        });
+
+        it('flags a job whose only secret is inherited from the WORKFLOW-level env', () => {
+            // A job-only serialisation sees nothing here; the secret reaches every step all the same.
+            expect(findUnguardedPrivilegedJobs(fixture({ 'inherited.yml': WORKFLOW_ENV_SECRET }))).toEqual([
+                'inherited.yml::agent::issue_comment',
+            ]);
+        });
+
+        it('flags the index spelling `secrets[...]`', () => {
+            expect(findUnguardedPrivilegedJobs(fixture({ 'bracket.yml': BRACKET_SECRET }))).toEqual([
+                'bracket.yml::agent::issue_comment',
+            ]);
+        });
+
+        it('flags `toJSON(secrets)` — the whole context, with no name to match on', () => {
+            expect(findUnguardedPrivilegedJobs(fixture({ 'tojson.yml': TOJSON_SECRET }))).toEqual([
+                'tojson.yml::agent::issue_comment',
             ]);
         });
 

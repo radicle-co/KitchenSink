@@ -45,7 +45,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { parseEngineResponse } from '../../src/index.js';
@@ -323,6 +323,16 @@ export async function main(): Promise<void> {
 }
 
 // Executed directly by the deploy workflows; importable by its unit suite without running.
-if (process.argv[1] !== undefined && process.argv[1].endsWith('deployedSmoke.ts')) {
+//
+// ⛔ The guard compares this module's URL to the entry path, and must NEVER test for a `.ts` suffix. It
+// did, and the deploy workflows now run this file COMPILED (`dist/infra/smoke/deployedSmoke.js`, under
+// plain `node`, because `tsx` does not survive their dev-dependency prune) — under which
+// `endsWith('deployedSmoke.ts')` is FALSE, so `main()` never ran, the step exited 0 in silence, and the
+// only check that proves the CRF engine actually loads reported success without invoking anything. That
+// is the success-returning no-op this repository has already paid four weeks of production for.
+// `postPruneToolchain.test.ts` asserts that no entry guard behind a `node` invocation is
+// extension-locked. `pathToFileURL`, not a `file://` template, so a path containing a space or a `#`
+// still matches.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
     await main();
 }

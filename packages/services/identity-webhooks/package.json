@@ -23,6 +23,7 @@
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
+        "@sentry/cli": "^2.58.6",
         "@types/aws-lambda": "^8.10.147",
         "@types/debug": "^4.1.12",
         "@types/express": "^5.0.6",

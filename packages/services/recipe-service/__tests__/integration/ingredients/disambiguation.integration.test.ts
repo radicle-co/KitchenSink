@@ -16,7 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import pg from 'pg';
 
 import { FoodResolutionStatus, type CatalogFoodResolutionStatus } from '@kitchensink/recipe-core';
-import { FoodServiceClient, NotFoundError } from '@kitchensink/food-service-client';
+import { FoodServiceClient, NotFoundError, type StatusResponse } from '@kitchensink/food-service-client';
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
@@ -87,6 +87,59 @@ describe.skipIf(!hasDatabaseUrl)(
 
             return row.id;
         }
+
+        /**
+         * ⛔ THE LOST UPDATE (PR #91 review). Two refreshes read the same PENDING row; the food service answers
+         * the SECOND first (RESOLVED, with a name), then the delayed answer to the FIRST arrives (still
+         * PENDING). An unconditional `UPDATE` persisted the stale PENDING over the newer RESOLVED and the
+         * catalog name with it. The write is now a compare-and-set on the status each refresh OBSERVED: the
+         * stale writer matches nothing and is handed the current row instead.
+         */
+        describe('two interleaved refreshes of one row', () => {
+            it('cannot regress it: the stale PENDING loses to the newer RESOLVED, and the stale caller sees RESOLVED', async () => {
+                const id = await seedFoodBacked(FoodResolutionStatus.PENDING);
+                let answerTheFirst: (status: StatusResponse) => void = () => undefined;
+                const firstAnswer = new Promise<StatusResponse>((resolve) => {
+                    answerTheFirst = resolve;
+                });
+                vi.mocked(food.getStatus)
+                    .mockImplementationOnce(() => firstAnswer)
+                    .mockResolvedValueOnce(
+                        makeStatusResult({
+                            id: FOOD_ID,
+                            status: FoodResolutionStatus.RESOLVED,
+                            food: makeFoodView({ id: FOOD_ID, name: 'Quinoa, cooked' }),
+                        }),
+                    );
+
+                const first = service.refreshStatus(CALLER, id);
+                await vi.waitFor(() => expect(food.getStatus).toHaveBeenCalledTimes(1));
+                const second = await service.refreshStatus(CALLER, id);
+
+                expect(second.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+
+                answerTheFirst(makeStatusResult({ id: FOOD_ID, status: FoodResolutionStatus.PENDING }));
+                const stale = await first;
+
+                expect(stale.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+                expect(await dal.findById(id)).toMatchObject({
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    name: 'Quinoa, cooked',
+                });
+            });
+
+            it('still admits the terminal → PENDING reactivation a refresh genuinely observes', async () => {
+                const id = await seedFoodBacked(FoodResolutionStatus.FAILED);
+                vi.mocked(food.getStatus).mockResolvedValue(
+                    makeStatusResult({ id: FOOD_ID, status: FoodResolutionStatus.PENDING }),
+                );
+
+                const refreshed = await service.refreshStatus(CALLER, id);
+
+                expect(refreshed.foodResolutionStatus).toBe(FoodResolutionStatus.PENDING);
+                expect((await dal.findById(id))?.foodResolutionStatus).toBe(FoodResolutionStatus.PENDING);
+            });
+        });
 
         it('getCandidates proxies the food client for an UNRESOLVED food-backed ingredient', async () => {
             const id = await seedFoodBacked(FoodResolutionStatus.UNRESOLVED);

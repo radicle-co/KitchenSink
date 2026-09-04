@@ -36,11 +36,22 @@ import {
     type ReseedCliOptions,
     type ReseedObservation,
 } from '../reseedCli.js';
+import type { DatabaseTarget } from '../operatorIntent.js';
 import { isCatalogReseedRefusedError, isCatalogReseedUnverifiedError } from '../reseedCli.errors.js';
 
 /** A complete, valid options object; each test overrides only the field it is about. */
+/** Where the fake inventory reports its connection landed — the descriptor the guard judges against. */
+const RESEED_TARGET: DatabaseTarget = {
+    host: '10.1.4.7',
+    port: 5432,
+    database: 'kitchensink_food',
+    user: 'food_app',
+};
+
 function makeOptions(overrides: Partial<ReseedCliOptions> = {}): ReseedCliOptions {
     return {
+        // PR #91 review: a writing run must name the database it actually opened.
+        confirmTarget: 'kitchensink_food@10.1.4.7:5432',
         stage: 'sandbox',
         confirm: 'sandbox',
         allowProd: false,
@@ -150,6 +161,7 @@ function makeRecorder(
                 },
             },
             inventory: {
+                describeTarget: async (): Promise<DatabaseTarget> => RESEED_TARGET,
                 countFoods: async (): Promise<number> => {
                     calls.push('countFoods');
 

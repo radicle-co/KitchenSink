@@ -21,6 +21,26 @@ const REFUSAL_EXPLANATIONS: Readonly<Record<UnlinkRefusalReason, string>> = {
     'production-flag-off-production':
         '--allow-prod was given on a stage that is not production. The flag is rejected rather than ignored ' +
         'so it cannot become something an operator types by habit.',
+    'target-confirmation-missing':
+        'no --confirm-target was given. --stage and --confirm are both YOUR words, checked against each ' +
+        'other; nothing in them names the database this process actually opened. Re-run with --dry-run, ' +
+        'read the target it prints, and pass it back as --confirm-target <database@host:port>.',
+    'target-mismatch':
+        'the --confirm-target you gave is not the database this process actually opened. What this catches ' +
+        'is the right ENVIRONMENT but the wrong machine — another sandbox, a stale tunnel, another ' +
+        'account\u2019s instance. (Crossing the production boundary is caught separately, by the ' +
+        'stage/environment rule, which needs nothing typed.) Do NOT retype the target from memory — run ' +
+        '--dry-run and paste the one it reports.',
+    'stage-environment-mismatch':
+        'the stage you named is on the other side of the production boundary from the server this ' +
+        'connection reached. ADR-0002 puts production on 10.0.x.x and every other stage on 10.1/10.2.x.x, so ' +
+        'the address the SERVER reports says which environment you are really on — and every other ' +
+        'production protection keys off the stage you DECLARED, which is why this one does not. Check ' +
+        'DATABASE_URL before re-running; do not re-declare the stage to match.',
+    'stage-database-mismatch':
+        'the stage you named and the database this connection reached cannot both be true: a pr-{N} stage ' +
+        'belongs on a {base}_pr_{N} database and a named stage does not belong on a per-PR one (ADR-0006). ' +
+        'Check STAGE / --stage against DATABASE_URL before re-running.',
 };
 
 /** Thrown when the destructive-operation guard declines to run — nothing has been read or written. */
@@ -34,8 +54,10 @@ export class UnlinkRefusedError extends Error {
      * @param reason - Which guard declined.
      * @param stage - The stage the run was configured for.
      */
-    public constructor(reason: UnlinkRefusalReason, stage: string) {
-        super(`Refusing to unlink ingredients on stage "${stage}" — ${REFUSAL_EXPLANATIONS[reason]}`);
+    public constructor(reason: UnlinkRefusalReason, stage: string, target?: string) {
+        const observed = target === undefined ? '' : ` The connection actually reached ${target}.`;
+
+        super(`Refusing to unlink ingredients on stage "${stage}" — ${REFUSAL_EXPLANATIONS[reason]}${observed}`);
         this.name = 'UnlinkRefusedError';
         this.reason = reason;
         this.stage = stage;

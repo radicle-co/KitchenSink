@@ -372,4 +372,93 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
             expect(await dal.findMemo(key('bay leaves'))).toBeUndefined();
         });
     });
+    /**
+     * ⛔ THE CASE THE ROW LOCK CANNOT COVER (PR #91 review). `FOR UPDATE` locks rows that EXIST; a phrase nobody
+     * has corrected yet has none, so two first-time correctors — DIFFERENT users, same phrase, same answer —
+     * both read "nobody agrees", both insert an author row (the partial unique index is per user, so neither
+     * conflicts), and neither promotes. The corroboration the module's own docstring calls "silently lost" is
+     * lost precisely here, and it stays lost until a THIRD user happens along.
+     *
+     * The interleaving is forced, not raced: A reads its facts and holds its transaction open; B then attempts
+     * its read. Under a per-phrase advisory lock B BLOCKS until A commits, then sees A's row and promotes.
+     * Without it (the RED run) B reads immediately, writes, and promotes nothing.
+     */
+    describe('two FIRST-TIME correctors of one phrase (no live row to lock)', () => {
+        /** A promise the test resolves by hand, to hold one transaction open across another's attempt. */
+        function gate(): { promise: Promise<void>; open: () => void } {
+            let open: () => void = () => undefined;
+            const promise = new Promise<void>((resolve) => {
+                open = resolve;
+            });
+
+            return { promise, open };
+        }
+
+        it('serialises them so the second sees the first and PROMOTES — the corroboration is never lost', async () => {
+            const normalizedKey = key('first writers');
+            const aHasReadFacts = gate();
+            const aMayProceed = gate();
+            let bHasReadFacts = false;
+
+            const a = dal.runInTransaction(async (tx) => {
+                const facts = await dal.findWriteFacts(normalizedKey, AUTHOR_A, FOOD_A, tx);
+                aHasReadFacts.open();
+                await aMayProceed.promise;
+                const decision = evaluateMappingWrite({ correctedFoodId: FOOD_A, grantedScopes: [], ...facts });
+
+                return dal.applyWrite(
+                    {
+                        decision,
+                        normalizedKey,
+                        sourcePhrase: 'first writers',
+                        foodId: FOOD_A,
+                        userId: AUTHOR_A,
+                        surfacing: 'picker',
+                    },
+                    tx,
+                );
+            });
+
+            await aHasReadFacts.promise;
+
+            const b = dal.runInTransaction(async (tx) => {
+                const facts = await dal.findWriteFacts(normalizedKey, AUTHOR_B, FOOD_A, tx);
+                bHasReadFacts = true;
+                const decision = evaluateMappingWrite({ correctedFoodId: FOOD_A, grantedScopes: [], ...facts });
+
+                return dal.applyWrite(
+                    {
+                        decision,
+                        normalizedKey,
+                        sourcePhrase: 'first writers',
+                        foodId: FOOD_A,
+                        userId: AUTHOR_B,
+                        surfacing: 'picker',
+                    },
+                    tx,
+                );
+            });
+
+            try {
+                // B must be WAITING on A, not past it. (Direction-safe: without the lock B reads in milliseconds.)
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                expect(bHasReadFacts).toBe(false);
+            } finally {
+                aMayProceed.open();
+            }
+
+            const [resultA, resultB] = await Promise.all([a, b]);
+
+            expect(resultA).toMatchObject({ written: true, promotion: undefined });
+            expect(resultB).toMatchObject({ written: true });
+            expect(resultB.written && resultB.promotion !== undefined).toBe(true);
+
+            const bindings = await pool.query<{ n: number }>(
+                `SELECT count(*)::int AS n FROM ingredient_resolution_mappings
+                  WHERE normalized_key = $1 AND origin = 'corroboration' AND superseded_at IS NULL`,
+                [normalizedKey],
+            );
+            expect(bindings.rows[0]?.n).toBe(1);
+        });
+    });
 });

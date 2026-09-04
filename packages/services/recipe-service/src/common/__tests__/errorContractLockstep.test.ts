@@ -45,7 +45,7 @@ import {
     UnexpectedResponseError,
     VersionConflictError,
 } from '@kitchensink/recipe-service-client';
-import type { Request, Response } from 'express';
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -74,22 +74,22 @@ interface WireResponse {
 function throughTheFilter(throwable: unknown): WireResponse {
     const captured: WireResponse = { status: 0, body: undefined };
     const res = {
-        status(code: number): Response {
+        status(code: number): ExpressResponse {
             captured.status = code;
 
-            return res as unknown as Response;
+            return res as unknown as ExpressResponse;
         },
-        json(body: unknown): Response {
+        json(body: unknown): ExpressResponse {
             captured.body = body;
 
-            return res as unknown as Response;
+            return res as unknown as ExpressResponse;
         },
     };
     const request = { method: 'GET', originalUrl: `/api/v1/recipes/${RECIPE_ID}`, url: '/', headers: {} };
     const host = {
         switchToHttp: () => ({
             getResponse: <T>() => res as unknown as T,
-            getRequest: <T>() => request as unknown as Request as T,
+            getRequest: <T>() => request as unknown as ExpressRequest as T,
         }),
     } as unknown as ArgumentsHost;
 

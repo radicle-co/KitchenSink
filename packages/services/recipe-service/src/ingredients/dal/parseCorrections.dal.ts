@@ -49,8 +49,9 @@
  * `findWriteFacts` → decide → `applyWrite` must be one transaction, or two concurrent correctors read the
  * same facts and both act on them. `findWriteFacts` therefore takes a row lock on every live correction for
  * the line (`FOR UPDATE`), which serialises correctors of the SAME line and leaves correctors of other lines
- * untouched. The one case the lock cannot cover is a line with no live rows to lock — two first-writers — and
- * that is exactly what the `ON CONFLICT DO NOTHING` clauses handle, with nothing retired to leave dangling.
+ * untouched. ⛔ The case a row lock CANNOT cover is a line with no live rows — two first-writers — where
+ * `ON CONFLICT DO NOTHING` saves the writes but not the corroboration: both insert, neither promotes. A
+ * per-line `pg_advisory_xact_lock` taken first closes it (PR #91 review); see `findWriteFacts`.
  *
  * ## ⛔ NOTHING HERE READS INSIDE `corrected_facts`
  *
@@ -225,9 +226,15 @@ export class ParseCorrectionsDal {
      *
      * ⛔ The lock is the point. Without it, two cooks correcting the same line concurrently both read "nobody
      * else agrees" and both write an author-scoped correction, so the second one's promotion never fires — a
-     * corroboration silently lost. `FOR UPDATE` serialises correctors of the SAME line and leaves every other
-     * line untouched. It is a no-op for a line with no live rows, which is why the write statements still
-     * carry `ON CONFLICT DO NOTHING`.
+     * corroboration silently lost.
+     *
+     * ⛔ **AND IT TAKES TWO LOCKS, BECAUSE `FOR UPDATE` CANNOT LOCK A ROW THAT DOES NOT EXIST** (PR #91
+     * review) — the identical repair to the twin in `resolution/resolutionMappings.dal.ts`, whose docstring
+     * carries the full argument. Two FIRST-TIME cooks correcting one line both find no rows, both locks are
+     * no-ops, both insert an author row (the partial unique index is per cook), and neither promotes.
+     * `pg_advisory_xact_lock(hashtext(key))` exists whether or not any row does; it is taken FIRST, and the
+     * `FOR UPDATE` stays for the writers that reach {@link ParseCorrectionsDal.supersedeOwnCorrection}
+     * without coming through here.
      *
      * @param normalizedKey - The line's match grain.
      * @param userId - The correcting cook.
@@ -247,6 +254,9 @@ export class ParseCorrectionsDal {
     ): Promise<ParseCorrectionWriteFacts> {
         const proposal = JSON.stringify(correctedFacts);
 
+        // FIRST — before anything is read, including the canonicalising cast below. Serialises every corrector
+        // of THIS line, the two first-time cooks no row lock can reach included.
+        await writer.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${normalizedKey})::bigint)`);
         await writer.execute(sql`
             SELECT id FROM ingredient_parse_corrections
             WHERE normalized_key = ${normalizedKey} AND superseded_at IS NULL

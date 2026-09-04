@@ -31,15 +31,38 @@ import {
     decideUnlink,
     parseUnlinkArgs,
     runIngredientUnlink,
+    describeTargetToken,
+    refuseUnboundTarget,
+    type DatabaseTarget,
     type IngredientLinkStore,
     type UnlinkCliOptions,
     type UnlinkFacts,
 } from '../unlinkCli.js';
 import { isIngredientUnlinkIncompleteError, isUnlinkRefusedError } from '../unlinkCli.errors.js';
 
+/**
+ * Where the fake store reports its connection landed — the descriptor the binding guard judges against.
+ *
+ * ⚠️ `10.1.x` is SANDBOX under ADR-0002's CIDR scheme, and that is load-bearing now that the guard reads the
+ * environment from the address: a production case has to run against {@link PRODUCTION_TARGET} or it is
+ * (correctly) refused as a stage/environment mismatch before it reaches the rule it was written for.
+ */
+const TARGET: DatabaseTarget = { host: '10.1.4.7', port: 5432, database: 'kitchensink_recipes', user: 'recipe_app' };
+
+/** The same database on the PRODUCTION side of ADR-0002's CIDR scheme. */
+const PRODUCTION_TARGET: DatabaseTarget = { ...TARGET, host: '10.0.4.7' };
+
 /** A complete, valid options object; each test overrides only the field it is about. */
 function makeOptions(overrides: Partial<UnlinkCliOptions> = {}): UnlinkCliOptions {
-    return { stage: 'sandbox', confirm: 'sandbox', allowProd: false, dryRun: false, ...overrides };
+    return {
+        stage: 'sandbox',
+        confirm: 'sandbox',
+        allowProd: false,
+        dryRun: false,
+        // PR #91 review: a writing run must name the database it actually opened.
+        confirmTarget: 'kitchensink_recipes@10.1.4.7:5432',
+        ...overrides,
+    };
 }
 
 /** A clean set of post-unlink facts; each test breaks exactly one invariant. */
@@ -59,12 +82,13 @@ interface Recorder {
  * @param linked - How many ingredient rows still carry a food link before the run.
  * @param facts - What the transaction reports afterwards.
  */
-function makeStore(linked: number, facts: UnlinkFacts = makeFacts()): Recorder {
+function makeStore(linked: number, facts: UnlinkFacts = makeFacts(), target: DatabaseTarget = TARGET): Recorder {
     const calls: string[] = [];
 
     return {
         calls,
         store: {
+            describeTarget: async (): Promise<DatabaseTarget> => target,
             countLinked: async (): Promise<number> => {
                 calls.push('countLinked');
 
@@ -263,6 +287,8 @@ describe('runIngredientUnlink', () => {
                 linkedBefore: 415,
                 unlinked: 0,
                 recipeIngredientLines: 3_106,
+                // PR #91 review: a dry run reports the target the destructive run must name back.
+                target: 'kitchensink_recipes@10.1.4.7:5432',
             });
             expect(calls).not.toContain('unlink');
         });
@@ -278,6 +304,7 @@ describe('runIngredientUnlink', () => {
                 linkedBefore: 415,
                 unlinked: 415,
                 recipeIngredientLines: 3_106,
+                target: 'kitchensink_recipes@10.1.4.7:5432',
             });
             expect(calls).toEqual(['countLinked', 'countLines', 'unlink']);
         });
@@ -307,16 +334,115 @@ describe('runIngredientUnlink', () => {
             );
         });
 
+        // ⚠️ Runs against a PRODUCTION address on purpose — the guard now reads the environment from the
+        // server's own address, so a production run declared against a sandbox connection is refused.
         it('unlinks production when the stage is named and the flag is given', async () => {
-            const { calls, store } = makeStore(415);
+            const { calls, store } = makeStore(415, makeFacts(), PRODUCTION_TARGET);
 
             await expect(
                 runIngredientUnlink(
                     store,
-                    makeOptions({ stage: PRODUCTION_STAGE, confirm: PRODUCTION_STAGE, allowProd: true }),
+                    makeOptions({
+                        stage: PRODUCTION_STAGE,
+                        confirm: PRODUCTION_STAGE,
+                        allowProd: true,
+                        confirmTarget: 'kitchensink_recipes@10.0.4.7:5432',
+                    }),
                 ),
             ).resolves.toMatchObject({ outcome: 'unlinked', stage: PRODUCTION_STAGE });
             expect(calls).toContain('unlink');
         });
+    });
+});
+
+/**
+ * ⛔ THE GUARD THE STAGE FLAGS NEVER WERE (PR #91 review). `--stage`/`--confirm` are the operator DECLARING
+ * what they believe, checked only against each other — so `--stage prod --allow-prod --confirm prod` was
+ * accepted with `DATABASE_URL` pointed at sandbox and the unlink applied to whichever database was really
+ * open. `describeDatabaseTarget` PRINTED the truth and nothing consumed it.
+ */
+describe('refuseUnboundTarget', () => {
+    it('is what an operator must type back, verbatim — database@host:port', () => {
+        expect(describeTargetToken(TARGET)).toBe('kitchensink_recipes@10.1.4.7:5432');
+    });
+
+    // ⚠️ STRENGTHENED: this used to be caught only by the typed token disagreeing, i.e. it depended on the
+    // operator having typed something. The environment rule now refuses it from the server's address alone.
+    it('⛔ refuses the exact reported case: prod declared, sandbox connected', () => {
+        expect(
+            refuseUnboundTarget(
+                makeOptions({
+                    stage: PRODUCTION_STAGE,
+                    confirm: PRODUCTION_STAGE,
+                    allowProd: true,
+                    confirmTarget: 'kitchensink_recipes@10.0.9.2:5432',
+                }),
+                TARGET,
+            ),
+        ).toBe('stage-environment-mismatch');
+    });
+
+    /**
+     * ⛔ THE DIRECTION WITH THE BLAST RADIUS, which the first version of this guard did not refuse: a SANDBOX
+     * declaration that reached production, with the token pasted straight from the dry run so it matches.
+     * `--allow-prod` is not even required — the operator never said `prod`, so every production protection
+     * that keys off the declared stage is switched off.
+     */
+    it('⛔ refuses a sandbox declaration that reached production, however it is confirmed', () => {
+        expect(
+            refuseUnboundTarget(
+                makeOptions({ confirmTarget: describeTargetToken(PRODUCTION_TARGET) }),
+                PRODUCTION_TARGET,
+            ),
+        ).toBe('stage-environment-mismatch');
+    });
+
+    it('refuses that same pairing on a dry run, before anything is typed', () => {
+        expect(refuseUnboundTarget(makeOptions({ dryRun: true, confirmTarget: undefined }), PRODUCTION_TARGET)).toBe(
+            'stage-environment-mismatch',
+        );
+    });
+
+    it('has no opinion about an address outside the CIDR scheme, so local runs still work', () => {
+        const local: DatabaseTarget = { ...TARGET, host: '172.17.0.4' };
+
+        expect(refuseUnboundTarget(makeOptions({ confirmTarget: describeTargetToken(local) }), local)).toBeUndefined();
+    });
+
+    it('refuses a writing run that named no target at all', () => {
+        expect(refuseUnboundTarget(makeOptions({ confirmTarget: undefined }), TARGET)).toBe(
+            'target-confirmation-missing',
+        );
+    });
+
+    it('admits a run whose typed target is the one the server reported', () => {
+        expect(refuseUnboundTarget(makeOptions(), TARGET)).toBeUndefined();
+    });
+
+    it.each([
+        ['a pr stage on another pr database', 'pr-7', 'kitchensink_recipes_pr_9'],
+        ['a pr stage on the shared base database', 'pr-7', 'kitchensink_recipes'],
+        ['production on a per-PR database', PRODUCTION_STAGE, 'kitchensink_recipes_pr_7'],
+    ])('refuses %s without anyone typing anything', (_name, stage, database) => {
+        expect(refuseUnboundTarget(makeOptions({ stage, confirm: stage }), { ...TARGET, database })).toBe(
+            'stage-database-mismatch',
+        );
+    });
+
+    it('checks the impossible pairing on a dry run, but never asks a dry run to type a target', () => {
+        expect(
+            refuseUnboundTarget(makeOptions({ stage: 'pr-7', dryRun: true, confirmTarget: undefined }), TARGET),
+        ).toBe('stage-database-mismatch');
+        expect(refuseUnboundTarget(makeOptions({ dryRun: true, confirmTarget: undefined }), TARGET)).toBeUndefined();
+    });
+
+    it('refuses the run itself, having touched NOTHING, when the target is unnamed', async () => {
+        const recorder = makeStore(415);
+
+        await expect(runIngredientUnlink(recorder.store, makeOptions({ confirmTarget: undefined }))).rejects.toSatisfy(
+            isUnlinkRefusedError,
+        );
+        // The descriptor read is the only thing that happened: no count, and above all no unlink.
+        expect(recorder.calls).toEqual([]);
     });
 });

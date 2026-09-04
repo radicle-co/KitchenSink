@@ -48,7 +48,13 @@ import {
     type ReseedCliOptions,
 } from '../src/foods/seed/reseedCli.js';
 import { isCatalogReseedRefusedError, isCatalogReseedUnverifiedError } from '../src/foods/seed/reseedCli.errors.js';
-import { createFoodCatalogStore, createRecipeLinkageProbe, runCatalogClear } from '../src/foods/seed/clearCli.js';
+import {
+    createFoodCatalogStore,
+    createRecipeLinkageProbe,
+    describeDatabaseTarget,
+    describeTargetToken,
+    runCatalogClear,
+} from '../src/foods/seed/clearCli.js';
 import { SourceAdapterRegistry } from '../src/sources/SourceAdapterRegistry.js';
 import { SilentWorkerLogger } from '../src/worker/SilentWorkerLogger.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
@@ -80,8 +86,12 @@ describe.skipIf(!DATABASE_URL)('food catalog reseed (integration)', () => {
     let emptyDir: string;
 
     /** A complete, valid options object; each test overrides only the field it is about. */
+    /** The token this suite's REAL connection must be named by (PR #91 review) — read from the live server. */
+    let liveTargetToken: string;
+
     function makeOptions(overrides: Partial<ReseedCliOptions> = {}): ReseedCliOptions {
         return {
+            confirmTarget: liveTargetToken,
             stage: 'sandbox',
             confirm: 'sandbox',
             allowProd: false,
@@ -171,8 +181,9 @@ describe.skipIf(!DATABASE_URL)('food catalog reseed (integration)', () => {
                 persist: new MergeAndPersistService(db, new GoldenRecordMergeEngine(new SourceAdapterRegistry())),
                 logger: new SilentWorkerLogger(),
             }),
-            inventory: createCatalogInventory(db),
+            inventory: createCatalogInventory(db, pool),
         };
+        liveTargetToken = describeTargetToken(await describeDatabaseTarget(pool));
     });
 
     afterAll(async () => {
@@ -324,7 +335,7 @@ describe.skipIf(!DATABASE_URL)('food catalog reseed (integration)', () => {
             await runCatalogClear(
                 {
                     linkage: createRecipeLinkageProbe(probePool),
-                    catalog: createFoodCatalogStore(db),
+                    catalog: createFoodCatalogStore(db, pool),
                 },
                 {
                     stage: 'sandbox',
@@ -332,6 +343,8 @@ describe.skipIf(!DATABASE_URL)('food catalog reseed (integration)', () => {
                     allowProd: false,
                     dryRun: false,
                     recipeDatabaseUrl: probeUrl,
+                    // PR #91 review: the clear now refuses a run that has not named the database it opened.
+                    confirmTarget: liveTargetToken,
                 },
             );
             await runCatalogReseed(deps, makeOptions());
@@ -359,13 +372,15 @@ describe.skipIf(!DATABASE_URL)('food catalog reseed (integration)', () => {
             await probePool.query('UPDATE ingredients SET food_id = NULL, food_resolution_status = NULL');
 
             await runCatalogClear(
-                { linkage: createRecipeLinkageProbe(probePool), catalog: createFoodCatalogStore(db) },
+                { linkage: createRecipeLinkageProbe(probePool), catalog: createFoodCatalogStore(db, pool) },
                 {
                     stage: 'sandbox',
                     confirm: 'sandbox',
                     allowProd: false,
                     dryRun: false,
                     recipeDatabaseUrl: probeUrl,
+                    // PR #91 review: the clear now refuses a run that has not named the database it opened.
+                    confirmTarget: liveTargetToken,
                 },
             );
             await runCatalogReseed(deps, makeOptions());

@@ -68,6 +68,18 @@ export const recipeServiceKeys = {
     /** Prefix over every `recipeList(params)` — the address for "every cached recipe list, whatever its filters". */
     recipeLists: ['recipe-service', 'recipes', 'list'] as const,
     recipeList: (params: ListRecipesParams = {}) => ['recipe-service', 'recipes', 'list', params] as const,
+    /**
+     * The "load more" read of the same list — its OWN entry under `recipeLists`, never `recipeList(params)`.
+     *
+     * ⛔ A flat read and an infinite read of the same params are NOT one cache entry, whatever the params say.
+     * TanStack holds ONE `data` per key: an infinite observer stores `{ pages, pageParams }`, a flat observer
+     * stores the bare page body, and whichever populates the key first decides what the other is handed —
+     * `queryKeyShapes.test.ts` reproduces a "Load more" surface receiving a page with no `pages`. The
+     * `'infinite'` segment sits BEFORE the params so the entry still lives under the `recipeLists` prefix every
+     * broad invalidation addresses; it is a different SHAPE of the same region, not a different region.
+     */
+    recipeListInfinite: (params: ListRecipesParams = {}) =>
+        ['recipe-service', 'recipes', 'list', 'infinite', params] as const,
     recipe: (id: string) => ['recipe-service', 'recipes', 'detail', id] as const,
     recipeVersions: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'versions'] as const,
     recipeVersion: (id: string, versionNumber: number) =>
@@ -75,6 +87,9 @@ export const recipeServiceKeys = {
     recipePhotos: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'photos'] as const,
     collections: ['recipe-service', 'collections'] as const,
     collectionList: (params: ListCollectionsParams = {}) => ['recipe-service', 'collections', 'list', params] as const,
+    /** The "load more" read of the collection list — its own entry, for the reason `recipeListInfinite` gives. */
+    collectionListInfinite: (params: ListCollectionsParams = {}) =>
+        ['recipe-service', 'collections', 'list', 'infinite', params] as const,
     collection: (id: string) => ['recipe-service', 'collections', 'detail', id] as const,
     /**
      * One deferred nutrition batch (`POST /api/v1/recipes/nutrition-batch`), keyed by the recipes asked about.
@@ -92,6 +107,9 @@ export const recipeServiceKeys = {
     /** Prefix over every `recipeSearch(params)` — the address for "every cached recipe search, whatever the terms". */
     recipeSearches: ['recipe-service', 'search', 'recipes'] as const,
     recipeSearch: (params: RecipeSearchQuery = {}) => ['recipe-service', 'search', 'recipes', params] as const,
+    /** The "load more" read of the same search — its own entry, for the reason `recipeListInfinite` gives. */
+    recipeSearchInfinite: (params: RecipeSearchQuery = {}) =>
+        ['recipe-service', 'search', 'recipes', 'infinite', params] as const,
     /**
      * Prefix over every `ingredientSearch(query, limit)` AND every `ingredientSuggest(query, limit)` —
      * "every cached ingredient typeahead, whatever the terms or blend". Deliberately the shared parent of
@@ -244,8 +262,12 @@ const NUTRITION_BATCH_STALE_TIME_MS = 120_000;
 /**
  * `queryOptions` factories for every recipe read. `list`/`listInfinite` and `search`/`searchInfinite` are
  * deliberate pairs: the flat variant renders the current page, the infinite variant backs a "load more"
- * flow — and each pair shares ONE query key (a flat and an infinite read of the same params are the same
- * logical cache entry; TanStack distinguishes their internal page shape by which hook subscribes to them).
+ * flow — and each half of a pair has its OWN key under the pair's shared prefix.
+ *
+ * ⛔ CORRECTED (PR #91 review). This used to say the pair "shares ONE query key … TanStack distinguishes their
+ * internal page shape by which hook subscribes to them". It does not: the cache holds one `data` per key, so
+ * a flat page cached first was handed to the infinite observer as-is (no `pages`), and the two SSR pages that
+ * prefetch these reads were dodging that by discipline. See `recipeServiceKeys.recipeListInfinite`.
  *
  * @param client - The configured client the factories' fetchers call through.
  * @returns One `queryOptions`/`infiniteQueryOptions` builder per recipe read.
@@ -259,10 +281,10 @@ export function recipeQueries(client: RecipeServiceClient) {
                 queryFn: () => client.listRecipes(params),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
-        /** `GET /api/v1/recipes` — the same list, paginated for a "Load more" flow. */
+        /** `GET /api/v1/recipes` — the same list, paginated for a "Load more" flow (its own key, see the keys). */
         listInfinite: (params: ListRecipesParams = {}) =>
             infiniteQueryOptions({
-                queryKey: recipeServiceKeys.recipeList(params),
+                queryKey: recipeServiceKeys.recipeListInfinite(params),
                 queryFn: ({ pageParam }) => client.listRecipes({ ...params, page: pageParam }),
                 initialPageParam: 1,
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
@@ -337,7 +359,7 @@ export function recipeQueries(client: RecipeServiceClient) {
          */
         searchInfinite: (params: RecipeSearchQuery = {}) =>
             infiniteQueryOptions({
-                queryKey: recipeServiceKeys.recipeSearch(params),
+                queryKey: recipeServiceKeys.recipeSearchInfinite(params),
                 queryFn: ({ pageParam }) => client.searchRecipes({ ...params, page: pageParam }),
                 initialPageParam: 1,
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
@@ -351,8 +373,8 @@ export function recipeQueries(client: RecipeServiceClient) {
 /**
  * `queryOptions` factories for every collection read. `list`/`listInfinite` (W5/C7) is the same deliberate
  * pair as `recipeQueries`' `list`/`listInfinite`: the flat variant renders the current page, the infinite
- * variant backs a "load more" flow, and both share ONE query key (a flat and an infinite read of the same
- * params are the same logical cache entry).
+ * variant backs a "load more" flow, and each has its OWN key under the `collections` prefix (see
+ * `recipeServiceKeys.recipeListInfinite` for why one key cannot serve both shapes).
  *
  * @param client - The configured client the factories' fetchers call through.
  * @returns One `queryOptions`/`infiniteQueryOptions` builder per collection read.
@@ -366,14 +388,10 @@ export function collectionQueries(client: RecipeServiceClient) {
                 queryFn: () => client.listCollections(params),
                 staleTime: COLLECTION_STALE_TIME_MS,
             }),
-        /**
-         * `GET /api/v1/collections` — the same list, paginated for a "Load more" flow (W5/C7). Shares its query
-         * key with `list` (same "flat + infinite share one key" contract as `recipeQueries`) — a flat and an
-         * infinite read of the same params are the same logical cache entry.
-         */
+        /** `GET /api/v1/collections` — the same list, paginated for a "Load more" flow (W5/C7); its own key. */
         listInfinite: (params: ListCollectionsParams = {}) =>
             infiniteQueryOptions({
-                queryKey: recipeServiceKeys.collectionList(params),
+                queryKey: recipeServiceKeys.collectionListInfinite(params),
                 queryFn: ({ pageParam }) => client.listCollections({ ...params, page: pageParam }),
                 initialPageParam: 1,
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),

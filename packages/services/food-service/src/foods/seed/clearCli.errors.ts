@@ -23,6 +23,32 @@ const REFUSAL_EXPLANATIONS: Readonly<Record<ClearRefusalReason, string>> = {
     'production-flag-off-production':
         '--allow-prod was given on a stage that is not production. The flag is rejected rather than ignored ' +
         'so it cannot become something an operator types by habit.',
+    'target-confirmation-missing':
+        'no --confirm-target was given. --stage and --confirm are both YOUR words, checked against each ' +
+        'other; nothing in them names the database this process actually opened. Re-run with --dry-run, ' +
+        'read the target it prints, and pass it back as --confirm-target <database@host:port>.',
+    'target-mismatch':
+        'the --confirm-target you gave is not the database this process actually opened. What this catches ' +
+        'is the right ENVIRONMENT but the wrong machine — another sandbox, a stale tunnel, another ' +
+        'account\u2019s instance. (Crossing the production boundary is caught separately, by the ' +
+        'stage/environment rule, which needs nothing typed.) Do NOT retype the target from memory — run ' +
+        '--dry-run and paste the one it reports.',
+    'stage-environment-mismatch':
+        'the stage you named is on the other side of the production boundary from the server this ' +
+        'connection reached. ADR-0002 puts production on 10.0.x.x and every other stage on 10.1/10.2.x.x, so ' +
+        'the address the SERVER reports says which environment you are really on — and every other ' +
+        'production protection keys off the stage you DECLARED, which is why this one does not. Check ' +
+        'DATABASE_URL before re-running; do not re-declare the stage to match.',
+    'stage-database-mismatch':
+        'the stage you named and the database this connection reached cannot both be true FOR THIS TASK: a ' +
+        'pr-{N} stage belongs on a {base}_pr_{N} database, and this command is never the thing that acts on ' +
+        'a per-PR database from a named stage (the ADR-0031 reaper is, and it is not this). Check ' +
+        'STAGE / --stage against DATABASE_URL before re-running.',
+    'probe-off-server':
+        'the recipe-linkage probe reached a DIFFERENT server than the food catalog. Those are two logical ' +
+        'databases on one shared instance per stage, so a probe answering from elsewhere is reporting some ' +
+        'other stage’s linkage — and "zero links remain" from the wrong stage reads as permission to delete ' +
+        'this one’s entire catalog. Check --recipe-database-url against DATABASE_URL.',
 };
 
 /** Thrown when the destructive-operation guard declines to run — nothing has been read or written. */
@@ -31,16 +57,26 @@ export class CatalogClearRefusedError extends Error {
     public readonly reason: ClearRefusalReason;
     /** The stage the run was configured for. */
     public readonly stage: string;
+    /**
+     * The target the process actually reached, when one had been established — the four target-binding
+     * refusals are ABOUT it, so the message that reports them has to name it or the operator is left
+     * guessing at what to type.
+     */
+    public readonly target: string | undefined;
 
     /**
      * @param reason - Which guard declined.
      * @param stage - The stage the run was configured for.
+     * @param target - Where the connection actually landed, when it had been read.
      */
-    public constructor(reason: ClearRefusalReason, stage: string) {
-        super(`Refusing to clear the food catalog on stage "${stage}" — ${REFUSAL_EXPLANATIONS[reason]}`);
+    public constructor(reason: ClearRefusalReason, stage: string, target?: string) {
+        const observed = target === undefined ? '' : ` The connection actually reached ${target}.`;
+
+        super(`Refusing to clear the food catalog on stage "${stage}" — ${REFUSAL_EXPLANATIONS[reason]}${observed}`);
         this.name = 'CatalogClearRefusedError';
         this.reason = reason;
         this.stage = stage;
+        this.target = target;
         Object.setPrototypeOf(this, CatalogClearRefusedError.prototype);
     }
 }

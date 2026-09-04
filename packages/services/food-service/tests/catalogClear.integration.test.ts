@@ -33,6 +33,7 @@ import {
     createFoodCatalogStore,
     createRecipeLinkageProbe,
     describeDatabaseTarget,
+    describeTargetToken,
     runCatalogClear,
     type CatalogClearDeps,
     type ClearCliOptions,
@@ -69,6 +70,15 @@ function urlForDatabase(base: string, database: string): string {
     return url.toString();
 }
 
+/**
+ * The token this suite's REAL connection must be named by (PR #91 review).
+ *
+ * Set in `beforeAll` from the live server, through the same `describeTargetToken` the command demands — so
+ * these cases prove the loop an operator walks (dry run prints it, destructive run passes it back) rather
+ * than restating a literal that could drift from what the server actually reports.
+ */
+let liveTargetToken: string;
+
 /** A complete, valid options object; each test overrides only the field it is about. */
 function makeOptions(recipeDatabaseUrl: string, overrides: Partial<ClearCliOptions> = {}): ClearCliOptions {
     return {
@@ -77,6 +87,7 @@ function makeOptions(recipeDatabaseUrl: string, overrides: Partial<ClearCliOptio
         allowProd: false,
         dryRun: false,
         recipeDatabaseUrl,
+        confirmTarget: liveTargetToken,
         ...overrides,
     };
 }
@@ -143,8 +154,9 @@ describe.skipIf(!DATABASE_URL)('food catalog clear (integration)', () => {
 
         deps = {
             linkage: createRecipeLinkageProbe(probePool),
-            catalog: createFoodCatalogStore(db),
+            catalog: createFoodCatalogStore(db, pool),
         };
+        liveTargetToken = describeTargetToken(await describeDatabaseTarget(pool));
     });
 
     afterAll(async () => {
@@ -259,7 +271,7 @@ describe.skipIf(!DATABASE_URL)('food catalog clear (integration)', () => {
         it('fails CLOSED, deleting nothing, when the probed database has no ingredients table', async () => {
             const blind: CatalogClearDeps = {
                 linkage: createRecipeLinkageProbe(emptyPool),
-                catalog: createFoodCatalogStore(db),
+                catalog: createFoodCatalogStore(db, pool),
             };
 
             await expect(runCatalogClear(blind, makeOptions(probeUrl))).rejects.toSatisfy(
@@ -271,7 +283,7 @@ describe.skipIf(!DATABASE_URL)('food catalog clear (integration)', () => {
         it('fails CLOSED when a link column has drifted away, rather than reading it as zero', async () => {
             const drifted: CatalogClearDeps = {
                 linkage: createRecipeLinkageProbe(driftedPool),
-                catalog: createFoodCatalogStore(db),
+                catalog: createFoodCatalogStore(db, pool),
             };
 
             await expect(runCatalogClear(drifted, makeOptions(probeUrl))).rejects.toThrow(/food_resolution_status/);
@@ -306,6 +318,10 @@ describe.skipIf(!DATABASE_URL)('food catalog clear (integration)', () => {
                 foodsBefore: 2,
                 foodsDeleted: 0,
                 wouldProceed: false,
+                // PR #91 review: the dry run reports the targets it read from the two SERVERS — which is what
+                // an operator pastes into `--confirm-target` for the destructive run.
+                target: liveTargetToken,
+                recipeTarget: describeTargetToken(await describeDatabaseTarget(probePool)),
             });
             expect(await rowsIn('food')).toBe(2);
         });

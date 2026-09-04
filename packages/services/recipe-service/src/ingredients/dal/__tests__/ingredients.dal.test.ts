@@ -370,6 +370,7 @@ describe('IngredientsDal', () => {
 
             // U10: `updateResolution` persists the STATUS only. Nutrition is food's, read live.
             const result = await dal.updateResolution('u', {
+                expectedStatus: FoodResolutionStatus.PENDING,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             });
 
@@ -381,6 +382,7 @@ describe('IngredientsDal', () => {
             execute.mockResolvedValue({ rows: [] });
 
             const result = await dal.updateResolution('missing', {
+                expectedStatus: FoodResolutionStatus.PENDING,
                 foodResolutionStatus: FoodResolutionStatus.FAILED,
             });
 

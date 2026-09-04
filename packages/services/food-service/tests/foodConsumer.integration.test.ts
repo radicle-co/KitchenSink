@@ -19,7 +19,7 @@ import { makeMergeCandidate } from '../src/foods/merge/__fixtures__/merge.fixtur
 import { GoldenRecordMergeEngine } from '../src/foods/merge/mergeEngine.js';
 import { MergeAndPersistService } from '../src/foods/merge/mergeAndPersist.service.js';
 import { SourceAdapterRegistry } from '../src/sources/SourceAdapterRegistry.js';
-import { SourceApiError } from '../src/sources/foodSource.errors.js';
+import { AdapterValidationError, SourceApiError } from '../src/sources/foodSource.errors.js';
 import {
     type CanonicalCandidate,
     type FoodSourceAdapter,
@@ -106,7 +106,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         return id;
     }
 
-    it('drains a PENDING food: fan-out → ≤20-key BATCH → merge → RESOLVED → row deleted → FoodFetchCompleted (1 windowed call)', async () => {
+    it('drains a PENDING food: fan-out → ≤20-key BATCH → merge → RESOLVED → row deleted → FoodFetchCompleted (2 windowed calls)', async () => {
         const id = await enqueueFood('broccoli, raw', 'Broccoli, raw');
 
         const hits: SourceCandidate[] = [
@@ -145,16 +145,124 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect(record?.sources.some((source) => source.externalKey === '171688')).toBe(true); // crosswalk written
         expect(record?.nutrients.some((nutrient) => nutrient.name === 'Protein')).toBe(true);
 
-        // T-155 / SC-014: the whole per-source fan-out counts as exactly ONE windowed call.
-        const { rows } = await pool.query<{ n: string }>(
-            `SELECT count(*) AS n FROM source_call_log WHERE source = 'usda'`,
-        );
-        expect(rows[0]?.n).toBe('1');
+        // ⛔ REWRITTEN (PR #91 review). This used to pin `source_call_log = 1` for the whole fan-out, on a
+        // reading of T-155 the spec does not support: FR-018 counts "before every source API call", FR-023
+        // says a BATCH request counts as exactly 1 (batch-vs-twenty, not search+batch), and SC-014 itself
+        // calls the name search "~1 non-batchable source call per NEW food" with batching accelerating "only
+        // the fetch-by-key leg". A search plus one batch is TWO upstream requests, so it is two ledger rows —
+        // and the assertion is now the EQUALITY that makes any under- or over-count fail: rows == requests.
+        expect(await ledgerRows()).toBe(upstreamRequests(adapter));
+        expect(await ledgerRows()).toBe(2);
 
         // T-165: FoodFetchCompleted captured on the fake bus.
         expect(publisher.messages).toHaveLength(1);
         expect(publisher.messages[0]?.kind).toBe('FoodFetchCompleted');
         expect(publisher.messages[0]?.payload).toMatchObject({ id, status: 'RESOLVED' });
+    });
+
+    /** Rows the rolling-window ledger holds for USDA — the count the cap is enforced against. */
+    async function ledgerRows(): Promise<number> {
+        const { rows } = await pool.query<{ n: string }>(
+            `SELECT count(*) AS n FROM source_call_log WHERE source = 'usda'`,
+        );
+
+        return Number(rows[0]?.n ?? 0);
+    }
+
+    /** Upstream HTTP requests the fake adapter actually received — each adapter method is one request. */
+    function upstreamRequests(adapter: FakeUsdaAdapter): number {
+        return (
+            adapter.searchByName.mock.calls.length +
+            adapter.fetchByKey.mock.calls.length +
+            adapter.fetchByKeys.mock.calls.length
+        );
+    }
+
+    /**
+     * ⛔ THE LEDGER COUNTS REQUESTS, NOT FAN-OUTS (PR #91 review; FR-018, FR-023, SC-002). One admission used to
+     * cover the search AND every batch chunk AND, when a chunk failed validation, up to twenty per-key
+     * recoveries — so at 900 recorded admissions the real request count could be ~1,800 against USDA's
+     * 1,000/hr, and the 429 failsafe (not the limiter) was what actually held the line. Every case below
+     * asserts rows == requests, so drift in either direction fails.
+     */
+    describe('the rolling-window ledger equals the upstream requests made', () => {
+        it('charges once per BATCH chunk — 21 hits are one search plus two batch requests', async () => {
+            await enqueueFood('twenty-one hits');
+            const adapter = makeFakeUsdaAdapter();
+            const hits: SourceCandidate[] = Array.from({ length: 21 }, (_, index) => ({
+                source: 'usda',
+                externalKey: `k-${index}`,
+                name: 'Twenty-one hits',
+            }));
+            adapter.searchByName.mockResolvedValue(hits);
+            adapter.fetchByKeys.mockImplementation(async (keys) =>
+                keys.map((key) => makeMergeCandidate('usda', { externalKey: key, name: 'Twenty-one hits' })),
+            );
+            const { consumer } = build(adapter);
+
+            await consumer.processNext();
+
+            expect(adapter.fetchByKeys).toHaveBeenCalledTimes(2);
+            expect(await ledgerRows()).toBe(upstreamRequests(adapter));
+            expect(await ledgerRows()).toBe(3);
+        });
+
+        it('charges once per per-key FALLBACK fetch when a batch chunk fails validation as a whole', async () => {
+            await enqueueFood('drifted batch');
+            const adapter = makeFakeUsdaAdapter();
+            adapter.searchByName.mockResolvedValue([
+                { source: 'usda', externalKey: 'a', name: 'Drifted batch' },
+                { source: 'usda', externalKey: 'b', name: 'Drifted batch' },
+                { source: 'usda', externalKey: 'c', name: 'Drifted batch' },
+            ]);
+            adapter.fetchByKeys.mockRejectedValue(
+                new AdapterValidationError('usda', 'b', 'nutrient.amount', 'not a number'),
+            );
+            adapter.fetchByKey.mockImplementation(async (key) =>
+                makeMergeCandidate('usda', { externalKey: key, name: 'Drifted batch' }),
+            );
+            const { consumer } = build(adapter);
+
+            await consumer.processNext();
+
+            // The search, the batch request that failed (it was still a request), and three recoveries.
+            expect(adapter.fetchByKey).toHaveBeenCalledTimes(3);
+            expect(await ledgerRows()).toBe(upstreamRequests(adapter));
+            expect(await ledgerRows()).toBe(5);
+        });
+
+        it('defers the row, persisting nothing and pausing nothing, when the window fills MID-fan-out', async () => {
+            const id = await enqueueFood('mid fan-out');
+            const adapter = makeFakeUsdaAdapter();
+            adapter.searchByName.mockResolvedValue([{ source: 'usda', externalKey: 'a', name: 'Mid fan-out' }]);
+            adapter.fetchByKeys.mockImplementation(async (keys) =>
+                keys.map((key) => makeMergeCandidate('usda', { externalKey: key, name: 'Mid fan-out' })),
+            );
+
+            // Room for exactly ONE more request: the search is admitted, the batch is not.
+            for (let i = 0; i < 4; i += 1) {
+                await pool.query(`INSERT INTO source_call_log (source, called_at) VALUES ('usda', now())`);
+            }
+
+            const { consumer, publisher } = build(adapter, { usda: { hardCap: 6, pauseThreshold: 5 } });
+
+            const disposition = await consumer.processNext();
+
+            expect(disposition).toBe('deferred');
+            expect(adapter.searchByName).toHaveBeenCalledTimes(1);
+            expect(adapter.fetchByKeys).not.toHaveBeenCalled();
+            // The search WAS a request and IS in the ledger; the denied batch is not.
+            expect(await ledgerRows()).toBe(5);
+            // Back-pressure, not a failure: re-queued with no attempts consumed, nothing persisted, no event.
+            expect((await queue.getByFoodId(id))?.status).toBe('pending');
+            expect((await queue.getByFoodId(id))?.attempts).toBe(0);
+            expect((await foodDao.getById(id))?.status).toBe('PENDING');
+            expect(publisher.messages).toHaveLength(0);
+            // And a SELF-denial must not trip the 429 failsafe: with the window cleared, the source drains.
+            await pool.query(`UPDATE source_call_log SET called_at = now() - interval '2 hours'`);
+            await pool.query(`UPDATE fetch_queue SET last_requested = now() WHERE status = 'pending'`);
+            expect(await consumer.processNext()).toBe('resolved');
+        });
     });
 
     it('falls back to per-key fetchByKey when the adapter exposes no batch method', async () => {
@@ -352,19 +460,20 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         adapter.fetchByKeys.mockImplementation(async (keys) =>
             keys.map((key) => makeMergeCandidate('usda', { externalKey: key, name: key })),
         );
-        const { consumer } = build(adapter, { usda: { hardCap: 3, pauseThreshold: 3 } });
+        // Each food is TWO upstream requests (search + one batch), so a ceiling of 6 admits exactly three.
+        const { consumer } = build(adapter, { usda: { hardCap: 6, pauseThreshold: 6 } });
 
-        // Enqueue 5 distinct foods — more than the cap of 3.
+        // Enqueue 5 distinct foods — more than the three the window admits.
         for (let i = 0; i < 5; i += 1) {
             await enqueueFood(`ratelimit food ${i}`);
         }
 
-        // The first 3 each charge one windowed call and reach a terminal state (row deleted).
+        // The first 3 each charge two windowed calls and reach a terminal state (row deleted).
         for (let i = 0; i < 3; i += 1) {
             expect(await consumer.processNext()).not.toBe('deferred');
         }
 
-        // STALL: the window is now full (3 >= pause threshold). Every further claim DEFERS — the remaining
+        // STALL: the window is now full (6 >= pause threshold). Every further claim DEFERS — the remaining
         // foods stay pending (no source call, no attempts++), stuck in the queue until the limit clears.
         expect(await consumer.processNext()).toBe('deferred');
         const stalled = await pool.query(`SELECT count(*)::int AS n FROM fetch_queue WHERE status = 'pending'`);

@@ -254,6 +254,8 @@ describe('IngredientsService.addByFoodId', () => {
             // an admission that advanced only the status would leave that prose serving every other user's
             // search. The numbers still come from food at read time (`FoodNutritionGateway`'s suite).
             expect(mocks['updateResolution']).toHaveBeenCalledWith('ing-new', {
+                // PR #91 review: the backfill compare-and-sets on the status the row was created carrying.
+                expectedStatus: FoodResolutionStatus.RESOLVED,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 canonicalName: 'Chicken breast, raw',
             });
@@ -401,6 +403,8 @@ describe('IngredientsService.addByFoodId', () => {
 
             expect(ingredient.foodResolutionStatus).toBe(FoodResolutionStatus.FAILED);
             expect(mocks['updateResolution']).toHaveBeenCalledWith('ing-1', {
+                // PR #91 review: the advance compare-and-sets on the status this request observed.
+                expectedStatus: FoodResolutionStatus.PENDING,
                 foodResolutionStatus: FoodResolutionStatus.FAILED,
             });
         });

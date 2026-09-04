@@ -57,8 +57,15 @@ import { IngredientUnlinkIncompleteError, UnlinkRefusedError } from './unlinkCli
  * its two copies into `foods/seed/operatorIntent.ts` when the third appeared; this one stays separate
  * because sharing across the service boundary needs a home neither service owns (`recipe-core` is the
  * recipe domain's types, and an operator-CLI policy does not belong in it), and a package for ~20 lines
- * buys less than it costs. The drift also fails SAFE: the reset is ordered so the food-side clear aborts
- * when this unlink refused, so a guard relaxed on one side alone cannot open a path. Change one, read both.
+ * buys less than it costs. Change one, read both.
+ *
+ * ⛔ THE "IT FAILS SAFE" ARGUMENT IS GONE, and do not restore it. It used to read: the reset is ordered so
+ * the food-side clear aborts when this unlink refused, so a guard relaxed on one side alone cannot open a
+ * path. That holds for the CONFIRMATION chain — the clear's linkage probe re-derives this command's outcome
+ * — and it is FALSE for the target binding below, which is now the larger half of the duplicated surface:
+ * the two commands judge DIFFERENT connections, and the clear never re-derives which database this one was
+ * pointed at. What replaces it is a GUARD — `operatorTargetCidrParity.test.ts` in `packages/infra/global`
+ * asserts both services' constants against the CDK's own CIDR table, in both directions.
  *
  * The stage name that means production. Matches `STAGE === 'prod'` as used by both services' env schemas
  * (`config/env.schema.ts`) and by the CDK apps, so there is no second spelling to keep in step.
@@ -75,11 +82,25 @@ export interface UnlinkCliOptions {
     readonly allowProd: boolean;
     /** Whether to report counts and write nothing. */
     readonly dryRun: boolean;
+    /**
+     * The database the operator typed back, as `database@host:port` — the token a `--dry-run` prints.
+     *
+     * ⛔ Required for a run that WRITES. `--stage` and `--confirm` are BOTH the operator's own words, checked
+     * against each other; this is the only field checked against the server this process actually reached.
+     */
+    readonly confirmTarget?: string | undefined;
 }
 
 /** Why the destructive-operation guard declined. */
 export type UnlinkRefusalReason =
-    'confirmation-missing' | 'confirmation-mismatch' | 'production-requires-flag' | 'production-flag-off-production';
+    | 'confirmation-missing'
+    | 'confirmation-mismatch'
+    | 'production-requires-flag'
+    | 'production-flag-off-production'
+    | 'target-confirmation-missing'
+    | 'target-mismatch'
+    | 'stage-database-mismatch'
+    | 'stage-environment-mismatch';
 
 /** What the guard decided: refuse outright, report only, or unlink. */
 export type UnlinkDecision =
@@ -101,6 +122,8 @@ export interface UnlinkFacts {
 
 /** The data-access surface the command needs; one Drizzle adapter implements it. */
 export interface IngredientLinkStore {
+    /** @returns where this connection actually landed, as the SERVER reports it. */
+    describeTarget(): Promise<DatabaseTarget>;
     /** @returns catalog rows still carrying a `food_id` or a `food_resolution_status`. */
     countLinked(): Promise<number>;
     /** @returns the number of `recipe_ingredients` lines — the row set the unlink must not disturb. */
@@ -121,6 +144,8 @@ export interface UnlinkResult {
     readonly unlinked: number;
     /** `recipe_ingredients` lines — reported so the operator can see the number did not move. */
     readonly recipeIngredientLines: number;
+    /** The database this run actually reached, as `database@host:port` — a dry run prints it to be pasted. */
+    readonly target: string;
 }
 
 /**
@@ -139,6 +164,7 @@ export function parseUnlinkArgs(argv: readonly string[]): UnlinkCliOptions {
         options: {
             stage: { type: 'string' },
             confirm: { type: 'string' },
+            'confirm-target': { type: 'string' },
             'allow-prod': { type: 'boolean', default: false },
             'dry-run': { type: 'boolean', default: false },
         },
@@ -159,6 +185,7 @@ export function parseUnlinkArgs(argv: readonly string[]): UnlinkCliOptions {
         confirm: values.confirm,
         allowProd: values['allow-prod'],
         dryRun: values['dry-run'],
+        confirmTarget: values['confirm-target'],
     };
 }
 
@@ -200,6 +227,105 @@ export function decideUnlink(options: UnlinkCliOptions): UnlinkDecision {
     }
 
     return { kind: 'unlink' };
+}
+
+/** A per-PR logical database, and the `pr-{N}` stage its name is derived from (ADR-0006). */
+const PER_PR_DATABASE = /_pr_(?<number>[0-9]+)$/u;
+
+/** A per-PR stage: `pr-{N}`. */
+const PER_PR_STAGE = /^pr-(?<number>[0-9]+)$/u;
+
+/**
+ * ⛔ WHICH SIDE OF THE PRODUCTION BOUNDARY AN ADDRESS IS ON. ADR-0002 assigns disjoint VPC CIDRs per stage —
+ * prod `10.0.0.0/16`, sandbox `10.1.0.0/16`, anything else `10.2.0.0/16` — so the SERVER's own address says
+ * which environment a connection reached, whatever the operator declared. It is the only fact available here
+ * that can, because prod and sandbox share the logical database name `kitchensink_recipes`.
+ *
+ * ⚠️ A real coupling to ADR-0002, pinned against `cidrForStage` itself by `operatorTargetCidrParity.test.ts`
+ * in `packages/infra/global`, which asserts BOTH services' constants against the CDK's own table.
+ */
+const PRODUCTION_VPC_PREFIX = '10.0.';
+
+/** The other ranges the same scheme assigns. An address in neither is not ours to judge. */
+const NON_PRODUCTION_VPC_PREFIXES = ['10.1.', '10.2.'] as const;
+
+/**
+ * The exact string an operator must type back to name the database this process actually opened.
+ *
+ * ⚠️ A DELIBERATE COPY of food-service's `operatorIntent.ts` — see this module's header for why the two
+ * services do not share this policy, and for why the "the drift fails safe" half of that argument does NOT
+ * cover this surface. `operatorTargetCidrParity.test.ts` is what covers it instead. Change one, read both.
+ *
+ * @param target - Where the connection landed.
+ * @returns The token to print and to require. Pure.
+ */
+export function describeTargetToken(target: DatabaseTarget): string {
+    return `${target.database}@${target.host}:${target.port}`;
+}
+
+/**
+ * ⛔ BIND THE OPERATOR'S DECLARATION TO THE DATABASE THE PROCESS ACTUALLY OPENED (PR #91 review).
+ *
+ * `--stage` and `--confirm` are BOTH the operator's own words, checked against each other — so
+ * `--stage prod --allow-prod --confirm prod` was accepted with `DATABASE_URL` pointed at sandbox, and this
+ * command then nulled the food links of whichever database the URL had really opened. `describeDatabaseTarget`
+ * PRINTED the real target and this module's own docstring called that "the honest limit of {@link decideUnlink},
+ * made visible" — a printed target is a courtesy, not a check, and nothing consumed it.
+ *
+ * Three mechanisms, in this order:
+ *
+ *  1. **The stage and the database must be able to be true together** — a `pr-{N}` stage belongs on a
+ *     `{base}_pr_{N}` database and a named stage does not belong on a per-PR one. No typing, so it guards a
+ *     DRY RUN too: reporting on a run that could never be permitted is a lie of its own.
+ *  2. **The declared stage must be on the same side of the production boundary as the server**, decided from
+ *     ADR-0002's per-stage CIDRs. This is what actually protects production: every other production
+ *     protection keys off the stage the operator DECLARED, so declaring `sandbox` switches them all off, and
+ *     a `--confirm-target` cannot help because it is pasted from a dry run that read the same wrong
+ *     connection. Both directions are refused — both are somebody writing to a database they do not think
+ *     they are writing to. It needs no typing, so it guards a dry run too.
+ *  3. **A run that WRITES must name the target the server reported.** What this adds over 1 and 2 is what
+ *     neither can see: the WRONG SANDBOX, a stale tunnel, another account's instance — the right environment
+ *     but not the intended machine. A dry run is never asked to type it.
+ *
+ * ⚠️ The host is discriminating because of ADR-0002's per-stage VPC CIDRs (prod `10.0.x.x`, sandbox
+ * `10.1.x.x`), not by luck — collapsing those ranges would weaken this guard. And `inet_server_addr()` is a
+ * private IP, so an RDS failover between the dry run and the write invalidates the token: that fails CLOSED,
+ * which is the correct direction. Food-service's `operatorIntent.ts` carries the same note.
+ *
+ * @param options - The validated CLI options.
+ * @param target - Where the connection landed, as the server reports it.
+ * @returns The refusal, or `undefined` when the declaration is bound to the target. Pure.
+ */
+export function refuseUnboundTarget(
+    options: UnlinkCliOptions,
+    target: DatabaseTarget,
+): UnlinkRefusalReason | undefined {
+    const stageNumber = PER_PR_STAGE.exec(options.stage)?.groups?.['number'];
+    const databaseNumber = PER_PR_DATABASE.exec(target.database)?.groups?.['number'];
+
+    if (stageNumber !== databaseNumber) {
+        return 'stage-database-mismatch';
+    }
+
+    const reachedProduction = target.host.startsWith(PRODUCTION_VPC_PREFIX);
+    const reachedKnownEnvironment =
+        reachedProduction || NON_PRODUCTION_VPC_PREFIXES.some((prefix) => target.host.startsWith(prefix));
+
+    // No opinion outside the CIDR scheme: a laptop, a docker bridge or a CI container is not addressed by
+    // ADR-0002, and refusing there would break every local run of this task while closing nothing.
+    if (reachedKnownEnvironment && (options.stage === PRODUCTION_STAGE) !== reachedProduction) {
+        return 'stage-environment-mismatch';
+    }
+
+    if (options.dryRun) {
+        return undefined;
+    }
+
+    if (options.confirmTarget === undefined) {
+        return 'target-confirmation-missing';
+    }
+
+    return options.confirmTarget.trim() === describeTargetToken(target) ? undefined : 'target-mismatch';
 }
 
 /**
@@ -247,11 +373,30 @@ export async function runIngredientUnlink(
         throw new UnlinkRefusedError(decision.reason, options.stage);
     }
 
+    // ⛔ BIND THE DECLARATION TO THE REAL DATABASE, before a single row is read. The descriptor comes from the
+    // server itself, so this is the first point at which the run's stage claim is checked against anything but
+    // itself. A dry run reaches here too: it must refuse an impossible stage/database pairing, and it must
+    // report the token the destructive run will have to name.
+    const liveTarget = await store.describeTarget();
+    const unbound = refuseUnboundTarget(options, liveTarget);
+
+    if (unbound !== undefined) {
+        throw new UnlinkRefusedError(unbound, options.stage, describeTargetToken(liveTarget));
+    }
+
+    const target = describeTargetToken(liveTarget);
     const linkedBefore = await store.countLinked();
     const recipeIngredientLines = await store.countRecipeIngredientLines();
 
     if (decision.kind === 'report') {
-        return { outcome: 'reported', stage: options.stage, linkedBefore, unlinked: 0, recipeIngredientLines };
+        return {
+            outcome: 'reported',
+            stage: options.stage,
+            linkedBefore,
+            unlinked: 0,
+            recipeIngredientLines,
+            target,
+        };
     }
 
     const facts = await store.unlinkAll();
@@ -264,6 +409,7 @@ export async function runIngredientUnlink(
         linkedBefore,
         unlinked: facts.unlinked,
         recipeIngredientLines: facts.linesAfter,
+        target,
     };
 }
 
@@ -282,10 +428,11 @@ export interface DatabaseTarget {
 /**
  * Ask the SERVER where it is, rather than restating the connection string.
  *
- * ⛔ This is the honest limit of {@link decideUnlink}, made visible. `--stage`/`STAGE` is a DECLARATION by
- * the operator; nothing binds it to the database this process actually opened. What CAN be done is put the
- * real target in front of the operator before anything is written — which is what makes `--dry-run` a check
- * rather than a formality.
+ * ⚠️ CORRECTED. This used to say `--stage` is a declaration that "nothing binds ... to the database this
+ * process actually opened", and called putting the target in front of the operator the honest limit of the
+ * guard. That WAS true and is no longer: {@link refuseUnboundTarget} consumes this descriptor and refuses on
+ * it, so what it returns is a guard's input rather than a courtesy. Do not restore the old sentence — it is
+ * exactly what a future reader would use to conclude that nothing checks the target.
  *
  * @param pool - The pool to interrogate.
  * @returns Where that pool actually landed.
@@ -293,7 +440,7 @@ export interface DatabaseTarget {
  */
 export async function describeDatabaseTarget(pool: pg.Pool): Promise<DatabaseTarget> {
     const { rows } = await pool.query<{ host: string | null; port: number; database: string; user: string }>(
-        `SELECT inet_server_addr()::text AS host, inet_server_port() AS port,
+        `SELECT host(inet_server_addr()) AS host, inet_server_port() AS port,
                 current_database() AS database, current_user AS user`,
     );
     const row = rows[0];
@@ -321,9 +468,10 @@ const LINKED = or(isNotNull(ingredients.foodId), isNotNull(ingredients.foodResol
  * this task does not touch `name`.
  *
  * @param db - The schema-typed Drizzle client.
+ * @param pool - The same connection, for the target descriptor the binding guard reads.
  * @returns The store port.
  */
-export function createIngredientLinkStore(db: RecipeDrizzle): IngredientLinkStore {
+export function createIngredientLinkStore(db: RecipeDrizzle, pool: pg.Pool): IngredientLinkStore {
     const countLinkedWith = async (reader: Pick<RecipeDrizzle, 'select'>): Promise<number> => {
         const [row] = await reader
             .select({ count: sql<number>`count(*)::int` })
@@ -340,6 +488,11 @@ export function createIngredientLinkStore(db: RecipeDrizzle): IngredientLinkStor
     };
 
     return {
+        // ⚠️ ONE reader for "where am I?", asked through the POOL. This adapter briefly carried a SECOND,
+        // inline copy of the same statement so it could keep a single Drizzle parameter — which is the
+        // duplication the food-side half of this same change removed, and a second spelling of the question
+        // is a second answer free to disagree with the one the guard judged.
+        describeTarget: async (): Promise<DatabaseTarget> => describeDatabaseTarget(pool),
         countLinked: async (): Promise<number> => countLinkedWith(db),
         countRecipeIngredientLines: async (): Promise<number> => countLinesWith(db),
         unlinkAll: async (): Promise<UnlinkFacts> =>

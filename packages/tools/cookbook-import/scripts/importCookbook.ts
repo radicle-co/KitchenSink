@@ -32,7 +32,9 @@
  * with that grant (ADR-0023). A raw bearer may be passed with `--token` instead.
  *
  * ⛔ **This writes recipes.** Point it at a local or sandbox origin. It has no production affordance and
- * must never be given one.
+ * must never be given one — and that is now ENFORCED rather than merely stated: `--recipe-url` is checked by
+ * `src/writableOrigin.ts`, which admits only a localhost, `pr-{N}` or `sandbox.commise.app` origin and
+ * refuses everything else, unrecognised hosts included. There is deliberately no override flag.
  *
  * @sideEffect Reads files, performs network I/O, writes the ledger and the report.
  */
@@ -51,6 +53,7 @@ import { createCrfEngine } from '../src/parsing/crfEngine.js';
 import { createLlmEngine } from '../src/parsing/llmEngine.js';
 import { createFoodnessValidator, createMeasurementValidator } from '../src/parsing/validators.js';
 import { runImport, type ParseObservation } from '../src/runImport.js';
+import { assertWritableImportOrigin } from '../src/writableOrigin.js';
 
 /** Read `--flag value` pairs into a map. */
 function parseArgs(argv: readonly string[]): Map<string, string> {
@@ -151,7 +154,11 @@ async function resolveParseObservation(requested: boolean, region: string): Prom
 const report = await runImport({
     book,
     plainText: readFileSync(required(args, 'file'), 'utf-8'),
-    client: new RecipeApiClient({ baseUrl: required(args, 'recipe-url'), token }),
+    // ⛔ The origin is GATED, not merely read. The bold warning in this file's header — no production
+    // affordance, ever — was enforced by nothing, so one pasted production URL would have created real
+    // PUBLIC recipes in bulk with no confirmation and no undo. `assertWritableImportOrigin` admits only a
+    // local, `pr-{N}` or sandbox host and refuses everything else, including hosts it does not recognise.
+    client: new RecipeApiClient({ baseUrl: assertWritableImportOrigin(required(args, 'recipe-url')), token }),
     ledger: ImportLedger.load(args.get('ledger') ?? '.cookbook-import-ledger.json'),
     limit: Number(args.get('limit') ?? 150),
     settleMs: Number(args.get('settle-ms') ?? 30_000),

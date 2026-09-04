@@ -70,7 +70,11 @@ LINKAGE_SCOPES=recipes:import:public \
 
 ## Step 3 — run it
 
-⛔ **This writes recipes.** Point it at a local or sandbox origin. It has no production affordance.
+⛔ **This writes recipes.** Point it at a local or sandbox origin. It has no production affordance, and that
+is enforced in code rather than asked of the operator: `--recipe-url` is checked by `src/writableOrigin.ts`,
+which admits only a `localhost`, `pr-{N}` or `sandbox.commise.app` host and refuses everything else —
+including hosts it does not recognise, because "not obviously production" is not "safe to write to". There is
+deliberately no override flag.
 
 ```bash
 npm run import --workspace=@kitchensink/cookbook-import -- \

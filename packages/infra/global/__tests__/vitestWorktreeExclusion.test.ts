@@ -43,11 +43,19 @@ describe('the shared vitest config excludes nested worktrees', () => {
         expect(isExcluded('packages/services/recipe-workers/__tests__/parsing/z.test.ts')).toBe(false);
     });
 
-    it('excludes every worktree git actually has registered, not just the two named above', () => {
+    it('excludes every worktree git actually has registered here, however many that is', () => {
         // ⛔ Derived from git, never a hardcoded list: a copy of a list cannot detect that the list is
-        // incomplete. A worktree added tomorrow under a new root fails this without anyone editing it.
+        // incomplete. A worktree added tomorrow under a NEW root fails this without anyone editing it.
+        //
+        // ⚠️ DELIBERATELY NOT `expect(roots.length).toBeGreaterThan(0)`, and that assertion is why this
+        // suite first went red in CI while passing on every developer machine. A CI runner clones ONE tree
+        // and registers no extra worktrees, so `roots` is legitimately EMPTY there — demanding at least one
+        // asserts a property of the checkout, not of the config, which is precisely the environment-coupled
+        // failure this whole file exists to prevent. The two representative paths above carry the
+        // non-vacuous assertion in every environment; this case ADDS the live roots wherever they exist.
+        const repoRoot = path.resolve(import.meta.dirname, '../../../..');
         const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], {
-            cwd: path.resolve(import.meta.dirname, '../../../..'),
+            cwd: repoRoot,
             encoding: 'utf8',
         });
 
@@ -55,13 +63,11 @@ describe('the shared vitest config excludes nested worktrees', () => {
             .split('\n')
             .filter((line) => line.startsWith('worktree '))
             .map((line) => line.slice('worktree '.length))
-            .map((absolute) => path.relative(path.resolve(import.meta.dirname, '../../../..'), absolute))
+            .map((absolute) => path.relative(repoRoot, absolute))
             .filter((relative) => relative !== '' && !relative.startsWith('..'));
 
-        expect(roots.length).toBeGreaterThan(0);
-
         for (const root of roots) {
-            expect(isExcluded(`${root}/packages/anything/__tests__/a.test.ts`)).toBe(true);
+            expect(isExcluded(`${root}/packages/anything/__tests__/a.test.ts`), `${root} is collectable`).toBe(true);
         }
     });
 });

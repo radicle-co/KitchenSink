@@ -15,6 +15,7 @@
  *     all — an id it does not know produces no reservation, and the caller fails closed.
  */
 import { describe, expect, it } from 'vitest';
+import { CDK_SYNTH_TEST_TIMEOUT_MS } from '@kitchensink/vitest';
 
 import {
     BEDROCK_MODEL_REGISTRY,
@@ -286,32 +287,49 @@ describe('worstCaseMicros', () => {
         expect(actual).toBeLessThanOrEqual(worst);
     });
 
-    it('bounds EVERY partition of a small cap, for EVERY model — exhaustively, not by sampling', () => {
-        // Every (fresh, read, write) triple whose sum is at most the cap, at every cap up to 40 tokens. Small
-        // caps are where a ceil-per-class overshoot is proportionally largest, and 40 is enough for the
-        // three-way rounding pattern to appear at every rate in the table.
-        for (const [modelId, { rate }] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
-            for (let cap = 1; cap <= 40; cap += 1) {
-                const worst = worstCaseMicros(rate, cap, 3);
+    it(
+        'bounds EVERY partition of a small cap, for EVERY model — exhaustively, not by sampling',
+        () => {
+            // Every (fresh, read, write) triple whose sum is at most the cap, at every cap up to 40 tokens. Small
+            // caps are where a ceil-per-class overshoot is proportionally largest, and 40 is enough for the
+            // three-way rounding pattern to appear at every rate in the table.
+            for (const [modelId, { rate }] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+                for (let cap = 1; cap <= 40; cap += 1) {
+                    const worst = worstCaseMicros(rate, cap, 3);
 
-                for (let fresh = 0; fresh <= cap; fresh += 1) {
-                    for (let read = 0; read <= cap - fresh; read += 1) {
-                        const usage = {
-                            inputTokens: fresh,
-                            outputTokens: 3,
-                            cacheReadInputTokens: read,
-                            cacheWriteInputTokens: cap - fresh - read,
-                        };
+                    for (let fresh = 0; fresh <= cap; fresh += 1) {
+                        for (let read = 0; read <= cap - fresh; read += 1) {
+                            const usage = {
+                                inputTokens: fresh,
+                                outputTokens: 3,
+                                cacheReadInputTokens: read,
+                                cacheWriteInputTokens: cap - fresh - read,
+                            };
 
-                        expect(
-                            actualCostMicros(rate, usage),
-                            `${modelId} cap=${cap} ${JSON.stringify(usage)}`,
-                        ).toBeLessThanOrEqual(worst);
+                            expect(
+                                actualCostMicros(rate, usage),
+                                `${modelId} cap=${cap} ${JSON.stringify(usage)}`,
+                            ).toBeLessThanOrEqual(worst);
+                        }
                     }
                 }
             }
-        }
-    });
+            // ⛔ EXPLICIT HEADROOM, NOT A SHRUNK PROOF. This case walks every (fresh, read, write) partition of
+            // every cap up to 40 for every model in the registry. Alone it is ~0.3s; on a CI runner under the
+            // parallel `turbo run test` load it measured 5,926ms against vitest's 5,000ms DEFAULT and timed out
+            // (run 33922200293, 2026-09-04) — the same failure, for the same reason, that
+            // `CDK_SYNTH_TEST_TIMEOUT_MS`'s own docstring records at 339ms and 852ms. Shrinking the sweep to fit
+            // would trade the proof for the appearance of one, and this is the file that establishes
+            // `worst >= actual` for EVERY usage, which is the whole reason ADR-0024's "crashes over-count" bias
+            // is acceptable.
+            //
+            // ⚠️ The constant's NAME says CDK, but its reason is parallel-load headroom and it is already used
+            // for a non-synth artifact guard in `recipe-workers`. Reused here rather than restating 30_000, so
+            // the number and the reason keep ONE home; applied per-test rather than as a package-wide
+            // `testTimeout`, so every other case in this file still fails fast on a hang.
+        },
+        CDK_SYNTH_TEST_TIMEOUT_MS,
+    );
 
     it('carries the rounding overhead as a CONSTANT — never a multiple of the cap', () => {
         // The allowance pays for two extra `ceil`s and nothing else. If it ever scaled with the cap, the

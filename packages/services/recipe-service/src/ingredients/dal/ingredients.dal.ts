@@ -77,6 +77,20 @@ export interface CreateFoodBackedInput {
 
 /** Input to {@link IngredientsDal.updateResolution}. */
 export interface UpdateResolutionInput {
+    /**
+     * ⛔ THE STATUS THIS CALLER OBSERVED, and the write's precondition — REQUIRED, never optional.
+     *
+     * The write is a compare-and-set: it lands only while the row still carries this status. Two refreshes
+     * of one PENDING row both read PENDING; the food service answers the second first (RESOLVED, with the
+     * catalog name), then the delayed answer to the first arrives still saying PENDING — and an
+     * unconditional `UPDATE` regressed the row, name and all, with nothing downstream able to tell.
+     *
+     * It is required rather than defaulted because a default is an ASSUMPTION about a row the caller may
+     * never have read: making it required turned every call site into a compile error, which is how each
+     * one came to state the status it actually saw. `null` means "the row is unlinked" (U12's reset nulls
+     * the column) and matches only a NULL — the predicate is `IS NOT DISTINCT FROM`, not `=`.
+     */
+    readonly expectedStatus: CatalogFoodResolutionStatus | null;
     /** The new resolution status. ⛔ The CATALOG subset — never a gate verdict (see above / 0023). */
     readonly foodResolutionStatus: CatalogFoodResolutionStatus;
     /**
@@ -579,9 +593,23 @@ export class IngredientsDal {
      * display text of one line of one user's recipe — what the cook wrote — and is a different fact from the
      * catalog's shared label.
      *
+     * ⛔ **AND IT IS A COMPARE-AND-SET, not a blind write** (PR #91 review). The statement lands only while
+     * the row still carries {@link UpdateResolutionInput.expectedStatus} — the status the caller OBSERVED
+     * before it went and asked the food service. Two concurrent refreshes of one PENDING row both read
+     * PENDING; the newer answer (RESOLVED, with the catalog name) committed, and then the delayed older
+     * answer overwrote it back to PENDING, taking the name with it. `IS NOT DISTINCT FROM` rather than `=`
+     * because an unlinked row's status is NULL (U12's reset) and `= NULL` matches nothing, so a `=` spelling
+     * would make a reset row permanently un-relinkable. **Zero rows IS the answer**, not an error: the loser
+     * receives `undefined` and its caller re-reads, so it returns the winner's row rather than a stale one.
+     *
+     * ⚠️ The predicate guards the WHOLE `SET` list, which is the point — a mismatch must not land the name,
+     * the prior or the privacy fact either. `updateResolutionCas.integration.test.ts` pins all five columns.
+     *
      * @param id - The `ingredients.id`.
-     * @param input - The new resolution status, and optionally the canonical name to adopt.
-     * @returns The updated ingredient, or `undefined` when no row exists.
+     * @param input - The observed status, the new resolution status, and optionally the name to adopt.
+     * @returns The updated ingredient, or `undefined` when no row exists OR the status moved since it was
+     *   observed. The two are deliberately one answer: both mean "this write does not apply", and the
+     *   caller's response to each is the same re-read.
      * @sideEffect Updates `ingredients`.
      */
     public async updateResolution(id: string, input: UpdateResolutionInput): Promise<Ingredient | undefined> {
@@ -599,6 +627,7 @@ export class IngredientsDal {
                 food_owner_id = CASE WHEN ${input.foodOwnerId === undefined}
                                      THEN food_owner_id ELSE ${input.foodOwnerId ?? null} END
             WHERE id = ${id}
+              AND food_resolution_status IS NOT DISTINCT FROM ${input.expectedStatus}
             RETURNING ${RETURNING}
         `);
 

@@ -174,6 +174,119 @@ describe('IngredientsService', () => {
             expect(dalMocks['createFoodBacked']).not.toHaveBeenCalled();
         });
 
+        /**
+         * ⛔ AN EXISTING ROW SETTLES TO THE STATUS THE ADD JUST OBSERVED (PR #91 review). The dedup branch used
+         * to return the row untouched, discarding a status the response already carried — and for one case
+         * nothing else would ever repair it: a row that went FAILED, re-added by name, is REACTIVATED by
+         * `FoodsService.addByName` (it returns `PENDING`), but the picker polls only non-terminal rows and the
+         * importer's settle pass re-reads only `PENDING`/`UNRESOLVED`, so the FAILED row stayed FAILED forever.
+         * The same settlement `addByFoodId` performs for its existing row applies here: advance to the observed
+         * status, and when that status is `RESOLVED` spend the one read the fresh-add branch spends to name the
+         * row from the catalog.
+         */
+        describe('an existing row settles to the status the add observed', () => {
+            it('advances a FAILED row the food service reactivated to PENDING', async () => {
+                clientMocks['addByName']!.mockResolvedValue(
+                    makeAddResult({ id: 'F1', status: FoodResolutionStatus.PENDING }),
+                );
+                const existing = makeIngredient({
+                    id: 'dup',
+                    foodId: 'F1',
+                    foodResolutionStatus: FoodResolutionStatus.FAILED,
+                });
+                dalMocks['findByFoodId']!.mockResolvedValue(existing);
+                const advanced = makeIngredient({
+                    id: 'dup',
+                    foodId: 'F1',
+                    foodResolutionStatus: FoodResolutionStatus.PENDING,
+                });
+                dalMocks['updateResolution']!.mockResolvedValue(advanced);
+
+                const result = await service.addByName(CALLER, makeCanonicalName('Quinoa'));
+
+                expect(dalMocks['updateResolution']).toHaveBeenCalledWith(
+                    'dup',
+                    expect.objectContaining({ foodResolutionStatus: FoodResolutionStatus.PENDING }),
+                );
+                expect(result).toBe(advanced);
+                expect(dalMocks['createFoodBacked']).not.toHaveBeenCalled();
+            });
+
+            it('names a PENDING row from the catalog when the add comes back RESOLVED — one more read', async () => {
+                clientMocks['addByName']!.mockResolvedValue(
+                    makeAddResult({ id: 'F1', status: FoodResolutionStatus.RESOLVED }),
+                );
+                clientMocks['getStatus']!.mockResolvedValue(
+                    makeStatusResult({
+                        id: 'F1',
+                        status: FoodResolutionStatus.RESOLVED,
+                        food: makeFoodView({ id: 'F1', name: 'Quinoa, uncooked' }),
+                    }),
+                );
+                const existing = makeIngredient({
+                    id: 'dup',
+                    foodId: 'F1',
+                    name: 'quinoa',
+                    foodResolutionStatus: FoodResolutionStatus.PENDING,
+                });
+                dalMocks['findByFoodId']!.mockResolvedValue(existing);
+                const named = makeIngredient({
+                    id: 'dup',
+                    foodId: 'F1',
+                    name: 'Quinoa, uncooked',
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                });
+                dalMocks['updateResolution']!.mockResolvedValue(named);
+
+                const result = await service.addByName(CALLER, makeCanonicalName('quinoa'));
+
+                expect(clientMocks['getStatus']).toHaveBeenCalledExactlyOnceWith('F1');
+                expect(dalMocks['updateResolution']).toHaveBeenCalledWith(
+                    'dup',
+                    expect.objectContaining({
+                        foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                        canonicalName: 'Quinoa, uncooked',
+                    }),
+                );
+                expect(result).toBe(named);
+            });
+
+            it('leaves an already-RESOLVED row alone — nothing to learn, no read, no write', async () => {
+                clientMocks['addByName']!.mockResolvedValue(
+                    makeAddResult({ id: 'F1', status: FoodResolutionStatus.RESOLVED }),
+                );
+                const existing = makeIngredient({
+                    id: 'dup',
+                    foodId: 'F1',
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                });
+                dalMocks['findByFoodId']!.mockResolvedValue(existing);
+
+                const result = await service.addByName(CALLER, makeCanonicalName('Quinoa'));
+
+                expect(result).toBe(existing);
+                expect(clientMocks['getStatus']).not.toHaveBeenCalled();
+                expect(dalMocks['updateResolution']).not.toHaveBeenCalled();
+            });
+
+            it('leaves a row alone when the add reports the status it already carries', async () => {
+                clientMocks['addByName']!.mockResolvedValue(
+                    makeAddResult({ id: 'F1', status: FoodResolutionStatus.PENDING }),
+                );
+                const existing = makeIngredient({
+                    id: 'dup',
+                    foodId: 'F1',
+                    foodResolutionStatus: FoodResolutionStatus.PENDING,
+                });
+                dalMocks['findByFoodId']!.mockResolvedValue(existing);
+
+                const result = await service.addByName(CALLER, makeCanonicalName('Quinoa'));
+
+                expect(result).toBe(existing);
+                expect(dalMocks['updateResolution']).not.toHaveBeenCalled();
+            });
+        });
+
         it('surfaces UNRESOLVED (needs disambiguation) as the persisted status', async () => {
             clientMocks['addByName']!.mockResolvedValue(
                 makeAddResult({ id: 'F2', status: FoodResolutionStatus.UNRESOLVED }),
@@ -312,6 +425,9 @@ describe('IngredientsService', () => {
             // exactly what U10 deleted: a snapshot with no invalidation, so a food corrected upstream left
             // every recipe quoting the old number. The numbers are read live from food now.
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
+                // PR #91 review: the write is a compare-and-set on the status this refresh OBSERVED, so a
+                // slower refresh answered later matches nothing rather than regressing the row.
+                expectedStatus: FoodResolutionStatus.PENDING,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 canonicalName: 'Flour, wheat, all-purpose',
                 // U11 (0040): the refresh SAW the food body (no private visibility), so the fact CLEARS.
@@ -341,6 +457,7 @@ describe('IngredientsService', () => {
             await service.refreshStatus(CALLER, 'i1');
 
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
+                expectedStatus: null,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 // U11 (0040): same re-capture — a non-private body clears the privacy fact.
                 foodOwnerId: null,
@@ -359,6 +476,7 @@ describe('IngredientsService', () => {
             await service.refreshStatus(CALLER, 'i1');
 
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
+                expectedStatus: null,
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
             });
         });
@@ -373,6 +491,7 @@ describe('IngredientsService', () => {
             const result = await service.refreshStatus(CALLER, 'i1');
 
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
+                expectedStatus: null,
                 foodResolutionStatus: FoodResolutionStatus.NOT_FOUND,
             });
             expect(result.foodResolutionStatus).toBe(FoodResolutionStatus.NOT_FOUND);

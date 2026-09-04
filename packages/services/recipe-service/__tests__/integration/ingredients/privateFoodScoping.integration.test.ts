@@ -130,11 +130,15 @@ describe.skipIf(!hasDatabaseUrl)('U11/R20 private-food scoping (integration)', (
             };
 
             // undefined → untouched (a status-only refresh that never saw the food body).
-            await dal.updateResolution(created.id, { foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+            await dal.updateResolution(created.id, {
+                expectedStatus: FoodResolutionStatus.RESOLVED,
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+            });
             expect(await ownerOf()).toBe(AUTHOR);
 
             // null → CLEARED (the refresh saw a non-private visibility — U12's promotion path).
             await dal.updateResolution(created.id, {
+                expectedStatus: FoodResolutionStatus.RESOLVED,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 foodOwnerId: null,
             });
@@ -142,6 +146,7 @@ describe.skipIf(!hasDatabaseUrl)('U11/R20 private-food scoping (integration)', (
 
             // a ULID → set (re-admission of a private food).
             await dal.updateResolution(created.id, {
+                expectedStatus: FoodResolutionStatus.RESOLVED,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 foodOwnerId: AUTHOR,
             });

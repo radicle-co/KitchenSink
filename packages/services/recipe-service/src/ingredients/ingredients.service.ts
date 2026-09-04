@@ -52,7 +52,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { FoodResolutionStatus, RecipeErrorCode } from '@kitchensink/recipe-core';
 import type { FoodReferencesResponse } from './ingredients.schema.js';
-import type { Ingredient } from '@kitchensink/recipe-core';
+import type { CatalogFoodResolutionStatus, Ingredient } from '@kitchensink/recipe-core';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { isNotFoundError } from '@kitchensink/food-service-client';
@@ -395,10 +395,11 @@ export class IngredientsService {
             // rather than half-admitted as a nameless row.
             if (existing !== undefined) {
                 const advanced = await this.dal.updateResolution(existing.id, {
+                    expectedStatus: existing.foodResolutionStatus ?? null,
                     foodResolutionStatus: toResolutionStatus(status.status),
                 });
 
-                return advanced ?? existing;
+                return advanced ?? (await this.dal.findById(existing.id)) ?? existing;
             }
 
             throw foodNotAdmissible(
@@ -430,12 +431,16 @@ export class IngredientsService {
         // row already existed: the pick may be landing on a row the importer minted under prose, and leaving
         // that alone would keep serving prose to every other user's search (plan U3).
         const backfilled = await this.dal.updateResolution(row.id, {
+            expectedStatus: row.foodResolutionStatus ?? null,
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             canonicalName: name,
             ...prior,
         });
 
-        return backfilled ?? row;
+        // `undefined` here means a concurrent writer settled this row first (the compare-and-set found the
+        // status already moved). Re-read rather than returning `row`, so the caller is handed the state that
+        // actually stands instead of the one this request observed before the race.
+        return backfilled ?? (await this.dal.findById(row.id)) ?? row;
     }
 
     /**
@@ -674,13 +679,13 @@ export class IngredientsService {
 
         const client = this.foodClients.standard(caller);
         const added = await client.addByName(name);
+        const status = toResolutionStatus(added.status);
         const existing = await this.dal.findByFoodId(added.id);
 
-        if (existing) {
-            return existing;
+        if (existing !== undefined) {
+            return this.settleExisting(client, existing, status);
         }
 
-        const status = toResolutionStatus(added.status);
         const canonical =
             status === FoodResolutionStatus.RESOLVED ? await this.canonicalNameOf(client, added.id) : undefined;
 
@@ -689,6 +694,54 @@ export class IngredientsService {
             foodId: added.id,
             foodResolutionStatus: status,
         });
+    }
+
+    /**
+     * Advance a row this add DEDUPED onto to the status the add itself just reported.
+     *
+     * ⛔ THE DEDUP BRANCH USED TO RETURN THE ROW UNTOUCHED (PR #91 review), discarding a status the response
+     * already carried — and for one case nothing else would ever repair it. A `FAILED` row re-added by name
+     * is REACTIVATED by `FoodsService.addByName` (it answers `PENDING`), but `refreshStatus` is only reached
+     * by a client polling a NON-terminal row and the importer's settle pass re-reads only
+     * `PENDING`/`UNRESOLVED` — so the row stayed `FAILED` for good while the food behind it was resolving.
+     * This is the same settlement `addByFoodId` performs for ITS existing row, and it is deliberately the
+     * only thing shared: `addByFoodId` may reject a nameless food, which would be the wrong answer here,
+     * where the caller supplied a perfectly good name of their own (see this method's caller).
+     *
+     * The equality short-circuit is what keeps the common case free: a repeat add of a row already in the
+     * status the food reports spends no read and no write.
+     *
+     * @param client - The per-request food client, already minted for this caller.
+     * @param existing - The row the add deduped onto.
+     * @param status - The status the add reported for this food.
+     * @returns The settled row (or `existing` when there was nothing to settle).
+     * @sideEffect May perform one food-service read and one `ingredients` write.
+     */
+    private async settleExisting(
+        client: ReturnType<FoodServiceClients['standard']>,
+        existing: Ingredient,
+        status: CatalogFoodResolutionStatus,
+    ): Promise<Ingredient> {
+        if (existing.foodResolutionStatus === status) {
+            return existing;
+        }
+
+        // The one extra read the fresh-add branch also spends, and for the same reason (plan U3): a row the
+        // importer minted under the caller's prose must be renamed from the catalog's record, or that prose
+        // is served to every other user's search forever.
+        const canonical =
+            status === FoodResolutionStatus.RESOLVED && existing.foodId !== undefined
+                ? await this.canonicalNameOf(client, existing.foodId)
+                : undefined;
+        const settled = await this.dal.updateResolution(existing.id, {
+            expectedStatus: existing.foodResolutionStatus ?? null,
+            foodResolutionStatus: status,
+            ...(canonical !== undefined ? { canonicalName: canonical } : {}),
+        });
+
+        // A lost compare-and-set means a concurrent writer settled this row first — the state that stands is
+        // the answer, so re-read rather than reporting the one this request observed before the race.
+        return settled ?? (await this.dal.findById(existing.id)) ?? existing;
     }
 
     /**
@@ -750,6 +803,9 @@ export class IngredientsService {
             // for every status that does not license a rename, which the DAL treats as "leave the name".
             const canonicalName = canonicalNameFrom(status);
             const updated = await this.dal.updateResolution(id, {
+                // The status this refresh OBSERVED before it asked the food service. A slower refresh that
+                // read the same value and is answered later matches nothing and regresses nothing.
+                expectedStatus: ingredient.foodResolutionStatus ?? null,
                 foodResolutionStatus: toResolutionStatus(status.status),
                 ...(canonicalName !== undefined ? { canonicalName } : {}),
                 // U5: the refresh IS the prior's staleness contract — a food-side prior update reaches
@@ -766,15 +822,20 @@ export class IngredientsService {
                       }),
             });
 
-            return updated ?? ingredient;
+            // A lost compare-and-set is not a failed refresh: another refresh settled this row while this one
+            // was in flight, so the honest answer is the row that stands, not the one this request read.
+            return updated ?? (await this.dal.findById(id)) ?? ingredient;
         } catch (error) {
             // A terminal food (NOT_FOUND / FAILED) or a vanished row surfaces as a client NotFoundError;
             // record the terminal status rather than propagating, so the picker can fall back to freeform.
             if (isNotFoundError(error)) {
                 const terminal = toResolutionStatus(error.foodStatus ?? 'NOT_FOUND');
-                const updated = await this.dal.updateResolution(id, { foodResolutionStatus: terminal });
+                const updated = await this.dal.updateResolution(id, {
+                    expectedStatus: ingredient.foodResolutionStatus ?? null,
+                    foodResolutionStatus: terminal,
+                });
 
-                return updated ?? ingredient;
+                return updated ?? (await this.dal.findById(id)) ?? ingredient;
             }
 
             throw error;

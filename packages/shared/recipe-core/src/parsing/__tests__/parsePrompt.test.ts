@@ -19,7 +19,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
     MAX_PARSE_PROMPT_CHARS,
-    PARSE_MAX_INPUT_TOKENS,
     PARSE_MAX_OUTPUT_TOKENS,
     PARSE_PROMPT_SHA256,
     PARSE_PROMPT_VERSION,
@@ -172,12 +171,6 @@ describe('the call parameters the measurement was denominated in', () => {
         // our own ceiling as the model's contract failure. 900 is the value the 84%/53% gold-set result was
         // measured at, and a truncation count is still reported so the headroom stays observable.
         expect(PARSE_MAX_OUTPUT_TOKENS).toBe(900);
-    });
-
-    it('bounds input in tokens by bounding the prompt in code points', () => {
-        // One token per code point is an upper bound for every tokenizer in the roster, so the two caps are
-        // equal on purpose and no tokenizer ships.
-        expect(PARSE_MAX_INPUT_TOKENS).toBe(MAX_PARSE_PROMPT_CHARS);
     });
 
     it('pins temperature to the value the comparison was run at', () => {

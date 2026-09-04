@@ -55,11 +55,17 @@
  * ## ⛔ THE SIZE BOUND IS WHAT MAKES THE SPEND RESERVATION HONEST
  *
  * ADR-0024 §2: "`maxTokens` MUST be set explicitly, and input tokens MUST be capped before the call … if
- * prompt length is unbounded, the reservation is a lie and the ceiling does not hold." The cap is enforced in
- * CODE POINTS, and {@link VERIFICATION_MAX_INPUT_TOKENS} is set at or above that count because no tokenizer
- * emits more than one token per code point — so a prompt bounded in code points is bounded in tokens without
- * shipping a tokenizer or trusting a characters-per-token ratio measured on English.
+ * prompt length is unbounded, the reservation is a lie and the ceiling does not hold."
+ *
+ * ⛔ TWO DIFFERENT BOUNDS, and conflating them is what was wrong here. The ACCEPTANCE cap — which lines this
+ * gate will judge at all — is in CODE POINTS ({@link MAX_VERIFICATION_PROMPT_CHARS}), because that is a fact
+ * about the text a cook wrote and must mean the same thing in every alphabet. The SPEND bound — what the
+ * reservation is priced from — is in TOKENS, and a code-point count is NOT an upper bound on those: a
+ * byte-fallback BPE tokenizer emits an unknown code point as its UTF-8 bytes, up to four tokens. So the spend
+ * bound is bytes ({@link inputTokenBound} over the turns actually sent) or, for a caller with no prompt yet,
+ * {@link VERIFICATION_INPUT_TOKEN_CEILING}. Neither ships a tokenizer or trusts a characters-per-token ratio.
  */
+import { inputTokenCeiling } from '../spend/spendArithmetic.js';
 import { escapeMarkup } from './escapeMarkup.js';
 
 /**
@@ -71,15 +77,8 @@ import { escapeMarkup } from './escapeMarkup.js';
  */
 export const VERIFICATION_MAX_OUTPUT_TOKENS = 200;
 
-/**
- * The hard input-token cap the worst-case reservation is computed from.
- *
- * Equal to {@link MAX_VERIFICATION_PROMPT_CHARS} on purpose: one token per code point is an upper bound for
- * every script, so bounding the prompt in code points bounds it in tokens. Deliberately NOT derived from a
- * measured characters-per-token ratio — that ratio is ~4 for English and ~1 for CJK, and the reservation must
- * hold for a recipe in any language.
- */
-export const VERIFICATION_MAX_INPUT_TOKENS = 2_000;
+/** The two message turns this gate sends: one system, one user. No few-shot examples. */
+export const VERIFICATION_PROMPT_TURNS = 2;
 
 /**
  * The largest assembled prompt (system + user) this gate will send, in Unicode code points.
@@ -88,6 +87,26 @@ export const VERIFICATION_MAX_INPUT_TOKENS = 2_000;
  * units, so `.length` would reject a legitimate prompt at half the stated bound.
  */
 export const MAX_VERIFICATION_PROMPT_CHARS = 2_000;
+
+/**
+ * The largest input-token bound any prompt this builder accepts can carry.
+ *
+ * ⛔ For a caller that must reserve BEFORE it has a prompt in hand — the band drain sizes a batch by dividing
+ * the period's headroom by one worst case, with no line to build a prompt from. A caller that HAS its prompt
+ * reserves from {@link inputTokenBound} over the turns it is about to send, which is both honest and tighter.
+ *
+ * ⛔ It is NOT {@link MAX_VERIFICATION_PROMPT_CHARS}. This constant used to be `VERIFICATION_MAX_INPUT_TOKENS
+ * = 2_000`, set equal to the code-point cap on the claim that "no tokenizer emits more than one token per code
+ * point". That claim is FALSE for a byte-fallback BPE tokenizer, which emits an unknown code point as its
+ * UTF-8 BYTES — up to four tokens each. A 2,000-code-point prompt of CJK or emoji could therefore be billed
+ * ~8,000 input tokens against a reservation priced for 2,000, and ADR-0024 §2 says plainly that if the input
+ * is not bounded "the reservation is a lie and the ceiling does not hold". Four bytes per code point is the
+ * real bound, and `inputTokenCeiling` applies it.
+ */
+export const VERIFICATION_INPUT_TOKEN_CEILING = inputTokenCeiling(
+    MAX_VERIFICATION_PROMPT_CHARS,
+    VERIFICATION_PROMPT_TURNS,
+);
 
 /** Raised when an assembled prompt would exceed the bound. Matching guard: {@link isPromptTooLargeError}. */
 export class PromptTooLargeError extends Error {

@@ -55,6 +55,8 @@
  * parse it returns, which is the one thing this leg exists to observe honestly.
  */
 
+import { inputTokenCeiling } from '../spend/spendArithmetic.js';
+
 /**
  * The system prompt, byte for byte, including its trailing newline.
  *
@@ -289,14 +291,21 @@ export const PARSE_TEMPERATURE = 0;
  */
 export const MAX_PARSE_PROMPT_CHARS = 22_000;
 
+/** The two message turns the parse leg sends: one system, one user. */
+export const PARSE_PROMPT_TURNS = 2;
+
 /**
- * The hard input-TOKEN cap the worst-case reservation is computed from.
+ * The largest input-token bound any prompt within {@link MAX_PARSE_PROMPT_CHARS} can carry.
  *
- * Equal to {@link MAX_PARSE_PROMPT_CHARS} on purpose, by the one-token-per-code-point bound above.
- * Deliberately NOT derived from a measured characters-per-token ratio — that ratio is ~4 for English and ~1
- * for CJK, and the reservation must hold for a recipe in any language.
+ * ⛔ NOT equal to the code-point cap. This was `PARSE_MAX_INPUT_TOKENS = MAX_PARSE_PROMPT_CHARS`, on the claim
+ * that "one token per code point is an upper bound for every tokenizer in the roster". A byte-fallback BPE
+ * tokenizer breaks that: an unknown code point is emitted as its UTF-8 bytes, up to FOUR tokens. At this
+ * prompt's size the gap is not academic — 22,000 code points of non-Latin text could bill ~88,000 input
+ * tokens against a reservation priced for 22,000, and ADR-0024 §2 says an unbounded input makes the
+ * reservation "a lie". Bytes are the real bound; a caller holding its prompt uses `inputTokenBound` instead,
+ * which is tighter still.
  */
-export const PARSE_MAX_INPUT_TOKENS = MAX_PARSE_PROMPT_CHARS;
+export const PARSE_INPUT_TOKEN_CEILING = inputTokenCeiling(MAX_PARSE_PROMPT_CHARS, PARSE_PROMPT_TURNS);
 
 /** The tag the line is delimited by. */
 const OPEN_TAG = '<input>';

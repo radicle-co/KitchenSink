@@ -21,7 +21,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { BedrockClientError, BedrockThrottledError } from '@kitchensink/bedrock-client';
+import { inputTokenBound, worstCaseMicros, type ModelRate } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
 
+import { INPUT_BOUND_EXCEEDED_METRIC_NAME } from '../../common/spendMetrics.js';
 import { processVerification, type VerificationDeps } from '../verifyLine.js';
 
 const MESSAGE = {
@@ -90,6 +93,70 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
 /** The band a run recorded, or `undefined` when it recorded nothing. */
 const bandRecorded = (spies: { recordVerdict: ReturnType<typeof vi.fn> }): string | undefined =>
     spies.recordVerdict.mock.calls[0]?.[0]?.band;
+
+describe('the input-token bound the reservation is priced from (ADR-0024 layer 1)', () => {
+    it('prices the reservation from the prompt IN HAND — bytes plus the template allowance, never a static cap', async () => {
+        // ⛔ The plan used to be priced from `VERIFICATION_MAX_INPUT_TOKENS = 2_000`, equal to the code-point
+        // cap on the claim "no tokenizer emits more than one token per code point" — false for byte-fallback
+        // BPE. The bound is now derived from the two turns the transport is actually handed, which is both
+        // honest (bytes) and tighter for the ordinary ASCII prompt (~1.3 KB, not 2,000 tokens).
+        const d = deps({ stage: 'prod' });
+        await processVerification(d, MESSAGE);
+
+        const request = d.spies.converse.mock.calls[0]?.[0] as { systemPrompt: string; userMessage: string };
+        const plan = d.spies.reserve.mock.calls[0]?.[0] as { worstMicros: number; rate: ModelRate };
+
+        expect(plan.worstMicros).toBe(
+            worstCaseMicros(
+                plan.rate,
+                inputTokenBound([request.systemPrompt, request.userMessage]),
+                VERIFICATION_MAX_OUTPUT_TOKENS,
+            ),
+        );
+    });
+
+    it('emits the over-bound DETECTOR, attributed, when the billed input beats the bound it reserved with', async () => {
+        // The counter records an overshoot silently (the settle delta is unclamped); this metric is what makes
+        // a tokenizer that beats bytes VISIBLE. 9,000 billed tokens is beyond any bound a ~1 KB prompt yields.
+        const d = deps({ stage: 'prod' });
+        d.spies.converse.mockResolvedValue({
+            ...ANSWERED,
+            usage: { inputTokens: 9_000, outputTokens: 42, totalTokens: 9_042 },
+        });
+        await processVerification(d, MESSAGE);
+
+        const request = d.spies.converse.mock.calls[0]?.[0] as { systemPrompt: string; userMessage: string };
+        const bound = inputTokenBound([request.systemPrompt, request.userMessage]);
+        const emitted = d.spies.emit.mock.calls
+            .map((call) => call[0] as { name: string; value: number; dimensions?: Record<string, string> })
+            .find((metric) => metric.name === INPUT_BOUND_EXCEEDED_METRIC_NAME);
+
+        expect(emitted?.value).toBe(9_000 - bound);
+        expect(emitted?.dimensions).toEqual({ CallSite: 'verification-gate' });
+    });
+
+    it('stays silent when the billed input fits the bound', async () => {
+        const d = deps({ stage: 'prod' });
+        await processVerification(d, MESSAGE);
+
+        const names = d.spies.emit.mock.calls.map((call) => (call[0] as { name: string }).name);
+
+        expect(names).not.toContain(INPUT_BOUND_EXCEEDED_METRIC_NAME);
+    });
+
+    it('emits the detector in an UNGATED stage too — the ~$88/month exposure needs the same eyes', async () => {
+        const d = deps({ stage: 'sandbox' });
+        d.spies.converse.mockResolvedValue({
+            ...ANSWERED,
+            usage: { inputTokens: 9_000, outputTokens: 42, totalTokens: 9_042 },
+        });
+        await processVerification(d, MESSAGE);
+
+        const names = d.spies.emit.mock.calls.map((call) => (call[0] as { name: string }).name);
+
+        expect(names).toContain(INPUT_BOUND_EXCEEDED_METRIC_NAME);
+    });
+});
 
 describe('the happy path', () => {
     it('reserves, calls, settles and records — in that order', async () => {

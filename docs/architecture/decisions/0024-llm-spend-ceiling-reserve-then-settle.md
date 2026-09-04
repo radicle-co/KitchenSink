@@ -682,3 +682,78 @@ amplification.
 Non-consumers, stated so the roster cannot rot the way §4c's did: plan U12's promotion funnel and U19's
 corroborated-completion trigger added NO Bedrock consumers — both are pure service/database flows — and
 layer 4b's single `bedrock:InvokeModel` grantee is unchanged (`llmSpendGuards.test.ts`).
+
+## Update (2026-09-04) — residency is enforced, the wildcard is gone, and three §4/§4b claims are retracted
+
+PR #91's review surfaced findings that contradict text this ADR states as fact. Amending in place rather than
+superseding: §1–§3, the reserve-then-settle protocol, the $100 monthly ceiling and the single-grantee rule
+are unchanged. What follows retracts named clauses only.
+
+### Retracted — the `foundation-model/*` wildcard
+
+§4b recorded that the wildcard's stated justification ("the model id comes from SSM and cannot be resolved at
+synth time") "no longer holds, and it stays for a weaker reason … not because it is irreducible."
+
+**It is gone.** `bedrockInvokeStatements` derives every ARN from `BEDROCK_MODEL_REGISTRY`: on-demand models by
+name in the deploy region, profiles and their `bedrock:InferenceProfileArn`-conditioned fan-outs as before. A
+profile-addressed model deliberately receives **no** bare-id deploy-region grant — that would re-authorize the
+direct call the condition exists to deny. `VERIFICATION_BEDROCK_MODEL_WILDCARD` is deleted from
+`AcceptedNagFindings`, because leaving an acceptance for a wildcard that no longer exists would silence the
+IAM5 finding a future registry entry written with a `*` ought to raise.
+
+### Retracted — "RESIDENCY IS STILL OPEN, AND IS NOT GATED BY IAM"
+
+§4b's ⛔ paragraph is retracted in full. `residencyClearance` now has both its declared callers, landed as ONE
+change exactly as that paragraph required: `planReservation` refuses a `residency-unapproved` entry, and
+`bedrockInvokeStatements` emits no statement for one. IAM cannot grant what the runtime refuses, because both
+ask the same predicate and resolve the same region (`Stack.region` at synth, `AWS_REGION` at runtime).
+
+⛔ **No `residencyApproval` was recorded, and that was the decision.** Whether user recipe text may come to
+REST in us-east-2/us-west-2 — where AWS documents that prompts and outputs "may be stored … for abuse
+detection purposes" — is a data-protection determination owned by feature **016**, not a marker to edit. The
+registry's own comment said so ("not a config detail, and not mine to close by editing a marker"), and adding
+one would have manufactured the green signal instead of fixing the system.
+
+**The parse leg moved to Nova Lite v1**, whose `reach` is `deploy-region`. That keeps the leg working while
+the clearance is enforced, and takes the 016 question off the critical path rather than pre-empting it: if 016
+later approves cross-region routing, the marker will then mean something. Accuracy against Nova 2 Lite is the
+trade, and it is a trade — not a free substitution.
+
+⚠️ ADR-0026 §9 and `docs/architecture/2026-08-28-ingredient-pipeline-state.md` still name Nova 2 Lite as the
+shipped parse model. Both are now stale and are corrected separately.
+
+### Retracted — "reservation is a bound" and the code-point input cap
+
+§4's reservation arithmetic is amended on two counts found in review. The reservation rounded every input
+class once at the highest rate while settlement rounded each class independently, so the reserved figure was
+not an upper bound on the settled one; classes are now rounded consistently. And the input cap counted Unicode
+**code points**, which is not an upper bound on tokens — a byte-fallback BPE tokenizer emits an unknown code
+point as up to four tokens. The bound is now bytes.
+
+⚠️ `CHAT_TEMPLATE_BASE_TOKENS` / `_PER_TURN` (32 / 16) are **unmeasured**. No Bedrock tokenizer is published
+and no live call was made. They are a defensive constant, and the control is the
+`VerificationInputBoundExceeded` detector, not the numbers.
+
+### Accepted, not fixed — a refused line stalls rather than re-drives
+
+A residency refusal leaves the line `pending`. U9 re-runs only `failed_retryable`, so nothing re-drives it and
+the job closes at TTL. `verifyLine.ts` treats a _ceiling denial_ — also month-long — as transient precisely so
+it surfaces as redrivable DLQ depth, and this deliberately differs: a residency refusal is a standing product
+decision, and reporting a decision as queue depth trains an operator to ignore the queue.
+
+⛔ The reason that is tolerable is the alarm, not the disposition. The refusal is the one failure leaving no
+other trace — message acknowledged, nothing landed, nothing reserved, nothing thrown, DLQ flat, `Errors` flat,
+spend merely quiet. `VerificationResidencyRefused` and its `> 0` alarm exist so the stall is loud. **Without
+that metric this disposition would be wrong**, and a change that removes it must revisit this paragraph.
+
+⚠️ Corrected while writing this: an earlier claim that recipe-workers logs route to Sentry is **false**. The
+repository's only `logs.SubscriptionFilter` is in `WebhooksStack`, draining the webhook Lambda, the API access
+log and the identity ECS service. No recipe-workers log group is subscribed.
+
+### Still open
+
+- **The bake-off is now the only path sending the corpus cross-region.** `verificationBakeOff.ts` keeps its own
+  `INVOCATION_IDS` map, preserved in §4b on a _spend_ argument that does not carry the data-protection one this
+  change creates. It runs under operator credentials that bypass this role.
+- **Nothing is exercised against a live profile call**, unchanged from §4b: no profile-backed model is invocable
+  on this account, so both halves remain proved by unit tests and synthesized templates only.

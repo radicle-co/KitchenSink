@@ -20,9 +20,38 @@
  * implements the same classification for the post-deploy runtime probe. One rule, two places — a
  * build-time gate here and a live check there. Extracting to a shared package is the correct end state;
  * it is not done here only because that copy lives in a test directory this package cannot import.
+ * ⚠️ They ALREADY drifted once — both carried an OPTIONAL terminator strip — so both now mirror the SAME
+ * upstream predicate, `isValidDecodedPublishableKey` from `@clerk/shared/keys`, rather than each inventing
+ * its own notion of validity. Change one and the other must change to the same VENDOR rule.
  *
  * Every function below is pure.
  */
+
+/**
+ * Clerk's OWN validity rule for a decoded publishable key, mirrored from `isValidDecodedPublishableKey` in
+ * `@clerk/shared/keys`: exactly one trailing `$`, no other `$`, and a `.` in what remains — a Frontend API
+ * host is never a single label.
+ *
+ * MIRRORED rather than imported, and mirrored rather than hand-tightened. `@clerk/shared` is not a declared
+ * dependency of this package (it arrives transitively under `@clerk/nextjs`) and this module is a build-time
+ * guard that must not acquire a runtime Clerk import; its twin in `prodWebSurface.ts` could not import from
+ * here either. Copying the VENDOR's predicate is what stops the two copies becoming two different opinions,
+ * which is exactly what happened while each had its own terminator handling. A stricter hostname regex of
+ * our own was written first and discarded for the same reason: refusing a key Clerk accepts would fail a
+ * build that would have worked.
+ *
+ * @param decoded - The base64-decoded payload of a `pk_(test|live)_…` key.
+ * @returns `true` when Clerk itself would accept it.
+ */
+function isValidDecodedPublishableKey(decoded: string): boolean {
+    if (!decoded.endsWith('$')) {
+        return false;
+    }
+
+    const withoutTerminator = decoded.slice(0, -1);
+
+    return !withoutTerminator.includes('$') && withoutTerminator.includes('.');
+}
 
 /** Which Clerk instance a publishable key belongs to. */
 export interface ClerkKeyRef {
@@ -39,7 +68,8 @@ export type EndpointStage = 'production' | 'non-production' | 'local' | 'unknown
  * Decode a Clerk publishable key into its instance kind and Frontend API host.
  *
  * @param key - The raw `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` value.
- * @returns The instance reference, or `null` when the value is not a publishable key.
+ * @returns The instance reference, or `null` when the value is not a publishable key — including one that
+ *   decodes but was never minted by Clerk (no `$` terminator, or a payload that is not a hostname).
  */
 export function classifyClerkKey(key: string): ClerkKeyRef | null {
     const match = /^pk_(test|live)_([A-Za-z0-9+/=_-]+)$/.exec(key);
@@ -58,13 +88,14 @@ export function classifyClerkKey(key: string): ClerkKeyRef | null {
         return null;
     }
 
-    const fapiHost = decoded.replace(/\$+$/, '').trim();
-
-    if (fapiHost === '') {
+    // The terminator is part of the format Clerk mints, not decoration. An earlier `replace(/\$+$/, '')` made
+    // it optional, so ANY decodable payload classified — `pk_live_` + base64('foo') read as a production
+    // instance at `foo`, and this guard would have waved through a key clerk-js cannot initialize with.
+    if (!isValidDecodedPublishableKey(decoded)) {
         return null;
     }
 
-    return { kind, fapiHost };
+    return { kind, fapiHost: decoded.slice(0, -1) };
 }
 
 /**

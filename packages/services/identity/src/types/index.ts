@@ -19,7 +19,7 @@ export type {
     UserProfileAccountDto,
 } from './account.js';
 export type { CreateProfileDto, ProfileId, ProfileReadDto, UpdateProfileDto, UserProfile } from './profile.js';
-export type { UserDeletionQueueMessage } from './deletion.js';
+export type { DeletionEvent, DeletionQueueMessage } from './deletion.js';
 export type {
     ReconciliationDiffPayload,
     ReconciliationQueueMessage,

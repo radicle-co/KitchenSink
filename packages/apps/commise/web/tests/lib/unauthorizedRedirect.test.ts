@@ -33,9 +33,10 @@
  *
  * ## Mutation check
  *
- * Deleting the `hasAttempted` short-circuit in `redirectToSignInOnce` makes "does not bounce a second
+ * Deleting the `attempted.has` short-circuit in `redirectToSignInOnce` makes "does not bounce a second
  * time…" and "…even after a round trip through the sign-in page" fail. Widening the marker to a
- * path-independent flag makes "still bounces for a DIFFERENT path" fail.
+ * path-independent flag makes "still bounces for a DIFFERENT path" fail. Narrowing it back to a single
+ * slot makes "remembers EVERY path" fail (and its in-document twin).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -61,7 +62,12 @@ describe('buildSignInRedirectUrl (pure)', () => {
 
 describe('redirectToSignInOnce (circuit breaker)', () => {
     beforeEach(() => {
+        // `restoreAllMocks`, not just `clearAllMocks`: the storage-unavailable cases below replace the
+        // `sessionStorage` getter with a throwing double via `vi.spyOn`, and `clearAllMocks` leaves that
+        // spy installed — the next case's `sessionStorage.clear()` would then throw before it ran.
+        vi.restoreAllMocks();
         vi.clearAllMocks();
+        resetUnauthorizedRecovery();
         window.sessionStorage.clear();
         window.history.replaceState(null, '', '/en');
     });
@@ -107,6 +113,40 @@ describe('redirectToSignInOnce (circuit breaker)', () => {
         expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen%2Fprofile');
     });
 
+    it('remembers EVERY path it has bounced from — recording a second path must not re-arm the first', () => {
+        // The invariant is "once per originating path per session", which a single-slot marker cannot keep:
+        // `/en` bounces (marker=/en), `/en/profile` bounces (marker OVERWRITTEN to /en/profile), and `/en`
+        // 401s again — under one slot that is a fresh bounce, and with <SignIn> forcing the visitor straight
+        // back it is the production loop again, just two surfaces wide instead of one.
+        redirectToSignInOnce();
+        window.history.replaceState(null, '', '/en/profile');
+        redirectToSignInOnce();
+        mockNavigateTo.mockClear();
+        window.history.replaceState(null, '', '/en');
+
+        expect(redirectToSignInOnce()).toBe(false);
+        expect(mockNavigateTo).not.toHaveBeenCalled();
+    });
+
+    it('a pre-list marker from an earlier build (a bare path) is honoured as an attempted path', () => {
+        // A visitor mid-session across a deploy still carries the old scalar form. Treating it as garbage
+        // would re-arm the breaker for exactly the surface it had already tripped on.
+        window.sessionStorage.setItem('commise.unauthorizedRecovery', '/en');
+
+        expect(redirectToSignInOnce()).toBe(false);
+        expect(mockNavigateTo).not.toHaveBeenCalled();
+    });
+
+    it('an unreadable marker degrades to one more bounce, then trips — never a loop', () => {
+        // Garbage cannot say which paths were attempted, so it is read as none: ONE bounce is allowed, the
+        // write that follows replaces the garbage with a well-formed list, and the next 401 trips.
+        window.sessionStorage.setItem('commise.unauthorizedRecovery', '{not json');
+
+        expect(redirectToSignInOnce()).toBe(true);
+        expect(redirectToSignInOnce()).toBe(false);
+        expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen');
+    });
+
     it('bounces again once the recovery is reset (a genuine sign-in clears the breaker)', () => {
         redirectToSignInOnce();
         resetUnauthorizedRecovery();
@@ -136,5 +176,28 @@ describe('redirectToSignInOnce (circuit breaker)', () => {
         expect(redirectToSignInOnce()).toBe(true);
         expect(redirectToSignInOnce()).toBe(false);
         expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen');
+    });
+
+    it('the in-document fallback ALSO remembers every path, not just the last one', () => {
+        const throwing = {
+            getItem: () => {
+                throw new Error('SecurityError');
+            },
+            setItem: () => {
+                throw new Error('SecurityError');
+            },
+            removeItem: () => {
+                throw new Error('SecurityError');
+            },
+        };
+
+        vi.spyOn(window, 'sessionStorage', 'get').mockReturnValue(throwing as unknown as Storage);
+
+        expect(redirectToSignInOnce()).toBe(true);
+        window.history.replaceState(null, '', '/en/profile');
+        expect(redirectToSignInOnce()).toBe(true);
+        window.history.replaceState(null, '', '/en');
+        expect(redirectToSignInOnce()).toBe(false);
+        expect(mockNavigateTo).toHaveBeenCalledTimes(2);
     });
 });

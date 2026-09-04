@@ -155,16 +155,25 @@ export function prTokenForPreviewRecordName(recordName: string, previewZone: str
  * the shared identity host. Defence in depth is warranted because the blast radius is every preview at
  * once.
  *
+ * It takes the ZONE, not just the host, and that is the whole guard. An earlier form checked only the
+ * first label, which kept the promise for hosts INSIDE the zone and broke it for `pr-{N}` hosts outside it:
+ * Route 53 refuses a name outside the hosted zone on its own, but nothing constrains the hostname a Vercel
+ * domain or alias call is sent, so `pr-1.attacker.example` walked straight through to that API. The
+ * predicate is {@link prTokenForPreviewRecordName} — the SAME specification the reaper uses to decide what a
+ * PR owns — so there is one matcher (ADR-0005), not a drifting second copy.
+ *
  * @param host - The hostname about to be acted on.
+ * @param previewZone - The preview zone the host must sit DIRECTLY under.
  * @returns The normalized host.
- * @throws PreviewScopeError When its first label is not exactly `pr-{N}`.
+ * @throws PreviewScopeError When the host is not exactly `pr-{N}.<zone>`, or the zone is malformed.
  */
-export const requirePreviewHost = (host: string): string => {
+export const requirePreviewHost = (host: string, previewZone: string): string => {
     const normalized = normalizeDnsName(host);
-    const [label, ...rest] = normalized.split('.');
 
-    if (label === undefined || !PR_TOKEN.test(label) || rest.length < 2) {
-        throw new PreviewScopeError(`preview-domain: refusing to act on '${host}' — not a pr-{N} preview host`);
+    if (prTokenForPreviewRecordName(normalized, previewZone) === undefined) {
+        throw new PreviewScopeError(
+            `preview-domain: refusing to act on '${host}' — not a pr-{N} host directly under '${previewZone}'`,
+        );
     }
 
     return normalized;

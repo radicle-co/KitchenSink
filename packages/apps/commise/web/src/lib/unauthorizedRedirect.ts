@@ -28,8 +28,10 @@
  *
  * The marker lives in `sessionStorage` because the bounce is a FULL-DOCUMENT navigation
  * (`window.location.assign`): module state does not survive it, which is exactly why the previous code could
- * not distinguish hop 1 from hop 100. It is keyed by the originating path so one stuck surface does not
- * disable recovery for every other route.
+ * not distinguish hop 1 from hop 100. It is the LIST of originating paths already bounced from — a list, not
+ * a slot, because "once per path" cannot be kept in one slot: `/en` bounces, `/en/profile` bounces and
+ * overwrites it, `/en` 401s again and is a fresh bounce. Keyed per path so one stuck surface does not disable
+ * recovery for every other route.
  *
  * There is deliberately **no** automatic reset on a later success. A stale marker degrades one surface to an
  * error notice; a cleared marker re-arms the loop. Fail safe. {@link resetUnauthorizedRecovery} is the
@@ -38,7 +40,7 @@
 import { withBasePath } from '@/lib/basePath';
 import { navigateTo } from '@/lib/navigation';
 
-/** `sessionStorage` key holding the path we have already attempted sign-in recovery for. */
+/** `sessionStorage` key holding the JSON list of paths we have already attempted sign-in recovery for. */
 const RECOVERY_KEY = 'commise.unauthorizedRecovery';
 
 /**
@@ -46,33 +48,65 @@ const RECOVERY_KEY = 'commise.unauthorizedRecovery';
  * storage). It cannot survive the redirect, so it degrades the breaker from "once per session" to "once per
  * document" — still bounded, never a tight loop within one page load.
  */
-let documentMarker: string | null = null;
+const documentAttempts = new Set<string>();
 
 /**
- * The path we have already bounced from, or `null`.
+ * Decode a stored marker into the set of paths already attempted. Pure.
  *
- * @returns The recorded originating path, or `null` when none is recorded.
- * @sideEffect Reads `sessionStorage`.
+ * Three shapes are honoured. The JSON list this module writes. A bare path — the single-slot marker earlier
+ * builds wrote; a visitor mid-session across a deploy still carries it, and reading it as garbage would re-arm
+ * the breaker on exactly the surface it had tripped on. And anything else, which reads as NO attempts: that
+ * is bounded rather than fail-open, because the write after the next bounce replaces it with a well-formed
+ * list, so garbage costs at most one extra hop.
+ *
+ * @param raw - The stored value, or `null` when nothing is stored.
+ * @returns The attempted paths.
  */
-function readMarker(): string | null {
+function parseAttemptedPaths(raw: string | null): ReadonlySet<string> {
+    if (raw === null) {
+        return new Set();
+    }
+
+    if (raw.startsWith('/')) {
+        return new Set([raw]);
+    }
+
     try {
-        return window.sessionStorage.getItem(RECOVERY_KEY);
+        const parsed: unknown = JSON.parse(raw);
+
+        return new Set(Array.isArray(parsed) ? parsed.filter((path): path is string => typeof path === 'string') : []);
     } catch {
-        return documentMarker;
+        return new Set();
     }
 }
 
 /**
- * Record that recovery has been attempted for `path`.
+ * The paths we have already bounced from.
  *
- * @param path - The originating path the 401 came from.
+ * @returns The attempted paths — the in-document fallback when storage is unavailable.
+ * @sideEffect Reads `sessionStorage`.
+ */
+function readAttemptedPaths(): ReadonlySet<string> {
+    try {
+        return parseAttemptedPaths(window.sessionStorage.getItem(RECOVERY_KEY));
+    } catch {
+        return documentAttempts;
+    }
+}
+
+/**
+ * Persist the full set of attempted paths.
+ *
+ * @param paths - Every path recovery has been attempted for, including the one just recorded.
  * @sideEffect Writes `sessionStorage` (falling back to module state when storage is unavailable).
  */
-function writeMarker(path: string): void {
+function writeAttemptedPaths(paths: ReadonlySet<string>): void {
     try {
-        window.sessionStorage.setItem(RECOVERY_KEY, path);
+        window.sessionStorage.setItem(RECOVERY_KEY, JSON.stringify([...paths]));
     } catch {
-        documentMarker = path;
+        for (const path of paths) {
+            documentAttempts.add(path);
+        }
     }
 }
 
@@ -82,12 +116,12 @@ function writeMarker(path: string): void {
  * @sideEffect Clears the `sessionStorage` marker and the in-document fallback.
  */
 export function resetUnauthorizedRecovery(): void {
-    documentMarker = null;
+    documentAttempts.clear();
 
     try {
         window.sessionStorage.removeItem(RECOVERY_KEY);
     } catch {
-        // Storage unavailable — `documentMarker` above is the whole state in that case.
+        // Storage unavailable — `documentAttempts` above is the whole state in that case.
     }
 }
 
@@ -119,12 +153,13 @@ export function redirectToSignInOnce(): boolean {
     }
 
     const fromPath = window.location.pathname;
+    const attempted = readAttemptedPaths();
 
-    if (readMarker() === fromPath) {
+    if (attempted.has(fromPath)) {
         return false;
     }
 
-    writeMarker(fromPath);
+    writeAttemptedPaths(new Set([...attempted, fromPath]));
     navigateTo(buildSignInRedirectUrl(fromPath));
 
     return true;

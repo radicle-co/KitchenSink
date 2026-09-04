@@ -2,29 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
 import { createServiceLogger } from '../observability/sentryLogging.js';
+import type { DeletionEvent, DeletionQueueMessage } from '../types/deletion.js';
 import { DeletionEnqueueError } from './deletionEnqueue.error.js';
 
 export const SQS_CLIENT = 'SQS_CLIENT';
-
-/**
- * The lifecycle event a deletion-queue message routes (CR-002):
- * - `closure` — the deletion-worker BANS the Clerk identity (recoverable tombstone).
- * - `reactivation` — the worker UNBANS the Clerk identity (admin-mediated recovery).
- * - `erasure` — the worker fans out the recipe/food erasure legs (U3/U4 — currently a seam).
- */
-export type DeletionEvent = 'closure' | 'reactivation' | 'erasure';
-
-/** The deletion-queue message contract (extends the legacy `{ identityId, userId, enqueuedAt }` with `event`). */
-export interface DeletionQueueMessage {
-    /** The Clerk identity id (`sub`) the worker mutates via the Clerk admin SDK. */
-    readonly identityId: string;
-    /** The app ULID (for correlation/logging). */
-    readonly userId: string;
-    /** The lifecycle transition this message routes. */
-    readonly event: DeletionEvent;
-    readonly enqueuedAt: string;
-    readonly failureReason?: string;
-}
 
 @Injectable()
 export class SqsService {

@@ -54,6 +54,34 @@ describe('classifyClerkKey', () => {
         expect(classifyClerkKey('not-a-key')).toBeNull();
         expect(classifyClerkKey('')).toBeNull();
     });
+
+    it('returns null for a decodable payload that lacks the `$` terminator — Clerk never issued it', () => {
+        // The terminator is part of the key format, not decoration. Treating it as optional lets any
+        // base64 string that happens to decode pass as an instance — `foo` would classify as a live
+        // instance at `foo`, and the coherence guard would then wave a key clerk-js cannot initialize with.
+        expect(classifyClerkKey(`pk_live_${btoa('clerk.commise.app')}`)).toBeNull();
+        expect(classifyClerkKey(`pk_live_${btoa('foo')}`)).toBeNull();
+        expect(classifyClerkKey(`pk_test_${btoa('nice-fowl-6.clerk.accounts.dev')}`)).toBeNull();
+    });
+
+    it('returns null when the terminated payload is not a Frontend API host', () => {
+        // Clerk's own `isValidDecodedPublishableKey`: exactly ONE trailing `$`, and a `.` in what remains.
+        expect(classifyClerkKey(`pk_live_${btoa('foo$')}`)).toBeNull(); // single label — never a FAPI host
+        expect(classifyClerkKey(`pk_live_${btoa('$')}`)).toBeNull(); // nothing before the terminator
+        expect(classifyClerkKey(`pk_live_${btoa('clerk.commise.app$$')}`)).toBeNull(); // exactly one `$`
+        expect(classifyClerkKey(`pk_live_${btoa('clerk$commise.app$')}`)).toBeNull(); // interior `$`
+    });
+
+    it('is the VENDOR rule, not a stricter one of ours — a key Clerk accepts must not fail the build', () => {
+        // The guard exists to stop an incoherent PAIR shipping, never to second-guess Clerk on key format.
+        // A hostname regex of our own invention was written first and discarded here: it rejected payloads
+        // `isValidDecodedPublishableKey` accepts, which would fail a build that would have worked.
+        expect(classifyClerkKey(`pk_live_${btoa('clerk.commise.app.$')}`)).toEqual({
+            kind: 'live',
+            fapiHost: 'clerk.commise.app.',
+        });
+        expect(classifyClerkKey(`pk_test_${btoa('a.b$')}`)).toEqual({ kind: 'test', fapiHost: 'a.b' });
+    });
 });
 
 describe('classifyEndpointStage', () => {
@@ -155,6 +183,17 @@ describe('findStageIncoherence — the outage, as an assertion', () => {
         expect(
             findStageIncoherence({
                 clerkPublishableKey: 'garbage',
+                endpoints: { NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.commise.app' },
+            }),
+        ).not.toEqual([]);
+    });
+
+    it('REJECTS a terminator-less pk_live against production — a malformed key is not a production instance', () => {
+        // Decodable but not a key Clerk issued. Accepting it would let a build ship whose Clerk cannot
+        // initialize, past the very guard that exists to stop a broken Clerk configuration reaching browsers.
+        expect(
+            findStageIncoherence({
+                clerkPublishableKey: `pk_live_${btoa('clerk.commise.app')}`,
                 endpoints: { NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.commise.app' },
             }),
         ).not.toEqual([]);

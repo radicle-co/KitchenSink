@@ -64,16 +64,18 @@ export type VercelOutcome = 'released' | 'absent';
  * @param client - Route 53 client (or a double).
  * @param hostedZoneId - The zone holding the preview records.
  * @param previewHost - The `pr-{N}.<zone>` host to remove.
+ * @param previewZone - The preview zone the host must sit DIRECTLY under — re-asserted here, never trusted.
  * @returns `'deleted'` when a record was removed, `'absent'` when there was nothing to remove.
- * @throws PreviewScopeError When `previewHost` is not a `pr-{N}` preview host.
+ * @throws PreviewScopeError When `previewHost` is not `pr-{N}` directly under `previewZone`.
  * @sideEffect Deletes DNS records in Route 53.
  */
 export async function deletePreviewDnsRecord(
     client: Route53Sender,
     hostedZoneId: string,
     previewHost: string,
+    previewZone: string,
 ): Promise<DnsOutcome> {
-    const host = requirePreviewHost(previewHost);
+    const host = requirePreviewHost(previewHost, previewZone);
     const startRecordName = `${host}.`;
 
     const { ResourceRecordSets = [] } = await client.send(
@@ -119,16 +121,18 @@ export async function deletePreviewDnsRecord(
  * @param http - `fetch`, or a double.
  * @param config - Vercel token, project and (optional) team.
  * @param previewHost - The `pr-{N}.<zone>` host to release.
+ * @param previewZone - The preview zone the host must sit DIRECTLY under — re-asserted here, never trusted.
  * @returns `'released'` or `'absent'`.
- * @throws PreviewScopeError When `previewHost` is not a `pr-{N}` preview host.
+ * @throws PreviewScopeError When `previewHost` is not `pr-{N}` directly under `previewZone`.
  * @sideEffect Removes a domain from the Vercel project.
  */
 export async function releaseVercelPreviewDomain(
     http: HttpSender,
     config: VercelProjectConfig,
     previewHost: string,
+    previewZone: string,
 ): Promise<VercelOutcome> {
-    const host = requirePreviewHost(previewHost);
+    const host = requirePreviewHost(previewHost, previewZone);
     const url = vercelApiUrl(
         `/v9/projects/${encodeURIComponent(config.projectId)}/domains/${encodeURIComponent(host)}`,
         config,
@@ -192,8 +196,8 @@ export async function teardownPreviewDomain(
     options: PreviewDomainTeardownOptions,
 ): Promise<PreviewDomainTeardownResult> {
     const host = previewHostForPrToken(options.prToken, options.previewZone);
-    const dns = await deletePreviewDnsRecord(deps.route53, options.hostedZoneId, host);
-    const vercel = await releaseVercelPreviewDomain(deps.http, options.vercel, host);
+    const dns = await deletePreviewDnsRecord(deps.route53, options.hostedZoneId, host, options.previewZone);
+    const vercel = await releaseVercelPreviewDomain(deps.http, options.vercel, host, options.previewZone);
 
     return { host, dns, vercel };
 }

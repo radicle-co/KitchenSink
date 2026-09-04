@@ -183,8 +183,9 @@ const jsonHeaders = (config: VercelProjectConfig): Record<string, string> => ({
  * @param http - `fetch`, or a double.
  * @param config - Vercel token, project and (optional) team.
  * @param previewHost - The `pr-{N}.<zone>` host to claim.
+ * @param previewZone - The preview zone the host must sit DIRECTLY under — re-asserted here, never trusted.
  * @returns `'created'` on a fresh claim, `'existing'` when this project already held it.
- * @throws PreviewScopeError When `previewHost` is not a `pr-{N}` preview host.
+ * @throws PreviewScopeError When `previewHost` is not `pr-{N}` directly under `previewZone`.
  * @throws Error When the domain belongs to another project, or Vercel fails for any other reason —
  *   proceeding to create DNS for a hostname we do not own is exactly the takeover shape to avoid.
  * @sideEffect Adds a domain to the Vercel project.
@@ -193,8 +194,9 @@ export async function claimVercelPreviewDomain(
     http: HttpSender,
     config: VercelProjectConfig,
     previewHost: string,
+    previewZone: string,
 ): Promise<VercelDomainOutcome> {
-    const host = requirePreviewHost(previewHost);
+    const host = requirePreviewHost(previewHost, previewZone);
     const project = encodeURIComponent(config.projectId);
 
     const response = await http(vercelApiUrl(`/v10/projects/${project}/domains`, config), {
@@ -240,8 +242,9 @@ export async function claimVercelPreviewDomain(
  * @param client - Route 53 client (or a double).
  * @param hostedZoneId - The zone that holds the preview records.
  * @param previewHost - The `pr-{N}.<zone>` host to publish.
+ * @param previewZone - The preview zone the host must sit DIRECTLY under — re-asserted here, never trusted.
  * @returns `'created'` when the record was written, `'unchanged'` when it already matched exactly.
- * @throws PreviewScopeError When `previewHost` is not a `pr-{N}` preview host.
+ * @throws PreviewScopeError When `previewHost` is not `pr-{N}` directly under `previewZone`.
  * @throws Error When a record of another type already occupies the name.
  * @sideEffect Writes a DNS record in Route 53.
  */
@@ -249,8 +252,9 @@ export async function upsertPreviewDnsRecord(
     client: Route53Sender,
     hostedZoneId: string,
     previewHost: string,
+    previewZone: string,
 ): Promise<DnsRecordOutcome> {
-    const host = requirePreviewHost(previewHost);
+    const host = requirePreviewHost(previewHost, previewZone);
 
     const { ResourceRecordSets = [] } = await client.send(
         new ListResourceRecordSetsCommand({
@@ -319,8 +323,9 @@ export async function upsertPreviewDnsRecord(
  * @param config - Vercel token, project and (optional) team.
  * @param deployment - The deployment id (`dpl_…`) or bare deployment host to serve on this hostname.
  * @param previewHost - The `pr-{N}.<zone>` host to bind.
+ * @param previewZone - The preview zone the host must sit DIRECTLY under — re-asserted here, never trusted.
  * @returns `'assigned'` for a first binding, `'moved'` when it was re-pointed from an earlier deployment.
- * @throws PreviewScopeError When `previewHost` is not a `pr-{N}` preview host.
+ * @throws PreviewScopeError When `previewHost` is not `pr-{N}` directly under `previewZone`.
  * @throws PreviewAliasPendingError When the deployment is still building, or the cert is still pending.
  * @throws Error When the deployment reference is malformed, or Vercel fails permanently.
  * @sideEffect Assigns a Vercel alias.
@@ -330,8 +335,9 @@ export async function aliasPreviewDeployment(
     config: VercelProjectConfig,
     deployment: string,
     previewHost: string,
+    previewZone: string,
 ): Promise<AliasOutcome> {
-    const host = requirePreviewHost(previewHost);
+    const host = requirePreviewHost(previewHost, previewZone);
     const ref = requireDeploymentRef(deployment);
 
     const response = await http(vercelApiUrl(`/v2/deployments/${encodeURIComponent(ref)}/aliases`, config), {
@@ -455,12 +461,18 @@ export async function createPreviewDomain(
     const delayMs = options.aliasDelayMs ?? DEFAULT_ALIAS_DELAY_MS;
     const sleep = deps.sleep ?? wait;
 
-    const vercelDomain = await claimVercelPreviewDomain(deps.http, options.vercel, host);
-    const dns = await upsertPreviewDnsRecord(deps.route53, options.hostedZoneId, host);
+    const vercelDomain = await claimVercelPreviewDomain(deps.http, options.vercel, host, options.previewZone);
+    const dns = await upsertPreviewDnsRecord(deps.route53, options.hostedZoneId, host, options.previewZone);
 
     for (let attempt = 1; ; attempt++) {
         try {
-            const alias = await aliasPreviewDeployment(deps.http, options.vercel, deployment, host);
+            const alias = await aliasPreviewDeployment(
+                deps.http,
+                options.vercel,
+                deployment,
+                host,
+                options.previewZone,
+            );
 
             return { host, deployment, vercelDomain, dns, alias, aliasAttempts: attempt };
         } catch (err) {

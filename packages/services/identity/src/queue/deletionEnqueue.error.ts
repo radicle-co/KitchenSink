@@ -29,7 +29,7 @@
 import * as Sentry from '@sentry/nestjs';
 
 import { createServiceLogger } from '../observability/sentryLogging.js';
-import type { DeletionEvent } from './sqs.service.js';
+import type { DeletionEvent } from '../types/deletion.js';
 
 const logger = createServiceLogger('DeletionQueue');
 

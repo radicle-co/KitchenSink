@@ -38,7 +38,9 @@ const VERCEL = { token: 'tok', projectId: 'prj_abc', teamId: 'team_xyz' } as con
 /**
  * Hosts in the SAME hosted zone / Vercel project that must never be a creation target: the shared sandbox
  * identity service (every preview authenticates against it), the router apex, the `*.sandbox` wildcard
- * alias (Route 53 renders `*` as the octal escape `\052`), and ACM's validation CNAMEs.
+ * alias (Route 53 renders `*` as the octal escape `\052`), and ACM's validation CNAMEs — plus hosts whose
+ * FIRST label is a perfectly good `pr-{N}` but which sit OUTSIDE the preview zone. A label-only guard
+ * admits those, and the Vercel calls are not constrained by a hosted-zone id the way Route 53's are.
  */
 const NEVER_TARGETS = [
     'sandbox.commise.app',
@@ -50,6 +52,10 @@ const NEVER_TARGETS = [
     '_615cc209664a1f3cf95b4791c287ae43.sandbox.commise.app',
     'pr-73x.sandbox.commise.app',
     'pr-.sandbox.commise.app',
+    'pr-1.attacker.example',
+    'pr-73.commise.app',
+    'pr-73.evil.sandbox.commise.app',
+    'pr-73.sandbox.commise.app.attacker.example',
     '',
 ];
 
@@ -126,7 +132,7 @@ describe('claimVercelPreviewDomain — claiming the hostname on OUR project', ()
     it('POSTs the project domain with the bearer token, team scope and JSON body', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse());
 
-        await expect(claimVercelPreviewDomain(http, VERCEL, HOST)).resolves.toBe('created');
+        await expect(claimVercelPreviewDomain(http, VERCEL, HOST, ZONE)).resolves.toBe('created');
 
         const [url, init] = http.mock.calls[0]!;
         expect(url).toBe('https://api.vercel.com/v10/projects/prj_abc/domains?teamId=team_xyz');
@@ -140,7 +146,7 @@ describe('claimVercelPreviewDomain — claiming the hostname on OUR project', ()
     it('omits teamId when the project is personal', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse());
 
-        await claimVercelPreviewDomain(http, { token: 'tok', projectId: 'prj_abc' }, HOST);
+        await claimVercelPreviewDomain(http, { token: 'tok', projectId: 'prj_abc' }, HOST, ZONE);
 
         expect(http.mock.calls[0]![0]).toBe('https://api.vercel.com/v10/projects/prj_abc/domains');
     });
@@ -153,7 +159,7 @@ describe('claimVercelPreviewDomain — claiming the hostname on OUR project', ()
             .mockResolvedValueOnce(response(409, '{"error":{"code":"domain_already_in_use"}}'))
             .mockResolvedValueOnce(okResponse(`{"name":"${HOST}","verified":true}`));
 
-        await expect(claimVercelPreviewDomain(http, VERCEL, HOST)).resolves.toBe('existing');
+        await expect(claimVercelPreviewDomain(http, VERCEL, HOST, ZONE)).resolves.toBe('existing');
         expect(http.mock.calls[1]![0]).toBe(
             'https://api.vercel.com/v9/projects/prj_abc/domains/pr-73.sandbox.commise.app?teamId=team_xyz',
         );
@@ -171,7 +177,7 @@ describe('claimVercelPreviewDomain — claiming the hostname on OUR project', ()
             .mockResolvedValueOnce(response(409, '{"error":{"code":"domain_already_in_use"}}'))
             .mockResolvedValueOnce(response(404, '{"error":{"code":"not_found"}}'));
 
-        await expect(claimVercelPreviewDomain(http, VERCEL, HOST)).rejects.toThrow(
+        await expect(claimVercelPreviewDomain(http, VERCEL, HOST, ZONE)).rejects.toThrow(
             /409.*another project.*pr-73\.sandbox\.commise\.app/su,
         );
     });
@@ -179,13 +185,13 @@ describe('claimVercelPreviewDomain — claiming the hostname on OUR project', ()
     it('throws with the status and body on any other failure', async () => {
         const http = vi.fn().mockResolvedValueOnce(response(403, '{"error":{"code":"forbidden"}}'));
 
-        await expect(claimVercelPreviewDomain(http, VERCEL, HOST)).rejects.toThrow(/403.*forbidden/su);
+        await expect(claimVercelPreviewDomain(http, VERCEL, HOST, ZONE)).rejects.toThrow(/403.*forbidden/su);
     });
 
     it.each(NEVER_TARGETS)('refuses the non-preview host %j without calling Vercel', async (host) => {
         const http = vi.fn();
 
-        await expect(claimVercelPreviewDomain(http, VERCEL, host)).rejects.toThrow(PreviewScopeError);
+        await expect(claimVercelPreviewDomain(http, VERCEL, host, ZONE)).rejects.toThrow(PreviewScopeError);
         expect(http).not.toHaveBeenCalled();
     });
 });
@@ -194,7 +200,7 @@ describe('upsertPreviewDnsRecord', () => {
     it('UPSERTs exactly one CNAME for the preview host', async () => {
         const send = route53Returning([]);
 
-        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST)).resolves.toBe('created');
+        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST, ZONE)).resolves.toBe('created');
 
         const [listCmd, changeCmd] = send.mock.calls.map((call) => call[0]);
         expect(listCmd).toBeInstanceOf(ListResourceRecordSetsCommand);
@@ -221,7 +227,7 @@ describe('upsertPreviewDnsRecord', () => {
     it('reports `unchanged` and issues no change when the exact record already exists', async () => {
         const send = route53Returning([rrset('pr-73.sandbox.commise.app.')]);
 
-        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST)).resolves.toBe('unchanged');
+        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST, ZONE)).resolves.toBe('unchanged');
         expect(send).toHaveBeenCalledTimes(1);
     });
 
@@ -230,7 +236,7 @@ describe('upsertPreviewDnsRecord', () => {
             rrset('pr-73.sandbox.commise.app.', { ResourceRecords: [{ Value: 'CNAME.vercel-dns.com.' }] }),
         ]);
 
-        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST)).resolves.toBe('unchanged');
+        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST, ZONE)).resolves.toBe('unchanged');
     });
 
     it('re-points a CNAME that currently targets something else', async () => {
@@ -238,14 +244,14 @@ describe('upsertPreviewDnsRecord', () => {
             rrset('pr-73.sandbox.commise.app.', { ResourceRecords: [{ Value: 'd111.cloudfront.net' }] }),
         ]);
 
-        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST)).resolves.toBe('created');
+        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST, ZONE)).resolves.toBe('created');
         expect(send.mock.calls[1]![0].input.ChangeBatch.Changes[0].Action).toBe('UPSERT');
     });
 
     it('re-points a CNAME whose TTL drifted', async () => {
         const send = route53Returning([rrset('pr-73.sandbox.commise.app.', { TTL: 300 })]);
 
-        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST)).resolves.toBe('created');
+        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST, ZONE)).resolves.toBe('created');
     });
 
     /**
@@ -262,7 +268,7 @@ describe('upsertPreviewDnsRecord', () => {
             rrset('pr-730.sandbox.commise.app.'),
         ]);
 
-        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST)).resolves.toBe('created');
+        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST, ZONE)).resolves.toBe('created');
 
         const changes = send.mock.calls[1]![0].input.ChangeBatch.Changes;
         expect(changes).toHaveLength(1);
@@ -279,7 +285,7 @@ describe('upsertPreviewDnsRecord', () => {
             rrset('pr-73.sandbox.commise.app.', { Type: type, AliasTarget: { DNSName: 'd111.cloudfront.net' } }),
         ]);
 
-        const call = upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST);
+        const call = upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, HOST, ZONE);
 
         await expect(call).rejects.toThrow(new RegExp(`conflicting ${type} record`, 'u'));
         await expect(call).rejects.toThrow(/pr-73\.sandbox\.commise\.app/u);
@@ -291,7 +297,7 @@ describe('upsertPreviewDnsRecord', () => {
     it.each(NEVER_TARGETS)('refuses to write the non-preview host %j without calling AWS', async (host) => {
         const send = vi.fn();
 
-        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, host)).rejects.toThrow(
+        await expect(upsertPreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, host, ZONE)).rejects.toThrow(
             PreviewScopeError,
         );
         expect(send).not.toHaveBeenCalled();
@@ -302,7 +308,7 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
     it('POSTs the alias for the deployment, with the team scope', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse(`{"uid":"ali_1","alias":"${HOST}"}`));
 
-        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST)).resolves.toBe('assigned');
+        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST, ZONE)).resolves.toBe('assigned');
 
         const [url, init] = http.mock.calls[0]!;
         expect(url).toBe(`https://api.vercel.com/v2/deployments/${DEPLOYMENT}/aliases?teamId=team_xyz`);
@@ -318,19 +324,19 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
     it('reports `moved` when the alias was re-pointed from an earlier deployment', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse(`{"uid":"ali_1","oldDeploymentId":"dpl_previous"}`));
 
-        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST)).resolves.toBe('moved');
+        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST, ZONE)).resolves.toBe('moved');
     });
 
     it('still succeeds when the response body is not the JSON we expect', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse('not json'));
 
-        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST)).resolves.toBe('assigned');
+        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST, ZONE)).resolves.toBe('assigned');
     });
 
     it('accepts a bare deployment host as the deployment reference', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse());
 
-        await aliasPreviewDeployment(http, VERCEL, 'commise-abc123-radicle-co.vercel.app', HOST);
+        await aliasPreviewDeployment(http, VERCEL, 'commise-abc123-radicle-co.vercel.app', HOST, ZONE);
 
         expect(http.mock.calls[0]![0]).toBe(
             'https://api.vercel.com/v2/deployments/commise-abc123-radicle-co.vercel.app/aliases?teamId=team_xyz',
@@ -354,7 +360,9 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
     ])('classifies %i %s as still-provisioning', async (status, body) => {
         const http = vi.fn().mockResolvedValueOnce(response(status, body));
 
-        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST)).rejects.toThrow(PreviewAliasPendingError);
+        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST, ZONE)).rejects.toThrow(
+            PreviewAliasPendingError,
+        );
     });
 
     // A permissions/ownership failure is NOT transient; retrying it would just burn ten minutes and then
@@ -365,7 +373,7 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
         [409, '{"error":{"code":"alias_in_use_by_another_team"}}'],
     ])('does NOT classify %i as still-provisioning', async (status, body) => {
         const http = vi.fn().mockResolvedValueOnce(response(status, body));
-        const call = aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST);
+        const call = aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, HOST, ZONE);
 
         await expect(call).rejects.toThrow(new RegExp(`${status}`, 'su'));
         await expect(call).rejects.not.toThrow(PreviewAliasPendingError);
@@ -374,7 +382,7 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
     it.each(NEVER_TARGETS)('refuses to alias the non-preview host %j without calling Vercel', async (host) => {
         const http = vi.fn();
 
-        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, host)).rejects.toThrow(PreviewScopeError);
+        await expect(aliasPreviewDeployment(http, VERCEL, DEPLOYMENT, host, ZONE)).rejects.toThrow(PreviewScopeError);
         expect(http).not.toHaveBeenCalled();
     });
 
@@ -385,7 +393,7 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
         async (deployment) => {
             const http = vi.fn().mockResolvedValueOnce(okResponse());
 
-            await aliasPreviewDeployment(http, VERCEL, deployment, HOST);
+            await aliasPreviewDeployment(http, VERCEL, deployment, HOST, ZONE);
 
             expect(http.mock.calls[0]![0]).toBe(
                 'https://api.vercel.com/v2/deployments/commise-abc123-radicle-co.vercel.app/aliases?teamId=team_xyz',
@@ -406,7 +414,9 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
     ])('refuses the deployment reference %j without calling Vercel', async (deployment) => {
         const http = vi.fn();
 
-        await expect(aliasPreviewDeployment(http, VERCEL, deployment, HOST)).rejects.toThrow(/deployment reference/u);
+        await expect(aliasPreviewDeployment(http, VERCEL, deployment, HOST, ZONE)).rejects.toThrow(
+            /deployment reference/u,
+        );
         expect(http).not.toHaveBeenCalled();
     });
 });

@@ -28,7 +28,9 @@ export default clerkMiddleware((_auth, req) => {
     // `inject()` never arms, and the analytics dashboard stays permanently empty — indistinguishable
     // from "nobody visited". `config.matcher` already excludes the prefix; this is the second gate,
     // because the matcher is a build-time manifest string that fails OPEN if it is ever mistyped.
-    if (pathname.startsWith('/_vercel')) {
+    // The slash is part of the namespace: `/_vercel-cake` and a bare `/_vercel` are app paths, and this
+    // gate must agree with the matcher's `_vercel/` about that or it silently un-localizes them.
+    if (pathname.startsWith('/_vercel/')) {
         return NextResponse.next();
     }
 

@@ -301,6 +301,10 @@ const EXPECTED_PLATFORM_SUPPRESSIONS = [
     'kitchensink-edge-prod/IdentityDistributionA374AA37 AwsSolutions-CFR2',
     'kitchensink-edge-prod/RecipeDistributionCBA9CD03 AwsSolutions-CFR1',
     'kitchensink-edge-prod/RecipeDistributionCBA9CD03 AwsSolutions-CFR2',
+    // Owner triage 2026-09-03. PITR on a table whose rows are DERIVED doorbells, expire in three days, and
+    // could only be restored under a different name than every producer addresses. ⚠️ NOT accepted as a
+    // "dedup table" — it is not one; see the register entry.
+    'kitchensink-messaging-prod/MessageTable477906EA AwsSolutions-DDB3',
 ];
 
 describe('exactly the reviewed cdk-nag suppressions are in force', () => {

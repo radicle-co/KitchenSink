@@ -158,7 +158,7 @@ These four were in the FIX list and are **not implemented**; they add new resour
 
 **Recommendation: do all three**, with retention caps rather than defaults — a lifecycle expiry of **30 days** on the flow-log prefix and **90 days** on the access-log prefixes. Two notes for whoever picks this up: the log bucket itself will fire `S1` (a log target cannot log to itself — S3 rejects it, and it would recurse), so it needs its own accepted register entry; and one bucket serving S3 server access logs _plus_ ALB logs _plus_ flow logs means three different bucket-policy/ACL models, so verify by synth before assuming one bucket works.
 
-### Remaining backlog (75), ASSERTED — see the 2026-09-03 census update below
+### Remaining backlog (74), ASSERTED — see the 2026-09-03 census update below
 
 ⚠️ **These numbers are now a CONTROL, not a note.** `nagRulesAtZero.integration.test.ts` runs the real rules
 over every synthesizable app and asserts this table row by row, by EQUALITY. A burn-down that lands reds it
@@ -175,7 +175,6 @@ asserted as well.
 | `RDS11` default endpoint port                 | 1     | Changing 5432 breaks every consumer's config; low value                                                                                                                                                                                                                                             |
 | `APIG2` no request validation                 | 1     | The webhook body is validated by svix + the handler's own parsing                                                                                                                                                                                                                                   |
 | `CFR3` no CloudFront access logging           | 4     | One on the sandbox router (being retired for previews, ADR-0001) and **three new** on `EdgeStack`'s identity/food/recipe distributions, which front PRODUCTION. Not the same decision as the router's; **owner triage owed**                                                                        |
-| `DDB3` no point-in-time recovery              | 1     | ⚠️ **NEW.** `MessageSubstrateStack`'s `MessageTable` (landed 2026-08-16, after the burn-down). **Owner triage owed** — PITR on a message substrate is a durability decision, not a lint                                                                                                             |
 | `ECS4` no Container Insights                  | 3     | ⚠️ **NEW to the table**, on all three ECS clusters. Two of those clusters existed at burn-down #1, so either the rule postdates that pass or the 2026-08-07 census was itself incomplete — nothing recorded then can distinguish the two, which is the whole argument for this table being asserted |
 | `S1`, `ELB2`, `VPC7`, `SMG4`, `RDS3`, `RDS10` | 7     | Deferred / escalated, as above. `S1` 2, `ELB2` 1, `VPC7` 1, `SMG4` 2, `RDS3` 1, **`RDS10` 0** — the escalated deletion-protection finding has CLEARED and nothing said so                                                                                                                           |
 | `L1` non-latest Lambda runtime                | 1     | The Lambda@Edge verifier, pinned to `nodejs22.x` because Lambda@Edge offers no `nodejs24.x`. Left REPORTING and asserted EXPLAINED in both directions — see below. **The 2 CDK `Provider` findings this row used to hold are GONE**                                                                 |
@@ -328,7 +327,7 @@ below is measured, at `prod`, through the real pack:
 | `S1`…`RDS10`, `L1` (grouped) | 9        | **8**    | `RDS10` cleared to 0 (escalated, then fixed, unrecorded) and `L1` fell from 2 to 1                                                                                                                            |
 | `CFR1` / `CFR2`              | —        | **6**    | Table A records these at **0**, accepted via the register — which applies to `SandboxRouterStack` only. `EdgeStack`'s three do not carry it. **TRIAGED 2026-09-03 — accepted under their OWN key; see below** |
 | `CFR4`                       | —        | **3**    | never triaged in any pass. **⛔ SUPERSEDED — this was a defect in the MEASUREMENT, not a finding. See below**                                                                                                 |
-| `DDB3`                       | —        | **1**    | `MessageSubstrateStack`'s table (2026-08-16)                                                                                                                                                                  |
+| `DDB3`                       | —        | **1**    | `MessageSubstrateStack`'s table (2026-08-16). **TRIAGED 2026-09-03 — accepted; see below, and note the stated reason is NOT the one first proposed**                                                          |
 | `ECS4`                       | —        | **3**    | all three ECS clusters                                                                                                                                                                                        |
 
 Two of those deserve emphasis.
@@ -365,12 +364,12 @@ control is not covered by either exemption and reds as unexplained.
 
 ### What is now MECHANISED versus merely MEASURED — revised
 
-| Burn-down row                                                                                                          | Status                                                                                                     |
-| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `SQS4` / `SNS3` / `CFR4` = 0                                                                                           | **MECHANISED** — asserted at zero, per app, every CI run                                                   |
-| `L1` (1 residual, the Lambda@Edge verifier)                                                                            | **MECHANISED** — count asserted, AND explained in both directions against the runtime pins                 |
-| Every other backlog row (`IAM4`, `IAM5`, `CFR3`, `DDB3`, `ECS4`, `EC26`/`EC28`/`EC29`, `RDS11`, `APIG2`, `S1`…`RDS10`) | **MECHANISED** — held at the count above by equality, with the rule set derived from what actually reports |
-| `ECS2`, `EC23`, `APIG4`/`COG4`, `APIG3`, `CFR1`/`CFR2`                                                                 | MEASURED — accepted via the register; the register's key set and the prod allowlist are pinned             |
+| Burn-down row                                                                                                  | Status                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `SQS4` / `SNS3` / `CFR4` = 0                                                                                   | **MECHANISED** — asserted at zero, per app, every CI run                                                   |
+| `L1` (1 residual, the Lambda@Edge verifier)                                                                    | **MECHANISED** — count asserted, AND explained in both directions against the runtime pins                 |
+| Every other backlog row (`IAM4`, `IAM5`, `CFR3`, `ECS4`, `EC26`/`EC28`/`EC29`, `RDS11`, `APIG2`, `S1`…`RDS10`) | **MECHANISED** — held at the count above by equality, with the rule set derived from what actually reports |
+| `ECS2`, `EC23`, `APIG4`/`COG4`, `APIG3`, `CFR1`/`CFR2`, `DDB3`                                                 | MEASURED — accepted via the register; the register's key set and the prod allowlist are pinned             |
 
 ⚠️ **Residual, revised.** (1) The census counts findings, not resources — two findings on one resource read as
 two, which is the right unit for a burn-down but not for "how much is left to fix". (2) It measures at `prod`
@@ -496,3 +495,63 @@ compared the two stages' whole suppression sets, which assumed both stages build
 `kitchensink-edge-prod` is prod-ONLY (`bin/app.ts` gates it on `stage === 'prod'`). The subject set is now the
 stacks both stages build, the excluded prod-only stacks are pinned by name, and the shared set is asserted
 non-empty so the comparison cannot pass by comparing nothing.
+
+## Update (2026-09-03, triage) — `DDB3` on the message substrate is ACCEPTED, and the FIRST reason offered for it was wrong
+
+Owner triage. `MessageSubstrateStack`'s `MessageTable` **and** `FoodServiceStack`'s per-PR `FoodMessageTable`
+now carry `AcceptedNagFindings.MESSAGE_SUBSTRATE_ROWS_OUTLIVE_NOTHING`. **Measured: `DDB3` 1 → 0.** Total
+non-compliant **75 → 74**.
+
+### ⛔ The correction, recorded because it is the useful part
+
+The acceptance was proposed on the grounds that the table is a **transient dedup / idempotency substrate**,
+"transient by construction" from `timeToLiveAttribute: 'ttl'` plus `RemovalPolicy.DESTROY`. **That
+characterisation is false and was not recorded.** Verified against the code:
+
+- **It is not a dedup or idempotency store.** No `ConditionExpression` exists anywhere in the repository, and
+  there is no "have I seen X" read or hit/miss branch. The sort key's ULID suffix exists to make a collision
+  **impossible** — the opposite of dedup, since `PutItem` REPLACES on an identical `PK+SK` and returns 200.
+- **It is a durable, append-only, per-group progress log** with exactly one writer
+  (`food-service`'s `DynamoPublisher`, IAM-scoped to `dynamodb:PutItem` on one table ARN), **zero readers**
+  (no `Query`/`Get`, no `EventSourceMapping`, no read grant anywhere), and a stream deliberately unattached
+  until feature 014.
+- ADR-0016 R1.3 does say _"Messages MUST NOT be lost or dropped once accepted"_, so "the rows do not matter"
+  would also have been wrong.
+
+⚠️ Writing the dedup framing into the register would have **pinned an inaccurate claim inside a mechanised
+guard** — precisely the failure this ADR's own update sections are about. The correction is the reason the
+verification step existed.
+
+### The grounds the acceptance actually rests on
+
+1. **DERIVED, not authoritative.** Every row is a doorbell about state that has **already committed to
+   PostgreSQL** before the message is published, and PR 91's R2.2 obliges that state to stay readable from the
+   database at any time. `OutboundMessage.ts` says it outright — _"nothing downstream is entitled to assume a
+   payload exists"_, because a consumer is woken and then **re-queries** the group. Losing a row costs a
+   notification, not a fact.
+2. **A restore window exceeds the data's own lifetime.** Every write carries a NUMBER-typed `ttl` of
+   now + 3 days (`ttlFor`), verified against a real table by `messageSubstrate.integration.test.ts`.
+3. **A restore could not be used.** PITR restores into a **new table under a new name**, and this store is
+   addressed by a fixed deterministic name (`messageTableNameForStage`) that is also the ADR-0005 teardown
+   boundary — so the recovered table would be unreachable by every producer, and at a `pr-{N}` stage outside
+   the tag/name scope that reclaims it. ADR-0016 already goes further and accepts **total loss of the
+   contents** across a release boundary: _"the substrate is NOT a backfill source for 014 … it does not replay
+   the substrate."_
+
+### Both construct sites, and one new assertion
+
+The key is applied at **both** tables. The per-PR twin declares no `pointInTimeRecoverySpecification` at all
+and reports the identical finding — but the census measures at `prod` only, so that finding is currently
+**invisible, not absent**, and invisible is not decided.
+
+⚠️ Ground (2) rests on a premise the **infrastructure cannot enforce**: `timeToLiveAttribute` tells DynamoDB
+which attribute to expire, not anybody to write one, and a second adapter landing without a `ttl` would make
+the table grow forever — silently, because the write succeeds and every "TTL is enabled" test keeps passing.
+`recipe-import` is already an admitted `groupType` with no code behind it. So the single-writer premise is now
+**asserted**, by `messagePublisherWriters.test.ts`: the set of production modules importing a DynamoDB client
+is discovered and compared by **equality** to `DynamoPublisher` alone, in both directions, the same shape
+`natEgressConsumers.test.ts` uses. A second writer reds it and has to argue its own `ttl`.
+
+⚠️ **Residual.** PITR is the wrong instrument for R1.3 either way — the durability that requirement needs is
+DynamoDB's own replicated write, not a restore window — so this acceptance does not discharge R1.3, and
+nothing yet does.

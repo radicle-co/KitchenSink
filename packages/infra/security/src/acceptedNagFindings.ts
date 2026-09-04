@@ -171,6 +171,48 @@ export const AcceptedNagFindings = {
     ],
 
     /**
+     * `AwsSolutions-DDB3` (no point-in-time recovery) on the message substrate's DynamoDB table — BOTH
+     * construct sites: `MessageSubstrateStack`'s base-stage `MessageTable` and `FoodServiceStack`'s per-PR
+     * `FoodMessageTable`. One decision, one shape, so both carry it; accepting only the one the prod census
+     * can see would leave the per-PR twin's identical finding merely INVISIBLE rather than decided.
+     *
+     * ⛔ READ THIS BEFORE REUSING THE REASONING ELSEWHERE. This table is **not** a dedup or idempotency
+     * store, and describing it as one would be false: nothing in the repository issues a
+     * `ConditionExpression`, and the sort key's ULID suffix exists to make collisions IMPOSSIBLE, which is
+     * the opposite of dedup. It is a durable, append-only, per-group progress log. What makes PITR
+     * disproportionate is not that the rows are junk — it is that they are DERIVED, short-lived, and that a
+     * restore could not be used even if it were wanted.
+     */
+    MESSAGE_SUBSTRATE_ROWS_OUTLIVE_NOTHING: [
+        {
+            id: 'AwsSolutions-DDB3',
+            reason:
+                'Point-in-time recovery is disproportionate here on three independent grounds, none of which ' +
+                'is "the data does not matter". (1) DERIVED, NOT AUTHORITATIVE: every row is a doorbell about ' +
+                'state that has ALREADY COMMITTED to PostgreSQL before the message is published, and PR 91 ' +
+                'requirement R2.2 obliges that state to be readable from the database at any time -- ' +
+                'OutboundMessage.ts states it outright, "nothing downstream is entitled to assume a payload ' +
+                'exists", because a consumer is woken and then RE-QUERIES the group. Losing a row costs a ' +
+                'notification, not a fact. (2) A RESTORE WINDOW EXCEEDS THE DATA LIFETIME: every write carries ' +
+                'a NUMBER-typed ttl of now + 3 days (ttlFor in DynamoPublisher, verified against a real table ' +
+                'by messageSubstrate.integration.test.ts), so PITR would pay continuously to recover rows ' +
+                'engineered to expire within days. (3) A RESTORE COULD NOT BE USED: PITR restores into a NEW ' +
+                'table under a NEW name, and this store is addressed by a fixed deterministic name ' +
+                '(messageTableNameForStage) that is ALSO the ADR-0005 teardown boundary -- so the recovered ' +
+                'table would be unreachable by every producer and, at a pr-{N} stage, outside the tag/name ' +
+                'scope that reclaims it. The table is RemovalPolicy.DESTROY and recreated by the next deploy ' +
+                'for that same reason. ADR-0016 already goes further and accepts TOTAL loss of the contents ' +
+                'across a release boundary: "the substrate is NOT a backfill source for 014 ... it does not ' +
+                'replay the substrate". ' +
+                'RESIDUAL, stated rather than hidden: ADR-0016 R1.3 does require that an accepted message not ' +
+                'be lost, and PITR is simply the wrong instrument for that -- the durability that requirement ' +
+                "needs is DynamoDB's own replicated write, not a restore window. Ground (2) also holds only " +
+                'while every writer populates ttl, which the INFRASTRUCTURE does not enforce; the single-writer ' +
+                'premise is asserted by messagePublisherWriters.test.ts rather than assumed.',
+        },
+    ],
+
+    /**
      * `AwsSolutions-CFR1` + `AwsSolutions-CFR2` on `EdgeStack`'s three PRODUCTION distributions.
      *
      * ⛔ A SEPARATE key from `CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE`, deliberately, and it must stay

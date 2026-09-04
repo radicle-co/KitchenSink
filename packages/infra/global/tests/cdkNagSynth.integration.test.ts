@@ -243,10 +243,10 @@ describe('cdk synth with cdk-nag attached (advisory mode)', () => {
             );
         });
 
-        // EC23 on the shared ALB's SG (ADR-0003) and SMG4 on the non-credential MigrationPlanSecret, in
-        // BOTH stages — hence two of each. Plus CFR1 + CFR2 on each of `EdgeStack`'s three production
-        // distributions (owner triage 2026-09-03, ADR-0013), which appear ONCE each rather than twice
-        // because `EdgeStack` is prod-only.
+        // EC23 on the shared ALB's SG (ADR-0003), SMG4 on the non-credential MigrationPlanSecret, and DDB3
+        // on the message substrate's table — all three exist at BOTH stages, hence two of each. Plus CFR1 +
+        // CFR2 on each of `EdgeStack`'s three production distributions (owner triage 2026-09-03, ADR-0013),
+        // which appear ONCE each rather than twice because `EdgeStack` is prod-only.
         //
         // ⚠️ Ids only, so this cannot distinguish three suppressions on three distributions from three on
         // one. That is deliberate division of labour, not an oversight: `cdkNagTemplateParity.test.ts` pins
@@ -259,6 +259,8 @@ describe('cdk synth with cdk-nag attached (advisory mode)', () => {
             'AwsSolutions-CFR2',
             'AwsSolutions-CFR2',
             'AwsSolutions-CFR2',
+            'AwsSolutions-DDB3',
+            'AwsSolutions-DDB3',
             'AwsSolutions-EC23',
             'AwsSolutions-EC23',
             'AwsSolutions-SMG4',

@@ -11,7 +11,7 @@
  *      an unparseable record is not.
  */
 import { describe, it, expect, vi } from 'vitest';
-import type { SQSEvent, SQSRecord } from 'aws-lambda';
+import type { SQSBatchResponse, SQSEvent, SQSRecord } from 'aws-lambda';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -20,6 +20,19 @@ import { applyHandleRename, handler, parseHandleSyncMessage } from '../handleSyn
 
 const { getRecipeDb } = vi.hoisted(() => ({ getRecipeDb: vi.fn() }));
 vi.mock('../../common/db.js', () => ({ getRecipeDb }));
+
+/**
+ * The handler as this suite drives it: ONE argument, the event.
+ *
+ * ⛔ Not a convenience. The suite called `handler(event, {} as never, () => {})`, feeding the `context` and
+ * `callback` of AWS's `Handler` signature to an implementation that declares neither — CodeQL flags it as
+ * superfluous trailing arguments, and it is right twice over: the values are inert placeholders, and passing
+ * them implies the handler reads a context it never touches. `SQSHandler`'s declared arity makes a one-arg
+ * call a type error, so the shape is a narrowed alias — the same one `accountErasureWorker.test.ts` uses,
+ * for the same reason. If the handler ever DOES need its context, this alias is what fails first.
+ */
+type TestHandler = (event: SQSEvent) => Promise<SQSBatchResponse>;
+const runHandler = handler as unknown as TestHandler;
 
 const dialect = new PgDialect();
 
@@ -135,7 +148,7 @@ describe('handler batch isolation', () => {
             Records: [record(VALID, 'ok'), record(VALID, 'boom'), record('garbage', 'bad')],
         } as SQSEvent;
 
-        const result = await handler(event, {} as never, () => {});
+        const result = await runHandler(event);
 
         expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: 'boom' }] });
     });

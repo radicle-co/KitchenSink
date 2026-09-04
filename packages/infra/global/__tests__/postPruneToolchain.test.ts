@@ -355,8 +355,24 @@ interface ToolUse {
 /** Shell separators after which a new command starts. */
 const COMMAND_BOUNDARY = /\n|&&|\|\||;|\||\$\(|\(/u;
 
-/** `npx [--flags…] <target>` — the target is the first token that is not a flag. Quotes are stripped. */
-const NPX_CALL = /\bnpx\s+((?:--?[\w-]+(?:=\S+)?\s+)*)(["']?)([^\s"']+)\2/gu;
+/**
+ * `npx [--flags…] <target>` — the target is the first token that is not a flag. Quotes are stripped.
+ *
+ * ⛔ The flag atom is `--?[A-Za-z][\w-]*`, NOT `--?[\w-]+`. The latter is ambiguous by construction: `[\w-]`
+ * contains the dash, so `--a` parses as both `--` + `a` and `-` + `-a`, giving 2^N parses over N flags.
+ * CodeQL reported it as `js/redos` (exponential) on 2026-09-04, in this guard — a supply-chain check that
+ * had itself introduced a backtracking regex.
+ *
+ * ⚠️ HONEST LIMIT: I could NOT reproduce a blowup. V8 absorbed every pathological input I built, up to 20
+ * chained `--a-a` flags with a trailing quote to force the backreference to fail — all under 0.1 ms. So this
+ * is fixed because the ambiguity is real and removing it is free, NOT because an exploit was measured. The
+ * input here is workflow YAML from this repository, which is trusted, so the practical exposure was nil.
+ *
+ * Requiring a letter after the dashes makes each flag parse exactly one way, and is equivalent on every real
+ * invocation — verified against `npx --no-install cdk --version`, `npx cdk deploy`, `npx -w pkg tsx a.ts`
+ * and `npx --workspace=x tsc`, which all yield the identical target.
+ */
+const NPX_CALL = /\bnpx\s+((?:--?[A-Za-z][\w-]*(?:=\S+)?\s+)*)(["']?)([^\s"']+)\2/gu;
 
 /** `npm run <script> [--workspace=<ws> | --workspace <ws> | -w <ws>]`. */
 const NPM_RUN = /\bnpm\s+run\s+([\w:@/.-]+)(?:\s+(?:--workspace[= ]|-w\s+)(\S+))?/gu;

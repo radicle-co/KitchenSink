@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BEDROCK_MODEL_REGISTRY, type ModelRegistryEntry } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
-import { inferenceProfileStatements, type BedrockArnParts } from '../lib/bedrockInvokePolicy.js';
+import { bedrockInvokeStatements, type BedrockArnParts } from '../lib/bedrockInvokePolicy.js';
 
 /** The account the fake formatter stands in for — the deploying account. */
 const ACCOUNT = '123456789012';
@@ -74,15 +74,56 @@ const throughProfile = (
     [modelId]: { rate: RATE, invocation: { invocationId, reach: { kind: 'regions', regions, readOn: '2026-08-23' } } },
 });
 
-describe('inferenceProfileStatements', () => {
-    it('adds NOTHING for a registry of on-demand models — the in-region wildcard already covers them', () => {
-        // The regression assertion for Nova Micro, which is what the gate actually ships pointed at: a model
-        // addressed by its own id needs no new resource, and emitting one would widen the policy for nothing.
-        expect(inferenceProfileStatements(onDemand('amazon.nova-micro-v1:0'), formatArn)).toEqual([]);
+describe('bedrockInvokeStatements', () => {
+    it('grants each self-addressed model BY NAME in the deploy region — account-less, unconditioned, no wildcard', () => {
+        // ⛔ THE STATEMENT THAT REPLACED `foundation-model/*`. An on-demand model is invoked by its own id in
+        // the deploy region, so its grant is exactly that ARN. The registry is the compile-time authority for
+        // which ids exist ("membership is authorization", ADR-0024), and every runtime caller already refuses
+        // an id outside it before any call — so a wildcard bought nothing and re-opened the reach the counter
+        // has no view of. This test used to assert `[]` here, on the claim that the wildcard "already covers"
+        // an on-demand model; that claim is what ADR-0024 §4b retracted.
+        expect(bedrockInvokeStatements(onDemand('amazon.nova-micro-v1:0'), formatArn)).toEqual([
+            { resources: ['arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0'] },
+        ]);
+    });
+
+    it('grants NOTHING for an empty registry — no model, no permission', () => {
+        expect(bedrockInvokeStatements({}, formatArn)).toEqual([]);
+    });
+
+    it('names every self-addressed model in ONE unconditioned statement, in registry order', () => {
+        const statements = bedrockInvokeStatements(
+            { ...onDemand('amazon.nova-micro-v1:0'), ...onDemand('amazon.nova-lite-v1:0') },
+            formatArn,
+        );
+
+        expect(statements).toEqual([
+            {
+                resources: [
+                    'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0',
+                    'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0',
+                ],
+            },
+        ]);
+    });
+
+    it('gives a profile-addressed model NO unconditioned bare-id grant in the deploy region', () => {
+        // The registry never calls it by its bare id, so a deploy-region `foundation-model/<id>` outside the
+        // conditioned fan-out would authorize a direct call nothing asked for — the reach the condition exists
+        // to deny, handed back through the front door.
+        const statements = bedrockInvokeStatements(
+            throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2']),
+            formatArn,
+        );
+        const unconditioned = statements.filter((statement) => statement.throughInferenceProfileArns === undefined);
+
+        expect(unconditioned.flatMap((statement) => statement.resources)).toEqual([
+            `arn:aws:bedrock:us-east-1:${ACCOUNT}:inference-profile/us.anthropic.model-v1:0`,
+        ]);
     });
 
     it('grants the PROFILE arn with the account populated', () => {
-        const [profileStatement] = inferenceProfileStatements(
+        const [profileStatement] = bedrockInvokeStatements(
             throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2']),
             formatArn,
         );
@@ -96,7 +137,7 @@ describe('inferenceProfileStatements', () => {
     });
 
     it('grants the fanned-out FOUNDATION MODEL in every region the profile spans, account-LESS', () => {
-        const [, fanOut] = inferenceProfileStatements(
+        const [, fanOut] = bedrockInvokeStatements(
             throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-east-2', 'us-west-2']),
             formatArn,
         );
@@ -111,7 +152,7 @@ describe('inferenceProfileStatements', () => {
     });
 
     it('makes that cross-region reach usable ONLY through the profile that justified it', () => {
-        const [, fanOut] = inferenceProfileStatements(
+        const [, fanOut] = bedrockInvokeStatements(
             throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2']),
             formatArn,
         );
@@ -124,7 +165,7 @@ describe('inferenceProfileStatements', () => {
     });
 
     it('keeps every profile’s fan-out in its own statement, so one profile cannot borrow another’s regions', () => {
-        const statements = inferenceProfileStatements(
+        const statements = bedrockInvokeStatements(
             {
                 ...throughProfile('anthropic.a-v1:0', 'us.anthropic.a-v1:0', ['us-east-1', 'us-west-2']),
                 ...throughProfile('anthropic.b-v1:0', 'eu.anthropic.b-v1:0', ['eu-west-1', 'eu-central-1']),
@@ -140,7 +181,7 @@ describe('inferenceProfileStatements', () => {
     });
 
     it('never emits a wildcard resource', () => {
-        const statements = inferenceProfileStatements(BEDROCK_MODEL_REGISTRY, formatArn);
+        const statements = bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn);
 
         for (const { resources } of statements) {
             for (const resource of resources) {
@@ -163,7 +204,7 @@ describe('inferenceProfileStatements', () => {
         expect(profileAddressed.length, 'the registry no longer carries a profile-addressed model').toBeGreaterThan(0);
 
         const granted = new Set(
-            inferenceProfileStatements(BEDROCK_MODEL_REGISTRY, formatArn).flatMap(({ resources }) => resources),
+            bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn).flatMap(({ resources }) => resources),
         );
 
         for (const [modelId, entry] of profileAddressed) {
@@ -183,5 +224,34 @@ describe('inferenceProfileStatements', () => {
                 );
             }
         }
+    });
+
+    it('grants EXACTLY the shipped registry — set equality in both directions, so nothing rides along', () => {
+        // ⛔ Bidirectional. `toContain` per entry proves the grant is not too NARROW; only equality proves it
+        // is not too WIDE — the property the wildcard's removal is for.
+        const expected = new Set(
+            Object.entries(BEDROCK_MODEL_REGISTRY).flatMap(([modelId, { invocation }]) => {
+                if (invocation.invocationId === modelId) {
+                    return [`arn:aws:bedrock:${DEPLOY_REGION}::foundation-model/${modelId}`];
+                }
+
+                const profile = `arn:aws:bedrock:${DEPLOY_REGION}:${ACCOUNT}:inference-profile/${invocation.invocationId}`;
+                const fanOut =
+                    invocation.reach.kind === 'regions'
+                        ? invocation.reach.regions.map(
+                              (region) => `arn:aws:bedrock:${region}::foundation-model/${modelId}`,
+                          )
+                        : [];
+
+                return [profile, ...fanOut];
+            }),
+        );
+        const granted = new Set(
+            bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn).flatMap(({ resources }) => resources),
+        );
+
+        // Non-vacuity on the on-demand side: the gate's shipped default is addressed by its own id.
+        expect(expected.has(`arn:aws:bedrock:${DEPLOY_REGION}::foundation-model/amazon.nova-micro-v1:0`)).toBe(true);
+        expect(granted).toEqual(expected);
     });
 });

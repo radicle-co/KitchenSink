@@ -345,28 +345,12 @@ export const AcceptedNagFindings = {
                 'grantDelete/grantPut, whose wildcards granted far more than the handlers use.',
         },
     ],
-    VERIFICATION_BEDROCK_MODEL_WILDCARD: [
-        {
-            id: 'AwsSolutions-IAM5',
-            // Scoped to Bedrock foundation models only. `Resource::*`, an `Action::bedrock:*`, or a wildcard
-            // on any other service keeps reporting — which is the point: this is the ONLY role in the account
-            // that may spend money on inference (ADR-0024 layer 4b), and the guard test that asserts it is a
-            // set-equality check over the whole infra tree, not a review comment.
-            appliesTo: [{ regex: String.raw`/^Resource::arn:.*:bedrock:.*:foundation-model\/\*$/g` }],
-            reason:
-                'Irreducible resource wildcard on the ONE Bedrock caller (ADR-0024). The model id is read from ' +
-                'an SSM parameter at run time -- deliberately, because R23 requires the ceiling and the model to ' +
-                'be changeable mid-incident without redeploying this stack, and KTD-4 requires the bake-off to ' +
-                'swap models without a code change -- so the exact model ARN cannot be known at synth time. ' +
-                'Three things bound it: the resource is scoped to bedrock foundation models in this partition ' +
-                'and region (never Resource::*, and never another service); the action list is the single call ' +
-                'the code makes, bedrock:InvokeModel, with InvokeModelWithResponseStream deliberately absent ' +
-                'because the gate never streams and a streamed response would defeat its single-response ' +
-                'settlement; and spend is bounded independently of IAM by the reserve-then-settle counter, ' +
-                'which refuses the call before it is made. The real control against a SECOND caller is that ' +
-                'this grant exists exactly once, asserted by bedrockInvokeGrantees.test.ts.',
-        },
-    ],
+    // ⛔ `VERIFICATION_BEDROCK_MODEL_WILDCARD` was DELETED (2026-09-03), not moved. It accepted an IAM5 finding
+    // on `foundation-model/*` for the verification role, reasoned "the exact model ARN cannot be known at
+    // synth time". ADR-0024 §4b retracted that: `BEDROCK_MODEL_REGISTRY` is compile-time and is now the ONLY
+    // source of that role's `bedrock:InvokeModel` resources (`recipe-workers/infra/lib/bedrockInvokePolicy.ts`),
+    // every ARN enumerated, so there is no wildcard left to accept and no acceptance to widen. An IAM5 finding
+    // on that role is a real finding again.
 } as const satisfies Readonly<Record<string, readonly AcceptedNagFinding[]>>;
 
 export interface AcceptNagFindingsOptions {

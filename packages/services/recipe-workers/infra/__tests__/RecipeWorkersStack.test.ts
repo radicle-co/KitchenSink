@@ -1124,11 +1124,12 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         const alarms = template.findResources('AWS::CloudWatch::Alarm');
         // A COUNT, not a roster. It exists so a regression that silently DROPS an alarm trips here, and so a
         // new one has to be a deliberate edit; the loop below is what actually checks each alarm can page.
-        // ⚠️ It was 11 and is now 15: the parse leg's CRF-availability, DLQ and throttle alarms, plus the
-        // handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found missing. The earlier
-        // revision of this comment named all eleven, which is the copied list this repository keeps learning
-        // not to write — so what the number guards is stated instead of which alarms make it up.
-        expect(Object.keys(alarms)).toHaveLength(15);
+        // ⚠️ It was 11, then 15, and is now 16: the parse leg's CRF-availability, DLQ and throttle alarms,
+        // the handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found missing, and now
+        // ADR-0024 layer 1's input-bound alarm. The earlier revision of this comment named all eleven, which
+        // is the copied list this repository keeps learning not to write — so what the number guards is
+        // stated instead of which alarms make it up.
+        expect(Object.keys(alarms)).toHaveLength(16);
 
         for (const [name, alarm] of Object.entries(alarms)) {
             const actions = alarm.Properties?.AlarmActions as { Ref: string }[] | undefined;
@@ -1271,12 +1272,53 @@ describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => 
         template = synth();
     });
 
-    it('keeps the in-region foundation-model grant it already had', () => {
-        // The Nova regression assertion: the on-demand path is authorized by exactly the statement it was,
-        // and widening for a profile must not have moved or re-scoped it.
-        expect(bedrockStatements(template).flatMap(({ resources }) => resources)).toContain(
-            'arn:aws:bedrock:us-east-1::foundation-model/*',
+    it('grants EXACTLY the registry — every self-addressed model by name in the deploy region, nothing else', () => {
+        // ⛔ SET EQUALITY, BOTH DIRECTIONS. This used to assert `foundation-model/*` was still present — the
+        // "Nova regression assertion" — on the stack comment's claim that the SSM model id "cannot be resolved
+        // at synth time". It can: `BEDROCK_MODEL_REGISTRY` is compile-time, and `planReservation` refuses any
+        // id outside it before a call is made, so the wildcard authorized exactly the models the runtime
+        // could never reach (ADR-0024 §4b, "the stated justification no longer holds"). Nova Micro's path is
+        // still authorized — by its own ARN, which is what the equality below proves.
+        const granted = new Set(bedrockStatements(template).flatMap(({ resources }) => resources));
+        const expected = new Set(
+            Object.entries(BEDROCK_MODEL_REGISTRY).flatMap(([modelId, { invocation }]) => {
+                if (invocation.invocationId === modelId) {
+                    return [`arn:aws:bedrock:us-east-1::foundation-model/${modelId}`];
+                }
+
+                const profile = `arn:aws:bedrock:us-east-1:123456789012:inference-profile/${invocation.invocationId}`;
+                const fanOut =
+                    invocation.reach.kind === 'regions'
+                        ? invocation.reach.regions.map(
+                              (region) => `arn:aws:bedrock:${region}::foundation-model/${modelId}`,
+                          )
+                        : [];
+
+                return [profile, ...fanOut];
+            }),
         );
+
+        expect(expected.has('arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0')).toBe(true);
+        expect(granted).toEqual(expected);
+    });
+
+    it('leaves the on-demand statement UNCONDITIONED — a model called by its own id needs no profile', () => {
+        const onDemandArns = new Set(
+            Object.entries(BEDROCK_MODEL_REGISTRY)
+                .filter(([modelId, { invocation }]) => invocation.invocationId === modelId)
+                .map(([modelId]) => `arn:aws:bedrock:us-east-1::foundation-model/${modelId}`),
+        );
+        const onDemandStatements = bedrockStatements(template).filter(({ resources }) =>
+            resources.some((arn) => onDemandArns.has(arn)),
+        );
+
+        expect(onDemandStatements.length).toBeGreaterThan(0);
+
+        for (const { condition, resources } of onDemandStatements) {
+            expect(condition).toBeUndefined();
+            // …and it carries ONLY on-demand ARNs: a profile's fan-out never shares a statement with it.
+            expect(resources.every((arn) => onDemandArns.has(arn))).toBe(true);
+        }
     });
 
     it('grants the inference-profile ARN of every profile-addressed model in the registry', () => {
@@ -1330,15 +1372,17 @@ describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => 
         }
     });
 
-    it('never widens beyond the one wildcard it already carried', () => {
+    it('carries NO wildcard resource at all', () => {
         const wildcards = bedrockStatements(template)
             .flatMap(({ resources }) => resources)
             .filter((arn) => arn.includes('*'));
 
-        // The profile ARNs are compile-time enumerable, so `inference-profile/*` would discard a scope
-        // reduction that costs nothing. The in-region `foundation-model/*` stays because the SSM model id
-        // cannot be resolved at synth time — a different reason, and the only wildcard permitted here.
-        expect(wildcards).toEqual(['arn:aws:bedrock:us-east-1::foundation-model/*']);
+        // Every ARN the role may invoke is enumerable from the registry at synth time — profiles, fan-outs
+        // AND the on-demand models. This used to permit exactly one wildcard, `foundation-model/*`, on the
+        // claim that the SSM model id could not be resolved at synth time; it can, and its nag acceptance
+        // (`VERIFICATION_BEDROCK_MODEL_WILDCARD`) is gone with it. A `*` reappearing here is a finding, not
+        // a convenience.
+        expect(wildcards).toEqual([]);
     });
 });
 
@@ -1731,5 +1775,108 @@ describe('RecipeWorkersStack — every queue denies non-TLS access', () => {
         // Non-vacuity: ten queues, so an empty or truncated read cannot make the difference below trivial.
         expect(Object.keys(queues).length).toBeGreaterThanOrEqual(10);
         expect(Object.keys(queues).filter((id) => !denied.has(id))).toEqual([]);
+    });
+});
+
+/**
+ * THE LIST GRANT IS SCOPED TO THE RECIPE SUBTREE, LIKE THE DELETE GRANT BESIDE IT.
+ *
+ * `grantRecipeObjectErasure` narrows `s3:DeleteObject` to `recipes/*` at the object level — but `s3:ListBucket`
+ * is a BUCKET-level action, and a bucket-level allow with no condition authorizes `ListObjectsV2` over EVERY
+ * prefix of a bucket that also holds other tenants' media. `eraseRecipeObjects` always lists under
+ * `recipes/{ownerId}/{recipeId}/`, so the authority it needs is exactly that subtree; AWS spells that as an
+ * `s3:prefix` condition on the list statement. Without it the two most destructive roles in the stack could
+ * enumerate keys they can neither read nor delete — and enumeration is still disclosure.
+ */
+describe('RecipeWorkersStack — s3:ListBucket is conditioned on the recipe prefix', () => {
+    let template: Template;
+
+    beforeAll(() => {
+        template = synth();
+    });
+
+    /** Every statement granting `s3:ListBucket` in the named role's default policy. */
+    function listStatements(rolePolicyPrefix: string): readonly { Condition?: unknown }[] {
+        const policy = Object.values(template.findResources('AWS::IAM::Policy')).find((candidate) =>
+            String(candidate.Properties?.PolicyName ?? '').startsWith(rolePolicyPrefix),
+        );
+
+        expect(policy, `${rolePolicyPrefix} must carry an inline policy`).toBeDefined();
+
+        const statements = (policy?.Properties?.PolicyDocument?.Statement ?? []) as {
+            Action?: string | string[];
+            Condition?: unknown;
+        }[];
+
+        return statements.filter((statement) =>
+            (typeof statement.Action === 'string' ? [statement.Action] : (statement.Action ?? [])).includes(
+                's3:ListBucket',
+            ),
+        );
+    }
+
+    it.each([['AccountErasureWorkerRoleDefaultPolicy'], ['ErasureOrphanSweeperRoleDefaultPolicy']])(
+        '%s may list ONLY under recipes/ — the same subtree its delete grant is scoped to',
+        (rolePolicyPrefix) => {
+            const statements = listStatements(rolePolicyPrefix);
+
+            // Non-vacuity: the grant exists at all.
+            expect(statements.length).toBeGreaterThan(0);
+
+            for (const statement of statements) {
+                // `s3:prefix` is the prefix parameter of the List call, so `recipes/*` admits exactly the
+                // per-recipe prefixes `eraseRecipeObjects` issues and refuses a bare or foreign-prefix listing.
+                expect(statement.Condition).toEqual({ StringLike: { 's3:prefix': ['recipes/*'] } });
+            }
+        },
+    );
+});
+
+/**
+ * ADR-0024 LAYER 1 HAS AN ALARM, because the counter cannot report its own precondition.
+ *
+ * The reservation is priced from an input-token bound (UTF-8 bytes + a chat-template allowance). If a
+ * tokenizer beats that bound, `settleDeltaMicros` — deliberately unclamped — simply charges the overshoot and
+ * it vanishes into the month's total. ADR-0024 §2 makes the input cap a PRECONDITION of the ceiling ("if
+ * prompt length is unbounded, the reservation is a lie"), so a bound being exceeded is a ceiling not holding,
+ * and this alarm is the only thing that says so.
+ */
+describe('RecipeWorkersStack — the input-bound alarm (ADR-0024 layer 1)', () => {
+    let template: Template;
+
+    beforeAll(() => {
+        template = synth();
+    });
+
+    it('alarms on ANY call billed beyond the bound its reservation was priced for', () => {
+        template.hasResourceProperties('AWS::CloudWatch::Alarm', {
+            AlarmName: 'kitchensink-recipe-verification-input-bound-sandbox',
+            MetricName: 'VerificationInputBoundExceeded',
+            Namespace: 'Commise/RecipeVerification',
+            Threshold: 0,
+            ComparisonOperator: 'GreaterThanThreshold',
+            TreatMissingData: 'notBreaching',
+        });
+    });
+
+    it('watches the AGGREGATE — Stage alone, never Stage+CallSite', () => {
+        // ⛔ The same trap ADR-0024 §4c records for the spend alarm: EMF publishes each dimension SET
+        // separately, so an alarm selecting `Stage` + `CallSite` watches ONE consumer's series and sits at a
+        // confident OK while another consumer's prompt blows the bound.
+        const alarm = Object.values(template.findResources('AWS::CloudWatch::Alarm')).find(
+            (candidate) => candidate.Properties?.MetricName === 'VerificationInputBoundExceeded',
+        );
+
+        expect(alarm, 'the input-bound alarm must exist').toBeDefined();
+        expect(alarm?.Properties?.Dimensions).toEqual([{ Name: 'Stage', Value: 'sandbox' }]);
+    });
+
+    it('routes to the same SNS topic every other alarm in this stack does', () => {
+        // An alarm with no action is a dashboard widget, not a control — the gap QE-001/T138 closed.
+        const alarm = Object.values(template.findResources('AWS::CloudWatch::Alarm')).find(
+            (candidate) => candidate.Properties?.MetricName === 'VerificationInputBoundExceeded',
+        );
+
+        expect(alarm?.Properties?.AlarmActions).toHaveLength(1);
     });
 });

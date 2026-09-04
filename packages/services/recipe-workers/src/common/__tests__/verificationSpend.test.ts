@@ -13,7 +13,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { createSpendLedger, isSpendGated } from '../verificationSpend.js';
+import { createSpendLedger, isSpendGated, isSpendLedgerError } from '../verificationSpend.js';
 
 /** A `PricedReservation` as `planReservation` would return it. */
 const PLAN = {
@@ -110,11 +110,37 @@ describe('reserve', () => {
         // actually committed and the failure was in the reply. The queue retries; this does not.
         expect(execute).toHaveBeenCalledTimes(1);
     });
+
+    it.each([
+        ['null', null],
+        ['an empty string', ''],
+        ['a non-numeric string', 'not-a-number'],
+        ['a fractional value', '1.5'],
+        ['a negative value', '-1'],
+        ['undefined', undefined],
+    ])(
+        'fails CLOSED when the returned total is %s — corruption never reads as an empty counter',
+        async (_label, value) => {
+            // ⛔ The SQL admitted the charge, but the total the alarm watches cannot be read. `Number(null)` and
+            // `Number('')` are both 0, so a fallback-to-zero turned a corrupted or driver-mangled column into
+            // "nothing spent yet" — layer 4's metric went blind at the exact moment the counter could not vouch
+            // for itself. ADR-0024 §2: an unreadable counter fails CLOSED. The standing charge over-counts,
+            // which is the accepted direction; the message retries under layer 0 and the call is not made.
+            const { db, execute } = dbReturning({ rows: [{ reserved_micros: value }] });
+            const error = await createSpendLedger(db)
+                .reserve(PLAN)
+                .catch((thrown: unknown) => thrown);
+
+            expect(isSpendLedgerError(error) && error.phase).toBe('reserve');
+            expect(execute).toHaveBeenCalledTimes(1);
+        },
+    );
 });
 
 describe('settle', () => {
-    it('refunds the difference and records the call', async () => {
-        const { db } = dbReturning({ rows: [] });
+    it('refunds the difference and records the call when the period row is updated', async () => {
+        // The statement RETURNS the period it touched; one row back is the settlement having landed.
+        const { db } = dbReturning({ rows: [{ period: '2026-08' }] });
         const ledger = createSpendLedger(db);
 
         await expect(ledger.settle({ plan: PLAN, actualMicros: 36 })).resolves.toBeUndefined();
@@ -124,9 +150,25 @@ describe('settle', () => {
         // ⛔ THE ONE OPERATION THAT MUST NOT BE RETRIED. `reserved_micros + $delta` is not idempotent with a
         // negative delta, so a settle that runs twice refunds most of the reservation twice — reintroducing
         // exactly the silent under-count reserve-then-settle exists to prevent.
-        const { db, execute } = dbReturning({ rows: [] });
+        const { db, execute } = dbReturning({ rows: [{ period: '2026-08' }] });
         await createSpendLedger(db).settle({ plan: PLAN, actualMicros: 36 });
 
+        expect(execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('REFUSES to call an UPDATE that matched no row a settlement', async () => {
+        // ⛔ "Did not throw" is not "settled". A missing period row — ledger data loss, an operator cleanup
+        // — makes the UPDATE succeed with ZERO rows. Resolving on that would record neither the refund nor
+        // the call, emit no settle-failure metric, and let the month's next reservation start from a fresh
+        // row as if nothing had been spent. The charge this call took vanished WITH the row, so the honest
+        // report is the loud one: the same `settle`-phase failure the handler already meters.
+        const { db, execute } = dbReturning({ rows: [] });
+        const error = await createSpendLedger(db)
+            .settle({ plan: PLAN, actualMicros: 36 })
+            .catch((thrown: unknown) => thrown);
+
+        expect(isSpendLedgerError(error) && error.phase).toBe('settle');
+        // …and it is still NOT retried: nothing here knows whether the row is gone or merely late.
         expect(execute).toHaveBeenCalledTimes(1);
     });
 

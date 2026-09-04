@@ -33,8 +33,9 @@ import type { EngineAnswer, ParsedLine, ParseEnginePort } from '@kitchensink/rec
 
 import { PARSE_LEG_MODEL_ID, processParseLine, type ParseLineDeps } from '../../../src/handlers/parseLine.js';
 import { CrfEngineUnavailableError } from '../../../src/parsing/crfInvoke.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const canRun = Boolean(DATABASE_URL);
 
 const OWNER = 'crf-absence-test-owner';

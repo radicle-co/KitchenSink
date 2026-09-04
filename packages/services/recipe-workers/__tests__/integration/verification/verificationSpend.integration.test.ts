@@ -29,8 +29,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createSpendLedger, isSpendLedgerError } from '../../../src/common/verificationSpend.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const canRun = Boolean(DATABASE_URL);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -231,6 +232,26 @@ describe.skipIf(!canRun)('verification spend ledger (real Postgres)', () => {
         );
 
         expect(Number(row.rows[0]?.reserved_micros)).toBe(36);
+    });
+
+    it('REFUSES a settlement whose period row is gone, rather than reporting a refund it never made', async () => {
+        // The row can only vanish by operator action or data loss, and either way the UPDATE matches nothing.
+        // Postgres reports that as a successful statement with zero rows; the ledger must not report it as a
+        // settlement. ⚠️ A mock cannot show this — it answers whatever rows it is told to — so the real
+        // engine's zero-row UPDATE is what is asserted here.
+        const ledger = createSpendLedger(db);
+        const plan = planFor('2026-08', 500);
+        await ledger.reserve(plan);
+        await db.execute(sql`DELETE FROM verification_spend WHERE period = '2026-08'`);
+
+        const settled = await ledger.settle({ plan, actualMicros: 36 }).catch((error: unknown) => error);
+
+        expect(isSpendLedgerError(settled)).toBe(true);
+        expect(isSpendLedgerError(settled) && settled.phase).toBe('settle');
+
+        // …and it must not have manufactured a row out of the settlement.
+        const rows = await db.execute(sql`SELECT 1 FROM verification_spend WHERE period = '2026-08'`);
+        expect(rows.rows).toHaveLength(0);
     });
 
     it('settles against the period captured at RESERVE, across a UTC month boundary', async () => {

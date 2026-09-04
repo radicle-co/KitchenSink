@@ -12,8 +12,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 import { expireParseJobs, PARSE_JOB_PURGE_AFTER_DAYS } from '../../../src/parsing/parseJobExpiry.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const canRun = Boolean(DATABASE_URL);
 
 const OWNER = 'parse-expiry-test-owner';

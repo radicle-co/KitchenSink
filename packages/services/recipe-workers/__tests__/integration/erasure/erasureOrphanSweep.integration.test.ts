@@ -9,6 +9,7 @@ import { recipeMediaPrefix } from '@kitchensink/recipe-core';
 
 import { eraseRecipeObjects, ownerMediaPrefix } from '../../../src/handlers/accountErasureWorker.js';
 import { readRecentlyCompletedOwners } from '../../../src/handlers/erasureOrphanSweeper.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
 /**
  * The archive-orphan sweep (the archive-resurrection backstop), against real Postgres + real S3
@@ -39,7 +40,7 @@ import { readRecentlyCompletedOwners } from '../../../src/handlers/erasureOrphan
  * `kitchensink_recipes*`).
  */
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const S3_ENDPOINT = process.env['S3_ENDPOINT'];
 const canRun = Boolean(DATABASE_URL) && Boolean(S3_ENDPOINT);
 

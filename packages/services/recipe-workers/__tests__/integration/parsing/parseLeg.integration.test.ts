@@ -31,8 +31,9 @@ import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import { createParseCachePort, createParseCorrectionsPort } from '../../../src/parsing/parsePorts.js';
 import { processParseLine, type ParseLineDeps } from '../../../src/handlers/parseLine.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const canRun = Boolean(DATABASE_URL);
 
 const digest = (value: string): string => createHash('sha256').update(value).digest('hex');

@@ -17,7 +17,7 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { BEDROCK_MODEL_REGISTRY } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import { BEDROCK_MODEL_REGISTRY, residencyClearance } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
 
@@ -1124,12 +1124,12 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         const alarms = template.findResources('AWS::CloudWatch::Alarm');
         // A COUNT, not a roster. It exists so a regression that silently DROPS an alarm trips here, and so a
         // new one has to be a deliberate edit; the loop below is what actually checks each alarm can page.
-        // ⚠️ It was 11, then 15, and is now 16: the parse leg's CRF-availability, DLQ and throttle alarms,
-        // the handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found missing, and now
-        // ADR-0024 layer 1's input-bound alarm. The earlier revision of this comment named all eleven, which
-        // is the copied list this repository keeps learning not to write — so what the number guards is
-        // stated instead of which alarms make it up.
-        expect(Object.keys(alarms)).toHaveLength(16);
+        // ⚠️ It was 11, then 15, then 16, and is now 17: the parse leg's CRF-availability, DLQ and throttle
+        // alarms, the handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found missing,
+        // ADR-0024 layer 1's input-bound alarm, and now §4b's residency-refusal alarm. The earlier revision
+        // of this comment named all eleven, which is the copied list this repository keeps learning not to
+        // write — so what the number guards is stated instead of which alarms make it up.
+        expect(Object.keys(alarms)).toHaveLength(17);
 
         for (const [name, alarm] of Object.entries(alarms)) {
             const actions = alarm.Properties?.AlarmActions as { Ref: string }[] | undefined;
@@ -1281,7 +1281,16 @@ describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => 
         // still authorized — by its own ARN, which is what the equality below proves.
         const granted = new Set(bedrockStatements(template).flatMap(({ resources }) => resources));
         const expected = new Set(
-            Object.entries(BEDROCK_MODEL_REGISTRY).flatMap(([modelId, { invocation }]) => {
+            Object.entries(BEDROCK_MODEL_REGISTRY).flatMap(([modelId, entry]) => {
+                const { invocation } = entry;
+
+                // ⛔ RESIDENCY (ADR-0024 §4b): an entry 016 has not warranted is granted NOTHING, so the
+                // synthesized policy and `planReservation` agree about which models exist AND which may be
+                // reached. Before this, the grant followed registry membership alone and the two disagreed.
+                if (residencyClearance(entry, 'us-east-1') === 'unapproved') {
+                    return [];
+                }
+
                 if (invocation.invocationId === modelId) {
                     return [`arn:aws:bedrock:us-east-1::foundation-model/${modelId}`];
                 }
@@ -1300,6 +1309,64 @@ describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => 
 
         expect(expected.has('arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0')).toBe(true);
         expect(granted).toEqual(expected);
+    });
+
+    /**
+     * ⛔ THE DEPLOYED ROLE MAY NOT NAME A REGION IT WAS NEVER CLEARED FOR — asserted on the synthesized
+     * template, on literal strings, and independently of the predicate the derivation itself calls.
+     *
+     * ADR-0024 §4b's concrete claim was that "the only things standing between recipe text and
+     * us-east-2/us-west-2 are the SSM model parameter and this entry's presence in the table". The IAM policy
+     * is now the third thing, and this is where that is observable: the fan-out statements were the sole
+     * source of any non-deploy-region ARN, so their absence IS the absence of the reach.
+     */
+    /**
+     * ⛔ THE ALARM THAT MAKES A DARK GATE VISIBLE (ADR-0024 §4b).
+     *
+     * The residency refusal is the one failure on this path that leaves NO other trace: the message is
+     * acknowledged, no verdict row is written, nothing is reserved — so DLQ depth stays flat, the Lambda
+     * `Errors` metric stays flat, and `VerificationSpendMicros` merely goes quiet, which is what a slow hour
+     * looks like too. ⚠️ And `recipe-workers` has no log `SubscriptionFilter` and no metric filter anywhere
+     * (the repository's only log drain is `WebhooksStack`'s, targeting the webhook, the API and the identity
+     * ECS service), so the `logger.error` beside this metric reaches nothing that alarms.
+     *
+     * It should read ZERO forever — the shape `VerificationCacheTokensAlarm` already uses — because both the
+     * parse pin and the SSM seed are residency-clear and `parseLine.test.ts` keeps the former that way. A
+     * non-zero value means a model id was pointed somewhere 016 has not cleared, and nothing is being
+     * verified or parsed until it is pointed back.
+     */
+    it('alarms on a residency refusal, on the Stage rollup, at zero', () => {
+        const alarms = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { MetricName: 'VerificationResidencyRefused' },
+        });
+        const [alarm] = Object.values(alarms);
+
+        expect(alarm, 'no alarm watches the residency refusal — a dark gate would be invisible').toBeDefined();
+        expect(alarm?.Properties?.Namespace).toBe('Commise/RecipeVerification');
+        expect(alarm?.Properties?.Threshold).toBe(0);
+        expect(alarm?.Properties?.ComparisonOperator).toBe('GreaterThanThreshold');
+        // ⚠️ `Stage` ALONE, and this suite's `synth()` deploys the `sandbox` stage. `emitMetric` publishes
+        // `[['Stage'], ['Stage','CallSite']]`, so the rollup exists and an alarm selecting the faceted set
+        // would watch one leg and miss the other.
+        expect(alarm?.Properties?.Dimensions).toEqual([{ Name: 'Stage', Value: 'sandbox' }]);
+        expect(alarm?.Properties?.AlarmActions, 'an alarm nobody is paged by is a dashboard').toBeDefined();
+    });
+
+    it('names no region outside the deploy region, and neither unwarranted profile', () => {
+        const arns = bedrockStatements(template).flatMap(({ resources }) => resources);
+
+        expect(arns.length, 'no bedrock grant was discovered — the assertion would pass over nothing').toBeGreaterThan(
+            0,
+        );
+
+        for (const arn of arns) {
+            expect(arn, arn).toContain('arn:aws:bedrock:us-east-1:');
+        }
+
+        const joined = arns.join(' ');
+
+        expect(joined).not.toContain('us.amazon.nova-2-lite-v1:0');
+        expect(joined).not.toContain('us.anthropic.claude-haiku-4-5-20251001-v1:0');
     });
 
     it('leaves the on-demand statement UNCONDITIONED — a model called by its own id needs no profile', () => {
@@ -1321,55 +1388,45 @@ describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => 
         }
     });
 
-    it('grants the inference-profile ARN of every profile-addressed model in the registry', () => {
-        const granted = new Set(bedrockStatements(template).flatMap(({ resources }) => resources));
-        const profileAddressed = Object.entries(BEDROCK_MODEL_REGISTRY).filter(
-            ([modelId, entry]) => entry.invocation.invocationId !== modelId,
+    /**
+     * ⛔ INVERTED by the residency wiring, and the coverage MOVED rather than softened.
+     *
+     * Three assertions used to stand here: that every profile-addressed entry got its `inference-profile`
+     * ARN, that every region it fans out to was granted, and that each fan-out carried its
+     * `bedrock:InferenceProfileArn` condition. Every one of them is now VACUOUS against the shipped table,
+     * because both profile-addressed entries are residency-unapproved and neither is granted anything — so
+     * relaxing their `toBeGreaterThan(0)` floors to `toBeGreaterThanOrEqual(0)` would leave three tests that
+     * run, count, and prove nothing.
+     *
+     * Where the coverage went, deliberately and in full:
+     *
+     *  - the profile ARN SHAPE, the fan-out region set and the load-bearing condition are all still asserted
+     *    in `bedrockInvokePolicy.test.ts`, against `throughProfile(..., APPROVAL)` fixtures — the pure helper
+     *    exists precisely so those questions can be asked without a shipped entry to ask them of;
+     *  - what remains assertable HERE is the template's answer for the table it really deploys, which is
+     *    that it carries no profile grant at all. That is the inversion below.
+     */
+    it('emits NO inference-profile grant and NO conditioned fan-out — the shipped table clears no profile', () => {
+        const statements = bedrockStatements(template);
+
+        // ⛔ ITS OWN NON-VACUITY FLOOR. Three `toEqual([])` assertions are all satisfied by an extractor that
+        // stopped matching anything — the failure mode that turns a guard into a green no-op. A floor in the
+        // sibling test does not protect this one.
+        expect(statements.length, 'no bedrock statement was discovered — this proves nothing').toBeGreaterThan(0);
+
+        const cleared = Object.entries(BEDROCK_MODEL_REGISTRY).filter(
+            ([modelId, entry]) =>
+                entry.invocation.invocationId !== modelId && residencyClearance(entry, 'us-east-1') !== 'unapproved',
         );
 
-        // ⛔ DERIVED from the registry, with a non-vacuity floor: a hard-coded ARN list would go stale the
-        // day a model is added, and an empty registry would make the loop below pass over nothing.
-        expect(profileAddressed.length, 'the registry no longer carries a profile-addressed model').toBeGreaterThan(0);
+        // ⛔ THE PRECONDITION THIS INVERSION RESTS ON, asserted rather than assumed. The day 016 warrants a
+        // cross-region model this goes red, and the three assertions above come back with it.
+        expect(cleared, 'a profile is now residency-cleared — restore the positive assertions').toEqual([]);
 
-        for (const [modelId, entry] of profileAddressed) {
-            expect(granted, modelId).toContain(
-                `arn:aws:bedrock:us-east-1:123456789012:inference-profile/${entry.invocation.invocationId}`,
-            );
-        }
-    });
-
-    it('grants the foundation model in EVERY region the profile fans out to', () => {
-        const granted = new Set(bedrockStatements(template).flatMap(({ resources }) => resources));
-        const reached = Object.entries(BEDROCK_MODEL_REGISTRY).flatMap(([modelId, entry]) =>
-            entry.invocation.reach.kind === 'regions'
-                ? entry.invocation.reach.regions.map(
-                      (region) => `arn:aws:bedrock:${region}::foundation-model/${modelId}`,
-                  )
-                : [],
-        );
-
-        // ⚠️ A `us.` profile called from us-east-1 routes to us-east-2 and us-west-2 as well. Two of those
-        // regions sit outside the original grant entirely, so the call would fail on authorization in the
-        // destination region — after the reservation was taken.
-        expect(reached.length, 'no registry entry records a cross-region reach').toBeGreaterThan(0);
-        expect(reached.filter((arn) => !granted.has(arn))).toEqual([]);
-    });
-
-    it('conditions the cross-region reach on the inference profile that justified it', () => {
-        const fanOut = bedrockStatements(template).filter(({ condition }) => condition !== undefined);
-
-        expect(fanOut.length, 'the fanned-out foundation-model grant must be conditioned').toBeGreaterThan(0);
-
-        for (const { condition, resources } of fanOut) {
-            const profiles = (condition as { StringLike?: Record<string, unknown> }).StringLike?.[
-                'bedrock:InferenceProfileArn'
-            ];
-
-            expect(profiles, 'the condition must name the profile, not merely exist').toBeDefined();
-            // The conditioned statement grants only foundation models — the profile itself is granted
-            // unconditionally, and conditioning it on itself would be circular.
-            expect(resources.every((arn) => arn.includes(':foundation-model/'))).toBe(true);
-        }
+        expect(statements.filter(({ condition }) => condition !== undefined)).toEqual([]);
+        expect(
+            statements.flatMap(({ resources }) => resources).filter((arn) => arn.includes(':inference-profile/')),
+        ).toEqual([]);
     });
 
     it('carries NO wildcard resource at all', () => {

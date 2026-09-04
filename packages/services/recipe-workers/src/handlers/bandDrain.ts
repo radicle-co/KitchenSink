@@ -50,6 +50,8 @@ export const DRAIN_HEADROOM_FRACTION = 0.25;
 /** Everything the drain talks to, injected. */
 export interface BandDrainDeps {
     readonly stage: string;
+    /** The region the GATE invokes from — this tick sizes a batch of ITS calls, so it judges ITS residency. */
+    readonly deployRegion: string;
     readonly settings: VerificationSettingsResolver;
     readonly store: Pick<BandAuthorityStore, 'undrainedRevokedSkips' | 'markDrained'>;
     /** The period's `reserved_micros`, read from `verification_spend` (0 when the row is absent). */
@@ -84,12 +86,31 @@ export async function drainRevokedBands(deps: BandDrainDeps): Promise<{ sent: nu
         maxInputTokens: VERIFICATION_INPUT_TOKEN_CEILING,
         maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
         nowUtc: deps.now(),
+        deployRegion: deps.deployRegion,
     });
 
     if (plan.kind === 'unpriced') {
         // With no rate there is no worst case, so the batch cannot be sized. The gate would refuse these
         // messages anyway — sending them would only convert a paused backlog into DLQ depth.
         logger.warn('band drain skipped: the verification model is not priced', { modelId: plan.modelId });
+
+        return { sent: 0, budget: 0 };
+    }
+
+    if (plan.kind === 'residency-unapproved') {
+        // ⛔ PAUSE, for a STRICTLY STRONGER reason than the unpriced branch above. That one pauses because
+        // the batch cannot be SIZED. This one pauses because the gate now RETURNS WITHOUT A VERDICT for a
+        // residency-refused model, so every message this tick sent would be acknowledged and discarded — the
+        // re-verification backlog revocation exists to perform would be silently thrown away, with not even
+        // the DLQ depth the unpriced branch's comment settles for. Undrained rows are re-read every tick, so
+        // pausing costs nothing and the backlog waits for the model to be fixed.
+        //
+        // ⚠️ `error`, not `warn`: unlike an unpriced model this cannot resolve itself on the next tick.
+        logger.error('band drain skipped: the verification model is not cleared for residency', {
+            modelId: plan.modelId,
+            deployRegion: plan.deployRegion,
+            reachedRegions: plan.reachedRegions,
+        });
 
         return { sent: 0, budget: 0 };
     }
@@ -228,6 +249,8 @@ function productionDeps(stage: string, region: string, queueUrl: string): BandDr
 
     cachedDeps = {
         stage,
+        // The drain and the gate run in the same region, so this is the gate's residency question too.
+        deployRegion: region,
         settings: createVerificationSettings({
             load: createSsmSettingsLoader({ stage, region }),
             ttlMs: SETTINGS_TTL_MS,

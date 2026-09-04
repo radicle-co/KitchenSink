@@ -9,7 +9,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { rateFor, worstCaseMicros } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import { NOVA_2_LITE_MODEL_ID, rateFor, worstCaseMicros } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import {
     VERIFICATION_INPUT_TOKEN_CEILING,
     VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -62,6 +62,7 @@ function deps(overrides: Partial<BandDrainDeps> = {}): BandDrainDeps & {
     return {
         spies,
         stage: 'prod',
+        deployRegion: 'us-east-1',
         settings: { resolve: vi.fn().mockResolvedValue(SETTINGS) },
         store: { undrainedRevokedSkips: spies.undrained, markDrained: spies.markDrained },
         reservedForPeriod: spies.reserved,
@@ -142,6 +143,27 @@ describe('degenerate settings', () => {
 
         expect(result.sent).toBe(0);
         expect(d.spies.send).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⛔ RESIDENCY (ADR-0024 §4b) — the drain must PAUSE, exactly as it does for an unpriced model, and for a
+     * strictly stronger reason.
+     *
+     * The unpriced branch pauses because the batch cannot be SIZED. This one pauses because the gate would
+     * refuse every message the tick sent: `verifyLine` now returns without a verdict for a residency-refused
+     * model, so a drain that sent anyway would silently DISCARD the backlog revocation exists to re-verify —
+     * worse than the DLQ depth the unpriced branch's comment warns about, because nothing would be visible at
+     * all. Undrained rows are re-read every tick, so pausing loses nothing.
+     */
+    it('a residency-unapproved model drains nothing — the gate would refuse every message it sent', async () => {
+        const d = deps();
+        d.settings.resolve = vi.fn().mockResolvedValue({ ...SETTINGS, modelId: NOVA_2_LITE_MODEL_ID });
+
+        const result = await drainRevokedBands(d);
+
+        expect(result).toEqual({ sent: 0, budget: 0 });
+        expect(d.spies.send).not.toHaveBeenCalled();
+        expect(d.spies.markDrained).not.toHaveBeenCalled();
     });
 });
 

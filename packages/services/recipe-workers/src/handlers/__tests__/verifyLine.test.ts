@@ -21,10 +21,22 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { BedrockClientError, BedrockThrottledError } from '@kitchensink/bedrock-client';
-import { inputTokenBound, worstCaseMicros, type ModelRate } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import {
+    BEDROCK_MODEL_REGISTRY,
+    NOVA_2_LITE_MODEL_ID,
+    inputTokenBound,
+    residencyClearance,
+    worstCaseMicros,
+    type ModelRate,
+} from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
 
-import { INPUT_BOUND_EXCEEDED_METRIC_NAME } from '../../common/spendMetrics.js';
+import {
+    INPUT_BOUND_EXCEEDED_METRIC_NAME,
+    RESIDENCY_REFUSED_METRIC_NAME,
+    SPEND_METRIC_NAMESPACE,
+} from '../../common/spendMetrics.js';
+import type { EmfMetric } from '../../common/metrics.js';
 import { processVerification, type VerificationDeps } from '../verifyLine.js';
 
 const MESSAGE = {
@@ -51,6 +63,9 @@ const ANSWERED = {
     stopReason: 'end_turn',
     usage: { inputTokens: 660, outputTokens: 42, totalTokens: 702 },
 };
+
+/** The region the gate deploys in — the only input to the residency half of the reservation. */
+const DEPLOY_REGION = 'us-east-1';
 
 /** Deps with everything healthy, and spies on every side effect. */
 function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
@@ -79,6 +94,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
     return {
         spies,
         stage: 'prod',
+        deployRegion: DEPLOY_REGION,
         settings: { resolve: vi.fn().mockResolvedValue(SETTINGS) },
         ledger: { reserve: spies.reserve, settle: spies.settle },
         bedrock: { converse: spies.converse },
@@ -260,9 +276,26 @@ describe('the happy path', () => {
  * ⚠️ The recorded halves are the mutation guard. Memos are upserted per phrase, so a `verified_by` that drifted
  * to the profile spelling would produce a silent MIX of two identities for one model rather than an error —
  * a test suite that still passes with the recorded id swapped for the invocation id is not covering this.
+ *
+ * ⛔ COVERAGE MOVED, AND SOME OF IT WAS LOST — stated rather than hidden (residency wiring, ADR-0024 §4b).
+ * Four assertions here drove Claude Haiku 4.5 THROUGH the handler, because it was the one shipped model whose
+ * address differs from its identity. Residency now refuses it before any address is derived, so those four
+ * cannot run: every model this handler can still call is on-demand, where the two ids COINCIDE, which is
+ * precisely the condition that let U35's defect hide in the first place. What replaces them:
+ *
+ *  - the DIVERGENCE is asserted one layer down, on `planReservation`, which carries `invocationId` out of the
+ *    registry entry rather than re-deriving it from `modelId` (`spendArithmetic.test.ts`);
+ *  - the handler half asserted here is now that it hands `converse` the plan's ADDRESS and records the plan's
+ *    IDENTITY, which is still falsifiable for an on-demand model if the handler ever stopped reading the plan
+ *    at all;
+ *  - the profile path itself is asserted as REFUSED below.
+ *
+ * ⚠️ The residual gap is real: no shipped model can currently distinguish `plan.invocationId` from
+ * `plan.modelId` at this call site. Rostering a residency-CLEARED profile — or 016 warranting one — restores
+ * it, and the four deleted assertions should come back with it.
  */
 describe('the invocation id, and the identity it is not', () => {
-    /** The profile-only entry the shipped registry already carries. */
+    /** The profile-only entry the shipped registry already carries — and which residency now refuses. */
     const PROFILE_MODEL_ID = 'anthropic.claude-haiku-4-5-20251001-v1:0';
     const PROFILE_INVOCATION_ID = `us.${PROFILE_MODEL_ID}`;
 
@@ -279,28 +312,22 @@ describe('the invocation id, and the identity it is not', () => {
         expect(d.spies.rememberAgreement.mock.calls[0]?.[0]?.modelId).toBe('amazon.nova-micro-v1:0');
     });
 
-    it('invokes a profile-only model with its PROFILE id', async () => {
-        const d = depsForModel(PROFILE_MODEL_ID);
-        await processVerification(d, MESSAGE);
+    it('addresses and records from the REGISTRY entry, for every model residency clears', async () => {
+        // Derived from the table rather than restated, so a new rostered model inherits the assertion. The
+        // two halves are equal today for every callable entry — see this block's docstring for why that is
+        // the residual gap and not a claim that the property is proved here.
+        for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            if (residencyClearance(entry, DEPLOY_REGION) === 'unapproved') {
+                continue;
+            }
 
-        expect(d.spies.converse.mock.calls[0]?.[0]?.invocationId).toBe(PROFILE_INVOCATION_ID);
-    });
+            const d = depsForModel(modelId);
+            await processVerification(d, MESSAGE);
 
-    it('RECORDS the bare model id for that same call, on the verdict and on the memo', async () => {
-        const d = depsForModel(PROFILE_MODEL_ID);
-        await processVerification(d, MESSAGE);
-
-        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.modelId).toBe(PROFILE_MODEL_ID);
-        expect(d.spies.rememberAgreement.mock.calls[0]?.[0]?.modelId).toBe(PROFILE_MODEL_ID);
-    });
-
-    it('settles that call at the rate keyed on the BARE id, not on the profile', async () => {
-        const d = depsForModel(PROFILE_MODEL_ID);
-        await processVerification(d, MESSAGE);
-
-        // Haiku 4.5: 660 input at $1.00/1M + 42 output at $5.00/1M = 660 + 210 = 870 micros. A rate table
-        // keyed on the profile id would have failed closed as unpriced long before this line.
-        expect(d.spies.settle).toHaveBeenCalledWith(expect.objectContaining({ actualMicros: 870 }));
+            expect(d.spies.converse.mock.calls[0]?.[0]?.invocationId, modelId).toBe(entry.invocation.invocationId);
+            expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.modelId, modelId).toBe(modelId);
+            expect(d.spies.rememberAgreement.mock.calls[0]?.[0]?.modelId, modelId).toBe(modelId);
+        }
     });
 
     it('still fails closed for an unregistered model, before any address is derived', async () => {
@@ -309,6 +336,83 @@ describe('the invocation id, and the identity it is not', () => {
         // ⛔ The profile id is an ADDRESS, never a key. Feeding it back in as a model id must be refused, or
         // the registry would have two spellings for one model and the memos would carry both.
         await expect(processVerification(d, MESSAGE)).rejects.toThrow(/not priced/u);
+        expect(d.spies.converse).not.toHaveBeenCalled();
+    });
+
+    /**
+     * RESIDENCY (ADR-0024 §4b) — the refusal, and the three things that make it different from every other
+     * refusal this handler issues.
+     *
+     * ⛔ IT MUST NOT THROW. An unpriced model, a ceiling denial and an unreadable counter are all TRANSIENT
+     * here: they throw, the message returns to the queue, and it drains to the DLQ after `maxReceiveCount`
+     * attempts. A residency refusal can never succeed on retry — no amount of redelivery makes 016 record a
+     * warrant — so throwing would spend twenty deliveries reaching the same answer and would report a
+     * standing product decision as queue depth.
+     *
+     * ⛔ IT MUST RECORD NO VERDICT (ADR-0026 §3, "absence is not dissent"). Nothing about this line was
+     * judged; writing a verdict would manufacture the wrong-DISAGREE outcome U11 ranks as unacceptable, in
+     * bulk, for a reason that has nothing to do with any recipe. The line publishes UNVERIFIED — which is
+     * exactly today's behaviour, so the refusal is no worse than not having shipped the gate.
+     *
+     * ⚠️ It is the `decision.kind === 'reject'` shape this file already uses for a deterministic condition:
+     * terminal, logged, silent. Not a new vocabulary.
+     */
+    it('REFUSES a residency-unapproved model without calling, reserving, or recording a verdict', async () => {
+        const d = depsForModel(PROFILE_MODEL_ID);
+
+        await expect(processVerification(d, MESSAGE)).resolves.toBeUndefined();
+
+        expect(d.spies.converse).not.toHaveBeenCalled();
+        expect(d.spies.reserve).not.toHaveBeenCalled();
+        expect(d.spies.recordVerdict).not.toHaveBeenCalled();
+        expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⛔ THE REFUSAL MUST BE VISIBLE, and a log line is not visibility for this package.
+     *
+     * Every other way this handler can go quiet leaves a trace an alarm already watches: a throw becomes DLQ
+     * depth, a settle failure becomes `VerificationSettleFailures`. This branch acknowledges the message,
+     * writes no row, and reserves nothing — so `VerificationSpendMicros` merely goes flat, which no alarm
+     * distinguishes from a quiet hour.
+     *
+     * ⚠️ AND THE LOG IS NOT AN ALERT HERE. `recipe-workers` has no `SubscriptionFilter` and no metric filter:
+     * the only log drain in this repository is `WebhooksStack`'s, whose three targets are the webhook, the API
+     * and the identity ECS service. So `logger.error` lands in CloudWatch Logs with nothing subscribed to it.
+     * This metric is the alert, and it carries `CallSite` for the same reason
+     * `VerificationInputBoundExceeded` does: WHICH leg went dark is the whole diagnostic.
+     */
+    it('EMITS the refusal so a dark gate is visible — the log alone reaches nothing', async () => {
+        const d = depsForModel(PROFILE_MODEL_ID);
+        await processVerification(d, MESSAGE);
+
+        const emitted = d.spies.emit.mock.calls
+            .map((call) => call[0] as EmfMetric)
+            .find((metric) => metric?.name === RESIDENCY_REFUSED_METRIC_NAME);
+
+        expect(emitted).toBeDefined();
+        expect(emitted?.namespace).toBe(SPEND_METRIC_NAMESPACE);
+        expect(emitted?.value).toBe(1);
+        expect(emitted?.dimensions).toEqual({ CallSite: 'verification-gate' });
+    });
+
+    it('stays silent on that metric when the model IS cleared', async () => {
+        // The non-vacuity floor: an emitter that fired unconditionally would satisfy the test above.
+        const d = depsForModel('amazon.nova-micro-v1:0');
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.emit.mock.calls.map((call) => (call[0] as EmfMetric)?.name)).not.toContain(
+            RESIDENCY_REFUSED_METRIC_NAME,
+        );
+    });
+
+    it('refuses the shipped PARSE model too — it is the same table, judged the same way', async () => {
+        // Nova 2 Lite was selected on gold-set accuracy and is `INFERENCE_PROFILE`-only over three regions.
+        // Pointing the gate's SSM parameter at it is the mid-incident change this refusal has to survive.
+        const d = depsForModel(NOVA_2_LITE_MODEL_ID);
+
+        await expect(processVerification(d, MESSAGE)).resolves.toBeUndefined();
         expect(d.spies.converse).not.toHaveBeenCalled();
     });
 });

@@ -30,6 +30,7 @@ import { LambdaClient } from '@aws-sdk/client-lambda';
 import { createBedrockConverseClient, createBedrockTransport, isBedrockClientError } from '@kitchensink/bedrock-client';
 import { lineDigest, type HexDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { PARSE_JOB_AGGREGATE_SQL } from '@kitchensink/recipe-core/parsing/parse-job-aggregate';
+import { NOVA_LITE_MODEL_ID } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import {
     parseLineJobMessageSchema,
     type ParseLineJobMessage,
@@ -47,6 +48,7 @@ import { logger } from '../common/logger.js';
 import { emitMetric } from '../common/metrics.js';
 import { getRecipeDb, getRecipePool } from '../common/db.js';
 import { createSpendLedger } from '../common/verificationSpend.js';
+import { isResidencyRefusedError } from '../common/residencyRefused.js';
 import { createSsmSettingsLoader, createVerificationSettings } from '../verification/settings.js';
 import { createParseCachePort, createParseCorrectionsPort, type ParseQueryable } from '../parsing/parsePorts.js';
 import { createCrfInvokeEngine } from '../parsing/crfInvoke.js';
@@ -58,8 +60,32 @@ import {
     type GatedLlmDeps,
 } from '../parsing/gatedLlm.js';
 
-/** The parse leg's model — Nova 2 Lite, the model ADR-0026 records the shipped prompt against. */
-export const PARSE_LEG_MODEL_ID = 'amazon.nova-2-lite-v1:0';
+/**
+ * The parse leg's model — **Nova Lite v1**, the best RESIDENCY-CLEAR option (ADR-0024 §4b, owner ruling
+ * 2026-09-04).
+ *
+ * ⛔ IT WAS `amazon.nova-2-lite-v1:0`, chosen on ADR-0026 §9's external gold set (84%/53% exact, against Nova
+ * Micro's 64%/30%), and that choice is REVERSED here on a ground §9 never weighed. Every inference profile
+ * that exists for Nova 2 Lite leaves us-east-1 — `us.` reaches three regions, `global.` reaches wider, and
+ * there is no single-region or application profile — while AWS stores prompts and outputs in destination
+ * Regions for abuse detection. Whether user recipe text may go there is feature 016's determination, and it
+ * has not been made, so `residencyClearance` answers `unapproved` and both the runtime and the IAM policy now
+ * refuse it. Selecting a model on accuracy never made it residency-clear.
+ *
+ * ⚠️ THE TRADE, stated so nobody has to rediscover it: on the same gold set Nova Lite v1 scores 73/41 static
+ * and 82/52 with retrieval, so this ships an accuracy REGRESSION of roughly 11 points on the ingredient half
+ * and 12 on the instruction half against the static prompt. It is cheaper in every token class (5.5× on
+ * input, 11.5× on output, 5.5× on cache reads), so the ADR-0024 pool stretches further; that is a consolation,
+ * not the reason. The way back is for 016 to record a `residencyApproval` on the Nova 2 Lite registry entry —
+ * one edit, carrying its date and reference — after which this constant moves back in its own commit.
+ *
+ * ⛔ IT IS A COMPILE-TIME CONSTANT, deliberately, and that is load-bearing here. A refused parse model does
+ * not fail the handler: every line stops landing and simply stays `pending` until its job's TTL sweeps it, so
+ * the symptom is a stalled import rather than an error. If this were an SSM value an operator could produce
+ * that stall with a parameter edit; because it is a constant, `parseLine.test.ts`'s "the shipped model pins
+ * are callable" assertion makes it unreachable without a red build.
+ */
+export const PARSE_LEG_MODEL_ID = NOVA_LITE_MODEL_ID;
 
 /** Everything the handler talks to, injected — the `verifyLine.ts` discipline. */
 export interface ParseLineDeps {
@@ -159,6 +185,33 @@ export async function processParseLine(deps: ParseLineDeps, message: ParseLineJo
         },
     );
 
+    // ⛔ A FOURTH CLASS, ahead of the transient re-throw: REFUSED (ADR-0024 §4b). A residency refusal shares
+    // the transient set's property that nothing may LAND — a merge produced while an engine was silenced by
+    // a deployment fault must not become this line's permanent answer — and none of its property that a
+    // retry could help: it is deterministic in (model, region), so redelivering it would burn the queue's
+    // whole `maxReceiveCount` to reach the same answer and would report a standing product decision as DLQ
+    // depth. So it lands nothing AND re-throws nothing.
+    //
+    // ⚠️ Checked over the whole collection rather than the first element: a run can carry a CRF outage AND a
+    // refusal, and the refusal's disposition wins because nothing can land until the model is cleared either
+    // way — while re-throwing the outage would put a permanently-failing message on the redelivery path.
+    //
+    // ⚠️ ACCEPTED CONSEQUENCE, stated rather than discovered: the line stays `pending` until `expireParseJobs`
+    // sweeps its job. U9's per-line retry only re-runs `failed_retryable`, so nothing picks it up sooner —
+    // which is correct, because landing `failed_retryable` would record a fact about the LINE for a fault
+    // about the DEPLOY. The `logger.error` in `gatedLlm.ts` is what makes the stall visible.
+    const refusal = transientFailures.find(isResidencyRefusedError);
+
+    if (refusal !== undefined) {
+        logger.error('parse-line refused: the parse model is not cleared for residency; nothing was landed', {
+            jobId: message.jobId,
+            lineIndex: message.lineIndex,
+            ...refusal.refusal,
+        });
+
+        return;
+    }
+
     if (transientFailures.length > 0) {
         // ⛔ BEFORE any landing: a single-engine merge produced under a transient outage must not become
         // this line's permanent answer. The cache keeps whatever succeeded, so the redelivery re-pays only
@@ -229,6 +282,8 @@ function productionDeps(stage: string, region: string): ParseLineDeps {
         stage,
         gated: {
             stage,
+            // The Lambda's own region — the same value the stack's residency derivation used at synth time.
+            deployRegion: region,
             settings: createVerificationSettings({
                 load: createSsmSettingsLoader({ stage, region }),
                 ttlMs: 60_000,

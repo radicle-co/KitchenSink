@@ -48,11 +48,29 @@
  * on-demand models, the profiles, the fan-outs — is enumerable, and a `*` anywhere would discard a scope
  * reduction that costs nothing.
  *
- * ⚠️ RESIDENCY IS STILL NOT CONSULTED HERE (ADR-0024 §4b). The grant follows registry MEMBERSHIP alone; a
- * profile whose `residencyClearance` answers `unapproved` is still granted, because wiring the clearance into
- * this derivation and into `planReservation` must land as ONE change and is an owner decision.
+ * ## ⛔ RESIDENCY IS CONSULTED HERE, AND IT IS THE SAME PREDICATE THE RUNTIME CALLS
+ *
+ * An entry whose inference profile leaves the deploy region with no `residencyApproval` is granted NOTHING —
+ * not its profile ARN, not its fan-out, not a bare-id grant. This half and `planReservation`'s both call
+ * `residencyRefusal`, which is the single admission mapping over `residencyClearance`, so IAM and the caller
+ * cannot disagree about which models may be REACHED any more than they can about which models exist.
+ *
+ * ⚠️ That is what ADR-0024 §4b meant by "must land as ONE change, or IAM will grant what the runtime refuses
+ * (or the reverse)". Until 2026-09-04 this derivation followed MEMBERSHIP alone while `residencyClearance`
+ * had no caller at all, so the policy authorized us-east-2 and us-west-2 for two profiles nobody had cleared.
+ *
+ * ⛔ THE DEPLOY REGION IS A PARAMETER, NOT A DEFAULT, AND IT IS RANGE-CHECKED. The comparison is
+ * `regions.every(r => r === deployRegion)`, so an unresolved CloudFormation token would match nothing, every
+ * profile would silently lose its grant, the deploy would succeed, and the runtime would meet `AccessDenied`
+ * for models the registry says are fine — a failure with no symptom until a call is made. The check below
+ * turns that into a failed synth. It knows nothing about CDK: it simply refuses a value that is not shaped
+ * like a region name, which is the only kind of value the comparison can mean anything against.
+ *
+ * ⛔ AND THE CONSULTATION LIVES INSIDE THIS FUNCTION, never in its caller. Pre-filtering the registry at the
+ * stack would make the residency check a caller's responsibility, so a second caller could omit it — which is
+ * the two-interpreters failure §4b exists to prevent, reintroduced one layer up.
  */
-import type { ModelRegistryEntry } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import { residencyRefusal, type ModelRegistryEntry } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 /**
  * The variable components of a Bedrock ARN.
@@ -94,26 +112,54 @@ export interface BedrockInvokeStatement {
 }
 
 /**
+ * An AWS region id — `us-east-1`, `ap-southeast-2`, `us-gov-west-1`.
+ *
+ * ⛔ A PRECONDITION, NOT A PARSER. It exists to reject what the residency comparison cannot mean anything
+ * against: an unresolved `${Token[AWS.Region.N]}`, an empty string, a stringified `undefined`. Anything that
+ * IS shaped like a region is accepted without further opinion — this module has no business holding a list of
+ * regions AWS may add tomorrow.
+ */
+const REGION_ID = /^[a-z]{2}(?:-[a-z]+)+-\d$/u;
+
+/**
  * Derive every `bedrock:InvokeModel` statement a model registry requires.
  *
  * Three shapes, in this order: ONE unconditioned statement naming every entry addressed by its own id (the
  * on-demand models, invoked in the deploy region, account-less); ONE unconditioned statement naming every
  * inference profile; and one CONDITIONED fan-out statement per profile naming the foundation model in each
- * region that profile routes to. Each shape is emitted only when the registry has an entry of that kind.
+ * region that profile routes to. Each shape is emitted only when the registry has an entry of that kind —
+ * and an entry residency refuses contributes to none of them.
  *
  * @param registry - The model registry, keyed on bare model id.
  * @param formatArn - How to format a Bedrock ARN (`Stack.of(this).formatArn` in production).
- * @returns The statements to add, empty for an empty registry. Pure.
+ * @param deployRegion - The region this stack deploys to (`Stack.of(this).region` in production).
+ * @returns The statements to add, empty for an empty or wholly-unapproved registry. Pure.
+ * @throws When `deployRegion` is not a resolved region id — see {@link REGION_ID}.
  */
 export function bedrockInvokeStatements(
     registry: Readonly<Record<string, ModelRegistryEntry>>,
     formatArn: BedrockArnFormatter,
+    deployRegion: string,
 ): readonly BedrockInvokeStatement[] {
+    if (!REGION_ID.test(deployRegion)) {
+        throw new Error(
+            `bedrockInvokeStatements needs a resolved deploy region to judge residency, got '${deployRegion}'. ` +
+                'Synthesize this stack with env.region set (ADR-0024 §4b).',
+        );
+    }
+
     const onDemandArns: string[] = [];
     const profileArns: string[] = [];
     const fannedOut: BedrockInvokeStatement[] = [];
 
     for (const [modelId, entry] of Object.entries(registry)) {
+        // ⛔ RESIDENCY FIRST — before the addressing question, because an entry nobody has cleared is granted
+        // nothing at all and its address is therefore irrelevant. The same `residencyRefusal` decides
+        // `planReservation`'s answer, which is the whole of ADR-0024 §4b's "ONE change".
+        if (residencyRefusal(modelId, entry, deployRegion) !== undefined) {
+            continue;
+        }
+
         const { invocationId, reach } = entry.invocation;
 
         // ⛔ THE PREDICATE IS "ADDRESSED BY SOMETHING OTHER THAN ITSELF", not "carries a region list". The two

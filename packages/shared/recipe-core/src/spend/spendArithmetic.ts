@@ -65,12 +65,18 @@ export const NOVA_MICRO_MODEL_ID = 'amazon.nova-micro-v1:0';
 export const CLAUDE_HAIKU_4_5_MODEL_ID = 'anthropic.claude-haiku-4-5-20251001-v1:0';
 
 /**
- * Amazon Nova Lite — the next rung of the same family, priced so the bake-off can ask whether Micro is
- * leaving quality on the table.
+ * Amazon Nova Lite — **the model the SHIPPED parse leg calls** (`PARSE_LEG_MODEL_ID`), and the next rung of
+ * the same family for the bake-off's purposes.
  *
- * ⚠️ Being priced here is NOT a decision to ship it. {@link BEDROCK_MODEL_REGISTRY} is the authority for what may
- * be CALLED; ADR-0024 §4a's shipped default is still Nova Micro, and moving it is an SSM change plus an ADR.
- * What this entry buys is that a family sweep can be run and costed without inventing a rate.
+ * ⛔ IT BECAME A SHIPPING DECISION on 2026-09-04, which is not what this entry was added for. It was priced so
+ * a family sweep could be costed without inventing a rate; it is now what the parse leg runs, because it is
+ * the best RESIDENCY-CLEAR option (ADR-0024 §4b). {@link NOVA_2_LITE_MODEL_ID} won on accuracy — 84%/53%
+ * against this model's 73/41 static, 82/52 with retrieval — and is `INFERENCE_PROFILE`-only over three
+ * regions with no warrant, so both the runtime and the IAM policy refuse it.
+ *
+ * ⚠️ THE VERIFICATION GATE'S DEFAULT IS STILL NOVA MICRO, and is unchanged: that one comes from SSM (ADR-0024
+ * §3), and moving it is a parameter change plus an ADR, never an edit here. The parse leg and the gate pick
+ * their models independently.
  */
 export const NOVA_LITE_MODEL_ID = 'amazon.nova-lite-v1:0';
 
@@ -78,12 +84,18 @@ export const NOVA_LITE_MODEL_ID = 'amazon.nova-lite-v1:0';
 export const NOVA_PRO_MODEL_ID = 'amazon.nova-pro-v1:0';
 
 /**
- * Amazon Nova 2 Lite — the model the SHIPPED parse leg calls.
+ * Amazon Nova 2 Lite — the ACCURACY winner, and the model the parse leg is not allowed to call.
  *
- * ⛔ Unlike the three above, this one IS a shipping decision. It was selected on an external held-out gold
- * set (144 ingredient + 210 instruction lines, human-adjudicated): 84% / 53% exact against Nova Micro's
- * 64% / 30% on the same prompt. Model choice moved accuracy roughly twenty points where eight rounds of
- * prompt revision moved it three.
+ * ⛔ IT WAS THE SHIPPED PARSE MODEL, selected on an external held-out gold set (144 ingredient + 210
+ * instruction lines, human-adjudicated): 84% / 53% exact against Nova Micro's 64% / 30% on the same prompt.
+ * Model choice moved accuracy roughly twenty points where eight rounds of prompt revision moved three. That
+ * measurement stands; what it never established is that the model could be REACHED.
+ *
+ * ⛔ IT IS RESIDENCY-REFUSED (ADR-0024 §4b, owner ruling 2026-09-04). Every inference profile that exists for
+ * it leaves us-east-1, AWS stores prompts and outputs in destination Regions for abuse detection, and feature
+ * 016 has not ruled on whether user recipe text may go there — so `residencyClearance` answers `unapproved`,
+ * `planReservation` refuses it, and the IAM policy grants it nothing. The parse leg runs
+ * {@link NOVA_LITE_MODEL_ID} instead. See this entry in {@link BEDROCK_MODEL_REGISTRY} for the whole record.
  */
 export const NOVA_2_LITE_MODEL_ID = 'amazon.nova-2-lite-v1:0';
 
@@ -384,15 +396,19 @@ export const BEDROCK_MODEL_REGISTRY: Readonly<Record<string, ModelRegistryEntry>
         // is an open question owned by 016 — not a config detail, and not mine to close by editing a marker.
         // `residencyClearance` therefore answers `unapproved`.
         //
-        // ⛔ AND NOTHING ENFORCES THAT ANSWER YET. An earlier version of this comment claimed "the runtime
-        // gate and the CDK IAM grant both honour" it. Neither does: `residencyClearance` has no caller
-        // outside its own tests, `planReservation` prices this entry like any other, and
-        // `bedrockInvokePolicy.ts` derives the profile grant from registry MEMBERSHIP alone (ADR-0024 §4b,
-        // "RESIDENCY IS STILL OPEN, AND IS NOT GATED BY IAM"). Today the only things standing between recipe
-        // text and us-east-2/us-west-2 are the SSM model parameter and this entry's presence in the table.
-        // Wiring the clearance into `planReservation` AND the IAM derivation must land as ONE change, and it
-        // is an OWNER decision, because it makes this — the shipped parse model — uncallable until 016
-        // records an approval. Selecting this model on accuracy did not make it residency-clear.
+        // ⛔ AND THAT ANSWER IS NOW ENFORCED, IN BOTH PLACES (owner ruling 2026-09-04; ADR-0024 §4b's
+        // "must land as ONE change"). `planReservation` returns `residency-unapproved` for this entry before
+        // it prices anything, and `bedrockInvokePolicy.ts` emits no statement for it — so the IAM policy no
+        // longer names `us.amazon.nova-2-lite-v1:0` or the us-east-2/us-west-2 foundation models behind it.
+        // ⛔ THIS ENTRY IS THEREFORE UNCALLABLE, and that is the intended state, not a defect to route
+        // around. Selecting it on gold-set accuracy (84%/53%) never made it residency-clear; the shipped
+        // parse leg fell back to Nova Lite v1 (`PARSE_LEG_MODEL_ID`, 73/41 static), and the way to get this
+        // model back is for 016 to record a `residencyApproval` here — one edit, with its date and reference.
+        //
+        // ⛔ DO NOT DELETE THE ENTRY because it can no longer be called. Its price provenance and its recorded
+        // reach are the audit trail behind the ruling, and `spendArithmetic.test.ts`'s non-vacuity floor
+        // ("the registry refuses nothing — the residency branch is unexercised") REQUIRES an unapproved member
+        // to exist, or the branch this comment describes would go untested.
         invocation: Object.freeze({
             invocationId: 'us.amazon.nova-2-lite-v1:0',
             reach: Object.freeze({
@@ -474,6 +490,21 @@ export interface ReservationRequest {
     readonly maxOutputTokens: number;
     /** The instant the reservation is taken. Injected so the period key is testable across a month boundary. */
     readonly nowUtc: Date;
+    /**
+     * The region the call is issued from — the second half of the residency judgement (ADR-0024 §4b).
+     *
+     * ⛔ REQUIRED, never optional with a default. {@link residencyClearance}'s answer is a property of the
+     * profile AND the calling region, so a default would be a POSITION silently asserted on behalf of every
+     * caller that had not thought about it — and `ModelReach`'s own docstring names the consequence: a region
+     * literal baked in here "would silently make the residency comparison vacuous the first time a stage
+     * deployed elsewhere." Required also makes every existing call site a compile error, which is how the
+     * three runtime callers were made to state a region rather than inherit one.
+     *
+     * ⚠️ It is NOT captured onto {@link PricedReservation}. The period, the rate and the address are captured
+     * because a mid-call SSM change could otherwise split them; the deploy region cannot change mid-call, and
+     * carrying it would invite a settlement to re-judge residency after the money was already spent.
+     */
+    readonly deployRegion: string;
 }
 
 /**
@@ -514,12 +545,38 @@ export interface PricedReservation {
 }
 
 /**
+ * The refusal a model earns because its inference profile leaves the deploy region and nobody has cleared it.
+ *
+ * ⛔ A SEPARATE MEMBER FROM `unpriced`, NOT A SHARED ONE, and the distinction is behavioural rather than
+ * cosmetic. An unpriced model is a lookup that failed: point SSM at a model the table prices and the very
+ * next delivery succeeds, which is why every caller treats it as TRANSIENT and throws. This can never succeed
+ * on retry — no number of redeliveries makes feature 016 record a warrant — so a caller that folded it into
+ * the `unpriced` branch would spend a queue's whole `maxReceiveCount` reaching the same answer and would
+ * report a standing product decision as DLQ depth.
+ *
+ * ⚠️ It carries the WHOLE judgement — which model, from where, and the regions the call would have reached —
+ * so the operator's log line needs no second read of the registry. It deliberately carries no `invocationId`:
+ * the refusal happens BEFORE any address is derived, and naming one would imply an address was resolved.
+ */
+export interface ResidencyUnapproved {
+    readonly kind: 'residency-unapproved';
+    /** The registry key that was refused. */
+    readonly modelId: string;
+    /** The region the caller invokes from. */
+    readonly deployRegion: string;
+    /** Every region the profile would have routed to, as recorded on the entry. */
+    readonly reachedRegions: readonly string[];
+}
+
+/**
  * The outcome of planning a reservation.
  *
- * A discriminated union rather than `ReservationPlan | undefined`, so the unpriced branch can name the model
- * it refused — which is the log line an operator needs when SSM has been pointed at a model nobody priced.
+ * A discriminated union rather than `ReservationPlan | undefined`, so each refusal can name the model it
+ * refused — which is the log line an operator needs when SSM has been pointed at a model nobody priced, or at
+ * one whose inference profile nobody has cleared to leave the region.
  */
-export type ReservationPlan = PricedReservation | { readonly kind: 'unpriced'; readonly modelId: string };
+export type ReservationPlan =
+    PricedReservation | { readonly kind: 'unpriced'; readonly modelId: string } | ResidencyUnapproved;
 
 /**
  * The rates for a model id, or `undefined` when the table does not price it.
@@ -563,6 +620,12 @@ export type ResidencyClearance = 'in-deploy-region' | 'approved' | 'unapproved';
  * IAM grant. Two interpreters of one fact would drift, and drift in the dangerous direction — IAM granting
  * what the runtime refuses, or the reverse. One predicate, two callers, no second opinion.
  *
+ * ⚠️ THAT CLAIM WAS ASPIRATIONAL UNTIL 2026-09-04 and is now true. This function had NO caller outside its own
+ * tests: `planReservation` priced an `unapproved` entry like any other and `bedrockInvokePolicy.ts` granted on
+ * registry MEMBERSHIP alone, exactly as ADR-0024 §4b recorded ("RESIDENCY IS STILL OPEN, AND IS NOT GATED BY
+ * IAM"). Both now go through {@link residencyRefusal}, which is the single admission mapping over this
+ * predicate — so the drift the paragraph above warns about is closed by construction rather than by care.
+ *
  * ⚠️ `in-deploy-region` is returned for a recorded region set that does not actually leave the deploy region,
  * not only for the sentinel. A profile whose members are all local needs no warrant, and demanding one would
  * be ceremony rather than a control.
@@ -583,6 +646,46 @@ export function residencyClearance(entry: ModelRegistryEntry, deployRegion: stri
     }
 
     return reach.residencyApproval === undefined ? 'unapproved' : 'approved';
+}
+
+/**
+ * The refusal one entry earns on residency grounds, or `undefined` when it may be invoked. Pure and total.
+ *
+ * ⛔ THE ONE ADMISSION MAPPING over {@link residencyClearance}, and the reason there are two functions rather
+ * than one. `residencyClearance` INTERPRETS the marker; this maps that interpretation to the value a refusal
+ * takes. Both consumers — {@link planReservation} and the CDK's `bedrockInvokeStatements` — call THIS, so the
+ * predicate `clearance === 'unapproved'` is written down exactly once. Two copies of it is the drift ADR-0024
+ * §4b names as the danger: "IAM will grant what the runtime refuses (or the reverse)."
+ *
+ * ⚠️ IT IS EXPORTED SO THE `approved` ARM CAN BE DRIVEN AT ALL. No shipped entry carries a warrant, and
+ * `spendArithmetic.test.ts` asserts that none may gain one without a deliberate edit — so a guard mis-written
+ * as `clearance !== 'in-deploy-region'` would refuse an approved entry while EVERY test in this repository
+ * stayed green. Taking the entry as a parameter is what makes that mutation visible.
+ *
+ * @param modelId - The registry key, carried onto the refusal for the log line.
+ * @param entry - The registered model.
+ * @param deployRegion - The region the caller invokes from.
+ * @returns The refusal, or `undefined` when residency admits the call.
+ */
+export function residencyRefusal(
+    modelId: string,
+    entry: ModelRegistryEntry,
+    deployRegion: string,
+): ResidencyUnapproved | undefined {
+    if (residencyClearance(entry, deployRegion) !== 'unapproved') {
+        return undefined;
+    }
+
+    const { reach } = entry.invocation;
+
+    return {
+        kind: 'residency-unapproved',
+        modelId,
+        deployRegion,
+        // Unreachable for the sentinel arm — it always clears — but expressed as a total read rather than a
+        // cast, so the union stays the compiler's problem the way `ModelReach`'s docstring intends.
+        reachedRegions: reach.kind === 'regions' ? reach.regions : [],
+    };
 }
 
 export function periodKey(nowUtc: Date): string {
@@ -844,8 +947,8 @@ export function inputTokensBeyondBound(bound: number, usage: TokenUsage): number
  * The whole pre-call decision, in one total function with no I/O — which is what lets ADR-0024's ceiling be
  * proved by table test rather than by deploying it and waiting for a runaway.
  *
- * @param request - The model, the live ceiling, both caps, and the instant.
- * @returns A priced plan, or the `unpriced` refusal. Pure.
+ * @param request - The model, the live ceiling, both caps, the instant, and the deploy region.
+ * @returns A priced plan, or the `unpriced` / `residency-unapproved` refusal. Pure.
  */
 export function planReservation(request: ReservationRequest): ReservationPlan {
     // ⛔ ONE read of the registry, yielding BOTH the price and the address. Resolving them separately — a
@@ -855,6 +958,18 @@ export function planReservation(request: ReservationRequest): ReservationPlan {
 
     if (entry === undefined) {
         return { kind: 'unpriced', modelId: request.modelId };
+    }
+
+    // ⛔ MEMBERSHIP FIRST, RESIDENCY SECOND, and the order is not stylistic: an unregistered id has no entry,
+    // so there is no reach to judge. ⛔ AND RESIDENCY BEFORE PRICING — a model that may not be called does not
+    // get a worst case, for the same reason an unpriced one does not get an address: nothing downstream should
+    // be able to reserve, address or settle against a plan that was never admissible. See ADR-0024 §4b; the
+    // CDK's `bedrockInvokeStatements` consults the SAME `residencyRefusal`, which is what keeps the IAM policy
+    // and this decision from disagreeing.
+    const refusal = residencyRefusal(request.modelId, entry, request.deployRegion);
+
+    if (refusal !== undefined) {
+        return refusal;
     }
 
     const { rate } = entry;

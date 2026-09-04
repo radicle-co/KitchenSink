@@ -77,3 +77,27 @@ export const SETTLE_FAILURE_METRIC_NAME = 'VerificationSettleFailures';
  * occurrence.
  */
 export const INPUT_BOUND_EXCEEDED_METRIC_NAME = 'VerificationInputBoundExceeded';
+
+/**
+ * Fires when a call was NOT made because the model's inference profile leaves the deploy region and nobody
+ * has cleared it (ADR-0024 §4b).
+ *
+ * ⛔ IT SHOULD READ ZERO FOREVER, and it is the ONLY trace this refusal leaves. Every other way these two
+ * legs go quiet is already visible somewhere: a throw becomes DLQ depth, a settle failure becomes
+ * {@link SETTLE_FAILURE_METRIC_NAME}, an over-bound call becomes
+ * {@link INPUT_BOUND_EXCEEDED_METRIC_NAME}. A residency refusal acknowledges the message, writes no verdict
+ * and reserves nothing — so the queue stays empty, `Errors` stays flat, and {@link SPEND_METRIC_NAME} merely
+ * goes quiet, which is indistinguishable from a slow hour. The gate would be dark with every dashboard green.
+ *
+ * ⚠️ AND A LOG LINE IS NOT AN ALERT IN THIS PACKAGE — the assumption that nearly shipped this without a
+ * metric. `recipe-workers` has no `logs.SubscriptionFilter` and no metric filter: the only log drain in the
+ * repository is `WebhooksStack`'s, whose three targets are the webhook Lambda, the API access log and the
+ * identity ECS service. Nothing forwards a recipe-workers log anywhere, so `logger.error` is a record for
+ * whoever already went looking, not a signal that anyone goes looking BECAUSE of.
+ *
+ * ⚠️ Carries the `CallSite` dimension, like {@link INPUT_BOUND_EXCEEDED_METRIC_NAME} and for the same reason:
+ * which leg went dark is the whole diagnostic, and the remedy differs (the gate's model is an SSM parameter,
+ * the parse leg's is a compile-time constant). The VALUE is 1 per refusal, so the alarm reads occurrence —
+ * there is no severity here, only on or off.
+ */
+export const RESIDENCY_REFUSED_METRIC_NAME = 'VerificationResidencyRefused';

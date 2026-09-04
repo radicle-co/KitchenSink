@@ -12,6 +12,7 @@ import {
     snapshotObjectKey,
 } from '../../../src/handlers/versionArchiveWorker.js';
 import { toArchiveMessage } from '../../../src/handlers/archiveSweeper.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
 /**
  * GDPR archive-resurrection guard — against real Postgres + real S3 (LocalStack).
@@ -34,7 +35,7 @@ import { toArchiveMessage } from '../../../src/handlers/archiveSweeper.js';
  * Runs only with both harnesses up (`DATABASE_URL` + `S3_ENDPOINT`); otherwise skipped in lockstep.
  */
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const S3_ENDPOINT = process.env['S3_ENDPOINT'];
 const canRun = Boolean(DATABASE_URL) && Boolean(S3_ENDPOINT);
 

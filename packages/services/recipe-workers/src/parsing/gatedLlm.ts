@@ -50,6 +50,8 @@ import {
     INGREDIENT_PARSE_CALL_SITE,
     planReservation,
     actualCostMicros,
+    inputTokenBound,
+    inputTokensBeyondBound,
     type SpendCallSite,
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { isBedrockClientError, type BedrockConverseClient, type ConverseRequest } from '@kitchensink/bedrock-client';
@@ -63,7 +65,7 @@ import {
     type RetryParsePort,
 } from '@kitchensink/recipe-import-core';
 
-import { SPEND_METRIC_NAME, SPEND_METRIC_NAMESPACE } from '../common/spendMetrics.js';
+import { INPUT_BOUND_EXCEEDED_METRIC_NAME, SPEND_METRIC_NAME, SPEND_METRIC_NAMESPACE } from '../common/spendMetrics.js';
 import { isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
 import type { EmfMetric } from '../common/metrics.js';
 import { logger } from '../common/logger.js';
@@ -100,10 +102,15 @@ type GatedOutcome =
 export async function gatedConverse(deps: GatedLlmDeps, call: GatedCall): Promise<GatedOutcome> {
     const settings = await deps.settings.resolve();
     const modelId = call.modelId ?? settings.modelId;
+    const inputBound = inputTokenBound(turnsOf(call.request));
     const plan = planReservation({
         modelId,
         ceilingMicros: settings.ceilingMicros,
-        maxInputTokens: [...call.request.systemPrompt].length + [...call.request.userMessage].length + 400,
+        // ⛔ EVERY TURN, IN BYTES. This was `[...system].length + [...user].length + 400`: code points (not a
+        // bound on a byte-fallback tokenizer, which spends up to four tokens on one unknown code point), a
+        // bare `400` with no provenance, and — the concrete defect — NO count of `fewShotTurns`, so the
+        // foodness validator's six example messages were reserved for at zero. See `inputTokenBound`.
+        maxInputTokens: inputBound,
         maxOutputTokens: call.request.maxOutputTokens,
         nowUtc: deps.now(),
     });
@@ -157,9 +164,49 @@ export async function gatedConverse(deps: GatedLlmDeps, call: GatedCall): Promis
         dimensions: { CallSite: call.callSite },
     });
 
+    // ⛔ DID LAYER 1's BOUND HOLD? The counter cannot say — an overshoot is charged by the unclamped settle
+    // delta and vanishes into the month's total. Emitted in every stage, for the same reason the gate does.
+    if (usage !== undefined) {
+        const overrun = inputTokensBeyondBound(inputBound, usage);
+
+        if (overrun > 0) {
+            deps.emit({
+                namespace: SPEND_METRIC_NAMESPACE,
+                name: INPUT_BOUND_EXCEEDED_METRIC_NAME,
+                unit: 'Count',
+                stage: deps.stage,
+                value: overrun,
+                dimensions: { CallSite: call.callSite },
+            });
+            logger.warn('parse-leg billed MORE input tokens than the reservation was priced for', {
+                callSite: call.callSite,
+                bound: inputBound,
+                overrun,
+            });
+        }
+    }
+
     return outcome.kind === 'answered'
         ? { kind: 'answered', text: outcome.text, stopReason: outcome.stopReason }
         : { kind: 'unusable' };
+}
+
+/**
+ * Every text segment a request carries, in the order the transport sends them.
+ *
+ * ⛔ `fewShotTurns` INCLUDED. The foodness validator sends six example messages between the system prompt and
+ * the user message; a bound taken over `system + user` alone under-prices every one of its calls by the whole
+ * weight of those examples — and its retry loop fires it up to twice per parse attempt, four attempts a line.
+ *
+ * @param request - The converse request, minus the invocation id the spine supplies.
+ * @returns The turns, in wire order. Pure.
+ */
+function turnsOf(request: Omit<ConverseRequest, 'invocationId'>): readonly string[] {
+    return [
+        request.systemPrompt,
+        ...(request.fewShotTurns ?? []).flatMap((turn) => [turn.user, turn.assistant]),
+        request.userMessage,
+    ];
 }
 
 /** Settle without ever failing the handler — the gate's own rule, restated for the new consumers. */

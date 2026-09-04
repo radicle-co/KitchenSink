@@ -15,9 +15,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { inputTokenBound } from '../../spend/spendArithmetic.js';
 import {
     MAX_VERIFICATION_PROMPT_CHARS,
-    VERIFICATION_MAX_INPUT_TOKENS,
+    VERIFICATION_INPUT_TOKEN_CEILING,
     VERIFICATION_MAX_OUTPUT_TOKENS,
     buildVerificationPrompt,
     isPromptTooLargeError,
@@ -124,18 +125,30 @@ describe('the untrusted line', () => {
 });
 
 describe('the size bound the reservation depends on', () => {
-    it('declares an output cap and an input cap', () => {
+    it('declares an output cap and an input-token ceiling', () => {
         // ⛔ ADR-0024 §2: "maxTokens MUST be set explicitly, and input tokens MUST be capped before the call.
         // If prompt length is unbounded, the reservation is a lie and the ceiling does not hold."
         expect(VERIFICATION_MAX_OUTPUT_TOKENS).toBeGreaterThan(0);
-        expect(VERIFICATION_MAX_INPUT_TOKENS).toBeGreaterThan(0);
+        expect(VERIFICATION_INPUT_TOKEN_CEILING).toBeGreaterThan(0);
     });
 
-    it('bounds the assembled prompt at or below the token cap, counting one token per code point', () => {
-        // The safest possible characters-to-tokens assumption: no tokenizer emits MORE than one token per
-        // code point. So a prompt bounded in code points is bounded in tokens, without shipping a tokenizer
-        // or trusting a ratio measured on English.
-        expect(MAX_VERIFICATION_PROMPT_CHARS).toBeLessThanOrEqual(VERIFICATION_MAX_INPUT_TOKENS);
+    it('the ceiling dominates the byte bound of the WIDEST prompt the builder accepts — four bytes a code point', () => {
+        // ⛔ This suite used to assert `MAX_VERIFICATION_PROMPT_CHARS <= VERIFICATION_MAX_INPUT_TOKENS` on the
+        // claim "no tokenizer emits MORE than one token per code point". That claim is false for byte-fallback
+        // BPE, where an unknown code point is emitted as its bytes — up to four tokens. A prompt made of
+        // 4-byte characters, just inside the code-point cap, is therefore bounded at ~4x its length; the
+        // ceiling any prompt-less caller reserves with must be at least that.
+        // Size the filler from a MEASURED empty-line prompt, so this stays exact if the wording ever moves.
+        const empty = buildVerificationPrompt({ ...REQUEST, sourceLine: '' });
+        const framing = [...empty.system].length + [...empty.user].length;
+        const filler = '🍞'.repeat(MAX_VERIFICATION_PROMPT_CHARS - framing);
+        const { system, user } = buildVerificationPrompt({ ...REQUEST, sourceLine: filler });
+        const bound = inputTokenBound([system, user]);
+
+        expect([...system].length + [...user].length).toBeLessThanOrEqual(MAX_VERIFICATION_PROMPT_CHARS);
+        // The old equality would have under-reserved this prompt by a factor approaching four.
+        expect(bound).toBeGreaterThan(MAX_VERIFICATION_PROMPT_CHARS);
+        expect(bound).toBeLessThanOrEqual(VERIFICATION_INPUT_TOKEN_CEILING);
     });
 
     it('builds a normal prompt well inside the bound', () => {

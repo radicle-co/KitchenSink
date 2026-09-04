@@ -10,10 +10,12 @@ import {
     claimErasureJob,
     eraseRecipeObjects,
     eraseRecipeRows,
+    erasureJobExistsForOwner,
     markErasureJobCompleted,
     ownerMediaPrefix,
     recordErasureJobError,
 } from '../../../src/handlers/accountErasureWorker.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
 /**
  * T137 (worker half) — the SCOPED account-erasure worker's DESTRUCTIVE seams against real Postgres + real
@@ -44,7 +46,7 @@ import {
  * Runs only with both harnesses up (`DATABASE_URL` + `S3_ENDPOINT`), otherwise skipped in lockstep.
  */
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const S3_ENDPOINT = process.env['S3_ENDPOINT'];
 const canRun = Boolean(DATABASE_URL) && Boolean(S3_ENDPOINT);
 
@@ -463,5 +465,22 @@ describe.skipIf(!canRun)('account-erasure worker — scoped erasure on the real 
         expect(completed.rows[0]).toEqual({ status: 'completed', last_error: null });
 
         expect(await claimErasureJob(db, OWNER_JOB)).toBeUndefined();
+    });
+
+    it('the interlock’s two predicates tell a completed REPLAY from a MISROUTED owner on the real schema', async () => {
+        // `processRecord` refuses — and now FAILS the delivery (`MisroutedErasureMessageError`) — when the
+        // claim returns nothing AND no row of any status exists. The handler cannot run here (its
+        // `getRecipeDb()` mints an RDS-IAM token), so what this tier proves is that the two real queries the
+        // decision is made from answer differently for the two cases the unit suite distinguishes by fake
+        // rows: a `completed` row claims nothing yet EXISTS (replay → idempotent no-op, acknowledged), while
+        // an owner with no row at all claims nothing AND does not exist (misroute → refused, redelivered).
+        await db.execute(sql`INSERT INTO account_erasure_jobs (owner_id, status) VALUES (${OWNER_JOB}, 'completed')`);
+
+        expect(await claimErasureJob(db, OWNER_JOB)).toBeUndefined();
+        expect(await erasureJobExistsForOwner(db, OWNER_JOB)).toBe(true);
+
+        // OWNER_A has no job row in this database at all — the misrouted shape.
+        expect(await claimErasureJob(db, OWNER_A)).toBeUndefined();
+        expect(await erasureJobExistsForOwner(db, OWNER_A)).toBe(false);
     });
 });

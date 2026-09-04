@@ -14,8 +14,9 @@ import { sql } from 'drizzle-orm';
 import pg from 'pg';
 
 import { sweepExpiredEvents } from '../../../src/handlers/retentionSweeper.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const canRun = Boolean(DATABASE_URL);
 
 const USER = '01JU6RETENTIONSWEEPUSER00A';

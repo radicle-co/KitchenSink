@@ -34,7 +34,7 @@ import {
     type VerificationSettingsResolver,
 } from '../verification/settings.js';
 import {
-    VERIFICATION_MAX_INPUT_TOKENS,
+    VERIFICATION_INPUT_TOKEN_CEILING,
     VERIFICATION_MAX_OUTPUT_TOKENS,
 } from '@kitchensink/recipe-core/resolution/verification-prompt';
 
@@ -79,7 +79,9 @@ export async function drainRevokedBands(deps: BandDrainDeps): Promise<{ sent: nu
     const plan = planReservation({
         modelId: settings.modelId,
         ceilingMicros: settings.ceilingMicros,
-        maxInputTokens: VERIFICATION_MAX_INPUT_TOKENS,
+        // ⛔ THE CEILING, not a per-call bound: this tick has no prompt in hand — it is sizing a BATCH from
+        // the period's remaining headroom — so it must assume the widest prompt the builder would accept.
+        maxInputTokens: VERIFICATION_INPUT_TOKEN_CEILING,
         maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
         nowUtc: deps.now(),
     });

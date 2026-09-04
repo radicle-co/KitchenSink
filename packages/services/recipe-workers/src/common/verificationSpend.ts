@@ -45,6 +45,15 @@
  * of the reservation twice. Neither statement retries — in-process or otherwise. The QUEUE retries, and each
  * queue attempt takes its own reservation.
  *
+ * ⛔ **"Did not throw" is not "settled", and "a row came back" is not "a total was read".** Both statements
+ * return what they touched, and the adapter reads the RESULT rather than trusting the absence of an error:
+ * an `UPDATE` whose period row is gone (data loss, an operator cleanup) succeeds with ZERO rows, and a
+ * `RETURNING reserved_micros` whose value cannot be read as a non-negative integer is a corrupted counter.
+ * Each is reported as the same `SpendLedgerError` the handler already meters, because a settlement that never
+ * landed and a total that cannot be vouched for are exactly the two things layer 4's alarm cannot see if
+ * they are papered over. (`Number(null)` and `Number('')` are both `0` — a fallback-to-zero read corruption
+ * as an empty counter and blinded the alarm at the one moment it mattered.)
+ *
  * ## ⛔ FAILING CLOSED IS NOT THE SAME AS RESOLVING THE LINE
  *
  * Both methods throw on a database failure, and the handler must treat that as TRANSIENT: the message returns
@@ -159,20 +168,38 @@ export function isSpendGated(stage: string): boolean {
     return stage === SPEND_GATED_STAGE;
 }
 
+/** A non-negative integer, as `node-postgres` spells an int8 (always a decimal string, never a number). */
+const NON_NEGATIVE_INTEGER = /^\d+$/u;
+
 /**
- * Parse the `bigint` a driver hands back as a string.
+ * Read the `bigint` a driver hands back as a string — or refuse.
  *
  * `node-postgres` returns int8 as a string rather than a number, to avoid silently losing precision above
  * 2^53. Reading it as a number without parsing yields `NaN` in arithmetic and string concatenation in
  * addition — either way the value the alarm watches becomes nonsense while the gate appears to work.
  *
+ * ⛔ REFUSES rather than defaulting. The column is `bigint NOT NULL` under a `>= 0` CHECK, so anything but a
+ * non-negative integer is corruption or a driver defect, and the only wrong answer is a plausible one: a
+ * default of `0` reads as "nothing spent yet" — the exact figure that keeps layer 4's alarm quiet.
+ *
  * @param value - The driver's column value.
- * @returns The number, or `0` when it is unreadable. Pure.
+ * @returns The integer.
+ * @throws {TypeError} When the value is not a non-negative safe integer. Pure.
  */
-function toMicros(value: unknown): number {
-    const parsed = Number(value);
+function readMicros(value: unknown): number {
+    const text = typeof value === 'number' ? String(value) : value;
 
-    return Number.isFinite(parsed) ? parsed : 0;
+    if (typeof text !== 'string' || !NON_NEGATIVE_INTEGER.test(text)) {
+        throw new TypeError(`verification_spend.reserved_micros is not a non-negative integer: ${String(value)}`);
+    }
+
+    const parsed = Number(text);
+
+    if (!Number.isSafeInteger(parsed)) {
+        throw new TypeError(`verification_spend.reserved_micros exceeds the safe integer range: ${text}`);
+    }
+
+    return parsed;
 }
 
 /**
@@ -208,28 +235,52 @@ export function createSpendLedger(db: NodePgDatabase<Record<string, never>>): Sp
 
             // ⛔ Zero rows IS the denial. The row exists and the WHERE failed; there is no error to inspect and
             // no second query to run.
-            return row === undefined
-                ? { kind: 'denied', period: plan.period }
-                : { kind: 'reserved', reservedMicros: toMicros(row.reserved_micros) };
+            if (row === undefined) {
+                return { kind: 'denied', period: plan.period };
+            }
+
+            try {
+                return { kind: 'reserved', reservedMicros: readMicros(row.reserved_micros) };
+            } catch (cause) {
+                // ⛔ Fail CLOSED on a total that cannot be read, even though the charge has COMMITTED. The
+                // standing charge over-counts, which is ADR-0024's accepted direction; what is not accepted
+                // is a call made against a counter that cannot vouch for itself, reported to the alarm as
+                // zero. The message retries under layer 0, and each attempt takes its own charge.
+                throw new SpendLedgerError('reserve', cause);
+            }
         },
 
         async settle({ plan, actualMicros }: Settlement): Promise<void> {
             const delta = settleDeltaMicros(actualMicros, plan.worstMicros);
+            let result: { rows: { period: unknown }[] };
 
             try {
-                await db.execute(sql`
+                result = await db.execute<{ period: unknown }>(sql`
                     UPDATE verification_spend
                        SET reserved_micros = reserved_micros + ${delta},
                            settled_micros  = settled_micros  + ${actualMicros},
                            calls           = calls + 1,
                            updated_at      = now()
                      WHERE period = ${plan.period}
+                    RETURNING period
                 `);
             } catch (cause) {
                 // ⛔ NOT RETRIED, even here. An ambiguous failure may mean the UPDATE committed and the reply
                 // was lost; re-running it would double-refund. A standing reservation over-counts, which is
                 // ADR-0024's accepted bias — so this is reported and abandoned.
                 throw new SpendLedgerError('settle', cause);
+            }
+
+            // ⛔ ZERO ROWS IS A FAILED SETTLEMENT, not a quiet one. `period` is the primary key, so the UPDATE
+            // matches exactly one row or none; none means the row this call reserved against no longer
+            // exists, and neither the refund nor the call was recorded. Reported through the same error the
+            // handler meters — and, like every other settle outcome, NOT retried: nothing here can tell a
+            // deleted row from one that is about to be.
+            if (result.rows.length !== 1) {
+                throw new SpendLedgerError(
+                    'settle',
+                    new Error(`no verification_spend row for period ${plan.period}; the settlement was not recorded`),
+                );
             }
         },
     };

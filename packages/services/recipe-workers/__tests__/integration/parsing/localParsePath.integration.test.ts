@@ -62,8 +62,9 @@ import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { drainParseQueue, sqsParseQueuePort } from '../../../src/local/parseQueueConsumer.js';
 import { createLocalParseLineDeps, handleLocalParseMessage } from '../../../src/local/localParseLine.js';
 import { ENGINE_HANDLER_DIR, pinnedCrfEngineVersion } from '../../../src/local/localCrfEngine.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 /** CI sets `AWS_ENDPOINT_URL` and `S3_ENDPOINT`; `local:up` developers set `SQS_ENDPOINT`. Any of them. */
 const SQS_ENDPOINT = process.env['SQS_ENDPOINT'] ?? process.env['AWS_ENDPOINT_URL'] ?? process.env['S3_ENDPOINT'];
 

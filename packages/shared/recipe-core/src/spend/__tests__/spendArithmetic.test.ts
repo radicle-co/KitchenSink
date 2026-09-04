@@ -18,6 +18,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     BEDROCK_MODEL_REGISTRY,
+    CHAT_TEMPLATE_BASE_TOKENS,
+    CHAT_TEMPLATE_TOKENS_PER_TURN,
     NOVA_2_LITE_MODEL_ID,
     CLAUDE_HAIKU_4_5_MODEL_ID,
     DEFAULT_MONTHLY_CEILING_MICROS,
@@ -25,14 +27,19 @@ import {
     NOVA_LITE_MODEL_ID,
     NOVA_MICRO_MODEL_ID,
     NOVA_PRO_MODEL_ID,
+    UTF8_MAX_BYTES_PER_CODE_POINT,
     actualCostMicros,
     headroomMicros,
+    inputTokenBound,
+    inputTokenCeiling,
+    inputTokensBeyondBound,
     periodKey,
     planReservation,
     rateFor,
     registryEntryFor,
     residencyClearance,
     settleDeltaMicros,
+    utf8ByteLength,
     worstCaseMicros,
 } from '../spendArithmetic.js';
 
@@ -258,6 +265,63 @@ describe('worstCaseMicros', () => {
         }
     });
 
+    it('bounds the split that the coarse sweep above misses — per-class rounding, one token from the cap', () => {
+        // ⛔ THE COUNTEREXAMPLE. The reservation rounds the whole input cap ONCE, at the dearest rate;
+        // the settlement rounds EACH class up on its own. At Nova Micro's rates and the gate's 2,000-token
+        // cap: worst input = ceil(2000 × 0.04375) = ceil(87.5) = 88, while 1,999 cache-write tokens cost
+        // ceil(87.456) = 88 and the ONE fresh token beside them costs ceil(0.035) = 1 — total 89. The
+        // sweep above steps by 100 tokens and never lands on it. Found by a review of `worstCaseMicros`'s own
+        // "true for EVERY admissible usage" claim; the bound now carries the per-class rounding overhead.
+        const worst = worstCaseMicros(NOVA, 2_000, 200);
+        const actual = actualCostMicros(NOVA, {
+            inputTokens: 1,
+            outputTokens: 200,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 1_999,
+        });
+
+        expect(actual).toBeLessThanOrEqual(worst);
+    });
+
+    it('bounds EVERY partition of a small cap, for EVERY model — exhaustively, not by sampling', () => {
+        // Every (fresh, read, write) triple whose sum is at most the cap, at every cap up to 40 tokens. Small
+        // caps are where a ceil-per-class overshoot is proportionally largest, and 40 is enough for the
+        // three-way rounding pattern to appear at every rate in the table.
+        for (const [modelId, { rate }] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            for (let cap = 1; cap <= 40; cap += 1) {
+                const worst = worstCaseMicros(rate, cap, 3);
+
+                for (let fresh = 0; fresh <= cap; fresh += 1) {
+                    for (let read = 0; read <= cap - fresh; read += 1) {
+                        const usage = {
+                            inputTokens: fresh,
+                            outputTokens: 3,
+                            cacheReadInputTokens: read,
+                            cacheWriteInputTokens: cap - fresh - read,
+                        };
+
+                        expect(
+                            actualCostMicros(rate, usage),
+                            `${modelId} cap=${cap} ${JSON.stringify(usage)}`,
+                        ).toBeLessThanOrEqual(worst);
+                    }
+                }
+            }
+        }
+    });
+
+    it('carries the rounding overhead as a CONSTANT — never a multiple of the cap', () => {
+        // The allowance pays for two extra `ceil`s and nothing else. If it ever scaled with the cap, the
+        // reservation would start denying calls while real budget remained — ADR-0024 §5a's precision failure
+        // arriving through a second door.
+        const overhead = (cap: number): number =>
+            worstCaseMicros(NOVA, cap, 0) - Math.ceil((cap * NOVA.cacheWriteMicrosPerMillionTokens) / 1_000_000);
+
+        expect(overhead(1)).toBe(overhead(2_000));
+        expect(overhead(2_000)).toBe(overhead(100_000));
+        expect(overhead(2_000)).toBeGreaterThan(0);
+    });
+
     it('grows with both caps', () => {
         expect(worstCaseMicros(NOVA, 2_000, 200)).toBeGreaterThan(worstCaseMicros(NOVA, 1_000, 200));
         expect(worstCaseMicros(NOVA, 1_000, 400)).toBeGreaterThan(worstCaseMicros(NOVA, 1_000, 200));
@@ -266,6 +330,133 @@ describe('worstCaseMicros', () => {
     it('is positive for any non-zero cap, so a reservation is never free', () => {
         expect(worstCaseMicros(NOVA, 1, 0)).toBeGreaterThan(0);
         expect(worstCaseMicros(NOVA, 0, 1)).toBeGreaterThan(0);
+    });
+});
+
+/**
+ * A small deterministic generator for the property checks below — an LCG, so a failure reproduces from the
+ * seed. Draws code points from every UTF-8 width class, including a lone surrogate, because the whole point
+ * of the byte bound is what it does OUTSIDE ASCII.
+ */
+function* corpus(seed: number, count: number): Generator<string> {
+    const pool = ['a', 'Z', ' ', '\n', 'é', 'ß', '€', '中', '한', '😀', '🍞', '\uD83D', '\uDC00', '٣', 'ﬁ', '㍿'];
+    let state = seed;
+
+    for (let i = 0; i < count; i += 1) {
+        const length = (state = (state * 1_103_515_245 + 12_345) % 2_147_483_648) % 40;
+        let text = '';
+
+        for (let j = 0; j < length; j += 1) {
+            state = (state * 1_103_515_245 + 12_345) % 2_147_483_648;
+            text += pool[state % pool.length];
+        }
+
+        yield text;
+    }
+}
+
+describe('the input-token bound (ADR-0024 layer 1) — bytes, not code points', () => {
+    describe('utf8ByteLength', () => {
+        it.each([
+            ['', 0],
+            ['abc', 3],
+            ['é', 2],
+            ['€', 3],
+            ['中', 3],
+            ['😀', 4],
+            // A lone surrogate is not a character; `TextEncoder` emits U+FFFD (three bytes) for it, and so
+            // must this, or a string the transport will re-encode is priced short.
+            ['\uD83D', 3],
+            ['a😀b', 6],
+        ])('counts %j as %i bytes', (text, bytes) => {
+            expect(utf8ByteLength(text)).toBe(bytes);
+        });
+
+        it('agrees with TextEncoder over a generated corpus — the oracle the code itself may not import', () => {
+            // ⛔ recipe-core is bundled into web and mobile, so the implementation is code-point arithmetic
+            // with no `Buffer` and no `TextEncoder`; the TEST may use the platform encoder to prove it.
+            const encoder = new TextEncoder();
+
+            for (const text of corpus(7, 500)) {
+                expect(utf8ByteLength(text), JSON.stringify(text)).toBe(encoder.encode(text).length);
+            }
+        });
+    });
+
+    describe('inputTokenBound', () => {
+        it('is the UTF-8 byte length of every turn plus the chat-template allowance', () => {
+            const turns = ['system: ' + '中'.repeat(10), 'user: 😀'];
+            const bytes = utf8ByteLength(turns[0]!) + utf8ByteLength(turns[1]!);
+
+            expect(inputTokenBound(turns)).toBe(
+                bytes + CHAT_TEMPLATE_BASE_TOKENS + turns.length * CHAT_TEMPLATE_TOKENS_PER_TURN,
+            );
+        });
+
+        it('prices a non-Latin prompt at more tokens than its code-point count — the claim the old cap rested on', () => {
+            // ⛔ "No tokenizer emits more than one token per code point" was the old cap's whole justification,
+            // and it is false for byte-fallback BPE: a code point can be up to FOUR tokens. Ten CJK characters
+            // are thirty bytes, not ten.
+            const turn = '中'.repeat(10);
+
+            expect(inputTokenBound([turn])).toBeGreaterThan([...turn].length + CHAT_TEMPLATE_BASE_TOKENS);
+        });
+
+        it('grows with the number of turns, so few-shot turns are priced and not merely concatenated', () => {
+            // Every message the request carries costs template tokens of its own. Splitting the same text
+            // across two turns must cost MORE than one turn — a bound that ignored `turns.length` would let
+            // the foodness validator's six few-shot messages ride free.
+            expect(inputTokenBound(['ab', 'cd'])).toBeGreaterThan(inputTokenBound(['abcd']));
+            expect(inputTokenBound(['ab', 'cd']) - inputTokenBound(['abcd'])).toBe(CHAT_TEMPLATE_TOKENS_PER_TURN);
+        });
+
+        it('charges the allowance even for empty turns — the template is sent whether or not we say anything', () => {
+            expect(inputTokenBound([])).toBe(CHAT_TEMPLATE_BASE_TOKENS);
+            expect(inputTokenBound([''])).toBe(CHAT_TEMPLATE_BASE_TOKENS + CHAT_TEMPLATE_TOKENS_PER_TURN);
+        });
+    });
+
+    describe('inputTokenCeiling', () => {
+        it('dominates the per-call bound for EVERY prompt within its code-point cap (property over a corpus)', () => {
+            // The static ceiling is what a caller reserves with when it has no prompt in hand yet (the band
+            // drain sizes a batch before any prompt exists). It must never be smaller than what any admissible
+            // prompt would be bounded at, or the drain over-commits the pool.
+            for (const text of corpus(11, 500)) {
+                const turns = [text, text.slice(0, 5)];
+                const codePoints = [...turns[0]!].length + [...turns[1]!].length;
+
+                expect(inputTokenBound(turns), JSON.stringify(turns)).toBeLessThanOrEqual(
+                    inputTokenCeiling(codePoints, turns.length),
+                );
+            }
+        });
+
+        it('is exactly four bytes per code point plus the allowance — UTF-8’s maximum width, not a ratio', () => {
+            expect(inputTokenCeiling(2_000, 2)).toBe(
+                2_000 * UTF8_MAX_BYTES_PER_CODE_POINT + CHAT_TEMPLATE_BASE_TOKENS + 2 * CHAT_TEMPLATE_TOKENS_PER_TURN,
+            );
+        });
+    });
+
+    describe('inputTokensBeyondBound', () => {
+        it('is zero when the billed input fits the bound', () => {
+            expect(inputTokensBeyondBound(1_000, { inputTokens: 600, outputTokens: 80 })).toBe(0);
+            expect(inputTokensBeyondBound(1_000, { inputTokens: 1_000, outputTokens: 80 })).toBe(0);
+        });
+
+        it('reports the excess when the tokenizer beat the byte bound', () => {
+            expect(inputTokensBeyondBound(1_000, { inputTokens: 1_250, outputTokens: 80 })).toBe(250);
+        });
+
+        it('counts cache reads and writes as input — a warm parse call arrives almost entirely as cache reads', () => {
+            // ⛔ ADR-0024 §5a: the 5,025-token parse prompt is billed as `cacheReadInputTokens` on every warm
+            // call, with `inputTokens` near zero. A detector that read `inputTokens` alone would never fire
+            // on the one consumer whose prompt is large enough to matter.
+            const usage = { inputTokens: 40, outputTokens: 300, cacheReadInputTokens: 5_025, cacheWriteInputTokens: 0 };
+
+            expect(inputTokensBeyondBound(5_000, usage)).toBe(65);
+            expect(inputTokensBeyondBound(5_065, usage)).toBe(0);
+        });
     });
 });
 
@@ -592,8 +783,14 @@ describe('Nova 2 Lite — the shipped parse model', () => {
      * ⛔ THE ACCURACY WINNER IS NOT CALLABLE, and this test is the record of why. Every inference profile
      * that exists for this model leaves us-east-1 (`us.` = three regions, `global.` = wider; no
      * single-region profile, no application profile — `list-inference-profiles`, 2026-08-27). So selecting
-     * it on gold-set accuracy does NOT make it shippable: `residencyClearance` answers `unapproved`, and the
-     * runtime gate and the CDK IAM grant both honour that. Closing it is 016's decision, not a config edit.
+     * it on gold-set accuracy does NOT make it shippable: `residencyClearance` answers `unapproved`. Closing
+     * it is 016's decision, not a config edit.
+     *
+     * ⚠️ This test proves what the PREDICATE answers, not that anything asks it. `residencyClearance` has no
+     * caller outside this file (ADR-0024 §4b records residency as "still open, and not gated by IAM"), so
+     * the entry below IS callable today through `planReservation` and the IAM grant alike — an earlier
+     * version of this docstring claimed otherwise. Wiring the predicate into both is an owner decision that
+     * makes the shipped parse model uncallable until 016 records an approval.
      */
     it('is REFUSED by the residency gate — the profile leaves the deploy region and 016 has not cleared it', () => {
         const entry = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;

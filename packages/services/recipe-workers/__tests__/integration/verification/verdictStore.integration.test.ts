@@ -19,8 +19,9 @@ import pg from 'pg';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 
 import { createVerdictStore } from '../../../src/verification/verdictStore.js';
+import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const DATABASE_URL = disposableDatabaseUrl();
 const canRun = Boolean(DATABASE_URL);
 
 const KEY_PREFIX = 'it-verdict-store';

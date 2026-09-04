@@ -60,3 +60,20 @@ export const SPEND_METRIC_NAME = 'VerificationSpendMicros';
  * the logs say better.
  */
 export const SETTLE_FAILURE_METRIC_NAME = 'VerificationSettleFailures';
+
+/**
+ * Fires when a call's BILLED input tokens exceeded the bound its reservation was priced from.
+ *
+ * ⛔ THE DETECTOR FOR THE ONE ASSUMPTION LAYER 1 CANNOT PROVE. `inputTokenBound` prices a prompt at its UTF-8
+ * byte length plus a chat-template allowance, because no byte-fallback tokenizer emits more than one token per
+ * BYTE. That is a bound on the tokenizers we know of, not a theorem: a tokenizer that normalises before
+ * encoding (NFKC can expand one compatibility character into many), a template whose framing costs more than
+ * {@link CHAT_TEMPLATE_BASE_TOKENS}, or a model nobody has measured would each beat it — silently, because
+ * `settleDeltaMicros` is unclamped and simply charges the overshoot. This metric is what makes it LOUD.
+ *
+ * ⚠️ Carries the `CallSite` dimension, unlike {@link SETTLE_FAILURE_METRIC_NAME}: which consumer's prompt
+ * broke the bound is the whole diagnostic — the gate's prompt is ~1 KB and the parse leg's is ~20 KB, and the
+ * fix is different for each. The VALUE is the excess in tokens, so the alarm reads severity, not just
+ * occurrence.
+ */
+export const INPUT_BOUND_EXCEEDED_METRIC_NAME = 'VerificationInputBoundExceeded';

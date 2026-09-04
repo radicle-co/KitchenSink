@@ -38,7 +38,7 @@ import {
     NOVA_MICRO_MODEL_ID,
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
-import { inferenceProfileStatements } from './bedrockInvokePolicy.js';
+import { bedrockInvokeStatements } from './bedrockInvokePolicy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -88,6 +88,14 @@ const RECIPE_OBJECT_ROOT = 'recipes';
  * narrowing neither creates nor hides. Whoever closes that gap adds the action here deliberately, and until
  * then gets an explicit `AccessDenied` rather than a silently-incomplete erasure.
  *
+ * ⛔ The LIST grant is conditioned on `s3:prefix`, because `s3:ListBucket` is a BUCKET-level action and the
+ * buckets are SHARED: an unconditioned allow authorizes `ListObjectsV2` over every prefix, including other
+ * tenants' media — enumeration the object-level `recipes/*` scope on the delete statement never intended,
+ * and enumeration is still disclosure. `s3:prefix` is the request's own `Prefix` parameter, and
+ * `eraseRecipeObjects` always sends `recipes/{ownerId}/{recipeId}/`, so `recipes/*` admits exactly what the
+ * handler issues and denies a bare or foreign-prefix listing outright. ⚠️ The `*` here is a CONDITION value,
+ * not a resource — cdk-nag's IAM5 reads resources and actions and raises nothing for it.
+ *
  * @param role - The worker role to grant.
  * @param buckets - The buckets it sweeps.
  * @sideEffect Adds IAM policy statements to `role`, and records the accepted IAM5 finding on it.
@@ -97,6 +105,7 @@ function grantRecipeObjectErasure(role: iam.Role, buckets: readonly s3.IBucket[]
         new iam.PolicyStatement({
             actions: ['s3:ListBucket'],
             resources: buckets.map((bucket) => bucket.bucketArn),
+            conditions: { StringLike: { 's3:prefix': [`${RECIPE_OBJECT_ROOT}/*`] } },
         }),
     );
     role.addToPolicy(
@@ -934,7 +943,9 @@ export class RecipeWorkersStack extends Stack {
         });
 
         // ⛔ ADR-0024 LAYER 4b — THE BYPASS CONTROL. `bedrock:InvokeModel` is granted to EXACTLY ONE execution
-        // role, and `bedrockInvokeGrantees.test.ts` asserts that by set equality over the whole infra tree.
+        // role, and `packages/infra/global/__tests__/llmSpendGuards.test.ts` asserts that by set equality over
+        // the whole infra tree. (This used to cite a `bedrockInvokeGrantees.test.ts` that has never existed —
+        // a citation to a guard nobody can find reads as a guard nobody has.)
         // Layer 4's EMF dollar metric CANNOT detect a bypass: it is emitted BY the gated path, so a caller
         // that skips the gate emits nothing. A permission nobody else holds cannot be bypassed; a metric
         // nobody else emits cannot notice. ⛔ Adding a second grantee — for an embedding model, for a
@@ -947,36 +958,30 @@ export class RecipeWorkersStack extends Stack {
         grantRdsIam(verificationRole);
         verificationQueue.grantConsumeMessages(verificationRole);
 
-        // Scoped to foundation models in this account's region rather than `*`: the gate calls `Converse` on a
-        // model id read from SSM, which cannot be resolved at synth time, so the resource wildcard is
-        // irreducible — but the SERVICE and REGION are not, and neither is the action list. `Converse` is
-        // authorized by `bedrock:InvokeModel`; `InvokeModelWithResponseStream` is deliberately absent because
-        // this gate never streams, and a streamed response would defeat the single-response settlement.
-        verificationRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['bedrock:InvokeModel'],
-                resources: [
-                    Stack.of(this).formatArn({
-                        service: 'bedrock',
-                        account: '',
-                        resource: 'foundation-model',
-                        resourceName: '*',
-                    }),
-                ],
-            }),
-        );
-
-        // ⛔ THE GRANT FOLLOWS THE REGISTRY (U35). The statement above authorizes on-demand models in THIS
-        // region; a profile-only model is invoked through an `inference-profile` ARN — a different resource
-        // type, account-scoped — that routes to foundation models in regions this stack never names. Deriving
-        // the ARNs from `BEDROCK_MODEL_REGISTRY` is what keeps the permission and the caller from disagreeing
-        // about which models exist, since the registry is already the authority for that (ADR-0024).
+        // ⛔ THE GRANT FOLLOWS THE REGISTRY (U35) — ALL of it, and nothing else. Every ARN this role may
+        // invoke is derived from `BEDROCK_MODEL_REGISTRY`: an on-demand model by its own name in this region, a
+        // profile-only model through its account-scoped `inference-profile` ARN plus a conditioned fan-out to
+        // the foundation model in every region that profile routes to. The registry is already the authority
+        // for which models may be CALLED (membership is authorization; every runtime caller refuses an id
+        // outside it before any call), so deriving the permission from it is what keeps IAM and the caller
+        // from disagreeing about which models exist.
+        //
+        // ⛔ There is NO `foundation-model/*` any more. It stood here justified as irreducible — "the model id
+        // comes from SSM and cannot be resolved at synth time" — and ADR-0024 §4b retracted that reasoning:
+        // the registry IS resolvable at synth time, and an SSM value outside it is refused as `unpriced` before
+        // Bedrock is reached. The wildcard therefore authorized only models the runtime could never call, and
+        // carried an IAM5 acceptance (`VERIFICATION_BEDROCK_MODEL_WILDCARD`, now deleted) whose reason had
+        // already been withdrawn. Rostering a model is a registry edit plus a deploy of this stack — exactly
+        // what pricing it already required. `Converse` is authorized by `bedrock:InvokeModel`;
+        // `InvokeModelWithResponseStream` is deliberately absent because this gate never streams, and a
+        // streamed response would defeat the single-response settlement.
         //
         // ⚠️ TWO statements per profile, which is AWS's documented least-privilege shape and NOT a layer-4b
         // breach: that gate's invariant is over GRANTEES and ACTIONS, never statement count. See
         // `infra/lib/bedrockInvokePolicy.ts` for why the `bedrock:InferenceProfileArn` condition is
-        // load-bearing rather than decoration.
-        for (const statement of inferenceProfileStatements(BEDROCK_MODEL_REGISTRY, (parts) =>
+        // load-bearing rather than decoration. ⚠️ The literal `actions: ['bedrock:InvokeModel']` and the
+        // `verificationRole` reference below are what `llmSpendGuards.test.ts`'s source parser reads.
+        for (const statement of bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, (parts) =>
             Stack.of(this).formatArn({ service: 'bedrock', ...parts }),
         )) {
             verificationRole.addToPolicy(
@@ -996,13 +1001,9 @@ export class RecipeWorkersStack extends Stack {
             );
         }
 
-        // ⚠️ SCOPED TO THE WILDCARD IT ALWAYS COVERED, and deliberately not widened. The statements added above
-        // enumerate every ARN they grant, so they raise no wildcard finding of their own and need no
-        // suppression; extending this to cover them would suppress a finding that does not exist yet and
-        // silence the one it WOULD raise if a future entry were ever written with a `*`.
-        acceptNagFindings(verificationRole, AcceptedNagFindings.VERIFICATION_BEDROCK_MODEL_WILDCARD, {
-            applyToChildren: true,
-        });
+        // ⛔ NO nag acceptance on this role, deliberately. Every statement above enumerates the ARNs it grants,
+        // so none raises an IAM5 wildcard finding — and an acceptance here would silence the one a future
+        // registry entry written with a `*` WOULD raise. A finding on this role is a finding.
 
         // ⛔ TWO EXACT PARAMETER ARNs, not a prefix. The ceiling and the model id are the two values an
         // operator changes mid-incident, and a `/kitchensink/{stage}/recipe/*` grant would also hand this role
@@ -1578,6 +1579,40 @@ export class RecipeWorkersStack extends Stack {
             treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
         });
         settleFailureAlarm.addAlarmAction(alarmAction);
+
+        // ⛔ THE ALARM THAT KEEPS LAYER 1 HONEST. The reservation is priced from an input-token bound computed
+        // as UTF-8 BYTES plus a chat-template allowance, because no byte-fallback tokenizer emits more than
+        // one token per byte. That is a claim about the tokenizers we know of, not a theorem — a tokenizer
+        // that normalises before encoding, a template costing more than the allowance, or an unmeasured model
+        // would each beat it. And the counter cannot report it: `settleDeltaMicros` is unclamped, so an
+        // overshoot is simply charged and disappears into the month's total. ADR-0024 §2 makes the input cap a
+        // PRECONDITION of the ceiling ("if prompt length is unbounded, the reservation is a lie"), so a bound
+        // that is being exceeded is a ceiling that is not holding — and this is the only thing that says so.
+        // Sum over 5 minutes, threshold 0: one occurrence is a real answer about the bound.
+        const inputBoundAlarm = new cloudwatch.Alarm(this, 'VerificationInputBoundAlarm', {
+            alarmName: `kitchensink-recipe-verification-input-bound-${props.stage}`,
+            alarmDescription:
+                'A gated Bedrock call was billed MORE input tokens than its reservation was priced for. ADR-0024 layer 1 treats the input bound as a precondition of the ceiling, so the reservation is under-charging: re-derive the token bound for this prompt and model before trusting the counter.',
+            metric: new cloudwatch.Metric({
+                namespace: VERIFICATION_METRIC_NAMESPACE,
+                // ⛔ MUST EQUAL `INPUT_BOUND_EXCEEDED_METRIC_NAME` in `src/common/spendMetrics.ts`, mirrored as
+                // a literal exactly as the namespace and the two alarms above are — CloudWatch matches by
+                // exact string, so a change here is a change there in the same commit.
+                metricName: 'VerificationInputBoundExceeded',
+                // ⚠️ `Stage` ALONE, deliberately — the same rule the spend alarm follows. The metric is
+                // emitted with a `CallSite` dimension too, but EMF publishes each dimension SET separately;
+                // selecting `Stage` here watches the aggregate across every consumer, where selecting both
+                // would watch one series and miss the others entirely.
+                dimensionsMap: { Stage: props.stage },
+                statistic: 'Sum',
+                period: Duration.minutes(5),
+            }),
+            threshold: 0,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        inputBoundAlarm.addAlarmAction(alarmAction);
 
         // ⛔ THE ALARM THAT MAKES LAYER 2 SAFE TO KEEP. `reservedConcurrentExecutions: 1` plus an SQS event
         // source means a backlog produces THROTTLED deliveries, and a throttled delivery still increments a

@@ -9,9 +9,29 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import { rateFor, worstCaseMicros } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import {
+    VERIFICATION_INPUT_TOKEN_CEILING,
+    VERIFICATION_MAX_OUTPUT_TOKENS,
+} from '@kitchensink/recipe-core/resolution/verification-prompt';
+
 import { DRAIN_HEADROOM_FRACTION, DRAIN_MAX_BATCH, drainRevokedBands, type BandDrainDeps } from '../bandDrain.js';
 
 const SETTINGS = { ceilingMicros: 100_000_000, modelId: 'amazon.nova-micro-v1:0' };
+
+/**
+ * What one worst-case verification call costs, DERIVED from the same arithmetic the drain uses.
+ *
+ * ⛔ Never a literal. Both budget tests read `8 * 116` — the Nova figure of the day — so when
+ * `worstCaseMicros` grew its per-class rounding allowance they went red reporting an arithmetic change as a
+ * drain regression. The drain's contract is "a fraction of the headroom, in whole calls"; what a call costs
+ * is not this suite's fact to restate.
+ */
+const WORST_MICROS = worstCaseMicros(
+    rateFor(SETTINGS.modelId)!,
+    VERIFICATION_INPUT_TOKEN_CEILING,
+    VERIFICATION_MAX_OUTPUT_TOKENS,
+);
 
 const SKIP = (id: string) => ({
     id,
@@ -67,9 +87,8 @@ describe('budget sizing', () => {
 
     it('sizes the batch from the REMAINING headroom, never the whole ceiling', async () => {
         const d = deps();
-        // Nova worst case is 116 micros/call. Leave headroom for exactly 8 worst-case calls; the drain may
-        // claim only its fraction of that.
-        d.spies.reserved.mockResolvedValue(SETTINGS.ceilingMicros - 8 * 116);
+        // Leave headroom for exactly 8 worst-case calls; the drain may claim only its fraction of that.
+        d.spies.reserved.mockResolvedValue(SETTINGS.ceilingMicros - 8 * WORST_MICROS);
 
         await drainRevokedBands(d);
 
@@ -145,7 +164,7 @@ describe("aged pending re-drives share the tick's budget (plan U4c, KTD-A)", () 
     it('⛔ a tick whose skips consumed the whole budget re-drives NOTHING — pause, not overrun', async () => {
         const d = deps({ stage: 'prod' });
         // Headroom for exactly 8 worst-case calls → budget floor(8 × fraction) = 2, both spent on skips.
-        d.spies.reserved.mockResolvedValue(SETTINGS.ceilingMicros - 8 * 116);
+        d.spies.reserved.mockResolvedValue(SETTINGS.ceilingMicros - 8 * WORST_MICROS);
         d.spies.agedRedrives.mockResolvedValue([REDRIVE('k1')]);
 
         const result = await drainRevokedBands(d);

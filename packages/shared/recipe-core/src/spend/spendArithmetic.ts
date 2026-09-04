@@ -382,8 +382,17 @@ export const BEDROCK_MODEL_REGISTRY: Readonly<Record<string, ModelRegistryEntry>
         // ⚠️ NO `residencyApproval`, exactly as for Claude Haiku 4.5 and for the same reason: AWS stores
         // prompts and outputs in destination Regions for abuse detection, so routing user recipe text there
         // is an open question owned by 016 — not a config detail, and not mine to close by editing a marker.
-        // `residencyClearance` therefore answers `unapproved`, which the runtime gate and the CDK IAM grant
-        // both honour. Selecting this model on accuracy does not make it callable.
+        // `residencyClearance` therefore answers `unapproved`.
+        //
+        // ⛔ AND NOTHING ENFORCES THAT ANSWER YET. An earlier version of this comment claimed "the runtime
+        // gate and the CDK IAM grant both honour" it. Neither does: `residencyClearance` has no caller
+        // outside its own tests, `planReservation` prices this entry like any other, and
+        // `bedrockInvokePolicy.ts` derives the profile grant from registry MEMBERSHIP alone (ADR-0024 §4b,
+        // "RESIDENCY IS STILL OPEN, AND IS NOT GATED BY IAM"). Today the only things standing between recipe
+        // text and us-east-2/us-west-2 are the SSM model parameter and this entry's presence in the table.
+        // Wiring the clearance into `planReservation` AND the IAM derivation must land as ONE change, and it
+        // is an OWNER decision, because it makes this — the shipped parse model — uncallable until 016
+        // records an approval. Selecting this model on accuracy did not make it residency-clear.
         invocation: Object.freeze({
             invocationId: 'us.amazon.nova-2-lite-v1:0',
             reach: Object.freeze({
@@ -455,7 +464,11 @@ export interface ReservationRequest {
     readonly modelId: string;
     /** The live monthly ceiling in micro-dollars, as read from SSM at cold start. */
     readonly ceilingMicros: number;
-    /** Layer 1's hard input-token cap. Without it the reservation is a lie (ADR-0024 §2). */
+    /**
+     * Layer 1's input-token bound for THIS call — {@link inputTokenBound} over the prompt in hand, or the
+     * prompt's {@link inputTokenCeiling} for a caller that reserves before any prompt exists. Without it the
+     * reservation is a lie (ADR-0024 §2).
+     */
     readonly maxInputTokens: number;
     /** Layer 1's explicit `inferenceConfig.maxTokens`. Same reason. */
     readonly maxOutputTokens: number;
@@ -614,12 +627,34 @@ export function actualCostMicros(rate: ModelRate, usage: TokenUsage): number {
 }
 
 /**
+ * How many input-side token classes {@link actualCostMicros} rounds up INDEPENDENTLY: fresh, cache read,
+ * cache write. Bedrock defines total input as their sum, so a settlement is a partition of the input cap into
+ * this many separately-ceiled terms.
+ */
+const INPUT_TOKEN_CLASSES = 3;
+
+/**
+ * The micro-dollars the settlement's per-class rounding can add over a single rounding of the whole cap.
+ *
+ * ⛔ `Σ ceil(xᵢ) ≤ ceil(Σ xᵢ) + (n − 1)` for `n` non-negative terms, and the settlement has `n = 3` input
+ * classes where the reservation has ONE. Rounding the cap once at the dearest rate is therefore NOT a bound
+ * on the sum of three separately-rounded classes — it can be short by up to two micro-dollars, and it is: at
+ * Nova Micro's rates and a 2,000-token cap, 1,999 cache-write tokens beside one fresh token settle at 89
+ * against a reservation of 88. Two micro-dollars is $0.000002, but "reserved never exceeds the ceiling" is
+ * the invariant every consequence in ADR-0024 §2 is argued from, and a bound that is short by a constant is
+ * not a bound. The allowance is a CONSTANT, never a multiple of the cap, so it costs precision nothing.
+ */
+const INPUT_ROUNDING_ALLOWANCE_MICROS = INPUT_TOKEN_CLASSES - 1;
+
+/**
  * The most one call can possibly cost, given layer 1's two caps.
  *
  * ⛔ The input budget is charged at the HIGHEST input-side rate, not at the fresh-input rate. Cache WRITES
  * cost more per token than fresh input, so a bound taken from the fresh rate alone would be exceeded by a
  * call whose whole input budget was a cache write — and a reservation that can be exceeded is not a ceiling.
- * Every failure mode in ADR-0024 §2 rests on `worst >= actual` holding for EVERY admissible usage.
+ * Every failure mode in ADR-0024 §2 rests on `worst >= actual` holding for EVERY admissible usage — which is
+ * also why the per-class rounding overhead ({@link INPUT_ROUNDING_ALLOWANCE_MICROS}) is charged here rather
+ * than left to the settlement's unclamped delta to record after the fact.
  *
  * @param rate - The model's rates.
  * @param maxInputTokens - Layer 1's input cap. Input over this is REJECTED, never truncated.
@@ -633,7 +668,11 @@ export function worstCaseMicros(rate: ModelRate, maxInputTokens: number, maxOutp
         rate.cacheWriteMicrosPerMillionTokens,
     );
 
-    return costOf(maxInputTokens, dearestInputRate) + costOf(maxOutputTokens, rate.outputMicrosPerMillionTokens);
+    return (
+        costOf(maxInputTokens, dearestInputRate) +
+        INPUT_ROUNDING_ALLOWANCE_MICROS +
+        costOf(maxOutputTokens, rate.outputMicrosPerMillionTokens)
+    );
 }
 
 /**
@@ -668,6 +707,135 @@ export function headroomMicros(ceilingMicros: number, worstMicros: number): numb
  */
 export function settleDeltaMicros(actualMicros: number, reservedMicros: number): number {
     return actualMicros - reservedMicros;
+}
+
+/**
+ * UTF-8's widest encoding of one code point, in bytes.
+ *
+ * The constant that turns a code-point cap into a token ceiling: no byte-fallback tokenizer emits more than
+ * one token per BYTE, and no code point is more than four bytes.
+ */
+export const UTF8_MAX_BYTES_PER_CODE_POINT = 4;
+
+/**
+ * Tokens a `Converse` request costs before any of our text is counted — the chat template's framing.
+ *
+ * ⚠️ PROVISIONAL AND UNMEASURED (2026-09-03). Neither Amazon's nor Anthropic's Bedrock tokenizer is published,
+ * and no live call has been made under the bake-off credentials to read this number off `usage.inputTokens`
+ * (send `x`/`x`, then the same with three few-shot turns; solve for the base and the per-turn cost; round up
+ * to a power of two; record the readings here). Until that is done these are a conservative guess, and the
+ * thing that keeps a guess honest is the DETECTOR beside it: every gated caller compares the billed total
+ * input against the bound it reserved with and emits `VerificationInputBoundExceeded` on any excess, so a
+ * template that costs more than this says shows up as a metric rather than as a silent under-reservation.
+ */
+export const CHAT_TEMPLATE_BASE_TOKENS = 32;
+
+/** Tokens each MESSAGE adds on top of its text — role markers and separators. Same provenance as above. */
+export const CHAT_TEMPLATE_TOKENS_PER_TURN = 16;
+
+/**
+ * The width of one code point in UTF-8.
+ *
+ * A lone surrogate (which `for…of` yields as its own "character") is not encodable; `TextEncoder` emits
+ * U+FFFD for it, which is three bytes, and so does this — the transport will re-encode exactly that way.
+ *
+ * @param codePoint - The code point.
+ * @returns 1–4. Pure.
+ */
+function utf8Width(codePoint: number): number {
+    if (codePoint < 0x80) {
+        return 1;
+    }
+
+    if (codePoint < 0x800) {
+        return 2;
+    }
+
+    if (codePoint < 0x10000) {
+        return 3;
+    }
+
+    return UTF8_MAX_BYTES_PER_CODE_POINT;
+}
+
+/**
+ * The UTF-8 byte length of a string, by code-point arithmetic.
+ *
+ * ⛔ NOT `Buffer.byteLength` and NOT `TextEncoder`: this package is bundled into `@commise/web` and
+ * `@commise/mobile`, so it takes no dependency on either platform's encoder. The unit suite proves equality
+ * with `TextEncoder` over a generated corpus — the oracle a test may import and the code may not.
+ *
+ * @param text - Any string.
+ * @returns Its length in UTF-8 bytes. Pure.
+ */
+export function utf8ByteLength(text: string): number {
+    let bytes = 0;
+
+    for (const character of text) {
+        bytes += utf8Width(character.codePointAt(0) ?? 0);
+    }
+
+    return bytes;
+}
+
+/**
+ * An upper bound on the input tokens a request will be billed, from the text it sends.
+ *
+ * ⛔ BYTES, NOT CODE POINTS. The earlier cap reasoned "no tokenizer emits more than one token per code
+ * point"; that is false for byte-fallback BPE, where a code point the vocabulary does not know is emitted as
+ * its bytes — up to four tokens. One token per BYTE is the bound such a tokenizer actually respects, so the
+ * text is priced at its UTF-8 length, plus the chat template's framing per request and per message.
+ *
+ * ⚠️ Two things this does NOT bound, stated so they are looked for rather than assumed away: a tokenizer
+ * that normalises before encoding (NFKC can expand one compatibility character to as many as eighteen), and
+ * template overhead beyond the provisional allowance. Both are what the `VerificationInputBoundExceeded`
+ * detector exists for, and the per-call overshoot is in any case recorded by the settlement's unclamped delta.
+ *
+ * @param turns - Every text segment the request carries, in order: the system prompt, each few-shot user and
+ *   assistant message, and the user message. Omitting a turn under-prices the call.
+ * @returns The token bound. Pure.
+ */
+export function inputTokenBound(turns: readonly string[]): number {
+    const bytes = turns.reduce((total, turn) => total + utf8ByteLength(turn), 0);
+
+    return bytes + CHAT_TEMPLATE_BASE_TOKENS + turns.length * CHAT_TEMPLATE_TOKENS_PER_TURN;
+}
+
+/**
+ * The largest {@link inputTokenBound} any prompt within a code-point cap can carry.
+ *
+ * For a caller that must reserve BEFORE it has a prompt in hand — the band drain sizes a batch by dividing
+ * headroom by one worst case — and so must assume the widest admissible prompt: every code point four bytes.
+ * It dominates {@link inputTokenBound} for every prompt within the cap (asserted as a property).
+ *
+ * @param maxCodePoints - The prompt builder's acceptance cap, in code points.
+ * @param turnCount - How many messages that prompt is sent as.
+ * @returns The token ceiling. Pure.
+ */
+export function inputTokenCeiling(maxCodePoints: number, turnCount: number): number {
+    return (
+        maxCodePoints * UTF8_MAX_BYTES_PER_CODE_POINT +
+        CHAT_TEMPLATE_BASE_TOKENS +
+        turnCount * CHAT_TEMPLATE_TOKENS_PER_TURN
+    );
+}
+
+/**
+ * How many billed input tokens exceeded the bound the call was reserved with — the DETECTOR.
+ *
+ * ⛔ TOTAL input, not `usage.inputTokens`. Bedrock defines total input as `inputTokens + cacheReadInputTokens
+ * + cacheWriteInputTokens`, and ADR-0024 §5a measured the 5,025-token parse prompt arriving almost entirely as
+ * cache READS on every warm call — a detector that read the fresh count alone would never fire on the one
+ * consumer whose prompt is large enough to matter.
+ *
+ * @param bound - The bound the reservation was priced from.
+ * @param usage - The response's token counts.
+ * @returns Zero when the bound held, else the excess. Pure.
+ */
+export function inputTokensBeyondBound(bound: number, usage: TokenUsage): number {
+    const billed = usage.inputTokens + (usage.cacheReadInputTokens ?? 0) + (usage.cacheWriteInputTokens ?? 0);
+
+    return Math.max(0, billed - bound);
 }
 
 /**

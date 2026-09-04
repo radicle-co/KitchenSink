@@ -43,6 +43,8 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 import {
     planReservation,
     actualCostMicros,
+    inputTokenBound,
+    inputTokensBeyondBound,
     VERIFICATION_GATE_CALL_SITE,
     type PricedReservation,
     type SpendCallSite,
@@ -77,9 +79,13 @@ import { getRecipeDb, getRecipePool } from '../common/db.js';
 import { logger } from '../common/logger.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { createSpendLedger, isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
-import { SETTLE_FAILURE_METRIC_NAME, SPEND_METRIC_NAME, SPEND_METRIC_NAMESPACE } from '../common/spendMetrics.js';
 import {
-    VERIFICATION_MAX_INPUT_TOKENS,
+    INPUT_BOUND_EXCEEDED_METRIC_NAME,
+    SETTLE_FAILURE_METRIC_NAME,
+    SPEND_METRIC_NAME,
+    SPEND_METRIC_NAMESPACE,
+} from '../common/spendMetrics.js';
+import {
     VERIFICATION_MAX_OUTPUT_TOKENS,
     buildVerificationPrompt,
     isPromptTooLargeError,
@@ -199,6 +205,26 @@ function publishSpend(deps: VerificationDeps, micros: number): void {
         unit: 'None',
         stage: deps.stage,
         value: micros,
+        dimensions: { CallSite: VERIFICATION_CALL_SITE },
+    });
+}
+
+/**
+ * Publish the over-bound detector, attributed to this call site.
+ *
+ * @param deps - The handler's collaborators.
+ * @param overrunTokens - How many billed input tokens exceeded the bound the plan was priced from.
+ * @sideEffect Emits one EMF line.
+ */
+function publishInputOverrun(deps: VerificationDeps, overrunTokens: number): void {
+    deps.emit({
+        namespace: SPEND_METRIC_NAMESPACE,
+        name: INPUT_BOUND_EXCEEDED_METRIC_NAME,
+        unit: 'Count',
+        stage: deps.stage,
+        value: overrunTokens,
+        // ⛔ WHICH consumer's prompt broke the bound is the diagnostic — the gate's prompt is ~1 KB and the
+        // parse leg's ~20 KB, and the repair differs. Same dimension the dollar metric carries.
         dimensions: { CallSite: VERIFICATION_CALL_SITE },
     });
 }
@@ -344,24 +370,9 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         return;
     }
 
-    // 2. Settings, then the price. Both TRANSIENT on failure — with no ceiling and no rate there is no worst
-    //    case, so there is nothing to reserve and the call must not be made.
-    const settings = await deps.settings.resolve();
-    const plan = planReservation({
-        modelId: settings.modelId,
-        ceilingMicros: settings.ceilingMicros,
-        maxInputTokens: VERIFICATION_MAX_INPUT_TOKENS,
-        maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
-        nowUtc: deps.now(),
-    });
-
-    if (plan.kind === 'unpriced') {
-        // ⛔ Membership of the rate table IS authorization: with no rate there is no worst case, so an
-        // unpriced model can only ever cost a denial, never uncounted spend.
-        throw new Error(`verification model '${plan.modelId}' is not priced by the rate table; refusing to call it`);
-    }
-
-    // 3. The prompt, built BEFORE the reservation so an over-large one costs nothing.
+    // 2. The prompt, built FIRST — before the settings read and before the reservation. An over-large line
+    //    therefore costs nothing at all, and the reservation below is priced FROM the text actually sent
+    //    rather than from a static cap (ADR-0024 layer 1).
     let prompt: ReturnType<typeof buildVerificationPrompt>;
 
     try {
@@ -387,6 +398,30 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         }
 
         throw error;
+    }
+
+    // 3. Settings, then the price. Both TRANSIENT on failure — with no ceiling and no rate there is no worst
+    //    case, so there is nothing to reserve and the call must not be made.
+    //
+    // ⛔ THE INPUT BOUND IS THE PROMPT'S OWN, IN BYTES. It was `VERIFICATION_MAX_INPUT_TOKENS = 2_000`, the
+    //    code-point cap, on the claim that no tokenizer emits more than one token per code point — false for
+    //    byte-fallback BPE, where an unknown code point becomes up to four tokens. `inputTokenBound` prices
+    //    the two turns at their UTF-8 length plus the chat template's framing, which is both an honest bound
+    //    and a TIGHTER one for the ordinary ASCII line (~1 KB, not 2,000 tokens).
+    const settings = await deps.settings.resolve();
+    const inputBound = inputTokenBound([prompt.system, prompt.user]);
+    const plan = planReservation({
+        modelId: settings.modelId,
+        ceilingMicros: settings.ceilingMicros,
+        maxInputTokens: inputBound,
+        maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
+        nowUtc: deps.now(),
+    });
+
+    if (plan.kind === 'unpriced') {
+        // ⛔ Membership of the rate table IS authorization: with no rate there is no worst case, so an
+        // unpriced model can only ever cost a denial, never uncounted spend.
+        throw new Error(`verification model '${plan.modelId}' is not priced by the rate table; refusing to call it`);
     }
 
     // 4. Reserve — PROD ONLY (ADR-0024 §3, owner ruling 2026-08-21). Sandbox and every pr-{N} call ungated,
@@ -435,6 +470,20 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     if (usage !== undefined) {
         if ((usage.cacheReadInputTokens ?? 0) > 0 || (usage.cacheWriteInputTokens ?? 0) > 0) {
             publish(deps, CACHE_TOKENS_METRIC_NAME, 1);
+        }
+
+        // ⛔ DID THE BOUND HOLD? Layer 1's whole claim is that billed input never exceeds what was reserved
+        // for, and the counter cannot tell us — `settleDeltaMicros` is unclamped, so an overshoot is simply
+        // charged and disappears into the month's total. Emitted in EVERY stage: an ungated stage is where a
+        // new model or a new prompt lands first, which is exactly where the bound breaks first.
+        const overrun = inputTokensBeyondBound(inputBound, usage);
+
+        if (overrun > 0) {
+            publishInputOverrun(deps, overrun);
+            logger.warn('verification billed MORE input tokens than the reservation was priced for', {
+                bound: inputBound,
+                overrun,
+            });
         }
 
         if (gated) {

@@ -103,6 +103,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import { cdkApps } from '../__tests__/cdkApps.js';
 import { repositorySites } from '../__tests__/messagingConstructSites.js';
+import { PROD_DEPLOY_WORKFLOW, prodDeployLiteralEnvironment } from '../__tests__/prodDeployEnvironment.js';
 import { repoRoot } from '../__tests__/serviceSources.js';
 import { EDGE_LAMBDA_RUNTIME } from '../lib/platform/EdgeStack.js';
 
@@ -117,8 +118,14 @@ import { EDGE_LAMBDA_RUNTIME } from '../lib/platform/EdgeStack.js';
  * ⚠️ That is NOT a reason those rows go unchecked, which is what the earlier draft of this comment implied.
  * They are asserted by the CENSUS below, at the count the ADR records, which is the assertion available to a
  * rule that has not reached zero. This register is the stronger claim, not the only one.
+ *
+ * ⚠️ `CFR4` is the one member that did NOT arrive by a burn-down, and the distinction is worth keeping: its
+ * recorded count of 3 was an artifact of THIS suite's own environment, not a property of production (see
+ * {@link SYNTH_ENV}). The true count was always zero — the live distributions carry `TLSv1.2_2021` — so it
+ * joins on the same terms as the others, and from here a real regression to CloudFront's default certificate
+ * reds against the strong predicate rather than merely disagreeing with a number.
  */
-const RULES_AT_ZERO = ['AwsSolutions-SNS3', 'AwsSolutions-SQS4'] as const;
+const RULES_AT_ZERO = ['AwsSolutions-CFR4', 'AwsSolutions-SNS3', 'AwsSolutions-SQS4'] as const;
 
 /** ADR-0013, whose burn-down tables are the authority for every rule this repository has NOT yet burned down. */
 const BURN_DOWN_ADR = 'docs/architecture/decisions/0013-cdk-nag-advisory-iac-security-linting.md';
@@ -331,7 +338,8 @@ const HERMETIC_CONTEXT = JSON.stringify({
 });
 
 /**
- * The union of every environment variable any CDK entrypoint in this repository reads, with test values.
+ * The COORDINATES every CDK entrypoint in this repository reads: account, region, VPC, database and bucket
+ * names, stubbed so synthesis is hermetic.
  *
  * ONE block rather than one per app, deliberately: no two entrypoints disagree about what a key means (they
  * share `IDENTITY_VPC_ID`/`FOOD_VPC_ID`/`RECIPE_VPC_ID` as fallbacks for each other), so a per-app map would
@@ -341,6 +349,11 @@ const HERMETIC_CONTEXT = JSON.stringify({
  * ⛔ Deliberately MINIMAL — no ambient AWS credentials are inherited, so a regression that reintroduces a
  * live lookup fails here rather than quietly succeeding on a developer's machine. This is the same shape
  * `recipe-workers`' `workersAppSynth.integration.test.ts` uses, and for the same reason.
+ *
+ * ⛔ STUBS ONLY. Anything the production pipeline states as a LITERAL is POSTURE, not a coordinate, and is
+ * overlaid from `prod-deploy.yml` in {@link SYNTH_ENV} — see {@link prodDeployLiteralEnvironment} for why
+ * that distinction is the workflow's own and not a heuristic. Adding such a value here instead would put it
+ * in two places, and the copy in this file is the one nobody updates.
  *
  * ⚠️ A consequence worth knowing before "fixing" it: `TMPDIR` is not passed through either, so the child's
  * own scratch files (notably `tsx`'s IPC pipe) land in the system temp directory rather than under this
@@ -373,6 +386,26 @@ const HERMETIC_ENV: Readonly<Record<string, string>> = {
     RECIPE_FOOD_SERVICE_URL: 'https://food.example.com',
     HANDLE_SYNC_TOPIC_ARN: `arn:aws:sns:${REGION}:${ACCOUNT}:kitchensink-handle-sync-prod`,
 };
+
+/**
+ * The environment every app is synthesized under: hermetic coordinates, overlaid with the production
+ * pipeline's own literal posture.
+ *
+ * ⛔ THE MEASUREMENT DEFECT THIS FIXES, and it is the reason a census must synthesize the DEPLOYED shape
+ * rather than a plausible one. With only {@link HERMETIC_ENV}, `EDGE_CUTOVER_SERVICES` was unset;
+ * `publicRecordOwnerFor` reads unset as "nobody has cut over" — right for a deploy that was never told to
+ * move anything, wrong for a census — so `EdgeStack` omitted `domainNames`/`certificate` from all three
+ * distributions, CloudFront's DEFAULT certificate applied, and that certificate forces
+ * `MinimumProtocolVersion: TLSv1`. cdk-nag reported three `AwsSolutions-CFR4` findings, and they went into
+ * ADR-0013's table as production's posture. They were an artifact: the live distributions carry their alias
+ * and `TLSv1.2_2021`.
+ *
+ * ⚠️ The workflow WINS on a key this file also stubs. That is the whole point — a stub that contradicts the
+ * pipeline is a template nobody deploys. A literal coordinate added to the workflow would therefore break
+ * the hermetic seal, and it would break it LOUDLY, as a synth failure naming the app, which is the same
+ * failure mode {@link HERMETIC_ENV} already documents for a key nobody supplies.
+ */
+const SYNTH_ENV: Readonly<Record<string, string>> = { ...HERMETIC_ENV, ...prodDeployLiteralEnvironment() };
 
 /** One row of a cdk-nag `AwsSolutions-…-NagReport.csv`. */
 interface NagRow {
@@ -531,7 +564,7 @@ beforeAll(async () => {
                 cwd: path.join(repoRoot, packageOf(app).directory),
                 encoding: 'utf8',
                 stdio: 'pipe',
-                env: { ...HERMETIC_ENV, CDK_OUTDIR: outdir },
+                env: { ...SYNTH_ENV, CDK_OUTDIR: outdir },
             });
         } catch (error) {
             const { stderr, stdout, message } = error as { stderr?: string; stdout?: string; message: string };
@@ -598,6 +631,25 @@ describe('cdk-nag rules held at zero, across every CDK app', () => {
         // Non-vacuity on the discovery itself: `cdkApps()` returning nothing would make everything below
         // trivially true.
         expect(apps.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it('synthesizes the shape production DEPLOYS, not a plausible one', () => {
+        // ⛔ ANTI-VACUITY on the overlay itself. A reader that silently stopped matching would take every
+        // app back to the stubbed-posture synth — the shape that manufactured three phantom `CFR4` findings
+        // — and this suite would go on reporting a census of a template nobody deploys.
+        //
+        // The count assertion in the next describe is the second, independent control: `CFR4` would return
+        // to 3 against an ADR that records 0. This one names the cause instead of the symptom.
+        const literals = prodDeployLiteralEnvironment();
+
+        expect(Object.keys(literals).length).toBeGreaterThan(0);
+        expect(
+            literals,
+            `${PROD_DEPLOY_WORKFLOW} states EDGE_CUTOVER_SERVICES as a literal, and it selects which of two ` +
+                'templates EdgeStack and every service stack synthesize. Losing it here is not a smaller ' +
+                'census; it is a census of a different repository',
+        ).toHaveProperty('EDGE_CUTOVER_SERVICES');
+        expect(SYNTH_ENV['EDGE_CUTOVER_SERVICES']).toBe(literals['EDGE_CUTOVER_SERVICES']);
     });
 
     it('synthesizes every CDK app, or names the one it cannot', () => {

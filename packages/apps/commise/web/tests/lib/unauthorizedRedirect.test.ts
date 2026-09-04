@@ -36,11 +36,21 @@
  * Deleting the `attempted.has` short-circuit in `redirectToSignInOnce` makes "does not bounce a second
  * time…" and "…even after a round trip through the sign-in page" fail. Widening the marker to a
  * path-independent flag makes "still bounces for a DIFFERENT path" fail. Narrowing it back to a single
- * slot makes "remembers EVERY path" fail (and its in-document twin).
+ * slot makes "remembers EVERY path" fail (and its in-document twin). Reading the in-document fallback only
+ * when the READ throws — rather than unioning it in unconditionally — makes "records the attempt when the
+ * WRITE throws" fail, which is the asymmetric quota shape Safari private browsing actually presents.
+ * Dropping `documentAttempts.clear()` from the reset makes "clears the in-document fallback too" fail.
+ * Removing the bound makes "bounds the stored list" fail on length; keeping the OLDEST entries instead of
+ * the newest makes the same case fail on the path it just recorded.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildSignInRedirectUrl, redirectToSignInOnce, resetUnauthorizedRecovery } from '@/lib/unauthorizedRedirect';
+import {
+    MAX_ATTEMPTED_PATHS,
+    buildSignInRedirectUrl,
+    redirectToSignInOnce,
+    resetUnauthorizedRecovery,
+} from '@/lib/unauthorizedRedirect';
 
 const mockNavigateTo = vi.fn();
 
@@ -199,5 +209,75 @@ describe('redirectToSignInOnce (circuit breaker)', () => {
         window.history.replaceState(null, '', '/en');
         expect(redirectToSignInOnce()).toBe(false);
         expect(mockNavigateTo).toHaveBeenCalledTimes(2);
+    });
+    it('records the attempt when the WRITE throws even though the READ succeeds — the quota shape', () => {
+        // The storage double the two cases below use throws on EVERY access, which is the EASY shape. The
+        // documented one is asymmetric: Safari private browsing (and any origin that has hit its quota)
+        // serves `getItem` normally and throws `QuotaExceededError` only from `setItem`. Under that shape the
+        // attempt is recorded into the in-document fallback while the read consults ONLY storage — which
+        // still answers "nothing attempted". The breaker never trips, and the 2026-08-07 production loop is
+        // back in full, on a browser that reports storage as working.
+        const readableButFull = {
+            getItem: () => null,
+            setItem: () => {
+                throw new Error('QuotaExceededError');
+            },
+            removeItem: () => undefined,
+        };
+
+        vi.spyOn(window, 'sessionStorage', 'get').mockReturnValue(readableButFull as unknown as Storage);
+
+        expect(redirectToSignInOnce()).toBe(true);
+
+        expect(redirectToSignInOnce()).toBe(false);
+        expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen');
+    });
+
+    it('clears the in-document fallback too when a failed write put the attempt there', () => {
+        // `resetUnauthorizedRecovery` must clear EVERY store the breaker reads, not just the one it usually
+        // writes. With a readable-but-full storage the whole state lives in the fallback, so a reset that
+        // only issues `removeItem` leaves the breaker permanently open on that surface.
+        const readableButFull = {
+            getItem: () => null,
+            setItem: () => {
+                throw new Error('QuotaExceededError');
+            },
+            removeItem: () => undefined,
+        };
+
+        vi.spyOn(window, 'sessionStorage', 'get').mockReturnValue(readableButFull as unknown as Storage);
+
+        redirectToSignInOnce();
+        resetUnauthorizedRecovery();
+        mockNavigateTo.mockClear();
+
+        expect(redirectToSignInOnce()).toBe(true);
+        expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen');
+    });
+
+    it('bounds the stored list, retaining the paths most recently bounced from', () => {
+        // The list is keyed by `window.location.pathname`, which a link can make arbitrarily many distinct
+        // values of. `sessionStorage` quota is shared across the WHOLE origin, so an unbounded list does not
+        // merely bloat this key — it can deny storage to Clerk and to Next.js. The cap keeps the newest
+        // entries because the surfaces a visitor is actively looping between are by definition the recent
+        // ones; the path just recorded must always survive, or the very next 401 bounces again.
+        for (let index = 0; index <= MAX_ATTEMPTED_PATHS; index += 1) {
+            window.history.replaceState(null, '', `/en/surface-${index}`);
+            redirectToSignInOnce();
+        }
+
+        const stored: unknown = JSON.parse(window.sessionStorage.getItem('commise.unauthorizedRecovery') ?? '[]');
+
+        expect(Array.isArray(stored) ? stored.length : -1).toBe(MAX_ATTEMPTED_PATHS);
+
+        // The path recorded last is still tripped...
+        window.history.replaceState(null, '', `/en/surface-${MAX_ATTEMPTED_PATHS}`);
+        expect(redirectToSignInOnce()).toBe(false);
+
+        // ...and the oldest was the one evicted, so it is allowed one further bounce rather than being
+        // remembered forever. Bounded eviction, never a tight loop: it takes MAX_ATTEMPTED_PATHS distinct
+        // intervening surfaces to evict anything at all.
+        window.history.replaceState(null, '', '/en/surface-0');
+        expect(redirectToSignInOnce()).toBe(true);
     });
 });

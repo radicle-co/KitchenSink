@@ -36,12 +36,35 @@
  * There is deliberately **no** automatic reset on a later success. A stale marker degrades one surface to an
  * error notice; a cleared marker re-arms the loop. Fail safe. {@link resetUnauthorizedRecovery} is the
  * explicit seam for a future "authorization restored" signal.
+ *
+ * ## Storage can fail ASYMMETRICALLY, and the read must survive that
+ *
+ * `sessionStorage` is not merely "available or not". Safari private browsing — and any origin that has hit
+ * its quota — serves `getItem` normally and throws `QuotaExceededError` from `setItem` ALONE. So the read
+ * unions the stored list with {@link documentAttempts} unconditionally rather than consulting the fallback
+ * only when the read itself throws: a recorded attempt that a failed write pushed into the fallback would
+ * otherwise be invisible to every subsequent read, the breaker would never trip, and the loop above would be
+ * back in full on a browser that reports storage as working.
+ *
+ * The list is bounded ({@link MAX_ATTEMPTED_PATHS}) because it is keyed by `window.location.pathname`, of
+ * which a link can mint arbitrarily many distinct values. Quota is shared across the WHOLE origin, so an
+ * unbounded list does not just bloat this key — it can deny storage to Clerk and to Next.js. Eviction keeps
+ * the most recent entries and can never produce a tight loop: the surfaces a visitor bounces between are by
+ * definition recent, the path just recorded always survives, and evicting anything at all takes
+ * {@link MAX_ATTEMPTED_PATHS} distinct intervening surfaces.
  */
 import { withBasePath } from '@/lib/basePath';
 import { navigateTo } from '@/lib/navigation';
 
 /** `sessionStorage` key holding the JSON list of paths we have already attempted sign-in recovery for. */
 const RECOVERY_KEY = 'commise.unauthorizedRecovery';
+
+/**
+ * How many originating paths the breaker remembers. Reaching it means dozens of distinct surfaces each
+ * 401'd in one browsing session, which is a systemic outage rather than the per-surface failure this breaker
+ * arbitrates — and the surfaces being looped between are the recent ones the bound retains.
+ */
+export const MAX_ATTEMPTED_PATHS = 50;
 
 /**
  * Per-DOCUMENT fallback for contexts where `sessionStorage` throws (Safari private mode, partitioned
@@ -87,24 +110,34 @@ function parseAttemptedPaths(raw: string | null): ReadonlySet<string> {
  * @sideEffect Reads `sessionStorage`.
  */
 function readAttemptedPaths(): ReadonlySet<string> {
+    let stored: ReadonlySet<string>;
+
     try {
-        return parseAttemptedPaths(window.sessionStorage.getItem(RECOVERY_KEY));
+        stored = parseAttemptedPaths(window.sessionStorage.getItem(RECOVERY_KEY));
     } catch {
-        return documentAttempts;
+        stored = new Set();
     }
+
+    return new Set([...stored, ...documentAttempts]);
 }
 
 /**
- * Persist the full set of attempted paths.
+ * Persist the attempted paths, bounded to the most recent {@link MAX_ATTEMPTED_PATHS}.
  *
  * @param paths - Every path recovery has been attempted for, including the one just recorded.
  * @sideEffect Writes `sessionStorage` (falling back to module state when storage is unavailable).
  */
 function writeAttemptedPaths(paths: ReadonlySet<string>): void {
+    const bounded = [...paths].slice(-MAX_ATTEMPTED_PATHS);
+
     try {
-        window.sessionStorage.setItem(RECOVERY_KEY, JSON.stringify([...paths]));
+        window.sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(bounded));
     } catch {
-        for (const path of paths) {
+        // The caller unions the fallback into `paths` before recording, so replacing rather than adding
+        // loses nothing and keeps the fallback under the same bound as the persisted list.
+        documentAttempts.clear();
+
+        for (const path of bounded) {
             documentAttempts.add(path);
         }
     }

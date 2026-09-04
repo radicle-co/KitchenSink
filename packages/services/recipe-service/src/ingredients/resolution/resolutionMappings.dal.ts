@@ -33,9 +33,10 @@
  * `findWriteFacts` → decide → `applyWrite` must be one transaction, or two concurrent correctors read the
  * same facts and both act on them. `findWriteFacts` therefore takes a row lock on every live mapping for the
  * phrase (`FOR UPDATE`), which serialises correctors of the SAME phrase and leaves correctors of different
- * phrases untouched. The one case the lock cannot cover is a phrase with no live rows to lock — two
- * first-writers — and that is exactly what the `ON CONFLICT DO NOTHING` clauses handle, with nothing retired
- * to leave dangling.
+ * phrases untouched. ⛔ The case a row lock CANNOT cover is a phrase with no live rows — two first-writers —
+ * and `ON CONFLICT DO NOTHING` does not save the corroboration there, only the write: both insert, and
+ * neither promotes. That case is closed by a per-phrase `pg_advisory_xact_lock` taken first (PR #91 review);
+ * see `findWriteFacts` for why both locks stay.
  *
  * ⛔ `food_id` MAY DANGLE. U12's reseed mints fresh food ULIDs and there is no foreign key to catch it, so a
  * mapping can name a food that no longer exists. That is a READER's problem, handled by the tier treating an
@@ -237,9 +238,25 @@ export class ResolutionMappingsDal {
      *
      * ⛔ The lock is the point. Without it, two users correcting the same phrase concurrently both read
      * "nobody else agrees" and both write an author-scoped mapping, so the second one's promotion never fires
-     * — a corroboration silently lost. `FOR UPDATE` serialises correctors of the SAME phrase and leaves every
-     * other phrase untouched. It is a no-op for a phrase with no live rows, which is why the write statements
-     * still carry `ON CONFLICT DO NOTHING`.
+     * — a corroboration silently lost.
+     *
+     * ⛔ **AND IT TAKES TWO LOCKS, BECAUSE `FOR UPDATE` CANNOT LOCK A ROW THAT DOES NOT EXIST** (PR #91
+     * review). The row lock serialises correctors of a phrase that already HAS live mappings; the case it is
+     * blind to is the one this module's own note called out and left open — two FIRST-TIME correctors. They
+     * both find no rows, so both locks are no-ops; both insert an author row (the partial unique index is
+     * `(normalized_key, user_id)`, so neither conflicts); and neither promotes. The corroboration is lost
+     * until a THIRD user happens along.
+     *
+     * `pg_advisory_xact_lock(hashtext(key))` closes it: the lock exists whether or not any row does. It is the
+     * same house form `CollectionsDal.createIfUnderCap` and `PhotosDal.create` use for their own
+     * count-then-insert TOCTOU, taken as the FIRST statement so nothing is read before it, and released by
+     * the transaction end rather than by hand. A cross-key hash collision only serialises two unrelated
+     * corrections — contention, never a correctness problem.
+     *
+     * ⚠️ The `FOR UPDATE` STAYS, and is not redundant: {@link ResolutionMappingsDal.supersedeOwnMapping} is a
+     * public statement a caller can reach without coming through here, and the row lock is what makes THAT
+     * writer wait. The advisory lock covers the empty set; the row lock covers the writers that bypass it.
+     * The write statements still carry `ON CONFLICT DO NOTHING` for the same defence-in-depth reason.
      *
      * @param normalizedKey - The phrase's match grain.
      * @param userId - The correcting user.
@@ -256,6 +273,9 @@ export class ResolutionMappingsDal {
         foodId: string,
         writer: Writer = this.db,
     ): Promise<MappingWriteFacts> {
+        // FIRST — before anything is read. Serialises every corrector of THIS phrase, including the two
+        // first-time correctors no row lock can reach, and leaves every other phrase untouched.
+        await writer.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${normalizedKey})::bigint)`);
         await writer.execute(sql`
             SELECT id FROM ingredient_resolution_mappings
             WHERE normalized_key = ${normalizedKey} AND superseded_at IS NULL

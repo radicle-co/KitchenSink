@@ -313,4 +313,101 @@ describe.skipIf(!hasDatabaseUrl)('ParseCorrectionsDal', () => {
             expect(await dal.findInForce(key('2 cups plain flour, sifted'), COOK_A)).toBeUndefined();
         });
     });
+    /**
+     * ⛔ THE CASE THE ROW LOCK CANNOT COVER (PR #91 review) — the deliberate twin of the mappings DAL's case.
+     * `FOR UPDATE` locks rows that EXIST; a line nobody has corrected yet has none, so two first-time cooks
+     * asserting the SAME parse both read "nobody agrees", both insert an author row (the partial unique index
+     * is per cook), and neither promotes. The interleaving is forced: A reads its facts and holds its
+     * transaction open; B then attempts its read and must BLOCK until A commits.
+     */
+    describe('two FIRST-TIME cooks correcting one line (no live row to lock)', () => {
+        function gate(): { promise: Promise<void>; open: () => void } {
+            let open: () => void = () => undefined;
+            const promise = new Promise<void>((resolve) => {
+                open = resolve;
+            });
+
+            return { promise, open };
+        }
+
+        it('serialises them so the second sees the first and PROMOTES — the corroboration is never lost', async () => {
+            const k = key('first writers');
+            const aHasReadFacts = gate();
+            const aMayProceed = gate();
+            let bHasReadFacts = false;
+
+            const writeAs = async (
+                userId: string,
+                tx: Parameters<Parameters<ParseCorrectionsDal['runInTransaction']>[0]>[0],
+            ) => {
+                const writeFacts = await dal.findWriteFacts(k, userId, FLOUR, tx);
+                const decision = evaluateParseCorrectionWrite({
+                    correctedAnswer: writeFacts.canonicalAnswer,
+                    grantedScopes: [],
+                    liveGlobal: writeFacts.liveGlobal,
+                    liveOwn: writeFacts.liveOwn,
+                    corroboratorsForSameAnswer: writeFacts.corroboratorsForSameAnswer,
+                });
+
+                return { writeFacts, decision };
+            };
+
+            const a = dal.runInTransaction(async (tx) => {
+                const { decision } = await writeAs(COOK_A, tx);
+                aHasReadFacts.open();
+                await aMayProceed.promise;
+
+                return dal.applyWrite(
+                    {
+                        decision,
+                        normalizedKey: k,
+                        sourceLine: `${PREFIX} first writers`,
+                        correctedFacts: FLOUR,
+                        userId: COOK_A,
+                        surfacing: 'line_correction',
+                    },
+                    tx,
+                );
+            });
+
+            await aHasReadFacts.promise;
+
+            const b = dal.runInTransaction(async (tx) => {
+                const { decision } = await writeAs(COOK_B, tx);
+                bHasReadFacts = true;
+
+                return dal.applyWrite(
+                    {
+                        decision,
+                        normalizedKey: k,
+                        sourceLine: `${PREFIX} first writers`,
+                        correctedFacts: FLOUR,
+                        userId: COOK_B,
+                        surfacing: 'line_correction',
+                    },
+                    tx,
+                );
+            });
+
+            try {
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                expect(bHasReadFacts).toBe(false);
+            } finally {
+                aMayProceed.open();
+            }
+
+            const [resultA, resultB] = await Promise.all([a, b]);
+
+            expect(resultA).toMatchObject({ written: true, promotion: undefined });
+            expect(resultB).toMatchObject({ written: true });
+            expect(resultB.written && resultB.promotion !== undefined).toBe(true);
+
+            const bindings = await pool.query<{ n: number }>(
+                `SELECT count(*)::int AS n FROM ingredient_parse_corrections
+                  WHERE normalized_key = $1 AND origin = 'corroboration' AND superseded_at IS NULL`,
+                [k],
+            );
+            expect(bindings.rows[0]?.n).toBe(1);
+        });
+    });
 });

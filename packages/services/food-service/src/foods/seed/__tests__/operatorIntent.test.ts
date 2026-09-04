@@ -90,9 +90,11 @@ describe('refuseUnboundTarget', () => {
         expect(refuseUnboundTarget(intent({ confirmTarget: undefined }), target())).toBe('target-confirmation-missing');
     });
 
+    // ⚠️ REWRITTEN, and the change is a STRENGTHENING. This case (prod declared, sandbox connected) used to
+    // be caught only by the typed token disagreeing — i.e. it depended on the operator having typed something.
+    // The environment rule now refuses it from the SERVER's address alone, before any token is considered, so
+    // the refusal is the more specific `stage-environment-mismatch` and it fires even with nothing typed.
     it('⛔ refuses the exact reported case: prod declared, sandbox connected', () => {
-        // The operator typed the production target they believed they were on; the connection landed on the
-        // sandbox server. Every stage flag is satisfied and the run is still refused.
         const declared = 'kitchensink_food@10.0.9.2:5432';
 
         expect(
@@ -105,7 +107,7 @@ describe('refuseUnboundTarget', () => {
                 }),
                 target({ host: '10.1.4.7' }),
             ),
-        ).toBe('target-mismatch');
+        ).toBe('stage-environment-mismatch');
     });
 
     it('admits a run whose typed target is the one the server reported', () => {
@@ -142,13 +144,16 @@ describe('refuseUnboundTarget', () => {
             ).toBe('stage-database-mismatch');
         });
 
+        // ⚠️ The host here is deliberately OUTSIDE ADR-0002's CIDR scheme, so this table isolates the
+        // stage↔database rule. With a real prod or sandbox address the environment rule would (correctly)
+        // decide the production rows first, and this block would be testing that instead of what it is about.
         it.each([
             ['a pr stage on its own database', 'pr-7', 'kitchensink_food_pr_7'],
             ['production on the shared base database', PRODUCTION_STAGE, 'kitchensink_food'],
             ['sandbox on the shared base database', 'sandbox', 'kitchensink_recipes'],
             ['a local stage on a local database', 'local', 'commise'],
         ])('admits %s', (_name, stage, database) => {
-            const live = target({ database });
+            const live = target({ database, host: '192.168.0.10' });
 
             expect(
                 refuseUnboundTarget(
@@ -175,5 +180,108 @@ describe('refuseUnboundTarget', () => {
             );
             expect(refuseUnboundTarget(intent({ dryRun: true, confirm: undefined }), target())).toBeUndefined();
         });
+    });
+});
+
+/**
+ * ⛔ THE HOLE THE FIRST VERSION OF THIS GUARD LEFT OPEN, and it is the direction with the blast radius.
+ *
+ * The binding commit checked the case where an operator declares `prod` against a non-prod database. That was
+ * already the SAFE direction. The dangerous one survived: every production protection — `--allow-prod`,
+ * `production-requires-flag` — keys off the **declared** stage, so declaring `sandbox` disables all of them,
+ * and a `--confirm-target` pasted from the dry run matches by construction. Prod could be cleared under
+ * `--stage sandbox` with every check green.
+ *
+ * The discriminating fact was already cited in this module and never read: ADR-0002 puts prod's VPC on
+ * `10.0.0.0/16` and every other stage on `10.1`/`10.2`, so the SERVER's own address says which side of the
+ * production boundary the connection is on, whatever the operator declared.
+ */
+describe('the declared stage must agree with the environment the server is in', () => {
+    /** A production RDS, as ADR-0002's CIDR scheme addresses it. */
+    const inProduction: DatabaseTarget = {
+        host: '10.0.4.7',
+        port: 5432,
+        database: 'kitchensink_food',
+        user: 'food_app',
+    };
+    /** A sandbox RDS — same logical database name, which is exactly why the host has to decide. */
+    const inSandbox: DatabaseTarget = { ...inProduction, host: '10.1.4.7' };
+
+    it('⛔ refuses a sandbox declaration that reached PRODUCTION, even with the right token pasted in', () => {
+        expect(
+            refuseUnboundTarget(
+                intent({ stage: 'sandbox', confirm: 'sandbox', confirmTarget: describeTargetToken(inProduction) }),
+                inProduction,
+            ),
+        ).toBe('stage-environment-mismatch');
+    });
+
+    it('refuses it on a DRY RUN too — the look must not report on a run that could never be permitted', () => {
+        expect(refuseUnboundTarget(intent({ stage: 'sandbox', dryRun: true, confirm: undefined }), inProduction)).toBe(
+            'stage-environment-mismatch',
+        );
+    });
+
+    it('refuses a per-PR stage that reached production', () => {
+        expect(
+            refuseUnboundTarget(intent({ stage: 'pr-7', confirm: 'pr-7', confirmTarget: 'x' }), {
+                ...inProduction,
+                database: 'kitchensink_food_pr_7',
+            }),
+        ).toBe('stage-environment-mismatch');
+    });
+
+    it('refuses the mirror: a production declaration that reached a non-production server', () => {
+        expect(
+            refuseUnboundTarget(
+                intent({
+                    stage: PRODUCTION_STAGE,
+                    confirm: PRODUCTION_STAGE,
+                    allowProd: true,
+                    confirmTarget: describeTargetToken(inSandbox),
+                }),
+                inSandbox,
+            ),
+        ).toBe('stage-environment-mismatch');
+    });
+
+    it('admits each stage against the environment it belongs to', () => {
+        expect(
+            refuseUnboundTarget(
+                intent({ stage: 'sandbox', confirm: 'sandbox', confirmTarget: describeTargetToken(inSandbox) }),
+                inSandbox,
+            ),
+        ).toBeUndefined();
+        expect(
+            refuseUnboundTarget(
+                intent({
+                    stage: PRODUCTION_STAGE,
+                    confirm: PRODUCTION_STAGE,
+                    allowProd: true,
+                    confirmTarget: describeTargetToken(inProduction),
+                }),
+                inProduction,
+            ),
+        ).toBeUndefined();
+    });
+
+    /**
+     * ⚠️ It has NO OPINION outside the CIDR scheme, deliberately. A laptop, a docker bridge or a CI container
+     * is not addressed by ADR-0002, and refusing there would break every local run of these tasks while
+     * closing nothing — the other two mechanisms still apply.
+     */
+    it.each([
+        ['a docker bridge address', '172.17.0.4'],
+        ['a loopback address', '127.0.0.1'],
+        ['a unix socket', 'local'],
+    ])('has no opinion about %s', (_name, host) => {
+        const elsewhere: DatabaseTarget = { ...inSandbox, host };
+
+        expect(
+            refuseUnboundTarget(
+                intent({ stage: 'sandbox', confirm: 'sandbox', confirmTarget: describeTargetToken(elsewhere) }),
+                elsewhere,
+            ),
+        ).toBeUndefined();
     });
 });

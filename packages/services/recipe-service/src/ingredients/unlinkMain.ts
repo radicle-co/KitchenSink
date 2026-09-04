@@ -78,7 +78,7 @@ async function bootstrap(): Promise<void> {
         emit('info', 'ingredient-unlink-starting', { stage: options.stage, dryRun: options.dryRun });
 
         emit('info', 'ingredient-unlink-finished', {
-            ...(await runIngredientUnlink(createIngredientLinkStore(drizzle(pool, { schema })), options)),
+            ...(await runIngredientUnlink(createIngredientLinkStore(drizzle(pool, { schema }), pool), options)),
         });
     } finally {
         await pool.end();

@@ -33,6 +33,12 @@ const REFUSAL_EXPLANATIONS: Readonly<Record<ReseedRefusalReason, string>> = {
         'the --confirm-target you gave is not the database this process actually opened — the guard that ' +
         'catches a production stage declared against a sandbox connection, and the reverse. Run --dry-run ' +
         'and paste the target it reports rather than retyping it from memory.',
+    'stage-environment-mismatch':
+        'the stage you named is on the other side of the production boundary from the server this ' +
+        'connection reached. ADR-0002 puts production on 10.0.x.x and every other stage on 10.1/10.2.x.x, so ' +
+        'the address the SERVER reports says which environment you are really on — and every other ' +
+        'production protection keys off the stage you DECLARED, which is why this one does not. Check ' +
+        'DATABASE_URL before re-running; do not re-declare the stage to match.',
     'stage-database-mismatch':
         'the stage you named and the database this connection reached cannot both be true: a pr-{N} stage ' +
         'belongs on a {base}_pr_{N} database and a named stage does not belong on a per-PR one (ADR-0006).',

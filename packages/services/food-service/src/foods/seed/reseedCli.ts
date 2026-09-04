@@ -110,7 +110,8 @@ export type ReseedRefusalReason =
     | 'no-dataset-enabled'
     | 'target-confirmation-missing'
     | 'target-mismatch'
-    | 'stage-database-mismatch';
+    | 'stage-database-mismatch'
+    | 'stage-environment-mismatch';
 
 /** What the guard decided: refuse outright, report only, or reseed. */
 export type ReseedDecision =

@@ -40,8 +40,17 @@ import {
 } from '../unlinkCli.js';
 import { isIngredientUnlinkIncompleteError, isUnlinkRefusedError } from '../unlinkCli.errors.js';
 
-/** Where the fake store reports its connection landed — the descriptor the binding guard judges against. */
+/**
+ * Where the fake store reports its connection landed — the descriptor the binding guard judges against.
+ *
+ * ⚠️ `10.1.x` is SANDBOX under ADR-0002's CIDR scheme, and that is load-bearing now that the guard reads the
+ * environment from the address: a production case has to run against {@link PRODUCTION_TARGET} or it is
+ * (correctly) refused as a stage/environment mismatch before it reaches the rule it was written for.
+ */
 const TARGET: DatabaseTarget = { host: '10.1.4.7', port: 5432, database: 'kitchensink_recipes', user: 'recipe_app' };
+
+/** The same database on the PRODUCTION side of ADR-0002's CIDR scheme. */
+const PRODUCTION_TARGET: DatabaseTarget = { ...TARGET, host: '10.0.4.7' };
 
 /** A complete, valid options object; each test overrides only the field it is about. */
 function makeOptions(overrides: Partial<UnlinkCliOptions> = {}): UnlinkCliOptions {
@@ -73,13 +82,13 @@ interface Recorder {
  * @param linked - How many ingredient rows still carry a food link before the run.
  * @param facts - What the transaction reports afterwards.
  */
-function makeStore(linked: number, facts: UnlinkFacts = makeFacts()): Recorder {
+function makeStore(linked: number, facts: UnlinkFacts = makeFacts(), target: DatabaseTarget = TARGET): Recorder {
     const calls: string[] = [];
 
     return {
         calls,
         store: {
-            describeTarget: async (): Promise<DatabaseTarget> => TARGET,
+            describeTarget: async (): Promise<DatabaseTarget> => target,
             countLinked: async (): Promise<number> => {
                 calls.push('countLinked');
 
@@ -325,13 +334,20 @@ describe('runIngredientUnlink', () => {
             );
         });
 
+        // ⚠️ Runs against a PRODUCTION address on purpose — the guard now reads the environment from the
+        // server's own address, so a production run declared against a sandbox connection is refused.
         it('unlinks production when the stage is named and the flag is given', async () => {
-            const { calls, store } = makeStore(415);
+            const { calls, store } = makeStore(415, makeFacts(), PRODUCTION_TARGET);
 
             await expect(
                 runIngredientUnlink(
                     store,
-                    makeOptions({ stage: PRODUCTION_STAGE, confirm: PRODUCTION_STAGE, allowProd: true }),
+                    makeOptions({
+                        stage: PRODUCTION_STAGE,
+                        confirm: PRODUCTION_STAGE,
+                        allowProd: true,
+                        confirmTarget: 'kitchensink_recipes@10.0.4.7:5432',
+                    }),
                 ),
             ).resolves.toMatchObject({ outcome: 'unlinked', stage: PRODUCTION_STAGE });
             expect(calls).toContain('unlink');
@@ -350,6 +366,8 @@ describe('refuseUnboundTarget', () => {
         expect(describeTargetToken(TARGET)).toBe('kitchensink_recipes@10.1.4.7:5432');
     });
 
+    // ⚠️ STRENGTHENED: this used to be caught only by the typed token disagreeing, i.e. it depended on the
+    // operator having typed something. The environment rule now refuses it from the server's address alone.
     it('⛔ refuses the exact reported case: prod declared, sandbox connected', () => {
         expect(
             refuseUnboundTarget(
@@ -361,7 +379,34 @@ describe('refuseUnboundTarget', () => {
                 }),
                 TARGET,
             ),
-        ).toBe('target-mismatch');
+        ).toBe('stage-environment-mismatch');
+    });
+
+    /**
+     * ⛔ THE DIRECTION WITH THE BLAST RADIUS, which the first version of this guard did not refuse: a SANDBOX
+     * declaration that reached production, with the token pasted straight from the dry run so it matches.
+     * `--allow-prod` is not even required — the operator never said `prod`, so every production protection
+     * that keys off the declared stage is switched off.
+     */
+    it('⛔ refuses a sandbox declaration that reached production, however it is confirmed', () => {
+        expect(
+            refuseUnboundTarget(
+                makeOptions({ confirmTarget: describeTargetToken(PRODUCTION_TARGET) }),
+                PRODUCTION_TARGET,
+            ),
+        ).toBe('stage-environment-mismatch');
+    });
+
+    it('refuses that same pairing on a dry run, before anything is typed', () => {
+        expect(refuseUnboundTarget(makeOptions({ dryRun: true, confirmTarget: undefined }), PRODUCTION_TARGET)).toBe(
+            'stage-environment-mismatch',
+        );
+    });
+
+    it('has no opinion about an address outside the CIDR scheme, so local runs still work', () => {
+        const local: DatabaseTarget = { ...TARGET, host: '172.17.0.4' };
+
+        expect(refuseUnboundTarget(makeOptions({ confirmTarget: describeTargetToken(local) }), local)).toBeUndefined();
     });
 
     it('refuses a writing run that named no target at all', () => {

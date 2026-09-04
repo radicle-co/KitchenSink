@@ -227,14 +227,36 @@ operator can read past; nothing consumed it, so it was not a guard.
     between the dry run and the destructive run invalidates the token. That fails **closed** — the run is
     refused and the operator re-runs the dry run, which the refusal message tells them to do.
 
-3. **`probe-off-server`** (clear only): the recipe-linkage probe must reach the same server as the catalog.
+3. **The declared stage must be on the same side of the production boundary as the server**, decided from
+   ADR-0002's per-stage CIDRs (prod `10.0.0.0/16`, everything else `10.1`/`10.2`).
+
+    ⛔ **THIS WAS MISSING FROM THE FIRST VERSION OF THE FIX, and it is the direction with the blast radius.**
+    The architecture review caught it. Mechanisms 1 and 2 close the case an operator declares `prod` against a
+    non-prod database — which was already the _safe_ direction. The dangerous one survived: every production
+    protection (`--allow-prod`, `production-requires-flag`) keys off the stage the operator **declared**, so
+    declaring `sandbox` switches all of them off, and `--confirm-target` cannot help because it is pasted from
+    a dry run that read the same wrong connection. `--stage sandbox --confirm sandbox --confirm-target <the
+prod token the dry run just printed>` passed every check and cleared production.
+
+    The discriminating fact was already _cited_ in my own docstring and never _read_ — structurally the same
+    error the whole change exists to fix. Both directions are now refused, from the server's address alone,
+    before anything is typed, and on a dry run too. It has **no opinion** outside the CIDR scheme (a laptop, a
+    docker bridge, CI), because refusing there would break every local run while closing nothing.
+
+    ⚠️ This is a real coupling to ADR-0002 across three packages that do not import each other, so
+    `packages/infra/global/__tests__/operatorTargetCidrParity.test.ts` pins **both** services' constants
+    against `cidrForStage` itself, in both directions. Verified to fail: mutating one prefix to `10.9.` reds
+    two of its eight cases.
+
+4. **`probe-off-server`** (clear only): the recipe-linkage probe must reach the same server as the catalog.
    The two URLs are supplied separately, so mixing them is what this two-service task is most exposed to — and
    "zero links remain" answered from another stage reads as permission to delete this one's whole catalog.
 
 Also applied to the **reseed**, which the bot did not flag and which carries the identical hazard: it mints
 fresh ULIDs, so aiming it at the wrong stage silently orphans every `ingredients.food_id` on that stage.
 
-**Verified against a throwaway `postgres:18`, running the reported attack itself:**
+**Verified against throwaway `postgres:18` containers, running both reported attacks.** The reported
+direction:
 
 ```
 $ STAGE=prod DATABASE_URL=…/recipes_svc_it npx tsx src/ingredients/unlinkMain.ts \
@@ -243,12 +265,27 @@ error: Refusing to unlink ingredients on stage "prod" — no --confirm-target wa
        actually reached recipes_svc_it@172.17.0.4:5432.
 ```
 
-A wrong `--confirm-target` is refused; `--dry-run` prints `"target":"recipes_svc_it@172.17.0.4:5432"`; that
-token is accepted; `--stage pr-7` against a non-per-PR database is refused with nothing typed.
+And the dangerous direction, on a container given a **production-range address** (`docker network create
+--subnet=10.0.77.0/24`, the server itself reporting `10.0.77.5`) — the case that previously succeeded:
+
+```
+$ STAGE=sandbox DATABASE_URL=postgres://…@10.0.77.5:5432/recipes_prodlike \
+      npx tsx src/ingredients/unlinkMain.ts --stage sandbox --confirm sandbox \
+      --confirm-target 'recipes_prodlike@10.0.77.5:5432'
+error: Refusing to unlink ingredients on stage "sandbox" — the stage you named is on the other side of the
+       production boundary from the server this connection reached. … The connection actually reached
+       recipes_prodlike@10.0.77.5:5432.
+```
+
+Even the **dry run** refuses that pairing. A legitimate local run still works (`172.17.x` is outside the
+scheme, so the rule has no opinion). A wrong `--confirm-target` is refused; `--dry-run` prints the token;
+that token is accepted; `--stage pr-7` against a non-per-PR database is refused with nothing typed.
 
 The descriptor now has **one** reader (`describeDatabaseTarget(pool)`) and the ports take the pool alongside
 their client — the target is a property of the connection, and a second reader would be a second answer to
-"where am I?", free to disagree with the one the guard judged.
+"where am I?", free to disagree with the one the guard judged. ⚠️ The recipe side did not initially get that
+treatment (the review caught it: it kept a single Drizzle parameter and grew a second inline copy of the same
+statement, in the very change whose stated goal was one reader). It matches food-service now.
 
 ### ⚠️ 7 — the half that is NOT fixed, and is an OWNER decision
 
@@ -545,6 +582,26 @@ fix, re-proved afterwards by reverting the mechanism):
   `infra-security`, `infra-messaging`, `recipe-workers`). Built locally; all then passed. Not a code defect —
   and note it is the same "exports `dist`" property that finding 11 gets backwards.
 
+## What the architecture review changed after the first pass
+
+`staff-architect` audited the diff (PLANNING was run before the work; this was the REVIEW gate). It returned
+eleven findings. The material ones are folded into the sections above; recording the rest here so the
+reasoning survives:
+
+| Finding                                                                                                                                                                                                                      | Disposition                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F1** — the target guard is asymmetric: it cannot refuse a `sandbox` declaration that reached prod, and the fact that would close it (ADR-0002's CIDRs) was cited but never read                                            | **Fixed** — see mechanism 3 above. The most serious finding in the review, and it was a hole in my own fix.                                                                                                             |
+| **F1(a)** — the `target-mismatch` message claimed it catches a prod stage declared against sandbox "(and the reverse)". It did not                                                                                           | **Fixed** — the message now says what that rule actually catches (right environment, wrong machine) and points at the rule that catches the boundary crossing                                                           |
+| **F1(b)** — the stage↔database wording asserted a platform-wide rule; ADR-0031's reaper legitimately runs as `sandbox` against `_pr_{N}` databases                                                                           | **Fixed** — narrowed to a claim about _these tasks_                                                                                                                                                                     |
+| **F2** — both new advisory locks use the un-namespaced form while the repo owns the namespaced convention (`provisioning.ts`, `food.dao.ts`) with the anti-collision argument written out                                    | **Not done — carried to the owner.** Correct and worth doing: four unnamespaced users now share one key space in the recipe database. Latent, not live (no transaction takes two), so I did not widen the diff further. |
+| **F3** — `refuseUnboundClear` steered the policy by passing it a fabricated `dryRun: true`                                                                                                                                   | **Fixed** — `refuseStageDatabaseMismatch` is exported and called by name                                                                                                                                                |
+| **F4** — the recipe side never got the "one reader" the commit claimed, and three docstrings still asserted the pre-fix state as current                                                                                     | **Fixed** — both the duplication and all three docstrings                                                                                                                                                               |
+| **F5** — SC-014 is now contradicted by the code                                                                                                                                                                              | **Carried to the owner** (already item 2 below)                                                                                                                                                                         |
+| **F6** — the compare-and-set predicates on a value, not a version, so it is ABA-exposed; `settleExisting` newly makes that path live                                                                                         | **Not done — carried to the owner.** Not a regression (strictly better than the unconditional write) and the window is one in-flight call, but the docstring states the guarantee without the caveat.                   |
+| **F7** — `createFoodCatalogStore(db, pool)` takes two handles to one connection with nothing in the type saying so                                                                                                           | **Accepted as-is.** The review's own verdict was "not a leak you should have avoided"; the tighter one-parameter shape is a further refactor.                                                                           |
+| **F8** — the "the drift fails SAFE" justification for duplicating the policy across services is **false** for the surface this change added: the two commands judge different connections and neither re-derives the other's | **Fixed** — the sentence is struck from all three docstrings and replaced by the parity guard that actually covers it                                                                                                   |
+| **F9, F10, F11** — two orphan manifests; a probe-side refusal reporting the food target; `expectedStatus` shape                                                                                                              | **F10 fixed** (the refusal now carries the descriptor it is about). F9 and F11 recorded as nits; F11's verdict was that required-not-optional is right.                                                                 |
+
 ## Unsettled — for the owner
 
 1. **The cross-database TOCTOU in the catalog clear** (finding 7, second half). Real, open, three options
@@ -557,3 +614,14 @@ fix, re-proved afterwards by reverting the mechanism):
    type is what makes the CodeQL alert recur. Delete or document.
 4. **Whether to suppress the two standing CodeQL alerts** (findings 12 and 13) rather than leave them
    dispositioned here.
+5. **The advisory-lock namespace** (review F2). The recipe database now has four unnamespaced
+   `pg_advisory_xact_lock` users sharing one 2³² key space (collections, photos, mappings, corrections),
+   while food-service and `provisioning.ts` both use the namespaced two-argument form _specifically_ to make
+   cross-feature collision impossible. No transaction currently takes two of the four, so this is latent —
+   but if one ever does, in different orders, that is a deadlock the namespaced form makes unrepresentable.
+   A `LOCK_CLASS_*` constant per recipe-service DAL is the whole fix.
+6. **The compare-and-set is ABA-exposed** (review F6). `food_resolution_status IS NOT DISTINCT FROM
+:expected` compares a low-cardinality enum, so a status that leaves and returns to the observed value
+   admits the stale write. `settleExisting` makes that path live via the `FAILED → PENDING` reactivation.
+   Strictly better than the unconditional write it replaced, and the window is a single in-flight call — but
+   a monotonic version column is what would actually close it.

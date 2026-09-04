@@ -75,7 +75,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient unlink (integration)', () => {
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         db = createRecipeDrizzle(pool);
-        store = createIngredientLinkStore(db);
+        store = createIngredientLinkStore(db, pool);
         liveTargetToken = describeTargetToken(await describeDatabaseTarget(pool));
     });
 

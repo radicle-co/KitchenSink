@@ -68,6 +68,7 @@ import {
     decideConfirmation,
     describeTargetToken,
     refuseMisplacedProdFlag,
+    refuseStageDatabaseMismatch,
     refuseUnboundTarget,
     type DatabaseTarget,
 } from './operatorIntent.js';
@@ -146,7 +147,22 @@ export type ClearRefusalReason =
     | 'target-confirmation-missing'
     | 'target-mismatch'
     | 'stage-database-mismatch'
+    | 'stage-environment-mismatch'
     | 'probe-off-server';
+
+/**
+ * A refusal, plus the descriptor it is ABOUT.
+ *
+ * The pairing exists because this command judges TWO connections: a refusal that named the food target while
+ * describing the recipe probe would show an operator a stage and a database that visibly agree, while the
+ * variable actually at fault is `RECIPE_DATABASE_URL`.
+ */
+export interface ClearRefusal {
+    /** Which rule declined. */
+    readonly reason: ClearRefusalReason;
+    /** The connection that rule was judging. */
+    readonly target: DatabaseTarget;
+}
 
 /** What the guard decided: refuse outright, report only, or clear. */
 export type ClearDecision =
@@ -318,20 +334,26 @@ export function refuseUnboundClear(
     options: ClearCliOptions,
     food: DatabaseTarget,
     recipe: DatabaseTarget,
-): ClearRefusalReason | undefined {
+): ClearRefusal | undefined {
     const unbound = refuseUnboundTarget(options, food);
 
     if (unbound !== undefined) {
-        return unbound;
+        return { reason: unbound, target: food };
     }
 
     if (food.host !== recipe.host || food.port !== recipe.port) {
-        return 'probe-off-server';
+        return { reason: 'probe-off-server', target: recipe };
     }
 
-    // Only the stage/database half applies to the probe: the operator types ONE target, the food one, and a
-    // second token to paste would be ceremony rather than a second fact.
-    return refuseUnboundTarget({ ...options, dryRun: true }, recipe);
+    // ⚠️ Only the stage/database rule is asked of the PROBE, and it is asked BY NAME rather than by handing
+    // `refuseUnboundTarget` a fabricated `dryRun: true` to steer it past the token check — which is what this
+    // did first, and which made the recipe-side rule depend on the ORDER of another function's branches. The
+    // operator types ONE target (the food one); a second token to paste would be ceremony, not a second fact.
+    const probeMismatch = refuseStageDatabaseMismatch(options.stage, recipe);
+
+    // ⚠️ The RECIPE descriptor is carried out with it. Reporting the food target here would show the operator
+    // a stage and a database that visibly agree while the real offender is RECIPE_DATABASE_URL.
+    return probeMismatch === undefined ? undefined : { reason: probeMismatch, target: recipe };
 }
 
 /**
@@ -382,7 +404,7 @@ export async function runCatalogClear(deps: CatalogClearDeps, options: ClearCliO
     const unbound = refuseUnboundClear(options, foodTarget, recipeTarget);
 
     if (unbound !== undefined) {
-        throw new CatalogClearRefusedError(unbound, options.stage, describeTargetToken(foodTarget));
+        throw new CatalogClearRefusedError(unbound.reason, options.stage, describeTargetToken(unbound.target));
     }
 
     const target = describeTargetToken(foodTarget);

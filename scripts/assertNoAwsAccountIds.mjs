@@ -234,7 +234,15 @@ function violationsIn(text, accounts) {
     // IEEE-754 round-tripping using the literal `10000000000000000` — which CONTAINS twelve zeros. A
     // substring match reported an ADR about JSON canonicalization as an AWS credential leak. A gate that
     // cries wolf on a correct document is a gate somebody eventually deletes.
-    const bounded = accounts.map((account) => new RegExp(`(?<!\\d)${account}(?!\\d)`));
+    //
+    // ⛔ `RegExp.escape`, even though every path into `accounts` already guarantees twelve digits:
+    // `accountsIn` matches a digit run, and the `--accounts` override rejects anything failing
+    // `/^\d{12}$/` before it can reach here. So this is NOT closing a live injection — CodeQL reported
+    // `js/regex-injection` on 2026-09-04 because it cannot see through that filter, and it is right to be
+    // unable to: the validation lives sixty lines away from this construction, and a future edit that
+    // loosens it would re-open the hole silently, here, with nothing local to say so. Escaping makes the
+    // safety a property of THIS line instead of a property of a distant invariant.
+    const bounded = accounts.map((account) => new RegExp(`(?<!\\d)${RegExp.escape(account)}(?!\\d)`));
 
     text.split('\n').forEach((line, index) => {
         if (bounded.some((pattern) => pattern.test(line))) {

@@ -1221,3 +1221,61 @@ describe('invariant 5 — a step that claims to verify something can fail', () =
         ).toEqual([]);
     });
 });
+
+describe('invariant 6 — every `pg_isready` healthcheck names the role it probes with', () => {
+    /**
+     * ⛔ A HEALTHCHECK THAT PASSES WHILE LOGGING `FATAL` IS WORSE THAN ONE THAT FAILS.
+     *
+     * A service container's healthcheck runs as **root** inside the container, and `pg_isready` with no
+     * `-U` falls back to the OS user — so it connects as `root`, a role the official image never creates.
+     * Postgres answers `FATAL: role "root" does not exist` on every probe, once per `--health-interval`,
+     * for the life of the job.
+     *
+     * ⚠️ THE CHECK STILL PASSES, which is exactly the problem. Measured against `postgres:18` on
+     * 2026-09-04: `docker exec -u root pg_isready` prints `accepting connections` and exits **0**, because
+     * `pg_isready` reports whether the SERVER responded, not whether the connection would succeed. So the
+     * gate is green and the log is full of authentication failures.
+     *
+     * The cost is not cosmetic: on 2026-09-04 a `Heavy tiers` Maestro failure was being diagnosed, and this
+     * `FATAL` — real, alarming, and completely unrelated — was reasonably read as the cause. A log line that
+     * cries wolf every ten seconds spends someone's attention every time a real failure needs it.
+     *
+     * The fix is `-U postgres`, matching the `POSTGRES_USER` each of these services already sets.
+     */
+    // ⚠️ The optional quote is load-bearing: the fixed form is `--health-cmd "pg_isready -U postgres"`,
+    // and a pattern anchored to a bare `pg_isready` matches NEITHER form once quoted — it would find
+    // nothing and pass. The non-vacuity case below is what caught exactly that while this was written.
+    const PG_ISREADY = /--health-cmd\s+"?(?<cmd>pg_isready[^"\n]*)/g;
+
+    it('names a user in every pg_isready healthcheck across the workflow tree', () => {
+        const offenders: string[] = [];
+
+        for (const file of readdirSync(WORKFLOW_DIR).filter((name) => name.endsWith('.yml'))) {
+            const source = readFileSync(join(WORKFLOW_DIR, file), 'utf8');
+
+            for (const match of source.matchAll(PG_ISREADY)) {
+                const command = match.groups?.['cmd'] ?? '';
+
+                if (!/\s-U\s+\S+/.test(command)) {
+                    offenders.push(`${file}: ${command.trim()}`);
+                }
+            }
+        }
+
+        expect(
+            offenders,
+            'pg_isready with no -U connects as the container’s root user and logs FATAL on every probe ' +
+                'while still reporting success',
+        ).toEqual([]);
+    });
+
+    it('is not vacuous — it finds the healthchecks it is asserting about', () => {
+        // ⛔ Without this, deleting every healthcheck (or breaking the pattern) would make the gate above
+        // pass by finding nothing, which is the failure a derived-set guard is most exposed to.
+        const found = readdirSync(WORKFLOW_DIR)
+            .filter((name) => name.endsWith('.yml'))
+            .flatMap((file) => [...readFileSync(join(WORKFLOW_DIR, file), 'utf8').matchAll(PG_ISREADY)]);
+
+        expect(found.length).toBeGreaterThanOrEqual(14);
+    });
+});

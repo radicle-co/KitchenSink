@@ -25,6 +25,17 @@ const REFUSAL_EXPLANATIONS: Readonly<Record<ReseedRefusalReason, string>> = {
     'production-flag-off-production':
         '--allow-prod was given on a stage that is not production. The flag is rejected rather than ignored ' +
         'so it cannot become something an operator types by habit.',
+    'target-confirmation-missing':
+        'no --confirm-target was given. --stage and --confirm are both YOUR words, checked against each ' +
+        'other; nothing in them names the database this process actually opened, and a reseed mints FRESH ' +
+        'ULIDs into it. Re-run with --dry-run and pass back the target it prints.',
+    'target-mismatch':
+        'the --confirm-target you gave is not the database this process actually opened — the guard that ' +
+        'catches a production stage declared against a sandbox connection, and the reverse. Run --dry-run ' +
+        'and paste the target it reports rather than retyping it from memory.',
+    'stage-database-mismatch':
+        'the stage you named and the database this connection reached cannot both be true: a pr-{N} stage ' +
+        'belongs on a {base}_pr_{N} database and a named stage does not belong on a per-PR one (ADR-0006).',
     'no-dataset-enabled':
         'the catalog roster enables no dataset, so this run would import nothing and then fail its own ' +
         'post-condition. Check src/foods/seed/catalogDatasets.ts.',
@@ -41,8 +52,10 @@ export class CatalogReseedRefusedError extends Error {
      * @param reason - Which guard declined.
      * @param stage - The stage the run was configured for.
      */
-    public constructor(reason: ReseedRefusalReason, stage: string) {
-        super(`Refusing to reseed the food catalog on stage "${stage}" — ${REFUSAL_EXPLANATIONS[reason]}`);
+    public constructor(reason: ReseedRefusalReason, stage: string, target?: string) {
+        const observed = target === undefined ? '' : ` The connection actually reached ${target}.`;
+
+        super(`Refusing to reseed the food catalog on stage "${stage}" — ${REFUSAL_EXPLANATIONS[reason]}${observed}`);
         this.name = 'CatalogReseedRefusedError';
         this.reason = reason;
         this.stage = stage;

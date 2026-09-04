@@ -27,6 +27,7 @@ import {
     PRODUCTION_STAGE,
     createIngredientLinkStore,
     describeDatabaseTarget,
+    describeTargetToken,
     runIngredientUnlink,
     type IngredientLinkStore,
     type UnlinkCliOptions,
@@ -45,9 +46,25 @@ const STATUS_ONLY = '00000000-0000-4000-8000-00000012a003';
 const FREEFORM = '00000000-0000-4000-8000-00000012a004';
 const SUITE_INGREDIENT_IDS = [BACKED_A, BACKED_B, STATUS_ONLY, FREEFORM];
 
+/**
+ * The token this suite's REAL connection must be named by (PR #91 review).
+ *
+ * Read in `beforeAll` from the live server through the same `describeTargetToken` the command demands, so
+ * these cases walk the loop an operator walks — a dry run prints the target, the writing run passes it back —
+ * rather than restating a literal that could drift from what the server actually reports.
+ */
+let liveTargetToken: string;
+
 /** A complete, valid options object; each test overrides only the field it is about. */
 function makeOptions(overrides: Partial<UnlinkCliOptions> = {}): UnlinkCliOptions {
-    return { stage: 'sandbox', confirm: 'sandbox', allowProd: false, dryRun: false, ...overrides };
+    return {
+        stage: 'sandbox',
+        confirm: 'sandbox',
+        allowProd: false,
+        dryRun: false,
+        confirmTarget: liveTargetToken,
+        ...overrides,
+    };
 }
 
 describe.skipIf(!hasDatabaseUrl)('ingredient unlink (integration)', () => {
@@ -55,10 +72,11 @@ describe.skipIf(!hasDatabaseUrl)('ingredient unlink (integration)', () => {
     let db: RecipeDrizzle;
     let store: IngredientLinkStore;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         db = createRecipeDrizzle(pool);
         store = createIngredientLinkStore(db);
+        liveTargetToken = describeTargetToken(await describeDatabaseTarget(pool));
     });
 
     afterAll(async () => {
@@ -278,6 +296,45 @@ describe.skipIf(!hasDatabaseUrl)('ingredient unlink (integration)', () => {
             );
 
             expect(rows[0]?.n).toBe(0);
+        });
+    });
+
+    /**
+     * ⛔ THE GUARD AGAINST A REAL CONNECTION (PR #91 review). The unit suite proves the pure rule; only this
+     * tier can prove the token the command demands is the one a real server produces — and that a run naming
+     * a DIFFERENT database is refused having written nothing to this one.
+     */
+    describe('the confirmation must name the database this process actually opened', () => {
+        it('refuses a run that names another database, and writes NOTHING', async () => {
+            const before = await suiteRows();
+
+            await expect(
+                runIngredientUnlink(store, makeOptions({ confirmTarget: 'kitchensink_recipes@10.0.9.2:5432' })),
+            ).rejects.toSatisfy(isUnlinkRefusedError);
+            expect(await suiteRows()).toEqual(before);
+        });
+
+        it('refuses a run that names no target at all, and writes NOTHING', async () => {
+            const before = await suiteRows();
+
+            await expect(runIngredientUnlink(store, makeOptions({ confirmTarget: undefined }))).rejects.toSatisfy(
+                isUnlinkRefusedError,
+            );
+            expect(await suiteRows()).toEqual(before);
+        });
+
+        it('closes the loop: the token a dry run reports is the one the writing run is accepted with', async () => {
+            const reported = await runIngredientUnlink(store, makeOptions({ dryRun: true }));
+
+            await expect(
+                runIngredientUnlink(store, makeOptions({ confirmTarget: reported.target })),
+            ).resolves.toMatchObject({ outcome: 'unlinked' });
+        });
+
+        it('refuses a pr-{N} stage against this non-per-PR database without anyone typing anything', async () => {
+            await expect(runIngredientUnlink(store, makeOptions({ stage: 'pr-7', confirm: 'pr-7' }))).rejects.toSatisfy(
+                isUnlinkRefusedError,
+            );
         });
     });
 });

@@ -75,11 +75,24 @@ export interface UnlinkCliOptions {
     readonly allowProd: boolean;
     /** Whether to report counts and write nothing. */
     readonly dryRun: boolean;
+    /**
+     * The database the operator typed back, as `database@host:port` — the token a `--dry-run` prints.
+     *
+     * ⛔ Required for a run that WRITES. `--stage` and `--confirm` are BOTH the operator's own words, checked
+     * against each other; this is the only field checked against the server this process actually reached.
+     */
+    readonly confirmTarget?: string | undefined;
 }
 
 /** Why the destructive-operation guard declined. */
 export type UnlinkRefusalReason =
-    'confirmation-missing' | 'confirmation-mismatch' | 'production-requires-flag' | 'production-flag-off-production';
+    | 'confirmation-missing'
+    | 'confirmation-mismatch'
+    | 'production-requires-flag'
+    | 'production-flag-off-production'
+    | 'target-confirmation-missing'
+    | 'target-mismatch'
+    | 'stage-database-mismatch';
 
 /** What the guard decided: refuse outright, report only, or unlink. */
 export type UnlinkDecision =
@@ -101,6 +114,8 @@ export interface UnlinkFacts {
 
 /** The data-access surface the command needs; one Drizzle adapter implements it. */
 export interface IngredientLinkStore {
+    /** @returns where this connection actually landed, as the SERVER reports it. */
+    describeTarget(): Promise<DatabaseTarget>;
     /** @returns catalog rows still carrying a `food_id` or a `food_resolution_status`. */
     countLinked(): Promise<number>;
     /** @returns the number of `recipe_ingredients` lines — the row set the unlink must not disturb. */
@@ -121,6 +136,8 @@ export interface UnlinkResult {
     readonly unlinked: number;
     /** `recipe_ingredients` lines — reported so the operator can see the number did not move. */
     readonly recipeIngredientLines: number;
+    /** The database this run actually reached, as `database@host:port` — a dry run prints it to be pasted. */
+    readonly target: string;
 }
 
 /**
@@ -139,6 +156,7 @@ export function parseUnlinkArgs(argv: readonly string[]): UnlinkCliOptions {
         options: {
             stage: { type: 'string' },
             confirm: { type: 'string' },
+            'confirm-target': { type: 'string' },
             'allow-prod': { type: 'boolean', default: false },
             'dry-run': { type: 'boolean', default: false },
         },
@@ -159,6 +177,7 @@ export function parseUnlinkArgs(argv: readonly string[]): UnlinkCliOptions {
         confirm: values.confirm,
         allowProd: values['allow-prod'],
         dryRun: values['dry-run'],
+        confirmTarget: values['confirm-target'],
     };
 }
 
@@ -200,6 +219,72 @@ export function decideUnlink(options: UnlinkCliOptions): UnlinkDecision {
     }
 
     return { kind: 'unlink' };
+}
+
+/** A per-PR logical database, and the `pr-{N}` stage its name is derived from (ADR-0006). */
+const PER_PR_DATABASE = /_pr_(?<number>[0-9]+)$/u;
+
+/** A per-PR stage: `pr-{N}`. */
+const PER_PR_STAGE = /^pr-(?<number>[0-9]+)$/u;
+
+/**
+ * The exact string an operator must type back to name the database this process actually opened.
+ *
+ * ⚠️ A DELIBERATE COPY of food-service's `operatorIntent.ts` (see this module's header for why the two
+ * services do not share this policy: extracting across the boundary needs a home neither owns, and the
+ * drift fails SAFE because the reset is ordered so the food clear aborts when this unlink refused). Change
+ * one, read both.
+ *
+ * @param target - Where the connection landed.
+ * @returns The token to print and to require. Pure.
+ */
+export function describeTargetToken(target: DatabaseTarget): string {
+    return `${target.database}@${target.host}:${target.port}`;
+}
+
+/**
+ * ⛔ BIND THE OPERATOR'S DECLARATION TO THE DATABASE THE PROCESS ACTUALLY OPENED (PR #91 review).
+ *
+ * `--stage` and `--confirm` are BOTH the operator's own words, checked against each other — so
+ * `--stage prod --allow-prod --confirm prod` was accepted with `DATABASE_URL` pointed at sandbox, and this
+ * command then nulled the food links of whichever database the URL had really opened. `describeDatabaseTarget`
+ * PRINTED the real target and this module's own docstring called that "the honest limit of {@link decideUnlink},
+ * made visible" — a printed target is a courtesy, not a check, and nothing consumed it.
+ *
+ * Two mechanisms, in this order:
+ *
+ *  1. **The stage and the database must be able to be true together** — a `pr-{N}` stage belongs on a
+ *     `{base}_pr_{N}` database and a named stage does not belong on a per-PR one. No typing, so it guards a
+ *     DRY RUN too: reporting on a run that could never be permitted is a lie of its own.
+ *  2. **A run that WRITES must name the target the server reported.** This is the half that catches
+ *     prod-versus-sandbox, which mechanism 1 structurally cannot — both use the logical database name
+ *     `kitchensink_recipes`, so only the host distinguishes them and only the operator can say which they
+ *     meant. A dry run is never asked to type it.
+ *
+ * @param options - The validated CLI options.
+ * @param target - Where the connection landed, as the server reports it.
+ * @returns The refusal, or `undefined` when the declaration is bound to the target. Pure.
+ */
+export function refuseUnboundTarget(
+    options: UnlinkCliOptions,
+    target: DatabaseTarget,
+): UnlinkRefusalReason | undefined {
+    const stageNumber = PER_PR_STAGE.exec(options.stage)?.groups?.['number'];
+    const databaseNumber = PER_PR_DATABASE.exec(target.database)?.groups?.['number'];
+
+    if (stageNumber !== databaseNumber) {
+        return 'stage-database-mismatch';
+    }
+
+    if (options.dryRun) {
+        return undefined;
+    }
+
+    if (options.confirmTarget === undefined) {
+        return 'target-confirmation-missing';
+    }
+
+    return options.confirmTarget.trim() === describeTargetToken(target) ? undefined : 'target-mismatch';
 }
 
 /**
@@ -247,11 +332,30 @@ export async function runIngredientUnlink(
         throw new UnlinkRefusedError(decision.reason, options.stage);
     }
 
+    // ⛔ BIND THE DECLARATION TO THE REAL DATABASE, before a single row is read. The descriptor comes from the
+    // server itself, so this is the first point at which the run's stage claim is checked against anything but
+    // itself. A dry run reaches here too: it must refuse an impossible stage/database pairing, and it must
+    // report the token the destructive run will have to name.
+    const liveTarget = await store.describeTarget();
+    const unbound = refuseUnboundTarget(options, liveTarget);
+
+    if (unbound !== undefined) {
+        throw new UnlinkRefusedError(unbound, options.stage, describeTargetToken(liveTarget));
+    }
+
+    const target = describeTargetToken(liveTarget);
     const linkedBefore = await store.countLinked();
     const recipeIngredientLines = await store.countRecipeIngredientLines();
 
     if (decision.kind === 'report') {
-        return { outcome: 'reported', stage: options.stage, linkedBefore, unlinked: 0, recipeIngredientLines };
+        return {
+            outcome: 'reported',
+            stage: options.stage,
+            linkedBefore,
+            unlinked: 0,
+            recipeIngredientLines,
+            target,
+        };
     }
 
     const facts = await store.unlinkAll();
@@ -264,6 +368,7 @@ export async function runIngredientUnlink(
         linkedBefore,
         unlinked: facts.unlinked,
         recipeIngredientLines: facts.linesAfter,
+        target,
     };
 }
 
@@ -293,7 +398,7 @@ export interface DatabaseTarget {
  */
 export async function describeDatabaseTarget(pool: pg.Pool): Promise<DatabaseTarget> {
     const { rows } = await pool.query<{ host: string | null; port: number; database: string; user: string }>(
-        `SELECT inet_server_addr()::text AS host, inet_server_port() AS port,
+        `SELECT host(inet_server_addr()) AS host, inet_server_port() AS port,
                 current_database() AS database, current_user AS user`,
     );
     const row = rows[0];
@@ -324,6 +429,25 @@ const LINKED = or(isNotNull(ingredients.foodId), isNotNull(ingredients.foodResol
  * @returns The store port.
  */
 export function createIngredientLinkStore(db: RecipeDrizzle): IngredientLinkStore {
+    const describeTarget = async (): Promise<DatabaseTarget> => {
+        const { rows } = await db.execute<{
+            [column: string]: unknown;
+            host: string | null;
+            port: number;
+            database: string;
+            user: string;
+        }>(sql`SELECT host(inet_server_addr()) AS host, inet_server_port() AS port,
+                      current_database() AS database, current_user AS user`);
+        const row = rows[0];
+
+        if (!row) {
+            throw new Error('Could not determine which database this connection reached.');
+        }
+
+        // `inet_server_addr()` is NULL over a unix socket — the connection is local by construction.
+        return { host: row.host ?? 'local', port: Number(row.port), database: row.database, user: row.user };
+    };
+
     const countLinkedWith = async (reader: Pick<RecipeDrizzle, 'select'>): Promise<number> => {
         const [row] = await reader
             .select({ count: sql<number>`count(*)::int` })
@@ -340,6 +464,7 @@ export function createIngredientLinkStore(db: RecipeDrizzle): IngredientLinkStor
     };
 
     return {
+        describeTarget,
         countLinked: async (): Promise<number> => countLinkedWith(db),
         countRecipeIngredientLines: async (): Promise<number> => countLinesWith(db),
         unlinkAll: async (): Promise<UnlinkFacts> =>

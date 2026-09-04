@@ -41,7 +41,6 @@ import { GoldenRecordMergeEngine } from '../merge/mergeEngine.js';
 import { MergeAndPersistService } from '../merge/mergeAndPersist.service.js';
 import { BulkSeedService } from './bulkSeed.service.js';
 import { enabledDataTypes } from './catalogDatasets.js';
-import { describeDatabaseTarget } from './clearCli.js';
 import { createBulkSourceReader, createCatalogInventory, parseReseedArgs, runCatalogReseed } from './reseedCli.js';
 
 const { Pool } = pg;
@@ -61,16 +60,15 @@ async function bootstrap(): Promise<void> {
     const db = drizzle(pool, { schema });
 
     try {
-        // Name the SERVER before anything is written. `--stage` is the operator's DECLARATION and nothing
-        // binds it to the database this process actually opened — the per-stage logical database is
-        // `kitchensink_food` on BOTH prod and sandbox — so this line is what makes `--dry-run` a check
-        // rather than a formality.
+        // ⛔ THE TARGET IS NO LONGER PRINTED HERE (PR #91 review). This used to read the server and log it,
+        // under a comment admitting nothing bound `--stage` to it. `runCatalogReseed` now reads the same
+        // descriptor and REFUSES on it, and carries it in its result — so what an operator sees is the target
+        // the guard actually judged, not a second read that could differ.
         logger.info('catalog-reseed-starting', {
             stage: options.stage,
             dryRun: options.dryRun,
             dirs: options.dirs,
             dataTypes: enabledDataTypes(options.datasets),
-            target: await describeDatabaseTarget(pool),
         });
 
         const result = await runCatalogReseed(
@@ -82,7 +80,7 @@ async function bootstrap(): Promise<void> {
                     persist: new MergeAndPersistService(db, new GoldenRecordMergeEngine(new SourceAdapterRegistry())),
                     logger,
                 }),
-                inventory: createCatalogInventory(db),
+                inventory: createCatalogInventory(db, pool),
             },
             options,
         );

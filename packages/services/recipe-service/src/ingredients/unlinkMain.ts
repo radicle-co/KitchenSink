@@ -27,12 +27,7 @@ import pg from 'pg';
 
 import * as schema from '../database/schema/index.js';
 import { recipePoolConfigFromEnv } from '../database/poolConfig.js';
-import {
-    createIngredientLinkStore,
-    describeDatabaseTarget,
-    parseUnlinkArgs,
-    runIngredientUnlink,
-} from './unlinkCli.js';
+import { createIngredientLinkStore, parseUnlinkArgs, runIngredientUnlink } from './unlinkCli.js';
 
 const { Pool } = pg;
 
@@ -75,14 +70,12 @@ async function bootstrap(): Promise<void> {
     const pool = new Pool({ ...recipePoolConfigFromEnv(), max: 1 });
 
     try {
-        // Name the SERVER before anything is written. `--stage` is the operator's DECLARATION and nothing
-        // binds it to the database this process actually opened, so this line is what makes a dry run a
-        // check rather than a formality.
-        emit('info', 'ingredient-unlink-starting', {
-            stage: options.stage,
-            dryRun: options.dryRun,
-            target: await describeDatabaseTarget(pool),
-        });
+        // ⛔ THE TARGET IS NO LONGER PRINTED HERE, and that is the fix (PR #91 review). This used to read the
+        // server and log it under a comment admitting nothing bound `--stage` to it — a courtesy an operator
+        // could read past. `runIngredientUnlink` now reads the same descriptor and REFUSES on it, reporting
+        // it in the result and in the refusal message, so the target an operator sees is by construction the
+        // one the guard judged. `result.target` is what a writing run must pass back as `--confirm-target`.
+        emit('info', 'ingredient-unlink-starting', { stage: options.stage, dryRun: options.dryRun });
 
         emit('info', 'ingredient-unlink-finished', {
             ...(await runIngredientUnlink(createIngredientLinkStore(drizzle(pool, { schema })), options)),

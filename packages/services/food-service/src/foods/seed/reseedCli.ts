@@ -58,9 +58,18 @@ import type { WorkerLogger } from '../../worker/workerLogger.js';
 import type { BulkSeedResult } from './bulkSeed.service.js';
 import { CATALOG_DATASETS, enabledDataTypes, expectsAliases, type CatalogDataset } from './catalogDatasets.js';
 import { CatalogReseedRefusedError, CatalogReseedUnverifiedError } from './reseedCli.errors.js';
+import type pg from 'pg';
+
+import { describeDatabaseTarget } from './clearCli.js';
 import { parseLimit, take } from './seedCli.js';
 
-import { decideConfirmation, refuseMisplacedProdFlag } from './operatorIntent.js';
+import {
+    decideConfirmation,
+    describeTargetToken,
+    refuseMisplacedProdFlag,
+    refuseUnboundTarget,
+    type DatabaseTarget,
+} from './operatorIntent.js';
 
 // Re-exported rather than redeclared: "which stage name means production" is ONE piece of knowledge, and
 // `operatorIntent.ts` owns it alongside the rest of the prove-your-intent policy. A second spelling is
@@ -83,6 +92,13 @@ export interface ReseedCliOptions {
     readonly limit: number | undefined;
     /** The dataset roster this run imports under (see `catalogDatasets.ts`). */
     readonly datasets: readonly CatalogDataset[];
+    /**
+     * The database the operator typed back, as `database@host:port` — the token a `--dry-run` prints.
+     *
+     * ⛔ Required for a run that WRITES, for the reason `clearCli` carries in full: `--stage`/`--confirm` are
+     * both the operator's own words, and a reseed mints FRESH ULIDs into whichever database was really opened.
+     */
+    readonly confirmTarget?: string | undefined;
 }
 
 /** Why the destructive-operation guard declined. */
@@ -91,7 +107,10 @@ export type ReseedRefusalReason =
     | 'confirmation-mismatch'
     | 'production-requires-flag'
     | 'production-flag-off-production'
-    | 'no-dataset-enabled';
+    | 'no-dataset-enabled'
+    | 'target-confirmation-missing'
+    | 'target-mismatch'
+    | 'stage-database-mismatch';
 
 /** What the guard decided: refuse outright, report only, or reseed. */
 export type ReseedDecision =
@@ -123,6 +142,8 @@ export interface CatalogSeeder {
 
 /** The read-side counts the post-condition judges the reseed by. */
 export interface CatalogInventory {
+    /** @returns where this connection actually landed, as the SERVER reports it. */
+    describeTarget(): Promise<DatabaseTarget>;
     /** @returns how many golden records the catalog holds. */
     countFoods(): Promise<number>;
     /** @returns how many golden records are NOT marked `origin = 'bulk'`. */
@@ -187,6 +208,8 @@ export interface CatalogReseedResult {
     readonly aliasesExpected: boolean;
     /** Whether a real run would import anything right now — a dry run's headline answer. */
     readonly wouldProceed: boolean;
+    /** The database this run actually reached, as `database@host:port` — a dry run prints it to be pasted. */
+    readonly target: string;
 }
 
 /**
@@ -209,6 +232,7 @@ export function parseReseedArgs(
         args: [...argv],
         options: {
             stage: { type: 'string' },
+            'confirm-target': { type: 'string' },
             confirm: { type: 'string' },
             'allow-prod': { type: 'boolean', default: false },
             'dry-run': { type: 'boolean', default: false },
@@ -245,6 +269,7 @@ export function parseReseedArgs(
         dirs,
         limit: parseLimit(values.limit),
         datasets,
+        confirmTarget: values['confirm-target'],
     };
 }
 
@@ -356,6 +381,16 @@ export async function runCatalogReseed(
         throw new CatalogReseedRefusedError(decision.reason, options.stage);
     }
 
+    // ⛔ BIND THE DECLARATION TO THE REAL DATABASE before a single row is written — the same guard, and the
+    // same reasoning, as `clearCli`'s. A reseed mints FRESH ULIDs, so aiming it at the wrong stage is not a
+    // recoverable mistake: every `ingredients.food_id` on that stage's recipe side is silently orphaned.
+    const target = await deps.inventory.describeTarget();
+    const unbound = refuseUnboundTarget(options, target);
+
+    if (unbound !== undefined) {
+        throw new CatalogReseedRefusedError(unbound, options.stage, describeTargetToken(target));
+    }
+
     const dataTypes = enabledDataTypes(options.datasets);
     const aliasesExpected = expectsAliases(options.datasets);
     const foodsBefore = await deps.inventory.countFoods();
@@ -384,6 +419,7 @@ export async function runCatalogReseed(
             foodsWithAliases: await deps.inventory.countFoodsWithAliases(),
             aliasesExpected,
             wouldProceed: candidates > 0,
+            target: describeTargetToken(target),
         };
     }
 
@@ -430,6 +466,7 @@ export async function runCatalogReseed(
         foodsWithAliases,
         aliasesExpected,
         wouldProceed: true,
+        target: describeTargetToken(target),
     };
 }
 
@@ -459,9 +496,10 @@ export function createBulkSourceReader(options: {
  * that legibility for nothing measurable.
  *
  * @param db - The schema-typed Drizzle client for the food database.
+ * @param pool - The same connection, for the target descriptor the binding guard reads.
  * @returns The inventory port.
  */
-export function createCatalogInventory(db: FoodDrizzle): CatalogInventory {
+export function createCatalogInventory(db: FoodDrizzle, pool: pg.Pool): CatalogInventory {
     const count = async (where?: SQL): Promise<number> => {
         const [row] = await db
             .select({ count: sql<number>`count(*)::int` })
@@ -472,6 +510,7 @@ export function createCatalogInventory(db: FoodDrizzle): CatalogInventory {
     };
 
     return {
+        describeTarget: async (): Promise<DatabaseTarget> => describeDatabaseTarget(pool),
         countFoods: async (): Promise<number> => count(),
         countFoodsNotOriginBulk: async (): Promise<number> => count(ne(food.origin, 'bulk')),
         countFoodsWithAliases: async (): Promise<number> => count(isNotNull(food.aliases)),

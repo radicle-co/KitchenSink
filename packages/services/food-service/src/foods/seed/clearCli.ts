@@ -64,7 +64,13 @@ import {
     foodPopularity,
     foodVersions,
 } from '../../db/schema/index.js';
-import { decideConfirmation, refuseMisplacedProdFlag } from './operatorIntent.js';
+import {
+    decideConfirmation,
+    describeTargetToken,
+    refuseMisplacedProdFlag,
+    refuseUnboundTarget,
+    type DatabaseTarget,
+} from './operatorIntent.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import {
     CatalogClearIncompleteError,
@@ -78,6 +84,10 @@ import {
  * (`config/env.schema.ts`) and by the CDK apps, so there is no second spelling to keep in step.
  */
 export { PRODUCTION_STAGE } from './operatorIntent.js';
+
+// Re-exported for the same reason: the token an operator must type is ONE spelling, owned by the policy that
+// checks it. A caller (or a test) that built its own would be a second answer to "where am I?".
+export { describeTargetToken } from './operatorIntent.js';
 
 /**
  * `food` plus every table that hangs off it with `ON DELETE CASCADE`. Enumerated for the runtime
@@ -118,11 +128,25 @@ export interface ClearCliOptions {
     readonly dryRun: boolean;
     /** Connection string for the RECIPE database, whose linkage count is this run's precondition. */
     readonly recipeDatabaseUrl: string;
+    /**
+     * The food database the operator typed back, as `database@host:port` — the token a `--dry-run` prints.
+     *
+     * ⛔ Required for a run that DELETES. `--stage`/`--confirm` are both the operator's own words; this is the
+     * only field checked against the server the process actually reached.
+     */
+    readonly confirmTarget?: string | undefined;
 }
 
 /** Why the destructive-operation guard declined. */
 export type ClearRefusalReason =
-    'confirmation-missing' | 'confirmation-mismatch' | 'production-requires-flag' | 'production-flag-off-production';
+    | 'confirmation-missing'
+    | 'confirmation-mismatch'
+    | 'production-requires-flag'
+    | 'production-flag-off-production'
+    | 'target-confirmation-missing'
+    | 'target-mismatch'
+    | 'stage-database-mismatch'
+    | 'probe-off-server';
 
 /** What the guard decided: refuse outright, report only, or clear. */
 export type ClearDecision =
@@ -137,6 +161,8 @@ export type CatalogResidual = Readonly<Record<string, number>>;
 export interface RecipeLinkageProbe {
     /** @returns recipe ingredient rows still referencing the food catalog. */
     countLinkedIngredients(): Promise<number>;
+    /** @returns where this probe's connection actually landed, as the SERVER reports it. */
+    describeTarget(): Promise<DatabaseTarget>;
 }
 
 /** The food-side data-access surface the command needs. */
@@ -145,6 +171,8 @@ export interface FoodCatalogStore {
     countFoods(): Promise<number>;
     /** Delete every food (and everything cascading off it) in ONE transaction. @returns rows deleted. */
     deleteAllFoods(): Promise<number>;
+    /** @returns where this store's connection actually landed, as the SERVER reports it. */
+    describeTarget(): Promise<DatabaseTarget>;
 }
 
 /** The command's two ports. */
@@ -169,6 +197,16 @@ export interface CatalogClearResult {
     readonly foodsDeleted: number;
     /** Whether a destructive run would be permitted right now — a dry run's headline answer. */
     readonly wouldProceed: boolean;
+    /**
+     * The food database this run actually reached, as `database@host:port`.
+     *
+     * A dry run prints it so the operator can paste it into `--confirm-target` — which is what closes the
+     * loop: the look is what tells you what to type, so the typed value describes the thing rather than the
+     * belief.
+     */
+    readonly target: string;
+    /** The recipe database the linkage probe actually read, in the same form. */
+    readonly recipeTarget: string;
 }
 
 /**
@@ -191,6 +229,7 @@ export function parseClearArgs(argv: readonly string[]): ClearCliOptions {
             'allow-prod': { type: 'boolean', default: false },
             'dry-run': { type: 'boolean', default: false },
             'recipe-database-url': { type: 'string' },
+            'confirm-target': { type: 'string' },
         },
         allowPositionals: false,
     });
@@ -220,6 +259,7 @@ export function parseClearArgs(argv: readonly string[]): ClearCliOptions {
         allowProd: values['allow-prod'],
         dryRun: values['dry-run'],
         recipeDatabaseUrl,
+        confirmTarget: values['confirm-target'],
     };
 }
 
@@ -251,6 +291,47 @@ export function decideClear(options: ClearCliOptions): ClearDecision {
     }
 
     return confirmation === 'proceed' ? { kind: 'clear' } : { kind: 'refused', reason: confirmation };
+}
+
+/**
+ * ⛔ THE SECOND GUARD, and the one {@link decideClear} structurally cannot be (PR #91 review): it judges the
+ * operator's declaration against the databases this process ACTUALLY OPENED.
+ *
+ * Pure, and separate from `decideClear` because it needs a fact only the servers can supply — which is
+ * precisely why the original guard could not make it. Three refusals:
+ *
+ *  1. Whatever {@link refuseUnboundTarget} says about the FOOD target — an impossible stage/database pairing,
+ *     or a destructive run that did not name the target the server reported.
+ *  2. The same stage/database rule applied to the RECIPE probe, because the two connection strings are
+ *     supplied SEPARATELY and mixing them is the mistake this whole two-service task is exposed to.
+ *  3. `probe-off-server` — the probe reached a different server than the catalog. The recipe and food
+ *     databases are two logical databases on ONE shared instance per stage (ADR-0006), so a probe answering
+ *     from somewhere else is reading a different stage's linkage, and "zero links remain" from the wrong
+ *     stage reads as permission to delete this one's entire catalog.
+ *
+ * @param options - The validated CLI options.
+ * @param food - Where the food connection landed.
+ * @param recipe - Where the recipe-probe connection landed.
+ * @returns The refusal, or `undefined` when the declaration is bound to both targets. Pure.
+ */
+export function refuseUnboundClear(
+    options: ClearCliOptions,
+    food: DatabaseTarget,
+    recipe: DatabaseTarget,
+): ClearRefusalReason | undefined {
+    const unbound = refuseUnboundTarget(options, food);
+
+    if (unbound !== undefined) {
+        return unbound;
+    }
+
+    if (food.host !== recipe.host || food.port !== recipe.port) {
+        return 'probe-off-server';
+    }
+
+    // Only the stage/database half applies to the probe: the operator types ONE target, the food one, and a
+    // second token to paste would be ceremony rather than a second fact.
+    return refuseUnboundTarget({ ...options, dryRun: true }, recipe);
 }
 
 /**
@@ -290,6 +371,23 @@ export async function runCatalogClear(deps: CatalogClearDeps, options: ClearCliO
         throw new CatalogClearRefusedError(decision.reason, options.stage);
     }
 
+    // ⛔ BIND THE DECLARATION TO THE REAL TARGETS, before a single row is read. Both descriptors come from the
+    // servers themselves, so this is the first point at which the run's stage claim can be checked against
+    // anything but itself. A dry run reaches here too — it must refuse an impossible stage/database pairing,
+    // and it must report the token the destructive run will have to name.
+    const [foodTarget, recipeTarget] = await Promise.all([
+        deps.catalog.describeTarget(),
+        deps.linkage.describeTarget(),
+    ]);
+    const unbound = refuseUnboundClear(options, foodTarget, recipeTarget);
+
+    if (unbound !== undefined) {
+        throw new CatalogClearRefusedError(unbound, options.stage, describeTargetToken(foodTarget));
+    }
+
+    const target = describeTargetToken(foodTarget);
+    const recipeTargetToken = describeTargetToken(recipeTarget);
+
     // ⛔ ORDER — the recipe side's proof, before anything else touches the food catalog.
     const remainingLinkedIngredients = await deps.linkage.countLinkedIngredients();
 
@@ -301,6 +399,8 @@ export async function runCatalogClear(deps: CatalogClearDeps, options: ClearCliO
             foodsBefore: await deps.catalog.countFoods(),
             foodsDeleted: 0,
             wouldProceed: remainingLinkedIngredients === 0,
+            target,
+            recipeTarget: recipeTargetToken,
         };
     }
 
@@ -318,19 +418,49 @@ export async function runCatalogClear(deps: CatalogClearDeps, options: ClearCliO
         foodsBefore,
         foodsDeleted,
         wouldProceed: true,
+        target,
+        recipeTarget: recipeTargetToken,
     };
 }
 
-/** Which server and database a connection actually reached. */
-export interface DatabaseTarget {
-    /** The server's address as the server itself reports it, or `local` for a unix-socket connection. */
-    readonly host: string;
-    /** The server's port. */
-    readonly port: number;
-    /** The database this connection is attached to. */
-    readonly database: string;
-    /** The role the connection authenticated as. */
-    readonly user: string;
+// Re-exported rather than redeclared: the descriptor is what the intent policy JUDGES, so the policy owns
+// the type, exactly as it owns `PRODUCTION_STAGE`.
+export type { DatabaseTarget } from './operatorIntent.js';
+
+/** The row {@link TARGET_QUERY} returns. */
+interface RawTargetRow {
+    [column: string]: unknown;
+    host: string | null;
+    port: number;
+    database: string;
+    user: string;
+}
+
+/**
+ * Every field comes from the SERVER, never from the connection string the operator supplied.
+ *
+ * ⚠️ ONE spelling, asked through the POOL rather than through Drizzle — a second reader would be a second
+ * answer to "where am I?", free to disagree with the one the guard judged, and this is a guard now rather
+ * than a log line. It is also why the ports below take the pool alongside their client: the target is a
+ * property of the CONNECTION, not of the query builder wrapped around it.
+ */
+const TARGET_QUERY = `SELECT host(inet_server_addr()) AS host, inet_server_port() AS port,
+                current_database() AS database, current_user AS user`;
+
+/**
+ * Read one target row, or fail loudly.
+ *
+ * @param row - The row the server returned, if any.
+ * @returns The target. Pure.
+ * @throws {Error} when the server answered nothing — never treated as "unknown target, carry on".
+ */
+function targetFromRow(row: RawTargetRow | undefined): DatabaseTarget {
+    if (!row) {
+        throw new Error('Could not determine which database this connection reached.');
+    }
+
+    // `inet_server_addr()` is NULL over a unix socket — the connection is local by construction.
+    return { host: row.host ?? 'local', port: Number(row.port), database: row.database, user: row.user };
 }
 
 /**
@@ -347,18 +477,9 @@ export interface DatabaseTarget {
  * @sideEffect One read query.
  */
 export async function describeDatabaseTarget(pool: pg.Pool): Promise<DatabaseTarget> {
-    const { rows } = await pool.query<{ host: string | null; port: number; database: string; user: string }>(
-        `SELECT inet_server_addr()::text AS host, inet_server_port() AS port,
-                current_database() AS database, current_user AS user`,
-    );
-    const row = rows[0];
+    const { rows } = await pool.query<RawTargetRow>(TARGET_QUERY);
 
-    if (!row) {
-        throw new Error('Could not determine which database this connection reached.');
-    }
-
-    // `inet_server_addr()` is NULL over a unix socket — the connection is local by construction.
-    return { host: row.host ?? 'local', port: row.port, database: row.database, user: row.user };
+    return targetFromRow(rows[0]);
 }
 
 /**
@@ -375,6 +496,7 @@ export async function describeDatabaseTarget(pool: pg.Pool): Promise<DatabaseTar
  */
 export function createRecipeLinkageProbe(pool: pg.Pool): RecipeLinkageProbe {
     return {
+        describeTarget: async (): Promise<DatabaseTarget> => describeDatabaseTarget(pool),
         countLinkedIngredients: async (): Promise<number> => {
             const client = await pool.connect();
 
@@ -424,9 +546,10 @@ export function createRecipeLinkageProbe(pool: pg.Pool): RecipeLinkageProbe {
  * half-cleared.
  *
  * @param db - The schema-typed Drizzle client for the food database.
+ * @param pool - The same connection, for the target descriptor the binding guard reads.
  * @returns The store port.
  */
-export function createFoodCatalogStore(db: FoodDrizzle): FoodCatalogStore {
+export function createFoodCatalogStore(db: FoodDrizzle, pool: pg.Pool): FoodCatalogStore {
     const countRows = async (reader: Pick<FoodDrizzle, 'select'>, table: PgTable): Promise<number> => {
         const [row] = await reader.select({ count: sql<number>`count(*)::int` }).from(table);
 
@@ -434,6 +557,7 @@ export function createFoodCatalogStore(db: FoodDrizzle): FoodCatalogStore {
     };
 
     return {
+        describeTarget: async (): Promise<DatabaseTarget> => describeDatabaseTarget(pool),
         countFoods: async (): Promise<number> => countRows(db, food),
         deleteAllFoods: async (): Promise<number> =>
             db.transaction(async (tx) => {

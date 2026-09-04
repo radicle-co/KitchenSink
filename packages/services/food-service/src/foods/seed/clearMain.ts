@@ -29,13 +29,7 @@ import pg from 'pg';
 import { foodPoolConfigFromEnv } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
 import { ConsoleWorkerLogger } from '../../worker/ConsoleWorkerLogger.js';
-import {
-    createFoodCatalogStore,
-    createRecipeLinkageProbe,
-    describeDatabaseTarget,
-    parseClearArgs,
-    runCatalogClear,
-} from './clearCli.js';
+import { createFoodCatalogStore, createRecipeLinkageProbe, parseClearArgs, runCatalogClear } from './clearCli.js';
 
 const { Pool } = pg;
 
@@ -52,24 +46,22 @@ async function bootstrap(): Promise<void> {
     const recipePool = new Pool({ connectionString: options.recipeDatabaseUrl, max: 1 });
 
     try {
-        // Name BOTH servers before anything is deleted. `--stage` is the operator's DECLARATION and nothing
-        // binds it to the databases this process actually opened, so these two lines are what make a dry run
-        // a check rather than a formality — and they also surface a probe pointed at the wrong database.
-        logger.info('catalog-clear-starting', {
-            stage: options.stage,
-            dryRun: options.dryRun,
-            foodTarget: await describeDatabaseTarget(foodPool),
-            recipeTarget: await describeDatabaseTarget(recipePool),
-        });
+        logger.info('catalog-clear-starting', { stage: options.stage, dryRun: options.dryRun });
 
+        // ⛔ THE TARGETS ARE NO LONGER PRINTED HERE, and that is the fix rather than a loss (PR #91 review).
+        // This used to read both servers and log them, with a comment admitting nothing bound `--stage` to
+        // them — a courtesy an operator could read past. The COMMAND now reads the same descriptors and
+        // REFUSES on them, and reports them in its result (and in its refusal message), so the target an
+        // operator sees is by construction the one the guard judged rather than a second, parallel read.
         const result = await runCatalogClear(
             {
                 linkage: createRecipeLinkageProbe(recipePool),
-                catalog: createFoodCatalogStore(drizzle(foodPool, { schema })),
+                catalog: createFoodCatalogStore(drizzle(foodPool, { schema }), foodPool),
             },
             options,
         );
 
+        // `result.target` is the string a destructive run must pass back as `--confirm-target`.
         logger.info('catalog-clear-finished', { ...result });
     } finally {
         await Promise.all([foodPool.end(), recipePool.end()]);

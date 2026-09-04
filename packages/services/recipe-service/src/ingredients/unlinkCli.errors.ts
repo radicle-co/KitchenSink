@@ -21,6 +21,18 @@ const REFUSAL_EXPLANATIONS: Readonly<Record<UnlinkRefusalReason, string>> = {
     'production-flag-off-production':
         '--allow-prod was given on a stage that is not production. The flag is rejected rather than ignored ' +
         'so it cannot become something an operator types by habit.',
+    'target-confirmation-missing':
+        'no --confirm-target was given. --stage and --confirm are both YOUR words, checked against each ' +
+        'other; nothing in them names the database this process actually opened. Re-run with --dry-run, ' +
+        'read the target it prints, and pass it back as --confirm-target <database@host:port>.',
+    'target-mismatch':
+        'the --confirm-target you gave is not the database this process actually opened. This is the guard ' +
+        'that catches a production stage declared against a sandbox connection (and the reverse). Do NOT ' +
+        'retype it from memory — run --dry-run and paste the target it reports.',
+    'stage-database-mismatch':
+        'the stage you named and the database this connection reached cannot both be true: a pr-{N} stage ' +
+        'belongs on a {base}_pr_{N} database and a named stage does not belong on a per-PR one (ADR-0006). ' +
+        'Check STAGE / --stage against DATABASE_URL before re-running.',
 };
 
 /** Thrown when the destructive-operation guard declines to run — nothing has been read or written. */
@@ -34,8 +46,10 @@ export class UnlinkRefusedError extends Error {
      * @param reason - Which guard declined.
      * @param stage - The stage the run was configured for.
      */
-    public constructor(reason: UnlinkRefusalReason, stage: string) {
-        super(`Refusing to unlink ingredients on stage "${stage}" — ${REFUSAL_EXPLANATIONS[reason]}`);
+    public constructor(reason: UnlinkRefusalReason, stage: string, target?: string) {
+        const observed = target === undefined ? '' : ` The connection actually reached ${target}.`;
+
+        super(`Refusing to unlink ingredients on stage "${stage}" — ${REFUSAL_EXPLANATIONS[reason]}${observed}`);
         this.name = 'UnlinkRefusedError';
         this.reason = reason;
         this.stage = stage;

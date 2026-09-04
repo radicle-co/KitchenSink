@@ -41,6 +41,40 @@ describe('tokenKindOf', () => {
     it('falls back to object rather than guessing at an unrecognised shape', () => {
         expect(tokenKindOf({ anything: true })).toBe('object');
     });
+
+    /**
+     * Linear time, pinned at a size the QUADRATIC original could not meet (CodeQL `js/polynomial-redos`,
+     * alert 335). `\d*\.?\d+` let two quantifiers share one run of digits, so a value that is all digits and
+     * no unit was tried at every split: measured 2026-09-03 on Node 24 at 1.8 s for 80 000 zeros, ×4 per
+     * doubling, against under 1 ms at a million for the form where each digit has exactly one home.
+     */
+    it('classifies a 100k-digit string with no unit as text in bounded time', () => {
+        const started = performance.now();
+
+        expect(tokenKindOf('0'.repeat(100_000))).toBe('text');
+        expect(performance.now() - started).toBeLessThan(100);
+    });
+
+    // The rewrite must accept exactly the language the original did — every form a token has used, and the
+    // near-misses (`1.px`, `.px`, `1..5px`) that must still be rejected.
+    it.each([
+        ['12px', 'dimension'],
+        ['.5em', 'dimension'],
+        ['-.5%', 'dimension'],
+        ['-12px', 'dimension'],
+        ['0.0rem', 'dimension'],
+        ['1.px', 'text'],
+        ['.px', 'text'],
+        ['-px', 'text'],
+        ['1..5px', 'text'],
+        ['1.5.5px', 'text'],
+        ['12', 'text'],
+        ['1e3px', 'text'],
+        [' 1px', 'text'],
+        ['+1px', 'text'],
+    ])('keeps the dimension grammar unchanged: %j is %s', (value, expected) => {
+        expect(tokenKindOf(value)).toBe(expected);
+    });
 });
 
 describe('resolveTrimmedPath', () => {

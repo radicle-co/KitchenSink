@@ -36,8 +36,47 @@ export interface Docblock {
 /** The empty docblock — one value, so "absent" is never spelled two ways. */
 const EMPTY: Docblock = { text: '', tags: [] };
 
-/** A line that opens a JSDoc tag. */
-const TAG_LINE = /^@([A-Za-z][\w-]*)[ \t]?(.*)$/;
+/**
+ * A line that opens a JSDoc tag.
+ *
+ * ⚠️ The remainder is `[\s\S]*`, not `.*`. The lines this runs over are already split on their terminators,
+ * so the two accept the same text — but `.` refuses `\r` (and U+2028/9), and an anchored `$` after a refused
+ * character sends the engine back through every split of the tag name's `[\w-]*` and the remainder: a tag
+ * name followed by 80 000 dashes and a `\r` took 1.1 s (CodeQL `js/polynomial-redos`, alert 334), and on a
+ * CRLF file the SAME failure read every tag as prose. A remainder that can match anything never backtracks.
+ */
+const TAG_LINE = /^@([A-Za-z][\w-]*)[ \t]?([\s\S]*)$/;
+
+/** The `/**` opener, anchored — one pass. */
+const OPENER = /^\/\*\*+/;
+
+/** A line terminator, either convention, so a CRLF file's lines carry no `\r` into the tag matcher. */
+const LINE_TERMINATOR = /\r?\n/;
+
+/**
+ * Strip the `*\/` closer and any run of stars leading into it.
+ *
+ * A loop rather than `\*+\/$`: that regex is not anchored at the START, so on a block whose tail is a long run
+ * of stars that is NOT a closer the engine restarts at every star and scans to the end each time — 1.0 s on
+ * 80 000 stars, ×4 per doubling (CodeQL `js/polynomial-redos`, alert 333). One backwards scan is linear.
+ *
+ * @param raw - The block with its opener already removed.
+ * @returns The block without its closer, or unchanged when it does not end in one. Pure.
+ */
+function stripCloser(raw: string): string {
+    if (!raw.endsWith('/')) {
+        return raw;
+    }
+
+    let end = raw.length - 1;
+
+    while (end > 0 && raw[end - 1] === '*') {
+        end -= 1;
+    }
+
+    // A bare `/` with no star before it is not a closer — the regex this replaces required at least one.
+    return end === raw.length - 1 ? raw : raw.slice(0, end);
+}
 
 /**
  * Split a raw `/** … *\/` block into prose and tags.
@@ -50,10 +89,8 @@ const TAG_LINE = /^@([A-Za-z][\w-]*)[ \t]?(.*)$/;
  * @returns The parsed block.
  */
 export function parseDocblock(raw: string): Docblock {
-    const lines = raw
-        .replace(/^\/\*\*+/, '')
-        .replace(/\*+\/$/, '')
-        .split('\n')
+    const lines = stripCloser(raw.replace(OPENER, ''))
+        .split(LINE_TERMINATOR)
         .map((line) => line.replace(/^\s*\* ?/, ''));
 
     const description: string[] = [];

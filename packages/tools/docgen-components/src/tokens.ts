@@ -79,8 +79,15 @@ export interface DesignTokenDocument {
 /** Colour notations the palette actually uses. */
 const COLOR_PATTERN = /^(?:#[0-9a-f]{3,8}|(?:rgba?|hsla?|oklch|color-mix)\()/i;
 
-/** A CSS length or ratio. */
-const DIMENSION_PATTERN = /^-?\d*\.?\d+(?:rem|px|em|%)$/;
+/**
+ * A CSS length or ratio: `12px`, `1.5rem`, `.5em`, `-12px`.
+ *
+ * ⚠️ Every digit has exactly ONE quantifier that can own it. The earlier `\d*\.?\d+` let two share a run of
+ * digits, so a value that was all digits and no unit was retried at every split — 1.8 s on 80 000 zeros, ×4
+ * per doubling (CodeQL `js/polynomial-redos`, alert 335). `\d+(?:\.\d+)?` accepts the same language (an
+ * optional sign, digits with an optional fraction, or a bare `.5` fraction, then a unit) in one pass.
+ */
+const DIMENSION_PATTERN = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:rem|px|em|%)$/;
 
 /**
  * Classify a token from its value.

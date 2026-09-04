@@ -49,6 +49,50 @@ describe('parseDocblock', () => {
     it('returns empty prose and no tags for a block that carries neither', () => {
         expect(parseDocblock('/** */')).toEqual({ text: '', tags: [] });
     });
+
+    // A CRLF file. The tag matcher used to end in `(.*)$`, and `.` does not match `\r`, so on a CRLF line the
+    // `$` failed, the tag was silently read as PROSE, and the `\r` leaked into the text. Prettier keeps this
+    // repository LF, which is the only reason it was never seen against the real tree.
+    it('recognises tags and strips the terminator in a CRLF docblock', () => {
+        const block = parseDocblock('/**\r\n * Does a thing.\r\n *\r\n * @pattern Adapter\r\n */');
+
+        expect(block.text).toBe('Does a thing.');
+        expect(block.tags).toEqual([{ name: 'pattern', text: 'Adapter' }]);
+    });
+
+    /**
+     * Linear time, pinned at a size the QUADRATIC originals could not meet (CodeQL `js/polynomial-redos`,
+     * alerts 333/334). Measured 2026-09-03, Node 24: the unanchored closer `\*+\/$` took 1.0 s on 80 000
+     * stars and the `(.*)$` tag tail 1.1 s on 80 000 dashes ending in `\r` — both ×4 per doubling — while
+     * the linear forms take under 1 ms at a million. The bound below is ~15× what the originals needed at
+     * this size and ~500× what the fix needs, so it reds on the defect and does not flake on a slow runner.
+     */
+    describe('is linear in the input', () => {
+        const SIZE = 100_000;
+        const BUDGET_MS = 100;
+
+        it('scans a run of stars that is NOT a closer without backtracking over it', () => {
+            const raw = `/** x ${'*'.repeat(SIZE)}`;
+            const started = performance.now();
+
+            parseDocblock(raw);
+
+            expect(performance.now() - started).toBeLessThan(BUDGET_MS);
+        });
+
+        // The dashes sit directly after the tag name: that is the input where the name's `[\w-]*` and the
+        // remainder's `.*` compete for the same characters, and the `\r` is what makes the old `$` fail so
+        // that every split is tried. With a space after the name the two never overlap and the original was
+        // already linear — which is why the fixture is written this way.
+        it('reads a tag line that is a long run of dashes ending in `\\r`', () => {
+            const raw = `/**\n * @see${'-'.repeat(SIZE)}\r\n */`;
+            const started = performance.now();
+
+            parseDocblock(raw);
+
+            expect(performance.now() - started).toBeLessThan(BUDGET_MS);
+        });
+    });
 });
 
 describe('readModuleDocblock', () => {

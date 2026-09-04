@@ -148,4 +148,19 @@ describe('middleware handler — platform paths must not be locale-redirected', 
             expect((await (mod.default as unknown as Handler)(undefined, makeReq(path))).type).toBe('next');
         }
     });
+
+    it('still locale-redirects an app path that merely STARTS with the platform prefix', async () => {
+        // The platform namespace is `/_vercel/` — the slash is part of it. `/_vercel-cake`, `/_vercelx/…`
+        // and a bare `/_vercel` are app paths, and the matcher above (anchored on `_vercel/`) sends them
+        // here to be locale-redirected like any other page. A handler check on the bare prefix would pass
+        // them through un-localized instead, contradicting the matcher it exists to back up.
+        const mod = await import('@/middleware');
+
+        for (const path of ['/_vercel-cake', '/_vercelx/insights/view', '/_vercel']) {
+            const res = await (mod.default as unknown as Handler)(undefined, makeReq(path));
+
+            expect(res.type).toBe('redirect');
+            expect(res.location).toBe(`https://app.test/en${path}`);
+        }
+    });
 });

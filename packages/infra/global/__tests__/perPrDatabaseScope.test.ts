@@ -5,7 +5,7 @@
  *
  * ## What this predicate authorises, and why it needs its own file
  *
- * `PerPrDatabaseReaperFunction` (ADR-0030) connects to the shared sandbox RDS **as the master user** and
+ * `PerPrDatabaseReaperFunction` (ADR-0031) connects to the shared sandbox RDS **as the master user** and
  * drops logical databases. It is the only thing standing between a `pr-{N}` token and
  * `kitchensink_identity` — the database every preview signs in against — so it lives in one module with a
  * regression suite that executes it, exactly like `.github/scripts/pr-scope.sh` and
@@ -39,7 +39,7 @@
  * ## The census direction
  *
  * {@link perPrTokenOfDatabase} answers the inverse question — "whose is this?" — because the reaper must be
- * able to COUNT stranded databases with no token in hand (ADR-0030: the Phase 0 census cannot fire on an
+ * able to COUNT stranded databases with no token in hand (ADR-0031: the Phase 0 census cannot fire on an
  * ordinary deploy, since both bootstrap Lambdas are custom-resource-backed and CloudFormation only re-invokes
  * them when their properties change). The two directions are separate implementations, so the invariant that
  * keeps them from drifting is asserted rather than assumed.

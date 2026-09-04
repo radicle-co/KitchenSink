@@ -412,7 +412,7 @@ describe('every env-gated suite in this package is switched on by a workflow', (
         // Anchors the discovery half: if the gate is renamed, or the `describe.runIf` becomes an
         // unconditional `describe`, this stops matching and the wiring assertion below loses its subject.
         expect(findEnvGates(TEST_DIRS)).toEqual([
-            // ADR-0030's reaper suite issues real `DROP DATABASE` statements, so it is gated on a
+            // ADR-0031's reaper suite issues real `DROP DATABASE` statements, so it is gated on a
             // `DATABASE_URL` that only `_ci.yml`'s `integration-infra` job supplies — from a throwaway
             // postgres service container, set on the step that runs it.
             { file: 'tests/perPrDatabaseReaper.integration.test.ts', variable: 'DATABASE_URL' },

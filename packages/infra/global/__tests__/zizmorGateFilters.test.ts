@@ -239,7 +239,7 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     // per-PR preview no longer deploys on every push. It needs one `postgres:18` service container, the same
     // tag-tracked image every other tier here already uses — again no new image and no new reason.
     //
-    // The 16th is `integration-infra` (ADR-0030). The per-PR database reaper issues real `DROP DATABASE`
+    // The 16th is `integration-infra` (ADR-0031). The per-PR database reaper issues real `DROP DATABASE`
     // statements, and what that suite exists to prove — that `WITH (FORCE)` defeats a live session, that the
     // shared base database survives a reap, that the `LIKE … ESCAPE` narrowing claims nothing extra — are all
     // facts only a real server answers. One more `postgres:18` service container, same tag-tracked image,

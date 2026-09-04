@@ -1689,7 +1689,7 @@ jobs:
     # wrote. No secrets: the one live-probing suite is `describe.runIf`-gated on PROD_WEB_SMOKE_ORIGIN, which
     # only `prod-deploy.yml` sets, so it skips here by design.
     #
-    # ⚠️ ONE service container, added with the ADR-0030 per-PR database reaper. That suite issues real
+    # ⚠️ ONE service container, added with the ADR-0031 per-PR database reaper. That suite issues real
     # `DROP DATABASE` statements, and the three things it exists to prove are all boundary facts a fake pool
     # cannot answer: that `WITH (FORCE)` defeats the session a torn-down preview leaves behind, that the
     # shared BASE database and the neighbouring PR survive a reap, and that the `LIKE … ESCAPE` narrowing does

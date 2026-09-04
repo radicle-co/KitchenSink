@@ -57,7 +57,7 @@ path_belongs() { pr_scope_path_belongs "$PR" "$1"; }
 #
 # ⚠️ This used to be SHARED with section 1, which discovered a per-PR database's drop door from the outputs
 # of the PR's own stacks — so the two HAD to agree about what this PR owned, or a stack section 2 deleted but
-# section 1 never looked at leaked its database along with its only door. ADR-0030's reaper needs no stack at
+# section 1 never looked at leaked its database along with its only door. ADR-0031's reaper needs no stack at
 # all, so that coupling is gone and this discovery now serves section 2 alone.
 #
 # The status filter includes the FAILED/stuck resting states, so a per-PR stack that failed or hung at close
@@ -226,7 +226,7 @@ else
     teardown_failed=1
 fi
 
-## 1. Per-PR logical databases (ADR-0006) — reclaimed by the PLATFORM REAPER (ADR-0030).
+## 1. Per-PR logical databases (ADR-0006) — reclaimed by the PLATFORM REAPER (ADR-0031).
 ##
 ##    ⛔ REPOINTED 2026-09-04, and the shape it replaced was not merely inelegant — it was incomplete in a
 ##    way nothing could see. This section used to discover a drop door on each of the PR's OWN stacks (any
@@ -270,9 +270,9 @@ reaper_fn=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "
     --output text 2>/dev/null) || reaper_fn=""
 
 if [ -z "$reaper_fn" ] || [ "$reaper_fn" = "None" ]; then
-    # NOT a silent skip. An absent reaper means the platform stack has not deployed ADR-0030 yet, or the
+    # NOT a silent skip. An absent reaper means the platform stack has not deployed ADR-0031 yet, or the
     # output was renamed — and either way this PR's logical databases are being left on the shared instance.
-    echo "::error::$REAPER_STACK publishes no PerPrDatabaseReaperFunctionName (ADR-0030), so $PR's per-PR logical databases cannot be dropped and will be left behind. Deploy the global infra app, then re-run this teardown."
+    echo "::error::$REAPER_STACK publishes no PerPrDatabaseReaperFunctionName (ADR-0031), so $PR's per-PR logical databases cannot be dropped and will be left behind. Deploy the global infra app, then re-run this teardown."
     teardown_failed=1
 elif aws lambda invoke --region "$REGION" --function-name "$reaper_fn" \
     --payload "{\"action\":\"drop\",\"pr\":\"$PR\"}" --cli-binary-format raw-in-base64-out \

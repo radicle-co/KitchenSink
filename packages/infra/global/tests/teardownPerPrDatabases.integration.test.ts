@@ -2,7 +2,7 @@
  * Integration suite for `.github/scripts/teardown-sandbox-pr.sh` §0c and §1 — waking the shared tier, and
  * reclaiming every per-PR logical database through the PLATFORM REAPER.
  *
- * ⚠️ REWRITTEN 2026-09-04 (ADR-0030). This file used to prove that §1 discovered a drop door on each of the
+ * ⚠️ REWRITTEN 2026-09-04 (ADR-0031). This file used to prove that §1 discovered a drop door on each of the
  * PR's OWN stacks and invoked it. It now proves the opposite of the first half and more of the second: §1
  * invokes ONE reaper, published by `kitchensink-data-sandbox`, and it does so **whether or not the PR still
  * owns a stack** — which is the whole point, and the case the old shape could not reach.
@@ -46,7 +46,7 @@
  *
  *   1. §1 reverted to discovering doors across `$PR_STACKS` → `reaps a PR whose stacks are ALL GONE` fails,
  *      and `invokes exactly ONE function` reports the two per-service migration runners. This is the
- *      red-before-green run for the defect ADR-0030 exists for.
+ *      red-before-green run for the defect ADR-0031 exists for.
  *   2. The payload's `pr` field dropped → `hands the reaper THIS PR's token and no other` fails, and the
  *      reaper would reap whatever a token-less drop resolved to (it refuses; the point is the script must
  *      not rely on that).
@@ -59,7 +59,7 @@
  *   5b. The failed drop changed from `teardown_failed=1` to `exit 1` → `a failed drop still does not stop the
  *      stack deletes` fails. The ruling makes the run RED; it does not make the step ABORT.
  *   6. The absent-reaper branch softened to a `::warning::` or a silent skip → `an ABSENT reaper is an error`
- *      fails, which is the shape where a platform stack that has not deployed ADR-0030 yet leaks every
+ *      fails, which is the shape where a platform stack that has not deployed ADR-0031 yet leaks every
  *      preview's database behind a green teardown.
  */
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -248,12 +248,12 @@ beforeEach(() => {
     }
 });
 
-describe('teardown reclaims per-PR databases through the reaper (ADR-0030)', () => {
+describe('teardown reclaims per-PR databases through the reaper (ADR-0031)', () => {
     it('invokes exactly ONE function — the platform reaper, never a per-service migration runner', () => {
         const { calls } = run('pr-73', BOTH_SERVICES);
 
         // ⛔ Set equality. "Contains the reaper" would pass a script that ALSO kept invoking the two
-        // per-service doors, which is the second authority ADR-0030 exists to remove.
+        // per-service doors, which is the second authority ADR-0031 exists to remove.
         expect(invokedFunctions(calls)).toEqual(['kitchensink-data-sandbox-reaper']);
     });
 
@@ -300,7 +300,7 @@ describe('teardown reclaims per-PR databases through the reaper (ADR-0030)', () 
     });
 
     it('⛔ an ABSENT reaper is an ERROR — the databases are being left behind', () => {
-        // The platform stack has not deployed ADR-0030 yet, or the output was renamed. Either way this PR's
+        // The platform stack has not deployed ADR-0031 yet, or the output was renamed. Either way this PR's
         // databases stay on the shared instance, so a silent skip here would be the green-check-over-a-leak
         // shape the whole teardown path has been rebuilt twice to remove.
         const { status, stdout, calls } = run('pr-73', {

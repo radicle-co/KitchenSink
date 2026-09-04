@@ -3,7 +3,7 @@
  * Repo-wide guard: **every per-PR logical database is reachable by something that can drop it, and teardown
  * reaches it through the PLATFORM REAPER rather than through any per-service door.**
  *
- * ⚠️ REWRITTEN 2026-09-04 (ADR-0030), and the rewrite is a change of SUBJECT, not a relaxation. This file
+ * ⚠️ REWRITTEN 2026-09-04 (ADR-0031), and the rewrite is a change of SUBJECT, not a relaxation. This file
  * used to prove that teardown could reach every service's own migration-runner door by SHAPE. Teardown no
  * longer invokes those doors at all: `teardown-sandbox-pr.sh` §1 now invokes `PerPrDatabaseReaperFunction`,
  * which lives in `DataStack` beside the instance, discovers its targets from `pg_database`, and needs no
@@ -52,7 +52,7 @@
  *
  * **2. Every database FAMILY has at least one stack exporting a migration runner.** ⚠️ RE-JUSTIFIED, not
  * merely kept. Its old reason — "otherwise the database cannot be dropped at PR close" — is closed by
- * ADR-0030, which drops without any stack. Its CURRENT reason is the DEPLOY side: `prod-deploy.yml` and
+ * ADR-0031, which drops without any stack. Its CURRENT reason is the DEPLOY side: `prod-deploy.yml` and
  * `sandbox-deploy.yml` look up `IdentityMigrationFunctionName`, `FoodMigrationFunctionName` and
  * `RecipeMigrationFunctionName` by name to run migrations, so a family whose stacks export no runner has no
  * way to be migrated at all. Grouped by the name-producing function rather than by stack: a stack that
@@ -207,7 +207,7 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
     });
 
     it('⛔ is covered by the REAPER — its base register equals the families the tree derives', () => {
-        // ⛔ THE CLAIM ADR-0030 RESTS ON. `teardown-sandbox-pr.sh` §1 invokes one reaper for the whole PR,
+        // ⛔ THE CLAIM ADR-0031 RESTS ON. `teardown-sandbox-pr.sh` §1 invokes one reaper for the whole PR,
         // and the reaper drops exactly the names its register derives. A family missing from the register is
         // a per-PR database nothing will ever reclaim — and it leaks the way the recipe one did: invisibly,
         // because a logical database is not a CloudFormation resource and costs too little to notice.
@@ -246,7 +246,7 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
             withoutDoor,
             'a per-PR database family whose stacks export no *MigrationFunctionName cannot be MIGRATED: ' +
                 'prod-deploy.yml and sandbox-deploy.yml look those outputs up by name to run the schema ' +
-                "migrations. (Reclaiming it is ADR-0030's reaper's job, not this output's, since 2026-09-04.)",
+                "migrations. (Reclaiming it is ADR-0031's reaper's job, not this output's, since 2026-09-04.)",
         ).toEqual([]);
     });
 
@@ -263,7 +263,7 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
 
         expect(
             named,
-            'teardown must reclaim per-PR databases through PerPrDatabaseReaperFunction (ADR-0030), which ' +
+            'teardown must reclaim per-PR databases through PerPrDatabaseReaperFunction (ADR-0031), which ' +
                 'needs no service stack to exist. Naming a per-service door here re-introduces the path ' +
                 'that could not reach a database whose stack was gone or wedged — and a second authority ' +
                 'for "how a per-PR database is dropped" is the drift DRY governs.',

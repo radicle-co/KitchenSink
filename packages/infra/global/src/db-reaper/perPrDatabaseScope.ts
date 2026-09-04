@@ -1,7 +1,7 @@
 /**
  * @module db-reaper/perPrDatabaseScope — the pure scope predicate that authorises a `DROP DATABASE`.
  *
- * ⛔ **THIS FILE IS A SECURITY BOUNDARY.** `PerPrDatabaseReaperFunction` (ADR-0030) connects to the shared
+ * ⛔ **THIS FILE IS A SECURITY BOUNDARY.** `PerPrDatabaseReaperFunction` (ADR-0031) connects to the shared
  * sandbox RDS instance **as the master user** and drops logical databases. On that instance also live
  * `kitchensink_identity` — the database every per-PR preview signs in against — and the base
  * `kitchensink_food` / `kitchensink_recipes` that every preview's database is CLONED from. Nothing but the
@@ -194,7 +194,7 @@ export function isReapablePerPrDatabase(token: string, databaseName: string): bo
 /**
  * The PR token that owns a database, or `null` if none does — the census direction.
  *
- * The reaper must be able to COUNT stranded per-PR databases with no token in hand (ADR-0030), so this is
+ * The reaper must be able to COUNT stranded per-PR databases with no token in hand (ADR-0031), so this is
  * the inverse of {@link isReapablePerPrDatabase} rather than a second, looser rule. It is written as a
  * separate implementation on purpose, and the two are asserted to AGREE for every combination the suite can
  * construct — a widening of one cannot quietly outrun the other.

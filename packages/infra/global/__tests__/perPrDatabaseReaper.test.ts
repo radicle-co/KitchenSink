@@ -4,7 +4,7 @@
  *
  * ## What this file is protecting
  *
- * `PerPrDatabaseReaperFunction` (ADR-0030) is master-connected and issues `DROP DATABASE`. Its scope
+ * `PerPrDatabaseReaperFunction` (ADR-0031) is master-connected and issues `DROP DATABASE`. Its scope
  * predicate has its own suite (`perPrDatabaseScope.test.ts`); this one covers everything AROUND the
  * predicate, where a destructive capability is just as easy to get wrong:
  *

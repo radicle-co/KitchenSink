@@ -1,9 +1,9 @@
 // @vitest-environment node
 /**
- * ⛔ THE REAPER IS SANDBOX-ONLY, AND THAT IS ASSERTED IN BOTH DIRECTIONS (ADR-0030).
+ * ⛔ THE REAPER IS SANDBOX-ONLY, AND THAT IS ASSERTED IN BOTH DIRECTIONS (ADR-0031).
  *
  * `PerPrDatabaseReaperFunction` connects to the shared RDS as the MASTER user and issues `DROP DATABASE`.
- * ADR-0030's whole argument for accepting a prod/sandbox template divergence — which ADR-0028 otherwise
+ * ADR-0031's whole argument for accepting a prod/sandbox template divergence — which ADR-0028 otherwise
  * argues against — is that production has no per-PR logical databases at all (ADR-0006 grants its
  * `food_app`/`recipe_app` roles no `CREATEDB`), so in prod the function would be dead code carrying a live
  * risk. That argument is only worth anything if the guard actually holds, so it is a test rather than a
@@ -18,7 +18,7 @@
  * ⚠️ The nag census (`nagRulesAtZero.integration.test.ts`) synthesizes every app under `STAGE=prod`, so it
  * cannot see this function at all — which is exactly why the IAM4 findings ADR-0013 records do not move.
  * That is a real coverage hole for every sandbox-only construct (`SandboxSchedulerStack` sits in it too),
- * recorded in ADR-0030 rather than papered over; this file is the coverage that is available.
+ * recorded in ADR-0031 rather than papered over; this file is the coverage that is available.
  */
 import { App } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
@@ -55,7 +55,7 @@ const reaperFunctions = (template: Template): readonly unknown[] =>
         ),
     );
 
-describe('the per-PR database reaper is NEVER synthesized for prod (ADR-0030)', () => {
+describe('the per-PR database reaper is NEVER synthesized for prod (ADR-0031)', () => {
     const prod = dataTemplate('prod');
 
     it('creates no function carrying the reaper handler', () => {
@@ -68,14 +68,14 @@ describe('the per-PR database reaper is NEVER synthesized for prod (ADR-0030)', 
 
     it('names the reaper nowhere in the prod template at all', () => {
         // The broadest form of the claim, and the one that survives a rename of either the construct or the
-        // output: prod's template must not mention this capability in any shape. `ADR-0030` rather than the
+        // output: prod's template must not mention this capability in any shape. `ADR-0031` rather than the
         // handler path, because the handler is the inline stub whenever `dist-lambda/` is absent.
-        expect(JSON.stringify(prod.toJSON())).not.toContain('ADR-0030');
+        expect(JSON.stringify(prod.toJSON())).not.toContain('ADR-0031');
         expect(JSON.stringify(prod.toJSON())).not.toContain('PerPrDatabaseReaper');
     });
 });
 
-describe('every non-prod stage DOES get a reaper (ADR-0030)', () => {
+describe('every non-prod stage DOES get a reaper (ADR-0031)', () => {
     it.each(['sandbox', 'dev', 'test'])('%s synthesizes exactly one', (stage) => {
         expect(reaperFunctions(dataTemplate(stage))).toHaveLength(1);
     });

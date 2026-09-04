@@ -1,5 +1,5 @@
 /**
- * Reclaim — and COUNT — the per-PR logical databases on the shared non-prod RDS instance (ADR-0030).
+ * Reclaim — and COUNT — the per-PR logical databases on the shared non-prod RDS instance (ADR-0031).
  *
  * ## Why this exists when the migration runners already drop
  *
@@ -193,7 +193,7 @@ export const handler = async (event: unknown): Promise<ReapResult> => {
     const stage = requireEnv('STAGE');
 
     // ⛔ The second half of "sandbox only". `DataStack` does not create this function at the prod stage, so
-    // reaching here on prod means it was deployed by something that did not read ADR-0030 — and a
+    // reaching here on prod means it was deployed by something that did not read ADR-0031 — and a
     // master-credentialed DROP DATABASE in production is not a risk this repository accepts. Both actions
     // are refused, not just `drop`: leaving a prod census reachable would make the drop guard the only thing
     // standing, and it is the guard a later "just let it count in prod" change would erode.
@@ -201,7 +201,7 @@ export const handler = async (event: unknown): Promise<ReapResult> => {
         throw new Error(
             'The per-PR database reaper refuses to run at the prod stage. Production has no per-PR logical ' +
                 'databases (ADR-0006 grants its roles no CREATEDB), so this function is not deployed there ' +
-                '— see ADR-0030. Reaching this means something deployed it to prod.',
+                '— see ADR-0031. Reaching this means something deployed it to prod.',
         );
     }
 
@@ -237,7 +237,7 @@ export const handler = async (event: unknown): Promise<ReapResult> => {
             ...outcome,
         };
 
-        console.log(JSON.stringify({ message: 'per-PR logical database reap (ADR-0030)', ...result }));
+        console.log(JSON.stringify({ message: 'per-PR logical database reap (ADR-0031)', ...result }));
 
         return result;
     } finally {

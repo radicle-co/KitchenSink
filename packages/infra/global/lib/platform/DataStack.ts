@@ -381,7 +381,7 @@ export class DataStack extends Stack {
         // modify applied first, so depend on the instance rather than race a fresh deploy.
         recipeBootstrap.node.addDependency(this.database);
 
-        // ── Per-PR logical-database reaper (ADR-0030) ───────────────────────────────────────────────
+        // ── Per-PR logical-database reaper (ADR-0031) ───────────────────────────────────────────────
         //
         // ⛔ NON-PROD ONLY. This function connects AS MASTER and issues `DROP DATABASE`. Production has no
         // per-PR logical databases at all — ADR-0006 grants its `food_app`/`recipe_app` roles no CREATEDB,
@@ -391,7 +391,7 @@ export class DataStack extends Stack {
         //
         // ⚠️ This ACCEPTS a prod/sandbox template divergence, which ADR-0028 argues against on the grounds
         // that "keeping prod on a different shape is how ADR-0007's cost problem came to hide in the
-        // exempted half". ADR-0030 records why the exception is taken here rather than reasoned around, and
+        // exempted half". ADR-0031 records why the exception is taken here rather than reasoned around, and
         // `perPrDatabaseReaperStack.test.ts` asserts the divergence in BOTH directions so it cannot rot.
         //
         // Why it lives in `DataStack` rather than in a service's stack: the per-service migration runners
@@ -415,7 +415,7 @@ export class DataStack extends Stack {
                 // matching the bootstrap functions above. It is never on a request path.
                 timeout: Duration.seconds(300),
                 memorySize: 256,
-                description: `Count and reclaim per-PR logical databases (${stageTag}) — ADR-0030`,
+                description: `Count and reclaim per-PR logical databases (${stageTag}) — ADR-0031`,
                 vpc: props.network.vpc,
                 vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
                 securityGroups: [props.network.lambdaSecurityGroup],

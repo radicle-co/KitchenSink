@@ -7,7 +7,7 @@
  *
  * ## The default is COUNT, and that is a safety property
  *
- * ADR-0030's first job is a CENSUS: nobody can currently count the per-PR databases stranded on the shared
+ * ADR-0031's first job is a CENSUS: nobody can currently count the per-PR databases stranded on the shared
  * sandbox instance, because the Phase 0 inventory rides on the `DataStack` bootstrap custom resources and
  * CloudFormation only re-invokes those when their PROPERTIES change — a sandbox global deploy on 2026-09-04
  * left both bootstrap Lambdas with no log streams at all. Counting therefore has to be invocable on demand,

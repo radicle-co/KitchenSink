@@ -47,3 +47,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0028 — On-demand sandboxes: a button in GitHub, and midnight teardown](0028-on-demand-sandbox.md)
 - [0029 — Authored foods: the substances-only amendment to the single-writer rule](0029-authored-foods-substances-only.md)
 - [0030 — First-party analytics events: one store, two doors, lifetime counts](0030-first-party-analytics-events.md)
+- [0031 — The per-PR database reaper is a sandbox-only capability that counts before it reclaims](0031-sandbox-only-per-pr-database-reaper.md)

@@ -1,5 +1,5 @@
 /**
- * The per-PR database reaper (ADR-0030) against REAL PostgreSQL.
+ * The per-PR database reaper (ADR-0031) against REAL PostgreSQL.
  *
  * ## What a fake pool structurally cannot prove
  *
@@ -63,7 +63,7 @@ const FIXTURE_DATABASES = [
     'kitchensinkxfoodx_pr_1',
 ] as const;
 
-describe.skipIf(!DATABASE_URL)('per-PR database reaper against real PostgreSQL (ADR-0030)', () => {
+describe.skipIf(!DATABASE_URL)('per-PR database reaper against real PostgreSQL (ADR-0031)', () => {
     const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 2 });
 
     /** Whether a database exists, asked of the catalogue rather than inferred from a return value. */

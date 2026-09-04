@@ -30,6 +30,7 @@
         "@commise/features-core": "*",
         "@commise/features-recipes": "*",
         "@commise/i18n": "*",
+        "@commise/query": "*",
         "@commise/ui": "^0.0.0",
         "@kitchensink/recipe-service-client": "*",
         "@kitchensink/schema-identity": "*",

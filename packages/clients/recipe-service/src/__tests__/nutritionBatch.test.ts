@@ -23,7 +23,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { recipeNutritionResponseSchema, MAX_NUTRITION_RECIPE_IDS } from '@kitchensink/schema-recipe';
 
 import { RecipeServiceClient } from '../index.js';
-import { isFetchUnavailableError, isInvalidRequestError, type InvalidRequestError } from '../errors.js';
+import {
+    UnexpectedResponseError,
+    isFetchUnavailableError,
+    isInvalidRequestError,
+    type InvalidRequestError,
+} from '../errors.js';
 import { NUTRITION_BATCH_DEADLINE_MS, recipeQueries, recipeServiceKeys, withDeadline } from '../queries.js';
 import { useRecipeNutrition } from '../hooks.js';
 import { callsOf, requestAt, stubFetch } from './utils/fetchDouble.js';
@@ -222,10 +227,33 @@ describe('recipeQueries().nutritionBatch — the read seam', () => {
     });
 
     it('bounds the retries — an unbounded retry is an unbounded wait wearing a different hat', () => {
-        const options = recipeQueries(fakeClient(vi.fn())).nutritionBatch([RECIPE_A]);
+        // REWRITTEN. This used to assert `options.retry` was a NUMBER ≤ 2, which was true and also the
+        // problem: a numeric `retry` REPLACES the app-level predicate outright rather than narrowing it, so
+        // this was the one query in either app that still retried a `400` after the shared policy landed —
+        // a Specification the composition point cannot see is not composed. The BOUND is still the property
+        // that matters here, so it is still asserted; it is now read off the predicate.
+        const retry = recipeQueries(fakeClient(vi.fn())).nutritionBatch([RECIPE_A]).retry;
 
-        expect(options.retry).toBeTypeOf('number');
-        expect(options.retry as number).toBeLessThanOrEqual(2);
+        expect(retry).toBeTypeOf('function');
+
+        const server = new UnexpectedResponseError(503);
+        const granted = [0, 1, 2, 3].filter((failureCount) =>
+            (retry as (count: number, error: Error) => boolean)(failureCount, server),
+        );
+
+        expect(granted).toEqual([0]);
+    });
+
+    it('does not retry a failure that repeating cannot fix, even inside its own bound', () => {
+        // The half the numeric bound could not express. One retry of a `400` is one guaranteed-wasted
+        // request and one more slice of the deadline this seam exists to protect.
+        const retry = recipeQueries(fakeClient(vi.fn())).nutritionBatch([RECIPE_A]).retry as (
+            count: number,
+            error: Error,
+        ) => boolean;
+
+        expect(retry(0, new UnexpectedResponseError(400))).toBe(false);
+        expect(retry(0, new UnexpectedResponseError(503))).toBe(true);
     });
 
     it('is DISABLED for an empty id list — the service rejects it, so asking is a guaranteed 400', () => {

@@ -158,17 +158,24 @@ test.describe('collections (T109)', () => {
         // through ky → the client's `NotFoundError` → `isNotFoundError` → the localized not-found copy.
         // A generic error message here means the 404 lost its type on the way up.
         //
-        // The long timeout is not padding — it is the cost of a real defect: `RecipeProviders` builds a
-        // bare `new QueryClient()`, so TanStack Query's DEFAULT retry (3 attempts, exponential backoff)
-        // applies to a 404 as much as to a network blip. The user waits ~7s and the API takes 4 requests
-        // to say "no". Scoped here rather than papered over globally; see the T109 report / follow-ups.
+        // ⛔ NO EXPLICIT TIMEOUT — Playwright's default is part of the assertion now. This used to carry a
+        // 20s bound and a paragraph explaining that the wait was REAL: `RecipeProviders` built a bare
+        // `new QueryClient()`, so TanStack's default `retry: 3` with exponential backoff applied to a 404
+        // as much as to a network blip, and the cook waited ~7s while the API took four requests to say
+        // "no". That is fixed — the shared retry policy in `@commise/query` refuses to retry a failure
+        // that repeating cannot fix — so the generous bound became the thing HIDING a regression. At the
+        // default, a 404 that starts retrying again fails here instead of passing slowly.
+        //
+        // (The old comment pointed at "the T109 follow-ups" for the fix. Nothing on disk ever tracked it:
+        // T109 is a COMPLETED task about adding these very Playwright tests and says nothing about
+        // retries. The pointer is removed rather than re-aimed.)
         // The `filter` is not decoration: Next's App Router injects its own permanent
         // `<div role="alert" id="__next-route-announcer__">`, so "the" alert has to be named by its copy.
         // This still fails for every regression worth catching — a plain <div> (no alert role) or the
         // GENERIC error copy (a 404 that lost its type on the way up) both leave it unmatched.
         await page.goto(route('/collections/col_missing'));
         const notFound = page.getByRole('alert').filter({ hasText: 'We couldn’t find that collection.' });
-        await expect(notFound).toBeVisible({ timeout: 20_000 });
+        await expect(notFound).toBeVisible();
         // A not-found is terminal — retrying it would just 404 again, so no retry action is offered.
         await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
     });

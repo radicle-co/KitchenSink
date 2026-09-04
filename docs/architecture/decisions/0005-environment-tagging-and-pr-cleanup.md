@@ -1,6 +1,6 @@
 # 0005 — `Environment` tagging + tag/name-driven per-PR teardown
 
-- **Status:** Accepted — _convention + cleanup implemented_. The four CDK apps tag at the `App` level (propagates to every resource); the **`cleanup` job in `.github/workflows/sandbox-deploy.yml`** runs on PR close. That job _replaced_ the prior name-only `*-pr-{N}` stack destroy with this tag/name-driven sweep — the per-PR feature workflow owns both deploy (templates) and teardown, so there is no separate cleanup workflow. Per-PR feature **deploy** (food etc.) is wired in the feature's deploy phase; until a feature deploys per-PR there is simply nothing for cleanup to match.
+- **Status:** Accepted — _convention + cleanup implemented_. ~~The four CDK apps~~ tag at the `App` level (propagates to every resource) — ⚠️ STALE (2026-09-04): there are now **eight** CDK apps, and **seven** of them tag: `packages/infra/global`, `identity`, `identity-webhooks` (all hard-coded `global`), plus `food-service`, `recipe-service`, `recipe-workers` and `ingredient-parser` (all `stage.startsWith('pr-') ? stage : 'global'`). ⛔ The **eighth**, `packages/apps/commise/web/infra/bin/app.ts`, sets **no `Environment` tag at all** — see the note on decision 1. The **`cleanup` job in `.github/workflows/sandbox-deploy.yml`** runs on PR close. That job _replaced_ the prior name-only `*-pr-{N}` stack destroy with this tag/name-driven sweep — the per-PR feature workflow owns both deploy (templates) and teardown, so there is no separate cleanup workflow. Per-PR feature **deploy** (food etc.) is wired in the feature's deploy phase; until a feature deploys per-PR there is simply nothing for cleanup to match.
 - **Date:** 2026-06-21
 - **Area:** AWS resource lifecycle · cost · CDK tagging · CI teardown · global-vs-ephemeral split
 - **Related:** `.github/workflows/sandbox-deploy.yml` (the `cleanup` + `reap-abandoned` jobs), `.github/scripts/teardown-sandbox-pr.sh` + `.github/scripts/pr-scope.sh` (+ its regression suite `packages/infra/global/__tests__/prScope.test.ts`), `packages/infra/global/__tests__/sandboxReclamationReachability.test.ts` (the reachability + export-lookup guards, _Update (2026-08-10)_), `.github/scripts/cfn-export.sh`, `packages/apps/commise/web/scripts/teardownPreviewDomain.ts`, ADR-0001 (the preview address this now reclaims), `packages/infra/global/bin/app.ts`, `packages/services/identity{,-webhooks}/infra/bin/app.ts`, `packages/services/food-service/infra/bin/app.ts`, `docs/CI_ARCHITECTURE.md`, ADR-0002 (the global infra it protects)
@@ -22,9 +22,23 @@
 1. **Tag everything with `Environment`, at the CDK `App` level** (so it propagates to every taggable resource):
     - **`global`** — `kitchensink-{network,data,domain,global,alb}-{stage}` (global infra app), `kitchensink-identity-service-{stage}`, `kitchensink-identity-webhooks-{stage}`. Persistent; never per-PR.
     - **`pr-{N}`** — a non-global feature service deployed for an open PR (`stage = pr-{N}`). Ephemeral.
-    - food's app sets `Environment = stage.startsWith('pr-') ? stage : 'global'`.
+    - ~~food's app sets `Environment = stage.startsWith('pr-') ? stage : 'global'`.~~ ⚠️ STALE (2026-09-04): **four** apps do — `food-service/infra/bin/app.ts:50`, `recipe-service/infra/bin/app.ts:45`, `recipe-workers/infra/bin/app.ts:31`, `ingredient-parser/infra/bin/app.ts:27`.
+    - ⚠️ STALE (2026-09-04): **the web router app tags nothing.** `packages/apps/commise/web/infra/bin/app.ts`
+      calls `attachSecurityChecks` and `stampCommitProvenance` but never `Tags.of(app).add('Environment', …)`,
+      so `kitchensink-sandbox-router-{stage}` carries no `Environment` tag in either direction. It is SAFE
+      under the model — the name is `kitchensink-*`, so `pr_scope_belongs` answers false — but it is not
+      `Environment=global` either, and decision 1's "tag everything" is therefore not literally true. That
+      is a real gap in the convention, not in the safety property.
 2. **Name ephemeral resources with a `pr-{N}` prefix** where the resource type allows it (stacks, ECR repos), so the cleanup can find resources that could not be tagged (auto-created log groups, etc.) by name as well as by tag.
 3. **The `cleanup` job in `sandbox-deploy.yml` (on PR close) deletes anything matching `pr-{N}` — by tag OR by name — with no denylist.** All of it lives in `.github/scripts/teardown-sandbox-pr.sh`, which both `cleanup` and the daily `reap-abandoned` job call so the two cannot drift. It deletes the PR's CloudFormation stacks (feature stacks use the suffix `kitchensink-{service}-pr-{N}` convention and are caught by the `Environment=pr-{N}` tag — **not** by `belongs`, which is a prefix rule), sweeps remaining `Environment=pr-{N}`-tagged resources (deleting log groups + ECR, reporting any other type for a future handler), and sweeps `pr-{N}`-named log groups + ECR repos.
+    - ⚠️ STALE (2026-09-04): that is no longer the whole script. `.github/scripts/teardown-sandbox-pr.sh`
+      now runs, in order: §0 the preview address (ADR-0001), §0b the legacy `sandbox-preview/pr-{N}` GitHub
+      Environment (a **draining, finite** reclamation — no new ones are created since `c86f3e09`; the block
+      is marked for deletion once the last drains), §0c a wake of the on-demand sandbox tier (ADR-0028) so
+      the in-VPC drop door is reachable, §1 the per-PR logical-database drop via ADR-0031's
+      `PerPrDatabaseReaperFunction`, `.github/scripts/ecs-quiesce.sh`, then §2–§4 the stacks, tagged sweep
+      and named sweep described above. Read the script's section headers, not this bullet, before changing
+      the order.
 4. **The preview's PUBLIC ADDRESS is created AND reclaimed here, because CloudFormation owns neither** (added 2026-07-28; ADR-0001's _Update (2026-07-28)_ items 1 and 3). A sandbox web preview is reachable through a Route 53 `CNAME pr-{N}.sandbox.{domain} → cname.vercel-dns.com`, a Vercel project-domain binding and a per-deployment alias, none of which is a stack resource — so before this, a closed PR left the CNAME pointing at a provider where the hostname was no longer claimed, i.e. a **subdomain-takeover vector**. `packages/apps/commise/web/scripts/teardownPreviewDomain.ts` removes all of it (releasing the project domain drops the alias bound through it), and the teardown script runs it **first**, before any stack delete (which can hang for many minutes). Its mirror, `createPreviewDomain.ts`, provisions the same address from the `preview-domain` job on every non-closed PR event, in the **inverse** order — claim, then publish DNS, then alias — for the reason in the first bullet below. Both import their `pr-{N}` scope from the one shared `previewDomainScope.ts`. Two properties are load-bearing:
     - **DNS is deleted BEFORE the Vercel claim is released** — and, symmetrically, the claim is taken BEFORE DNS is created. The takeover window is exactly "record still points at Vercel, nobody claims the name", so an interrupted run in either direction may only ever leave the safe half-state (claimed, not resolving).
     - **The DNS scope is stricter than the name scope: exact label equality.** The preview zone also holds `sandbox.{domain}` (apex), the `*.sandbox` wildcard alias, ACM validation CNAMEs, and `identity.sandbox.{domain}` — the single **shared, persistent** identity service every preview authenticates against. A record belongs to PR _N_ only when its first label is exactly `pr-{N}`; `pr-{N}-…` does **not** qualify in DNS. Both adapters re-assert that at the point of action rather than trusting the caller, because an over-broad DNS delete would take every preview down at once — strictly worse than the dangling record it fixes.
@@ -121,7 +135,7 @@ by an exact `Environment=pr-{N}` tag, the same authority that already licenses d
 is widened; the per-PR cluster NAME is deliberately not used, because `pr_scope_belongs` is a prefix rule and
 loosening it is what this ADR forbids. Proven live: pr-82, pr-83 and pr-90 deleted all three stacks cleanly with
 no `DELETE_FAILED` at all, where every earlier PR had left two. Covered by
-`packages/infra/global/__tests__/ecsQuiesce.integration.test.ts`, which executes the real script against a
+`packages/infra/global/tests/ecsQuiesce.integration.test.ts` (⛔ FALSE (2026-09-04): the path stated here was `__tests__/`; integration tiers live in `tests/` per `docs/CODING_STANDARDS.md` §7), which executes the real script against a
 stubbed AWS CLI and asserts the call ORDER (a wait that ran before the deletes, or not at all, is the whole bug).
 
 **Pattern worth naming: `list-exports` + `--query` is broken per-page, and it has now bitten twice.**
@@ -134,30 +148,45 @@ step. Treat any new `aws cloudformation list-exports … --query` as a defect on
 
 **Known residues found while reclaiming, NOT fixed here** — each is a real leak, each deserves its own change:
 
-- **ECS Container Insights log groups are never matched.** `/aws/ecs/containerinsights/kitchensink-{service}-pr-{N}-…Cluster…/performance` survives even a clean stack delete: it is untagged, and `pr_scope_path_belongs`
-  requires the `pr-{N}` token to START a `/`-delimited segment while ECS puts it mid-segment. pr-61's group
-  outlived its stack by a month. Note the predicate's own docstring names this exact log group as its reason
-  for existing, and its closing clause (`… and out of /…/service-pr-1`) deliberately excludes the real shape —
-  so the intent and the implementation disagree, and reconciling them means amending a **documented security
-  decision**. Deliberately left for the owner rather than widened unilaterally; a bare suffix match here is
-  exactly what ADR-0005 warns against. Cost is small (empty performance groups) but it is unbounded growth.
-- **A failed per-PR food DB drop is only a `::warning::` — and that failure is IRREVERSIBLE.** This contradicts
-  decision 5 above ("failures are errors, not warnings"), and it is worse here than the phrase suggests. The
-  drop must run _before_ the stack delete because the in-VPC migration Lambda is the only thing that can reach
-  the `PRIVATE_ISOLATED` RDS — and that Lambda is destroyed with the stack seconds later. So a swallowed drop
-  failure has **no second chance**: the reaper cannot retry it, because the tool is gone. The database is then
-  orphaned in the shared instance with no in-band way to remove it.
-  Observed live on pr-73: its drop failed with PostgreSQL 53300 `sorry, too many clients already`, the run
-  emitted a warning, the stack deleted, and `kitchensink_food_pr_73` is now unreachable. Connections on the
-  shared `db.t4g.micro` were ~22–25 steady and spiked to 45 during teardown, so the drop is competing for
-  connection slots with the very orphans it is cleaning up — though the exact ceiling being hit (instance
-  `max_connections`, which is the RDS default formula, versus a role/database `CONNECTION LIMIT`) was **not**
-  determined and should be confirmed before sizing any fix.
-  pr-57 and pr-59 are in the same state. Every later PR dropped cleanly (`{"dropped":"dropped"}`), so the
-  mechanism is sound — it is the error handling that is not. `teardown-sandbox-pr.sh` also sends the invoke's
-  stderr to `/dev/null`, hiding the reason. Both branches should be `::error::` + `teardown_failed=1`, and the
-  drop should be retried before the stack delete proceeds. Not changed here on purpose: the script was in use
-  by the reclamation running at the time, and a behaviour change to it needs a shim-based test of its own.
+- ~~**ECS Container Insights log groups are never matched.**~~ ⚠️ STALE (2026-09-04): **FIXED**, in
+  `a1e8d7b9` ("make the PR-close log-group sweep actually match a real cluster name").
+  `pr_scope_path_belongs` (`.github/scripts/pr-scope.sh:62-83`) now ends in
+  `[[ ${2-} =~ (^|[/-])"$1"([/-]|$) ]]` — anchored on **both** sides, so the token is matched mid-segment
+  while `pr-5` still cannot claim `…-pr-57-…` and `pr-57` cannot claim `…-pr-570-…`. The docstring records
+  the reversal explicitly ("This deliberately REVERSES a claim this comment used to make"), and
+  `packages/infra/global/__tests__/prScope.test.ts:183-185` pins the three real live log-group names
+  (pr-57 / pr-73 / pr-90) plus the `…-expr-57-…` suffix-confusion negative at `:175`. Struck below, kept as
+  the record of the defect:
+    > ~~`/aws/ecs/containerinsights/kitchensink-{service}-pr-{N}-…Cluster…/performance` survives even a clean stack delete: it is untagged, and `pr_scope_path_belongs` requires the `pr-{N}` token to START a `/`-delimited segment while ECS puts it mid-segment. pr-61's group outlived its stack by a month. Note the predicate's own docstring names this exact log group as its reason for existing, and its closing clause (`… and out of /…/service-pr-1`) deliberately excludes the real shape — so the intent and the implementation disagree, and reconciling them means amending a **documented security decision**. Deliberately left for the owner rather than widened unilaterally; a bare suffix match here is exactly what ADR-0005 warns against. Cost is small (empty performance groups) but it is unbounded growth.~~
+- ~~**A failed per-PR food DB drop is only a `::warning::` — and that failure is IRREVERSIBLE.**~~
+  ⚠️ STALE (2026-09-04): **BOTH halves are fixed.** (a) A failed drop is now an `::error::` +
+  `teardown_failed=1` — owner ruling 2026-09-03, recorded in `.github/scripts/teardown-sandbox-pr.sh:253-256`
+  ("⛔ A FAILED DROP IS AN ERROR, not a warning… The severities disagreed, and backwards. Both are errors
+  now"), with the error branches at `:275`, `:283` and `:298`. The stderr is no longer sent to `/dev/null`
+  either — `:293-300` prints the reason, and `:301` special-cases an AWS CLI v1 shell. The script also now
+  greps the invoke response for `"FunctionError"` (`:282`), because a Lambda that threw still exits 0.
+  (b) The "no second chance" argument no longer holds: the drop door moved OUT of the per-PR stack into
+  ADR-0031's `PerPrDatabaseReaperFunction` in `DataStack`
+  (`packages/infra/global/lib/platform/DataStack.ts:403`, output at `:434`), which lives beside the instance
+  and **outlives every per-PR stack**, so a failed drop is now retryable by the daily reaper. Struck below,
+  kept as the record:
+
+    > ~~This contradicts decision 5 above ("failures are errors, not warnings"), and it is worse here than the phrase suggests. The drop must run _before_ the stack delete because the in-VPC migration Lambda is the only thing that can reach the `PRIVATE_ISOLATED` RDS — and that Lambda is destroyed with the stack seconds later. So a swallowed drop failure has **no second chance**: the reaper cannot retry it, because the tool is gone. The database is then orphaned in the shared instance with no in-band way to remove it.~~
+    > Observed live on pr-73: its drop failed with PostgreSQL 53300 `sorry, too many clients already`, the run
+    > emitted a warning, the stack deleted, and `kitchensink_food_pr_73` is now unreachable. Connections on the
+    > shared `db.t4g.micro` were ~22–25 steady and spiked to 45 during teardown, so the drop is competing for
+    > connection slots with the very orphans it is cleaning up — though the exact ceiling being hit (instance
+    > `max_connections`, which is the RDS default formula, versus a role/database `CONNECTION LIMIT`) was **not**
+    > determined and should be confirmed before sizing any fix.
+    > pr-57 and pr-59 are in the same state. Every later PR dropped cleanly (`{"dropped":"dropped"}`), so the
+    > mechanism is sound — it is the error handling that is not. `teardown-sandbox-pr.sh` also sends the invoke's
+    > stderr to `/dev/null`, hiding the reason. Both branches should be `::error::` + `teardown_failed=1`, and the
+    > drop should be retried before the stack delete proceeds. Not changed here on purpose: the script was in use
+    > by the reclamation running at the time, and a behaviour change to it needs a shim-based test of its own.
+
+    ⚠️ UNVERIFIABLE FROM THE REPO (2026-09-04): whether `kitchensink_food_pr_{57,59,73}` are still orphaned in
+    the live sandbox instance is AWS state. The reaper can now reach them; nothing in the tree says whether it
+    has. The `max_connections`-vs-`CONNECTION LIMIT` question above is also still undetermined here.
 
 ## Alternatives considered
 

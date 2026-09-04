@@ -32,6 +32,16 @@ service is not a working system.
 
 ### 1. Gating semantics: **ensure-exists**, not paths-only and not always-redeploy
 
+> ⚠️ STALE (2026-09-04) — **READ THIS BEFORE THE TABLE.** Every condition below is now gated behind a
+> PRECONDITION this section does not mention: `intent`. [ADR-0028](0028-on-demand-sandbox.md) §4 made
+> `deploy-gate.sh decide` take `<intent>` as a **required FIRST parameter**, and when it is `false` the gate
+> returns `deploy=false` **before** reaching any of the four rows here — including ABSENT
+> (`.github/scripts/deploy-gate.sh:62-146`, the `if [ "$intent" = 'false' ]` arm at line 139). Intent is
+> carried by the `sandbox-up` PR label that `sandbox-up.yml` applies and the hourly reconciler removes. So
+> the table below is exact only for a PR whose sandbox is deliberately UP; on every other PR the gate skips
+> unconditionally and the correct reading of an absent stack is "deliberately reaped", not "broken". Only
+> `forced` (a manual `workflow_dispatch`) still short-circuits above the intent check.
+
 A service's deploy job runs when **any** of these holds:
 
 | condition                                                    | why                                             |
@@ -51,10 +61,20 @@ Everything else — including a failed `describe-stacks`, which is translated to
 The bias is deliberate: erring towards "deploy" costs one deploy, while erring towards "skip" ships an
 incomplete preview behind a green check, which is the failure being removed.
 
-**Consequence — a fresh docs-only PR gets a complete stack.** On its first `opened` event nothing exists, so
+~~**Consequence — a fresh docs-only PR gets a complete stack.** On its first `opened` event nothing exists, so
 both jobs deploy food, recipe-workers and recipe-service; every later push skips both (unchanged and serving).
 A preview that was reaped by the daily sweeper, wedged in `ROLLBACK_FAILED`, or lost its tasks **self-heals on
-the next push** — behaviour neither of the alternatives below provides.
+the next push** — behaviour neither of the alternatives below provides.~~
+
+> ⛔ FALSE (2026-09-04): this consequence was **deliberately reversed** by
+> [ADR-0028](0028-on-demand-sandbox.md) §4 and no longer describes the shipped gate. A fresh docs-only PR now
+> gets **nothing** — it has no `sandbox-up` label, so `intent` is `false` and both jobs skip with the reason
+> `no live sandbox for this PR (it was torn down, or never started) — press Run workflow to start one`
+> (`.github/scripts/deploy-gate.sh:139-147`). Self-healing on the next push is likewise gone for a reaped
+> preview, and that is the point: ADR-0028's own words are that leaving ensure-exists alone would _"rebuild
+> every environment on the first push after the reaper ran. Silently. Behind a green check."_ Self-healing
+> still applies **within** a live sandbox's lifetime (`intent = true`), which is the case the rest of this
+> section correctly describes.
 
 ### 2. Rejected: "always redeploy everything on every PR"
 
@@ -109,13 +129,29 @@ its dependents, so the ordering is protected twice:
 A food deploy that **fails** still blocks recipe, on purpose.
 
 **ALB listener priorities are untouched.** The disjoint bands stay as they are (identity 100, food 200, recipe
-300; per-PR food `10000 + N`, per-PR recipe `30000 + N`, named stages in a higher band) — this ADR changes
+300; ~~per-PR food `10000 + N`, per-PR recipe `30000 + N`, named stages in a higher band~~) — this ADR changes
 _when_ a stack is deployed, never _what_ it allocates.
+
+> ⛔ FALSE (2026-09-04) — the parenthetical's **ephemeral** half. The base priorities are right
+> (`BASE_LISTENER_PRIORITY = { identity: 100, food: 200, recipe: 300 }`,
+> `packages/infra/alb/src/listenerPriority.ts`), but per-PR priorities are no longer `10000 + N` /
+> `30000 + N` and named stages are in a **LOWER** band, not a higher one. The single allocator
+> (`packages/infra/alb/src/listenerPriority.ts`, ADR-0003) partitions 1–50000 into three adjacent spans —
+> base `1–999`, **named `1000–1999`**, per-PR `2000–49999` — and cuts the per-PR span into
+> `EPHEMERAL_SERVICE_SLOTS = 8` fixed bands of `PER_PR_BAND_WIDTH = 6000`, indexed by the service's position
+> in `EPHEMERAL_SLOT_ORDER = ['identity', 'food', 'recipe']`. So `food-pr-{N}` is `8000 + N` and
+> `recipe-pr-{N}` is `14000 + N`. The claim that this ADR allocates nothing is still true; the numbers it
+> quotes are not.
 
 ## Cost
 
 Per open PR, the delta is the food service that previously did not exist on a recipe-only PR: **1 API task +
-1 worker task** on Fargate Spot, 24/7.
+1 worker task** on Fargate Spot, ~~24/7~~.
+
+> ⚠️ STALE (2026-09-04): the per-task sizes and rates below are unchanged, but the **duty cycle** is not
+> 24/7 and the "per open PR" denominator is wrong. Under [ADR-0028](0028-on-demand-sandbox.md) a preview
+> exists only between a button press and midnight ET of that day, so the real figure is per _sandbox-day_,
+> not per open PR — a small fraction of the $8.25/mo below. Treat the table as an upper bound.
 
 | item        | size               | Fargate Spot (us-east-1)     |
 | ----------- | ------------------ | ---------------------------- |
@@ -141,8 +177,19 @@ gate skips, and it avoids a second copy of a host shape that is a TLS constraint
 `.github/scripts/teardown-sandbox-pr.sh` already reclaims a food stack for **any** PR that has one — nothing
 in it is conditional on the PR having touched food:
 
-- §1 drops the `kitchensink_food_pr_{N}` logical DB by looking up `kitchensink-food-service-pr-{N}`'s
-  migration-function output, and prints "nothing to drop" when the stack is absent;
+- ~~§1 drops the `kitchensink_food_pr_{N}` logical DB by looking up `kitchensink-food-service-pr-{N}`'s
+  migration-function output, and prints "nothing to drop" when the stack is absent;~~
+
+    > ⚠️ STALE (2026-09-04): §1 no longer looks up a per-service migration-function output at all. That shape
+    > was replaced twice: first by shape-based discovery of any `^[A-Za-z]+MigrationFunctionName$` output on
+    > the PR's own stacks, and then — by [ADR-0031](0031-sandbox-only-per-pr-database-reaper.md) — by a single
+    > **platform reaper** invoked as `{"action":"drop","pr":"pr-{N}"}` on the function named by the reaper
+    > stack's `PerPrDatabaseReaperFunctionName` output (`.github/scripts/teardown-sandbox-pr.sh:229-300`).
+    > The reason is that a stack already deleted or resting in `DELETE_FAILED` publishes no outputs, so the
+    > per-stack door left recipe previews' databases stranded with no signal. The per-service `action: 'drop'`
+    > doors still exist but teardown no longer depends on them. The point this bullet was making — teardown
+    > reclaims a food stack for **any** PR that has one, unconditionally — is unaffected.
+
 - §2 deletes stacks matching the `pr-{N}` name rule **or** the `Environment=pr-{N}` tag — and
   `food-service/infra/bin/app.ts` tags `Environment = stage` for any `pr-*` stage at the `App` level, so
   `kitchensink-food-service-pr-{N}` is caught by the tag;
@@ -154,11 +201,22 @@ The only thing that changes is how _often_ that path is exercised. The `pr-{N}` 
 ## Residual risks (known, not fixed here)
 
 1. **Per-PR ECS is NOT in the sandbox nightly-shutdown selector.** `isSandboxClusterArn` matches a cluster
-   whose name contains `sandbox`; per-PR clusters are named `kitchensink-{service}-pr-{N}-…`, so every preview
-   runs Fargate 24/7 even though the shared sandbox RDS is stopped 00:00–09:00 ET (ADR-0007). Widening the
+   whose name contains `sandbox`; per-PR clusters are named `kitchensink-{service}-pr-{N}-…`, so ~~every preview
+   runs Fargate 24/7~~ even though the shared sandbox RDS is stopped 00:00–09:00 ET (ADR-0007). ~~Widening the
    selector to `pr-{N}` clusters would cut ~37% off every preview's compute bill and cost nothing in
    functionality (the database is already down in that window). It needs its own PR: it changes the global
-   infra package and requires a `packages/infra/global` deploy.
+   infra package and requires a `packages/infra/global` deploy.~~
+
+    > ⚠️ STALE (2026-09-04): the selector fact is still exactly true —
+    > `isSandboxClusterArn` (`packages/infra/global/lib/sandbox-scheduler/scheduler.ts:156`) matches only a
+    > `sandbox` substring, so a `pr-{N}` cluster is not a scheduler subject. The RISK it describes is not:
+    > a preview no longer stands 24/7 for nineteen days. [ADR-0028](0028-on-demand-sandbox.md) made a preview
+    > start on a button press (`sandbox-up.yml`), stamped with an absolute `SandboxExpiresAt` tag, and the
+    > hourly `sandbox-reconcile.yml` **deletes the whole per-PR stack** past that expiry — which reclaims the
+    > ECS tasks outright rather than scaling them to zero. Widening the scheduler's selector would now be
+    > redundant work on a resource that no longer exists overnight. The RDS half of the sentence still holds
+    > (stop 00:00 ET / start 09:00 ET, restored by ADR-0028's Update of 2026-09-03).
+
 2. **An unchanged service can be stale relative to a rebased branch.** `paths-filter` reports the PR's _own_
    diff, so if `main` changes food and a recipe-only PR rebases onto it, food is "unchanged" for that PR and
    the gate keeps the image built at first deploy. The fix is a content-addressed image tag (hash the food

@@ -163,6 +163,11 @@ dehydration, or `/recipes` silently doubles its batch traffic.
 **server** streaming and false of the mechanism — `use(promise)` + `<Suspense>` work identically on the RN
 client. The old prop-driven `isLoading` shape is not a constraint to copy.
 
+> ⚠️ STALE (2026-09-04): the attribution moved. The claim is stated in the **web** entry
+> (`packages/apps/commise/features/recipes/src/widget/RecipeHomeWidget.tsx:14`, and echoed in
+> `docs/generated/components/groups/features-recipes.json`); `RecipeHomeWidget.native.tsx:33-34` now carries
+> this correction itself, in the same words. The correction still stands — only "which file says it" changed.
+
 **One promise, N per-card boundaries.** `use()` memoizes per promise, so N boundaries over one promise cost
 one fetch and fill together.
 

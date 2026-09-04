@@ -37,6 +37,20 @@ The owner's directive resolves 1 and 2 and names the store for 3.
 
 ## Decision
 
+> ⚠️ **NOTHING IN THIS SECTION IS BUILT — re-verified 2026-09-04, and it is stated here rather than only in
+> _Known-incomplete work_ 300 lines below, because a reader who stops at the Decision has no way to tell.**
+> `packages/services/notification-service`, `packages/schemas/notifications` and
+> `packages/clients/notifications` do not exist; `packages/services/` holds `food`, `food-service`,
+> `identity`, `identity-webhooks`, `ingredient-parser`, `recipe-service`, `recipe-workers` and nothing else.
+> No ElastiCache or Valkey resource is declared anywhere in the CDK (the only occurrences of the word are the
+> "why NOT Valkey" docblock in `packages/infra/global/lib/platform/MessageSubstrateStack.ts:40-44`), the
+> `canonicalize` dependency is in no `package.json`, no cache key, Lua script or `/api/v1/notifications/ack`
+> endpoint exists, and `packages/schemas/*/openapi.yaml` publishes no notification path. 014 is a spec
+> (`specs/014-notification-service/`). **The one thing here that DID ship is the 2026-08-16 amendment's
+> DynamoDB message substrate** — `MessageSubstrateStack` with `timeToLiveAttribute: 'ttl'` and
+> `packages/shared/messaging` — which is a **different store for a different job**; see the amendment's own
+> two-stores table before reaching for it as 014's pending set.
+
 ### 1. The retained-notification store is **ElastiCache Serverless for Valkey**, one cache per stage
 
 One cache per **stage** (`kitchensink-notifications-{stage}`), shared by every `pr-{N}` preview that imports
@@ -318,6 +332,8 @@ key prefix gives the same isolation for $0.
 
 - **No notification service exists.** `packages/services/notification-service`,
   `packages/schemas/notifications` and `packages/clients/notifications` are all unbuilt; 014 is a spec.
+  ✅ **Re-verified 2026-09-04: still true, unchanged.** So is the durability bullet below — no ElastiCache
+  resource has been provisioned in any stack, so the serverless-durability question has not been forced.
 - **The serverless-durability question in mitigation 1 is unresolved** and must be answered against AWS docs
   before the cache is provisioned.
 - **No `// ⚠️ DELIBERATE` guard comments and no `CLAUDE.md` pointer exist yet**, because there is no code to

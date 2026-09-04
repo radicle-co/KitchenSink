@@ -191,9 +191,22 @@ language runtime, and this is not a lower Node version — it is a different lan
   linter: the packaging guard **parses** the handler with `ast` (so a file that does not parse fails the
   build), the handler integration tier imports and invokes it against the real engine, and the module is 140
   lines with one third-party call. If more Python lands here, a `ruff` job is owed.
-- ⚠️ **No deployment has been performed.** The stack synthesizes, the asset builds and is verified, and the
+- ⚠️ ~~**No deployment has been performed.** The stack synthesizes, the asset builds and is verified, and the
   handler is exercised against the real engine on x86/CPython 3.10 — but the arm64/CPython 3.13 wheels in
-  the asset have never been loaded by a Python 3.13 interpreter on ARM. The first real proof is a deploy.
+  the asset have never been loaded by a Python 3.13 interpreter on ARM. The first real proof is a deploy.~~
+  ⚠️ STALE (2026-09-04): **there was no DEPLOYER when this was written, and now there is one, with the
+  post-deploy proof this risk asked for.** The stack deploys in both pipelines — `sandbox-deploy.yml:1084-1132`
+  (built, bundled, `cdk deploy`d as the third stack, then verified) and `prod-deploy.yml:340-894` — and
+  `packages/services/ingredient-parser/infra/smoke/deployedSmoke.ts` invokes the **running** function and
+  validates the answer with this package's own zod, asserting the interpreter loaded, the model ran and the
+  engine version is the pinned one. Its docstring cites this very paragraph ("the first real proof is a
+  deploy") as its reason to exist. It is the earliest signal because nothing downstream reports the failure:
+  `crfInvoke.ts` maps a failed invoke to `unavailable` per line and ADR-0026 §3 reads that as absence, so a
+  permanently broken engine is silent. See `e005aa6b fix(ci): the crf parser had no deployer — parseline
+invoked a function nobody created`.
+  ⚠️ UNVERIFIABLE FROM THE REPO (2026-09-04): whether a live deploy has actually **run** to a stage, and
+  therefore whether the arm64/CPython 3.13 wheels have now been loaded on ARM, is live AWS/CI-run state. The
+  repo proves the path and the assertion exist, not that they have executed.
 - ⚠️ The engine ships **`nltk`, `numpy` and `regex`** as transitive dependencies. They are packaged but the
   parse path may not touch all of them; nothing prunes the asset, and 91 MB is well inside the limit, so
   pruning would trade a real risk (removing something imported lazily) for no benefit.

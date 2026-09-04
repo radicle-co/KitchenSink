@@ -85,7 +85,7 @@ running, read the manifest and run the drift check.
   [ segmentation ]  clauseSegmentation.ts        ── shipped, shared pkg
       │
       ▼
-  [ PARSE ]  two engines, independent            ── ⚠️ see §3
+  [ PARSE ]  two engines, independent            ── ⚠️ see §3 — ⚠️ STALE, see note below
       │       ├── CRF   (Python Lambda)             declared, never invoked
       │       └── LLM   (Bedrock)                   CLI leg only; gated leg DELETED, §3
       │
@@ -106,6 +106,11 @@ running, read the manifest and run the drift check.
   food_id + nutrition summary
 ```
 
+⚠️ STALE (2026-09-04) — the PARSE row of the diagram above. Both engines are now invoked from a deployed
+Lambda: `handlers/parseLine.ts` (`infra/lib/RecipeWorkersStack.ts:1207`) drives the CRF through
+`parsing/crfInvoke.ts` and the model through `parsing/gatedLlm.ts`, under the verification gate's own
+execution role. Read that row as "shipped, deployed", not "declared, never invoked / CLI leg only".
+
 The seam this document exists to describe sits between the third and fourth boxes: **parse** is 001's
 concern, **resolution** and **catalog** are 003's, and the comparator hands one to the other.
 
@@ -114,7 +119,12 @@ concern, **resolution** and **catalog** are 003's, and the comparator hands one 
 ## 3. There is ONE LLM parse leg, and ADR-0024 §4c is negated on this point
 
 ⛔ **`recipe-workers/src/parsing/llmParse.ts` was DELETED on 2026-08-29, along with the whole
-`src/parsing/` directory** (`llmParse.ts`, `readParseAnswer.ts`, and both test files). It was dead code:
+`src/parsing/` directory** (`llmParse.ts`, `readParseAnswer.ts`, and both test files).
+⚠️ STALE (2026-09-04): `src/parsing/` **exists again** and holds `crfInvoke.ts`, `gatedLlm.ts`,
+`parseJobExpiry.ts` and `parsePorts.ts`. The deletion of `llmParse.ts` is still a true historical fact; the
+directory's absence is not, and the "ONE LLM parse leg" heading is now wrong in the other direction — there
+is a shipped gated leg, and it is hosted inside the single Bedrock grantee (`gatedLlm.ts:1-24`), which is
+what keeps ADR-0024 layer 4b intact. It was dead code:
 every reference to `parseLineWithLlm` outside the module lived in its own test file, and it had no
 handler, no Lambda, no execution role, and therefore no path to Bedrock. It had never executed outside a
 unit test. Typecheck 66/66 and `recipe-workers` 507/507 pass without it.
@@ -231,17 +241,36 @@ and finding it in the catalog are different problems, and only the first one is 
 
 ## 7. Known gaps, ranked by what they'd cost in prod
 
-1. **The two-engine pipeline has no deployed caller** (§3). The deployed import path is still the old
-   parser. This is the headline gap.
-2. ⚠️ **Building a parse leg reopens ADR-0024 §4c AND layer 4b together.** Not a live defect — the dead
+1. ~~**The two-engine pipeline has no deployed caller** (§3). The deployed import path is still the old
+   parser. This is the headline gap.~~
+   ⚠️ STALE (2026-09-04): **CLOSED.** The pipeline has a deployed caller — `handlers/parseLine.ts` is a real
+   SQS-triggered Lambda in the stack (`packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts:1207`,
+   handler `handlers/parseLine.handler`, event source at `:1244`). ADR-0026 §8c records 2026-08-28
+   (`bd243350`) as the day the pipeline became the authority for what an accepted line says.
+2. ⚠️ ~~**Building a parse leg reopens ADR-0024 §4c AND layer 4b together.** Not a live defect — the dead
    gated leg was deleted 2026-08-29, so the pool's budget and the IAM grant now agree on one consumer
    (§3). But whoever builds a real parse leg must first decide where its Bedrock grant lives, and that
-   decision is unmade.
+   decision is unmade.~~
+   ⚠️ STALE (2026-09-04): **the decision was made and it went the safe way.** The gated legs run in the
+   recipe-workers Lambda under the **same execution role as the verification gate** — no second Bedrock
+   grantee, `llmSpendGuards` stays green (`packages/services/recipe-workers/src/parsing/gatedLlm.ts:1-24`).
+   `llmParse.ts` is indeed gone, but `src/parsing/` is NOT — it holds `crfInvoke.ts`, `gatedLlm.ts`,
+   `parseJobExpiry.ts` and `parsePorts.ts`. What remains open is §4 above: the pool now has four registered
+   call sites, not one.
 3. **The import CLI spends outside ADR-0024's counter.** Tonight's $2.2937 was billed from a laptop,
    under operator credentials, against the shared pool the ceiling is supposed to protect — and the
    counter never saw it. Bounded today only by the operator's judgement.
 4. **ADR-0024 model drift.** The verifier still pins `NOVA_MICRO_MODEL_ID` while the importer moved to
-   Nova 2 Lite. Two consumers, two models, one ceiling.
+   ~~Nova 2 Lite~~. Two consumers, two models, one ceiling.
+   ⚠️ STALE (2026-09-04): the parse leg is **`amazon.nova-lite-v1:0` (Nova Lite v1)**, not Nova 2 Lite —
+   `PARSE_LEG_MODEL_ID = NOVA_LITE_MODEL_ID` at
+   `packages/services/recipe-workers/src/handlers/parseLine.ts:88`, value at
+   `packages/shared/recipe-core/src/spend/spendArithmetic.ts:81`. Nova 2 Lite is residency-`unapproved`
+   (every profile for it leaves us-east-1 and 016 has made no determination), so both the runtime and the
+   IAM policy refuse it. The drift this item names is real and has GROWN: the pool now carries **four**
+   registered call sites (`spendArithmetic.ts:140-145`) across two models — `verification-gate` on Nova
+   Micro, and `ingredient-parse` / `foodness-validator` / `measurement-validator` off the parse and
+   validator legs.
 5. **The resolution cascade is half-built** (§4) — and the obvious build order is the falsified one.
 6. **Nothing here has been deployed.** The CRF Lambda's arm64 / CPython 3.13 wheels have never been
    loaded by a Python 3.13 interpreter on ARM (ADR-0025 records this same risk).

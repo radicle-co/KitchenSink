@@ -21,8 +21,15 @@ Sandbox does not need production sizing, production observability depth, or 24/7
 **1. Right-size sandbox (per-stage, prod unchanged → no prod diff).**
 
 - RDS instance class is stage-derived: `prod → db.t4g.small` (unchanged), **non-prod → `db.t4g.micro`**.
-- Container Insights is stage-derived: `prod → ENHANCED` (unchanged), **non-prod → STANDARD**, in
-  both `identity-service-stack` and `food-service-stack`.
+- ~~Container Insights is stage-derived: `prod → ENHANCED` (unchanged), **non-prod → STANDARD**, in
+  both `identity-service-stack` and `food-service-stack`.~~
+
+    > ⚠️ STALE (2026-09-04): Container Insights is no longer stage-derived and no stage runs ENHANCED **or**
+    > STANDARD. It is the constant `CONTAINER_INSIGHTS_TIER = ContainerInsights.DISABLED`
+    > (`packages/infra/security/src/containerInsights.ts:47`), applied to every ECS cluster in every stage —
+    > `containerInsightsForStage` no longer exists. Withdrawn in two steps by this ADR's own **Update
+    > (2026-08-27)** (prod ENHANCED → STANDARD, `pr-{N}` → DISABLED) and **Update (2026-08-30)** (DISABLED
+    > everywhere, stage parameter removed). Read those before acting on the sentence above.
 
 **2. Scheduled nightly shutdown of sandbox (America/New_York).** A `SandboxSchedulerStack`
 (created by `GlobalStack` **only when `stage === 'sandbox'`**) provisions an EventBridge Scheduler
@@ -42,7 +49,18 @@ Prod is never targeted (the Lambda selects only `*-sandbox*` resources). The Lam
 least-privilege IAM scoped to those actions.
 
 **What is NOT scheduled off:** the shared ALB (no stop primitive; delete/recreate churns DNS + the
-listener imports and is not worth ~7h/night). It remains the residual sandbox cost.
+listener imports and is not worth ~7h/night). ~~It remains the residual sandbox cost.~~
+
+> ⚠️ STALE (2026-09-04): the ALB is still not _scheduled_ off — that half stands, an ALB has no stop
+> primitive — but it is no longer the residual cost, because it is now **DELETED and rebuilt on demand**.
+> [ADR-0028](0028-on-demand-sandbox.md)'s Update (2026-08-30) put `kitchensink-alb-sandbox` **and the shared
+> sandbox identity service** on the on-demand lifecycle: `.github/workflows/sandbox-reconcile.yml` ("Reclaim
+> the shared sandbox ALB and identity service") runs `.github/scripts/sandbox-shared-tier.sh down` on any
+> hourly pass where no preview is live and nothing is using the tier. Two consequences for the sentences
+> above: the "delete/recreate churns DNS" objection was re-argued and overturned there, and the
+> `ecs:UpdateService` scale-to-zero step of the scheduler now usually finds **nothing to scale**, because the
+> sandbox identity service is a deleted stack rather than a stopped one and a schedule cannot recreate a
+> stack.
 
 **"Idle" scope.** The nightly window is the concrete idle mechanism; the stoppable resources are
 RDS, ECS, and the NAT instance. Finer traffic-based scale-to-zero (e.g. ECS autoscaling on request
@@ -52,9 +70,18 @@ sandbox on weekends); only the nightly 00:00–09:00 ET window is shut down.
 
 ## Consequences
 
-- Sandbox compute is off ~9h/day (~37.5%). Combined with the `small → micro` RDS downsize and
+- ~~Sandbox compute is off ~9h/day (~37.5%). Combined with the `small → micro` RDS downsize and
   `ENHANCED → STANDARD` insights, estimated savings ≈ **$25–35/mo** now, plus it caps the cost the
-  food service adds when it deploys (its cluster inherits STANDARD insights in non-prod).
+  food service adds when it deploys (its cluster inherits STANDARD insights in non-prod).~~
+
+    > ⚠️ STALE (2026-09-04): only the RDS `small → micro` downsize survives unchanged
+    > (`packages/infra/global/lib/platform/DataStack.ts:115`). The other two premises are gone: Container
+    > Insights is DISABLED everywhere (see the mark on Decision §1), so no cluster "inherits STANDARD"; and
+    > sandbox **compute** is no longer merely off 9h/day — under [ADR-0028](0028-on-demand-sandbox.md) it is
+    > deleted when idle and rebuilt by a button press. What this schedule still governs, and all it governs,
+    > is the two resources that can only be stopped: the sandbox RDS instance and the `t4g.nano` NAT
+    > instance, which run 09:00–00:00 ET daily.
+
 - **Cold start each morning**: the sandbox RDS takes a few minutes to become available at 09:00 ET,
   and ECS tasks restart — sandbox is briefly unavailable before 09:00 and during startup. Acceptable
   for a preview tier; documented so a 3am sandbox check isn't mistaken for an outage.
@@ -156,8 +183,13 @@ series meets a workload that mints a new series four times a day.
 
 1. **Container Insights is `pr-{N}` → DISABLED, every named stage (prod included) → STANDARD.** ENHANCED
    is no longer reachable from any stage.
-2. **The tier decision lives in ONE place** — `containerInsightsForStage`
+2. **The tier decision lives in ONE place** — ~~`containerInsightsForStage`~~
    (`packages/infra/security/src/containerInsights.ts`) — not a ternary repeated in three stacks.
+
+    > ⚠️ STALE (2026-09-04): `containerInsightsForStage` no longer exists — the Update of 2026-08-30 below
+    > collapsed it to the constant `CONTAINER_INSIGHTS_TIER`
+    > (`packages/infra/security/src/containerInsights.ts:47`). The "one place" half of the decision is
+    > unchanged; only the symbol name is wrong, and grepping for the old name finds nothing.
 
 **Why `pr-{N}` drops to nothing rather than STANDARD.** A preview is observed by its CI smoke test and by a
 human reading the PR; neither queries ECS cluster metrics. STANDARD still costs ~111 series per open PR

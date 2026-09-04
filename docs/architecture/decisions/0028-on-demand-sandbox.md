@@ -28,12 +28,30 @@ expiry, and dispatches the deploys.
 an absolute epoch in the `SandboxExpiresAt` stack tag. Nothing downstream recomputes it.
 
 **3. An hourly reconciler converges reality to intent.** `sandbox-reconcile.yml` reaps anything past its
-expiry and — when no sandbox is live at all — stops the shared sandbox tier.
+expiry and — ~~when no sandbox is live at all — stops the shared sandbox tier~~.
+
+> ⚠️ STALE (2026-09-04): only the FIRST half of §3 still holds. **The reconciler stops nothing.** The
+> `{"action":"stop"}` invocation was WITHDRAWN by the owner ruling recorded in "Update (2026-09-03)" at the
+> bottom of this ADR. What the last step of `sandbox-reconcile.yml` does now is invoke
+> `.github/scripts/sandbox-shared-tier.sh down` — a DELETE of the ALB + identity stacks, not a stop of the
+> RDS/NAT/ECS tier (`.github/workflows/sandbox-reconcile.yml:212-247`, whose own comment records the
+> withdrawal). `sharedTierLifecycle.test.ts` asserts the absence in both directions: no `{"action":"stop"}`
+> and no hand-rolled `stop-db-instance` / `--desired-count 0` equivalent.
 
 **4. ADR-0010's ensure-exists gate gains a precondition.** `deploy-gate.sh decide` takes `<intent>` as a
 new REQUIRED first parameter; absence of a stack no longer deploys on its own.
 
-**5. ADR-0007's 09:00 start schedule is deleted.** The 00:00 stop survives.
+~~**5. ADR-0007's 09:00 start schedule is deleted.** The 00:00 stop survives.~~
+
+> ⛔ FALSE (2026-09-04): **the 09:00 start schedule EXISTS.** It was restored under its original construct id
+> by the owner ruling recorded in "Update (2026-09-03)" below — _"The RDS should still be stopped and started
+> on the original schedule."_ Proof:
+> `packages/infra/global/lib/platform/SandboxSchedulerStack.ts:200-207` —
+> `new scheduler.Schedule(this, 'SandboxStartSchedule', { schedule: dailyAt('9'), … { action: 'start' } })`,
+> `TimeZone.AMERICA_NEW_YORK`, beside `SandboxStopSchedule` at `dailyAt('0')`
+> (`SandboxSchedulerStack.ts:188-195`). `SandboxSchedulerStack.test.ts` pins both cron expressions and the
+> pairing of each action to its own hour. ADR-0007 §"stop at 00:00 ET, start at 09:00 ET, daily" is therefore
+> the accurate description of the live schedule, not this line.
 
 ## Why each of these, and what breaks without it
 
@@ -86,10 +104,19 @@ was written after.
 
 ### Why the 00:00 stop survives while the 09:00 start goes
 
-The start would resurrect the whole tier every weekday morning regardless of intent, silently undoing the
-reaper. The stop is kept for a **different** reason than "backstop": it is the thing that catches the 7-day
-RDS auto-restart in the weeks when GitHub Actions does not run at all. The scheduler Lambda keeps its
-`start` action — that is how the button wakes the tier — only the _schedule_ is removed.
+> ⛔ FALSE (2026-09-04) — THIS WHOLE SUBSECTION IS REVERSED. Both schedules exist
+> (`SandboxSchedulerStack.ts:188-207`). The argument below is preserved because its _premise_ is the
+> instructive part and it expired rather than being wrong: it held while the shared ALB and identity service
+> were merely STOPPED, and this ADR's own Update of 2026-08-30 made them DELETED STACKS — a schedule cannot
+> create a stack, so a 09:00 `start` can now resurrect only the two resources that were ever stoppable (the
+> sandbox RDS instance and the NAT EC2 instance). See "Update (2026-09-03) — the 09:00 start is RESTORED"
+> below for the ruling and the reasoning.
+
+~~The start would resurrect the whole tier every weekday morning regardless of intent, silently undoing the
+reaper.~~ The stop is kept for a **different** reason than "backstop": it is the thing that catches the 7-day
+RDS auto-restart in the weeks when GitHub Actions does not run at all. ~~The scheduler Lambda keeps its
+`start` action — that is how the button wakes the tier — only the _schedule_ is removed.~~ ⚠️ STALE
+(2026-09-04): the scheduler Lambda keeps its `start` action AND its schedule.
 
 ### One teardown implementation, still
 
@@ -110,9 +137,12 @@ discovery step deliberately omits `set -e` so one stack's hiccup cannot cancel t
 - Expected saving **$30–45/month**, on top of the $101 already recovered from Container Insights.
 - **A sandbox can expire mid-session.** Press the button again — it re-stamps the expiry and redeploys,
   which is also how you extend one you are still working in.
-- **The residual floor is the sandbox ALB (~$16.43/mo) and its RDS storage.** An ALB cannot be stopped, only
+- ~~**The residual floor is the sandbox ALB (~$16.43/mo) and its RDS storage.** An ALB cannot be stopped, only
   deleted, and deleting it requires tearing down every stack importing its listener ARN first — ADR-0002's
-  export-in-use deadlock. Deliberately out of scope.
+  export-in-use deadlock. Deliberately out of scope.~~
+  ⚠️ STALE (2026-09-04): superseded by "Update (2026-08-30)" in this same ADR — the ALB and the shared
+  identity service ARE reclaimed (`.github/scripts/sandbox-shared-tier.sh`, `sandboxSharedTier.test.ts`).
+  What remains of the floor is the RDS gp3 storage (~$11.13/mo).
 - Per-PR logical databases (ADR-0006) are destroyed with the preview. Acceptable, and the reason a logical
   seed template is a prerequisite for treating sandbox data as reproducible.
 
@@ -224,8 +254,12 @@ order fails 1.
 - **Saving $23.73/month**, on top of this ADR's original $30–45 and the $101 from Container Insights.
 - **A button press now costs ~5–8 minutes more** — ALB creation plus DNS — and fails loudly if the rebuild
   fails, rather than deploying previews nobody can sign into.
-- **Sandbox identity CloudWatch log groups are destroyed and recreated**, so log history no longer survives
-  across sandboxes.
+- ~~**Sandbox identity CloudWatch log groups are destroyed and recreated**, so log history no longer survives
+  across sandboxes.~~
+  ⚠️ STALE (2026-09-04): retired by "The log-group edge" section below, which this ADR already says retires
+  it. `ServiceLogsStack` owns the group under the stable name `/kitchensink/identity-service/{stage}`
+  (`packages/infra/global/lib/platform/ServiceLogsStack.ts:71-73`) and `IdentityServiceStack` imports it
+  (`IdentityServiceStack.ts:263-267`), so log history now DOES survive a sandbox teardown.
 - `continue-on-error` is deliberately absent from the reclaim step. The first draft had one so a failed ALB
   delete would not block stopping the RDS; that bought it by reporting the job GREEN, which is how an ALB
   that never deletes bills forever behind a passing check. `workflowInvariants` invariant 4 caught it. It was

@@ -1,6 +1,15 @@
 # 0001 — Sandbox front-end addressing: path-based PR routing, not per-PR subdomains
 
-- **Status:** Accepted, **with a reachability defect whose cure is now automated but not yet observed on a fresh PR** — see the _Update (2026-07-28)_ below: the router's Host swap makes every subdomain preview unreachable in a browser, and the fix is the addressing change (previews resolve to Vercel directly), which CI now performs per PR (`preview-domain` job, #94) after being executed by hand once on PR #73. Originally _path routing implemented_ (per-PR `basePath` builds + a singleton CloudFront + CloudFront Function (runtime 2.0) + KeyValueStore router that host-swaps `/pr-{N}/*` to each PR's app, with the project-wide Vercel bypass token injected at the edge). The **manifest/static-resource mechanism** and **native mobile** remain deferred. **Revisited 2026-07-12** — a feasibility spike found per-PR **subdomains are viable** after all (see the Update below); migration to subdomains is planned. Path routing stays in place until it lands.
+> ⚠️ STALE (2026-09-04): **the title states the REVERSED decision, and so does everything under
+> _Context_ / _Decision_ below.** The subdomain cutover was EXECUTED 2026-07-13: previews serve at
+> `pr-{N}.sandbox.commise.app` **at root** and the path form 404s by design. The title and the original
+> body are kept as the record of what was believed; the live posture is the _Update (2026-07-12)_, the
+> _Update (2026-07-28)_, and the `CUTOVER EXECUTED` note under **Implementation guards**. Proof in the
+> tree: `packages/apps/commise/web/src/lib/basePath.ts:19` returns an EMPTY basePath whenever
+> `SANDBOX_PREVIEW_MODE === 'subdomain'`, and the `preview-domain` job at
+> `.github/workflows/sandbox-deploy.yml:189` publishes the per-PR subdomain on every non-closed PR event.
+
+- **Status:** Accepted, ~~**with a reachability defect whose cure is now automated but not yet observed on a fresh PR**~~ — see the _Update (2026-07-28)_ below: ~~the router's Host swap makes every subdomain preview unreachable in a browser~~, and the fix is the addressing change (previews resolve to Vercel directly), which CI now performs per PR (`preview-domain` job, #94) after being executed by hand once on PR #73. ⚠️ STALE (2026-09-04): the cure HAS since run on a fresh PR, and it takes previews OUT of the router path entirely (the per-PR `CNAME` is more specific than the `*.sandbox` alias, so it wins). The `preview-domain` job ran on PR #91 and was hardened there for Vercel's `deployment_not_ready` race (commit `9957ff3a`, `packages/apps/commise/web/scripts/createPreviewDomain.ts`); commit `01245099` then tightened `requirePreviewHost` to assert the whole preview zone, also from PR #91's review. ⚠️ UNVERIFIABLE FROM THE REPO (2026-09-04): whether a **browser** session on a current preview completes the Clerk handshake is live state — the repo can only show that the automation runs. Originally _path routing implemented_ (per-PR `basePath` builds + a singleton CloudFront + CloudFront Function (runtime 2.0) + KeyValueStore router that host-swaps `/pr-{N}/*` to each PR's app, with the project-wide Vercel bypass token injected at the edge). The **manifest/static-resource mechanism** and **native mobile** remain deferred. **Revisited 2026-07-12** — a feasibility spike found per-PR **subdomains are viable** after all (see the Update below); migration to subdomains is planned. Path routing stays in place until it lands.
 - **Date:** 2026-06-14
 - **Area:** sandbox deploy topology · web/mobile serving · Clerk session-token auth
 - **Related:** service-side Clerk session-token verification (PR #39), `.github/workflows/sandbox-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`, `packages/services/identity/src/auth/clerkAuth.service.ts`, `packages/services/identity/src/config/env.schema.ts`, the Option B′ spike (`docs/brainstorms/2026-07-10-sandbox-subdomain-azp-spike-requirements.md`, `docs/plans/2026-07-11-001-feat-sandbox-subdomain-azp-spike-plan.md`)
@@ -80,20 +89,41 @@ Teardown was ahead of setup for the first day of its life — it would correctly
 
 ## ⚠️ Before you change this — the trap
 
-If you are about to "simplify" sandbox previews to **per-PR subdomains** (`pr-123.commise.app`), relax/remove `CLERK_AUTHORIZED_PARTIES` enforcement on sandbox, or change where the sandbox web app is served from — **stop and read this first.** It looks like ordinary subdomain-per-preview routing should apply here. It deliberately does not, and reverting to it will silently 401 every sandbox sign-in.
+If you are about to "simplify" sandbox previews to **per-PR subdomains** (`pr-123.commise.app`), relax/remove `CLERK_AUTHORIZED_PARTIES` enforcement on sandbox, or change where the sandbox web app is served from — **stop and read this first.** ~~It looks like ordinary subdomain-per-preview routing should apply here. It deliberately does not, and reverting to it will silently 401 every sandbox sign-in.~~
+
+⛔ FALSE (2026-09-04): **per-PR subdomains ARE the live posture, and they do not 401.** The cutover ran
+2026-07-13 and a real sign-in on `pr-73.sandbox.commise.app` minted `azp = "https://pr-73.sandbox.commise.app"`
+(see _Update (2026-07-28)_). What this trap should say now: do **not** relax or remove the `azp` guard on
+sandbox, because the anchored-regex check in `resolveAzpEnforcement`
+(`packages/shared/clerk-verify/src/clerkVerify.ts:174`, wired at
+`packages/services/identity/src/auth/clerkAuth.service.ts:36`) is the ONLY origin restriction on the dev
+instance — the instance itself reflects any `Origin` with `allow-credentials: true`. And do not restore path
+routing: the `sandbox.commise.app/pr-{N}` form 404s by design.
 
 ## Context
 
 - The **sandbox identity service is a single shared, persistent environment** (`STAGE=sandbox`, `registration.identity.sandbox.commise.app`). Every per-PR front-end points at that one service. (See `sandbox-identity-deploy.yml` — "one shared sandbox env".)
 - All sandbox front-ends authenticate against **one shared Clerk _dev_ instance** (`pk_test`).
 - The identity service verifies the **Clerk session token** itself and enforces the token's **`azp` (authorized party)** claim against `CLERK_AUTHORIZED_PARTIES`. Critically, Clerk's check is **exact-string `Array.includes(azp)`** — **no wildcards, no glob, no subdomain matching** (verified in `@clerk/backend`). A token's `azp` is the **browser Origin where the web app (ClerkJS) is served**, and is independent of how that app addresses the API.
-- Therefore: if sandbox web previews are served from **per-PR subdomains** (`pr-{N}.commise.app`), each mints tokens with a different, unbounded `azp`. The single shared `CLERK_AUTHORIZED_PARTIES` value on the shared identity service cannot enumerate unbounded future `pr-{N}` origins → every preview 401s. The `*.commise.app` wildcard **cert** does not help; `azp` is not certificate-based.
+- ~~Therefore: if sandbox web previews are served from **per-PR subdomains** (`pr-{N}.commise.app`), each mints tokens with a different, unbounded `azp`. The single shared `CLERK_AUTHORIZED_PARTIES` value on the shared identity service cannot enumerate unbounded future `pr-{N}` origins → every preview 401s.~~ The `*.commise.app` wildcard **cert** does not help; `azp` is not certificate-based.
+    - ⛔ FALSE (2026-09-04): this inference is the one the 2026-07-12 spike overturned, and the two bullets
+      above it are the premise. `Array.includes(azp)` is what `@clerk/backend` does **only because we pass
+      `authorizedParties`**; identity does not, on preview stages — it validates the signature-verified `azp`
+      against an anchored regex built by `buildPreviewAzpPattern` / `buildTransitionAzpPattern`
+      (`packages/shared/clerk-verify/src/clerkVerify.ts:122`, `:127`), selected by
+      `resolveAzpEnforcement` (`:174`). A bounded family of `pr-{N}` origins is therefore admitted with
+      enforcement **ON**. Read _Update (2026-07-12)_ and _Update (2026-07-28)_ before acting on this
+      section.
 - Re-routing the **identity service** (domain vs. path) changes nothing here — `azp` keys on the **web app's** origin, not the API's address.
 
 ## Decision
 
-1. **Serve all sandbox web previews from one stable origin** — `sandbox.commise.app` — and select the PR via the **URL path** (and/or cookie), e.g. `sandbox.commise.app/pr-123/…`, **not** via a per-PR subdomain. This pins the sandbox `azp` to a single value (`https://sandbox.commise.app`) that `CLERK_AUTHORIZED_PARTIES` can list, so `azp` enforcement stays **on** in sandbox (matching prod's posture) rather than being disabled.
-2. **Manifest query params select static resources (proposed sub-mechanism).** Because previews share one origin, the app resolves which PR's static bundle/assets to load from a **manifest query param** (e.g. `?manifest=pr-123`) rather than from the host. This is the agreed direction; the exact param shape is to be finalized during implementation.
+⚠️ STALE (2026-09-04): **decisions 1 and 2 were REVERSED by the 2026-07-13 cutover** and are retained only
+as the record. Struck below; the live decision is per-PR subdomains at root, gated by the anchored-regex
+`azp` predicate.
+
+1. ~~**Serve all sandbox web previews from one stable origin** — `sandbox.commise.app` — and select the PR via the **URL path** (and/or cookie), e.g. `sandbox.commise.app/pr-123/…`, **not** via a per-PR subdomain. This pins the sandbox `azp` to a single value (`https://sandbox.commise.app`) that `CLERK_AUTHORIZED_PARTIES` can list, so `azp` enforcement stays **on** in sandbox (matching prod's posture) rather than being disabled.~~
+2. ~~**Manifest query params select static resources (proposed sub-mechanism).** Because previews share one origin, the app resolves which PR's static bundle/assets to load from a **manifest query param** (e.g. `?manifest=pr-123`) rather than from the host. This is the agreed direction; the exact param shape is to be finalized during implementation.~~ — MOOT under subdomain serving: each preview has its own origin, so there is no shared-origin bundle to disambiguate. It was never built (`grep -r manifest= packages/apps/commise/web/src` finds nothing), and the "deferred mechanism" line at the foot of this ADR should be read the same way.
 3. **Mobile is exempt by nature.** `@clerk/expo` tokens have no browser Origin; `azp` is typically absent, and Clerk **skips** the check when `azp` is absent. Confirm per build by decoding a real token, but mobile does not drive this decision.
 
 ## Consequences
@@ -131,10 +161,10 @@ If you are about to "simplify" sandbox previews to **per-PR subdomains** (`pr-12
 
 Path-routing guards are in place (`// ⚠️ DELIBERATE — see docs/architecture/decisions/0001`):
 
-- `packages/apps/commise/web/next.config.ts` + `src/lib/base-path.ts` — the per-PR `basePath` derivation (do not drop it / move to subdomains).
+- `packages/apps/commise/web/next.config.ts` + ~~`src/lib/base-path.ts`~~ — the per-PR `basePath` derivation (do not drop it / move to subdomains). ⛔ FALSE (2026-09-04): the path is `packages/apps/commise/web/src/lib/basePath.ts` (camelCase, per `docs/CODING_STANDARDS.md` §1 for frontend); no `base-path.ts` exists anywhere in the tree. Renamed by commit `c627679d` ("converge 511 file names on one regime").
 - `packages/apps/commise/web/src/middleware.ts` — the prefix-aware Clerk matcher (do not "simplify" back to root-anchored patterns — it silently makes protected routes public).
-- `packages/apps/commise/web/router/src/*` + `infra/lib/sandbox-router-stack.ts` — the host-swap router (do not switch to a prefix-stripping proxy or per-PR subdomains).
+- `packages/apps/commise/web/router/src/*` (`resolve.ts` + `router.cff.js`) + ~~`infra/lib/sandbox-router-stack.ts`~~ — the host-swap router (do not switch to a prefix-stripping proxy or per-PR subdomains). ⛔ FALSE (2026-09-04): the stack file is `packages/apps/commise/web/infra/lib/SandboxRouterStack.ts` (PascalCase); the kebab spelling does not exist. `ALL_VIEWER_EXCEPT_HOST_HEADER` is still set at `SandboxRouterStack.ts:103`, so the router machinery is all still present — item 4 of _What remains_ (retire it) is **not** done.
 
 The **azp** tripwires the ADR originally listed — `clerkAuth.service.ts` (azp handling) and `env.schema.ts` (`CLERK_AUTHORIZED_PARTIES`) — are owned by the create-user-flow work (PR #39) and the `CLAUDE.md` "Deliberate decisions" entry; not duplicated here.
 
-The **manifest/static-resource loader** guard lands with that deferred mechanism.
+~~The **manifest/static-resource loader** guard lands with that deferred mechanism.~~ ⚠️ STALE (2026-09-04): there is no such mechanism to guard — see the note on decision 2 above; subdomain serving removed the problem it was for.

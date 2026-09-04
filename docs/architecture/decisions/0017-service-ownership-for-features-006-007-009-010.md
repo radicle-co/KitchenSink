@@ -1,5 +1,20 @@
 # 0017 — Features 006, 007 and 009 land in the recipe service; 010 lands in the identity service. No new deployable is created
 
+> ⚠️ **STALE (2026-09-04) — THE TITLE IS NO LONGER TRUE IN TWO PLACES. Read the amendments before acting on
+> anything above them.**
+>
+> 1. **006 does NOT land in the recipe service.** The 2026-08-14 amendment at the foot of this file gives it
+>    its own deployable, `@kitchensink/meal-plan-service` + `@kitchensink/schema-meal-plan`, and the
+>    2026-08-16 amendment withdraws that amendment's stated reasoning while KEEPING the decision. The Decision
+>    table below still shows the superseded row; it is marked in place.
+> 2. **"No new deployable is created" is a DEFAULT that has since been set aside TWICE, by name, and this ADR
+>    never recorded either exception.** [ADR-0019](0019-recipe-import-spine.md) §3 takes a named exception for
+>    011's image-processing service, and [ADR-0025](0025-ingredient-parser-python-deployable.md) takes one for
+>    `packages/services/ingredient-parser` (the repository's first Python deployable, which **exists on disk**
+>    — the only one of the three new deployables named anywhere here that does). Both cite this ADR; neither
+>    is linked from it, which is exactly how a reader lands on the title and believes the default is absolute.
+>    The default itself stands: a new deployable must still be justified against what one costs here.
+
 - **Status**: Accepted
 - **Date**: 2026-08-12
 - **Drivers**: [GR-015](../../../specs/governance-rules.md) Current State recorded, for two months, that
@@ -49,12 +64,12 @@ that have **no implementation at all** yet.
 
 **No new deployable service is created for 006, 007, 009 or 010.**
 
-| Feature | Owning service                                                                  | Schema package (ADR-0014)      | Consuming client                                   |
-| ------- | ------------------------------------------------------------------------------- | ------------------------------ | -------------------------------------------------- |
-| **006** | `@kitchensink/recipe-service`                                                   | `@kitchensink/schema-recipe`   | `@kitchensink/recipe-service-client`               |
-| **007** | `@kitchensink/recipe-service`                                                   | `@kitchensink/schema-recipe`   | `@kitchensink/recipe-service-client`               |
-| **009** | `@kitchensink/recipe-service`                                                   | `@kitchensink/schema-recipe`   | `@kitchensink/recipe-service-client`               |
-| **010** | `@kitchensink/identity-service` (+ webhook in `@kitchensink/identity-webhooks`) | `@kitchensink/schema-identity` | the identity consumer named by 002's own OPEN item |
+| Feature | Owning service                                                                      | Schema package (ADR-0014)        | Consuming client                                   |
+| ------- | ----------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------- |
+| **006** | ⚠️ ~~`@kitchensink/recipe-service`~~ — **SUPERSEDED**, see the 2026-08-14 amendment | ~~`@kitchensink/schema-recipe`~~ | ~~`@kitchensink/recipe-service-client`~~           |
+| **007** | `@kitchensink/recipe-service`                                                       | `@kitchensink/schema-recipe`     | `@kitchensink/recipe-service-client`               |
+| **009** | `@kitchensink/recipe-service`                                                       | `@kitchensink/schema-recipe`     | `@kitchensink/recipe-service-client`               |
+| **010** | `@kitchensink/identity-service` (+ webhook in `@kitchensink/identity-webhooks`)     | `@kitchensink/schema-identity`   | the identity consumer named by 002's own OPEN item |
 
 Consequences that follow immediately and are not separate decisions:
 
@@ -197,7 +212,9 @@ prediction coming true in a document nobody treats as authoritative.
   The discipline that keeps it navigable is the one the service already has: one NestJS module per domain,
   one DAL per module, `*.schema.ts` beside the controller it serves.
 - **`@kitchensink/schema-recipe` becomes the largest schema package**, and its derived `openapi.yaml` grows
-  well past its current 4,945 lines. That is the intended shape — one contract document per service
+  well past its current 4,945 lines. ⚠️ **STALE (2026-09-04): it already has, without 006/007/009 landing at
+  all.** `packages/schemas/recipe/openapi.yaml` is **7,264 lines / 44 paths** today (004's import, ingredient
+  and parse-job surfaces), against food's 2,177 and identity's 760. That is the intended shape — one contract document per service
   (ADR-0014 decision 6) — but it makes the regenerate-and-diff gate's runtime and the `oasdiff` output
   correspondingly larger.
 - **The service name understates its contents.** Stated above; not a bug, not a rename candidate.
@@ -212,8 +229,18 @@ prediction coming true in a document nobody treats as authoritative.
 **Known-incomplete work (as of 2026-08-12).**
 
 - **None of these four features is implemented.** This ADR decides where they land, not that they have landed.
+  ⚠️ **Re-verified 2026-09-04: still true, in full.** `packages/schemas/recipe/openapi.yaml` publishes no
+  `/api/v1/meal-plans/*`, `/api/v1/grocery-lists/*` or `/api/v1/nutrition-plans/*` path; `recipe-service/src/`
+  has no `meal-plans`, `grocery-lists` or `nutrition-plans` module; identity publishes no `/api/v1/billing/*`
+  path and `stripe_webhook_events` exists only in 010's spec (`packages/shared/identity-db/src/schema/` holds
+  `webhookEvents.ts` and nothing Stripe-shaped); and `packages/services/meal-plan-service` /
+  `packages/schemas/meal-plan` do not exist. **Every package name in this ADR's Decision table and in both
+  amendments is a decision about where code WILL live, not a path you can open.**
 - **Four task files need repointing** to the packages decided here (006, 007, 009, 010), and two of them
   additionally specify `class-validator` DTOs, which GR-016 §16-a forbids in a service that has one mechanism.
+- ⚠️ **STALE (2026-09-04): 011 HAS since been revisited**, by [ADR-0019](0019-recipe-import-spine.md) §3,
+  which grants its image-processing service a named exception to this ADR's default (and requires it to own no
+  database). The bullet below is otherwise unchanged for 005, 012 and 013.
 - **This ADR does not revisit 005, 011, 012 or 013**, each of which already names one or more new services in
   its own spec (`ai-service`, `digitization-service`, `circles-service`, `creator-profiles-service`,
   `cooking-school-service`, plus worker packages). The same question this ADR answers — _does this need its

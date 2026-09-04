@@ -91,9 +91,20 @@ repealed purpose is removed, not renamed into a counter it cannot serve.
 
 ### 2. No erasure sweep targets any of the three tables
 
-Steps 10, 11 and 12 come out of `eraseRecipeRows`. Steps 1–9 are untouched: they cover `recipes`,
-`account_erasure_jobs`, `recipe_ratings`, `collections` and `author_handles`, all of which hold genuinely
+Steps 10, 11 and 12 come out of `eraseRecipeRows`. ~~Steps 1–9 are untouched: they cover `recipes`,
+`account_erasure_jobs`, `recipe_ratings`, `collections` and `author_handles`~~, all of which hold genuinely
 personal content (recipe text a cook wrote, their collections, their ratings, their cleartext handle).
+
+⚠️ STALE (2026-09-04) — the STEP NUMBERS and the table list, not the ruling. The ruling ("no sweep targets
+the three tables") still holds and is restated in the sweep's own docstring. But `eraseRecipeRows` has grown
+since: it now numbers **fourteen** steps, and the surviving core is steps **1–11** (which also cover
+`recipe_versions.editor_handle`, omitted from the list above). Three genuinely new sweeps landed AFTER this
+ADR and are not exceptions to it —
+`packages/services/recipe-workers/src/handlers/accountErasureWorker.ts:559` (step 12,
+`DELETE FROM recipe_parse_jobs`, the cook's pasted text — U8/U9, migration 0039),
+`:573` (step 13, the unreferenced private authored foods in `ingredients` — ADR-0029 §6, migration 0040) and
+`:595` (step 14, `UPDATE analytics_events SET user_id = NULL, query_text = NULL` — ADR-0030 §2, migration
+0043, deliberately STRICTER than this ruling because a typed search query is the user's own words).
 
 ### 3. `author_id` / `owner_id` → `user_id` on both correction tiers
 
@@ -110,6 +121,10 @@ claiming it does.** Three spellings for a user reference survive: `owner_id` (`r
 and now the two correction tiers). Two tables of six are corrected. Renaming `recipes.owner_id` is a
 different change with a different blast radius — it is load-bearing in the erasure sweep, the visibility
 policy and every recipe read path — and it is not attempted here.
+
+⚠️ STALE (2026-09-04): the DENOMINATOR moved, not the decision. The recipe database now has **11**
+user-bearing tables, not six-plus-two: `recipe_parse_jobs.owner_id` (0039), `ingredients.food_owner_id`
+(0040) and `analytics_events.user_id` (0043) landed later. Four spellings survive, not three.
 
 ⛔ **`user_id` stays NULLABLE.** A `corroboration` binding has no user, because nobody wrote it — two people's
 agreement produced it — and the partial indexes' `user_id IS NOT NULL` half is what excludes those rows from a
@@ -162,6 +177,13 @@ column would leave the gate demanding a sweep for something that does not exist.
 direction a union cannot, so it is bounded two ways: the fold's result must be a SUBSET of the union, and the
 non-vacuity floor is set against the current count (8) rather than a historical one.
 
+⚠️ STALE (2026-09-04): the floor is now `MINIMUM_OWNER_BEARING_TABLES = 9`
+(`packages/infra/global/__tests__/erasureSweepCoverage.test.ts:352`), and the ZERO-SLACK property this
+paragraph relies on has been lost: the recipe schema's current user-bearing count is **11** (adding
+`recipe_parse_jobs` from 0039 and `analytics_events` from 0043 to the nine the constant was last raised
+for), so a fold could now spuriously drop two tables without going red. The bound stated here is real but
+weaker than described; raising the constant is owed.
+
 ⚠️ **`MINIMUM_DE_IDENTIFYING_STATEMENTS` was DELETED, and that is the one place this gate got weaker.**
 Recorded plainly: the sweep now issues zero de-identifying statements, so any positive floor would be false
 and a floor of `0` would be a constant named MINIMUM that enforces nothing. The pairing assertion becomes a
@@ -205,7 +227,13 @@ retry rather than a silent under-delivery.
 
 ## Consequences
 
-- The erasure transaction is three statements shorter and touches five tables instead of eight.
+- ~~The erasure transaction is three statements shorter and touches five tables instead of eight.~~
+  ⚠️ STALE (2026-09-04): true of the change itself, false as a description of the sweep today. The
+  transaction now issues fourteen numbered steps across **nine** tables — `recipes`,
+  `account_erasure_jobs`, `recipe_ratings`, `collections`, `recipe_versions`, `author_handles`,
+  `recipe_parse_jobs`, `ingredients` and `analytics_events`
+  (`packages/services/recipe-workers/src/handlers/accountErasureWorker.ts:485-599`). None of the three
+  additions touches the tables this ADR retained.
 - A cook who erases their account leaves their ingredient corrections and their opaque id behind, and those
   corrections keep counting toward promotion. That is the intended behaviour, not a leak.
 - `ingredient_resolution_memos` rows are now impersonal by construction: a key, a food id, a phrase and the

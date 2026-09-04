@@ -24,6 +24,16 @@ Measured 2026-08-11, across the three deployed HTTP services:
 So input validation is **three different mechanisms**, and the service holding the ingredient catalog has
 none. Four concrete failures follow from that state, and each one is a different kind of wrong:
 
+> ⚠️ **STALE (2026-09-04) — the table above is a 2026-08-11 measurement and NONE of its three rows still
+> describes the code.** Re-measured on disk: `grep -rl "from 'class-validator'"` over `packages/services/*/src`
+> returns **zero** files (the "19 files" residue is gone; see the correction under _Known-incomplete work_ for
+> why 19 was never the right number either); `food-service` registers `nestjs-zod`'s `ZodValidationPipe`
+> globally at `packages/services/food-service/src/app.module.ts` and has `createZodDto` DTOs
+> (`src/foods/dto/foods.dto.ts`), so "no validation pipe at all" is no longer true; and identity registers the
+> same pipe at `packages/services/identity/src/app.module.ts:55`, under a comment naming the wrong-pipe trap
+> this ADR's alternative 5 describes. All three services now run the one mechanism this ADR decided on. The
+> table is kept as the measurement that motivated the decision, not as a description of today.
+
 1. **The error contract collapses.** `food-service` takes `@Body() body: unknown` and hand-writes a
    `safeParse` per method. A **wrong-typed field**, a **missing field** and an **unknown key** therefore all
    report `{ error: 'Empty name' }`. Three distinct client mistakes, one answer that fixes none of them.
@@ -46,6 +56,15 @@ Injection was measured at the same time and is, unusually, **not currently a liv
 `erasureSweeper.ts` / `erasureOrphanSweeper.ts`) and all three receive a config value or a module
 constant. `sql.raw` bypasses parameterisation **by design**, so that is a state to hold deliberately rather
 than a box already ticked.
+
+> ⚠️ **STALE (2026-09-04) — the three sites are gone and the state is now held by a LINT BAN, not by review.**
+> `sql.raw(` no longer appears in any non-test source under `packages/` (the only surviving mentions are
+> prose: `packages/services/recipe-service/src/search/dal/search.dal.ts:366,429` and
+> `packages/services/recipe-service/src/recipes/dal/parseJobs.dal.ts:21`, each explaining why a bound
+> parameter replaced it). The shared ESLint config carries an unscoped `no-restricted-syntax` rule banning
+> `sql.raw()` outright (`packages/tools/eslint/index.js:551-569`), covered by
+> `packages/tools/eslint/__tests__/rawSqlBan.test.js`. See the correction on the `sql.raw` bullet under
+> _Consequences_, which this supersedes.
 
 ## Decision
 
@@ -168,14 +187,25 @@ proof of what they sent.
   storage types; the alternative was rejected above.
 - **The unknown-key decision must be made per surface** rather than inherited from a framework default, which
   is more thinking per endpoint.
-- **`sql.raw` stays available.** The rule constrains what may reach it rather than banning it, so this
-  depends on review and on the allowlist pattern holding.
+- ~~**`sql.raw` stays available.** The rule constrains what may reach it rather than banning it, so this
+  depends on review and on the allowlist pattern holding.~~
+  ⛔ **FALSE (2026-09-04): `sql.raw()` is now BANNED outright, by lint, repo-wide.** The shared config's
+  unscoped `no-restricted-syntax` block rejects it with "Do not use sql.raw() — it splices its argument into
+  the statement text and bypasses parameterisation…" (`packages/tools/eslint/index.js:551-569`, tested by
+  `packages/tools/eslint/__tests__/rawSqlBan.test.js`), and the repository has **zero** call sites left. This
+  does not depend on review any more. Decision 7 above (a request-derived value never reaches `sql.raw()`) is
+  therefore satisfied by construction rather than by the allowlist pattern.
 - **Response shape remains weakly gated** while alternative 1 stands. Stated, not hidden.
 
 **Known-incomplete work (as of 2026-08-12) — do not read this ADR as a description of a finished state.**
 
-- Recipe's `class-validator` residue and food's **missing pipe** are both mid-convergence. Two efforts were
-  editing this code the day this ADR was written.
+- ~~Recipe's `class-validator` residue and food's **missing pipe** are both mid-convergence. Two efforts were
+  editing this code the day this ADR was written.~~
+  ⚠️ **STALE (2026-09-04) — both landed.** `grep -rl "from 'class-validator'" packages/services/*/src` returns
+  **zero** files, so the single importer named below (`searchRecipes.query.dto.ts`) is gone; and food's pipe is
+  committed — `packages/services/food-service/src/app.module.ts` registers `nestjs-zod`'s `ZodValidationPipe`
+  and `src/foods/dto/foods.dto.ts` carries `createZodDto` DTOs, with
+  `src/foods/__tests__/routeValidation.test.ts` posting known-bad bodies through the real routes.
     - ⚠️ **Correction to the "19 files" figure used above and in `docs/CODING_STANDARDS.md` §15.4.** Re-measured
       2026-08-12 with `grep -rl "from 'class-validator'"` over service sources (excluding `dist`): **exactly ONE
       file imports it** — `packages/services/recipe-service/src/search/dto/searchRecipes.query.dto.ts`. The 19
@@ -186,14 +216,42 @@ proof of what they sent.
     - 🔄 Food's pipe fix was **in the working tree and uncommitted** on 2026-08-12 (5 `ZodValidationPipe` /
       3 `createZodDto` sites). Committed `main` was still 0 / 0, which is what the _Context_ table describes.
 - No service validates responses (decision 9 / alternative 1) — that is the intended state.
-- Features **006–010** do not yet name an owning service package for their endpoints (GR-015 Current State),
-  so GR-016 binds them prospectively.
+- ~~Features **006–010** do not yet name an owning service package for their endpoints (GR-015 Current State),
+  so GR-016 binds them prospectively.~~
+  ⚠️ **STALE (2026-09-04): closed by [ADR-0017](0017-service-ownership-for-features-006-007-009-010.md)
+  (2026-08-12) and its two amendments.** 007 and 009 land in `@kitchensink/recipe-service`, 010 in
+  `@kitchensink/identity-service` (+ `@kitchensink/identity-webhooks`), and 006 is ruled into its own
+  `@kitchensink/meal-plan-service` by the 2026-08-14 amendment (a decision — that package does not exist on
+  disk). GR-016 still binds all four prospectively — none of them is implemented — but the owner is no longer
+  unnamed.
 - **A `CLAUDE.md` pointer and co-located `// ⚠️ DELIBERATE` guards are owed** — per this directory's README,
   an ADR that governs code needs an always-in-context tripwire. The two sites that most need one are the
   `sql.raw()` call sites and wherever the validation pipe is registered, plus a note where response
   validation would plausibly be "added".
+    - ⚠️ **STALE (2026-09-04), in part.** The **root `CLAUDE.md` pointer is still missing** — no
+      "looks wrong, isn't" bullet cites this ADR (verified: `grep -n "0015-input-validation" CLAUDE.md`
+      returns nothing), so that half stands. The two code sites do not: the `sql.raw()` call sites no longer
+      exist (a lint ban replaced them — see the correction in _Consequences_), and every service's pipe
+      registration carries the guard (e.g. `packages/services/identity/src/app.module.ts:42-55`, whose comment
+      states that Nest's own `ValidationPipe` "would pass every body straight through — validating nothing
+      while LOOKING…"). The response-validation note is carried normatively instead, by
+      `docs/CODING_STANDARDS.md` §15 and `specs/governance-rules.md` GR-016 §16-g.
 
 **OPEN — recorded, not decided. No ruling has been made on either.**
+
+> ⚠️ **STALE (2026-09-04): BOTH questions below have since been RULED ON, elsewhere. Neither is open.**
+> **OPEN-GR-016-A is CLOSED** — the storage floor is enforced by a per-service parity test, and it is built:
+> `packages/services/recipe-service/src/database/__tests__/storageCapacity.test.ts`,
+> `packages/services/food-service/src/db/schema/__tests__/storageCapacity.test.ts` and
+> `packages/services/identity/src/types/schema/__tests__/storageCapacity.test.ts` are exhaustive over
+> **columns** (not over the nine known fields), throw on an unrecognised column type, and require a written
+> reason for an exemption. It is an ASSERTION, not a derivation, exactly as decision 6 requires — the ceilings
+> are spelled as literals in `packages/shared/recipe-core/src/recipeRequestBounds.ts`
+> (`INT4_CEILING`, `NUMERIC_8_2_CEILING`) and nothing imports a drizzle type into a wire schema. Ruled in
+> `specs/governance-rules.md` GR-016 (✅ OPEN-GR-016-A) and `docs/CODING_STANDARDS.md` §15.
+> **OPEN-GR-016-B is CLOSED** — `z.strictObject()` **is** the portfolio default for mutating request bodies,
+> with plain `z.object()` requiring a documented forward-compatibility reason at the schema. Ruled in
+> `docs/CODING_STANDARDS.md` §15.5.2 and recorded at `specs/governance-rules.md` GR-016 (✅ OPEN-GR-016-B).
 
 - 🟠 **OPEN-GR-016-A — what mechanically enforces the storage floor?** A per-service parity test that
   enumerates bounded columns and asserts each writing wire field rejects an out-of-range value is the only

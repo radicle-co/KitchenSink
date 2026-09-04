@@ -40,6 +40,27 @@ Four problems, all consequences of each feature having designed its import path 
 
 ## Decision
 
+> ⚠️ **STALE (2026-09-04) — NONE OF THE SPINE BELOW IS BUILT. This whole section is a decision, not a
+> description, and the ADR never said so.** Verified on disk: `packages/schemas/recipe/openapi.yaml` publishes
+> **no** bulk-import path (its 44 paths are recipes, photos, versions, ratings, collections, search,
+> ingredients, parse-jobs, account) — no import endpoint, no import-method chooser surface, no
+> `queued/processing/succeeded/failed/errored` status contract, and no per-entity status emitter anywhere in
+> `packages/services/*/src`. §3's image-processing service does not exist (`packages/services/` holds
+> `food`, `food-service`, `identity`, `identity-webhooks`, `ingredient-parser`, `recipe-service`,
+> `recipe-workers`), and neither does 011's Circles deployable. §5's placeholder/shell rows are likewise
+> unimplemented. `packages/shared/recipe-import-core` — the one package whose name suggests otherwise — is
+> **ingredient-line parsing** (`ingredientLine.ts`, `splitMeasurement.ts`, `normalizeQuantity.ts`), not the
+> spine; so is `/api/v1/recipe-parse-jobs`, and so is `packages/tools/cookbook-import`, a local corpus tool
+> with no deployed surface.
+>
+> ⚠️ **One shipped name is easy to misread as this ADR's.** `sourceType` **does** exist
+> (`packages/shared/recipe-core/src/recipe.types.ts:88-107`) but its four members are **provenance** —
+> `user_created`, `imported_public`, `imported_physical`, `imported_paid` — governed by
+> [ADR-0023](0023-curator-declared-provenance.md), **not channels**. §1's "a new channel is an adapter plus a
+> `sourceType` member" therefore does not describe today's union: a URL channel and a file channel are not
+> distinguishable in it. Whether the channel axis becomes a second field or new members of this one is an
+> open design question, not a settled one.
+
 ### 1. One bulk import processor; channels differ only in extraction
 
 Every import channel — URL, structured file, Instagram, and (via 011) photo — terminates in **one** bulk
@@ -80,6 +101,13 @@ processor as every other channel. It is a **named exception to ADR-0017's "no ne
 justified on three grounds ADR-0017 itself uses as its flip conditions: the workload is CPU/GPU-shaped and
 bursty rather than request-shaped, it carries a vendor dependency the recipe service should not link, and
 it scales on a different axis from recipe CRUD.
+
+> ⚠️ **Note (2026-09-04): this section is now cited as a TEMPLATE by a second ADR, and that ADR is the only
+> one of the two whose deployable exists.** [ADR-0025](0025-ingredient-parser-python-deployable.md) takes its
+> named exception to ADR-0017 on "§3's three grounds" (CPU-shaped and bursty; a vendor dependency the recipe
+> service should not link; scales on a different axis) and adopts §3's consequence literally — the new
+> deployable owns **no database**. That reading of §3 is accurate. `packages/services/ingredient-parser`
+> ships; the image-processing service this section is actually about does not.
 
 **It holds no persistent state.** Images in flight live in object storage; the durable record of the import
 is the recipe service's, exactly as for a URL import. This keeps the "recipe result" in one database and

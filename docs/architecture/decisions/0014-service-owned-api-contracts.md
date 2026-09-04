@@ -210,6 +210,11 @@ under time pressure. Authoring lives beside the controller it serves.
   lines / 34 paths), `packages/schemas/food` (5, 922 / 12), `packages/schemas/identity` (5, 716 / 10).
   ~~"Converged so far: the search/photos/ratings vertical only"~~ and ~~"Food and identity … neither has a schema
   package yet"~~ are both superseded.
+    - ⚠️ **STALE (2026-09-04): every number in the bullet above has grown; the shape has not.** Re-counted on
+      disk: `packages/schemas/recipe/src/schemas/` holds **11** files and `packages/schemas/recipe/openapi.yaml`
+      is **7,264 lines / 44 paths**; `packages/schemas/food/src/schemas/` holds **7** and its `openapi.yaml` is
+      **2,177 / 22**; `packages/schemas/identity/src/schemas/` still holds **5** and its `openapi.yaml` is
+      **760 / 10**. The counts are a snapshot of a growing surface — do not treat any of them as a target.
 - ✅ **`openapi.yaml` now exists for all three services.** ~~"does not exist for any service yet"~~ is superseded;
   `@kitchensink/schema-recipe`'s `./openapi.yaml` export names a real file.
 - 🔄 `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2,827 lines (2,810 of body plus a superseded
@@ -217,14 +222,25 @@ under time pressure. Authoring lives beside the controller it serves.
   paths against its 32**. ⚠️ The ~~"57 source files cite as their authority"~~ figure was **wrong**: counted over
   `git ls-files` only, it is **12 files under `packages/`**, 26 under `specs/`, 5 under `docs/`. The citations
   have **not** been repointed, so two documents still describe the recipe service.
+    - ⚠️ **STALE (2026-09-04): the margin is far wider than "34 against 32" now.** Re-counted:
+      `specs/001-commise-recipe-app/contracts/api.openapi.yaml` is **2,839 lines / 32 paths** (unchanged in path
+      count), against the generated `packages/schemas/recipe/openapi.yaml`'s **44 paths**. Citations re-counted
+      over `git ls-files`: **11** under `packages/`, **27** under `specs/`, **5** under `docs/` — and they are
+      **still not repointed**, so the two-documents problem this bullet names is unchanged.
 - ⚠️ **`@kitchensink/schema-notifications` (014) does not exist**, and neither does any 005 / 011 / 012 / 013
   schema package. Those features are specs.
-- **A `CLAUDE.md` pointer is still owed.** Per this directory's README, an ADR that governs code needs an
+- ~~**A `CLAUDE.md` pointer is still owed.** Per this directory's README, an ADR that governs code needs an
   always-in-context tripwire. `docs/CODING_STANDARDS.md` §15 is the normative rule and is already reachable
   from the engineering-quality-bar mandate, and **`AGENTS.md` now carries the ruling INLINE** (added 2026-08-12,
   alongside ADR-0015/0016/0017), which is what the review bots ingest. Still missing: the root-`CLAUDE.md`
   "looks wrong, isn't" pointer, and the co-located `// ⚠️ DELIBERATE` guard comments at the generator and at
-  `packages/clients/usda/src/schemas.ts`.
+  `packages/clients/usda/src/schemas.ts`.~~
+    - ⚠️ **STALE (2026-09-04) — all three are now paid.** The root-`CLAUDE.md` "looks wrong, isn't" pointer
+      exists (`CLAUDE.md:237`, "The service OWNS its wire types…", carrying all three counter-intuitive facts
+      and the inverse case); `packages/clients/usda/src/schemas.ts:17` carries the literal
+      `⚠️ DELIBERATE — DO NOT "CONVERGE" THIS FILE ONTO A SCHEMA PACKAGE`; and each generator entry point
+      (`packages/services/{recipe-service,food-service,identity}/contract/generate.ts`) opens with a
+      "DIRECTION OF DERIVATION, which must never be inverted" docblock. Nothing on this bullet is still owed.
 
 **Where this ADR and an existing hand-written client type conflict, this ADR wins — the client is the one
 that changes.**

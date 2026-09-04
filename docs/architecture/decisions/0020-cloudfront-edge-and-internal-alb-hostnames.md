@@ -23,10 +23,24 @@
 ## Context
 
 Three production services (identity, food, recipe) each answer on `{service}.commise.app`, resolved straight
-to the shared per-stage ALB. There is no edge: no caching, no TLS termination ahead of the load balancer, no
-place to attach a WAF later, and no request shaping. Food's nutrition responses in particular are
-caller-independent and highly repeated — exactly the shape a CDN exists for — and after PR 91's KTD-3 the
-recipe service fetches them over HTTP on every recipe read, so the same bytes are re-served continuously.
+to the shared per-stage ALB.
+
+> ⚠️ **UNVERIFIABLE FROM THE REPO (2026-09-04): "every production service" is bounded to exactly three, and
+> whether all three are actually RUNNING in prod cannot be read off this repository.** The universal in this
+> ADR's title means the three services registered in the single ALB allocator —
+> `EPHEMERAL_SLOT_ORDER = ['identity', 'food', 'recipe']`
+> (`packages/infra/alb/src/listenerPriority.ts:102`) — and `EdgeStack` does build a distribution for each,
+> because `EDGE_POLICY` is a `Record` over that same union (a fourth service without an edge decision is a
+> compile error). `.github/workflows/prod-deploy.yml` sets `EDGE_CUTOVER_SERVICES: food,recipe,identity` and
+> carries a per-service prod deploy leg for each. What the repo cannot tell you is the live state of the
+> account — whether `recipe.commise.app` resolves and whether the recipe ECS service is running in prod is an
+> AWS fact, and an earlier session note claimed it was not deployed. Check the account, not this file.
+> Nothing here decides sandbox or `pr-{N}`: `edgeStage.ts` gates the whole edge to prod.
+
+There is no edge: no caching, no TLS termination ahead of the load balancer, no place to attach a WAF later,
+and no request shaping. Food's nutrition responses in particular are caller-independent and highly repeated —
+exactly the shape a CDN exists for — and after PR 91's KTD-3 the recipe service fetches them over HTTP on
+every recipe read, so the same bytes are re-served continuously.
 
 ## Decision
 
@@ -67,6 +81,17 @@ URL-only cache key would serve the first caller's recipe list to every other aut
 | Food, nutrition          | URL alone                                           | Caller-independent — an invariant food preserves |
 | Identity                 | **Nothing is cached**                               | Every response is per-user                       |
 
+⚠️ **STALE (2026-09-04): the "Recipe, public" row has NO as-built counterpart, and that is deliberate.**
+`EDGE_POLICY` in `packages/infra/global/lib/platform/EdgeStack.ts` gives recipe
+`{ ownerScopedDefault: true, sharedCachePathPatterns: [] }` — i.e. **every** recipe route is keyed per
+principal, with the in-code reason "search/collections/photos are all visibility-filtered by the caller".
+The other three rows are implemented exactly as written (`food` caches only
+`/api/v1/foods/nutrition*` plus the deprecated `/v1/foods/nutrition*` alias on the URL alone; `identity` is
+`ownerScopedDefault: false` with no shared patterns, which the code comments define as "the default behavior
+caches nothing at all", and it resolves to `CachePolicy.CACHING_DISABLED`). Adding a URL-only recipe behavior
+later is a NEW decision, not the delivery of this row — it needs a route class that is provably identical for
+every caller, which trap 1 says recipe does not have today.
+
 The edge verifier extracts the owner from the verified token and injects it into the cache key. Food's
 caller-independence is not a one-time test but a **standing invariant** its endpoint must preserve (plan U8),
 because U16 keys its cache on the URL alone.
@@ -85,6 +110,15 @@ The first version specified exactly that. It would have blocked all browser traf
 1. any `OPTIONS` request,
 2. the `/health*` prefix,
 3. the `/api/v1/internal/*` prefix (see trap 3).
+
+⚠️ **STALE (2026-09-04): as built there are FOUR entries, not three.**
+`packages/infra/global/lib/edge-verifier/edgeRoutes.ts:67` declares
+`PASSTHROUGH_PATH_PATTERNS = ['/health*', '/api/v1/internal/*', '/v1/internal/*']`, plus
+`PASSTHROUGH_METHOD = 'OPTIONS'` at line 70. The fourth is the **deprecated `/v1` alias**
+([ADR-0011](0011-api-version-prefix.md)), which is live in production — omitting it would have sent half the
+service-principal traffic through the Clerk verifier, which is trap 3's failure. The same constant drives both
+the verifier's `isPassthroughRequest` and `EdgeStack`'s no-Lambda passthrough behaviors, so the two cannot be
+spelled apart.
 
 ### 3. Service-to-service traffic does not carry Clerk tokens
 
@@ -212,7 +246,10 @@ rule = 56, so no quota increase is required.** The constraint is on SHAPE, not h
 plain CIDR rule and the IPv6 list `com.amazonaws.global.ipv6.cloudfront.origin-facing` (also weight 55)
 can never be added, because either takes the group past 60 and the deploy fails with
 `RulesPerSecurityGroupLimitExceeded`. Keep the ALB IPv4-only for the same reason.
-this.\*\*
+
+~~this.\*\*~~ ⚠️ **UNVERIFIABLE FROM THE REPO (2026-09-04): the fragment above is a text artifact, not a
+claim.** It is the orphaned tail of an edit; no sentence in this ADR's history explains what it belonged to,
+so it is struck rather than deleted. Ignore it.
 
 **Verification inverts.** U15's proof was `curl https://food.internal.commise.app/health` → `200`. That
 curl **is** the bypass. Once the header condition lands the same request returns ADR-0003's default `404`,

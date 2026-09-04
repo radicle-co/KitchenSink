@@ -36,6 +36,13 @@ though it imports the sandbox platform (ADR-0006). Each cluster advertises the `
 capacity provider (`enableFargateCapacityProviders`) only for non-prod, so no
 `ClusterCapacityProviderAssociations` resource is added to the prod template.
 
+> ⚠️ STALE (2026-09-04): the enumeration in the first sentence is no longer complete — the **recipe service**
+> joined and does exactly the same thing
+> (`packages/services/recipe-service/infra/lib/RecipeServiceStack.ts:148,201,412`). The RULE above is
+> unchanged and still correctly stated; only the list of services subject to it has grown. Do not read the
+> two-service list as "recipe is exempt". (Enumeration rot is the ADR-0004 / ADR-0003 lesson: a copy of a list
+> cannot detect that the list grew.)
+
 **3. Account-wide cost guardrails (new additive stack).** A standalone `CostGuardrailsStack` (name
 `kitchensink-cost-guardrails`, tagged `Environment=global`) is created **once**, guarded to
 `stage === 'prod'` in `packages/infra/global/bin/app.ts` — it is account-scoped, not

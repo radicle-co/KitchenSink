@@ -3,6 +3,25 @@
 - **Status**: Accepted (feature 005 design baseline — not yet implemented)
 - **Date**: 2026-08-02
 
+> ⚠️ STALE (2026-09-04) — **NOTHING IN THIS ADR HAS SHIPPED, re-verified today.** The "not yet implemented"
+> in the Status line is still exactly right, and it is worth restating loudly because every section below is
+> written in the present tense and reads like a description of running code. Measured against the working
+> tree:
+>
+> | Claim in the Decision                                       | In the repo                                                                                                                                                           |
+> | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | `mcp_oauth_consents` table + consent page in `@commise/web` | No such table and no such page. The only occurrences of the name anywhere are `specs/005-ai-integration/{plan,tasks,sync-report,migrations/forward.sql}` and this ADR |
+> | `@clerk/mcp-tools` / `verifyClerkToken` / `mcpAuthClerk`    | Not a dependency of any workspace package                                                                                                                             |
+> | Actor-token minting (`POST /v1/actor_tokens`)               | No caller anywhere in `packages/`                                                                                                                                     |
+> | A sibling `act`-claim gate beside `isNativeClientToken`     | Absent. `packages/shared/clerk-verify/src/clerkVerify.ts` still has exactly one positive claim gate, `isNativeClientToken` (`client_type: 'native'`, line 155)        |
+> | An MCP server package                                       | Does not exist                                                                                                                                                        |
+>
+> ⚠️ UNVERIFIABLE FROM THE REPO (2026-09-04): every vendor-behaviour claim in Context 1–2 and in the Decision
+> (Clerk's DCR toggle, the absence of custom OAuth scopes, actor-token semantics, `session_max_duration_in_seconds`)
+> was measured against the live Clerk platform on 2026-08-02 and cannot be re-checked from the repository.
+> Treat them as a **dated snapshot**, not as current fact — the ADR's own Follow-ups already say to re-check
+> custom OAuth scope support at implementation time, and none of that re-check has happened.
+
 ## Context
 
 Feature 005 exposes a Model Context Protocol (MCP) server so external agent platforms (ChatGPT, Claude,

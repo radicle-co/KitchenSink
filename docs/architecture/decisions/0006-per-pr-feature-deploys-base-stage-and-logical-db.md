@@ -35,6 +35,14 @@ imports from). Resolution:
 | `sandbox`      | `sandbox`   |
 | `pr-{N}` / any | `sandbox`   |
 
+⚠️ STALE (2026-09-04): the `sandbox → sandbox` row is **live arithmetic but a dead deploy target** for a
+feature service. The resolver is still exactly this table (`const baseStage = stage === 'prod' ? 'prod' :
+'sandbox'` — `packages/services/food-service/infra/bin/app.ts:30`,
+`packages/services/recipe-service/infra/bin/app.ts:25`), but the very next lines (`:39` / `:34`) **refuse**
+the deploy when `stage !== 'prod' && stage === baseStage`. See the _Amendment (2026-07-29)_ below: a feature
+service has no persistent non-prod instance, so `stage=sandbox` is not deployable for one. The row still
+governs what a `pr-{N}` deploy IMPORTS, which is what it is for.
+
 All platform imports (`kitchensink-{network,data,alb,domain}-…`, `kitchensink/{…}/food/usda-api-key`,
 `Vpc.fromLookup`) use **`baseStage`**. A per-PR deploy therefore rides the **shared sandbox** VPC,
 RDS, ALB, and domain — no per-PR platform is created (consistent with ADR-0003's shared ALB and
@@ -71,7 +79,9 @@ configuration that can produce or name one.
 **`food_app` needs `CREATEDB` on the sandbox instance.** The per-PR database is created by the
 migration runner connected AS `food_app`, so the non-prod bootstrap SQL (DataStack) grants
 `ALTER ROLE food_app CREATEDB`. Prod's `food_app` is left without it (prod has no previews), keeping
-the prod bootstrap secret byte-identical.
+the prod bootstrap secret byte-identical. (Verified 2026-09-04 and still true, now for **two** roles:
+`packages/infra/global/lib/platform/DataStack.ts:277` for `food_app`, `:341` for `recipe_app`, with the
+prod exclusion stated at `:387`.)
 
 **2. Per-PR isolation is a per-PR logical database on the shared instance.** The database name is
 derived from `stage`: `kitchensink_food` for `sandbox`/`prod`, and **`kitchensink_food_pr_{N}`** for
@@ -80,6 +90,15 @@ a per-PR deploy. The in-VPC migration-runner Lambda (T-191) **creates the databa
 ordered migrations into it and records them in that DB's own `schema_migrations`. PR-close cleanup
 (the `sandbox-deploy.yml` cleanup job) **drops** `kitchensink_food_pr_{N}` alongside the tagged
 stacks.
+
+⚠️ STALE (2026-09-04): **the drop no longer runs through the per-service migration runner.** It moved to
+ADR-0031's `PerPrDatabaseReaperFunction`, declared once in `DataStack`
+(`packages/infra/global/lib/platform/DataStack.ts:403`, name published at `:434`) beside the instance
+itself, and invoked from `.github/scripts/teardown-sandbox-pr.sh:269-300`. The reason is exactly the
+weakness ADR-0005's residue list named: the old door lived on the PR's OWN stack and was destroyed with it
+seconds later, so a failed drop had no retry. The per-service `action: 'drop'` doors still exist and are
+still tested in their packages — teardown simply no longer depends on them. **Creation** is unchanged: the
+in-VPC migration runner still does `SELECT 1 FROM pg_database` → `CREATE DATABASE`.
 
 This is deliberately **not** a per-PR RDS instance and **not** a shared-tables model: a logical
 database gives clean isolation at ~zero cost (one instance, marginal storage), while shared tables

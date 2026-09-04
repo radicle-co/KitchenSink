@@ -30,6 +30,17 @@ lives in this repository**:
 ## Decision
 
 1. **`/api/{version}/*` is the canonical path** for every versioned endpoint in every service.
+
+    > ⚠️ STALE (2026-09-04): "every versioned endpoint" now has one deliberate exception. The analytics
+    > ingest door is mounted at `@Controller('ingest/v1/events')`
+    > (`packages/services/recipe-service/src/analytics/ingest.controller.ts:51`), outside the `/api` namespace
+    > on purpose — [ADR-0030](0030-first-party-analytics-events.md) records it, noting that the contract
+    > parity filter admits only `health` and `api/*`. It is not an oversight and must not be "fixed" to
+    > `/api/v1/*` without reading that ADR. Separately, endpoints created **after** this ADR carry the
+    > canonical path ONLY and no alias — e.g. `@Controller('api/v1/recipe-parse-jobs')`
+    > (`packages/services/recipe-service/src/recipes/parseJobs.controller.ts:45`) — which is decision 4
+    > working as intended, not a gap in decision 2.
+
 2. **The bare `/{version}/*` path is retained as a DEPRECATED ALIAS.** It is not dead code and must not be
    "tidied away". Each alias site carries a comment saying so and pointing here.
 3. **`/health` and `/health/ready` stay at the origin root, unprefixed.** They are not API surface: the

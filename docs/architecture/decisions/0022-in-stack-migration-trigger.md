@@ -156,6 +156,17 @@ its bundle. It is not redundant: it catches a stage whose schema is behind for a
 explains — a restore, a stage created later, a `deploy_webhooks`-only run. What it must never become again
 is the thing that is relied upon.
 
+⛔ FALSE (2026-09-04): **"each deploy workflow keeps its idempotent `aws lambda invoke`" does not hold for
+every runner, and every invoke that does exist is GATED.** Both defects were found and reported — not
+fixed — by the Update (2026-09-02) below; the sentence above was left standing and is the one a reader
+believes. Concretely: (a) `RecipeSchemaMigrationRunner` (`RecipeWorkersStack.ts:1339`) is emitted with **no
+`CfnOutput`** and **no workflow references it** — repo-wide, the only non-doc mentions are its construction
+and three test files — so it has no safety net at all; and (b) `run_migrations` / `deploy_food` /
+`deploy_recipe` in `prod-deploy.yml` are path-diff plus `workflow_dispatch`, so in the exact scenario this
+section names ("a restore, a stage created later") the gate is false, no `cdk deploy` runs, the Trigger does
+not fire, and **nothing migrates**. The safety net is real only where a code change explains the skew. Read
+the Update's "⚠️ Two things this update did NOT fix" before relying on this paragraph.
+
 ### 5. A stack with no runner of its own must be DEPLOYED after one that has
 
 `DependsOn` cannot leave a stack, and no CloudFormation primitive spans two CDK apps invoked as two CLI
@@ -169,14 +180,25 @@ Route 2 is a property of the pipeline and therefore has to be _asserted_, which 
 
 ## The audit: every stack that touches a database, and what it does
 
-| Stack                                                     | DB-touching compute                             | Ordered by                                     |
-| --------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------- |
-| `IdentityServiceStack` (`packages/services/identity`)     | 1 Fargate service, 1 runner                     | **in-stack Trigger**, `executeBefore` derived  |
-| `FoodServiceStack` (`packages/services/food-service`)     | 2 Fargate services, 1 runner                    | **in-stack Trigger**, `executeBefore` derived  |
-| `RecipeServiceStack` (`packages/services/recipe-service`) | 1 Fargate service, 1 runner                     | **in-stack Trigger**, `executeBefore` derived  |
-| `RecipeWorkersStack` (`packages/services/recipe-workers`) | 6 Lambdas, 1 runner (recipe-service's SQL)      | **in-stack Trigger**, `executeBefore` derived  |
-| `WebhooksStack` (`packages/services/identity-webhooks`)   | 5 Lambdas, **no runner**                        | route 2 — deploys after `identity` (see below) |
-| `DataStack` (`packages/infra/global`)                     | 2 bootstrap Lambdas (custom-resource providers) | **N/A — it CREATES the databases** (see below) |
+| Stack                                                     | DB-touching compute                                           | Ordered by                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------- |
+| `IdentityServiceStack` (`packages/services/identity`)     | 1 Fargate service, 1 runner                                   | **in-stack Trigger**, `executeBefore` derived  |
+| `FoodServiceStack` (`packages/services/food-service`)     | 2 Fargate services, 1 runner                                  | **in-stack Trigger**, `executeBefore` derived  |
+| `RecipeServiceStack` (`packages/services/recipe-service`) | 1 Fargate service, 1 runner                                   | **in-stack Trigger**, `executeBefore` derived  |
+| `RecipeWorkersStack` (`packages/services/recipe-workers`) | ~~6 Lambdas~~ **10 Lambdas**, 1 runner (recipe-service's SQL) | **in-stack Trigger**, `executeBefore` derived  |
+| `WebhooksStack` (`packages/services/identity-webhooks`)   | 5 Lambdas, **no runner**                                      | route 2 — deploys after `identity` (see below) |
+| `DataStack` (`packages/infra/global`)                     | 2 bootstrap Lambdas (custom-resource providers)               | **N/A — it CREATES the databases** (see below) |
+
+⚠️ STALE (2026-09-04): **this table is a CENSUS, not a check, and its counts have already rotted once** —
+see the Update (2026-09-02) §3 below, which is where the correction was recorded. `RecipeWorkersStack` today
+constructs **ten** DB-touching Lambdas plus its runner (`VersionArchiveWorkerFunction`,
+`ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`,
+`ErasureOrphanSweeperFunction`, `AnalyticsRetentionSweeperFunction`, `IngredientVerificationFunction`,
+`RecipeParseLineFunction`, `BandDrainFunction` — `RecipeWorkersStack.ts:638-1339`). The barrier needed no
+edit to cover them, which is the mechanism working; the table is what fell behind. The table is also not a
+census of STACKS — `IngredientParserStack`, `EdgeStack`, `SandboxSchedulerStack` and `SandboxRouterStack` are
+absent because none touches a database. Do not read a count here as current;
+`packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts` is the authority.
 
 Two stacks deliberately do not carry a barrier.
 

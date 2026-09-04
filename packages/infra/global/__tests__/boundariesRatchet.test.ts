@@ -613,6 +613,77 @@ describe('unparseable-file diagnostic (a toolchain failure, not a violation)', (
         expect(result.code).toBe(1);
     });
 
+    /**
+     * `--update` sits ABOVE the deferred `exit(1)` that covers the check path, so it used to write a
+     * baseline built from only the files that PARSED and exit 0. That silently drops the unchecked file
+     * from the ratchet — the next run compares against a baseline that never saw it, and CI is green over
+     * a file whose imports were never analyzed. The script's own message already says "do not baseline it,
+     * as there is nothing here to baseline"; this makes `--update` obey it.
+     */
+    describe('--update refuses to record a baseline it could not fully derive', () => {
+        function runUpdate(stdin: string, baseline: unknown): RunResult & { readonly written: string } {
+            const dir = mkdtempSync(path.join(tmpdir(), 'boundaries-ratchet-upd-unparseable-'));
+            const baselinePath = path.join(dir, 'baseline.json');
+            writeFileSync(baselinePath, JSON.stringify(baseline, null, 4));
+
+            const result = ((): RunResult => {
+                try {
+                    const out = execFileSync(
+                        process.execPath,
+                        [script, '--stdin', '--baseline', baselinePath, '--update'],
+                        { input: stdin, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
+                    );
+
+                    return { code: 0, out };
+                } catch (error) {
+                    const err = error as { status?: number; stdout?: string; stderr?: string };
+
+                    return { code: err.status ?? -1, out: `${err.stdout ?? ''}${err.stderr ?? ''}` };
+                }
+            })();
+
+            return { ...result, written: readFileSync(baselinePath, 'utf8') };
+        }
+
+        it('FAILS instead of exiting 0 when a file could not be parsed', () => {
+            const result = runUpdate(
+                panic('packages/utils/identity/src/provisioning.ts') +
+                    block('left-pad', 'packages/apps/commise/web/src/new.tsx') +
+                    summary(2),
+                BASELINE,
+            );
+
+            expect(result.code).toBe(1);
+        });
+
+        it('leaves the existing baseline BYTE-IDENTICAL, so a partial one is never recorded', () => {
+            const result = runUpdate(
+                panic('packages/utils/identity/src/provisioning.ts') +
+                    block('left-pad', 'packages/apps/commise/web/src/new.tsx') +
+                    summary(2),
+                BASELINE,
+            );
+
+            expect(JSON.parse(result.written)).toEqual(BASELINE);
+        });
+
+        it('says WHY, naming the file rather than reporting a boundary violation', () => {
+            const result = runUpdate(panic('packages/utils/identity/src/provisioning.ts') + summary(1), BASELINE);
+
+            expect(result.out).toContain('provisioning.ts');
+            expect(result.out).toMatch(/not updating|refusing/i);
+        });
+
+        it('still updates normally when every file parsed', () => {
+            const result = runUpdate(block('left-pad', 'packages/apps/commise/web/src/new.tsx') + summary(1), BASELINE);
+
+            expect(result.code).toBe(0);
+            expect(JSON.parse(result.written).pairs).toEqual([
+                { package: '@commise/web', dependency: 'left-pad', rule: 'undeclared-dependency' },
+            ]);
+        });
+    });
+
     it('still reports real violations found alongside an unparseable file', () => {
         const result = run(
             panic('packages/utils/identity/src/provisioning.ts') +

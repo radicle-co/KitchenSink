@@ -421,6 +421,21 @@ if (unmapped.length > 0) {
 }
 
 if (update) {
+    // ⛔ An unparseable file is fatal HERE, before anything is written — unlike the check path, which defers
+    // its exit so real violations print first. `--update` regenerates the baseline from the parsed report, so
+    // a file turbo could not read would simply be ABSENT from it: the baseline would then be a claim about a
+    // tree that was never fully analyzed, the next run would compare against it happily, and CI would be green
+    // over that file's imports forever. Exiting 0 having written it was the silent-success class this whole
+    // gate exists to prevent. The message above already says it: there is nothing here to baseline.
+    if (unparseable.length > 0) {
+        console.error(
+            `boundaries-ratchet: NOT updating the baseline — ${unparseable.length} file(s) could not be ` +
+                'parsed, so a baseline written now would record a tree that was never fully checked. Fix or ' +
+                're-run first, then update.',
+        );
+        process.exit(1);
+    }
+
     // Carry each surviving entry's `why` across the rewrite. An entry may document WHY it is a deliberate
     // exception rather than debt to burn down, and `--update` regenerates the file from the parsed report,
     // which knows nothing about reasons. Without this merge the first `boundaries:update` after any

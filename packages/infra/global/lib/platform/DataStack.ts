@@ -381,6 +381,62 @@ export class DataStack extends Stack {
         // modify applied first, so depend on the instance rather than race a fresh deploy.
         recipeBootstrap.node.addDependency(this.database);
 
+        // ── Per-PR logical-database reaper (ADR-0031) ───────────────────────────────────────────────
+        //
+        // ⛔ NON-PROD ONLY. This function connects AS MASTER and issues `DROP DATABASE`. Production has no
+        // per-PR logical databases at all — ADR-0006 grants its `food_app`/`recipe_app` roles no CREATEDB,
+        // and the bootstrap postconditions above assert that — so deploying it there would be dead code
+        // carrying a live risk. The handler ALSO refuses at runtime when `STAGE` is `prod`, belt and braces,
+        // because a master-credentialed drop capability must not depend on one guard in one file.
+        //
+        // ⚠️ This ACCEPTS a prod/sandbox template divergence, which ADR-0028 argues against on the grounds
+        // that "keeping prod on a different shape is how ADR-0007's cost problem came to hide in the
+        // exempted half". ADR-0031 records why the exception is taken here rather than reasoned around, and
+        // `perPrDatabaseReaperStack.test.ts` asserts the divergence in BOTH directions so it cannot rot.
+        //
+        // Why it lives in `DataStack` rather than in a service's stack: the per-service migration runners
+        // already implement `action: 'drop'`, but each is INSIDE the stack whose database it drops, so it
+        // cannot reclaim a database whose stack is gone, wedged in `DELETE_FAILED`/`UPDATE_ROLLBACK_FAILED`
+        // (which publishes no outputs), or was reaped while nothing ever called its door. This one sits
+        // beside the instance and outlives every service stack.
+        if (stageTag !== 'prod') {
+            const reaperFn = new lambda.Function(this, 'PerPrDatabaseReaperFunction', {
+                runtime: NODE_LAMBDA_RUNTIME,
+                architecture: lambda.Architecture.ARM_64,
+                handler: LAMBDA_ASSET_CANDIDATES.present ? 'db-reaper/handler.handler' : 'index.handler',
+                code: LAMBDA_ASSET_CANDIDATES.present
+                    ? lambda.Code.fromAsset(LAMBDA_ASSET_CANDIDATES.dir)
+                    : lambda.Code.fromInline(
+                          "exports.handler = async () => { throw new Error('per-pr-database-reaper was " +
+                              'deployed WITHOUT its real bundle. Run `npm run bundle:lambda ' +
+                              "--workspace=packages/infra/global` before cdk deploy.'); };",
+                      ),
+                // Long enough for a `DROP DATABASE … WITH (FORCE)` per registered base on a cold instance,
+                // matching the bootstrap functions above. It is never on a request path.
+                timeout: Duration.seconds(300),
+                memorySize: 256,
+                description: `Count and reclaim per-PR logical databases (${stageTag}) — ADR-0031`,
+                vpc: props.network.vpc,
+                vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+                securityGroups: [props.network.lambdaSecurityGroup],
+                environment: {
+                    DB_SECRET_ARN: this.dbCredentialsSecret.secretArn,
+                    DB_ENDPOINT: this.database.dbInstanceEndpointAddress,
+                    DB_PORT: this.database.dbInstanceEndpointPort,
+                    STAGE: stageTag,
+                },
+            });
+            this.dbCredentialsSecret.grantRead(reaperFn);
+
+            // ⚠️ Deliberately NOT named `*MigrationFunctionName`. `perPrDatabaseDropDoors.test.ts` discovers
+            // per-service migration runners by that exact anchored shape; a reaper output matching it would
+            // be counted as a service's own drop door and confuse both sides of that guard.
+            new CfnOutput(this, 'PerPrDatabaseReaperFunctionName', {
+                value: reaperFn.functionName,
+                exportName: `${this.stackName}:PerPrDatabaseReaperFunctionName`,
+            });
+        }
+
         this.deletionDlq = new sqs.Queue(this, 'DeletionDlq', {
             enforceSSL: true,
             encryption: sqs.QueueEncryption.SQS_MANAGED,

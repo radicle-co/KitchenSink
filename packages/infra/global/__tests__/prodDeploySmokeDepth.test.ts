@@ -57,6 +57,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { minimatch } from 'minimatch';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
@@ -184,12 +185,76 @@ function findEnvGates(directories: readonly string[]): readonly EnvGate[] {
 }
 
 /**
+ * This package's own npm scripts, and the vitest `include` glob each one runs.
+ *
+ * ⚠️ Read from `package.json` + the config it names, never hard-coded. A step can run a gated suite two ways:
+ * by naming the file (`npx vitest run tests/foo.integration.test.ts`, which is how `prod-deploy.yml` invokes
+ * its one live probe) or by running the TIER that contains it (`npm run test:integration --workspace=…`,
+ * which is how `_ci.yml` invokes every other integration spec in this package). A predicate that understood
+ * only the first spelling reports a correctly-wired tier suite as unwired — the same defect shape
+ * `cdkApps.ts` records for `npm run infra:deploy --workspace=`, where a reader that knew only the literal
+ * `cdk deploy --app` spelling called a deployed app undeployed.
+ *
+ * @returns The `--workspace=` invocation that runs each tier, paired with the glob it includes. Impure.
+ * @sideEffect Reads this package's manifest and its vitest configs.
+ */
+function tierInvocations(): readonly { readonly invocation: RegExp; readonly include: string }[] {
+    const packageRoot = fileURLToPath(new URL('../', import.meta.url));
+    const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as {
+        name: string;
+        scripts: Record<string, string>;
+    };
+    const tiers: { invocation: RegExp; include: string }[] = [];
+
+    for (const [script, body] of Object.entries(manifest.scripts)) {
+        const config = /--config\s+(\S+)/.exec(body)?.[1];
+
+        if (!body.startsWith('vitest run') || config === undefined) {
+            continue;
+        }
+
+        const include = /include:\s*\[\s*'([^']+)'/.exec(readFileSync(join(packageRoot, config), 'utf8'))?.[1];
+
+        if (include !== undefined) {
+            tiers.push({
+                invocation: new RegExp(`npm run ${script}\\s+--workspace=${manifest.name.replace(/[/@-]/g, '\\$&')}`),
+                include,
+            });
+        }
+    }
+
+    return tiers;
+}
+
+/**
+ * Whether one workflow step actually runs a gated spec.
+ *
+ * @param run - The step's `run:` body.
+ * @param file - The gated spec, package-relative (e.g. `tests/foo.integration.test.ts`).
+ * @param tiers - The tier invocations from {@link tierInvocations}.
+ * @returns `true` when the step names the file, or runs a tier whose glob includes it. Pure.
+ */
+function stepRunsSpec(
+    run: string,
+    file: string,
+    tiers: readonly { readonly invocation: RegExp; readonly include: string }[],
+): boolean {
+    return (
+        run.includes(file) || tiers.some(({ invocation, include }) => invocation.test(run) && minimatch(file, include))
+    );
+}
+
+/**
  * Gates that no workflow step both SETS and RUNS.
  *
  * Both halves matter. A step that runs the file without setting the variable executes an empty suite; a step
  * that sets the variable without running the file sets it for nothing. Only the conjunction is a gate.
  */
-function findUnwiredEnvGates(gates: readonly EnvGate[], workflows: readonly Workflow[]): readonly string[] {
+function findUnwiredEnvGates(
+    gates: readonly EnvGate[],
+    workflows: readonly Workflow[],
+    tiers: readonly { readonly invocation: RegExp; readonly include: string }[] = [],
+): readonly string[] {
     const violations: string[] = [];
 
     for (const { file, variable } of gates) {
@@ -197,7 +262,7 @@ function findUnwiredEnvGates(gates: readonly EnvGate[], workflows: readonly Work
             allSteps(doc).some(({ step }) => {
                 const value = step.env?.[variable] ?? doc.env?.[variable];
 
-                return value !== undefined && String(value) !== '' && (step.run ?? '').includes(file);
+                return value !== undefined && String(value) !== '' && stepRunsSpec(step.run ?? '', file, tiers);
             }),
         );
 
@@ -347,6 +412,10 @@ describe('every env-gated suite in this package is switched on by a workflow', (
         // Anchors the discovery half: if the gate is renamed, or the `describe.runIf` becomes an
         // unconditional `describe`, this stops matching and the wiring assertion below loses its subject.
         expect(findEnvGates(TEST_DIRS)).toEqual([
+            // ADR-0031's reaper suite issues real `DROP DATABASE` statements, so it is gated on a
+            // `DATABASE_URL` that only `_ci.yml`'s `integration-infra` job supplies — from a throwaway
+            // postgres service container, set on the step that runs it.
+            { file: 'tests/perPrDatabaseReaper.integration.test.ts', variable: 'DATABASE_URL' },
             { file: 'tests/prodWebSurface.integration.test.ts', variable: 'PROD_WEB_SMOKE_ORIGIN' },
         ]);
     });
@@ -382,6 +451,46 @@ describe('every env-gated suite in this package is switched on by a workflow', (
         expect(findUnwiredEnvGates(gates, workflows).join('\n')).toMatch(/PROBE_ORIGIN/);
     });
 
+    it('accepts a step that runs the TIER containing the file, not just one naming it', () => {
+        // The spelling `_ci.yml` actually uses. Without this the analyzer reports a correctly-wired suite as
+        // unwired, and the "fix" a reader reaches for is deleting the gate — which turns a boundary test
+        // into one that cannot run at all.
+        const tiers = tierInvocations();
+
+        expect(
+            tiers.length,
+            'no vitest tier resolved from package.json — the analyzer stopped discovering',
+        ).toBeGreaterThan(0);
+        expect(
+            stepRunsSpec(
+                'npm run test:integration --workspace=@kitchensink/infra-global',
+                'tests/perPrDatabaseReaper.integration.test.ts',
+                tiers,
+            ),
+        ).toBe(true);
+    });
+
+    it('⛔ does NOT accept a tier run of a DIFFERENT workspace, or a file outside the tier glob', () => {
+        const tiers = tierInvocations();
+
+        // Another package's integration tier does not run this package's specs.
+        expect(
+            stepRunsSpec(
+                'npm run test:integration --workspace=@kitchensink/identity-service',
+                'tests/perPrDatabaseReaper.integration.test.ts',
+                tiers,
+            ),
+        ).toBe(false);
+        // A unit spec is not in the integration tier's `include` glob, so the tier run does not cover it.
+        expect(
+            stepRunsSpec(
+                'npm run test:integration --workspace=@kitchensink/infra-global',
+                '__tests__/perPrDatabaseReaper.test.ts',
+                tiers,
+            ),
+        ).toBe(false);
+    });
+
     it('does NOT flag a gate set by the step that runs the file', () => {
         const gates = [{ file: 'probe.integration.test.ts', variable: 'PROBE_ORIGIN' }];
         const workflows: readonly Workflow[] = [
@@ -408,7 +517,7 @@ describe('every env-gated suite in this package is switched on by a workflow', (
 
     it('holds for the real tree', () => {
         expect(
-            findUnwiredEnvGates(findEnvGates(TEST_DIRS), realWorkflows()),
+            findUnwiredEnvGates(findEnvGates(TEST_DIRS), realWorkflows(), tierInvocations()),
             'an env-gated probe that nothing sets the gate for is a test that passes by not running — the ' +
                 'same silent success as a `|| true`, without the grep-ability',
         ).toEqual([]);

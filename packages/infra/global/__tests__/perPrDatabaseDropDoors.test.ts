@@ -1,7 +1,13 @@
 // @vitest-environment node
 /**
- * Repo-wide guard: **every per-PR logical database has a door teardown can reach, and teardown reaches it by
- * SHAPE rather than by a list.**
+ * Repo-wide guard: **every per-PR logical database is reachable by something that can drop it, and teardown
+ * reaches it through the PLATFORM REAPER rather than through any per-service door.**
+ *
+ * ⚠️ REWRITTEN 2026-09-04 (ADR-0031), and the rewrite is a change of SUBJECT, not a relaxation. This file
+ * used to prove that teardown could reach every service's own migration-runner door by SHAPE. Teardown no
+ * longer invokes those doors at all: `teardown-sandbox-pr.sh` §1 now invokes `PerPrDatabaseReaperFunction`,
+ * which lives in `DataStack` beside the instance, discovers its targets from `pg_database`, and needs no
+ * service stack to exist. What is asserted here moved with it — see "What changed and why" below.
  *
  * ## The leak this exists to make impossible
  *
@@ -21,8 +27,8 @@
  *
  * ## ⛔ Why this guard ENUMERATES NOTHING
  *
- * The obvious guard is "assert the teardown script mentions both output keys". That is a COPY OF THE LIST,
- * and a copy of a list cannot detect that the list is incomplete — the exact reasoning
+ * The obvious guard is "assert the reaper knows about food and recipes". That is a COPY OF THE LIST, and a
+ * copy of a list cannot detect that the list is incomplete — the exact reasoning
  * `natEgressConsumers.test.ts` and the `handle-sync-worker` incident record. A third service landing
  * tomorrow with its own per-PR database would pass such a guard on day one.
  *
@@ -34,48 +40,55 @@
  * - **The doors** come from the same tree: every `CfnOutput` whose logical id matches the migration-runner
  *   shape.
  *
- * Then two claims, in both directions:
+ * Three claims:
  *
- * **1. Every database FAMILY has at least one door.** Grouped by the name-producing function rather than by
- * stack: a stack that merely DERIVES a per-stage name is reading a database somebody else created, and
- * demanding a runner from it would be wrong about the world.
+ * **1. ⛔ The reaper's base register covers every database FAMILY the tree derives — by EXACT EQUALITY, in
+ * both directions.** This is the claim that keeps a third service's per-PR database from being silently
+ * unreapable, and it is the one that replaced the old "reachable by pattern" argument. Both directions
+ * matter for the same reason ADR-0004's consumer table is bidirectional: a family the register has not heard
+ * of leaks forever, and a register entry for a family that no longer exists is a `DROP DATABASE` scope
+ * nobody can justify. `PER_PR_DATABASE_BASE_BY_PRODUCER` is keyed by the producing function precisely so
+ * this comparison is possible.
  *
- * **2. The teardown script names no specific door.** It must select by the anchored pattern it publishes,
- * and every discovered door must match that pattern. This is the direction that actually catches the recipe
- * leak: with §1 hardcoding `FoodMigrationFunctionName`, claim 1 passes (recipe HAS a door) and claim 2 fails
- * (the script cannot reach it).
+ * **2. Every database FAMILY has at least one stack exporting a migration runner.** ⚠️ RE-JUSTIFIED, not
+ * merely kept. Its old reason — "otherwise the database cannot be dropped at PR close" — is closed by
+ * ADR-0031, which drops without any stack. Its CURRENT reason is the DEPLOY side: `prod-deploy.yml` and
+ * `sandbox-deploy.yml` look up `IdentityMigrationFunctionName`, `FoodMigrationFunctionName` and
+ * `RecipeMigrationFunctionName` by name to run migrations, so a family whose stacks export no runner has no
+ * way to be migrated at all. Grouped by the name-producing function rather than by stack: a stack that
+ * merely DERIVES a per-stage name is reading a database somebody else created.
  *
- * **3. Every stack that DEPLOYS a migration runner has a door of its own.** ⚠️ This claim CORRECTS a
- * sentence that used to stand in claim 1: that one door between `RecipeServiceStack` and
- * `RecipeWorkersStack` was enough because they share one database, and that a second would be "redundant".
- * Redundant only while both stacks exist. `deploy-recipe` deploys workers FIRST, with two hard-failing steps
- * before the service's `cdk deploy`, and the service deploy has its own failure modes — ADR-0007 × ADR-0022
- * wedged `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED` against the nightly-stopped RDS. The
- * workers' in-deploy trigger has ALREADY run `ensureDatabaseExists` by that point, so the PR is left holding
- * a database whose only door is in a stack that does not exist. Claim 1 cannot see that, because it groups
- * by what the SOURCE says rather than by what a stage HAS.
+ * **3. The teardown script names no specific per-service door.** It must go through the reaper. This is what
+ * stops a well-meaning change from re-introducing the per-stack path alongside it — two authorities for "how
+ * a per-PR database is dropped" is the drift DRY governs, and the one that would rot is the one whose
+ * failure mode is invisible.
  *
- * Claims 1 and 3 are both kept and neither implies the other: 1 catches a database nobody can drop at all,
- * 3 catches one that becomes undroppable in a partial deploy.
+ * ## What changed and why, so the deletions are arguable rather than quiet
  *
- * The pattern itself is read FROM the script, so the script stays the single authority for what a drop door
- * looks like and this file cannot drift from it.
+ * - The old **claim 2** (the script selects doors by an anchored `# drop-door-pattern:` it publishes) and the
+ *   two tests that read that pattern are GONE, along with the marker. The script no longer selects doors at
+ *   all; a pattern with no reader is a guard that passes by describing nothing.
+ * - The old **claim 3** (every stack that deploys a migration runner exports a door of its OWN) is GONE. Its
+ *   entire argument was the partial-deploy leak: `RecipeWorkersStack`'s in-deploy trigger creates
+ *   `kitchensink_recipes_pr_{N}` before `RecipeServiceStack` deploys, so a service deploy that wedges — as
+ *   ADR-0007 × ADR-0022 wedged `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED` — left a
+ *   database whose only door was in a stack that did not exist. **The reaper closes that case strictly more
+ *   completely**: it needs neither stack, so it also reclaims the database when BOTH are gone, which no
+ *   per-stack door ever could. The coverage moved to claim 1 plus
+ *   `tests/teardownPerPrDatabases.integration.test.ts`'s "reaps a PR whose stacks are all gone".
+ *   ⚠️ Consequence worth knowing: `RecipeWorkersStack`'s `RecipeWorkersMigrationFunctionName` output is now
+ *   referenced by nothing outside its own stack test.
  *
  * ## Mutation evidence (each applied, and the named test watched to fail)
  *
- * 1. `RecipeServiceStack`'s `RecipeMigrationFunctionName` output renamed to `RecipeMigrateFn` → claim 1
- *    reports `recipeDatabaseNameForStage`, and claim 2's coverage assertion also reports it. Two tests, so
- *    neither is load-bearing alone.
- * 2. §1 of the teardown script restored to its hardcoded `FoodMigrationFunctionName` literal → claim 2
- *    reports it. This is the red-before-green run for the real defect.
- * 3. `RecipeWorkersStack`'s `recipeDatabaseNameForStage` call deleted → claim 1 still passes, confirming it
- *    groups by FAMILY. Claim 3 still reports the stack, because claim 3 keys on the RUNNER, which is the
- *    thing that creates a database.
- * 4. The pattern in the script widened to `MigrationFunctionName` (unanchored) → the pattern-shape test
- *    reports it, so a "fix" that makes the script match more than the convention allows cannot pass.
- * 5. `RecipeWorkersStack`'s `RecipeWorkersMigrationFunctionName` output deleted → claim 3 reports it and
- *    claim 1 does not. That is the red-before-green run for the partial-deploy leak, and the pair of
- *    outcomes is the evidence that the two claims ask different questions.
+ * 1. `foodDatabaseNameForStage` removed from `PER_PR_DATABASE_BASE_BY_PRODUCER` → claim 1 reports it. This
+ *    is the red-before-green run for "a third service's database is silently unreapable".
+ * 2. A fictitious `billingDatabaseNameForStage` added to the register → claim 1 reports it from the other
+ *    side, so the register cannot claim a `DROP DATABASE` scope the tree does not justify.
+ * 3. `RecipeServiceStack`'s `RecipeMigrationFunctionName` output renamed to `RecipeMigrateFn` → claim 2
+ *    reports `recipeDatabaseNameForStage`.
+ * 4. §1 of the teardown script restored to its hardcoded `FoodMigrationFunctionName` literal → claim 3
+ *    reports it.
  *
  * DESIGN PATTERN: Specification module over one parser — {@link databaseFamiliesIn} and {@link dropDoorsIn}
  * are pure verdicts over a source file, fired at deliberately-violating fakes below as well as at the tree.
@@ -86,22 +99,11 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import {
-    MIGRATION_RUNNER_HANDLER,
-    parse,
-    referenceText,
-    repoRoot,
-    stringLiterals,
-    trackedFiles,
-    visit,
-    type SourceFile,
-} from './serviceSources.js';
+import { parse, referenceText, repoRoot, trackedFiles, visit, type SourceFile } from './serviceSources.js';
+import { PER_PR_DATABASE_BASE_BY_PRODUCER } from '../src/db-reaper/perPrDatabaseScope.js';
 
-/** The teardown script that must be able to reach every door. */
+/** The teardown script that must reach per-PR databases through the reaper, and through nothing else. */
 const TEARDOWN_SCRIPT = '.github/scripts/teardown-sandbox-pr.sh';
-
-/** Delimits the anchored drop-door pattern the script publishes, so this guard reads it rather than a copy. */
-const PATTERN_MARKER = '# drop-door-pattern:';
 
 /** A stack deriving a per-stage (and therefore per-PR) logical database name. */
 interface DatabaseFamily {
@@ -176,24 +178,6 @@ function dropDoorsIn(source: SourceFile): readonly DropDoor[] {
 }
 
 /**
- * Whether one infra source DEPLOYS an ADR-0022 schema-migration runner.
- *
- * ⛔ This is a different question from "does this stack name a per-stage database", and the difference is the
- * whole of claim 3 below. A stack that merely derives a name reads a database somebody else created; a stack
- * that ships a RUNNER creates it — `ensureDatabaseExists` runs inside its in-deploy trigger — so it can bring
- * a per-PR database into existence entirely on its own.
- *
- * Keyed on the handler string VALUE, defined once in `serviceSources.ts` and shared with
- * `schemaMigrationBarrier.test.ts`, so prose describing a runner cannot satisfy it.
- *
- * @param source - One infra source file.
- * @returns `true` when the file bundles a migration runner. Pure.
- */
-function shipsMigrationRunner(source: SourceFile): boolean {
-    return stringLiterals(source).includes(MIGRATION_RUNNER_HANDLER);
-}
-
-/**
  * Every CDK stack source in the repo.
  *
  * Discovered from `git ls-files`, never enumerated — the same walk `natEgressConsumers.test.ts` uses, and for
@@ -209,21 +193,6 @@ function infraSources(): readonly SourceFile[] {
         .map((file) => ({ file, contents: readFileSync(path.join(repoRoot, file), 'utf8') }));
 }
 
-/**
- * The anchored drop-door pattern the teardown script publishes.
- *
- * @returns The pattern, compiled. Impure.
- * @sideEffect Reads the teardown script.
- */
-function scriptDropDoorPattern(): RegExp {
-    const script = readFileSync(path.join(repoRoot, TEARDOWN_SCRIPT), 'utf8');
-    const declared = new RegExp(`${PATTERN_MARKER}\\s*(\\S+)`).exec(script)?.[1];
-
-    expect(declared, `${TEARDOWN_SCRIPT} must publish its drop-door pattern after "${PATTERN_MARKER}"`).toBeDefined();
-
-    return new RegExp(declared ?? '');
-}
-
 describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
     const sources = infraSources();
     const families = sources.flatMap((source) => databaseFamiliesIn(source));
@@ -235,6 +204,24 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
             'no per-stage database derivation found — the gate stopped discovering',
         ).toBeGreaterThan(0);
         expect(doors.length, 'no migration-runner output found — the gate stopped discovering').toBeGreaterThan(0);
+    });
+
+    it('⛔ is covered by the REAPER — its base register equals the families the tree derives', () => {
+        // ⛔ THE CLAIM ADR-0031 RESTS ON. `teardown-sandbox-pr.sh` §1 invokes one reaper for the whole PR,
+        // and the reaper drops exactly the names its register derives. A family missing from the register is
+        // a per-PR database nothing will ever reclaim — and it leaks the way the recipe one did: invisibly,
+        // because a logical database is not a CloudFormation resource and costs too little to notice.
+        //
+        // Equality, in BOTH directions, for the reason ADR-0004's consumer table is bidirectional: an
+        // unregistered family leaks forever, and a registered family the tree no longer derives is a
+        // `DROP DATABASE` scope nobody can justify.
+        expect(
+            [...new Set(families.map(({ producer }) => producer))].sort(),
+            'the reaper (packages/infra/global/src/db-reaper/perPrDatabaseScope.ts) derives the names it is ' +
+                'allowed to drop from PER_PR_DATABASE_BASE_BY_PRODUCER. A `*DatabaseNameForStage` producer ' +
+                'the register has not heard of is a per-PR database no teardown can reclaim; a register ' +
+                'entry with no producer in the tree is a drop scope nothing justifies.',
+        ).toEqual(Object.keys(PER_PR_DATABASE_BASE_BY_PRODUCER).sort());
     });
 
     it('gives every database FAMILY at least one stack that exports a migration runner', () => {
@@ -257,50 +244,13 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
 
         expect(
             withoutDoor,
-            'a per-PR database whose stacks export no *MigrationFunctionName cannot be dropped at PR close, ' +
-                'and the database leaks silently on every reap',
+            'a per-PR database family whose stacks export no *MigrationFunctionName cannot be MIGRATED: ' +
+                'prod-deploy.yml and sandbox-deploy.yml look those outputs up by name to run the schema ' +
+                "migrations. (Reclaiming it is ADR-0031's reaper's job, not this output's, since 2026-09-04.)",
         ).toEqual([]);
     });
 
-    it('⛔ gives every stack that DEPLOYS a migration runner a drop door OF ITS OWN', () => {
-        // ⛔ THE CLAIM ABOVE IS NECESSARY AND NOT SUFFICIENT, and this is why. Claim 1 groups by database
-        // FAMILY on the reasoning that `RecipeServiceStack` and `RecipeWorkersStack` share one database, so
-        // one door between them is enough. That is true only while the two stacks are always present
-        // together, and they are not: `sandbox-deploy.yml`'s `deploy-recipe` job deploys workers FIRST (they
-        // publish the SSM parameters the service resolves at synth), with two hard-failing steps in between —
-        // the workers verification and the drift report — before the service's `cdk deploy` is even reached.
-        // A failure at either, or in the service deploy itself, leaves the workers stack up and the service
-        // stack absent. That is not hypothetical: ADR-0007 × ADR-0022 wedged `kitchensink-recipe-service-pr-91`
-        // in `UPDATE_ROLLBACK_FAILED` at 00:31 EDT against the nightly-stopped RDS.
-        //
-        // In that state the workers stack has ALREADY created `kitchensink_recipes_pr_{N}` — its in-deploy
-        // trigger runs `ensureDatabaseExists` — while teardown, which discovers doors from the outputs of the
-        // stacks that actually EXIST, finds none. The database survives every reap, on the shared sandbox
-        // instance, invisibly: the stack deletes cleanly and the database is not its resource. Exactly the
-        // leak claim 1 exists to prevent, reached from a direction claim 1 cannot see.
-        //
-        // A second door is redundant only when both stacks are deployed. It costs one `CfnOutput` and one
-        // extra invoke at teardown, and `dropDatabase` answers `'absent'` without throwing, so the redundant
-        // call is a no-op rather than the `FunctionError` teardown now treats as a failed run.
-        const undoored = sources
-            .filter((source) => shipsMigrationRunner(source))
-            .filter((source) => dropDoorsIn(source).length === 0)
-            .map(({ file }) => file)
-            .sort();
-
-        expect(
-            undoored,
-            'a stack that deploys a migration runner can create a per-PR database on its own, so it must ' +
-                'publish its own *MigrationFunctionName output — teardown discovers doors from the stacks ' +
-                'that exist, not from the ones that were supposed to',
-        ).toEqual([]);
-    });
-
-    it('discovers the runner-shipping stacks — the claim above must not pass on an empty set', () => {
-        expect(sources.filter((source) => shipsMigrationRunner(source)).length).toBeGreaterThan(2);
-    });
-
-    it('is reachable from teardown by PATTERN — the script names no specific door', () => {
+    it('⛔ is reclaimed through the REAPER — the teardown script names no per-service door', () => {
         const script = readFileSync(path.join(repoRoot, TEARDOWN_SCRIPT), 'utf8');
         // Strip comments before looking for literals: the script EXPLAINS the food-only bug it used to have,
         // and a textual gate that fired on its own rationale would get deleted. Same trap
@@ -313,29 +263,20 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
 
         expect(
             named,
-            'teardown must SELECT migration-runner outputs by shape, not name them. A hardcoded key drops ' +
-                'the databases it lists and silently leaks every other one — which is exactly how ' +
-                'kitchensink_recipes_pr_{N} leaked on every reaped recipe preview.',
+            'teardown must reclaim per-PR databases through PerPrDatabaseReaperFunction (ADR-0031), which ' +
+                'needs no service stack to exist. Naming a per-service door here re-introduces the path ' +
+                'that could not reach a database whose stack was gone or wedged — and a second authority ' +
+                'for "how a per-PR database is dropped" is the drift DRY governs.',
         ).toEqual([]);
     });
 
-    it('covers every discovered door with the pattern the script actually uses', () => {
-        // The other direction: selecting by shape is worthless if the shape excludes a real door.
-        const pattern = scriptDropDoorPattern();
-        const uncovered = [...new Set(doors.map(({ outputKey }) => outputKey))].filter((key) => !pattern.test(key));
+    it('invokes the reaper by the output DataStack publishes', () => {
+        // The positive half: "names no door" is satisfied by a script that drops nothing at all. Pinned to
+        // the output key rather than a function name, because the name is CloudFormation-generated.
+        const script = readFileSync(path.join(repoRoot, TEARDOWN_SCRIPT), 'utf8');
 
-        expect(uncovered, `${TEARDOWN_SCRIPT}'s drop-door pattern does not match these exported outputs`).toEqual([]);
-    });
-
-    it('keeps that pattern ANCHORED, so it cannot quietly widen to any output', () => {
-        const pattern = scriptDropDoorPattern();
-
-        expect(pattern.source.startsWith('^'), 'the drop-door pattern must be anchored at both ends').toBe(true);
-        expect(pattern.source.endsWith('$'), 'the drop-door pattern must be anchored at both ends').toBe(true);
-        // An unanchored or over-broad pattern would have teardown invoke `{"action":"drop"}` at whatever a
-        // stack happens to export. Fired at a real non-door output name from this repo.
-        expect(pattern.test('RecipeServiceUrl')).toBe(false);
-        expect(pattern.test('SchedulerFunctionName')).toBe(false);
+        expect(script).toContain('PerPrDatabaseReaperFunctionName');
+        expect(script).toMatch(/"action\\":\\"drop/);
     });
 });
 

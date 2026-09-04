@@ -1686,13 +1686,35 @@ jobs:
     # `cdkNagSynth.integration.test.ts`, which writes `dist-lambda/` into the package root as a side effect of
     # bundling — came to run in PARALLEL with `cdkNagTemplateParity.test.ts`, whose two synths must be
     # byte-identical. The bundle landing between them broke the ADR-0002 no-prod-diff proof on a diff nobody
-    # wrote. No service containers and no secrets: the one live-probing suite is `describe.runIf`-gated on
-    # PROD_WEB_SMOKE_ORIGIN, which only `prod-deploy.yml` sets, so it skips here by design.
+    # wrote. No secrets: the one live-probing suite is `describe.runIf`-gated on PROD_WEB_SMOKE_ORIGIN, which
+    # only `prod-deploy.yml` sets, so it skips here by design.
+    #
+    # ⚠️ ONE service container, added with the ADR-0031 per-PR database reaper. That suite issues real
+    # `DROP DATABASE` statements, and the three things it exists to prove are all boundary facts a fake pool
+    # cannot answer: that `WITH (FORCE)` defeats the session a torn-down preview leaves behind, that the
+    # shared BASE database and the neighbouring PR survive a reap, and that the `LIKE … ESCAPE` narrowing does
+    # not claim a name it has no business claiming. `DATABASE_URL` is set on the STEP that runs the suite, not
+    # on the job, because `prodDeploySmokeDepth.test.ts` requires exactly that — an `env:` on a step that does
+    # not run the file reads like wiring and is not.
     integration-infra:
         name: Integration (infra — synth + bundle)
         timeout-minutes: 30
         runs-on: ubuntu-latest
         needs: [install]
+        services:
+            postgres:
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: postgres
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -1745,7 +1767,12 @@ jobs:
             # state, because otherwise the failure is invisible until CI.
             - name: Build the workspace dependencies this per-workspace run cannot build itself
               run: npx turbo run build --filter=@kitchensink/infra-global^...
+            # `DATABASE_URL` points at the MAINTENANCE database, because `DROP DATABASE` cannot run from
+            # inside the database being dropped. The suite CREATES and DROPS databases with the real
+            # ADR-0006 names, which is safe here and only here: this is a throwaway service container.
             - name: Run infra integration tests
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
               run: npm run test:integration --workspace=@kitchensink/infra-global
 
     build:

@@ -116,6 +116,7 @@ Construct `DataStack` — `packages/infra/global/lib/platform/DataStack.ts`
 | kind | logical id | handler / name template | only when |
 | --- | --- | --- | --- |
 | lambdaFunction | `FoodDbBootstrapFunction` | `—` | — | handler is not a literal: LAMBDA_ASSET_CANDIDATES.present ? 'food-db-bootstrap/handler.handler' : 'index.handler'
+| lambdaFunction | `PerPrDatabaseReaperFunction` | `—` | `stageTag !== 'prod'` | handler is not a literal: LAMBDA_ASSET_CANDIDATES.present ? 'db-reaper/handler.handler' : 'index.handler'
 | lambdaFunction | `RecipeDbBootstrapFunction` | `—` | — | handler is not a literal: LAMBDA_ASSET_CANDIDATES.present ? 'recipe-db-bootstrap/handler.handler' : 'index.handler'
 | queue | `DeletionDlq` | `—` | — |
 | queue | `DeletionQueue` | `—` | — |

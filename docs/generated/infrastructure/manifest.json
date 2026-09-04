@@ -93,6 +93,16 @@
                             ]
                         },
                         {
+                            "kind": "lambdaFunction",
+                            "logicalId": "PerPrDatabaseReaperFunction",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": "stageTag !== 'prod'",
+                            "notes": [
+                                "handler is not a literal: LAMBDA_ASSET_CANDIDATES.present ? 'db-reaper/handler.handler' : 'index.handler'"
+                            ]
+                        },
+                        {
                             "kind": "queue",
                             "logicalId": "DeletionDlq",
                             "nameTemplate": null,

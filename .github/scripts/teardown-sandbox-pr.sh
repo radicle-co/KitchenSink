@@ -55,10 +55,10 @@ path_belongs() { pr_scope_path_belongs "$PR" "$1"; }
 
 # Every CloudFormation stack belonging to this PR, as `name<TAB>Environment-tag` lines.
 #
-# ⛔ Computed ONCE, and shared by section 1 (drop the per-PR databases) and section 2 (delete the stacks),
-# because the two MUST agree about what this PR owns. A stack section 2 deletes but section 1 never looked at
-# is a per-PR database that leaks with its only drop door — which is the class of defect that produced the
-# recipe leak in the first place, just arrived at from the other side.
+# ⚠️ This used to be SHARED with section 1, which discovered a per-PR database's drop door from the outputs
+# of the PR's own stacks — so the two HAD to agree about what this PR owned, or a stack section 2 deleted but
+# section 1 never looked at leaked its database along with its only door. ADR-0031's reaper needs no stack at
+# all, so that coupling is gone and this discovery now serves section 2 alone.
 #
 # The status filter includes the FAILED/stuck resting states, so a per-PR stack that failed or hung at close
 # time is still found rather than leaked. Two independent matches, either sufficient: `belongs` catches a
@@ -222,94 +222,85 @@ PR_STACKS=$(discover_pr_stacks)
 if bash "$SCRIPT_DIR/sandbox-wake.sh" ensure "$REGION"; then
     echo "[wake] shared sandbox database and NAT are up"
 else
-    echo "::error::could not wake the shared sandbox tier — the per-PR logical databases below cannot be dropped and will be left behind. Everything that does not need a database is still reclaimed."
+    echo "::error::could not wake the shared sandbox tier — the per-PR logical databases below cannot be dropped (the reaper is in-VPC too) and will be left behind. Everything that does not need a database is still reclaimed."
     teardown_failed=1
 fi
 
-## 1. Per-PR logical databases (ADR-0006) — drop BEFORE the stacks are deleted, because each service's
-##    in-VPC migration-runner Lambda is the only thing that can reach the PRIVATE_ISOLATED RDS and it is
-##    torn down with its stack in section 2. Every handler refuses to drop its shared base database.
+## 1. Per-PR logical databases (ADR-0006) — reclaimed by the PLATFORM REAPER (ADR-0031).
+##
+##    ⛔ REPOINTED 2026-09-04, and the shape it replaced was not merely inelegant — it was incomplete in a
+##    way nothing could see. This section used to discover a drop door on each of the PR's OWN stacks (any
+##    output matching `^[A-Za-z]+MigrationFunctionName$`) and invoke it with `{"action":"drop"}`. That covers
+##    the normal path and only the normal path, because the door lives INSIDE the stack whose database it
+##    drops:
+##
+##      • a stack already deleted, or resting in DELETE_FAILED / UPDATE_ROLLBACK_FAILED, publishes no
+##        outputs — so its database had no door at all, and survived every sweep; and
+##      • the databases stranded during the period when `RecipeMigrationFunctionName` existed and nothing
+##        ever invoked it are unreachable by construction, their stacks long gone.
+##
+##    `PerPrDatabaseReaperFunction` lives in `DataStack`, beside the instance itself, so it outlives every
+##    service stack and needs none of them to exist. It takes a `pr-{N}` token and nothing else, discovers
+##    its own targets from `pg_database`, and is authorised by an exact-suffix scope predicate that it
+##    RE-ASSERTS at the point of destruction — `packages/infra/global/src/db-reaper/perPrDatabaseScope.ts`,
+##    the same belt-and-braces §0b applies before deleting a GitHub Environment. It is deployed at non-prod
+##    stages only and refuses at runtime if `STAGE` is `prod`.
+##
+##    ⛔ THIS DISSOLVES THE ORDERING CONSTRAINT against §2 — the reaper is not torn down with the PR — but the
+##    call stays HERE, ahead of the stack deletes, on a different argument: §2 waits for each delete and a
+##    wedged stack can eat the whole run. The ordering is now a preference, not a precondition.
 ##
 ##    ⛔ A FAILED DROP IS AN ERROR, not a warning (owner ruling, 2026-09-03). It used to warn, while §0c's
-##    wake — which exists for no purpose other than making this drop possible — failed the run. The severities
-##    disagreed, and backwards: the outcome the wake is a MEANS TO could fail on its own and the run still
-##    reported green with a database left behind. Both are errors now. Neither ABORTS: they set
-##    `teardown_failed` and the run goes red at the end, so everything that needs no database is still
-##    reclaimed (`sandboxReclamationReachability.test.ts` invariant 1).
+##    wake — which exists for no purpose other than making this drop possible — failed the run. The
+##    severities disagreed, and backwards. Both are errors now. Neither ABORTS: they set `teardown_failed`
+##    and the run goes red at the end, so everything that needs no database is still reclaimed
+##    (`sandboxReclamationReachability.test.ts` invariant 1).
 ##
-##    ⛔ DISCOVERED, NEVER LISTED — and this section was a LIST until 2026-09-03.
-##
-##    It hardcoded `kitchensink-food-service-$PR` and `FoodMigrationFunctionName`, so it dropped food's
-##    database and food's alone. `RecipeServiceStack` has exported `RecipeMigrationFunctionName` since it
-##    shipped, and `recipe-service`'s migrate handler implements `action: 'drop'` with the same base-name
-##    refusal food's has — and nothing ever called it. Every reaped recipe preview left
-##    `kitchensink_recipes_pr_{N}` behind, silently: the script reported success for dropping what it was
-##    told to drop, the stack deleted cleanly, and the database is not a CloudFormation resource so nothing
-##    in the console showed it. A third service would have inherited the same fate on day one.
-##
-##    So the doors are selected by SHAPE from the PR's own stacks. The pattern is published here, once, and
-##    read by `packages/infra/global/__tests__/perPrDatabaseDropDoors.test.ts`, which discovers BOTH sides
-##    from the CDK tree — every stack deriving a per-stage database name, and every migration-runner output —
-##    and asserts that this script names none of them individually. A copy of a list cannot detect that the
-##    list is incomplete.
-# drop-door-pattern: ^[A-Za-z]+MigrationFunctionName$
-DROP_DOOR_PATTERN='^[A-Za-z]+MigrationFunctionName$'
+##    ⚠️ The per-service `action: 'drop'` doors still exist and are still tested in their own packages; they
+##    are simply no longer what teardown depends on. ONE authority for "how a per-PR database is dropped" is
+##    the point — two would be the drift DRY governs.
 
-drop_doors_count=0
-while IFS=$'\t' read -r stack envtag; do
-    [ -n "$stack" ] || continue
+# The persistent platform stage every `pr-{N}` preview rides (ADR-0006). Not derived from the token: a
+# preview never has a platform of its own, and prod has no per-PR databases at all, so there is exactly one
+# possible value. Overridable only so an integration harness can point at a fixture.
+REAPER_STACK="${TEARDOWN_DATA_STACK:-kitchensink-data-sandbox}"
 
-    # Every output this stack publishes, then filtered in SHELL against the anchored pattern above. The
-    # filter is not pushed into `--query`: JMESPath has no anchored match, so the authority for "what a drop
-    # door looks like" would end up split between a suffix test here and a regex in the guard.
-    outputs=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$stack" \
-        --query 'Stacks[0].Outputs[].[OutputKey,OutputValue]' --output text 2>/dev/null) || outputs=""
+reaper_fn=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$REAPER_STACK" \
+    --query "Stacks[0].Outputs[?OutputKey=='PerPrDatabaseReaperFunctionName'].OutputValue | [0]" \
+    --output text 2>/dev/null) || reaper_fn=""
 
-    while IFS=$'\t' read -r key value; do
-        [ -n "$key" ] && [ "$key" != "None" ] || continue
-        [[ $key =~ $DROP_DOOR_PATTERN ]] || continue
-        [ -n "$value" ] && [ "$value" != "None" ] || continue
-
-        drop_doors_count=$((drop_doors_count + 1))
-        echo "[db-drop] $stack (Environment=$envtag) publishes $key — invoking $value with {action:drop}"
-
-        if aws lambda invoke --region "$REGION" --function-name "$value" \
-            --payload '{"action":"drop"}' --cli-binary-format raw-in-base64-out \
-            /tmp/db-drop-result.json >/tmp/db-drop-invoke.json 2>/tmp/db-drop-invoke.err; then
-            # ⛔ `aws lambda invoke` EXITS 0 WHEN THE FUNCTION THREW — the throw is reported in its stdout,
-            # which is what this greps. Reading the exit status alone reports a successful drop for a
-            # database that is still there.
-            if grep -q '"FunctionError"' /tmp/db-drop-invoke.json; then
-                echo "::error::per-PR DB drop via $key for $PR returned a FunctionError — the database was NOT dropped and will be left behind. Inspect $value logs."
-                teardown_failed=1
-            else
-                echo "[db-drop] $key result: $(cat /tmp/db-drop-result.json)"
-            fi
-        else
-            # ⚠️ PRINT THE REASON. This branch used to send stderr to /dev/null and say only "drop it
-            # manually", which cost a real diagnosis on 2026-08-27: the invoke was failing with
-            # `Unknown options: --cli-binary-format` because the operator's shell resolved AWS CLI **v1**,
-            # where that flag does not exist. The message named the database and the function but not the one
-            # fact that identified the cause in seconds. The per-PR database leaked, silently, and the reason
-            # was three characters of redirection away.
-            #
-            # This is the LAST chance to drop it: the migration runner is torn down with its stack in
-            # section 2, and it is the only thing that can reach the PRIVATE_ISOLATED RDS. Once it is gone
-            # the database can only be removed by deploying that service at that stage again.
-            echo "::error::could not invoke $value to drop $PR's per-PR database via $key — it will be left behind"
-            teardown_failed=1
-            sed 's/^/  [db-drop] /' /tmp/db-drop-invoke.err >&2 || true
-            if grep -q 'cli-binary-format' /tmp/db-drop-invoke.err 2>/dev/null; then
-                echo "::error::this shell's \`aws\` is CLI v1 (\`--cli-binary-format\` is v2-only). Re-run with AWS CLI v2 — the drop is not retried after the stack is deleted." >&2
-            fi
-        fi
-    done <<<"$outputs"
-done <<<"$PR_STACKS"
-
-# The Null Object case, kept: most PRs never deploy a service that owns a logical database, and a run that
-# says nothing about that reads as a run that skipped the step.
-if [ "$drop_doors_count" -eq 0 ]; then
-    echo "No migration-runner outputs across $PR's stacks — no per-PR database to drop."
+if [ -z "$reaper_fn" ] || [ "$reaper_fn" = "None" ]; then
+    # NOT a silent skip. An absent reaper means the platform stack has not deployed ADR-0031 yet, or the
+    # output was renamed — and either way this PR's logical databases are being left on the shared instance.
+    echo "::error::$REAPER_STACK publishes no PerPrDatabaseReaperFunctionName (ADR-0031), so $PR's per-PR logical databases cannot be dropped and will be left behind. Deploy the global infra app, then re-run this teardown."
+    teardown_failed=1
+elif aws lambda invoke --region "$REGION" --function-name "$reaper_fn" \
+    --payload "{\"action\":\"drop\",\"pr\":\"$PR\"}" --cli-binary-format raw-in-base64-out \
+    /tmp/db-drop-result.json >/tmp/db-drop-invoke.json 2>/tmp/db-drop-invoke.err; then
+    # ⛔ `aws lambda invoke` EXITS 0 WHEN THE FUNCTION THREW — the throw is reported in its stdout, which is
+    # what this greps. Reading the exit status alone reports a successful drop for a database still there.
+    if grep -q '"FunctionError"' /tmp/db-drop-invoke.json; then
+        echo "::error::per-PR DB drop for $PR returned a FunctionError — the databases were NOT dropped and will be left behind. Inspect $reaper_fn logs."
+        teardown_failed=1
+    else
+        # The result carries BOTH what was dropped and a whole-instance census, so a run that reclaimed
+        # nothing still says what is out there. The Null Object case is kept for the same reason it always
+        # was: most PRs never deploy a service that owns a logical database, and a run that says nothing
+        # about that reads as a run that skipped the step.
+        echo "[db-drop] $reaper_fn result: $(cat /tmp/db-drop-result.json)"
+    fi
+else
+    # ⚠️ PRINT THE REASON. This branch used to send stderr to /dev/null and say only "drop it manually",
+    # which cost a real diagnosis on 2026-08-27: the invoke was failing with
+    # `Unknown options: --cli-binary-format` because the operator's shell resolved AWS CLI **v1**, where
+    # that flag does not exist. The message named the database and the function but not the one fact that
+    # identified the cause in seconds.
+    echo "::error::could not invoke $reaper_fn to drop $PR's per-PR databases — they will be left behind"
+    teardown_failed=1
+    sed 's/^/  [db-drop] /' /tmp/db-drop-invoke.err >&2 || true
+    if grep -q 'cli-binary-format' /tmp/db-drop-invoke.err 2>/dev/null; then
+        echo "::error::this shell's \`aws\` is CLI v1 (\`--cli-binary-format\` is v2-only). Re-run with AWS CLI v2." >&2
+    fi
 fi
 
 ## 1b. Drain the PR's ECS services and tasks BEFORE any stack delete — an ORDERING fix, not a retry.

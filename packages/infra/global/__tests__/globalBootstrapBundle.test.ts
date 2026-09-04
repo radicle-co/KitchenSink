@@ -137,6 +137,48 @@ describe('every workflow that deploys the global infra app bundles its handlers 
     });
 });
 
+/**
+ * ⛔ EVERY BUNDLED HANDLER `DataStack` DEPLOYS MUST BE AN `esbuild.mjs` ENTRY POINT.
+ *
+ * `serviceInfraWiringInvariants.test.ts` asserts exactly this for `packages/services/*` — because
+ * `recipe-workers/esbuild.mjs` once declared five entry points while its stack deployed six Lambdas, and the
+ * sixth shipped code that was never bundled. That gate walks `packages/services`, so this package was never
+ * covered by it, and `DataStack` now deploys three bundled handlers.
+ *
+ * Both sides are DERIVED and nothing is enumerated: the handlers come from `DataStack.ts`'s own string
+ * literals in esbuild's `outbase: src` shape, and the entry points from the `entryPoints` binding in
+ * `esbuild.mjs`. A handler added tomorrow is covered the day it is written.
+ */
+describe('DataStack bundles every handler it deploys', () => {
+    const dataStack = readFileSync(DATA_STACK, 'utf8');
+    const bundler = readFileSync(fileURLToPath(new URL('../esbuild.mjs', import.meta.url)), 'utf8');
+
+    /**
+     * The source file a `handler:` string resolves to under esbuild's `outbase: src` layout.
+     *
+     * `db-reaper/handler.handler` → `src/db-reaper/handler.ts`; the trailing segment is the EXPORT, not part
+     * of the path.
+     */
+    const entryPointFor = (handler: string): string => `src/${handler.slice(0, handler.lastIndexOf('.'))}.ts`;
+
+    /** Every bundled-handler string the stack names — `index.handler` is the inline stub, not a bundle. */
+    const deployedHandlers = [...dataStack.matchAll(/'([a-z0-9-]+\/handler\.handler)'/g)].map(
+        ([, handler]) => handler ?? '',
+    );
+
+    it('discovers the handlers — a gate that finds none passes vacuously', () => {
+        expect(deployedHandlers.length).toBeGreaterThan(2);
+    });
+
+    it.each(deployedHandlers)('bundles %s', (handler) => {
+        expect(
+            bundler,
+            `DataStack deploys '${handler}' but esbuild.mjs does not bundle '${entryPointFor(handler)}' — the ` +
+                'function would ship whatever else happens to be in dist-lambda/, or nothing at all',
+        ).toContain(`'${entryPointFor(handler)}'`);
+    });
+});
+
 /** A synth-only account/region; nothing here is deployed. */
 const SYNTH_ENV = { account: '123456789012', region: 'us-east-1' };
 

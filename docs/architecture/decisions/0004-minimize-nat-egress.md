@@ -52,11 +52,26 @@ AWS network."_
 `publiclyAccessible: false`. Fargate still egresses via the IGW and is not on this list. `log-forwarder` is
 still deliberately non-VPC.
 
+**Update (2026-09-04) — 20, and one of them exists at NON-PROD STAGES ONLY.** ADR-0031's
+`PerPrDatabaseReaperFunction` joins the `DataStack` row. It is VPC-attached for the same single reason as
+everything else here: it reads `pg_database` and issues `DROP DATABASE` against the `PRIVATE_ISOLATED`
+instance, and `assignPublicIp` gives a VPC Lambda no egress (Fargate only). It makes no other network call —
+Secrets Manager is its only AWS API, on the NAT like its two `DataStack` siblings — so it needs **no**
+interface endpoint, and the no-interface-endpoint rule above continues to bind: at `maxAzs: 2` an endpoint
+would cost $14.60/month/stage to carry a handful of invocations a month against a $3–4 NAT instance.
+
+⚠️ **The table is stage-agnostic and the construct is not.** `DataStack` creates the reaper only when the
+stage is not `prod` (ADR-0031), so on prod this row overstates the live consumer set by one. That is
+deliberate rather than sloppy: `natEgressConsumers.test.ts` discovers consumers from the **infra tree** by
+AST, not from a synthesized template, so a conditional construct is discovered unconditionally — and the
+alternative, a per-stage table, would put the reader one step further from the source. The NAT cost
+consequence is nil either way (a NAT instance is billed by the hour, not per consumer).
+
 <!-- nat-consumers:start -->
 
 | Stack                | VPC-attached Lambdas                                                                                                                                                                                                                                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| DataStack (global)   | `FoodDbBootstrapFunction`, `RecipeDbBootstrapFunction`                                                                                                                                                                                                                                                                               |
+| DataStack (global)   | `FoodDbBootstrapFunction`, `RecipeDbBootstrapFunction`, `PerPrDatabaseReaperFunction`                                                                                                                                                                                                                                                |
 | WebhooksStack        | `WebhookFunction`, `DeletionWorkerFunction`, `ReconciliationFunction`, `TombstoneSweepFunction`, `ErasureReconciliationFunction`                                                                                                                                                                                                     |
 | IdentityServiceStack | `IdentityMigrationFunction`                                                                                                                                                                                                                                                                                                          |
 | FoodServiceStack     | `FoodMigrationFunction`                                                                                                                                                                                                                                                                                                              |

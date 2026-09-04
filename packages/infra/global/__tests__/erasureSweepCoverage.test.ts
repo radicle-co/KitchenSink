@@ -225,7 +225,7 @@ interface SweptDatabase {
      * spurious drop in the other. Keep it EXACT (zero slack): it must be raised in the same change as any
      * migration adding a user-bearing table.
      */
-    readonly minimumOwnerBearingTables: number;
+    readonly expectedOwnerBearingTables: number;
     /** The fewest handle-bearing `table.column` locations — same posture, per database. May be 0. */
     readonly minimumHandleBearingColumns: number;
     /** This database's {@link EXEMPT_FROM_SWEEP}-shaped map. */
@@ -348,18 +348,29 @@ const RETAINED_BY_RULING: ReadonlyMap<string, { readonly why: string; readonly c
  * parser that silently stops matching goes RED instead of green, which is the failure a gate over a derived
  * set is most exposed to.
  *
- * ⚠️ Raised from 6 to 8 when the discovery became a FOLD (see the module docstring), and 8 → 9 when U11's
- * 0040 gave `ingredients` its `food_owner_id`. The current schema has exactly nine, so the slack a fold
- * could use to spuriously drop a table is ZERO — one spurious drop goes red. That is deliberate, and it is
- * the cost: this constant must be raised in the same change as any migration adding a user-bearing table,
- * or the gate goes red on the addition rather than on a defect.
+ * ⚠️ Raised from 6 to 8 when the discovery became a FOLD (see the module docstring), 8 → 9 when U11's
+ * 0040 gave `ingredients` its `food_owner_id`, and 9 → 11 on 2026-09-04 for `recipe_parse_jobs.owner_id`
+ * (0039) and `analytics_events.user_id` (0043).
+ *
+ * ⛔ COMPARED WITH `toBe`, NOT `toBeGreaterThanOrEqual`, AND THAT IS THE WHOLE POINT. Those last two
+ * migrations landed WITHOUT raising the number, and under a `>=` comparison nothing said so: the count was
+ * 11 against a floor of 9, which is two tables of slack in the one direction a fold can fail dangerously —
+ * spuriously DROPPING a table takes a personal table out of the swept set and the gate stays green. The
+ * docstring already claimed the slack was zero and already said this "must be raised in the same change as
+ * any migration adding a user-bearing table, or the gate goes red on the addition"; only an equality
+ * delivers that sentence, so the operator is now the one the reasoning always described.
+ *
+ * ⚠️ Red on a legitimate addition is the ACCEPTED COST, not a defect — raise the number in that same change.
+ * Note this is a second line of defence, not the first: an added user-bearing table with no erasure decision
+ * is already caught by the coverage assertion below, which names the table. This pin catches the opposite
+ * failure, where discovery quietly finds FEWER tables than the schema has.
  */
-const MINIMUM_OWNER_BEARING_TABLES = 9;
+const EXPECTED_OWNER_BEARING_TABLES = 11;
 
 /**
  * The fewest handle-bearing `table.column` locations a working discovery must find.
  *
- * A floor, never the list — the same posture as {@link MINIMUM_OWNER_BEARING_TABLES} and for the same reason:
+ * A floor, never the list — the same posture as {@link EXPECTED_OWNER_BEARING_TABLES} and for the same reason:
  * a shape predicate that silently stops matching must go RED rather than pass by finding nothing, and a
  * per-column dimension is more exposed to that than a per-table one, because it depends on the clause parser
  * as well as on the pattern.
@@ -385,7 +396,7 @@ const SWEPT_DATABASES: readonly SweptDatabase[] = [
         migrations: 'packages/services/recipe-service/src/database/migrations',
         sweepFile: 'packages/services/recipe-workers/src/handlers/accountErasureWorker.ts',
         sweepFunction: 'eraseRecipeRows',
-        minimumOwnerBearingTables: MINIMUM_OWNER_BEARING_TABLES,
+        expectedOwnerBearingTables: EXPECTED_OWNER_BEARING_TABLES,
         minimumHandleBearingColumns: MINIMUM_HANDLE_BEARING_COLUMNS,
         exemptFromSweep: EXEMPT_FROM_SWEEP,
         retainedByRuling: RETAINED_BY_RULING,
@@ -395,10 +406,9 @@ const SWEPT_DATABASES: readonly SweptDatabase[] = [
         migrations: 'packages/services/food-service/src/db/migrations',
         sweepFile: 'packages/services/food-service/src/foods/eraseFoodRows.ts',
         sweepFunction: 'eraseFoodRows',
-        // Exactly `fetch_requesters` + `food` (0013's authored-foods user_id, plan U10) — zero slack,
-        // like the recipe floor. This went 1 → 2 in the same change as 0013, exactly as the entry's own
-        // comment demanded.
-        minimumOwnerBearingTables: 2,
+        // ⚠️ 2 → 3 on 2026-09-04: measured at three, so this entry had drifted exactly as the recipe one
+        // had, and for the same reason — a `>=` comparison cannot report a count that has grown past it.
+        expectedOwnerBearingTables: 3,
         // The food schema carries no display handles. A first one arriving must raise this floor in the
         // same change that adjudicates it.
         minimumHandleBearingColumns: 0,
@@ -1105,8 +1115,9 @@ describe('account-erasure sweep coverage', () => {
 
                 expect(
                     owned.length,
-                    'fewer user-bearing tables than this database is known to have — discovery has broken',
-                ).toBeGreaterThanOrEqual(database.minimumOwnerBearingTables);
+                    'the user-bearing table count moved — raise the pin in the migration’s own change, or ' +
+                        'discovery has broken and is finding fewer tables than the schema has',
+                ).toBe(database.expectedOwnerBearingTables);
                 expect(
                     swept.size,
                     `${database.sweepFunction} addresses no tables — the parser has broken`,
@@ -1177,8 +1188,12 @@ describe('account-erasure sweep coverage', () => {
                 const ever = new Set(userBearingTablesEver(migrations));
                 const now = userBearingTablesAfter(migrations);
 
+                // ⚠️ STAYS `toBeGreaterThanOrEqual` while the current-set assertion above is exact, and the
+                // asymmetry is correct: `ever` is the union over every migration, so it legitimately EXCEEDS
+                // the current count by however many user-bearing tables have since been dropped (12 vs 11
+                // today). Pinning it exactly would go red on a DROP, which is a thing migrations may do.
                 expect(ever.size, 'the union found nothing — the parser has broken').toBeGreaterThanOrEqual(
-                    database.minimumOwnerBearingTables,
+                    database.expectedOwnerBearingTables,
                 );
 
                 // ⛔ The one direction a fold can fail that a union cannot: inventing a table, or mis-parsing a

@@ -52,7 +52,15 @@ export const baseConfig = {
     test: {
         globals: true,
         include: ['**/__tests__/**/*.test.{ts,tsx}'],
-        exclude: ['node_modules', 'dist'],
+        // ⛔ The two worktree roots are excluded because vitest NEVER READS `.gitignore` — it resolves these
+        // with picomatch — so the `.gitignore` entries both roots already have buy nothing here. Without
+        // them a root-scoped run walks into every registered worktree and runs another branch's tests under
+        // this config: measured 2026-09-04 at 544 test files instead of 20, 282 of them "failing" for no
+        // reason but the wrong config. CI never sees it (one clone, no worktrees), which is precisely why it
+        // needs a guard rather than a habit — `packages/infra/global/__tests__/vitestWorktreeExclusion.test.ts`
+        // asserts it against `git worktree list`, so a new root fails without anyone remembering this line.
+        // ⚠️ The `/**` tail is load-bearing: `.worktrees` alone matches the DIRECTORY and none of its files.
+        exclude: ['node_modules', 'dist', '**/.worktrees/**', '**/.claude/worktrees/**'],
         // ⛔ Confines every temp directory this run creates to one removable root — see `testTempRoot.js`.
         // Without it, CDK's own `cdk.out*` synth dirs and our `mkdtempSync(tmpdir())` fixtures accumulate in
         // the OS temp directory forever: measured at 95,827 leaked directories and 110 GB on 2026-08-27.

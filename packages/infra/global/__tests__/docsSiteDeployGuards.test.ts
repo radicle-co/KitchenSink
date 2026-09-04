@@ -209,7 +209,9 @@ const FORBIDDEN_DOMAIN_PATTERNS: readonly { readonly id: string; readonly patter
     { id: 'project-domain', pattern: /projects\/[^\s'"]*\/domains|vercel\s+domains\b/ },
     { id: 'deployment-alias', pattern: /deployments\/[^\s'"]*\/aliases|vercel\s+alias\b/ },
     { id: 'branch-domain', pattern: /\bgitBranch\b/ },
-    { id: 'vercel-dns', pattern: /cname\.vercel-dns\.com/ },
+    // `vercel-dns` alone: this detects the literal DNS target in a script body, and a full hostname here
+    // reads to CodeQL as an unanchored host check. The bare token carries the same signal.
+    { id: 'vercel-dns', pattern: /vercel-dns/ },
     { id: 'route53', pattern: /route53|change-resource-record-sets|ResourceRecordSet/ },
     { id: 'preview-domain-script', pattern: /(create|teardown)PreviewDomain/ },
 ];
@@ -341,7 +343,10 @@ function findPublicationGaps(workflow: Workflow): readonly string[] {
         }
 
         const after = steps.filter((_, index) => index > deployIndex);
-        const checks = after.filter((step) => /api\.vercel\.com\/v\d+\/deployments/.test(step.run ?? ''));
+        // The API PATH, host-agnostic: `/vN/deployments` is what identifies the deployments endpoint, and the
+        // hostname added nothing the `readyState`/`READY` requirements below do not already demand — while
+        // reading to CodeQL as an unanchored host check.
+        const checks = after.filter((step) => /\/v\d+\/deployments\b/.test(step.run ?? ''));
 
         // ⛔ Checked BEFORE the early exit below: replacing the READY check WITH a reachability probe is
         // the most likely way this regresses, and reporting only "nothing checks the state" would name the

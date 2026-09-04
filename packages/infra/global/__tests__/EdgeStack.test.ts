@@ -962,9 +962,17 @@ describe('the edge delivers access logs (ADR-0013 CFR3 triage)', () => {
             Properties: { PolicyDocument: { Statement: { Principal?: { Service?: unknown }; Condition?: unknown }[] } };
         }[];
         const statements = policies.flatMap((policy) => policy.Properties.PolicyDocument.Statement);
-        const delivery = statements.filter((statement) =>
-            JSON.stringify(statement.Principal ?? {}).includes('delivery.logs.amazonaws.com'),
-        );
+        // Exact principal equality, not a substring of the serialised policy. The substring form also
+        // matched `delivery.logs.amazonaws.com.evil` or a principal buried in a Condition, and CodeQL
+        // (`js/incomplete-url-substring-sanitization`) read it as a host check for that reason. `Service`
+        // is a string for one principal and an array for several; both shapes are handled and neither is
+        // matched by prefix.
+        const delivery = statements.filter((statement) => {
+            const service = statement.Principal?.Service;
+            const services = Array.isArray(service) ? service : [service];
+
+            return services.includes('delivery.logs.amazonaws.com');
+        });
 
         expect(delivery.length).toBe(1);
         expect(JSON.stringify(delivery[0]?.Condition ?? {})).toContain('aws:SourceAccount');

@@ -7,7 +7,10 @@
         // the runtime actually has (`engines.node` is `24.x`, and the deployed Lambdas are node22+), which is
         // what `Array.prototype.findLastIndex` needs. Widening the check surface to `__tests__/` surfaced two
         // TS2551 errors on that method — the code has always run correctly, the type just said it could not.
-        "lib": ["ES2023"],
+        // ES2025 for `RegExp.escape` (TS 6 ships it in lib.es2025.regexp). Scoped to THIS package on purpose:
+        // it runs only on Node 24, where the function exists. The base config stays where it is because web
+        // and mobile ship to browsers and Hermes, and telling them `RegExp.escape` exists would be a lie.
+        "lib": ["ES2025"],
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         // `allowJs` (with `checkJs` left off) is what gives the four gates that unit-test a repo-root

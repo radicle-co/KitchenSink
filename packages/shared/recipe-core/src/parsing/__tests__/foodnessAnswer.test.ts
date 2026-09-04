@@ -72,3 +72,35 @@ describe('could-not-judge — absence, never a verdict', () => {
         }
     });
 });
+
+describe('the extraction is linear in the input — model output cannot make the parser slow', () => {
+    it('⛔ a wall of opening braces with no close is no-json in linear time, not quadratic', () => {
+        // ⛔ RED FIRST against the previous `/\{[\s\S]*?\}/`: on N unmatched `{` that regex re-scans to
+        // the end from every candidate start, O(N²). MEASURED on Node 24 rather than estimated — the
+        // first draft of this case used 60k characters on an arithmetic guess and PASSED against the old
+        // regex (243 ms), which would have shipped a vacuous test: 60k → 243 ms, 250k → 4.2 s,
+        // 1M → 68 s; the two-`indexOf` reading is ~0.05 ms at every size. 250k is the smallest round
+        // size that blows this case's 2 s timeout under the old code without hanging the suite when it
+        // does. CodeQL `js/polynomial-redos` flagged it on 2026-09-04 — `text` is model output, so the
+        // thing being parsed could choose to be slow to parse.
+        //
+        // ⚠️ Honest scale: real answers are `maxTokens`-bounded to a few thousand characters, where the
+        // old regex cost ~1 ms. This was a wrong SHAPE with a theoretical exposure, not a live outage.
+        const wall = '{'.repeat(250_000);
+
+        expect(readFoodnessAnswer(wall, 'end_turn')).toEqual({ kind: 'could-not-judge', reason: 'no-json' });
+    }, 2_000);
+
+    it('still selects the FIRST object, exactly as the non-greedy match did', () => {
+        // The regex the index scan replaced chose the first `{` and the first `}` after it. Two objects in
+        // prose must resolve to the first; a nested-looking prefix must not swallow the second.
+        const text =
+            'sure: {"isFood": true, "taxonomy": "ingredient"} and also {"isFood": false, "taxonomy": "equipment"}';
+
+        expect(readFoodnessAnswer(text, 'end_turn')).toEqual({
+            kind: 'judged',
+            isFood: true,
+            taxonomy: 'ingredient',
+        });
+    });
+});

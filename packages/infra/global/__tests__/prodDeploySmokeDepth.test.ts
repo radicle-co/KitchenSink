@@ -217,7 +217,11 @@ function tierInvocations(): readonly { readonly invocation: RegExp; readonly inc
 
         if (include !== undefined) {
             tiers.push({
-                invocation: new RegExp(`npm run ${script}\\s+--workspace=${manifest.name.replace(/[/@-]/g, '\\$&')}`),
+                // `RegExp.escape` (ES2025, in Node 24) rather than a hand-rolled character class — the
+                // previous `/[/@-]/g` escaped three characters and not backslash, which is what CodeQL
+                // `js/incomplete-sanitization` reports. A package name cannot contain one, so it was not a
+                // live hole; it was a partial reimplementation of a platform function.
+                invocation: new RegExp(`npm run ${script}\\s+--workspace=${RegExp.escape(manifest.name)}`),
                 include,
             });
         }

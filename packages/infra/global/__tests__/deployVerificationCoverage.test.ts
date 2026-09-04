@@ -372,9 +372,7 @@ describe('deploy verification coverage', () => {
                 // and the ordering assertion NEVER RAN. Measured: moving the preflight after the identity
                 // deploy left this test green. That is why `comparisons` is asserted at the end.
                 const directory = entrypoint.replace(/\/bin\/app\.ts$/u, '');
-                const deployAt = body.search(
-                    new RegExp(`cdk deploy[^\\n]*${directory.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'),
-                );
+                const deployAt = body.search(new RegExp(`cdk deploy[^\\n]*${RegExp.escape(directory)}`, 'u'));
 
                 if (deployAt < 0) {
                     // This job preflights a stack it does not itself deploy. Legitimate, and not this

@@ -69,17 +69,26 @@ export function readFoodnessAnswer(text: string, stopReason: string): FoodnessRe
         return { kind: 'could-not-judge', reason: 'truncated' };
     }
 
-    // Non-greedy, first object only — the model sometimes wraps JSON in prose despite the instruction.
-    const match = /\{[\s\S]*?\}/.exec(text);
+    // First object only — the model sometimes wraps JSON in prose despite the instruction.
+    //
+    // ⛔ Two index scans, NOT the regex `/\{[\s\S]*?\}/` this used to be. That regex is polynomial: on a
+    // string of N opening braces with no closing one, the lazy quantifier re-scans to the end from every
+    // candidate start, so the cost is O(N²) — and `text` is MODEL OUTPUT, an untrusted input this Lambda
+    // pays for by the millisecond. Bounded by `maxTokens`, but "bounded" is not "small" (`{` is a single
+    // token, so the bound is thousands of them), and a parser that can be made slow by the thing it parses
+    // is the wrong shape regardless of today's cap. `indexOf` twice is O(N) and reads identically: the
+    // first `{`, then the first `}` after it — which is exactly what the non-greedy match selected.
+    const open = text.indexOf('{');
+    const close = open === -1 ? -1 : text.indexOf('}', open);
 
-    if (match === null) {
+    if (open === -1 || close === -1) {
         return { kind: 'could-not-judge', reason: 'no-json' };
     }
 
     let parsed: unknown;
 
     try {
-        parsed = JSON.parse(match[0]);
+        parsed = JSON.parse(text.slice(open, close + 1));
     } catch {
         return { kind: 'could-not-judge', reason: 'no-json' };
     }

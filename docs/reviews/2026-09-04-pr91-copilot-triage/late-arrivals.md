@@ -136,7 +136,7 @@ the Route 53 API, so CI and a fresh clone resolve the same zone without credenti
 ignore rule stops an incidental synth dirtying a tree; the file was force-added deliberately.
 
 - **Cannot pin synth to one account.** CDK context keys carry account and region
-  (`hosted-zone:account=040663841500:…:region=us-east-1`); another account is a cache miss and looks up live.
+  (`hosted-zone:account=<aws-account-id>:…:region=us-east-1`); another account is a cache miss and looks up live.
 - **Dropping the entry is the change with the cost.** `DomainStack.ts:35` calls `HostedZone.fromLookup`, which
   with no cache and no credentials yields CDK's dummy zone — a credential-free synth would then produce a
   different template than a deploy.

@@ -6,8 +6,9 @@
  *   lease (highest-demand, demotion-aware — `FetchQueueDao.leaseNext`)
  *     → fan out by `normalized_name` across every wired adapter (`SourceAdapterRegistry.adapters()`),
  *       per-source rolling-window-gated (`RollingWindowLimiter`: pause at 90% → defer; window full → defer)
- *     → `searchByName` then a ≤20-key BATCH `fetchByKeys` (1 windowed call, T-155) — falling back to
- *       per-key `fetchByKey` — collecting `CanonicalCandidate[]`
+ *     → `searchByName` then a ≤20-key BATCH `fetchByKeys` (T-155) — falling back to per-key `fetchByKey` —
+ *       collecting `CanonicalCandidate[]`, with EVERY one of those requests separately admitted by the
+ *       rolling window (PR #91 review; a denial mid-fan-out defers the row like any other back-pressure)
  *     → merge + persist (`MergeAndPersistService.resolveAndPersist`) under the survivor-count boundary
  *     → on RESOLVED/UNRESOLVED: delete the queue row + prune requesters (`resolve`); emit FoodFetchCompleted
  *     → 0 hits, 0 source errors: NOT_FOUND tombstone (emit FoodFetchCompleted; NO FetchFailed, DSN-9)
@@ -65,6 +66,16 @@ const DEFER_429_SECONDS = 60;
 /** Seconds a single food is deferred after a client timeout / transport failure (statusCode 0). Per-food
  *  (no source-wide pause), so shorter than the authoritative-backpressure back-off. No `attempts++`. */
 const DEFER_TIMEOUT_SECONDS = 30;
+
+/**
+ * The outcome of the fetch leg of one source's fan-out.
+ *
+ * `window-full` is the rolling window denying an admission MID-fan-out — back-pressure, not a failure: the
+ * caller defers the row with no `attempts++` and persists nothing, exactly as a denial before the search does.
+ * It is a returned value rather than a thrown one because it is an ordinary outcome of asking permission.
+ */
+type FetchResult =
+    { readonly kind: 'collected'; readonly candidates: CanonicalCandidate[] } | { readonly kind: 'window-full' };
 
 /** The outcome of a per-source fan-out pass over the wired adapters. */
 type FanOutResult =
@@ -442,7 +453,13 @@ export class FoodConsumerService {
                 return { kind: 'deferred' };
             }
 
-            // Atomically charge the window (the searchByName + batch fetch = ONE windowed call).
+            // Atomically charge the window for the `searchByName` request this is about to make. ⛔ ONE
+            // REQUEST, ONE ADMISSION (PR #91 review): this used to be the only charge for the whole fan-out —
+            // the search AND every batch chunk AND up to twenty per-key recoveries — so the ledger the cap is
+            // enforced against could report 900 while ~1,800 requests had gone to USDA. FR-018 counts "before
+            // every source API call"; FR-023's "a batch counts as 1" is batch-versus-twenty, not
+            // search-plus-batch; SC-014 itself calls the name search "~1 non-batchable source call per NEW
+            // food". The fetch leg below charges its own.
             const window = await this.limiter.tryRecord(source, 'worker');
 
             if (!window.allowed) {
@@ -463,7 +480,19 @@ export class FoodConsumerService {
                     adapter,
                     hits.map((hit) => hit.externalKey),
                 );
-                candidates.push(...fetched);
+
+                if (fetched.kind === 'window-full') {
+                    // The window filled between the search and a fetch. Defer the row — the candidates
+                    // collected so far are DISCARDED rather than merged: a partial candidate set is what
+                    // `MergeAndPersistService`'s survivor count reads as a confident single answer, so
+                    // persisting it would resolve a food from whichever sources happened to fit in the window.
+                    await this.queue.deferLease(foodId, DEFER_PAUSE_SECONDS);
+                    this.logger.warn('defer-window-full-mid-fanout', { foodId, source });
+
+                    return { kind: 'deferred' };
+                }
+
+                candidates.push(...fetched.candidates);
             } catch (error) {
                 if (isSourceApiError(error)) {
                     if (
@@ -529,12 +558,16 @@ export class FoodConsumerService {
      * call) and falling back to per-key {@link FoodSourceAdapter.fetchByKey} when the adapter exposes no
      * batch method. A candidate failing adapter validation is dropped (reject-not-store, FR-ADP-2).
      *
+     * ⛔ EVERY request here is admitted (PR #91 review) — a per-key fetch is one upstream request whether it
+     * is the adapter's only mode or a recovery from a bad batch, and `refreshResolvedFood` and
+     * `FoodsService.resolve` have always charged one apiece for exactly the same call.
+     *
      * @param adapter - The source adapter.
      * @param keys - The opaque keys to fetch.
-     * @returns The validated canonical candidates.
-     * @sideEffect Performs source fetches via the adapter.
+     * @returns The validated canonical candidates, or `window-full` when an admission was denied.
+     * @sideEffect Charges the rolling window per request; performs source fetches via the adapter.
      */
-    private async fetchCandidates(adapter: FoodSourceAdapter, keys: readonly string[]): Promise<CanonicalCandidate[]> {
+    private async fetchCandidates(adapter: FoodSourceAdapter, keys: readonly string[]): Promise<FetchResult> {
         const batch = adapter.fetchByKeys?.bind(adapter);
 
         if (batch) {
@@ -544,6 +577,10 @@ export class FoodConsumerService {
         const collected: CanonicalCandidate[] = [];
 
         for (const key of keys) {
+            if (!(await this.limiter.tryRecord(adapter.source, 'worker')).allowed) {
+                return { kind: 'window-full' };
+            }
+
             try {
                 collected.push(await adapter.fetchByKey(key));
             } catch (error) {
@@ -557,7 +594,7 @@ export class FoodConsumerService {
             }
         }
 
-        return collected;
+        return { kind: 'collected', candidates: collected };
     }
 
     /**
@@ -565,27 +602,40 @@ export class FoodConsumerService {
      * adapter validation as a whole, recover the valid items in it per key so one bad item does not
      * sink the rest (reject-not-store). A `SourceApiError` propagates to {@link fanOut}.
      *
+     * ⛔ ONE ADMISSION PER CHUNK, and one more per RECOVERY key (PR #91 review). A chunk is one request, which
+     * is what FR-023's "≤20 keys counts as exactly 1 call" means — and the recovery path is where the old
+     * single admission was furthest from the truth: a chunk that failed validation as a whole could issue
+     * twenty more requests, all unrecorded. The failed chunk itself is not refunded; it was a request.
+     *
      * @param adapter - The source adapter (for the per-key recovery fallback).
      * @param batch - The bound batch fetch.
      * @param keys - The opaque keys to fetch.
-     * @returns The validated canonical candidates.
-     * @sideEffect Performs batched source fetches via the adapter.
+     * @returns The validated canonical candidates, or `window-full` when an admission was denied.
+     * @sideEffect Charges the rolling window per request; performs batched source fetches via the adapter.
      */
     private async batchFetch(
         adapter: FoodSourceAdapter,
         batch: (externalKeys: readonly string[]) => Promise<CanonicalCandidate[]>,
         keys: readonly string[],
-    ): Promise<CanonicalCandidate[]> {
+    ): Promise<FetchResult> {
         const collected: CanonicalCandidate[] = [];
 
         for (let offset = 0; offset < keys.length; offset += FETCH_BATCH_MAX) {
             const chunk = keys.slice(offset, offset + FETCH_BATCH_MAX);
+
+            if (!(await this.limiter.tryRecord(adapter.source, 'worker')).allowed) {
+                return { kind: 'window-full' };
+            }
 
             try {
                 collected.push(...(await batch(chunk)));
             } catch (error) {
                 if (isAdapterValidationError(error)) {
                     for (const key of chunk) {
+                        if (!(await this.limiter.tryRecord(adapter.source, 'worker')).allowed) {
+                            return { kind: 'window-full' };
+                        }
+
                         try {
                             collected.push(await adapter.fetchByKey(key));
                         } catch (inner) {
@@ -604,7 +654,7 @@ export class FoodConsumerService {
             }
         }
 
-        return collected;
+        return { kind: 'collected', candidates: collected };
     }
 
     /**

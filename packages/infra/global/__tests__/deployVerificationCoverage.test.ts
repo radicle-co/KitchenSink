@@ -49,6 +49,9 @@
  * DESIGN PATTERN: Specification module over two derivations of the same workflow text — what a job deploys,
  * and what it verifies — compared for coverage, exactly as `cdkAppDeployCoverage.test.ts` does one level up.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -61,7 +64,7 @@ import {
     toSourceEntrypoint,
     workflowJobs,
 } from './cdkApps.js';
-import { trackedFiles } from './serviceSources.js';
+import { repoRoot, trackedFiles } from './serviceSources.js';
 
 /** The verifier every deploy job must run. Named once; the assertions below derive everything else. */
 const VERIFIER = 'verify-deployment.sh';
@@ -292,6 +295,109 @@ describe('deploy verification coverage', () => {
             );
 
         expect(blind).toEqual([]);
+    });
+
+    it('⛔ a preflight runs BEFORE THE DEPLOY OF THE STACK IT GUARDS, never after', () => {
+        // ⛔ Ordering IS the guarantee, and it is the OPPOSITE of every other rule in this file. `verify`
+        // asks "did what shipped work" and must come AFTER. `preflight` asks "does the account still hold
+        // what CloudFormation believes it already owns", and is worthless after — a deploy that fails on a
+        // resource deleted out of band ROLLS BACK, so nothing downstream ever runs.
+        //
+        // The failure: a bulk `aws logs delete-log-group` sweep on 2026-08-27 removed nine
+        // CloudFormation-managed log groups across both stages. CloudFormation keeps the physical id in its
+        // model, so the next UPDATE fails `NotFound` and rolls the stack back. Sandbox demonstrated exactly
+        // that on 2026-09-03; prod still carries the same damage, unfound because it has not deployed since
+        // 2026-08-17.
+        //
+        // ⚠️ "Before the FIRST `cdk deploy` in the job" is the intuitive rule and it is WRONG — it was the
+        // first spelling of this guard and it failed on a correct workflow. `prod-deploy.yml`'s `deploy` job
+        // runs many `cdk deploy` steps, the earliest being the GLOBAL app; a preflight guarding the identity
+        // stack legitimately sits after it. The rule has to relate the preflight's STACK to the app that
+        // DECLARES that stack, which is what the committed infrastructure manifest already records.
+        const manifest = JSON.parse(
+            readFileSync(join(repoRoot, 'docs/generated/infrastructure/manifest.json'), 'utf8'),
+        ) as {
+            readonly apps: readonly {
+                readonly entrypoint: string;
+                readonly stacks: readonly { readonly stackNameTemplate: string }[];
+            }[];
+        };
+
+        /** The entrypoints whose app declares a stack matching this preflight's stack argument. */
+        const entrypointsDeclaring = (stackArgument: string): readonly string[] =>
+            manifest.apps
+                .filter((app) =>
+                    app.stacks.some(
+                        (stack) => stack.stackNameTemplate === stackArgument.replace(/\$\{STAGE\}/u, '{stage}'),
+                    ),
+                )
+                .map((app) => app.entrypoint);
+
+        // ⛔ FOLDED first, and the offsets below are all taken from the folded text. The workflows write
+        // these invocations across a `\\` line continuation, so an unfolded scan finds the subcommand and
+        // then fails to reach its arguments on the next line — which is the exact defect `foldContinuations`
+        // was written for, one guard over.
+        const preflights = jobs().flatMap((job) => {
+            const body = foldContinuations(job.body);
+            const match = /verify-deployment\.sh\s+preflight\s+\S+\s+"([^"]+)"/u.exec(body);
+
+            return match === null ? [] : [{ job, body, at: match.index, stack: match[1] ?? '' }];
+        });
+
+        expect(
+            preflights.length,
+            'no preflight step was discovered in any workflow, so this guard would pass vacuously. If the ' +
+                'step was renamed or removed, that is the thing to look at — not this number.',
+        ).toBeGreaterThan(0);
+
+        let comparisons = 0;
+
+        for (const { job, body, at, stack } of preflights) {
+            const entrypoints = entrypointsDeclaring(stack);
+
+            expect(
+                entrypoints,
+                `${job.workflow}:${job.name} preflights "${stack}", which no CDK app in the manifest ` +
+                    'declares. Either the stack name is wrong or the manifest is stale.',
+            ).not.toEqual([]);
+
+            for (const entrypoint of entrypoints) {
+                // ⚠️ Match on the app's INFRA DIRECTORY, not its entrypoint. The manifest records the
+                // SOURCE path (`…/infra/bin/app.ts`) while the workflows deploy the BUILT one
+                // (`…/infra/dist/bin/app.js`), so the two never share a suffix — only the directory.
+                //
+                // ⛔ And the directory is derived BEFORE regex-escaping. The first spelling escaped first
+                // and then tried to strip `/bin/app.ts$`, which by then read `/bin/app\.ts$` and matched
+                // nothing — so every deploy lookup returned -1, every iteration hit the `continue` below,
+                // and the ordering assertion NEVER RAN. Measured: moving the preflight after the identity
+                // deploy left this test green. That is why `comparisons` is asserted at the end.
+                const directory = entrypoint.replace(/\/bin\/app\.ts$/u, '');
+                const deployAt = body.search(
+                    new RegExp(`cdk deploy[^\\n]*${directory.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'),
+                );
+
+                if (deployAt < 0) {
+                    // This job preflights a stack it does not itself deploy. Legitimate, and not this
+                    // rule's business — `every app a job VERIFIES is an app that job actually deployed`
+                    // above owns the coverage question.
+                    continue;
+                }
+
+                comparisons += 1;
+                expect(
+                    at,
+                    `${job.workflow}:${job.name} runs its preflight for "${stack}" AFTER deploying ` +
+                        `${entrypoint}. A deploy that fails on a resource deleted out of band rolls back, ` +
+                        'so the check can never fire.',
+                ).toBeLessThan(deployAt);
+            }
+        }
+
+        expect(
+            comparisons,
+            'every preflight was skipped because its deploy step could not be located, so the ordering rule ' +
+                'above asserted NOTHING. A guard that cannot find its subject is not a passing guard.',
+        ).toBeGreaterThan(0);
     });
 
     it('⛔ the migration safety net is never gated on a PATH DIFF', () => {

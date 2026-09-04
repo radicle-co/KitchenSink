@@ -648,6 +648,90 @@ verify_deployment_verify() {
     verify_deployment_verify_stacks "$region" $names
 }
 
+# verify_deployment_preflight <region> <stackName>
+#
+# BEFORE a deploy: is every log group this stack MANAGES still present in the account?
+#
+# ⛔ Every other subcommand here runs AFTER a deploy and asks whether what shipped works. This one runs
+# BEFORE, and asks the opposite question — whether the account still holds what CloudFormation believes it
+# already owns. A deploy that rolls back never reaches `verify`, so `verify` structurally cannot see this.
+#
+# ## The failure, measured 2026-09-03
+#
+# A bulk `aws logs delete-log-group` sweep run from a workstation on 2026-08-27 (aws-cli/1.x, WSL) removed
+# NINE CloudFormation-managed log groups across BOTH stages. CloudFormation neither notices nor re-creates:
+# its model keeps the physical id, so every later UPDATE calls the handler against a resource that is gone,
+# gets `NotFound`, and rolls the whole stack back. `kitchensink-identity-service-sandbox` sat in
+# `UPDATE_ROLLBACK_COMPLETE` still reporting that log group as `UPDATE_COMPLETE` — a rollback restores the
+# MODEL, not the thing. Prod was hit too and has not deployed since 2026-08-17, so the damage was waiting
+# for the next release to find it, mid-deploy, on the stack that fronts production.
+#
+# ## Why log groups specifically, and what this does NOT cover
+#
+# Any managed resource can be deleted out of band; only log groups have actually been, and they are the ones
+# an ops sweep reaches for. Widening this to every resource type needs a resolver per type — the same
+# derivation `classify_reference` already stops at — so the scope is stated rather than pretended. A stack
+# with no log groups reports `0 log group(s)` rather than passing silently.
+#
+# ⛔ The name is matched EXACTLY. `describe-log-groups --log-group-name-prefix X` returns everything STARTING
+# with X, and these physical ids are `<stack>-<logical><hash>-<suffix>`, so a shared prefix is the norm — a
+# non-empty test would pass on a REPLACEMENT group while the managed one is still missing.
+#
+# @sideEffect Calls CloudFormation and CloudWatch Logs (read-only).
+verify_deployment_preflight() {
+    local region="${1-}" stack="${2-}"
+
+    if [ "$#" -lt 2 ] || [ -z "$region" ] || [ -z "$stack" ]; then
+        echo "usage: verify-deployment.sh preflight <region> <stackName>" >&2
+
+        return 2
+    fi
+
+    local rows logical type status physical checked=0 findings=0 matched
+
+    # ⛔ ONE listing, unfiltered, with the log-group selection done in SHELL — deliberately not pushed into
+    # `--query`. A server-side filter cannot distinguish "this stack owns no log groups" (a PASS) from "this
+    # stack could not be read" (never a pass): both come back empty. Reading every row separates them, and
+    # costs one call rather than two. Same shape, and the same reason, as `verify_stacks` above.
+    rows=$(aws cloudformation list-stack-resources --region "$region" --stack-name "$stack" \
+        --query 'StackResourceSummaries[].[LogicalResourceId,ResourceType,ResourceStatus,PhysicalResourceId]' \
+        --output text 2>/dev/null) || rows=''
+
+    if [ -z "$rows" ]; then
+        echo "::error::[${stack}] cloudformation:ListStackResources returned nothing. The stack is absent or unreadable, so this preflight checked NOTHING."
+
+        return 1
+    fi
+
+    while IFS=$'\t' read -r logical type status physical; do
+        [ "$type" = 'AWS::Logs::LogGroup' ] || continue
+        [ -n "$physical" ] && [ "$physical" != 'None' ] || continue
+        checked=$((checked + 1))
+
+        # ⛔ The exact-name test lives HERE, in shell, and NOT in a server-side `--query` filter — even
+        # though JMESPath can express it. The exactness IS the rule (a prefix query returns every group
+        # STARTING with this name, and these ids share prefixes by construction), and a rule pushed into the
+        # API call is a rule no harness can observe: the integration stub, like any stub, answers the call
+        # rather than evaluating its query, so the guard would read as covered while nothing tested it.
+        matched=$(aws logs describe-log-groups --region "$region" --log-group-name-prefix "$physical" \
+            --query 'logGroups[].logGroupName' --output text 2>/dev/null) || matched=''
+
+        if ! printf '%s\n' $matched | grep -qxF "$physical"; then
+            echo "::error::[${stack}] manages the log group ${physical}, and it does not exist. CloudFormation still owns it, so this deploy's UPDATE will fail NotFound and roll the stack back. Repair it first:"
+            echo "::error::    aws logs create-log-group --region ${region} --log-group-name ${physical}"
+            findings=$((findings + 1))
+        fi
+    done <<<"$rows"
+
+    if [ "$findings" -ne 0 ]; then
+        echo "::error::preflight: ${findings} of ${checked} log group(s) managed by ${stack} are missing from the account."
+
+        return 1
+    fi
+
+    echo "preflight: ${checked} log group(s) managed by ${stack} are present."
+}
+
 # verify_deployment_drift <region> <stage> <cdkAppCommand> [--warn-only]
 #
 # Is the account running the code this commit declares? See the header's `drift` section.
@@ -699,6 +783,10 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         verify)
             shift
             verify_deployment_verify "$@"
+            ;;
+        preflight)
+            shift
+            verify_deployment_preflight "$@"
             ;;
         drift)
             shift

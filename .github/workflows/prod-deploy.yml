@@ -455,6 +455,27 @@ jobs:
               run: |
                   echo "vpc_id=$(bash .github/scripts/cfn-export.sh 'kitchensink-network-prod:VpcId')" >> "$GITHUB_OUTPUT"
 
+            # ⛔ BEFORE the deploy, not after — and this is the ONE check here that a post-deploy verifier
+            # structurally cannot make. A bulk `aws logs delete-log-group` sweep run from a workstation on
+            # 2026-08-27 removed nine CloudFormation-managed log groups across BOTH stages, including this
+            # stack's. CloudFormation neither notices nor re-creates: its model keeps the physical id, so
+            # the UPDATE below calls the handler against a resource that is gone, gets `NotFound`, and rolls
+            # the whole stack back. Sandbox demonstrated exactly that on 2026-09-03 and sat in
+            # `UPDATE_ROLLBACK_COMPLETE` still reporting the group as `UPDATE_COMPLETE` — a rollback restores
+            # the MODEL, not the thing.
+            #
+            # `verify-deployment.sh verify` cannot cover this: it runs AFTER, and a deploy that rolled back
+            # never reaches it. Prod has not deployed since 2026-08-17, so without this the damage is found
+            # mid-release, on the stack that fronts production.
+            #
+            # The subject set is DERIVED from `list-stack-resources`, so a log group added tomorrow is
+            # covered the day it deploys, and the error carries the exact `create-log-group` command.
+            - name: Preflight — every log group this stack manages still exists
+              if: steps.flags.outputs.deploy_service == 'true'
+              run: |
+                  bash .github/scripts/verify-deployment.sh preflight "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-identity-service-${STAGE}"
+
             # The CDK app reads these from `process.env`, so declaring them in `env:` delivers them exactly
             # as the old command-prefix assignments did — without building the command line out of
             # expression text. `STAGE` comes from the workflow-level `env:` (see above).

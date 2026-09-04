@@ -82,6 +82,14 @@ case "\${service} \${operation}" in
   'sns get-topic-attributes')            emit "\${AWS_STUB_DIR}/sns-$(slug "$(arg --topic-arn "$@")").json" ;;
   'ssm get-parameter')                   emit "\${AWS_STUB_DIR}/ssm-$(slug "$(arg --name "$@")").json" ;;
   's3api head-bucket')                   emit "\${AWS_STUB_DIR}/s3-$(slug "$(arg --bucket "$@")").json" ;;
+  # ⛔ NOT \`emit\`. A prefix that matches nothing is not an ERROR to the real API — it answers an EMPTY
+  # list with exit 0, and modelling it as a 254 would let \`preflight\` pass by treating a failed call the
+  # same as an absent group. The deleted log group this subcommand exists for looks exactly like this.
+  'logs describe-log-groups')
+    fixture="\${AWS_STUB_DIR}/loggroup-$(slug "$(arg --log-group-name-prefix "$@")").txt"
+    if [ -f "$fixture" ]; then cat "$fixture"; fi
+    exit 0
+    ;;
   *) echo "aws stub: unhandled \${service} \${operation}" >&2; exit 255 ;;
 esac
 `;
@@ -138,6 +146,16 @@ function givenStack(
     rows: readonly (readonly [logical: string, type: string, status: string, physical: string])[],
 ): void {
     writeFileSync(join(fixtures, `resources-${slug(stack)}.tsv`), rows.map((row) => row.join('\t')).join('\n'));
+}
+
+/**
+ * Declare that a log group exists, as `describe-log-groups --log-group-name-prefix` returns it.
+ *
+ * Keyed by the PREFIX the caller queries, which is how the real API behaves — so a test can declare a
+ * DIFFERENT group under the same prefix and prove `preflight` matches exactly rather than by prefix.
+ */
+function givenLogGroup(prefix: string, ...names: readonly string[]): void {
+    writeFileSync(join(fixtures, `loggroup-${slug(prefix)}.txt`), names.join('\n'));
 }
 
 /** Declare that a Lambda exists, with the configuration `get-function-configuration` returns. */
@@ -521,5 +539,102 @@ ${JSON.stringify([{ name: 'kitchensink-global-prod' }])}`,
         expect(result.status, result.stdout + result.stderr).toBe(0);
         expect(result.stdout).toMatch(/synthesises 1 stack\(s\)/);
         expect(result.stdout).toMatch(/1 resource\(s\) across 1 stack\(s\) verified/);
+    });
+});
+
+describe('preflight — a resource CloudFormation manages was deleted out of band', () => {
+    /**
+     * ⛔ The failure this exists for, measured on 2026-09-03.
+     *
+     * A bulk `aws logs delete-log-group` sweep run from a workstation on 2026-08-27 removed NINE
+     * CloudFormation-managed log groups across BOTH stages. CloudFormation does not notice and does not
+     * re-create: its model still records the physical id, so every subsequent UPDATE calls the handler
+     * against a resource that is gone, gets `NotFound`, and rolls the whole stack back.
+     * `kitchensink-identity-service-sandbox` sat in `UPDATE_ROLLBACK_COMPLETE` reporting that very log
+     * group as `UPDATE_COMPLETE` — the rollback restores the MODEL, not the thing.
+     *
+     * Nothing detects this until a deploy is already half-run, which on prod means finding out during the
+     * outage rather than before it. `verify-deployment.sh verify` cannot: it runs AFTER a deploy, and a
+     * deploy that rolled back never reaches it.
+     */
+    it('passes when every log group the stack manages still exists', () => {
+        givenStack('kitchensink-identity-service-prod', [
+            ['IdentityServiceLogGroup4DD93B61', 'AWS::Logs::LogGroup', 'UPDATE_COMPLETE', 'ident-prod-logs-kSpwUVcr'],
+            ['IdentityTaskRole', 'AWS::IAM::Role', 'UPDATE_COMPLETE', 'ident-prod-task-role'],
+        ]);
+        givenLogGroup('ident-prod-logs-kSpwUVcr', 'ident-prod-logs-kSpwUVcr');
+
+        const result = run(['preflight', 'us-east-1', 'kitchensink-identity-service-prod']);
+
+        expect(result.status, result.stdout + result.stderr).toBe(0);
+        expect(result.stdout).toMatch(/1 log group\(s\)/);
+    });
+
+    it('FAILS, naming the group and the exact command that repairs it', () => {
+        givenStack('kitchensink-identity-service-prod', [
+            ['IdentityServiceLogGroup4DD93B61', 'AWS::Logs::LogGroup', 'UPDATE_COMPLETE', 'ident-prod-logs-kSpwUVcr'],
+        ]);
+        // No `givenLogGroup` — the prefix query answers empty with exit 0, exactly as the real API does
+        // for a group that was deleted.
+
+        const result = run(['preflight', 'us-east-1', 'kitchensink-identity-service-prod']);
+
+        expect(result.status).toBe(1);
+        expect(result.stdout).toMatch(/::error::/);
+        expect(result.stdout).toContain('ident-prod-logs-kSpwUVcr');
+        // The message must carry the repair, not just the diagnosis. A deploy gate that says "something is
+        // wrong" at 3am and makes the reader derive the fix is half a gate.
+        //
+        // ⚠️ REWRITTEN from a literal `create-log-group --log-group-name …` match. The script emits
+        // `--region` between the two, which is BETTER than what this originally asserted — the printed
+        // command is then copy-pasteable regardless of the operator's default region, and the 2026-08-27
+        // sweep that caused all this came from a workstation whose CLI defaults nobody can assume. So the
+        // assertion moved to the contract (a create-log-group command naming THIS group) rather than one
+        // exact spelling of it.
+        expect(result.stdout).toMatch(/aws logs create-log-group .*--log-group-name ident-prod-logs-kSpwUVcr/);
+    });
+
+    it('matches the name EXACTLY, not by prefix', () => {
+        // `describe-log-groups --log-group-name-prefix X` returns everything STARTING WITH X. A different
+        // group sharing the prefix would make a naive non-empty test pass while the managed one is gone —
+        // and these physical ids are `<stack>-<logical><hash>-<suffix>`, so shared prefixes are the norm.
+        givenStack('kitchensink-identity-service-prod', [
+            ['IdentityServiceLogGroup4DD93B61', 'AWS::Logs::LogGroup', 'UPDATE_COMPLETE', 'ident-prod-logs-kSpwUVcr'],
+        ]);
+        givenLogGroup('ident-prod-logs-kSpwUVcr', 'ident-prod-logs-kSpwUVcr-REPLACEMENT');
+
+        const result = run(['preflight', 'us-east-1', 'kitchensink-identity-service-prod']);
+
+        expect(result.status, 'a different group under the same prefix is not the managed one').toBe(1);
+    });
+
+    it('refuses to report success for a stack it could not read', () => {
+        // Vacuity. An unreadable stack yields no rows, and "no rows" must never be reported as "nothing
+        // wrong" — that is the shape of every silent check this repo has had to repair.
+        const result = run(['preflight', 'us-east-1', 'kitchensink-nonexistent-stack']);
+
+        expect(result.status).toBe(1);
+        // ⚠️ REWRITTEN to the message the script actually emits, which names the API call that came back
+        // empty and says outright that nothing was checked. That is strictly more useful than the generic
+        // "no resources" this first asserted, and it matches `verify_stacks`' sibling diagnostic word for
+        // word — one vocabulary for one failure.
+        expect(result.stdout + result.stderr).toMatch(/ListStackResources returned nothing/);
+        expect(result.stdout + result.stderr).toMatch(/checked NOTHING/);
+    });
+
+    it('says so plainly when the stack manages no log groups at all', () => {
+        givenStack('kitchensink-alb-sandbox', [
+            ['SharedAlb', 'AWS::ElasticLoadBalancingV2::LoadBalancer', 'CREATE_COMPLETE', 'kitche-Share-lnWb'],
+        ]);
+
+        const result = run(['preflight', 'us-east-1', 'kitchensink-alb-sandbox']);
+
+        expect(result.status, result.stdout + result.stderr).toBe(0);
+        expect(result.stdout, 'a run that checked nothing must say it checked nothing').toMatch(/0 log group\(s\)/);
+    });
+
+    it('rejects misuse rather than passing', () => {
+        expect(run(['preflight', 'us-east-1']).status).toBe(2);
+        expect(run(['preflight']).status).toBe(2);
     });
 });

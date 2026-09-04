@@ -38,9 +38,17 @@
  * must be invoked through a cross-region inference profile — `us.anthropic.claude-haiku-4-5-…`. The rate table
  * (ADR-0024) keys on the BARE id, so the two are kept apart here: {@link INVOCATION_IDS} maps a roster entry
  * to what Bedrock is called with, and everything else — pricing, reporting, the report's model column — uses
- * the bare id. ⚠️ This is a latent gap in the SHIPPED gate too: `verifyLine` resolves its model id from SSM and
- * passes it straight to both `rateFor` and `converse`, so pointing SSM at Haiku would fail every call. That is
- * ADR territory, not a change to make from a bake-off script.
+ * the bare id.
+ *
+ * ⚠️ STALE (2026-09-04) — ~~This is a latent gap in the SHIPPED gate too: `verifyLine` resolves its model id
+ * from SSM and passes it straight to both `rateFor` and `converse`, so pointing SSM at Haiku would fail every
+ * call.~~ That gap is CLOSED. The gate now carries the same separation this script does, one layer down: the
+ * registry entry owns an `invocationId` beside its key (`spendArithmetic.ts` — Haiku's is
+ * `us.${CLAUDE_HAIKU_4_5_MODEL_ID}`, Nova Micro's is its own bare id), and `gatedLlm.ts` calls
+ * `converse({ ...call.request, invocationId: plan.invocationId })` rather than passing the registry key
+ * through. Pointing SSM at Haiku no longer fails every call. The paragraph is kept rather than deleted
+ * because the reasoning above it — WHY the two ids are different facts — is still exactly why the gate is
+ * built the way it is.
  *
  * ## ⚠️ SWAP AUGMENTATION
  *

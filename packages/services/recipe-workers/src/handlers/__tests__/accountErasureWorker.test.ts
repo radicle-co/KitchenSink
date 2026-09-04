@@ -72,6 +72,7 @@ import {
     eraseRecipeRows,
     handler,
     isInvalidErasureMessageError,
+    isMisroutedErasureMessageError,
     markErasureJobCompleted,
     ownerMediaPrefix,
     parseErasureMessage,
@@ -1138,7 +1139,9 @@ describe('handler', () => {
             misrouted.enqueue({ rows: [] });
             vi.mocked(getRecipeDbMock).mockReturnValue(misrouted.db as never);
 
-            await runHandler(makeErasureEvent({ ownerId: OWNER }));
+            // The refusal FAILS the delivery (see the interlock test below); the point here is that nothing
+            // CDN-shaped ran on the way out.
+            await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).rejects.toThrow();
 
             expect(cdnInvalidate).not.toHaveBeenCalled();
         });
@@ -1226,19 +1229,29 @@ describe('handler', () => {
         }
     });
 
-    it('refuses to erase and issues NO destructive work when no job row exists for the owner in THIS DB', async () => {
+    it('refuses to erase, issues NO destructive work, and FAILS the delivery when no job row exists for the owner in THIS DB', async () => {
         // The interlock: a claim returns nothing AND no row of any status exists for the owner in this
         // database. That is a MISROUTED message, not a replay. The worker must refuse: no DELETE, no S3 sweep.
+        //
+        // ⛔ AND IT MUST NOT ACKNOWLEDGE. This suite used to assert `resolves.toBeUndefined()` here, per the
+        // 2026-07-18 hardening plan's "the message still acks (it is genuinely not this DB's job)". That made
+        // a misrouted LEGAL erasure request a false success — the one failure this worker's docstring says it
+        // is designed against: SQS never redelivers, nothing reaches the DLQ, `AccountErasureDlqAlarm` never
+        // pages, and the real request is lost without a signal. Failing the delivery costs a handful of
+        // read-only retries (the interlock refuses each one) and ends in the DLQ, where a human sees it.
         const misrouted = createFakeDb();
         misrouted.enqueue({ rows: [] }); // claim: no active row
         misrouted.enqueue({ rows: [] }); // interlock: NO row of any status for this owner in this DB
         vi.mocked(getRecipeDbMock).mockReturnValue(misrouted.db as never);
 
-        await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).resolves.toBeUndefined();
+        const outcome = await runHandler(makeErasureEvent({ ownerId: OWNER })).catch((error: unknown) => error);
 
+        expect(isMisroutedErasureMessageError(outcome)).toBe(true);
         expect(s3Send).not.toHaveBeenCalled();
         expect(misrouted.statements().some((s) => /delete from recipes/i.test(s.text))).toBe(false);
         expect(misrouted.statements().some((s) => /delete from collections/i.test(s.text))).toBe(false);
+        // No job row means no `last_error` annotation either — there is no row to annotate.
+        expect(misrouted.statements().some((s) => /last_error/i.test(s.text))).toBe(false);
     });
 
     it('records last_error and rethrows when the S3 sweep fails, leaving the job non-terminal', async () => {

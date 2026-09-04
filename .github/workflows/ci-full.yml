@@ -70,6 +70,10 @@ jobs:
         with:
             stage: ${{ inputs.stage }}
             run_load_test: ${{ inputs.run_load_test }}
+            # Forwarded as-is on purpose. The Maestro job is SANDBOX-ONLY — it provisions a Clerk test user
+            # into the stage's tenant — and it enforces that itself, loudly, as its first step (see
+            # `_ci-heavy.yml`): a `prod` dispatch with this left on fails that job with the reason rather
+            # than being quietly narrowed here, so the operator sees the mistake instead of a green run.
             run_mobile_maestro: ${{ inputs.run_mobile_maestro }}
         # Explicit, not `inherit` — `_ci-heavy.yml` declares exactly these two, and `inherit` would hand it
         # every repository secret regardless of need.

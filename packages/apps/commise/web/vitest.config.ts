@@ -67,8 +67,11 @@ export default defineConfig({
             NEXT_PUBLIC_IDENTITY_API_URL: SERVICE_URL_DEFAULTS.identity,
             // A Clerk DEVELOPMENT key, coherent with the localhost endpoints above: src/config/env.ts asserts
             // the instance and endpoints belong to the same stage, so a pk_live here would (correctly) fail.
-            // Decodes to `localhost$`.
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_bG9jYWxob3N0JA',
+            // Decodes to `unit-tests.clerk.accounts.dev$` — a WELL-FORMED dev-instance host, because
+            // `classifyClerkKey` requires the `$` terminator and a real Frontend API hostname (two or more
+            // labels). The previous placeholder decoded to the bare `localhost$`, a shape Clerk never issues,
+            // and once the classifier stopped accepting it ten suites failed at `env.ts` import.
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_dW5pdC10ZXN0cy5jbGVyay5hY2NvdW50cy5kZXYk',
         },
     },
     resolve: {

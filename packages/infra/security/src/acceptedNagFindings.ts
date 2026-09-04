@@ -171,6 +171,61 @@ export const AcceptedNagFindings = {
     ],
 
     /**
+     * `AwsSolutions-CFR1` + `AwsSolutions-CFR2` on `EdgeStack`'s three PRODUCTION distributions.
+     *
+     * ⛔ A SEPARATE key from `CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE`, deliberately, and it must stay
+     * separate. That entry's own words are *"This distribution is the SANDBOX preview router … REVISIT if
+     * the router ever fronts production."* `EdgeStack` fronts production, so applying the router's key here
+     * would be satisfying its revisit condition by ignoring it — the argument has to be made for THIS
+     * resource, at this risk level, and be reviewable on its own. ADR-0013 records the triage (2026-09-03).
+     *
+     * ⚠️ The two findings are accepted on DIFFERENT grounds, and the difference is what a future reviewer
+     * needs: `CFR1` is judged **inapplicable** (the control would do harm), `CFR2` is **deferred** on a
+     * cost-proportionality argument whose premise — a pre-launch product with no users — is time-limited and
+     * WILL expire. Nothing in this repository can observe "launched", so that expiry is prose with an owner
+     * obligation behind it, exactly like the router's condition that rotted. It is stated in the reason, in
+     * the ADR, and here, so at least it is greppable from three directions.
+     */
+    PRODUCTION_EDGE_GEO_INAPPLICABLE_AND_WAF_DEFERRED: [
+        {
+            id: 'AwsSolutions-CFR1',
+            reason:
+                'Not applicable as a control, and actively harmful as one: Commise is a consumer recipe ' +
+                'application with no geographic licensing, export-control or data-residency constraint that a ' +
+                'country allow/deny list would enforce. Enabling a geo restriction would DENY LEGITIMATE ' +
+                'VIEWERS by country in order to satisfy a lint -- it would create a user-visible outage for ' +
+                'every excluded country while blocking no threat this product has, since an attacker is not ' +
+                'constrained to an origin country and CloudFront geo restriction is not an authorization ' +
+                'boundary. cdk-nag words the rule as "may require", i.e. a prompt to decide rather than a ' +
+                'defect. Decision recorded: not required. This is judged INAPPLICABLE, not deferred, so it ' +
+                'carries no revisit date; it reopens only if the product acquires a real jurisdictional ' +
+                'constraint (licensing, sanctions, or a data-residency commitment).',
+        },
+        {
+            id: 'AwsSolutions-CFR2',
+            reason:
+                'Cost-proportionality decision, deferred rather than dismissed, and made for THIS resource ' +
+                'rather than inherited: the sibling entry CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE argues the ' +
+                'same rule for the SANDBOX preview router and says in its own words "REVISIT if the router ever ' +
+                'fronts production" -- EdgeStack does front production, so that entry is not reused here. The ' +
+                'arithmetic: a WAFv2 web ACL costs about USD 5-10/month per ACL once rules are counted, ' +
+                'recurring, against the 300/month account budget guardrail (ADR-0008), for a product that is ' +
+                'PRE-LAUNCH and has no users -- measured over 30 days, all three distributions together served ' +
+                '630 requests. A WAF bought today protects nobody and bills every month. NOTE the reason is ' +
+                'ASCII-only on purpose: cdk-nag base64-encodes any reason carrying a codepoint above 255, ' +
+                'which would leave the prod cdk diff a human approves showing an opaque blob instead of this ' +
+                'argument. What does stand in ' +
+                'front of these origins meanwhile: HTTPS-only viewer policy, a Lambda@Edge viewer-request ' +
+                'function that verifies the Clerk session token before the origin is reached (ADR-0020), and ' +
+                'Clerk session-token verification with anchored azp enforcement in the services themselves. ' +
+                'THE PREMISE IS TIME-LIMITED: this acceptance is conditioned on the product being pre-launch ' +
+                'and MUST BE REOPENED AT LAUNCH, or on first evidence of abuse or of meaningful request volume. ' +
+                'Nothing in the repository can observe "launched", so that reopening is an owner obligation, ' +
+                'not a mechanised control -- which is precisely how the router entry above went stale.',
+        },
+    ],
+
+    /**
      * `AwsSolutions-SMG4` on `MigrationPlanSecret`. Not a credential: it holds a static SQL bootstrap
      * string and an owner label, so there is nothing rotation could mean.
      */

@@ -15,6 +15,7 @@ import {
     aws_route53 as route53,
     aws_route53_targets as route53_targets,
 } from 'aws-cdk-lib';
+import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
 import {
     EPHEMERAL_SLOT_ORDER,
     cutOverServicesFromEnv,
@@ -390,6 +391,18 @@ export class EdgeStack extends Stack {
                     },
                     ...(claimsPublicName ? { domainNames: [publicHost], certificate } : {}),
                 });
+
+                // ⛔ Owner triage, ADR-0013 (2026-09-03). `CFR1` (geo restriction) is judged INAPPLICABLE —
+                // a country allow/deny list on a consumer recipe app denies legitimate viewers to satisfy a
+                // lint and blocks no threat this product has. `CFR2` (WAFv2) is DEFERRED on cost while the
+                // product is pre-launch, and that premise expires: the reason text carries the reopening
+                // condition, because nothing here can observe "launched".
+                //
+                // ⚠️ This is its OWN register key, never `CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE` —
+                // that entry argues the same two rules for the SANDBOX router and ends "REVISIT if the
+                // router ever fronts production". Reusing it here would discharge its revisit condition by
+                // ignoring it, which is how it went stale in the first place.
+                acceptNagFindings(distribution, AcceptedNagFindings.PRODUCTION_EDGE_GEO_INAPPLICABLE_AND_WAF_DEFERRED);
 
                 if (claimsPublicName) {
                     // ⛔ Aliased at the DISTRIBUTION, never back at the ALB. An A-record still pointing at

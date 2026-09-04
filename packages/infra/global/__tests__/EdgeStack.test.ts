@@ -728,10 +728,71 @@ describe('cdk-nag reviews the edge, advisory', () => {
         expect(errors).toEqual([]);
     });
 
-    it('writes no cdk-nag suppression into the template', () => {
-        // The platform suppression allowlist (`cdkNagTemplateParity.test.ts`) is a closed inventory. A new
-        // suppression here would have to be argued there; none is needed, so none is written.
-        expect(JSON.stringify(Template.fromStack(synthesize()).toJSON())).not.toContain('cdk_nag');
+    it('accepts CFR1 and CFR2 on every distribution, and nothing else anywhere', () => {
+        // ⚠️ REWRITTEN (2026-09-03). This used to assert the template carried NO `cdk_nag` metadata at all,
+        // which was true and right while the edge accepted nothing. The owner triaged `CFR1`/`CFR2` on these
+        // three PRODUCTION distributions (ADR-0013), so the claim becomes the stronger one: exactly those
+        // two rules, on exactly the three distributions, and no suppression anywhere else in the stack —
+        // the Lambda@Edge function, its role and the certificate must all still report.
+        //
+        // ⛔ It is NOT enough that the platform allowlist pins the same set: that suite compares logical IDs,
+        // which say nothing about WHICH resource type they name. This one asserts the shape at the site.
+        const template = Template.fromStack(synthesize()).toJSON() as {
+            Resources: Record<
+                string,
+                { Type: string; Metadata?: { cdk_nag?: { rules_to_suppress?: { id: string }[] } } }
+            >;
+        };
+        const suppressed = Object.entries(template.Resources)
+            .flatMap(([logicalId, resource]) =>
+                (resource.Metadata?.cdk_nag?.rules_to_suppress ?? []).map((rule) => ({
+                    logicalId,
+                    type: resource.Type,
+                    id: rule.id,
+                })),
+            )
+            .toSorted((left, right) => `${left.logicalId}${left.id}`.localeCompare(`${right.logicalId}${right.id}`));
+
+        expect(suppressed.map((entry) => `${entry.type} ${entry.id}`)).toEqual([
+            'AWS::CloudFront::Distribution AwsSolutions-CFR1',
+            'AWS::CloudFront::Distribution AwsSolutions-CFR2',
+            'AWS::CloudFront::Distribution AwsSolutions-CFR1',
+            'AWS::CloudFront::Distribution AwsSolutions-CFR2',
+            'AWS::CloudFront::Distribution AwsSolutions-CFR1',
+            'AWS::CloudFront::Distribution AwsSolutions-CFR2',
+        ]);
+        // Every distribution, not merely three suppressions that could all sit on one.
+        expect(new Set(suppressed.map((entry) => entry.logicalId)).size).toBe(
+            Object.values(template.Resources).filter((resource) => resource.Type === 'AWS::CloudFront::Distribution')
+                .length,
+        );
+    });
+
+    it('leaves CFR3 REPORTING — access logging is not accepted, it is owner-triage-owed', () => {
+        // ⛔ The negative control on the acceptance above, and the reason it must exist: a suppression that
+        // drifted from `[CFR1, CFR2]` to a broader set would still satisfy "the distributions carry
+        // suppressions" and would silently launder the one finding on this stack nobody has ruled on.
+        const app = new App();
+
+        attachSecurityChecks(app);
+        new EdgeStack(app, 'Edge', {
+            env,
+            stackName: 'kitchensink-edge-prod',
+            stage: 'prod',
+            domainName,
+            verifierBundleDir: stubEdgeBundleDir(),
+        });
+        app.synth();
+
+        const warnings = (app as IConstruct).node
+            .findAll()
+            .flatMap((node) => node.node.metadata)
+            .filter((entry) => entry.type === ArtifactMetadataEntryType.WARN)
+            .map((entry) => String(entry.data));
+
+        expect(warnings.filter((message) => message.startsWith('AwsSolutions-CFR3')).length).toBe(3);
+        expect(warnings.filter((message) => message.startsWith('AwsSolutions-CFR1'))).toEqual([]);
+        expect(warnings.filter((message) => message.startsWith('AwsSolutions-CFR2'))).toEqual([]);
     });
 });
 

@@ -14,11 +14,22 @@
  * importer that searched the food catalog itself and submitted a pre-chosen `foodId` would be measuring
  * this file's matching code, and would silently flatter the result by dropping whatever it failed to match.
  *
- * ## Retry
+ * ## Retry — the policy depends on the METHOD, because a POST here has no idempotency key
  *
- * `p-retry` rather than a hand-rolled loop (the library-first gate). Only IDEMPOTENT-in-effect failures are
- * retried — `429`, `503` and transport errors. A `4xx` that is the server's considered answer (`400`,
- * `403`, `404`) is returned as an error immediately: retrying a rejected body just repeats it.
+ * `p-retry` rather than a hand-rolled loop (the library-first gate). What may be retried is decided by
+ * whether re-issuing the request can duplicate its effect:
+ *
+ * - A `429` or `503` is the server saying it did NOT process the request (the throttler, or the food
+ *   service shedding load with `Retry-After`), so both are retried on EVERY method.
+ * - A `502`/`504` from the ALB, a transport failure, and a `2xx` whose body fails the published schema are
+ *   all failures that can FOLLOW a commit: the upstream answered (or timed out) after writing, the socket
+ *   died while the response was being read, or the row exists and the contract moved. A GET retries them
+ *   because a read is idempotent. ⛔ A POST does NOT: `POST /api/v1/recipes` assigns its id server-side and
+ *   accepts no idempotency key (see `importLedger.ts`), so a re-issued create is a second public recipe —
+ *   and the ledger, which records the id the CLIENT was handed, never learns about the first. The durable
+ *   fix is a server-enforced idempotency key; until the service has one, the transport refuses to guess.
+ * - A `4xx` that is the server's considered answer (`400`, `403`, `404`) is final on every method: retrying
+ *   a rejected body just repeats it.
  *
  * ⚠️ `Retry-After` is honoured when present. The recipe service's throttler emits `429` and the food
  * service emits `503 FETCH_UNAVAILABLE` with `Retry-After` under backpressure; ignoring it is how a
@@ -46,8 +57,14 @@ export type CreateRecipeBody = z.input<typeof createRecipeRequestSchema>;
 /** A created recipe, as the detail projection publishes it. */
 export type RecipeDetail = z.infer<typeof recipeDetailSchema>;
 
-/** Statuses worth trying again: rate limiting and transient backpressure, never a considered rejection. */
-const RETRYABLE = new Set([429, 502, 503, 504]);
+/** Statuses where the server states it did NOT process the request. Retryable on every method. */
+const NOT_PROCESSED = new Set([429, 503]);
+
+/** Gateway statuses that can arrive AFTER the upstream committed. Retryable only where a repeat is harmless. */
+const MAYBE_PROCESSED = new Set([502, 504]);
+
+/** Methods whose repetition cannot duplicate an effect. Everything else is treated as a write. */
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** How many attempts a retryable failure gets before the call is reported as failed. */
 const MAX_ATTEMPTS = 5;
@@ -81,15 +98,29 @@ export class RecipeApiClient {
      * @sideEffect Network I/O.
      */
     private async request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
+        const method = (init?.method ?? 'GET').toUpperCase();
+        // A repeat of an idempotent request is harmless, so every transient failure is worth another try.
+        // A repeat of anything else may duplicate a write, so only a failure the server states it did NOT
+        // process is retried; every other failure is final on the first attempt.
+        const retryMaybeProcessed = IDEMPOTENT_METHODS.has(method);
+
         const run = async (): Promise<T> => {
-            const response = await fetch(`${this.baseUrl}${path}`, {
-                ...init,
-                headers: {
-                    authorization: `Bearer ${this.token}`,
-                    ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
-                    ...init?.headers,
-                },
-            });
+            let response: Response;
+
+            try {
+                response = await fetch(`${this.baseUrl}${path}`, {
+                    ...init,
+                    headers: {
+                        authorization: `Bearer ${this.token}`,
+                        ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
+                        ...init?.headers,
+                    },
+                });
+            } catch (error) {
+                // A transport failure can happen AFTER the request left: the socket died while the response
+                // was in flight, and the write may already be committed.
+                throw retryMaybeProcessed ? error : new AbortError(toApiError(error, path, method));
+            }
 
             if (!response.ok) {
                 const body = await response.text();
@@ -98,12 +129,15 @@ export class RecipeApiClient {
                     response.status,
                     code,
                     body,
-                    `${init?.method ?? 'GET'} ${path} -> ${response.status} ${code ?? ''}`.trim(),
+                    `${method} ${path} -> ${response.status} ${code ?? ''}`.trim(),
                 );
+                const retryable =
+                    NOT_PROCESSED.has(response.status) || (retryMaybeProcessed && MAYBE_PROCESSED.has(response.status));
 
-                if (!RETRYABLE.has(response.status)) {
+                if (!retryable) {
                     // `AbortError` is p-retry's "this is final" signal: a 400/403 repeated five times is
-                    // five identical rejections and four wasted round trips.
+                    // five identical rejections and four wasted round trips — and a 502 repeated after a
+                    // POST is a second row.
                     throw new AbortError(error);
                 }
 
@@ -111,13 +145,30 @@ export class RecipeApiClient {
                 throw error;
             }
 
-            return schema.parse(await response.json());
+            // A 2xx whose body fails the contract is final on EVERY method: the effect happened, and a
+            // repeat cannot change what the service publishes. It is reported with the status the service
+            // gave, not as a transport failure, because the transport worked — the contract moved.
+            const text = await response.text();
+            const parsed = schema.safeParse(readJson(text));
+
+            if (!parsed.success) {
+                throw new AbortError(
+                    new RecipeApiError(
+                        response.status,
+                        undefined,
+                        text,
+                        `${method} ${path} -> ${response.status}, but the body does not match the published contract: ${parsed.error.message}`,
+                    ),
+                );
+            }
+
+            return parsed.data;
         };
 
         try {
             return await pRetry(run, { retries: MAX_ATTEMPTS - 1, minTimeout: 500, factor: 2 });
         } catch (error) {
-            throw isRecipeApiError(error) ? error : toApiError(error, path, init?.method);
+            throw isRecipeApiError(error) ? error : toApiError(error, path, method);
         }
     }
 
@@ -212,22 +263,33 @@ export class RecipeApiClient {
 }
 
 /**
+ * Parse a body as JSON, or yield `undefined` for one that is not — which every published schema rejects.
+ *
+ * @param body - The raw response body.
+ * @returns The parsed value, or `undefined`. Pure.
+ */
+function readJson(body: string): unknown {
+    try {
+        return JSON.parse(body) as unknown;
+    } catch {
+        // A proxy or the platform can answer with HTML; the caller decides what a non-JSON body means.
+        return undefined;
+    }
+}
+
+/**
  * Pull the service's machine-readable `code` out of an error envelope, tolerating a non-JSON body.
  *
  * @param body - The raw response body.
  * @returns The code, or `undefined`. Pure.
  */
 function readErrorCode(body: string): string | undefined {
-    try {
-        const parsed: unknown = JSON.parse(body);
+    const parsed = readJson(body);
 
-        if (typeof parsed === 'object' && parsed !== null && 'code' in parsed) {
-            const { code } = parsed as { code?: unknown };
+    if (typeof parsed === 'object' && parsed !== null && 'code' in parsed) {
+        const { code } = parsed as { code?: unknown };
 
-            return typeof code === 'string' ? code : undefined;
-        }
-    } catch {
-        // A proxy or the platform can answer with HTML; the status is still the useful part.
+        return typeof code === 'string' ? code : undefined;
     }
 
     return undefined;

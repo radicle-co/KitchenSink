@@ -40,7 +40,26 @@ appId: io.commise.mobile
 # why CI reported `Element not found: Text matching regex: 2 cups flour`. `IngredientPicker`'s
 # `Search ingredients` box is the shape that works, and this now matches it.
 - tapOn: 'Ingredient lines'
-- inputText: "2 cups flour\n1 tsp salt"
+
+# ⛔ THE SEPARATOR COMES FROM THE RETURN KEY, NEVER FROM AN ESCAPE INSIDE THE TYPED STRING — and this step
+# is the one place reason 1 above is actually observable.
+#
+# `inputText: "2 cups flour\n1 tsp salt"` did reach Maestro intact: YAML resolves the escape, and the
+# failing run's own `commands-(parse-ingredients.yaml).json` records `"text": "2 cups flour\n1 tsp salt"`.
+# It is the DEVICE leg that loses it — `inputText` is committed through the on-device Maestro IME, which
+# has no way to express a line break, so the newline was dropped with nothing put in its place. The
+# failure screenshot from run 33878552289 shows the field holding `2 cups flour1 tsp salt`: one line, the
+# two ingredients fused, and `splitParseJobLines` (which splits on `/\r?\n/` and on nothing else) rightly
+# counting `1 line ready`. The counter was correct; the paste never happened.
+#
+# Typing Return between the two lines is both the fix and the stronger observation: it is literally the
+# "does Return insert a newline or dismiss the keyboard" question reason 1 names, which an escape in a
+# YAML string never asked. `multiline` leaves React Native's `submitBehavior` at its `newline` default, so
+# Return must insert one — and if a future change makes it blur or submit instead, the count below goes
+# red, which is exactly what this flow is for.
+- inputText: '2 cups flour'
+- pressKey: Enter
+- inputText: '1 tsp salt'
 
 # The count comes from the SHARED splitter, so this also asserts that a device paste really produced two
 # lines rather than one — see reason 1 above.

@@ -63,6 +63,27 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Create your own food'
 
+# ⛔ THE FORM OPENS BELOW THE FOLD, AND `assertVisible` DOES NOT SCROLL. This is not a selector-spelling
+# problem and no rewording of the assertions below could have fixed it — the nodes were not in the tree.
+#
+# Measured from the failing run's own hierarchy dump (33878552289, job 101042182336): the wizard's
+# `ScrollView` occupies `[0,288][1080,2084]` and tapping the door laid the form card out from y=1781. The
+# dump therefore held the card's heading and its name field, `Nutrition per 100 g` survived by a SEVEN-
+# pixel sliver at `[121,2077][961,2084]`, and every macro field, the privacy line and both buttons were
+# absent from the hierarchy entirely — clipped by the viewport, so Maestro could not see them at all.
+# (The a11y-hidden visual `Text` is a red herring: `Food name` is in that same dump with
+# `important-for-accessibility=false`, and the input beside it carries the label as its accessible NAME,
+# so either node satisfies the assertion. The macro labels are missing because of the fold, nothing else.)
+#
+# So bring the card's action row into view first. The card measures ~935px against a ~1796px viewport, so
+# once its bottom is on screen the WHOLE form is — heading through Cancel, which shares the action row
+# with `Create and add`. This also un-vacuums the two `assertNotVisible`s below: an element clipped off
+# the bottom of a scroll view is trivially "not visible", so they asserted nothing until now.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
+
 # The form. `draftFromQuery` carries the typed query into the name field, so the cook never retypes it.
 - assertVisible: 'Nutrition per 100 g'
 - assertVisible: 'Food name'
@@ -92,6 +113,14 @@ appId: io.commise.mobile
 - inputText: '50'
 - assertNotVisible: 'Required'
 
+# ⛔ RE-ANCHOR, because the CARD CHANGED HEIGHT under us. The refused submit added a `Required` line beneath
+# each macro input and filling them took the lines away again, and a scroll view that was already at its
+# bottom does not follow content that grows below the offset — it just clips it. `scrollUntilVisible` is a
+# no-op when the element is already fully visible, so this costs a hierarchy read when nothing has moved.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
 - tapOn: 'Create and add'
 
 # ⛔ THE FALSIFIABLE CORE. The food service is unreachable in this job, so the create MUST fail — and the
@@ -104,6 +133,15 @@ appId: io.commise.mobile
 
 # ⛔ AND THE FORM STAYS OPEN ON THE DRAFT. A failed submit that closed the form (or cleared the fields) would
 # make the cook retype every macro, which is the cost this disclosure exists to avoid.
+#
+# The disclosure itself is two lines of copy inserted ABOVE the action row, so it lands in the space the
+# actions occupied (which is why `extendedWaitUntil` above sees it without scrolling) and pushes them
+# under the fold. Re-anchor before asserting, or `Create and add` is judged absent for a layout reason
+# rather than a behavioural one — and `Creating your food…` would go un-asserted for the same reason.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
 - assertVisible: 'Nutrition per 100 g'
 - assertVisible: 'Create and add'
 - assertNotVisible: 'Creating your food…'

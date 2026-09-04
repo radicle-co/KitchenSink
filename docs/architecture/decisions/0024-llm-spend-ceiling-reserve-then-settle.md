@@ -752,8 +752,19 @@ log and the identity ECS service. No recipe-workers log group is subscribed.
 
 ### Still open
 
-- **The bake-off is now the only path sending the corpus cross-region.** `verificationBakeOff.ts` keeps its own
-  `INVOCATION_IDS` map, preserved in §4b on a _spend_ argument that does not carry the data-protection one this
-  change creates. It runs under operator credentials that bypass this role.
+- **The bake-off can still reach a profile-addressed model, and the new gate does not stop it.**
+  `verificationBakeOff.ts` keeps its own `INVOCATION_IDS` map, preserved in §4b on a _spend_ argument that does
+  not carry the data-protection one this change creates, and it runs under operator credentials that bypass
+  this role by design.
+
+    ⚠️ State the scope precisely, because an earlier draft of this section did not. It is a **hand-run operator
+    script**, not a live path: a bare invocation runs §4a's roster (Nova Micro, Claude Haiku 4.5), reaching a
+    profile requires deliberately passing `--models`, and the corpus is **operator-supplied and refused if
+    absent** — `--corpus <path.jsonl> is required; the corpus is operator-supplied and not in this repo` — so it
+    may well be the synthetic one from `generateBakeOffCorpus.ts`. No user recipe text flows through it by
+    default, and nothing runs it automatically. What is true is narrower and still worth recording: an operator
+    who runs it against a profile can route whatever file they supplied cross-region, and the residency
+    enforcement above will not intervene.
+
 - **Nothing is exercised against a live profile call**, unchanged from §4b: no profile-backed model is invocable
   on this account, so both halves remain proved by unit tests and synthesized templates only.

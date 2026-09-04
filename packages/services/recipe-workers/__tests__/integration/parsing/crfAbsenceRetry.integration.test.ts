@@ -316,7 +316,7 @@ describe.skipIf(!canRun)('a residency-refused parse model never lands (integrati
                 emit: vi.fn(),
                 now: () => new Date('2026-09-04T12:00:00.000Z'),
             },
-            crf: crfPort({ parsed: crfParse } as unknown as EngineAnswer),
+            crf: crfPort(crfParse),
             pool: { query: async (text: string, params: unknown[]) => pool.query(text, params) },
             digest,
             parseModelId: NOVA_2_LITE_MODEL_ID,

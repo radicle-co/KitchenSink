@@ -93,6 +93,51 @@ describe('parseClerkInstance', () => {
     it('returns null for a document that loads no Clerk script (so callers fail rather than assume)', () => {
         expect(parseClerkInstance('<html><body>hello</body></html>')).toBeNull();
     });
+
+    /**
+     * The terminator used to be OPTIONAL (`replace(/\$$/, '')`), so a payload encoding `clerk.commise.app`
+     * with no `$` was returned as a production instance and could make `classifyStageCoherence` pass —
+     * for a key clerk-js itself refuses. The rule mirrored here is Clerk's own `isValidDecodedPublishableKey`
+     * (`@clerk/shared` 4.30.1): the decoded payload must end in `$`, carry no other `$`, and name a host
+     * with a dot. A key Clerk would not load is not a Clerk instance, and the probe must not say it is.
+     */
+    describe('refuses a key clerk-js itself would refuse', () => {
+        function keyWithPayload(kind: 'live' | 'test', payload: string): string {
+            return `pk_${kind}_${Buffer.from(payload, 'utf8').toString('base64')}`;
+        }
+
+        it('a decodable payload with NO trailing `$` is not an instance', () => {
+            const key = keyWithPayload('live', 'clerk.commise.app');
+
+            expect(parseClerkInstance(documentLoading(key, 'clerk.commise.app'))).toBeNull();
+        });
+
+        it('a payload with a `$` before the terminator is not an instance', () => {
+            const key = keyWithPayload('live', 'clerk$commise.app$');
+
+            expect(parseClerkInstance(documentLoading(key, 'clerk.commise.app'))).toBeNull();
+        });
+
+        it('a payload whose host has no dot is not an instance', () => {
+            const key = keyWithPayload('test', 'localhost$');
+
+            expect(parseClerkInstance(documentLoading(key, 'localhost'))).toBeNull();
+        });
+
+        it('a payload that is not base64 of anything is not an instance', () => {
+            expect(parseClerkInstance(documentLoading('pk_live_!!!!', 'clerk.commise.app'))).toBeNull();
+        });
+
+        it('so a document carrying only such a key is reported INCOHERENT, never as production', () => {
+            const key = keyWithPayload('live', 'clerk.commise.app');
+            const verdict = classifyStageCoherence({
+                clerk: parseClerkInstance(documentLoading(key, 'clerk.commise.app')),
+                endpoints: { NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.commise.app' },
+            });
+
+            expect(verdict.coherent).toBe(false);
+        });
+    });
 });
 
 describe('parseBundleEndpoints', () => {

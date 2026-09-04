@@ -53,8 +53,15 @@ export interface ChainVerdict {
  * instance class it is, and the decoded HOST says which concrete instance — a `pk_test` whose host is a
  * `*.clerk.accounts.dev` dev domain is a development instance no matter what else is configured.
  *
+ * ⚠️ The terminator is REQUIRED, not stripped when present. The rule is clerk-js's own
+ * (`isValidDecodedPublishableKey`, `@clerk/shared` 4.30.1): the decoded payload ends in `$`, carries no other
+ * `$`, and names a host with a dot — anything else makes `ClerkProvider` throw "Publishable key not valid".
+ * A key Clerk refuses to load is not a Clerk instance, and with the terminator optional a `$`-less payload
+ * encoding `clerk.commise.app` was returned as PRODUCTION and made the coherence check pass.
+ *
  * @param html - The served HTML document.
- * @returns The instance reference, or `null` when the document loads no Clerk script.
+ * @returns The instance reference, or `null` when the document loads no Clerk script or loads one with a
+ *          key clerk-js would refuse.
  */
 export function parseClerkInstance(html: string): ClerkInstanceRef | null {
     const match = /data-clerk-publishable-key="(pk_(live|test)_[A-Za-z0-9+/=_-]+)"/.exec(html);
@@ -66,12 +73,27 @@ export function parseClerkInstance(html: string): ClerkInstanceRef | null {
     const publishableKey = match[1] as string;
     const kind = match[2] as ClerkInstanceKind;
     const payload = publishableKey.slice(`pk_${kind}_`.length);
+    const frontendApiHost = decodeFrontendApiHost(payload);
 
-    return {
-        publishableKey,
-        kind,
-        frontendApiHost: Buffer.from(payload, 'base64').toString('utf8').replace(/\$$/, ''),
-    };
+    return frontendApiHost === null ? null : { publishableKey, kind, frontendApiHost };
+}
+
+/**
+ * Decode a publishable key's payload to its Frontend API host, exactly as strictly as clerk-js does.
+ *
+ * @param payload - The base64 (or base64url) payload after `pk_<kind>_`.
+ * @returns The host, or `null` when clerk-js would refuse the key. Pure.
+ */
+function decodeFrontendApiHost(payload: string): string | null {
+    const decoded = Buffer.from(payload, 'base64').toString('utf8');
+
+    if (!decoded.endsWith('$')) {
+        return null;
+    }
+
+    const host = decoded.slice(0, -1);
+
+    return host.includes('$') || !host.includes('.') ? null : host;
 }
 
 /**
@@ -154,7 +176,12 @@ export function classifyStageCoherence(input: {
     const { clerk, endpoints } = input;
 
     if (clerk === null) {
-        return { coherent: false, findings: ['no Clerk publishable key found in the served document'] };
+        return {
+            coherent: false,
+            findings: [
+                'no valid Clerk publishable key found in the served document (absent, or one clerk-js itself would refuse)',
+            ],
+        };
     }
 
     const clerkStage: OriginStage = clerk.kind === 'live' ? 'prod' : 'non-prod';

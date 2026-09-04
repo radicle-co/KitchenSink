@@ -17,7 +17,7 @@ import {
     messageTableNameForStage,
     messageTableNameParameter,
 } from '@kitchensink/infra-messaging';
-import { subscribeAlarmEmail } from '@kitchensink/infra-security';
+import { AcceptedNagFindings, acceptNagFindings, subscribeAlarmEmail } from '@kitchensink/infra-security';
 
 /** Props for {@link MessageSubstrateStack}. */
 export interface MessageSubstrateStackProps extends StackProps {
@@ -100,6 +100,15 @@ export class MessageSubstrateStack extends Stack {
             removalPolicy: RemovalPolicy.DESTROY,
             pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: false },
         });
+
+        // ⛔ Owner triage, ADR-0013 (2026-09-03). The `false` above was a choice nothing had argued; it is
+        // argued now. ⚠️ NOT on the grounds a reader might assume: this is not a dedup or idempotency
+        // store — no `ConditionExpression` exists anywhere, and the sort key's ULID makes collisions
+        // impossible, the OPPOSITE of dedup. PITR is disproportionate because the rows are DERIVED (the
+        // state committed to Postgres first, and R2.2 requires it to stay re-queryable), because the 3-day
+        // `ttl` expires them faster than a restore window is worth, and because a restore lands in a NEW
+        // table under a NEW name — unreachable by producers that address this one by its deterministic name.
+        acceptNagFindings(this.table, AcceptedNagFindings.MESSAGE_SUBSTRATE_ROWS_OUTLIVE_NOTHING);
 
         this.alarmTopic = new sns.Topic(this, 'MessageSubstrateAlarmTopic', {
             enforceSSL: true,

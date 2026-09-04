@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
     Duration,
     Fn,
+    RemovalPolicy,
     Stack,
     type StackProps,
     aws_certificatemanager as acm,
@@ -12,9 +13,12 @@ import {
     aws_cloudfront_origins as origins,
     aws_iam as iam,
     aws_lambda as lambda,
+    aws_logs as logs,
     aws_route53 as route53,
     aws_route53_targets as route53_targets,
+    aws_s3 as s3,
 } from 'aws-cdk-lib';
+import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
 import {
     EPHEMERAL_SLOT_ORDER,
     cutOverServicesFromEnv,
@@ -125,6 +129,20 @@ export const EDGE_VERIFICATION_KEY_ENV = 'CLERK_JWT_KEY';
  * the `custom_resources.Provider` framework functions.
  */
 export const EDGE_LAMBDA_RUNTIME: lambda.Runtime = lambda.Runtime.NODEJS_22_X;
+
+/**
+ * How long an access-log object lives before S3 expires it.
+ *
+ * ⛔ A CAP, not a preference. CloudFront deletes nothing (AWS: _"CloudFront doesn't automatically delete log
+ * files from your destination"_), so a log bucket without a lifecycle rule grows forever — and it grows
+ * quietly, because the cost of a bucket nobody looks at is the cost of a bucket nobody looks at. Today's
+ * volume makes that easy to miss: all three distributions together served **630 requests over 30 days**
+ * (~0.3 MB/month), so nothing would go wrong for years and then would.
+ *
+ * 90 days matches the retention this ADR-0013 recommendation named for access-log prefixes, and is long
+ * enough to investigate an incident found late.
+ */
+export const EDGE_ACCESS_LOG_RETENTION_DAYS = 90;
 
 /** How long a food nutrition response may be served from the edge before it is revalidated. */
 const NUTRITION_DEFAULT_TTL = Duration.hours(1);
@@ -325,6 +343,7 @@ export class EdgeStack extends Stack {
         const verifierVersion = this.createVerifier(props.verifierBundleDir, jwtKey);
         const ownerScopedCachePolicy = this.createOwnerScopedCachePolicy();
         const sharedCachePolicy = this.createSharedCachePolicy();
+        const logDestination = this.createAccessLogDestination(stage);
 
         this.distributions = Object.fromEntries(
             EPHEMERAL_SLOT_ORDER.map((service) => {
@@ -391,6 +410,20 @@ export class EdgeStack extends Stack {
                     ...(claimsPublicName ? { domainNames: [publicHost], certificate } : {}),
                 });
 
+                // ⛔ Owner triage, ADR-0013 (2026-09-03). `CFR1` (geo restriction) is judged INAPPLICABLE —
+                // a country allow/deny list on a consumer recipe app denies legitimate viewers to satisfy a
+                // lint and blocks no threat this product has. `CFR2` (WAFv2) is DEFERRED on cost while the
+                // product is pre-launch, and that premise expires: the reason text carries the reopening
+                // condition, because nothing here can observe "launched".
+                //
+                // ⚠️ This is its OWN register key, never `CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE` —
+                // that entry argues the same two rules for the SANDBOX router and ends "REVISIT if the
+                // router ever fronts production". Reusing it here would discharge its revisit condition by
+                // ignoring it, which is how it went stale in the first place.
+                acceptNagFindings(distribution, AcceptedNagFindings.PRODUCTION_EDGE_GEO_INAPPLICABLE_AND_WAF_DEFERRED);
+
+                this.deliverAccessLogs(service, distribution, logDestination, stage);
+
                 if (claimsPublicName) {
                     // ⛔ Aliased at the DISTRIBUTION, never back at the ALB. An A-record still pointing at
                     // the shared ALB would leave the edge deployed, paid for and completely out of the
@@ -406,6 +439,135 @@ export class EdgeStack extends Stack {
                 return [service, distribution];
             }),
         ) as Record<SharedListenerService, cloudfront.Distribution>;
+    }
+
+    /**
+     * The access-log bucket and the ONE delivery destination every distribution writes through.
+     *
+     * ## ⛔ Why standard logging **v2**, and not the legacy path the lint would have accepted
+     *
+     * cdk-nag's `AwsSolutions-CFR3` reads `distributionConfig.logging` — the LEGACY (v1) property — so v1 is
+     * the path that makes the finding go away, and v2 leaves it reporting. It was still the wrong path:
+     *
+     * 1. **v1 requires ACLs ENABLED on the bucket.** AWS: _"Don't choose an Amazon S3 bucket with S3 Object
+     *    Ownership set to bucket owner enforced. That setting disables ACLs for the bucket and the objects in
+     *    it, which prevents CloudFront from delivering log files."_ Clearing the lint would mean WEAKENING a
+     *    brand-new bucket to an access-control model AWS is steering away from — and it would attract its own
+     *    findings for doing so. v2 uses a bucket policy and no ACL at all.
+     * 2. **v1 fails at DEPLOY time, on a stack that cannot be rehearsed.** This stack is prod-only
+     *    (`bin/app.ts` gates it on `stage === 'prod'`), so its first execution is production; a bucket with
+     *    ACLs disabled synthesizes perfectly and is rejected when CloudFront tries to write. v2 adds three
+     *    resources and does not modify the distribution at all.
+     * 3. **v1 mutates the bucket ACL out of band** — CloudFront calls `PutBucketAcl` to grant
+     *    `awslogsdelivery` FULL_CONTROL — so CloudFormation does not own that grant and `cdk diff` cannot
+     *    show it drifting away.
+     *
+     * ⚠️ The accepted consequence: `CFR3` keeps reporting on all three distributions even though logging is
+     * on. ADR-0013 records it as a FALSE POSITIVE, left REPORTING and never suppressed, with the assertion
+     * made about the EXPLANATION — the same treatment ADR-0025 gives the Python runtime and this stack's own
+     * `L1`. `EdgeStack.test.ts` asserts every distribution has a delivery, so the ADR's row is a measured
+     * claim rather than a promise.
+     *
+     * ONE destination for all three distributions: three would be three identical resources with three names
+     * to keep in step, and per-service separation is already carried by each delivery's suffix path.
+     *
+     * @param stage - The deploy stage, which names the delivery destination.
+     * @returns The delivery destination every {@link deliverAccessLogs} call links to.
+     * @sideEffect Adds an S3 bucket, its policy statement, and a `Logs::DeliveryDestination` to this stack.
+     */
+    private createAccessLogDestination(stage: string): logs.CfnDeliveryDestination {
+        const bucket = new s3.Bucket(this, 'EdgeAccessLogs', {
+            blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+            enforceSSL: true,
+            encryption: s3.BucketEncryption.S3_MANAGED,
+            // ⛔ EXPLICIT, and it is the load-bearing half of choosing v2. ACLs stay DISABLED here; the
+            // legacy path would have required the opposite. Stating it means a later "fix CFR3 by switching
+            // to v1" has to change this line, in review, rather than discover the requirement in production.
+            objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
+            lifecycleRules: [{ enabled: true, expiration: Duration.days(EDGE_ACCESS_LOG_RETENTION_DAYS) }],
+            // Matches the house posture for prod buckets (`DataStack`'s media and archive buckets). Access
+            // logs for a pre-launch product do not warrant a RETAIN that would strand a bucket on any
+            // rebuild of this stack.
+            removalPolicy: RemovalPolicy.DESTROY,
+            autoDeleteObjects: true,
+        });
+
+        // ⛔ Owner triage, ADR-0013 (2026-09-03). Fixing `CFR3` ADDS this finding, and that was expected:
+        // "log the reads of the log" does not terminate — whatever bucket became this one's server-access-log
+        // target would fire `S1` in turn, forever. The chain ends here rather than one bucket further along.
+        // ⚠️ The key is NARROW to a bucket whose contents are logs; `DataStack`'s media and archive buckets
+        // carry the same finding over USER DATA and it stays open.
+        acceptNagFindings(bucket, AcceptedNagFindings.ACCESS_LOG_BUCKET_TERMINATES_THE_LOG_CHAIN);
+
+        // ⛔ Without this the deliveries are created, report healthy, and silently write nothing. The
+        // conditions are AWS's own documented ones and they are not decoration: an unconditioned grant to
+        // `delivery.logs.amazonaws.com` would let ANY account's delivery write into this bucket.
+        bucket.addToResourcePolicy(
+            new iam.PolicyStatement({
+                sid: 'AWSLogsDeliveryWrite',
+                principals: [new iam.ServicePrincipal('delivery.logs.amazonaws.com')],
+                actions: ['s3:PutObject'],
+                resources: [bucket.arnForObjects('*')],
+                conditions: {
+                    StringEquals: {
+                        's3:x-amz-acl': 'bucket-owner-full-control',
+                        'aws:SourceAccount': this.account,
+                    },
+                    ArnLike: {
+                        'aws:SourceArn': `arn:${this.partition}:logs:${this.region}:${this.account}:delivery-source:*`,
+                    },
+                },
+            }),
+        );
+
+        // ⚠️ `w3c`, not `parquet`: AWS charges CloudWatch conversion fees for Parquet, and at ~0.3 MB/month
+        // there is nothing to gain from a columnar format.
+        return new logs.CfnDeliveryDestination(this, 'EdgeAccessLogDestination', {
+            // Delivery resource names accept `[\w-]` only — no dots.
+            name: `kitchensink-edge-access-logs-${stage}`,
+            destinationResourceArn: bucket.bucketArn,
+            outputFormat: 'w3c',
+        });
+    }
+
+    /**
+     * Wire one distribution's access logs to the shared destination.
+     *
+     * A distribution may have exactly ONE delivery source (AWS: _"you can only have one delivery source per
+     * distribution"_), so this is called once per distribution and never twice.
+     *
+     * @param service - The service this distribution fronts, which names the resources and the log prefix.
+     * @param distribution - The distribution to collect access logs from.
+     * @param destination - The shared destination from {@link createAccessLogDestination}.
+     * @param stage - The deploy stage, which names the delivery source.
+     * @sideEffect Adds a `Logs::DeliverySource` and a `Logs::Delivery` to this stack.
+     */
+    private deliverAccessLogs(
+        service: SharedListenerService,
+        distribution: cloudfront.Distribution,
+        destination: logs.CfnDeliveryDestination,
+        stage: string,
+    ): void {
+        const source = new logs.CfnDeliverySource(this, `${pascalCase(service)}AccessLogSource`, {
+            name: `kitchensink-edge-${service}-${stage}`,
+            resourceArn: distribution.distributionArn,
+            logType: 'ACCESS_LOGS',
+        });
+
+        const delivery = new logs.CfnDelivery(this, `${pascalCase(service)}AccessLogDelivery`, {
+            deliverySourceName: source.name,
+            deliveryDestinationArn: destination.attrArn,
+            // Appended AFTER the `AWSLogs/{account-id}/CloudFront/` prefix AWS adds when the destination ARN
+            // carries none. The service name keeps the bucket navigable by a human; the date parts keep a
+            // prefix listing bounded.
+            s3SuffixPath: `${service}/{DistributionId}/{yyyy}/{MM}/{dd}`,
+        });
+
+        // ⛔ EXPLICIT. Neither `Delivery` property is a CloudFormation `Ref` to the source (one is its NAME,
+        // a plain string), so CloudFormation infers no ordering and would happily create the delivery first
+        // — which fails, naming a delivery source that does not exist yet.
+        delivery.addDependency(source);
+        delivery.addDependency(destination);
     }
 
     /**

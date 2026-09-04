@@ -290,6 +290,24 @@ const EXPECTED_PLATFORM_SUPPRESSIONS = [
     // escalated in ADR-0013, not suppressed — single-user rotation would take the identity service down,
     // because ECS injects the password at task start and the pool re-dials with the stale value.
     'kitchensink-data-prod/MigrationPlanSecretA0DF90AF AwsSolutions-SMG4',
+    // ⚠️ The FIRST suppressions on a resource that fronts PRODUCTION. `SandboxRouterStack` carries the
+    // sibling decision (`CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE`) whose own words are "REVISIT if the
+    // router ever fronts production" — so this is a SEPARATE key, argued here, and never that one widened.
+    // Owner triage 2026-09-03: geo restriction is the wrong control for a consumer recipe app; a WAFv2 web
+    // ACL is deferred while the product is pre-launch. See ADR-0013's triage update.
+    // The CloudFront access-log bucket, whose own S1 has nowhere to log TO that would not fire S1 in turn.
+    // ⚠️ Narrow to a bucket of logs — `DataStack`'s media/archive buckets keep their open S1 findings.
+    'kitchensink-edge-prod/EdgeAccessLogs01ACC060 AwsSolutions-S1',
+    'kitchensink-edge-prod/FoodDistribution0FAC182B AwsSolutions-CFR1',
+    'kitchensink-edge-prod/FoodDistribution0FAC182B AwsSolutions-CFR2',
+    'kitchensink-edge-prod/IdentityDistributionA374AA37 AwsSolutions-CFR1',
+    'kitchensink-edge-prod/IdentityDistributionA374AA37 AwsSolutions-CFR2',
+    'kitchensink-edge-prod/RecipeDistributionCBA9CD03 AwsSolutions-CFR1',
+    'kitchensink-edge-prod/RecipeDistributionCBA9CD03 AwsSolutions-CFR2',
+    // Owner triage 2026-09-03. PITR on a table whose rows are DERIVED doorbells, expire in three days, and
+    // could only be restored under a different name than every producer addresses. ⚠️ NOT accepted as a
+    // "dedup table" — it is not one; see the register entry.
+    'kitchensink-messaging-prod/MessageTable477906EA AwsSolutions-DDB3',
 ];
 
 describe('exactly the reviewed cdk-nag suppressions are in force', () => {
@@ -317,10 +335,39 @@ describe('exactly the reviewed cdk-nag suppressions are in force', () => {
         }
     });
 
-    it('keeps sandbox in step with prod', () => {
-        // A suppression applied only to one stage would mean the two stages diverge on a security decision.
-        expect(suppressionsIn(sandboxNagged).map((entry) => entry.replace('-sandbox/', '-prod/'))).toEqual(
-            suppressionsIn(prodNagged),
-        );
+    it('keeps sandbox in step with prod, on every stack BOTH stages build', () => {
+        // A suppression applied only to one stage would mean the two stages diverge on a security decision,
+        // and that is still what this asserts.
+        //
+        // ⚠️ REWRITTEN (2026-09-03), not weakened, and the distinction matters. The original compared the
+        // two stages' whole suppression sets, which silently assumed both stages build the SAME stacks. They
+        // do not: `kitchensink-edge-prod` is prod-ONLY (`bin/app.ts` gates it on `stage === 'prod'`), so the
+        // moment `EdgeStack` accepted its first finding the comparison started failing on a stack sandbox
+        // cannot have — a structural fact, not a divergent decision. Comparing everything would leave only
+        // two ways out, both bad: delete the assertion, or suppress on sandbox too (which is impossible
+        // here, and would be a fiction if it were not).
+        //
+        // So the subject set becomes the stacks both stages build, and the stacks EXCLUDED are pinned — a
+        // future prod-only stack cannot quietly escape the comparison by being new.
+        const stageless = (entry: string): string => entry.replace('-sandbox/', '-prod/');
+        const stackOf = (entry: string): string => entry.split('/')[0] ?? '';
+        const sandboxStacks = new Set(Object.keys(sandboxNagged).map((name) => name.replace('-sandbox', '-prod')));
+        const shared = (entries: readonly string[]): readonly string[] =>
+            entries.map(stageless).filter((entry) => sandboxStacks.has(stackOf(entry)));
+
+        // Non-vacuity: the shared set is what the assertion is actually about, so an empty one would make it
+        // pass by comparing nothing.
+        expect(shared(suppressionsIn(prodNagged)).length).toBeGreaterThan(0);
+        expect(shared(suppressionsIn(sandboxNagged))).toEqual(shared(suppressionsIn(prodNagged)));
+
+        // The excluded stacks, named. `kitchensink-cost-guardrails` is account-scoped and created once
+        // (ADR-0008); `kitchensink-edge-prod` is the production CloudFront edge (ADR-0020). Neither has a
+        // sandbox counterpart, so neither can be held to a cross-stage comparison — but a THIRD one
+        // appearing must be a decision, which is why this is asserted rather than filtered silently.
+        expect(
+            Object.keys(prodNagged)
+                .filter((name) => !sandboxStacks.has(name))
+                .sort(),
+        ).toEqual(['kitchensink-cost-guardrails', 'kitchensink-edge-prod']);
     });
 });

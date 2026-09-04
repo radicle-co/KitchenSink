@@ -333,6 +333,15 @@ export class FoodServiceStack extends Stack {
               })
             : undefined;
 
+        if (messageTable !== undefined) {
+            // ⛔ The SAME decision as `MessageSubstrateStack`'s base-stage table (ADR-0013 triage
+            // 2026-09-03), applied to the per-PR twin because it is the same shape for the same reasons.
+            // ⚠️ It is applied here rather than left alone precisely BECAUSE the cdk-nag census measures at
+            // `prod` only: this table exists solely at a `pr-{N}` stage, so its identical `DDB3` finding is
+            // currently invisible to that census — and invisible is not decided.
+            acceptNagFindings(messageTable, AcceptedNagFindings.MESSAGE_SUBSTRATE_ROWS_OUTLIVE_NOTHING);
+        }
+
         // The table this stage's producers write to: the one just created, or the base stage's, resolved
         // from SSM at DEPLOY time. ⛔ SSM, never `Fn.importValue`: a per-PR substrate export IS deleted on
         // PR close, and `RecipeServiceStack` documents what that costs — PR-close deletes a PR's stacks in

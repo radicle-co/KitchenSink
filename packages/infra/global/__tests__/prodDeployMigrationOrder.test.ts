@@ -47,6 +47,8 @@ import { EPHEMERAL_SLOT_ORDER, cutOverServicesFromEnv } from '@kitchensink/infra
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
+import { prodDeployLiteralEnvironment } from './prodDeployEnvironment.js';
+
 /** Repo root — this file sits at `packages/infra/global/__tests__`, so the root is four levels up. */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -508,18 +510,20 @@ describe('prod-deploy.yml — a migration runner is invoked only AFTER the deplo
  * A shell variable is not a deploy. This asserts the pipeline carries the same fact the operator did.
  */
 describe('the production pipeline knows which services are cut over to the edge', () => {
-    it('⛔ declares EDGE_CUTOVER_SERVICES at all — unset means "nobody cut over"', () => {
-        const workflow = readFileSync(WORKFLOW, 'utf8');
+    // ⚠️ Read through `prodDeployLiteralEnvironment` rather than a regex over the file. The value is not
+    // this suite's alone any more: `nagRulesAtZero.integration.test.ts` synthesizes its whole cdk-nag census
+    // under it, having first measured what happens when it does NOT (three phantom `AwsSolutions-CFR4`
+    // findings, written into ADR-0013's table as production's posture). One reader, so the two guards cannot
+    // disagree about what the pipeline declares.
 
-        expect(workflow).toContain('EDGE_CUTOVER_SERVICES');
+    it('⛔ declares EDGE_CUTOVER_SERVICES at all — unset means "nobody cut over"', () => {
+        expect(prodDeployLiteralEnvironment()).toHaveProperty('EDGE_CUTOVER_SERVICES');
     });
 
     it('⛔ names EVERY service whose public record EdgeStack owns', () => {
         // Derived from the shared registry, not a literal list, so a fourth service added to the edge is a
         // failure HERE rather than a missing record in production.
-        const workflow = readFileSync(WORKFLOW, 'utf8');
-        const declared = /EDGE_CUTOVER_SERVICES:\s*([^\n#]+)/.exec(workflow)?.[1]?.trim() ?? '';
-        const named = cutOverServicesFromEnv({ EDGE_CUTOVER_SERVICES: declared });
+        const named = cutOverServicesFromEnv(prodDeployLiteralEnvironment());
 
         expect([...named].sort()).toStrictEqual([...EPHEMERAL_SLOT_ORDER].sort());
     });
@@ -527,10 +531,14 @@ describe('the production pipeline knows which services are cut over to the edge'
     it('parses through the SAME resolver the stacks use, so a typo cannot pass here and fail there', () => {
         // `cutOverServicesFromEnv` throws on an unknown name. Running the workflow's literal value through
         // it is what makes this test an equivalence check rather than a spelling check.
-        const workflow = readFileSync(WORKFLOW, 'utf8');
-        const declared = /EDGE_CUTOVER_SERVICES:\s*([^\n#]+)/.exec(workflow)?.[1]?.trim() ?? '';
+        expect(() => cutOverServicesFromEnv(prodDeployLiteralEnvironment())).not.toThrow();
+    });
 
-        expect(() => cutOverServicesFromEnv({ EDGE_CUTOVER_SERVICES: declared })).not.toThrow();
+    it('reads the value the workflow actually declares, not a default', () => {
+        // Anti-vacuity on the reader: `cutOverServicesFromEnv` answers `[]` for a missing key, and `[]` is
+        // indistinguishable from "the parser broke" in the two assertions above until the registry is empty.
+        // ⚠️ The expectation is a NON-EMPTY declaration, not a specific one — the value itself stays derived.
+        expect(prodDeployLiteralEnvironment()['EDGE_CUTOVER_SERVICES']).not.toBe('');
     });
 });
 

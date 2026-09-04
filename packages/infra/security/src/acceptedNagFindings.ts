@@ -171,6 +171,132 @@ export const AcceptedNagFindings = {
     ],
 
     /**
+     * `AwsSolutions-S1` (no S3 server access logging) on `EdgeStack`'s CloudFront access-log bucket.
+     *
+     * ⛔ NARROW ON PURPOSE: this accepts the finding on a bucket whose CONTENTS ARE LOGS, and nowhere else.
+     * The two `S1` findings on `DataStack`'s media and archive buckets — which hold user photos and recipe
+     * version snapshots — are NOT covered by it and stay in ADR-0013's backlog, undecided. Do not reach for
+     * this key for an ordinary bucket; a bucket that holds user data has no infinite regress to terminate.
+     */
+    ACCESS_LOG_BUCKET_TERMINATES_THE_LOG_CHAIN: [
+        {
+            id: 'AwsSolutions-S1',
+            reason:
+                'This bucket IS the access-log target for the production CloudFront edge (ADR-0013 triage ' +
+                '2026-09-03), and "log the reads of the log" does not terminate: any bucket chosen as ITS server-' +
+                'access-log target fires AwsSolutions-S1 in turn, so satisfying the rule literally means one more ' +
+                'bucket per level, forever. The chain has to end at an accepted finding somewhere; ending it at ' +
+                'the first level is the same decision with fewer buckets to own. This is NOT a claim that the ' +
+                'contents are unimportant -- CloudFront access logs carry client IPs, URIs and user agents, which ' +
+                'is exactly why the controls that DO apply are applied and asserted: BlockPublicAccess ALL, ' +
+                'SSE-S3 at rest, an enforceSSL deny on any non-TLS request, ObjectOwnership BucketOwnerEnforced ' +
+                'so no ACL can grant access, and a 90-day lifecycle expiry so the data does not accumulate ' +
+                'indefinitely. Object-level read auditing, if it is ever wanted here, belongs in CloudTrail data ' +
+                'events, which do not need a target bucket and so do not recurse. ' +
+                "SCOPE: this reasoning covers a bucket whose contents are logs. It does NOT cover DataStack's " +
+                'media or archive buckets, whose own S1 findings remain open in ADR-0013 and are a different ' +
+                'decision about user data.',
+        },
+    ],
+
+    /**
+     * `AwsSolutions-DDB3` (no point-in-time recovery) on the message substrate's DynamoDB table — BOTH
+     * construct sites: `MessageSubstrateStack`'s base-stage `MessageTable` and `FoodServiceStack`'s per-PR
+     * `FoodMessageTable`. One decision, one shape, so both carry it; accepting only the one the prod census
+     * can see would leave the per-PR twin's identical finding merely INVISIBLE rather than decided.
+     *
+     * ⛔ READ THIS BEFORE REUSING THE REASONING ELSEWHERE. This table is **not** a dedup or idempotency
+     * store, and describing it as one would be false: nothing in the repository issues a
+     * `ConditionExpression`, and the sort key's ULID suffix exists to make collisions IMPOSSIBLE, which is
+     * the opposite of dedup. It is a durable, append-only, per-group progress log. What makes PITR
+     * disproportionate is not that the rows are junk — it is that they are DERIVED, short-lived, and that a
+     * restore could not be used even if it were wanted.
+     */
+    MESSAGE_SUBSTRATE_ROWS_OUTLIVE_NOTHING: [
+        {
+            id: 'AwsSolutions-DDB3',
+            reason:
+                'Point-in-time recovery is disproportionate here on three independent grounds, none of which ' +
+                'is "the data does not matter". (1) DERIVED, NOT AUTHORITATIVE: every row is a doorbell about ' +
+                'state that has ALREADY COMMITTED to PostgreSQL before the message is published, and PR 91 ' +
+                'requirement R2.2 obliges that state to be readable from the database at any time -- ' +
+                'OutboundMessage.ts states it outright, "nothing downstream is entitled to assume a payload ' +
+                'exists", because a consumer is woken and then RE-QUERIES the group. Losing a row costs a ' +
+                'notification, not a fact. (2) A RESTORE WINDOW EXCEEDS THE DATA LIFETIME: every write carries ' +
+                'a NUMBER-typed ttl of now + 3 days (ttlFor in DynamoPublisher, verified against a real table ' +
+                'by messageSubstrate.integration.test.ts), so PITR would pay continuously to recover rows ' +
+                'engineered to expire within days. (3) A RESTORE COULD NOT BE USED: PITR restores into a NEW ' +
+                'table under a NEW name, and this store is addressed by a fixed deterministic name ' +
+                '(messageTableNameForStage) that is ALSO the ADR-0005 teardown boundary -- so the recovered ' +
+                'table would be unreachable by every producer and, at a pr-{N} stage, outside the tag/name ' +
+                'scope that reclaims it. The table is RemovalPolicy.DESTROY and recreated by the next deploy ' +
+                'for that same reason. ADR-0016 already goes further and accepts TOTAL loss of the contents ' +
+                'across a release boundary: "the substrate is NOT a backfill source for 014 ... it does not ' +
+                'replay the substrate". ' +
+                'RESIDUAL, stated rather than hidden: ADR-0016 R1.3 does require that an accepted message not ' +
+                'be lost, and PITR is simply the wrong instrument for that -- the durability that requirement ' +
+                "needs is DynamoDB's own replicated write, not a restore window. Ground (2) also holds only " +
+                'while every writer populates ttl, which the INFRASTRUCTURE does not enforce; the single-writer ' +
+                'premise is asserted by messagePublisherWriters.test.ts rather than assumed.',
+        },
+    ],
+
+    /**
+     * `AwsSolutions-CFR1` + `AwsSolutions-CFR2` on `EdgeStack`'s three PRODUCTION distributions.
+     *
+     * ⛔ A SEPARATE key from `CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE`, deliberately, and it must stay
+     * separate. That entry's own words are *"This distribution is the SANDBOX preview router … REVISIT if
+     * the router ever fronts production."* `EdgeStack` fronts production, so applying the router's key here
+     * would be satisfying its revisit condition by ignoring it — the argument has to be made for THIS
+     * resource, at this risk level, and be reviewable on its own. ADR-0013 records the triage (2026-09-03).
+     *
+     * ⚠️ The two findings are accepted on DIFFERENT grounds, and the difference is what a future reviewer
+     * needs: `CFR1` is judged **inapplicable** (the control would do harm), `CFR2` is **deferred** on a
+     * cost-proportionality argument whose premise — a pre-launch product with no users — is time-limited and
+     * WILL expire. Nothing in this repository can observe "launched", so that expiry is prose with an owner
+     * obligation behind it, exactly like the router's condition that rotted. It is stated in the reason, in
+     * the ADR, and here, so at least it is greppable from three directions.
+     */
+    PRODUCTION_EDGE_GEO_INAPPLICABLE_AND_WAF_DEFERRED: [
+        {
+            id: 'AwsSolutions-CFR1',
+            reason:
+                'Not applicable as a control, and actively harmful as one: Commise is a consumer recipe ' +
+                'application with no geographic licensing, export-control or data-residency constraint that a ' +
+                'country allow/deny list would enforce. Enabling a geo restriction would DENY LEGITIMATE ' +
+                'VIEWERS by country in order to satisfy a lint -- it would create a user-visible outage for ' +
+                'every excluded country while blocking no threat this product has, since an attacker is not ' +
+                'constrained to an origin country and CloudFront geo restriction is not an authorization ' +
+                'boundary. cdk-nag words the rule as "may require", i.e. a prompt to decide rather than a ' +
+                'defect. Decision recorded: not required. This is judged INAPPLICABLE, not deferred, so it ' +
+                'carries no revisit date; it reopens only if the product acquires a real jurisdictional ' +
+                'constraint (licensing, sanctions, or a data-residency commitment).',
+        },
+        {
+            id: 'AwsSolutions-CFR2',
+            reason:
+                'Cost-proportionality decision, deferred rather than dismissed, and made for THIS resource ' +
+                'rather than inherited: the sibling entry CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE argues the ' +
+                'same rule for the SANDBOX preview router and says in its own words "REVISIT if the router ever ' +
+                'fronts production" -- EdgeStack does front production, so that entry is not reused here. The ' +
+                'arithmetic: a WAFv2 web ACL costs about USD 5-10/month per ACL once rules are counted, ' +
+                'recurring, against the 300/month account budget guardrail (ADR-0008), for a product that is ' +
+                'PRE-LAUNCH and has no users -- measured over 30 days, all three distributions together served ' +
+                '630 requests. A WAF bought today protects nobody and bills every month. NOTE the reason is ' +
+                'ASCII-only on purpose: cdk-nag base64-encodes any reason carrying a codepoint above 255, ' +
+                'which would leave the prod cdk diff a human approves showing an opaque blob instead of this ' +
+                'argument. What does stand in ' +
+                'front of these origins meanwhile: HTTPS-only viewer policy, a Lambda@Edge viewer-request ' +
+                'function that verifies the Clerk session token before the origin is reached (ADR-0020), and ' +
+                'Clerk session-token verification with anchored azp enforcement in the services themselves. ' +
+                'THE PREMISE IS TIME-LIMITED: this acceptance is conditioned on the product being pre-launch ' +
+                'and MUST BE REOPENED AT LAUNCH, or on first evidence of abuse or of meaningful request volume. ' +
+                'Nothing in the repository can observe "launched", so that reopening is an owner obligation, ' +
+                'not a mechanised control -- which is precisely how the router entry above went stale.',
+        },
+    ],
+
+    /**
      * `AwsSolutions-SMG4` on `MigrationPlanSecret`. Not a credential: it holds a static SQL bootstrap
      * string and an owner label, so there is nothing rotation could mean.
      */

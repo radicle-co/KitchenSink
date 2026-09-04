@@ -243,11 +243,28 @@ describe('cdk synth with cdk-nag attached (advisory mode)', () => {
             );
         });
 
-        // The platform app suppresses exactly two findings, in both stages: EC23 on the shared ALB's SG
-        // (ADR-0003) and SMG4 on the non-credential MigrationPlanSecret.
+        // EC23 on the shared ALB's SG (ADR-0003), SMG4 on the non-credential MigrationPlanSecret, and DDB3
+        // on the message substrate's table — all three exist at BOTH stages, hence two of each. Plus CFR1 +
+        // CFR2 on each of `EdgeStack`'s three production distributions, and S1 on its access-log bucket
+        // (owner triage 2026-09-03, ADR-0013) — those four appear ONCE each rather than twice, because
+        // `EdgeStack` is prod-only.
+        //
+        // ⚠️ Ids only, so this cannot distinguish three suppressions on three distributions from three on
+        // one. That is deliberate division of labour, not an oversight: `cdkNagTemplateParity.test.ts` pins
+        // resource-and-rule for prod and `EdgeStack.test.ts` pins the resource TYPE and the per-distribution
+        // spread. What THIS tier adds is that the CDK **CLI** emits them at all, and readably.
         expect(emitted.map((entry) => entry.id).sort()).toEqual([
+            'AwsSolutions-CFR1',
+            'AwsSolutions-CFR1',
+            'AwsSolutions-CFR1',
+            'AwsSolutions-CFR2',
+            'AwsSolutions-CFR2',
+            'AwsSolutions-CFR2',
+            'AwsSolutions-DDB3',
+            'AwsSolutions-DDB3',
             'AwsSolutions-EC23',
             'AwsSolutions-EC23',
+            'AwsSolutions-S1',
             'AwsSolutions-SMG4',
             'AwsSolutions-SMG4',
         ]);

@@ -17,7 +17,7 @@
  * standing between a contract change and an app that cannot be fixed without an App Store release.
  */
 import { CONTRACT_HASH } from '@kitchensink/schema-recipe';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import {
     checkContractSkew,
@@ -249,11 +249,12 @@ describe('reportContractSkewOnce (the latch)', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
-    it('is synchronous and returns nothing, so no caller can accidentally await it on a hot path', () => {
-        const warn = vi.fn();
-        const fetchImpl = stubFetch(200, { status: 'ok', service: 'recipe', contractHash: OTHER_HASH });
-
-        expect(reportContractSkewOnce({ baseUrl: BASE, fetch: fetchImpl, warn })).toBeUndefined();
+    it('is declared to return nothing, so no caller can accidentally await it on a hot path', () => {
+        // Asserted at the TYPE level, not with `expect(fn()).toBeUndefined()`. A `void` signature is the
+        // guarantee: under it TypeScript rejects both an `async` implementation and a `return <value>`, which
+        // is strictly stronger than observing one call's result — and it retires CodeQL's "use of returnless
+        // function" finding, which the runtime form triggered by using a `void` call as a value.
+        expectTypeOf(reportContractSkewOnce).returns.toBeVoid();
     });
 
     it('never throws synchronously, even when fetch throws synchronously', () => {

@@ -5,4 +5,8 @@ export interface UndocumentedProps {
     readonly onSelect?: () => void;
 }
 
-export const Undocumented: FC<UndocumentedProps> = ({ label, onSelect }) => <button onClick={onSelect}>{label}</button>;
+export const Undocumented: FC<UndocumentedProps> = ({ label, onSelect }) => (
+    <button type="button" onClick={onSelect}>
+        {label}
+    </button>
+);

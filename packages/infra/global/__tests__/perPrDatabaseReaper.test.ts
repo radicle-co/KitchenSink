@@ -42,7 +42,7 @@ import {
     planReap,
     type PerPrDatabaseCatalogRow,
 } from '../src/db-reaper/reapPlan.js';
-import { executeReap, reapDropStatement } from '../src/db-reaper/handler.js';
+import { executeReap, handler, reapDropStatement } from '../src/db-reaper/handler.js';
 
 /** A catalogue as the shared sandbox instance might report it, with two PRs and one stranded neighbour. */
 const CATALOG: readonly PerPrDatabaseCatalogRow[] = [
@@ -254,5 +254,62 @@ describe('executeReap — the re-assertion at the point of destruction', () => {
             /scope predicate let it through/i,
         );
         expect(statements).toEqual([]);
+    });
+});
+
+describe('⛔ the handler REFUSES the prod stage at runtime, whatever it was asked to do', () => {
+    // ⛔ The second half of "sandbox only", and the half that is not a synth-time property. `DataStack` does
+    // not create this function at the prod stage, so reaching the handler on prod means something deployed
+    // it there — and a master-credentialed `DROP DATABASE` in production is not a risk this repository
+    // accepts. Asserted here because a guard nobody exercises is a comment.
+    //
+    // The refusal is the FIRST thing the handler does, before the payload is parsed and before any AWS
+    // client is constructed, which is why these cases need no Secrets Manager or `pg` stub at all — and
+    // that ordering is itself the assertion: a refusal placed after `readMasterCredentials` would fetch the
+    // master password on prod before deciding not to use it.
+    const withStage = async (stage: string | undefined, event: unknown): Promise<unknown> => {
+        const previous = process.env['STAGE'];
+
+        if (stage === undefined) {
+            delete process.env['STAGE'];
+        } else {
+            process.env['STAGE'] = stage;
+        }
+
+        try {
+            return await handler(event);
+        } finally {
+            if (previous === undefined) {
+                delete process.env['STAGE'];
+            } else {
+                process.env['STAGE'] = previous;
+            }
+        }
+    };
+
+    it('refuses a DROP on prod', async () => {
+        await expect(withStage('prod', { action: 'drop', pr: 'pr-73' })).rejects.toThrow(
+            /refuses to run at the prod stage/i,
+        );
+    });
+
+    it('⛔ refuses a COUNT on prod too, not just a drop', async () => {
+        // Deliberately NOT a drop-only guard. Leaving a prod census reachable makes the drop guard the only
+        // thing standing, and "just let it count in prod" is exactly how that erodes.
+        await expect(withStage('prod', { action: 'count' })).rejects.toThrow(/refuses to run at the prod stage/i);
+        await expect(withStage('prod', {})).rejects.toThrow(/refuses to run at the prod stage/i);
+    });
+
+    it('refuses before it reads ANY other configuration — no secret ARN, no endpoint', async () => {
+        // None of DB_SECRET_ARN / DB_ENDPOINT / DB_PORT is set in this process. A handler that read them
+        // first would fail with "Missing required environment variable" instead, which is a different
+        // (and much later) refusal.
+        await expect(withStage('prod', { action: 'drop', pr: 'pr-73' })).rejects.toThrow(/ADR-0031/);
+    });
+
+    it('fails loudly when STAGE is unset rather than assuming a stage', async () => {
+        // An unset STAGE is not "probably sandbox". The function cannot know which instance it is pointed
+        // at, and guessing is how a capability ends up running somewhere nobody chose.
+        await expect(withStage(undefined, {})).rejects.toThrow(/Missing required environment variable: STAGE/);
     });
 });

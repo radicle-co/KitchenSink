@@ -62,7 +62,7 @@
  * about the text a cook wrote and must mean the same thing in every alphabet. The SPEND bound — what the
  * reservation is priced from — is in TOKENS, and a code-point count is NOT an upper bound on those: a
  * byte-fallback BPE tokenizer emits an unknown code point as its UTF-8 bytes, up to four tokens. So the spend
- * bound is bytes ({@link inputTokenBound} over the turns actually sent) or, for a caller with no prompt yet,
+ * bound is bytes (`inputTokenBound` over the turns actually sent) or, for a caller with no prompt yet,
  * {@link VERIFICATION_INPUT_TOKEN_CEILING}. Neither ships a tokenizer or trusts a characters-per-token ratio.
  */
 import { inputTokenCeiling } from '../spend/spendArithmetic.js';
@@ -93,7 +93,7 @@ export const MAX_VERIFICATION_PROMPT_CHARS = 2_000;
  *
  * ⛔ For a caller that must reserve BEFORE it has a prompt in hand — the band drain sizes a batch by dividing
  * the period's headroom by one worst case, with no line to build a prompt from. A caller that HAS its prompt
- * reserves from {@link inputTokenBound} over the turns it is about to send, which is both honest and tighter.
+ * reserves from `inputTokenBound` over the turns it is about to send, which is both honest and tighter.
  *
  * ⛔ It is NOT {@link MAX_VERIFICATION_PROMPT_CHARS}. This constant used to be `VERIFICATION_MAX_INPUT_TOKENS
  * = 2_000`, set equal to the code-point cap on the claim that "no tokenizer emits more than one token per code

@@ -68,7 +68,7 @@ export const SETTLE_FAILURE_METRIC_NAME = 'VerificationSettleFailures';
  * byte length plus a chat-template allowance, because no byte-fallback tokenizer emits more than one token per
  * BYTE. That is a bound on the tokenizers we know of, not a theorem: a tokenizer that normalises before
  * encoding (NFKC can expand one compatibility character into many), a template whose framing costs more than
- * {@link CHAT_TEMPLATE_BASE_TOKENS}, or a model nobody has measured would each beat it — silently, because
+ * `CHAT_TEMPLATE_BASE_TOKENS`, or a model nobody has measured would each beat it — silently, because
  * `settleDeltaMicros` is unclamped and simply charges the overshoot. This metric is what makes it LOUD.
  *
  * ⚠️ Carries the `CallSite` dimension, unlike {@link SETTLE_FAILURE_METRIC_NAME}: which consumer's prompt

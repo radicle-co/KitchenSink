@@ -1144,6 +1144,14 @@
                         },
                         {
                             "kind": "alarm",
+                            "logicalId": "VerificationInputBoundAlarm",
+                            "nameTemplate": "kitchensink-recipe-verification-input-bound-{stage}",
+                            "handler": null,
+                            "condition": null,
+                            "notes": []
+                        },
+                        {
+                            "kind": "alarm",
                             "logicalId": "VerificationThrottlesAlarm",
                             "nameTemplate": "kitchensink-recipe-verification-throttles-{stage}",
                             "handler": null,

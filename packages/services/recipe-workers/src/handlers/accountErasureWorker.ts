@@ -81,52 +81,20 @@ import { logger } from '../common/logger.js';
  */
 export type { AccountErasureMessage };
 
-/**
- * Raised when an SQS body is not a usable erasure instruction. Matching guard:
- * {@link isInvalidErasureMessageError}.
- */
-export class InvalidErasureMessageError extends Error {
-    constructor(reason: string) {
-        super(`account-erasure-worker: invalid erasure message — ${reason}`);
-        this.name = 'InvalidErasureMessageError';
-        Object.setPrototypeOf(this, InvalidErasureMessageError.prototype);
-    }
-}
+// ⛔ Both refusals live in `accountErasureWorker.errors.ts` and are RE-EXPORTED here, so every existing
+// importer keeps working. They moved because adding `MisroutedErasureMessageError` made this file export two
+// classes, which `oneFileOneThing` refuses (`CODING_STANDARDS` §1) — the handler is the one thing this file
+// does. Re-exported rather than relocated silently: the guards are part of this module's public contract.
+export {
+    InvalidErasureMessageError,
+    MisroutedErasureMessageError,
+    isInvalidErasureMessageError,
+    isMisroutedErasureMessageError,
+} from './accountErasureWorker.errors.js';
 
-/** Type guard for {@link InvalidErasureMessageError}. */
-export const isInvalidErasureMessageError = (error: unknown): error is InvalidErasureMessageError =>
-    error instanceof InvalidErasureMessageError;
-
-/**
- * Raised when THIS database holds no `account_erasure_jobs` row, in any status, for the owner a message names
- * — the interlock in {@link processRecord} refusing to erase. Matching guard: {@link isMisroutedErasureMessageError}.
- *
- * ⛔ THROWN, NOT LOGGED-AND-ACKNOWLEDGED. The 2026-07-18 hardening plan said the message "still acks (it is
- * genuinely not this DB's job)", and that is exactly the false success this worker's docstring names as the
- * failure it is designed against: an acknowledged message is never redelivered, never reaches the DLQ, never
- * trips `AccountErasureDlqAlarm` — a LEGAL erasure request lost with no signal anywhere. Whether the cause is
- * a cross-stage misroute, a producer that enqueued before its row committed, or a row an operator deleted,
- * the right outcome is the same: the delivery fails, SQS retries (each retry is one read-only `SELECT`, refused
- * again), and the message drains to the DLQ where a human sees it. The interlock still refuses the DELETE on
- * every attempt; only the acknowledgement changed.
- */
-export class MisroutedErasureMessageError extends Error {
-    public readonly ownerId: string;
-
-    constructor(ownerId: string) {
-        super(
-            `account-erasure-worker: no erasure job for owner ${ownerId} in this database — refusing to erase, ` +
-                'and failing the delivery so the request is redelivered and surfaced rather than lost',
-        );
-        this.name = 'MisroutedErasureMessageError';
-        this.ownerId = ownerId;
-        Object.setPrototypeOf(this, MisroutedErasureMessageError.prototype);
-    }
-}
-
-/** Type guard for {@link MisroutedErasureMessageError}. */
-export const isMisroutedErasureMessageError = (error: unknown): error is MisroutedErasureMessageError =>
-    error instanceof MisroutedErasureMessageError;
+// ⚠️ IMPORTED as well as re-exported, and the two are not interchangeable: a re-export makes a symbol
+// available to this module's IMPORTERS, not to this module's own body, which throws both of these.
+import { InvalidErasureMessageError, MisroutedErasureMessageError } from './accountErasureWorker.errors.js';
 
 /**
  * The claimed `account_erasure_jobs` row this invocation is accountable for.
@@ -274,7 +242,7 @@ export const claimErasureJob = async (
  * a claimable status) or a **misrouted** message (no row at all — e.g. a sandbox erasure drained by a
  * `pr-{N}` worker, which the per-stage queue topology is supposed to prevent but must not be the SOLE
  * guard). Only the misrouted case must skip erasure — and FAIL the delivery, see
- * {@link MisroutedErasureMessageError}; the replay must still run its idempotent no-op. This existence check
+ * `MisroutedErasureMessageError`; the replay must still run its idempotent no-op. This existence check
  * is what tells them apart, so a message can only ever destroy data the local DB has a record authorizing.
  *
  * @param db - The recipe database handle.

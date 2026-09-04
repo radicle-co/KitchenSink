@@ -317,6 +317,7 @@ Construct `RecipeWorkersStack` — `packages/services/recipe-workers/infra/lib/R
 | alarm | `RecipeParseDlqAlarm` | `kitchensink-recipe-parse-dlq-{stage}` | — |
 | alarm | `RecipeParseThrottlesAlarm` | `kitchensink-recipe-parse-throttles-{stage}` | — |
 | alarm | `VerificationCacheTokensAlarm` | `kitchensink-recipe-verification-cache-{stage}` | — |
+| alarm | `VerificationInputBoundAlarm` | `kitchensink-recipe-verification-input-bound-{stage}` | — |
 | alarm | `VerificationSettleFailureAlarm` | `kitchensink-recipe-verification-settle-{stage}` | — |
 | alarm | `VerificationSpendAlarm` | `kitchensink-recipe-verification-spend-{stage}` | — |
 | alarm | `VerificationThrottlesAlarm` | `kitchensink-recipe-verification-throttles-{stage}` | — |

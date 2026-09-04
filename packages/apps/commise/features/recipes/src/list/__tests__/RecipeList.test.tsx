@@ -48,12 +48,15 @@ const threeRecipes = [
 ];
 
 describe('RecipeList (web) — chrome', () => {
-    it('always renders the heading, search box, and create action', () => {
+    it('renders the heading and search box while the list is still loading', () => {
+        // NARROWED. This used to also assert the create dial from the LOADING state, which is the very
+        // claim the mid-interaction-unmount defect made false — the dial now waits for the library to
+        // resolve. The persistent chrome that genuinely IS present in every state is asserted here; the
+        // dial's own state matrix belongs to the "create FAB (L1)" block below.
         renderList({ status: 'loading' });
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByRole('searchbox', { name: 'Search recipes' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 
     it('reflects the controlled search value', () => {
@@ -84,7 +87,10 @@ describe('RecipeList (web) — chrome', () => {
         // line-height, so no amount of added centring properties fixes it; only a symmetric shape does.
         // docs/mockups/screens/screen-recipes.html draws this FAB with an SVG whose extents (4→20 on both
         // axes) are exactly symmetric about the viewBox centre.
-        renderList({ status: 'loading' });
+        //
+        // Rendered from a SETTLED, populated list rather than `loading`: the dial no longer mounts while the
+        // library is still resolving, and this assertion is about the glyph, not about when the dial appears.
+        renderList({ status: 'ready', recipes: threeRecipes });
 
         const fab = screen.getByRole('button', { name: 'New recipe' });
 
@@ -223,12 +229,67 @@ describe('RecipeList (web) — create FAB (L1)', () => {
         expect(fab.closest('header')).toBeNull();
     });
 
-    it('keeps the FAB present across loading, error, and populated states', () => {
-        for (const state of ['loading', 'error', 'ready'] as const) {
+    it('keeps the FAB present across error and populated states', () => {
+        // NARROWED from "loading, error, and populated". `loading` moved out and got its own assertion
+        // below, because keeping the dial there is what let it unmount mid-interaction.
+        for (const state of ['error', 'ready'] as const) {
             cleanup();
             renderList({ status: state, recipes: state === 'ready' ? threeRecipes : [] });
             expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
         }
+    });
+
+    it('withholds the FAB while the library is still LOADING, and offers no create control at all there', () => {
+        renderList({ status: 'loading' });
+
+        // Both the trigger and its menu: a dial that mounted its panel while hiding the button would still
+        // be a control a cook can land on during the window this gate exists to close.
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.queryByRole('menuitem')).toBeNull();
+        // …and the empty-state CTA has not appeared either — the library has not said it is empty yet.
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+    });
+
+    it('does not mount the dial before a first-run library settles EMPTY, so nothing unmounts mid-press', async () => {
+        // ⛔ THE DEFECT ITSELF, driven as the TRANSITION rather than as two independent snapshots. A pair of
+        // state assertions would both pass against a component that mounts the dial while loading and drops
+        // it on settle — which is exactly what shipped: the dial rendered, a first-run cook pressed it, the
+        // menu opened, the empty library settled, and the whole control detached under their finger.
+        const user = userEvent.setup();
+
+        function Harness() {
+            const [status, setStatus] = useState<'loading' | 'ready'>('loading');
+
+            return (
+                <>
+                    <button type="button" onClick={() => setStatus('ready')}>
+                        {'SETTLE'}
+                    </button>
+                    <RecipeList
+                        status={status}
+                        recipes={[]}
+                        searchValue=""
+                        onSearchChange={noop}
+                        onSelectRecipe={noop}
+                        onCreateRecipe={noop}
+                        onRetry={noop}
+                    />
+                </>
+            );
+        }
+
+        render(<Harness />);
+
+        // Before: no dial to press.
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+
+        await user.click(screen.getByRole('button', { name: 'SETTLE' }));
+
+        // After: still no dial — the empty state's own CTA is the sole create control, and the cook was
+        // never handed a second one to reach for in between.
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
     });
 
     it('suppresses the FAB in the empty state, where the empty-state CTA is the sole create control', () => {

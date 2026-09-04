@@ -53,14 +53,26 @@ beforeEach(() => {
 });
 
 describe('RecipeListScreen — chrome', () => {
-    it('always renders the heading, search field, and create action', () => {
+    it('renders the heading and search field while the library is still loading', () => {
+        // NARROWED. This used to also assert the create dial from the LOADING state. It no longer mounts
+        // there — see the assertion below and `shouldShowCreateDial`'s JSDoc.
         useRecipesMock.mockReturnValue(listResult({ isLoading: true }));
 
         render(<RecipeListScreen onSelectRecipe={noop} />);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByLabelText('Search recipes')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+    });
+
+    it('mounts NO create control while the library is loading, so none can vanish as it settles', () => {
+        // The container-level half of the fix: this screen is what actually feeds `useRecipes`' flags into
+        // the leaf, so a leaf-only assertion could not catch a screen that mapped `isLoading` to `ready`.
+        useRecipesMock.mockReturnValue(listResult({ isLoading: true }));
+
+        render(<RecipeListScreen onSelectRecipe={noop} />);
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
     });
 
     it('forwards create requests to the onCreateRecipe prop', () => {

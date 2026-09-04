@@ -42,6 +42,21 @@ describe('RecipeListContainer', () => {
         expect(screen.getByRole('status', { name: 'Loading recipes' })).toBeInTheDocument();
     });
 
+    it('mounts NO create control while the query is pending, so none can vanish as it settles', () => {
+        // The container-level half of the create-dial fix: this container is what feeds the query's flags
+        // into the shared leaf, so a leaf-only assertion could not catch a container that mapped a pending
+        // query onto `ready`. The dial used to mount here, over a library that had not yet said it was
+        // empty — a first-run cook pressed it, the menu opened, the empty state settled and the whole
+        // control detached under their finger.
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).not.toBeInTheDocument();
+    });
+
     it('renders the populated list with a count when recipes load', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipes').mockResolvedValue(

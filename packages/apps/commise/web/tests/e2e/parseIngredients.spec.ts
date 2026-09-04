@@ -47,10 +47,16 @@ test.describe('recipes — paste an ingredient list and review the parse (U9)', 
         // true-empty library so the empty state's own "Create your first recipe" CTA is the sole create
         // affordance. With `recipes: []` this test was asserting a control the product does not render.
         //
-        // It did not fail as "no such button", which is why it read as a mystery for so long: the dial IS
-        // mounted while the list is still LOADING (loading renders no CTA to compete with), so the first
+        // It did not fail as "no such button", which is why it read as a mystery for so long: the dial WAS
+        // mounted while the list was still LOADING (loading rendered no CTA to compete with), so the first
         // press landed, the menu opened — and then the empty library settled, `showDial` flipped false and
         // Playwright reported `element was detached from the DOM` on the second press, for 60s.
+        //
+        // ⚠️ That transition is FIXED — `shouldShowCreateDial` now withholds the dial until the library has
+        // resolved, so a first-run cook is never handed a control that is about to unmount. The seed here is
+        // still REQUIRED, and for the original reason: the dial is suppressed over a settled true-empty
+        // library too. What changed is only that `recipes: []` would now fail honestly ("no such button")
+        // instead of detaching mid-interaction.
         await mockRecipeApi(page, {
             viewerId,
             tier: 'premium',

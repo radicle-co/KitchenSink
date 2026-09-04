@@ -17,8 +17,12 @@ appId: io.commise.mobile
 
 # That the list actually SETTLED is a separate claim, and this is what makes it: the "{n} recipes" count
 # label is rendered only by the POPULATED branch. The old settle assertion was `New recipe` (the pinned
-# FAB), which renders while loading and while erroring too — so it passed against the reported
+# FAB), which at the time rendered while loading and while erroring too — so it passed against the reported
 # permanent-loading-skeleton bug, and could never have distinguished an empty library from a stuck one.
+#
+# ⚠ The FAB no longer renders while LOADING (it waited for the library to resolve, after mounting over an
+# unsettled list and then unmounting under a first-run cook's finger). It still renders on ERROR, so it is
+# still not a settle signal, and the count label is still the assertion that makes this claim.
 - extendedWaitUntil:
       visible:
           text: '^3 recipes$'

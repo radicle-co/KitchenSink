@@ -191,16 +191,34 @@ export interface CreateDialVisibility {
  *    zero KEEPS the dial, since that body renders no CTA to replace it and suppressing would leave the
  *    viewer with no way to create at all.
  *  - **Never on the Community tab.** A cook does not create into another cook's list.
+ *  - **Not until the library has RESOLVED.** ⛔ This third gate is not a third policy — it is the first one
+ *    refusing to be decided against evidence that does not exist yet. `status: 'loading'` says the library
+ *    has not answered, so `recipeCount: 0` is not "empty", it is "unknown", and the true-empty test above
+ *    reads a zero it has no right to read. The dial used to mount through that window: on a first run it
+ *    appeared, a cook pressed it, the menu opened — and then the empty library settled, the true-empty gate
+ *    finally got its real answer, and the whole control UNMOUNTED under their finger. Playwright saw it as
+ *    `element was detached from the DOM` for 60s; a cook sees a menu vanish as they reach for it.
  *
- * Loading and error keep the dial for the same reason a narrowed zero does: neither renders a CTA. Pure.
+ * Error still KEEPS the dial, and the asymmetry is deliberate — but it is a judgement about FREQUENCY, not a
+ * claim that the transition cannot happen. ⚠️ Do not restate it as "only a deliberate Try again moves an
+ * error": that is FALSE and was measured so. TanStack's `refetchOnWindowFocus`/`refetchOnReconnect` both
+ * default to `true` and an errored query is stale by definition, so tabbing away and back refetches it with
+ * no user action (probed against the real client: one attempt became two). So `error → ready-empty` CAN
+ * reproduce the same unmount, unprompted.
  *
- * @param visibility - The list state the two gates are decided from.
+ * It is accepted anyway, on two grounds: it needs a failed load AND a focus change AND an empty library,
+ * rather than happening on every first run a beat after the screen appears; and suppressing here would strand
+ * a cook whose library failed to load with no create affordance at all, because that body renders no CTA to
+ * replace the dial. Revisit if the error body ever grows one. Pure.
+ *
+ * @param visibility - The list state the gates are decided from.
  * @returns `true` when the dial should be rendered.
  */
 export const shouldShowCreateDial = ({ status, recipeCount, narrowed, onCommunity }: CreateDialVisibility): boolean => {
+    const unresolved = status === 'loading';
     const trueEmpty = status === 'ready' && recipeCount === 0 && !narrowed;
 
-    return !trueEmpty && !onCommunity;
+    return !unresolved && !trueEmpty && !onCommunity;
 };
 
 /** Props for a single recipe row in the list. */

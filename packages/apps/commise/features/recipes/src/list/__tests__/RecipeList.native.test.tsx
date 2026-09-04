@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
-import { Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { placeholderContrast } from '@commise/test-utils';
@@ -52,19 +52,24 @@ describe('RecipeList (native) — chrome', () => {
         // `displayMd` (28) font — off-token leading that iOS applies as extra leading and Android pairs with
         // `includeFontPadding`. The icon stub renders null here, so the falsifiable assertion is the ABSENCE
         // of the text glyph: a "+" character in the FAB is exactly the defect.
-        renderList({ status: 'loading' });
+        //
+        // Rendered from a SETTLED, populated list rather than `loading`: the dial no longer mounts while the
+        // library is still resolving, and this assertion is about the glyph, not about when the dial appears.
+        renderList({ status: 'ready', recipes: threeRecipes });
 
         const fab = screen.getByRole('button', { name: 'New recipe' });
 
         expect(within(fab).queryByText('+')).toBeNull();
     });
 
-    it('always renders the heading, search field, and create action', () => {
+    it('renders the heading and search field while the list is still loading', () => {
+        // NARROWED, mirroring the web leaf. This used to also assert the create dial from the LOADING
+        // state, which is the very claim the mid-interaction-unmount defect made false — the dial now
+        // waits for the library to resolve. Its state matrix belongs to the "create FAB (L1)" block.
         renderList({ status: 'loading' });
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByLabelText('Search recipes')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 
     it('reports search input changes upward', () => {
@@ -198,12 +203,61 @@ describe('RecipeList (native) — create FAB (L1)', () => {
         expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 
-    it('keeps the FAB present across loading, error, and populated states', () => {
-        for (const state of ['loading', 'error', 'ready'] as const) {
+    it('keeps the FAB present across error and populated states', () => {
+        // NARROWED from "loading, error, and populated", mirroring the web leaf: `loading` moved out and got
+        // its own assertion below, because keeping the dial there is what let it unmount mid-interaction.
+        for (const state of ['error', 'ready'] as const) {
             cleanup();
             renderList({ status: state, recipes: state === 'ready' ? threeRecipes : [] });
             expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
         }
+    });
+
+    it('withholds the FAB while the library is still LOADING, and offers no create control at all there', () => {
+        renderList({ status: 'loading' });
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.queryByRole('menuitem')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+    });
+
+    it('does not mount the dial before a first-run library settles EMPTY, so nothing unmounts mid-press', () => {
+        // ⛔ THE DEFECT ITSELF, driven as the TRANSITION rather than as two independent snapshots — the
+        // mobile mirror of the web leaf's assertion, so a fix to one platform cannot miss the other.
+        function Harness() {
+            const [status, setStatus] = useState<'loading' | 'ready'>('loading');
+
+            return (
+                <>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="SETTLE"
+                        onPress={() => setStatus('ready')}
+                    >
+                        <Text>{'SETTLE'}</Text>
+                    </Pressable>
+                    <RecipeList
+                        status={status}
+                        recipes={[]}
+                        searchValue=""
+                        onSearchChange={noop}
+                        onSelectRecipe={noop}
+                        onCreateRecipe={noop}
+                        onRetry={noop}
+                    />
+                </>
+            );
+        }
+
+        render(<Harness />);
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'SETTLE' }));
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
     });
 
     it('suppresses the FAB in the empty state, where the empty CTA is the sole create control', () => {

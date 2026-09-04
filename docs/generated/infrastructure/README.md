@@ -141,7 +141,7 @@ Construct `EdgeStack` — `packages/infra/global/lib/platform/EdgeStack.ts`
 | --- | --- | --- | --- |
 | lambdaFunction | `EdgeVerifierFunction` | `handler.handler` | — |
 
-Not summarised here (out of this manifest's scope): `aws-cdk-lib/aws-cloudfront-origins.HttpOrigin`, `aws-cdk-lib/aws-cloudfront.CachePolicy`, `aws-cdk-lib/aws-cloudfront.Distribution`, `aws-cdk-lib/aws-iam.CompositePrincipal`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-route53-targets.CloudFrontTarget`, `aws-cdk-lib/aws-route53.ARecord`.
+Not summarised here (out of this manifest's scope): `aws-cdk-lib/aws-cloudfront-origins.HttpOrigin`, `aws-cdk-lib/aws-cloudfront.CachePolicy`, `aws-cdk-lib/aws-cloudfront.Distribution`, `aws-cdk-lib/aws-iam.CompositePrincipal`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs.CfnDelivery`, `aws-cdk-lib/aws-logs.CfnDeliveryDestination`, `aws-cdk-lib/aws-logs.CfnDeliverySource`, `aws-cdk-lib/aws-route53-targets.CloudFrontTarget`, `aws-cdk-lib/aws-route53.ARecord`, `aws-cdk-lib/aws-s3.Bucket`.
 
 ### `kitchensink-global-{stage}`
 

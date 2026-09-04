@@ -73,6 +73,7 @@ describe('the AcceptedNagFindings register is closed and justified', () => {
         // Deliberate friction. Every suppression writes template metadata onto live infrastructure, so
         // adding one must not be possible without a reviewer seeing this list move.
         expect(Object.keys(AcceptedNagFindings).sort()).toEqual([
+            'ACCESS_LOG_BUCKET_TERMINATES_THE_LOG_CHAIN',
             'CLERK_WEBHOOK_VERIFIES_ITS_OWN_SIGNATURE',
             'CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE',
             'ERASURE_WORKER_OBJECT_PREFIX_WILDCARD',

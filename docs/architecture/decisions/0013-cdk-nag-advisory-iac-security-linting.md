@@ -167,17 +167,17 @@ reporting and is not named here reds a third assertion. Editing a count without 
 now a failing build rather than a stale sentence. The heading's total must equal the rows' sum — that is
 asserted as well.
 
-| Rule                                          | Count | Note                                                                                                                                                                                                                                                                                                |
-| --------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IAM4` AWS managed policies                   | 33    | Almost all `AWSLambdaBasicExecutionRole` / `AWSLambdaVPCAccessExecutionRole` / `AmazonECSTaskExecutionRolePolicy`. Replacing them with inline equivalents is mechanical but touches every role; worth one dedicated change. Was 27 on 2026-08-07; `EdgeStack` and the recipe tier added six         |
-| `IAM5` residual wildcards                     | 21    | Mostly `Resource::*` on ECS task _execution_ roles (CDK-generated ECR/logs grants) and the recipe/identity API task roles' `grantRead`/`grantDelete` on the shared buckets — the **same over-grant fixed in recipe-workers**, and the next highest-value narrowing. Was 20                          |
-| `EC26` / `EC28` / `EC29`                      | 3     | The `t4g.nano` NAT instance: unencrypted EBS, no detailed monitoring, no termination protection. ADR-0004 owns this resource                                                                                                                                                                        |
-| `RDS11` default endpoint port                 | 1     | Changing 5432 breaks every consumer's config; low value                                                                                                                                                                                                                                             |
-| `APIG2` no request validation                 | 1     | The webhook body is validated by svix + the handler's own parsing                                                                                                                                                                                                                                   |
-| `CFR3` no CloudFront access logging           | 4     | One on the sandbox router (being retired for previews, ADR-0001) and **three new** on `EdgeStack`'s identity/food/recipe distributions, which front PRODUCTION. Not the same decision as the router's; **owner triage owed**                                                                        |
-| `ECS4` no Container Insights                  | 3     | ⚠️ **NEW to the table**, on all three ECS clusters. Two of those clusters existed at burn-down #1, so either the rule postdates that pass or the 2026-08-07 census was itself incomplete — nothing recorded then can distinguish the two, which is the whole argument for this table being asserted |
-| `S1`, `ELB2`, `VPC7`, `SMG4`, `RDS3`, `RDS10` | 7     | Deferred / escalated, as above. `S1` 2, `ELB2` 1, `VPC7` 1, `SMG4` 2, `RDS3` 1, **`RDS10` 0** — the escalated deletion-protection finding has CLEARED and nothing said so                                                                                                                           |
-| `L1` non-latest Lambda runtime                | 1     | The Lambda@Edge verifier, pinned to `nodejs22.x` because Lambda@Edge offers no `nodejs24.x`. Left REPORTING and asserted EXPLAINED in both directions — see below. **The 2 CDK `Provider` findings this row used to hold are GONE**                                                                 |
+| Rule                                          | Count | Note                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `IAM4` AWS managed policies                   | 33    | Almost all `AWSLambdaBasicExecutionRole` / `AWSLambdaVPCAccessExecutionRole` / `AmazonECSTaskExecutionRolePolicy`. Replacing them with inline equivalents is mechanical but touches every role; worth one dedicated change. Was 27 on 2026-08-07; `EdgeStack` and the recipe tier added six                                                                                                |
+| `IAM5` residual wildcards                     | 21    | Mostly `Resource::*` on ECS task _execution_ roles (CDK-generated ECR/logs grants) and the recipe/identity API task roles' `grantRead`/`grantDelete` on the shared buckets — the **same over-grant fixed in recipe-workers**, and the next highest-value narrowing. Was 20                                                                                                                 |
+| `EC26` / `EC28` / `EC29`                      | 3     | The `t4g.nano` NAT instance: unencrypted EBS, no detailed monitoring, no termination protection. ADR-0004 owns this resource                                                                                                                                                                                                                                                               |
+| `RDS11` default endpoint port                 | 1     | Changing 5432 breaks every consumer's config; low value                                                                                                                                                                                                                                                                                                                                    |
+| `APIG2` no request validation                 | 1     | The webhook body is validated by svix + the handler's own parsing                                                                                                                                                                                                                                                                                                                          |
+| `CFR3` no CloudFront access logging           | 4     | ⚠️ **1 TRUE, 3 FALSE POSITIVES.** The true one is the sandbox router, which genuinely logs nothing (being retired for previews, ADR-0001). `EdgeStack`'s three DO log — via standard logging **v2**, which cdk-nag cannot see: its rule reads only the legacy `DistributionConfig.Logging` property. Left REPORTING, never suppressed, asserted EXPLAINED — see the 2026-09-03 CFR3 update |
+| `ECS4` no Container Insights                  | 3     | ⚠️ **NEW to the table**, on all three ECS clusters. Two of those clusters existed at burn-down #1, so either the rule postdates that pass or the 2026-08-07 census was itself incomplete — nothing recorded then can distinguish the two, which is the whole argument for this table being asserted                                                                                        |
+| `S1`, `ELB2`, `VPC7`, `SMG4`, `RDS3`, `RDS10` | 7     | Deferred / escalated, as above. `S1` 2, `ELB2` 1, `VPC7` 1, `SMG4` 2, `RDS3` 1, **`RDS10` 0** — the escalated deletion-protection finding has CLEARED and nothing said so. ⚠️ The `S1` 2 are `DataStack`'s media and archive buckets, which hold USER DATA and stay open; the edge access-log bucket's third `S1` is ACCEPTED separately (2026-09-03) and is not counted here              |
+| `L1` non-latest Lambda runtime                | 1     | The Lambda@Edge verifier, pinned to `nodejs22.x` because Lambda@Edge offers no `nodejs24.x`. Left REPORTING and asserted EXPLAINED in both directions — see below. **The 2 CDK `Provider` findings this row used to hold are GONE**                                                                                                                                                        |
 
 ### Two unrelated defects found in passing (reported, not fixed)
 
@@ -379,7 +379,10 @@ maintenance obligation: any change that adds a role, a distribution or a table r
 moves with it. That is the intended cost — it is what makes the number mean something — but it will read as
 noise to someone who has not read this section. (4) **Four rules are recorded as measured and untriaged**
 (`CFR1`, `CFR2`, `CFR4`, `DDB3`, plus `CFR3` on `EdgeStack`); they are findings on production edge
-infrastructure and a dispositions pass is owed on them. **Superseded by the triage below.**
+infrastructure and a dispositions pass is owed on them. **⛔ ALL FIVE ARE NOW TRIAGED — superseded by the four
+updates below.** `CFR4` was a measurement artifact; `CFR1`/`CFR2` and `DDB3` are accepted under their own
+register keys; `CFR3` is FIXED (the three `EdgeStack` findings that remain are false positives from a rule
+that reads the legacy property). Nothing on the production edge is untriaged.
 
 ## Update (2026-09-03, triage) — `CFR4` was a defect in the MEASUREMENT, and the census now synthesizes what production deploys
 
@@ -555,3 +558,89 @@ is discovered and compared by **equality** to `DynamoPublisher` alone, in both d
 ⚠️ **Residual.** PITR is the wrong instrument for R1.3 either way — the durability that requirement needs is
 DynamoDB's own replicated write, not a restore window — so this acceptance does not discharge R1.3, and
 nothing yet does.
+
+## Update (2026-09-03, triage) — `CFR3` is FIXED, and the lint still reports it, on purpose
+
+Owner approval. `EdgeStack`'s three production distributions now deliver access logs to a dedicated S3
+bucket. **⚠️ The `CFR3` count does not move: it stays at 4.** That is not a failed fix — it is the honest
+outcome of the design choice below, and the row's note now says which of the four findings are true.
+
+| Finding                               | Before                     | After                                                                |
+| ------------------------------------- | -------------------------- | -------------------------------------------------------------------- |
+| `CFR3` × 3, `EdgeStack` distributions | TRUE — nothing was logging | **FALSE POSITIVE** — logging is on; the rule cannot see it           |
+| `CFR3` × 1, `SandboxRouterStack`      | TRUE                       | TRUE, untouched (being retired for previews, ADR-0001)               |
+| `S1` on the new access-log bucket     | —                          | **+1, then ACCEPTED** (`ACCESS_LOG_BUCKET_TERMINATES_THE_LOG_CHAIN`) |
+| **Total non-compliant**               | 74                         | **74**                                                               |
+
+Nothing else moved — verified resource-for-resource against the previous census, not merely by count. In
+particular `IAM4`/`IAM5` did not rise, which was not obvious in advance (see the blind spot below).
+
+### ⛔ Standard logging **v2**, not the legacy path the lint would have accepted
+
+cdk-nag's rule is `CloudFrontDistributionAccessLogging`, and its whole body is:
+
+```ts
+if (distributionConfig.logging == undefined) {
+    return NagRuleCompliance.NON_COMPLIANT;
+}
+```
+
+`logging` is the **legacy (v1)** property. So v1 is the path that makes the finding go away and v2 leaves it
+reporting. v1 was still rejected, on three grounds that each outrank a quieter lint:
+
+1. **v1 requires ACLs ENABLED on the log bucket.** AWS: _"Don't choose an Amazon S3 bucket with S3 Object
+   Ownership set to bucket owner enforced. That setting disables ACLs for the bucket and the objects in it,
+   which prevents CloudFront from delivering log files to the bucket."_ Clearing the lint would mean
+   **weakening a brand-new bucket** to an access-control model AWS is steering away from. v2 uses a bucket
+   policy and no ACL at all.
+2. **v1's failure mode is deploy-time, on a stack that cannot be rehearsed.** There is no sandbox `EdgeStack`
+   (`bin/app.ts` gates it on `stage === 'prod'`), so its first execution is production. A bucket with ACLs
+   disabled synthesizes perfectly clean and is rejected when CloudFront tries to write. v2 adds three
+   `AWS::Logs::*` resources and **does not modify the distribution resource at all**.
+3. **v1 mutates the bucket ACL out of band** — CloudFront calls `PutBucketAcl` to grant `awslogsdelivery`
+   `FULL_CONTROL` — so CloudFormation does not own that grant and `cdk diff` cannot show it drifting.
+
+The accepted cost is the false positive. It is **left REPORTING and never suppressed**, with the assertion
+made about the EXPLANATION — ADR-0025's precedent, and this stack's own `L1`. `EdgeStack.test.ts` asserts the
+biconditional in substance: the number of `CFR3` findings equals the number of distributions, **and** the
+number of deliveries equals the number of distributions. A distribution that quietly lost its delivery keeps
+the finding count identical and is caught by the other half. `keeps ACLs DISABLED` additionally pins
+`ObjectOwnership: BucketOwnerEnforced` and the absence of a legacy `Logging` block, so a later "fix `CFR3` by
+switching to v1" has to change a line in review rather than discover the requirement in production.
+
+### What was built
+
+One bucket (`BlockPublicAccess.BLOCK_ALL`, SSE-S3, `enforceSSL`, `BucketOwnerEnforced`, **90-day lifecycle
+expiry**, `DESTROY` + `autoDeleteObjects` matching the house posture), one `AWS::Logs::DeliveryDestination`
+shared by all three, and one `DeliverySource` + `Delivery` per distribution with an explicit `addDependency`
+— neither `Delivery` property is a `Ref` to the source (one is its NAME, a plain string), so CloudFormation
+infers no ordering and would otherwise create the delivery first and fail.
+
+**Cost:** none from CloudFront (_"CloudFront doesn't charge for enabling standard logs"_; _"There are no
+additional charges for log delivery to Amazon S3"_) and effectively none from S3 — measured volume is **630
+requests across all three distributions over 30 days** (food 19, recipe 38, identity 573), about 0.3 MB/month.
+The lifecycle rule exists because CloudFront deletes nothing and that volume is exactly what makes an
+unbounded log bucket easy to ship and hard to notice.
+
+### The `S1` the fix ADDED, and why it is accepted rather than chased
+
+Fixing one finding added one: the log bucket has no S3 server access logging of its own. **"Log the reads of
+the log" does not terminate** — whatever bucket became this one's target fires `S1` in turn, so the literal
+fix is one more bucket per level, forever. The chain ends at the first level.
+
+⚠️ The key is **narrow to a bucket whose contents are logs**. `DataStack`'s media and archive buckets carry
+the same finding over **user data**; those two stay open in the table above and are a different decision. And
+this is not a claim that access logs are unimportant — they carry client IPs, URIs and user agents, which is
+why the bucket is blocked, encrypted, TLS-only, ACL-less and expiring, and why object-level read auditing (if
+ever wanted) belongs in CloudTrail data events, which need no target bucket and so do not recurse.
+
+### ⚠️ A cdk-nag blind spot found in passing — the `IAM4` count UNDERSTATES reality
+
+`autoDeleteObjects` creates a role carrying `AWSLambdaBasicExecutionRole`, which should be an `IAM4` finding —
+and `IAM4` did not move. The reason: cdk-nag's rule tests `node instanceof CfnRole`, while CDK's
+`CustomResourceProvider` emits its role as a **generic `CfnResource` with `type: 'AWS::IAM::Role'`**, which is
+not an instance of `CfnRole`. The rule therefore returns `NOT_APPLICABLE` and the role is invisible.
+
+This is **pre-existing** — `DataStack`'s two `autoDeleteObjects` buckets have the same invisible role — and it
+is not ours to fix. It is recorded because it bounds what this table's `IAM4` number means: it counts the
+roles cdk-nag can see, not every role the repository declares. **No new decision is made here.**

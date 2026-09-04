@@ -171,6 +171,35 @@ export const AcceptedNagFindings = {
     ],
 
     /**
+     * `AwsSolutions-S1` (no S3 server access logging) on `EdgeStack`'s CloudFront access-log bucket.
+     *
+     * ⛔ NARROW ON PURPOSE: this accepts the finding on a bucket whose CONTENTS ARE LOGS, and nowhere else.
+     * The two `S1` findings on `DataStack`'s media and archive buckets — which hold user photos and recipe
+     * version snapshots — are NOT covered by it and stay in ADR-0013's backlog, undecided. Do not reach for
+     * this key for an ordinary bucket; a bucket that holds user data has no infinite regress to terminate.
+     */
+    ACCESS_LOG_BUCKET_TERMINATES_THE_LOG_CHAIN: [
+        {
+            id: 'AwsSolutions-S1',
+            reason:
+                'This bucket IS the access-log target for the production CloudFront edge (ADR-0013 triage ' +
+                '2026-09-03), and "log the reads of the log" does not terminate: any bucket chosen as ITS server-' +
+                'access-log target fires AwsSolutions-S1 in turn, so satisfying the rule literally means one more ' +
+                'bucket per level, forever. The chain has to end at an accepted finding somewhere; ending it at ' +
+                'the first level is the same decision with fewer buckets to own. This is NOT a claim that the ' +
+                'contents are unimportant -- CloudFront access logs carry client IPs, URIs and user agents, which ' +
+                'is exactly why the controls that DO apply are applied and asserted: BlockPublicAccess ALL, ' +
+                'SSE-S3 at rest, an enforceSSL deny on any non-TLS request, ObjectOwnership BucketOwnerEnforced ' +
+                'so no ACL can grant access, and a 90-day lifecycle expiry so the data does not accumulate ' +
+                'indefinitely. Object-level read auditing, if it is ever wanted here, belongs in CloudTrail data ' +
+                'events, which do not need a target bucket and so do not recurse. ' +
+                "SCOPE: this reasoning covers a bucket whose contents are logs. It does NOT cover DataStack's " +
+                'media or archive buckets, whose own S1 findings remain open in ADR-0013 and are a different ' +
+                'decision about user data.',
+        },
+    ],
+
+    /**
      * `AwsSolutions-DDB3` (no point-in-time recovery) on the message substrate's DynamoDB table — BOTH
      * construct sites: `MessageSubstrateStack`'s base-stage `MessageTable` and `FoodServiceStack`'s per-PR
      * `FoodMessageTable`. One decision, one shape, so both carry it; accepting only the one the prod census

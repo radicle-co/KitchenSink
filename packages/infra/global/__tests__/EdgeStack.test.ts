@@ -40,7 +40,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { IConstruct } from 'constructs';
 
-import { EDGE_LAMBDA_RUNTIME, EdgeStack } from '../lib/platform/EdgeStack.js';
+import { EDGE_ACCESS_LOG_RETENTION_DAYS, EDGE_LAMBDA_RUNTIME, EdgeStack } from '../lib/platform/EdgeStack.js';
 import { EDGE_PRINCIPAL_HEADER, PASSTHROUGH_PATH_PATTERNS } from '../lib/edge-verifier/edgeRoutes.js';
 import { TEST_EDGE_JWT_KEY, stubEdgeBundleDir } from './edgeBundleFixture.js';
 
@@ -728,12 +728,13 @@ describe('cdk-nag reviews the edge, advisory', () => {
         expect(errors).toEqual([]);
     });
 
-    it('accepts CFR1 and CFR2 on every distribution, and nothing else anywhere', () => {
+    it('accepts CFR1/CFR2 per distribution and S1 on the log bucket, and nothing else anywhere', () => {
         // ⚠️ REWRITTEN (2026-09-03). This used to assert the template carried NO `cdk_nag` metadata at all,
         // which was true and right while the edge accepted nothing. The owner triaged `CFR1`/`CFR2` on these
-        // three PRODUCTION distributions (ADR-0013), so the claim becomes the stronger one: exactly those
-        // two rules, on exactly the three distributions, and no suppression anywhere else in the stack —
-        // the Lambda@Edge function, its role and the certificate must all still report.
+        // three PRODUCTION distributions and `S1` on the access-log bucket that fixing `CFR3` introduced
+        // (ADR-0013), so the claim becomes the stronger one: exactly those rules, on exactly those resource
+        // TYPES, and no suppression anywhere else in the stack — the Lambda@Edge function, its role, the
+        // certificate and the delivery resources must all still report.
         //
         // ⛔ It is NOT enough that the platform allowlist pins the same set: that suite compares logical IDs,
         // which say nothing about WHICH resource type they name. This one asserts the shape at the site.
@@ -753,25 +754,36 @@ describe('cdk-nag reviews the edge, advisory', () => {
             )
             .toSorted((left, right) => `${left.logicalId}${left.id}`.localeCompare(`${right.logicalId}${right.id}`));
 
-        expect(suppressed.map((entry) => `${entry.type} ${entry.id}`)).toEqual([
+        expect(suppressed.map((entry) => `${entry.type} ${entry.id}`).toSorted()).toEqual([
+            'AWS::CloudFront::Distribution AwsSolutions-CFR1',
+            'AWS::CloudFront::Distribution AwsSolutions-CFR1',
             'AWS::CloudFront::Distribution AwsSolutions-CFR1',
             'AWS::CloudFront::Distribution AwsSolutions-CFR2',
-            'AWS::CloudFront::Distribution AwsSolutions-CFR1',
             'AWS::CloudFront::Distribution AwsSolutions-CFR2',
-            'AWS::CloudFront::Distribution AwsSolutions-CFR1',
             'AWS::CloudFront::Distribution AwsSolutions-CFR2',
+            'AWS::S3::Bucket AwsSolutions-S1',
         ]);
-        // Every distribution, not merely three suppressions that could all sit on one.
-        expect(new Set(suppressed.map((entry) => entry.logicalId)).size).toBe(
-            Object.values(template.Resources).filter((resource) => resource.Type === 'AWS::CloudFront::Distribution')
-                .length,
-        );
+        // Every distribution, not merely three suppressions that could all sit on one — plus the bucket.
+        const distributions = Object.values(template.Resources).filter(
+            (resource) => resource.Type === 'AWS::CloudFront::Distribution',
+        ).length;
+
+        expect(new Set(suppressed.map((entry) => entry.logicalId)).size).toBe(distributions + 1);
     });
 
-    it('leaves CFR3 REPORTING — access logging is not accepted, it is owner-triage-owed', () => {
+    it('leaves CFR3 REPORTING — a FALSE POSITIVE, never suppressed, explained instead', () => {
         // ⛔ The negative control on the acceptance above, and the reason it must exist: a suppression that
         // drifted from `[CFR1, CFR2]` to a broader set would still satisfy "the distributions carry
-        // suppressions" and would silently launder the one finding on this stack nobody has ruled on.
+        // suppressions" and would silently launder a finding nobody ruled on.
+        //
+        // ⚠️ CFR3 fires even though access logging IS enabled. cdk-nag's `CloudFrontDistributionAccessLogging`
+        // reads `distributionConfig.logging` — the LEGACY (v1) property — and this stack logs through
+        // standard logging **v2** (`AWS::Logs::DeliverySource`/`DeliveryDestination`/`Delivery`), which the
+        // rule cannot see. So the finding is a false positive: left reporting, EXPLAINED rather than
+        // suppressed, on ADR-0025's precedent. The claim that makes it explained is asserted separately,
+        // and derived — 'delivers access logs for EVERY distribution' below — so the two together say
+        // "three findings, and three distributions that really are logging", which is a stronger statement
+        // than either alone.
         const app = new App();
 
         attachSecurityChecks(app);
@@ -793,6 +805,169 @@ describe('cdk-nag reviews the edge, advisory', () => {
         expect(warnings.filter((message) => message.startsWith('AwsSolutions-CFR3')).length).toBe(3);
         expect(warnings.filter((message) => message.startsWith('AwsSolutions-CFR1'))).toEqual([]);
         expect(warnings.filter((message) => message.startsWith('AwsSolutions-CFR2'))).toEqual([]);
+    });
+});
+
+/**
+ * ⛔ ACCESS LOGGING, via standard logging **v2** — and why not the legacy path the lint would have accepted.
+ *
+ * cdk-nag's `CFR3` reads only `DistributionConfig.Logging`, so the LEGACY (v1) path is the one that makes the
+ * finding go away. It was rejected on three grounds, all of which outrank a quieter lint:
+ *
+ * 1. **v1 requires ACLs ENABLED on the log bucket** — AWS: _"Don't choose an Amazon S3 bucket with S3 Object
+ *    Ownership set to bucket owner enforced. That setting disables ACLs … which prevents CloudFront from
+ *    delivering log files."_ Satisfying the lint would mean WEAKENING a brand-new bucket to a model AWS is
+ *    moving away from. v2 uses a bucket policy and no ACLs at all.
+ * 2. **v1's failure mode is deploy-time, on a stack that cannot be rehearsed.** `EdgeStack` is prod-only
+ *    (`bin/app.ts` gates it on `stage === 'prod'`), so its first execution is production. A bucket with ACLs
+ *    disabled synthesizes clean and is REJECTED when CloudFront tries to write.
+ * 3. **v1 mutates the bucket ACL out of band.** CloudFront calls `PutBucketAcl` to grant `awslogsdelivery`
+ *    FULL_CONTROL, so CloudFormation does not own that grant and a `cdk diff` cannot show it drifting.
+ *
+ * The cost of choosing v2 is that `CFR3` keeps reporting on all three distributions. That is recorded in
+ * ADR-0013 as a FALSE POSITIVE with the rule's own source quoted, never suppressed — and the assertions here
+ * are what make the ADR's row true rather than a claim.
+ */
+describe('the edge delivers access logs (ADR-0013 CFR3 triage)', () => {
+    it('delivers access logs for EVERY distribution, derived from the distributions themselves', () => {
+        // ⛔ DERIVED, not a list of three names. The subject set is whatever distributions the template
+        // contains, so a fourth service joining the edge without logging reds here rather than shipping dark.
+        const template = Template.fromStack(synthesize());
+        const distributionIds = Object.keys(template.findResources('AWS::CloudFront::Distribution'));
+        const sources = Object.values(template.findResources('AWS::Logs::DeliverySource')) as {
+            Properties: { ResourceArn: unknown; LogType: string; Name: string };
+        }[];
+
+        expect(distributionIds.length).toBeGreaterThan(0);
+        expect(sources.length).toBe(distributionIds.length);
+        // Every delivery source names a distribution IN THIS TEMPLATE, and asks for access logs.
+        expect(sources.map((source) => source.Properties.LogType)).toEqual(distributionIds.map(() => 'ACCESS_LOGS'));
+        expect(
+            sources
+                .map((source) => JSON.stringify(source.Properties.ResourceArn))
+                .filter((arn) => distributionIds.some((id) => arn.includes(id))).length,
+            'a delivery source that does not reference a distribution in this template logs nothing',
+        ).toBe(distributionIds.length);
+    });
+
+    it('links every source to the one destination, which is the log bucket', () => {
+        const template = Template.fromStack(synthesize());
+        const destinations = Object.entries(template.findResources('AWS::Logs::DeliveryDestination'));
+        const deliveries = Object.values(template.findResources('AWS::Logs::Delivery')) as {
+            Properties: { DeliveryDestinationArn: unknown; DeliverySourceName: unknown };
+        }[];
+        const buckets = Object.keys(template.findResources('AWS::S3::Bucket'));
+
+        // ONE destination for all three: three would be three identical resources with three names to keep
+        // in step, and the per-service separation is already carried by the delivery's suffix path.
+        expect(destinations.length).toBe(1);
+        expect(deliveries.length).toBe(Object.keys(template.findResources('AWS::Logs::DeliverySource')).length);
+        expect(buckets.length).toBe(1);
+
+        const [destinationId, destination] = destinations[0] as [
+            string,
+            { Properties: { DestinationResourceArn: unknown } },
+        ];
+
+        expect(JSON.stringify(destination.Properties.DestinationResourceArn)).toContain(buckets[0] ?? '');
+
+        for (const delivery of deliveries) {
+            expect(JSON.stringify(delivery.Properties.DeliveryDestinationArn)).toContain(destinationId);
+        }
+    });
+
+    it('bounds the bucket: blocked, encrypted, TLS-only, and expiring', () => {
+        // ⛔ The lifecycle rule is the reason this cannot grow unbounded. Volume is trivial today (630
+        // requests across all three distributions over 30 days, measured), which is exactly when an
+        // unbounded log bucket is easiest to ship and hardest to notice.
+        const template = Template.fromStack(synthesize());
+
+        template.hasResourceProperties('AWS::S3::Bucket', {
+            PublicAccessBlockConfiguration: {
+                BlockPublicAcls: true,
+                BlockPublicPolicy: true,
+                IgnorePublicAcls: true,
+                RestrictPublicBuckets: true,
+            },
+            BucketEncryption: {
+                ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } }],
+            },
+            LifecycleConfiguration: {
+                Rules: [{ Status: 'Enabled', ExpirationInDays: EDGE_ACCESS_LOG_RETENTION_DAYS }],
+            },
+        });
+    });
+
+    it('keeps ACLs DISABLED, which is the whole reason v2 was chosen', () => {
+        // ⛔ The inverse of the legacy path's requirement, asserted so nobody "fixes" CFR3 by switching to v1
+        // and quietly re-enabling ACLs on this bucket. `BucketOwnerEnforced` is what v1 forbids.
+        const template = Template.fromStack(synthesize());
+
+        template.hasResourceProperties('AWS::S3::Bucket', {
+            OwnershipControls: { Rules: [{ ObjectOwnership: 'BucketOwnerEnforced' }] },
+        });
+
+        // …and no distribution carries the legacy `Logging` block, which is the property CFR3 reads.
+        for (const resource of Object.values(template.findResources('AWS::CloudFront::Distribution'))) {
+            expect(
+                (resource as { Properties: { DistributionConfig: { Logging?: unknown } } }).Properties
+                    .DistributionConfig.Logging,
+            ).toBeUndefined();
+        }
+    });
+
+    it('⛔ EXPLAINS every CFR3 finding: one per distribution, and every one of them is logging', () => {
+        // ⛔ THE ASSERTION THAT MAKES ADR-0013's `CFR3` ROW TRUE RATHER THAN A PROMISE, and the reason the
+        // finding may be left reporting instead of suppressed. It is a biconditional in substance: the
+        // number of findings equals the number of distributions, AND the number of distributions equals the
+        // number of deliveries. So "cdk-nag reports three" and "three distributions really are logging" are
+        // asserted together — a distribution that quietly lost its delivery would keep the finding count
+        // identical and is caught by the other half.
+        //
+        // ADR-0025's precedent: where a finding is accurate-but-not-ours (there, the Python runtime) or
+        // inaccurate-but-not-ours (here, a rule reading the legacy property), what is asserted is the
+        // EXPLANATION, so the claim flips on its own the day cdk-nag learns to read `AWS::Logs::Delivery`.
+        const app = new App();
+
+        attachSecurityChecks(app);
+        const stack = new EdgeStack(app, 'Edge', {
+            env,
+            stackName: 'kitchensink-edge-prod',
+            stage: 'prod',
+            domainName,
+            verifierBundleDir: stubEdgeBundleDir(),
+        });
+        const template = Template.fromStack(stack);
+
+        app.synth();
+
+        const findings = (app as IConstruct).node
+            .findAll()
+            .flatMap((node) => node.node.metadata)
+            .filter((entry) => entry.type === ArtifactMetadataEntryType.WARN)
+            .map((entry) => String(entry.data))
+            .filter((message) => message.startsWith('AwsSolutions-CFR3'));
+        const distributions = Object.keys(template.findResources('AWS::CloudFront::Distribution')).length;
+
+        expect(findings.length).toBe(distributions);
+        expect(Object.keys(template.findResources('AWS::Logs::Delivery')).length).toBe(distributions);
+    });
+
+    it('admits the log-delivery service to the bucket, scoped to this account', () => {
+        // Without this statement the deliveries are created and silently deliver nothing. The conditions are
+        // AWS's own documented ones — an unconditioned grant to `delivery.logs.amazonaws.com` would let any
+        // account's delivery write here.
+        const template = Template.fromStack(synthesize());
+        const policies = Object.values(template.findResources('AWS::S3::BucketPolicy')) as {
+            Properties: { PolicyDocument: { Statement: { Principal?: { Service?: unknown }; Condition?: unknown }[] } };
+        }[];
+        const statements = policies.flatMap((policy) => policy.Properties.PolicyDocument.Statement);
+        const delivery = statements.filter((statement) =>
+            JSON.stringify(statement.Principal ?? {}).includes('delivery.logs.amazonaws.com'),
+        );
+
+        expect(delivery.length).toBe(1);
+        expect(JSON.stringify(delivery[0]?.Condition ?? {})).toContain('aws:SourceAccount');
     });
 });
 

@@ -295,6 +295,9 @@ const EXPECTED_PLATFORM_SUPPRESSIONS = [
     // router ever fronts production" — so this is a SEPARATE key, argued here, and never that one widened.
     // Owner triage 2026-09-03: geo restriction is the wrong control for a consumer recipe app; a WAFv2 web
     // ACL is deferred while the product is pre-launch. See ADR-0013's triage update.
+    // The CloudFront access-log bucket, whose own S1 has nowhere to log TO that would not fire S1 in turn.
+    // ⚠️ Narrow to a bucket of logs — `DataStack`'s media/archive buckets keep their open S1 findings.
+    'kitchensink-edge-prod/EdgeAccessLogs01ACC060 AwsSolutions-S1',
     'kitchensink-edge-prod/FoodDistribution0FAC182B AwsSolutions-CFR1',
     'kitchensink-edge-prod/FoodDistribution0FAC182B AwsSolutions-CFR2',
     'kitchensink-edge-prod/IdentityDistributionA374AA37 AwsSolutions-CFR1',

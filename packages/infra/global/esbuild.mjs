@@ -15,6 +15,7 @@ const entryPoints = [
     'src/sandbox-scheduler/handler.ts',
     'src/food-db-bootstrap/handler.ts',
     'src/recipe-db-bootstrap/handler.ts',
+    'src/db-reaper/handler.ts',
 ];
 
 await build({
@@ -45,7 +46,9 @@ await build({
 
 writeFileSync('dist-lambda/package.json', `${JSON.stringify({ type: 'module' }, null, 2)}\n`);
 
-console.log(`bundled ${entryPoints.length} handler to dist-lambda/ + wrote dist-lambda/package.json {"type":"module"}`);
+console.log(
+    `bundled ${entryPoints.length} handlers to dist-lambda/ + wrote dist-lambda/package.json {"type":"module"}`,
+);
 
 /**
  * The CloudFront viewer-request verifier (ADR-0020 / plan U16), bundled SEPARATELY from the four handlers

@@ -179,10 +179,31 @@ export function discoverContractOwners(repoRoot) {
 
     // The other direction: a service that generates a contract nobody publishes. Left unchecked, a new service's
     // contract is regenerated into a package no gate looks at.
-    const claimed = new Set(owners.map((owner) => owner.serviceName));
+    //
+    // ⚠️ COUNTED, not just membership-tested. The correspondence is exactly ONE schema package per service, and
+    // a Set could only ever answer the zero-owner half: two schema packages delegating to the same service both
+    // left `has(name)` true, so nothing was reported. That is not a harmless duplicate — the service's
+    // `contract:generate` writes only its OWN package, so the second `openapi.yaml` is never regenerated, and
+    // the drift check then finds no diff and reports a clean contract it did not verify.
+    const claimants = new Map();
+
+    for (const owner of owners) {
+        claimants.set(owner.serviceName, [...(claimants.get(owner.serviceName) ?? []), owner.schemaPackageName]);
+    }
+
+    for (const [serviceName, schemaPackages] of claimants) {
+        if (schemaPackages.length > 1) {
+            problems.push(
+                `${serviceName} is claimed by ${schemaPackages.length} schema packages ` +
+                    `(${[...schemaPackages].sort().join(', ')}), but a service regenerates exactly ONE contract. ` +
+                    'Its `contract:generate` writes only one of these documents; the rest are never regenerated, ' +
+                    'so the drift check passes over them by finding no diff.',
+            );
+        }
+    }
 
     for (const [name, service] of services) {
-        if (service.manifest.scripts?.[GENERATE_SCRIPT] !== undefined && !claimed.has(name)) {
+        if (service.manifest.scripts?.[GENERATE_SCRIPT] !== undefined && !claimants.has(name)) {
             problems.push(
                 `${name} declares '${GENERATE_SCRIPT}' but no ${SCHEMAS_DIR}/* package delegates to it, so its ` +
                     'generated contract is outside the drift gate.',

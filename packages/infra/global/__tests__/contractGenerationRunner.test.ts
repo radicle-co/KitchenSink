@@ -184,6 +184,40 @@ describe('discoverContractOwners breaks in the correspondence', () => {
         });
     });
 
+    /**
+     * The correspondence is ONE schema package per service, and the zero-owner direction was the only one
+     * checked: `claimed` was a Set, so a second schema package delegating to the SAME service left
+     * `claimed.has(name)` true and nothing was reported. Both documents then sit in `owners`, but the
+     * service's `contract:generate` writes only its own — so the other `openapi.yaml` is never regenerated,
+     * and the drift gate diffs it against itself and reports a clean contract it did not verify. That is
+     * exactly the failure this module's docstring says it exists to prevent, reached from the other side.
+     */
+    it('reports TWO schema packages delegating to the same service, naming the service', () => {
+        withTree((root) => {
+            writeCorrespondence(root);
+            writeManifest(root, 'packages/schemas/food-mirror/package.json', {
+                name: '@kitchensink/schema-food-mirror',
+                scripts: { 'contract:generate': 'npm run contract:generate --workspace=@kitchensink/food-service' },
+            });
+            write(root, 'packages/schemas/food-mirror/openapi.yaml', 'openapi: 3.0.3\n');
+
+            const { problems } = discoverContractOwners(root);
+
+            expect(problems).toHaveLength(1);
+            expect(problems[0]).toContain('@kitchensink/food-service');
+            expect(problems[0]).toContain('@kitchensink/schema-food');
+            expect(problems[0]).toContain('@kitchensink/schema-food-mirror');
+        });
+    });
+
+    it('still accepts the one-to-one correspondence it is contrasted with', () => {
+        withTree((root) => {
+            writeCorrespondence(root);
+
+            expect(discoverContractOwners(root).problems).toStrictEqual([]);
+        });
+    });
+
     it('reports nothing to regenerate as a problem rather than an empty success', () => {
         withTree((root) => {
             writeManifest(root, 'packages/services/food-service/package.json', { name: '@kitchensink/food-service' });

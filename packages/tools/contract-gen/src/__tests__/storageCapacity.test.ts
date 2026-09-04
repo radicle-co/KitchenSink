@@ -24,7 +24,7 @@ import {
     wireUpperBound,
     INT2_MAX,
     INT4_MAX,
-    INT8_MAX,
+    INT8_EXCLUSIVE_MAX,
 } from '../storageCapacity.js';
 
 const DRIZZLE_NAME = Symbol.for('drizzle:Name');
@@ -119,12 +119,25 @@ describe('describeColumnCapacity — the physical ceiling of a column', () => {
         expect(describeColumnCapacity(column('n', 'PgSerial', 'serial'))).toEqual({ kind: 'numeric', max: INT4_MAX });
     });
 
-    it('maps bigint and bigserial to the int8 ceiling, which is a REAL ceiling (1e300 overflows it)', () => {
-        expect(describeColumnCapacity(column('n', 'PgBigInt64', 'bigint'))).toEqual({ kind: 'numeric', max: INT8_MAX });
+    /**
+     * The true int8 ceiling is `2^63 - 1`, which no double can hold: the nearest representable values are
+     * `2^63 - 1024` below it and `2^63` above it. `2^63` used to be recorded as an INCLUSIVE `max`, so a wire
+     * `.max(2 ** 63)` passed the gate while inserting `2^63` still fails with `22003` — the one-ULP gap the
+     * old docstring claimed nothing could land in was the gap the gate itself sat in. The ceiling is now
+     * modelled as what it is in the double domain: EXCLUSIVE at `2^63`, which every double below it satisfies.
+     */
+    it('maps bigint and bigserial to an EXCLUSIVE ceiling at 2^63, the only honest double for 2^63 - 1', () => {
+        expect(describeColumnCapacity(column('n', 'PgBigInt64', 'bigint'))).toEqual({
+            kind: 'numeric',
+            max: INT8_EXCLUSIVE_MAX,
+            exclusive: true,
+        });
         expect(describeColumnCapacity(column('n', 'PgBigSerial64', 'bigserial'))).toEqual({
             kind: 'numeric',
-            max: INT8_MAX,
+            max: INT8_EXCLUSIVE_MAX,
+            exclusive: true,
         });
+        expect(INT8_EXCLUSIVE_MAX).toBe(2 ** 63);
     });
 
     it('maps the mode:number bigint variants to the safe-integer ceiling drizzle already narrows them to', () => {
@@ -378,6 +391,81 @@ describe('auditStorageCapacity — the invariant', () => {
         });
 
         expect(bad.map((finding) => finding.kind)).toEqual(['exceeds-capacity']);
+    });
+
+    /**
+     * The int8 boundary, in the double domain. `2^63 - 1` is not a double; `2^63` is, and is one above what
+     * the column accepts. A wire `.max(2 ** 63)` therefore admits a value Postgres answers `22003` for, and
+     * the gate used to pass it. The three cases bracket the boundary from both sides: the largest double
+     * BELOW `2^63` fits, an exclusive bound AT `2^63` fits (everything below it does), an inclusive bound AT
+     * `2^63` does not.
+     */
+    describe('the int8 ceiling is exclusive at 2^63', () => {
+        const bigSchema = {
+            ledgers: table('ledgers', {
+                balance: column('balance', 'PgBigInt64', 'bigint'),
+            }),
+        };
+
+        function auditBalance(schema: unknown) {
+            return auditStorageCapacity({
+                tables: bigSchema,
+                accounts: [{ table: 'ledgers', column: 'balance', fields: [{ field: 'Ledger.balance', schema }] }],
+            });
+        }
+
+        it('FAILS an inclusive wire max of exactly 2^63 — that value is a 22003, not a row', () => {
+            expect(auditBalance(z.number().max(2 ** 63)).map((finding) => finding.kind)).toEqual(['exceeds-capacity']);
+        });
+
+        // `.int()` makes zod publish its own safe-integer ceiling (2^53 - 1) as the effective maximum, so the
+        // same `.max(2 ** 63)` with `.int()` genuinely fits: the bound the wire enforces is zod's, not the
+        // literal. Kept beside the case above so nobody "fixes" one by breaking the other.
+        it('accepts `.int().max(2 ** 63)`, because the int ceiling zod enforces is far below int8', () => {
+            expect(
+                auditBalance(
+                    z
+                        .number()
+                        .int()
+                        .max(2 ** 63),
+                ),
+            ).toEqual([]);
+        });
+
+        it('accepts an EXCLUSIVE wire max at 2^63, because every double below it fits', () => {
+            expect(
+                auditBalance(
+                    z
+                        .number()
+                        .int()
+                        .lt(2 ** 63),
+                ),
+            ).toEqual([]);
+        });
+
+        it('accepts the largest double below 2^63 as an inclusive max', () => {
+            expect(
+                auditBalance(
+                    z
+                        .number()
+                        .int()
+                        .max(2 ** 63 - 2 ** 10),
+                ),
+            ).toEqual([]);
+        });
+
+        it('still accepts the safe-integer ceiling zod implies for a bare int', () => {
+            expect(auditBalance(z.number().int())).toEqual([]);
+        });
+
+        it('says "below", not "at most", when it reports the exclusive ceiling', () => {
+            const message = formatStorageCapacityFindings(auditBalance(z.number().max(2 ** 64)));
+
+            // `String(2 ** 63)` is the shortest round-tripping decimal, `9223372036854776000`, not the exact
+            // integer — the assertion renders it the way the message does rather than spelling a literal.
+            expect(message).toContain(`holds only values below ${2 ** 63}`);
+            expect(message).not.toContain('at most');
+        });
     });
 
     it('checks EVERY field bound to one column, not just the first', () => {

@@ -73,7 +73,7 @@ export {
     wireUpperBound,
     INT2_MAX,
     INT4_MAX,
-    INT8_MAX,
+    INT8_EXCLUSIVE_MAX,
 } from './storageCapacity.js';
 export type {
     BoundedColumn,

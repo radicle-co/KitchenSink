@@ -53,26 +53,32 @@ export const INT4_MAX = 2_147_483_647;
 export const INT2_MAX = 32_767;
 
 /**
- * The int8 ceiling — what a Postgres `bigint`/`bigserial` column can hold.
+ * The int8 ceiling — what a Postgres `bigint`/`bigserial` column can hold — as an EXCLUSIVE bound.
  *
  * ⚠️ The true ceiling is `2^63 - 1`, which is NOT representable as an IEEE-754 double — writing that literal
- * is a lint error (`no-loss-of-precision`) precisely because it would silently become something else. `2 ** 63`
- * is the nearest representable value and is what this audit compares against: the other operand is always a
- * wire bound, itself a JS number, so nothing can land in the one-ULP gap. A `bigint` literal was the
+ * is a lint error (`no-loss-of-precision`) precisely because it would silently become something else. The
+ * doubles either side of it are `2^63 - 1024` and `2^63`. Recording `2^63` as an INCLUSIVE `max` (as this
+ * constant once did) put the gate itself in the one-ULP gap: a wire `.max(2 ** 63)` passed while inserting
+ * `2^63` still fails with `22003`. So the ceiling is modelled as what it is in the double domain — every
+ * double strictly BELOW `2^63` fits, and `2^63` itself does not — which is why `describeColumnCapacity`
+ * returns it with `exclusive: true`, the same flag a wire `.lt()` bound carries. A `bigint` literal was the
  * alternative and was rejected — it would make every comparison in this module mixed-type for the sake of a
  * value no contract expresses.
  *
  * It matters that this is a REAL ceiling rather than "unbounded": a `z.number()` with no maximum admits `1e300`,
  * which Postgres answers `22003` for on an int8 column exactly as it does on an int4 one.
  */
-export const INT8_MAX = 2 ** 63;
+export const INT8_EXCLUSIVE_MAX = 2 ** 63;
 
 /** What a column can physically store, reduced to the one axis a wire bound has to respect. */
 export type ColumnCapacity =
     /** No ceiling this audit can express: `text`, `uuid`, `boolean`, `jsonb`, unqualified `numeric`, … */
     | { readonly kind: 'unbounded' }
-    /** A numeric ceiling: the largest value the column accepts. */
-    | { readonly kind: 'numeric'; readonly max: number }
+    /**
+     * A numeric ceiling: the largest value the column accepts — or, when `exclusive`, the smallest value it
+     * REJECTS (the int8 case, whose true maximum is not a double; see {@link INT8_EXCLUSIVE_MAX}).
+     */
+    | { readonly kind: 'numeric'; readonly max: number; readonly exclusive?: true }
     /** A character-length ceiling. */
     | { readonly kind: 'length'; readonly maxLength: number };
 
@@ -169,6 +175,8 @@ export type StorageCapacityFinding =
           readonly field: string;
           readonly wireMax: number;
           readonly columnMax: number;
+          /** When set, `columnMax` is the smallest value the column REJECTS, not the largest it holds. */
+          readonly columnExclusive?: true;
       };
 
 /** drizzle's registered symbol for a table's column map. Registered, so `Symbol.for` reaches the same one. */
@@ -252,7 +260,7 @@ export function describeColumnCapacity(candidate: unknown): ColumnCapacity {
     }
 
     if (INT8_COLUMN_TYPES.includes(columnType)) {
-        return { kind: 'numeric', max: INT8_MAX };
+        return { kind: 'numeric', max: INT8_EXCLUSIVE_MAX, exclusive: true };
     }
 
     // `bigint({ mode: 'number' })`: drizzle already narrows the JS side to a safe integer, so that — not the
@@ -607,8 +615,21 @@ function checkField(column: BoundedColumn, field: WireField): readonly StorageCa
     }
 
     const columnMax = column.capacity.kind === 'numeric' ? column.capacity.max : column.capacity.maxLength;
-    // An EXCLUSIVE wire max of `n` admits everything below `n`, so it fits a ceiling of `n - 1` upward.
-    const effectiveMax = wire.kind === 'numeric' && wire.exclusive === true ? wire.max - 1 : ceilingOf(wire);
+    const wireExclusive = wire.kind === 'numeric' && wire.exclusive === true;
+
+    if (column.capacity.kind === 'numeric' && column.capacity.exclusive === true) {
+        // The column REJECTS `columnMax` and everything above it (int8, whose true maximum is not a double).
+        // An exclusive wire bound fits when it is at or below that line; an inclusive one only when it is
+        // strictly below — `.max(2 ** 63)` admits `2^63` itself, which is the `22003` this gate exists for.
+        const wireMax = ceilingOf(wire);
+        const fits = wireExclusive ? wireMax <= columnMax : wireMax < columnMax;
+
+        return fits ? [] : [{ kind: 'exceeds-capacity', ...context, wireMax, columnMax, columnExclusive: true }];
+    }
+
+    // An EXCLUSIVE wire max of `n` admits everything below `n`, so it fits a ceiling of `n - 1` upward. The
+    // subtraction is exact here because every inclusive column ceiling is far below 2^53.
+    const effectiveMax = wireExclusive ? wire.max - 1 : ceilingOf(wire);
 
     return effectiveMax <= columnMax
         ? []
@@ -668,7 +689,8 @@ function describeFinding(finding: StorageCapacityFinding): string {
         case 'exceeds-capacity':
             return (
                 `${finding.field} admits up to ${finding.wireMax} but ${finding.table}.${finding.column} ` +
-                `(${finding.sqlType}) holds at most ${finding.columnMax}. A value between them is a 500.`
+                `(${finding.sqlType}) holds only values ${finding.columnExclusive === true ? 'below' : 'at most'} ` +
+                `${finding.columnMax}. A value between them is a 500.`
             );
     }
 }

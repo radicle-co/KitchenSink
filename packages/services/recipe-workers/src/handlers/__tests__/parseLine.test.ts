@@ -6,10 +6,17 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 import { lineDigest as realLineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { FOODNESS_MODEL_ID } from '@kitchensink/recipe-core/parsing/foodness-prompt';
+import {
+    NOVA_2_LITE_MODEL_ID,
+    NOVA_LITE_MODEL_ID,
+    registryEntryFor,
+    residencyClearance,
+} from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import type { EngineAnswer, ParsedLine, ParseEnginePort } from '@kitchensink/recipe-import-core';
 
-import { landingOf, processParseLine, type ParseLineDeps } from '../parseLine.js';
+import { PARSE_LEG_MODEL_ID, landingOf, processParseLine, type ParseLineDeps } from '../parseLine.js';
 
 const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
 const LINE = '2 cups all-purpose flour';
@@ -87,6 +94,7 @@ function build(overrides: Partial<ParseLineDeps> & { cacheRows?: unknown[]; llm?
         stage: 'prod',
         gated: {
             stage: 'prod',
+            deployRegion: 'us-east-1',
             settings: {
                 resolve: vi.fn().mockResolvedValue({ ceilingMicros: 100_000_000, modelId: 'amazon.nova-micro-v1:0' }),
             },
@@ -227,6 +235,45 @@ describe('the transient/terminal split', () => {
         expect(queries.some((query) => /UPDATE recipe_parse_job_lines/.test(query.text))).toBe(true);
     });
 
+    /**
+     * ⛔ THE FOURTH CLASS — REFUSED (ADR-0024 §4b) — and it is neither of the two above.
+     *
+     * It shares the TRANSIENT set's rule that nothing may land: a merge produced while an engine was silenced
+     * by a deployment fault must not become this line's permanent answer, which is the identical argument the
+     * two CRF cases above make. It shares NONE of its rule that a retry might help: a residency refusal is
+     * deterministic in (model, region), so re-throwing it would burn the queue's whole `maxReceiveCount` to
+     * reach the same answer and would report a standing product decision as DLQ depth — the one signal
+     * ADR-0024 layer 4 watches.
+     *
+     * ⚠️ It is also the case the "just return absence" design gets WRONG, silently: absence here would take
+     * the negative-control path directly above and LAND a single-engine answer, green, for a config fault.
+     */
+    it('⛔ a RESIDENCY refusal lands nothing AND redelivers nothing — the fourth class', async () => {
+        const { deps, queries } = build({ parseModelId: NOVA_2_LITE_MODEL_ID });
+
+        await expect(
+            processParseLine(deps, { ...message(), lineDigest: computeRealDigest() }),
+        ).resolves.toBeUndefined();
+
+        expect(queries.some((query) => /UPDATE recipe_parse_job_lines/.test(query.text))).toBe(false);
+        expect(deps.gated.bedrock.converse).not.toHaveBeenCalled();
+    });
+
+    it('lets a residency refusal WIN over a concurrent transient failure — nothing can land either way', async () => {
+        // ⚠️ Why the handler searches the whole collection rather than reading the first element: a run can
+        // carry a CRF outage AND a refusal, and re-throwing the outage would put a permanently-failing
+        // message onto the redelivery path for a fault redelivery cannot fix.
+        const { deps, queries } = build({ parseModelId: NOVA_2_LITE_MODEL_ID });
+
+        (deps.crf.parse as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Function not found'));
+
+        await expect(
+            processParseLine(deps, { ...message(), lineDigest: computeRealDigest() }),
+        ).resolves.toBeUndefined();
+
+        expect(queries.some((query) => /UPDATE recipe_parse_job_lines/.test(query.text))).toBe(false);
+    });
+
     it('a STORE tier failure is NOT transient — a broken cache costs a call, never the line', async () => {
         // `corrections` and `cache` failures degrade into a re-parse, which is the pipeline's own rule
         // ("failing the line because the cache would not take it would cost a correct answer in order to
@@ -299,6 +346,42 @@ describe('the transient/terminal split', () => {
         await processParseLine(deps, { ...message(), lineDigest: computeRealDigest() });
 
         expect(queries.some((query) => /UPDATE recipe_parse_jobs/.test(query.text))).toBe(true);
+    });
+});
+
+/**
+ * ⛔ EVERY MODEL THIS HANDLER PINS MUST BE RESIDENCY-CLEAR (ADR-0024 §4b) — the guard that turns a silent
+ * degradation into a red build.
+ *
+ * The residency refusal is decided at RUNTIME by `planReservation`, and it does not fail the handler: the
+ * line simply never lands, staying `pending` until its job's TTL sweeps it. That is the right disposition for
+ * a deployment fault — and a terrible way to learn that the SHIPPED pin is unreachable, because the symptom
+ * is a stalled import rather than an error. `PARSE_LEG_MODEL_ID` was `amazon.nova-2-lite-v1:0`, which is
+ * `INFERENCE_PROFILE`-only over three regions and carries no warrant, so wiring residency in WITHOUT this
+ * assertion would have shipped a parse leg that landed nothing at all and raised no test.
+ *
+ * ⚠️ The RULE is asserted, not the value: this stays green the day 016 warrants a cross-region model, and
+ * goes red the moment a pin moves to one it has not.
+ */
+describe('the shipped model pins are callable', () => {
+    it.each([
+        ['parse leg', PARSE_LEG_MODEL_ID],
+        ['foodness validator', FOODNESS_MODEL_ID],
+    ])('%s pins a model residency clears', (_leg, modelId) => {
+        const entry = registryEntryFor(modelId);
+
+        if (entry === undefined) {
+            throw new Error(`${modelId} is not in the registry at all`);
+        }
+
+        expect(residencyClearance(entry, 'us-east-1')).not.toBe('unapproved');
+    });
+
+    it('pins Nova Lite v1 for the parse leg — the residency-clear fallback from Nova 2 Lite', () => {
+        // ⛔ A LITERAL on purpose. The assertion above proves the RULE holds; this one records WHICH model the
+        // ruling landed on, so a change of parse model is a change of this line and shows up in the diff
+        // beside whatever accuracy evidence justified it (ADR-0026 §9's gold set).
+        expect(PARSE_LEG_MODEL_ID).toBe(NOVA_LITE_MODEL_ID);
     });
 });
 

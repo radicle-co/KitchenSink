@@ -135,6 +135,10 @@ export function createLocalParseLineDeps(config: LocalParseLineConfig, pool: Poo
         stage: config.stage,
         gated: {
             stage: config.stage,
+            // ⛔ THE REAL DEPLOY REGION, not a placeholder. `planReservation` judges residency against it, so
+            // a value like `local` would refuse every profile-addressed model and make the local run exercise
+            // a path the deployed one never takes — and this module exists to run the SHIPPED code.
+            deployRegion: config.region,
             // ⚠️ A static resolver, not `createSsmSettingsLoader`. The settings are OPERATOR configuration
             // and locally the operator is the developer; more to the point, `gatedConverse` reads only
             // `ceilingMicros` from here (every leg passes its own `modelId`), and the ceiling is inert at an

@@ -981,8 +981,18 @@ export class RecipeWorkersStack extends Stack {
         // `infra/lib/bedrockInvokePolicy.ts` for why the `bedrock:InferenceProfileArn` condition is
         // load-bearing rather than decoration. ⚠️ The literal `actions: ['bedrock:InvokeModel']` and the
         // `verificationRole` reference below are what `llmSpendGuards.test.ts`'s source parser reads.
-        for (const statement of bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, (parts) =>
-            Stack.of(this).formatArn({ service: 'bedrock', ...parts }),
+        //
+        // ⛔ AND RESIDENCY IS NOW PART OF THAT DERIVATION (ADR-0024 §4b, owner ruling 2026-09-04). An entry
+        // whose inference profile leaves this region with no `residencyApproval` is granted NOTHING, by the
+        // SAME `residencyRefusal` `planReservation` calls — so the policy stopped naming
+        // `us.amazon.nova-2-lite-v1:0`, `us.anthropic.claude-haiku-4-5-…` and the us-east-2/us-west-2
+        // foundation models behind them. The region comes from `Stack.of(this)` and nowhere else: `formatArn`
+        // already defaults the profile ARN's region from the same stack, so a second source (a prop, the
+        // stage) could put the ARN's region and the residency region out of step.
+        for (const statement of bedrockInvokeStatements(
+            BEDROCK_MODEL_REGISTRY,
+            (parts) => Stack.of(this).formatArn({ service: 'bedrock', ...parts }),
+            Stack.of(this).region,
         )) {
             verificationRole.addToPolicy(
                 new iam.PolicyStatement({

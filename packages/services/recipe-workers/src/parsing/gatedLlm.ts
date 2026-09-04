@@ -66,6 +66,7 @@ import {
 } from '@kitchensink/recipe-import-core';
 
 import { INPUT_BOUND_EXCEEDED_METRIC_NAME, SPEND_METRIC_NAME, SPEND_METRIC_NAMESPACE } from '../common/spendMetrics.js';
+import { ResidencyRefusedError } from '../common/residencyRefused.js';
 import { isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
 import type { EmfMetric } from '../common/metrics.js';
 import { logger } from '../common/logger.js';
@@ -73,6 +74,8 @@ import { logger } from '../common/logger.js';
 /** Everything the gated legs talk to, injected. */
 export interface GatedLlmDeps {
     readonly stage: string;
+    /** The region these legs invoke Bedrock from — the residency half of the plan (ADR-0024 §4b). */
+    readonly deployRegion: string;
     /** The parse model's settings: ceiling shared with the gate, model id resolved for the parse leg. */
     readonly settings: { resolve(): Promise<{ ceilingMicros: number; modelId: string }> };
     readonly ledger: SpendLedger;
@@ -89,7 +92,15 @@ interface GatedCall {
     readonly request: Omit<ConverseRequest, 'invocationId'>;
 }
 
-/** What a gated call produced: the answered text, or absence (with the transient path THROWING). */
+/**
+ * What a gated call produced: the answered text, or absence (with the transient path THROWING).
+ *
+ * ⛔ A RESIDENCY REFUSAL IS DELIBERATELY NOT A MEMBER HERE. Adding one — or reusing `unusable` — would make
+ * every port answer absence, and `processParseLine` reads engine absence as a DETERMINISTIC PER-LINE FACT
+ * that it is safe to land permanently. A refusal is a deployment fault, so it leaves through
+ * {@link ResidencyRefusedError} instead; see `common/residencyRefused.ts` for the full argument and for the
+ * defect (a CRF outage landing as an ingredient's permanent answer) that settles it.
+ */
 type GatedOutcome =
     { readonly kind: 'answered'; readonly text: string; readonly stopReason: string } | { readonly kind: 'unusable' };
 
@@ -113,10 +124,37 @@ export async function gatedConverse(deps: GatedLlmDeps, call: GatedCall): Promis
         maxInputTokens: inputBound,
         maxOutputTokens: call.request.maxOutputTokens,
         nowUtc: deps.now(),
+        deployRegion: deps.deployRegion,
     });
 
     if (plan.kind === 'unpriced') {
         throw new Error(`parse leg model '${plan.modelId}' is not priced by the rate table; refusing to call it`);
+    }
+
+    if (plan.kind === 'residency-unapproved') {
+        // ⛔ THROWN, NOT RETURNED AS ABSENCE, and the choice is the opposite of the obvious one. Returning
+        // absence here reads correct — the LLM did not answer, and `single-engine` is a modelled outcome —
+        // but `processParseLine` treats engine absence as a DETERMINISTIC PER-LINE FACT and lands it as the
+        // line's permanent answer. That is precisely the defect that handler was repaired for, one engine
+        // over: "a line parsed during a CRF outage landed the LLM's single-engine reading as its PERMANENT
+        // answer." A residency refusal is a deployment fault, not a fact about this ingredient.
+        //
+        // ⚠️ Throwing does NOT make it transient. `processParseLine` catches this error BY NAME, ahead of the
+        // branch that re-throws everything else, and lands nothing without redelivering — see
+        // `common/residencyRefused.ts`, which carries the whole argument.
+        //
+        // ⚠️ WHY THIS CANNOT SILENTLY DEGRADE THE SHIPPED PIPELINE ANYWAY: the parse leg's model is a
+        // compile-time constant (`PARSE_LEG_MODEL_ID`), not an SSM value, and `parseLine.test.ts` asserts
+        // that every model this handler pins is residency-clear. Reaching this branch in the shipped
+        // configuration takes a code change that fails that test.
+        logger.error('parse-leg model is not cleared for residency; the LLM leg was not called', {
+            callSite: call.callSite,
+            modelId: plan.modelId,
+            deployRegion: plan.deployRegion,
+            reachedRegions: plan.reachedRegions,
+        });
+
+        throw new ResidencyRefusedError(plan);
     }
 
     const gated = isSpendGated(deps.stage);

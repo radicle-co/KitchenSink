@@ -17,7 +17,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { BEDROCK_MODEL_REGISTRY, type ModelRegistryEntry } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import {
+    BEDROCK_MODEL_REGISTRY,
+    DEFAULT_MONTHLY_CEILING_MICROS,
+    planReservation,
+    residencyClearance,
+    type ModelRegistryEntry,
+    type ResidencyApproval,
+} from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { bedrockInvokeStatements, type BedrockArnParts } from '../lib/bedrockInvokePolicy.js';
 
@@ -59,19 +66,45 @@ const onDemand = (modelId: string): Readonly<Record<string, ModelRegistryEntry>>
 });
 
 /**
+ * The warrant every fixture below uses where residency has been decided.
+ *
+ * ⛔ A FIXTURE ONLY. `spendArithmetic.test.ts` asserts that NO SHIPPED entry carries one — approving a real
+ * model is 016's decision and must show up as its own diff, not as a test constant leaking into the table.
+ */
+const APPROVAL: ResidencyApproval = { approvedOn: '2026-09-04', reference: 'ADR-0024 §9 (fixture)' };
+
+/**
  * A registry entry addressed through a cross-region inference profile.
+ *
+ * ⚠️ `residencyApproval` is a REQUIRED parameter, not an optional one. Every ARN-shape test below wants an
+ * APPROVED profile (its subject is the ARN, not the warrant) while the residency tests want an unapproved
+ * one, and a default would have silently given the shape tests whichever arm the default happened to pick —
+ * which is how they would go on passing over a profile the derivation had stopped emitting at all.
  *
  * @param modelId - The model id, i.e. the registry key.
  * @param invocationId - The inference-profile id `Converse` is called with.
  * @param regions - Every region the profile routes to.
+ * @param residencyApproval - The residency warrant, or `undefined` for an entry 016 has not cleared.
  * @returns A one-entry registry. Pure.
  */
 const throughProfile = (
     modelId: string,
     invocationId: string,
     regions: readonly string[],
+    residencyApproval: ResidencyApproval | undefined,
 ): Readonly<Record<string, ModelRegistryEntry>> => ({
-    [modelId]: { rate: RATE, invocation: { invocationId, reach: { kind: 'regions', regions, readOn: '2026-08-23' } } },
+    [modelId]: {
+        rate: RATE,
+        invocation: {
+            invocationId,
+            reach: {
+                kind: 'regions',
+                regions,
+                readOn: '2026-08-23',
+                ...(residencyApproval === undefined ? {} : { residencyApproval }),
+            },
+        },
+    },
 });
 
 describe('bedrockInvokeStatements', () => {
@@ -82,19 +115,48 @@ describe('bedrockInvokeStatements', () => {
         // an id outside it before any call — so a wildcard bought nothing and re-opened the reach the counter
         // has no view of. This test used to assert `[]` here, on the claim that the wildcard "already covers"
         // an on-demand model; that claim is what ADR-0024 §4b retracted.
-        expect(bedrockInvokeStatements(onDemand('amazon.nova-micro-v1:0'), formatArn)).toEqual([
+        expect(bedrockInvokeStatements(onDemand('amazon.nova-micro-v1:0'), formatArn, DEPLOY_REGION)).toEqual([
             { resources: ['arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0'] },
         ]);
     });
 
     it('grants NOTHING for an empty registry — no model, no permission', () => {
-        expect(bedrockInvokeStatements({}, formatArn)).toEqual([]);
+        expect(bedrockInvokeStatements({}, formatArn, DEPLOY_REGION)).toEqual([]);
+    });
+
+    /**
+     * ⛔ AN UNRESOLVED REGION MUST FAIL THE SYNTH, not quietly narrow the policy.
+     *
+     * The residency comparison is `regions.every(r => r === deployRegion)`. Hand it a CloudFormation token —
+     * which is what `Stack.region` becomes for an env-agnostic stack — and it matches nothing: every profile
+     * loses its grant, the deploy SUCCEEDS, and the first call meets `AccessDenied` for a model the registry
+     * and the runtime both consider fine. That is a failure with no symptom until traffic arrives, so it is
+     * refused at the only moment it is cheap to refuse.
+     *
+     * ⚠️ It also catches the duller inputs — `''`, `'undefined'`, a typo — for the same reason: they are all
+     * values the comparison silently reads as "matches nothing".
+     */
+    it.each([['${Token[AWS.Region.4]}'], [''], ['undefined'], ['us-east']])(
+        'refuses an unresolved deploy region (%s) rather than silently granting nothing',
+        (region) => {
+            expect(() => bedrockInvokeStatements(onDemand('amazon.nova-micro-v1:0'), formatArn, region)).toThrow(
+                /resolved deploy region/u,
+            );
+        },
+    );
+
+    it('accepts every region SHAPE, holding no opinion about which regions exist', () => {
+        // Not a list of AWS regions: this module has no business going stale the day one is added.
+        for (const region of ['us-east-1', 'ap-southeast-2', 'eu-central-1', 'us-gov-west-1']) {
+            expect(() => bedrockInvokeStatements({}, formatArn, region), region).not.toThrow();
+        }
     });
 
     it('names every self-addressed model in ONE unconditioned statement, in registry order', () => {
         const statements = bedrockInvokeStatements(
             { ...onDemand('amazon.nova-micro-v1:0'), ...onDemand('amazon.nova-lite-v1:0') },
             formatArn,
+            DEPLOY_REGION,
         );
 
         expect(statements).toEqual([
@@ -112,8 +174,9 @@ describe('bedrockInvokeStatements', () => {
         // conditioned fan-out would authorize a direct call nothing asked for — the reach the condition exists
         // to deny, handed back through the front door.
         const statements = bedrockInvokeStatements(
-            throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2']),
+            throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2'], APPROVAL),
             formatArn,
+            DEPLOY_REGION,
         );
         const unconditioned = statements.filter((statement) => statement.throughInferenceProfileArns === undefined);
 
@@ -124,8 +187,9 @@ describe('bedrockInvokeStatements', () => {
 
     it('grants the PROFILE arn with the account populated', () => {
         const [profileStatement] = bedrockInvokeStatements(
-            throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2']),
+            throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2'], APPROVAL),
             formatArn,
+            DEPLOY_REGION,
         );
 
         // ⛔ Account-SCOPED and in the deploy region: an inference profile is a resource in the caller's own
@@ -138,8 +202,14 @@ describe('bedrockInvokeStatements', () => {
 
     it('grants the fanned-out FOUNDATION MODEL in every region the profile spans, account-LESS', () => {
         const [, fanOut] = bedrockInvokeStatements(
-            throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-east-2', 'us-west-2']),
+            throughProfile(
+                'anthropic.model-v1:0',
+                'us.anthropic.model-v1:0',
+                ['us-east-1', 'us-east-2', 'us-west-2'],
+                APPROVAL,
+            ),
             formatArn,
+            DEPLOY_REGION,
         );
 
         // ⚠️ THE BARE MODEL ID, not the profile id — the profile routes to the model, and it is the model the
@@ -153,8 +223,9 @@ describe('bedrockInvokeStatements', () => {
 
     it('makes that cross-region reach usable ONLY through the profile that justified it', () => {
         const [, fanOut] = bedrockInvokeStatements(
-            throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2']),
+            throughProfile('anthropic.model-v1:0', 'us.anthropic.model-v1:0', ['us-east-1', 'us-west-2'], APPROVAL),
             formatArn,
+            DEPLOY_REGION,
         );
 
         // Without this condition the statement would also authorize a DIRECT us-west-2 invocation of the
@@ -167,10 +238,11 @@ describe('bedrockInvokeStatements', () => {
     it('keeps every profile’s fan-out in its own statement, so one profile cannot borrow another’s regions', () => {
         const statements = bedrockInvokeStatements(
             {
-                ...throughProfile('anthropic.a-v1:0', 'us.anthropic.a-v1:0', ['us-east-1', 'us-west-2']),
-                ...throughProfile('anthropic.b-v1:0', 'eu.anthropic.b-v1:0', ['eu-west-1', 'eu-central-1']),
+                ...throughProfile('anthropic.a-v1:0', 'us.anthropic.a-v1:0', ['us-east-1', 'us-west-2'], APPROVAL),
+                ...throughProfile('anthropic.b-v1:0', 'eu.anthropic.b-v1:0', ['eu-west-1', 'eu-central-1'], APPROVAL),
             },
             formatArn,
+            DEPLOY_REGION,
         );
 
         // One shared statement listing both profiles in a StringLike would let A reach eu-west-1.
@@ -181,7 +253,7 @@ describe('bedrockInvokeStatements', () => {
     });
 
     it('never emits a wildcard resource', () => {
-        const statements = bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn);
+        const statements = bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn, DEPLOY_REGION);
 
         for (const { resources } of statements) {
             for (const resource of resources) {
@@ -195,16 +267,21 @@ describe('bedrockInvokeStatements', () => {
      * the stack actually deploys, and DERIVES what it expects from that table rather than restating it. If the
      * registry ever loses its profile-addressed entry, this fails rather than passing over nothing — which is
      * the failure mode a fixture-only suite cannot see.
+     *
+     * ⚠️ NARROWED by the residency wiring (ADR-0024 §4b). It used to cover EVERY profile-addressed entry, on
+     * the rule that the grant follows registry MEMBERSHIP. It now covers every profile residency CLEARS, and
+     * the shipped table clears none — so the loop's subject is the entries that remain, and the two shipped
+     * profiles are asserted ABSENT by the test below instead.
      */
-    it('covers every profile-addressed entry the SHIPPED registry carries', () => {
+    it('covers every residency-CLEARED profile the SHIPPED registry carries', () => {
         const profileAddressed = Object.entries(BEDROCK_MODEL_REGISTRY).filter(
-            ([modelId, entry]) => entry.invocation.invocationId !== modelId,
+            ([modelId, entry]) =>
+                entry.invocation.invocationId !== modelId && residencyClearance(entry, DEPLOY_REGION) !== 'unapproved',
         );
-
-        expect(profileAddressed.length, 'the registry no longer carries a profile-addressed model').toBeGreaterThan(0);
-
         const granted = new Set(
-            bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn).flatMap(({ resources }) => resources),
+            bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn, DEPLOY_REGION).flatMap(
+                ({ resources }) => resources,
+            ),
         );
 
         for (const [modelId, entry] of profileAddressed) {
@@ -226,11 +303,113 @@ describe('bedrockInvokeStatements', () => {
         }
     });
 
+    /**
+     * ⛔ THE HALF THAT CLOSES ADR-0024 §4b's OPEN GAP, asserted on the LITERAL ids rather than derived.
+     *
+     * Every other assertion here derives its expectation from the registry through `residencyClearance`, which
+     * is the same predicate the implementation calls — so a mutation that turned the filter off in BOTH would
+     * be invisible. These two strings are the shipped table's two unapproved profiles, written out, and this
+     * test says the deployed role may not name them anywhere. It is also the concrete claim the ADR made and
+     * could not keep: "the only things standing between recipe text and us-east-2/us-west-2 are the SSM model
+     * parameter and this entry's presence in the table."
+     */
+    it('grants NOTHING for a profile 016 has not cleared — no profile arn, no fan-out, no destination region', () => {
+        const granted = bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn, DEPLOY_REGION).flatMap(
+            ({ resources, throughInferenceProfileArns }) => [...resources, ...(throughInferenceProfileArns ?? [])],
+        );
+
+        for (const invocationId of ['us.amazon.nova-2-lite-v1:0', 'us.anthropic.claude-haiku-4-5-20251001-v1:0']) {
+            expect(
+                granted.filter((arn) => arn.includes(invocationId)),
+                invocationId,
+            ).toEqual([]);
+        }
+
+        // ⛔ AND NOT ONE ARN OUTSIDE THE DEPLOY REGION. The fan-out statements were the only thing that ever
+        // named another region, so their removal is observable as an absence of the region itself.
+        for (const arn of granted) {
+            expect(arn, arn).not.toContain(':us-east-2:');
+            expect(arn, arn).not.toContain(':us-west-2:');
+        }
+    });
+
+    /**
+     * ⛔ THE PARITY GUARD — the whole reason ADR-0024 §4b insisted both halves land as ONE change: "or IAM will
+     * grant what the runtime refuses (or the reverse)". A model the runtime cannot reserve for must not be
+     * granted, and a model it CAN reserve for must be, or the deploy hands the gate an `AccessDenied` in place
+     * of a call it planned and priced.
+     *
+     * ⚠️ Both directions, over the shipped table, with non-vacuity on each arm.
+     */
+    it('agrees with planReservation about every model — no ARN the runtime refuses, none it needs missing', () => {
+        const granted = new Set(
+            bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn, DEPLOY_REGION).flatMap(
+                ({ resources }) => resources,
+            ),
+        );
+        let reservable = 0;
+        let refused = 0;
+
+        for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            const plan = planReservation({
+                modelId,
+                ceilingMicros: DEFAULT_MONTHLY_CEILING_MICROS,
+                maxInputTokens: 1_000,
+                maxOutputTokens: 200,
+                nowUtc: new Date('2026-09-04T00:00:00.000Z'),
+                deployRegion: DEPLOY_REGION,
+            });
+            const { invocationId } = entry.invocation;
+            const address =
+                invocationId === modelId
+                    ? `arn:aws:bedrock:${DEPLOY_REGION}::foundation-model/${modelId}`
+                    : `arn:aws:bedrock:${DEPLOY_REGION}:${ACCOUNT}:inference-profile/${invocationId}`;
+
+            if (plan.kind === 'priced') {
+                expect(granted, `${modelId}: the runtime plans a call IAM would deny`).toContain(address);
+                reservable += 1;
+                continue;
+            }
+
+            expect(granted, `${modelId}: IAM grants a model the runtime refuses`).not.toContain(address);
+            refused += 1;
+        }
+
+        expect(reservable, 'nothing is reservable — the parity holds over nothing').toBeGreaterThan(0);
+        expect(refused, 'nothing is refused — the residency branch is unexercised').toBeGreaterThan(0);
+    });
+
+    /**
+     * ⛔ THE MUTATION TEST THE OWNER ASKED FOR: flipping ONE fixture entry's warrant must move BOTH halves.
+     *
+     * The registry cannot be injected into `planReservation`, so the runtime half is represented by the shared
+     * predicate the reservation composes — which is the point of `residencyClearance` being "the only
+     * interpreter of the marker". What this proves is that the IAM derivation moves in LOCKSTEP with that
+     * interpreter, in both directions, on the same entry: warranted → granted, warrant removed → nothing.
+     */
+    it('moves the grant with the warrant — one fixture entry, both answers, in lockstep', () => {
+        const regions = ['us-east-1', 'us-west-2'];
+        const approved = throughProfile('vendor.model-v1:0', 'us.vendor.model-v1:0', regions, APPROVAL);
+        const unapproved = throughProfile('vendor.model-v1:0', 'us.vendor.model-v1:0', regions, undefined);
+
+        expect(residencyClearance(approved['vendor.model-v1:0']!, DEPLOY_REGION)).toBe('approved');
+        expect(residencyClearance(unapproved['vendor.model-v1:0']!, DEPLOY_REGION)).toBe('unapproved');
+
+        expect(bedrockInvokeStatements(approved, formatArn, DEPLOY_REGION)).not.toEqual([]);
+        expect(bedrockInvokeStatements(unapproved, formatArn, DEPLOY_REGION)).toEqual([]);
+    });
+
     it('grants EXACTLY the shipped registry — set equality in both directions, so nothing rides along', () => {
         // ⛔ Bidirectional. `toContain` per entry proves the grant is not too NARROW; only equality proves it
         // is not too WIDE — the property the wildcard's removal is for.
         const expected = new Set(
-            Object.entries(BEDROCK_MODEL_REGISTRY).flatMap(([modelId, { invocation }]) => {
+            Object.entries(BEDROCK_MODEL_REGISTRY).flatMap(([modelId, entry]) => {
+                const { invocation } = entry;
+
+                if (residencyClearance(entry, DEPLOY_REGION) === 'unapproved') {
+                    return [];
+                }
+
                 if (invocation.invocationId === modelId) {
                     return [`arn:aws:bedrock:${DEPLOY_REGION}::foundation-model/${modelId}`];
                 }
@@ -247,7 +426,9 @@ describe('bedrockInvokeStatements', () => {
             }),
         );
         const granted = new Set(
-            bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn).flatMap(({ resources }) => resources),
+            bedrockInvokeStatements(BEDROCK_MODEL_REGISTRY, formatArn, DEPLOY_REGION).flatMap(
+                ({ resources }) => resources,
+            ),
         );
 
         // Non-vacuity on the on-demand side: the gate's shipped default is addressed by its own id.

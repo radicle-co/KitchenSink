@@ -38,9 +38,12 @@ import {
     rateFor,
     registryEntryFor,
     residencyClearance,
+    residencyRefusal,
     settleDeltaMicros,
     utf8ByteLength,
     worstCaseMicros,
+    type ModelRegistryEntry,
+    type ResidencyApproval,
 } from '../spendArithmetic.js';
 
 const NOVA = rateFor(NOVA_MICRO_MODEL_ID);
@@ -508,13 +511,14 @@ describe('settleDeltaMicros', () => {
 describe('planReservation', () => {
     const NOW = new Date('2026-08-31T23:59:59.000Z');
 
-    const plan = (modelId: string): ReturnType<typeof planReservation> =>
+    const plan = (modelId: string, deployRegion = 'us-east-1'): ReturnType<typeof planReservation> =>
         planReservation({
             modelId,
             ceilingMicros: DEFAULT_MONTHLY_CEILING_MICROS,
             maxInputTokens: 1_000,
             maxOutputTokens: 200,
             nowUtc: NOW,
+            deployRegion,
         });
 
     it('captures the period, the rate and the worst case in ONE value', () => {
@@ -573,40 +577,91 @@ describe('planReservation', () => {
         expect(planned.kind === 'priced' && planned.modelId).toBe(NOVA_MICRO_MODEL_ID);
     });
 
-    it('addresses a profile-only model by its PROFILE id while still recording the bare id', () => {
-        const planned = plan(CLAUDE_HAIKU_4_5_MODEL_ID);
+    /**
+     * ⛔ REWRITTEN for the residency wiring (ADR-0024 §4b). It used to assert that Claude Haiku 4.5 planned
+     * `priced`, carrying the U35 two-ids property on the one shipped entry that shows it. That entry is
+     * profile-addressed and carries no `residencyApproval`, so {@link planReservation} now REFUSES it before
+     * any address is derived. The two-ids property did not lose coverage — it moved to the whole-table loop
+     * below, which still proves it on every entry residency clears.
+     */
+    it('refuses a profile-addressed model that reaches beyond the deploy region without a warrant', () => {
+        const entry = registryEntryFor(CLAUDE_HAIKU_4_5_MODEL_ID);
 
-        expect(planned.kind).toBe('priced');
-
-        if (planned.kind !== 'priced') {
-            return;
-        }
-
-        // ⛔ The bare id is refused by Bedrock for this model ("Invocation of model ID … with on-demand
-        // throughput isn't supported"), and the profile id is not a rate-table key. Both facts at once.
-        expect(planned.invocationId).toBe(`us.${CLAUDE_HAIKU_4_5_MODEL_ID}`);
-        expect(planned.modelId).toBe(CLAUDE_HAIKU_4_5_MODEL_ID);
-        expect(planned.rate).toBe(registryEntryFor(CLAUDE_HAIKU_4_5_MODEL_ID)?.rate);
+        expect(entry === undefined ? undefined : residencyClearance(entry, 'us-east-1')).toBe('unapproved');
+        expect(plan(CLAUDE_HAIKU_4_5_MODEL_ID)).toEqual({
+            kind: 'residency-unapproved',
+            modelId: CLAUDE_HAIKU_4_5_MODEL_ID,
+            deployRegion: 'us-east-1',
+            reachedRegions: ['us-east-1', 'us-east-2', 'us-west-2'],
+        });
     });
 
-    it('prices EVERY registered model off its own registry key, never off its address', () => {
-        // The mutation guard for the pair above: keying the table on the invocation id would make the
+    it('prices EVERY residency-cleared model off its own registry key, never off its address', () => {
+        // The mutation guard for the pair above: keying the table on the invocation id would make a
         // profile-addressed entry unpriced, and keying the address on the model id would re-introduce the
         // ValidationException. Asserted over the whole table so a new entry inherits it.
+        let priced = 0;
+        let refused = 0;
+
         for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
             const planned = plan(modelId);
+
+            if (residencyClearance(entry, 'us-east-1') === 'unapproved') {
+                expect(planned.kind, modelId).toBe('residency-unapproved');
+                refused += 1;
+                continue;
+            }
 
             expect(planned.kind, modelId).toBe('priced');
             expect(planned.kind === 'priced' && planned.modelId, modelId).toBe(modelId);
             expect(planned.kind === 'priced' && planned.invocationId, modelId).toBe(entry.invocation.invocationId);
+            priced += 1;
         }
+
+        // ⛔ NON-VACUITY ON BOTH ARMS. A table that priced everything, or refused everything, would satisfy
+        // the loop above while proving nothing about the branch it exists to assert.
+        expect(priced, 'the registry prices nothing — the loop proved nothing').toBeGreaterThan(0);
+        expect(refused, 'the registry refuses nothing — the residency branch is unexercised').toBeGreaterThan(0);
     });
 
-    it('still refuses an id the registry does not know, before any address is derived', () => {
+    /**
+     * ⛔ THE RESIDENCY REFUSAL IS NOT THE UNPRICED ONE, AND IT MUST NOT BE TRANSIENT. ADR-0024 §4b's point is
+     * that residency is a decision nobody has taken, not a lookup that failed: an `unpriced` id can be fixed
+     * by pointing SSM somewhere else and retrying, while an `unapproved` one can NEVER succeed on retry until
+     * 016 records a warrant. Sharing a discriminant would let a caller's `unpriced` branch — which THROWS in
+     * `verifyLine.ts` and `gatedLlm.ts`, i.e. redelivers — swallow it and drain the queue to its DLQ for a
+     * reason that will still hold on the twentieth attempt.
+     */
+    it('names the residency refusal apart from the unpriced one, and says where the call would have gone', () => {
+        const refusal = plan(NOVA_2_LITE_MODEL_ID);
+
+        expect(refusal.kind).not.toBe('unpriced');
+        expect(refusal.kind).toBe('residency-unapproved');
+        // The operator's log line: WHICH model, from WHERE, and the regions the profile would have reached.
+        expect(refusal.kind === 'residency-unapproved' && refusal.deployRegion).toBe('us-east-1');
+        expect(refusal.kind === 'residency-unapproved' && refusal.reachedRegions).toEqual([
+            'us-east-1',
+            'us-east-2',
+            'us-west-2',
+        ]);
+    });
+
+    it('still refuses an id the registry does not know, BEFORE residency is consulted at all', () => {
+        // Ordering: an unregistered id has no entry, so there is no reach to judge. Membership first.
         expect(plan('meta.llama3-70b-instruct-v1:0')).toEqual({
             kind: 'unpriced',
             modelId: 'meta.llama3-70b-instruct-v1:0',
         });
+    });
+
+    it('clears every on-demand entry from ANY region — the sentinel means "wherever this invokes"', () => {
+        // ⚠️ This is what keeps a region literal out of recipe-core: an on-demand entry is in-region BY
+        // CONSTRUCTION, including in a region this repo has never deployed to, so the deploy region can never
+        // make one refuse.
+        for (const region of ['us-east-1', 'eu-west-1', 'ap-southeast-2']) {
+            expect(plan(NOVA_MICRO_MODEL_ID, region).kind, region).toBe('priced');
+            expect(plan(NOVA_LITE_MODEL_ID, region).kind, region).toBe('priced');
+        }
     });
 });
 
@@ -751,6 +806,68 @@ describe('residencyClearance', () => {
     });
 });
 
+/**
+ * THE MAPPING FROM A CLEARANCE TO A REFUSAL — the seam `planReservation` composes, exported so all THREE
+ * arms can be driven.
+ *
+ * ⛔ WHY IT IS EXPORTED AT ALL, since `residencyClearance` beside it already answers the question. No shipped
+ * entry is `approved` and (R9 above) none may become one by an edit, so a test that reaches this arm through
+ * {@link planReservation} — which reads the FROZEN module registry and takes no table — cannot exist. Without
+ * this seam, `residencyClearance(entry, region) !== 'in-deploy-region'` would refuse an approved entry and
+ * EVERY test would still pass: the mutation is invisible against a table with no approved member. That is the
+ * exact "would this still pass if I broke the logic?" hole, and the seam is what closes it.
+ */
+describe('residencyRefusal — clearance to refusal', () => {
+    const REGIONS = ['us-east-1', 'us-east-2', 'us-west-2'] as const;
+
+    /**
+     * A profile-addressed entry over three regions, optionally warranted.
+     *
+     * @param residencyApproval - The warrant, or absent for an unapproved entry.
+     * @returns A registry entry. Pure.
+     */
+    const crossRegion = (residencyApproval?: ResidencyApproval): ModelRegistryEntry => ({
+        rate: NOVA,
+        invocation: {
+            invocationId: 'us.vendor.model-v1:0',
+            reach: {
+                kind: 'regions',
+                regions: [...REGIONS],
+                readOn: '2026-09-04',
+                ...(residencyApproval === undefined ? {} : { residencyApproval }),
+            },
+        },
+    });
+
+    it('refuses an UNAPPROVED entry, naming the model, the region and the reach', () => {
+        expect(residencyRefusal('vendor.model-v1:0', crossRegion(), 'us-east-1')).toEqual({
+            kind: 'residency-unapproved',
+            modelId: 'vendor.model-v1:0',
+            deployRegion: 'us-east-1',
+            reachedRegions: [...REGIONS],
+        });
+    });
+
+    it('does NOT refuse an APPROVED entry — the warrant is what the marker is for', () => {
+        // ⛔ THE ARM THE SHIPPED TABLE CANNOT REACH. A guard written as `!== 'in-deploy-region'` would refuse
+        // here while every other assertion in this file stayed green.
+        const approved = crossRegion({ approvedOn: '2026-09-04', reference: 'ADR-0024 §9' });
+
+        expect(residencyClearance(approved, 'us-east-1')).toBe('approved');
+        expect(residencyRefusal('vendor.model-v1:0', approved, 'us-east-1')).toBeUndefined();
+    });
+
+    it('does NOT refuse an entry that never leaves the deploy region', () => {
+        const entry = registryEntryFor(NOVA_MICRO_MODEL_ID);
+
+        if (entry === undefined) {
+            throw new Error('the registry must carry the model the gate ships with');
+        }
+
+        expect(residencyRefusal(NOVA_MICRO_MODEL_ID, entry, 'eu-west-1')).toBeUndefined();
+    });
+});
+
 describe('Nova 2 Lite — the shipped parse model', () => {
     /**
      * ⛔ Every figure here was READ FROM THE AWS PRICING API on 2026-08-27 (`USE1-Nova2.0Lite-*`, us-east-1),
@@ -786,24 +903,40 @@ describe('Nova 2 Lite — the shipped parse model', () => {
      * it on gold-set accuracy does NOT make it shippable: `residencyClearance` answers `unapproved`. Closing
      * it is 016's decision, not a config edit.
      *
-     * ⚠️ This test proves what the PREDICATE answers, not that anything asks it. `residencyClearance` has no
-     * caller outside this file (ADR-0024 §4b records residency as "still open, and not gated by IAM"), so
-     * the entry below IS callable today through `planReservation` and the IAM grant alike — an earlier
-     * version of this docstring claimed otherwise. Wiring the predicate into both is an owner decision that
-     * makes the shipped parse model uncallable until 016 records an approval.
+     * ⚠️ UPDATED with the residency wiring. This used to add that the predicate proved only what it ANSWERS,
+     * "not that anything asks it" — true when `residencyClearance` had no caller. It has two now
+     * ({@link planReservation} and `bedrockInvokeStatements`), so the second assertion below is the one that
+     * matters: the refusal REACHES the reservation, which is what makes this model uncallable rather than
+     * merely disapproved of. The parse leg fell back to Nova Lite v1; see the test after it.
      */
     it('is REFUSED by the residency gate — the profile leaves the deploy region and 016 has not cleared it', () => {
         const entry = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
 
         expect(entry.invocation.reach.kind).toBe('regions');
         expect(residencyClearance(entry, 'us-east-1')).toBe('unapproved');
+        expect(
+            planReservation({
+                modelId: NOVA_2_LITE_MODEL_ID,
+                ceilingMicros: DEFAULT_MONTHLY_CEILING_MICROS,
+                maxInputTokens: 1_000,
+                maxOutputTokens: 200,
+                nowUtc: new Date('2026-09-04T00:00:00.000Z'),
+                deployRegion: 'us-east-1',
+            }).kind,
+        ).toBe('residency-unapproved');
     });
 
-    it('leaves Nova Lite v1 as the best residency-CLEAR option, which is why it stays rostered', () => {
+    it('made Nova Lite v1 the SHIPPED parse model, because it is the best residency-CLEAR option', () => {
         // Lite v1 is addressed by its bare id and stays in the deploy region, so it needs no warrant. On the
         // same external gold set it scores 73/41 static and 82/52 with retrieval, against Nova 2 Lite's
-        // 84/53 — the gap the residency question is currently costing us.
-        expect(residencyClearance(BEDROCK_MODEL_REGISTRY[NOVA_LITE_MODEL_ID]!, 'us-east-1')).toBe('in-deploy-region');
+        // 84/53 — the accuracy the residency ruling cost, and it is CHEAPER in every token class.
+        const lite = BEDROCK_MODEL_REGISTRY[NOVA_LITE_MODEL_ID]!;
+        const nova2 = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+
+        expect(residencyClearance(lite, 'us-east-1')).toBe('in-deploy-region');
+        expect(lite.rate.inputMicrosPerMillionTokens).toBeLessThan(nova2.rate.inputMicrosPerMillionTokens);
+        expect(lite.rate.outputMicrosPerMillionTokens).toBeLessThan(nova2.rate.outputMicrosPerMillionTokens);
+        expect(lite.rate.cacheReadMicrosPerMillionTokens).toBeLessThan(nova2.rate.cacheReadMicrosPerMillionTokens);
     });
 
     it('prices a cached parse call at HALF on the flex tier, which keeps the cache', () => {

@@ -17,6 +17,10 @@
  *    instead of as silently degraded recipes."
  *  - **TERMINAL** — a verdict was read, or the model answered unusably. A row is written and the message is
  *    acknowledged; the money is not spent again.
+ *  - **REFUSED** — an over-cap line, and a model residency has not cleared (ADR-0024 §4b). Acknowledged like
+ *    a TERMINAL outcome, but **no row is written**, because nothing about the line was judged. Both are
+ *    deterministic in their inputs, which is what puts them here rather than in the transient set:
+ *    "retrying it five times would only fill the DLQ slower."
  *
  * Recording a billing denial as a withheld line would manufacture the wrong-DISAGREE outcome this unit ranks
  * as unacceptable, in bulk, for reasons that have nothing to do with any line's quality — and would invite a
@@ -152,6 +156,14 @@ export type { VerdictStore };
 export interface VerificationDeps {
     /** The deploy stage — the ONLY input to the prod-only ceiling ruling. */
     readonly stage: string;
+    /**
+     * The region this gate invokes Bedrock from — the second half of the residency judgement (ADR-0024 §4b).
+     *
+     * ⚠️ Distinct from the stage, and it is NOT a cost or a ceiling input: it decides only whether the model
+     * SSM names may be reached from here at all. The same value feeds the CDK's IAM derivation at synth time,
+     * so a mismatch between the two is the split §4b forbids.
+     */
+    readonly deployRegion: string;
     readonly settings: VerificationSettingsResolver;
     readonly ledger: SpendLedger;
     readonly bedrock: BedrockConverseClient;
@@ -416,12 +428,38 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         maxInputTokens: inputBound,
         maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
         nowUtc: deps.now(),
+        deployRegion: deps.deployRegion,
     });
 
     if (plan.kind === 'unpriced') {
         // ⛔ Membership of the rate table IS authorization: with no rate there is no worst case, so an
         // unpriced model can only ever cost a denial, never uncounted spend.
         throw new Error(`verification model '${plan.modelId}' is not priced by the rate table; refusing to call it`);
+    }
+
+    if (plan.kind === 'residency-unapproved') {
+        // ⛔ TERMINAL, NOT TRANSIENT — the one refusal on this path that does NOT throw, and the exception is
+        // argued rather than assumed. A ceiling denial, an unreadable counter and an unpriced model all throw
+        // because a later delivery can succeed. This one is deterministic in (model, region): no number of
+        // redeliveries makes feature 016 record a warrant, so throwing would burn the queue's whole
+        // `maxReceiveCount` to reach the same answer and would report a standing product decision as DLQ
+        // depth — the one signal ADR-0024 layer 4 alarms on. It is the `decision.kind === 'reject'` shape
+        // above: deterministic, so "retrying it five times would only fill the DLQ slower."
+        //
+        // ⛔ AND NO VERDICT IS RECORDED (ADR-0026 §3, "absence is not dissent"). Nothing about this line was
+        // judged. An absent verdict means PUBLISH — today's behaviour, i.e. no worse than not having shipped
+        // the gate — whereas a written verdict would manufacture the wrong-DISAGREE outcome U11 ranks as
+        // unacceptable, in bulk, for a reason that is about AWS and 016 rather than about any recipe.
+        //
+        // ⚠️ `logger.error` and not `warn`: this is a configuration fault that silently stops verification
+        // altogether, and an absent verdict makes it invisible everywhere else. The log IS the alert.
+        logger.error('verification model is not cleared for residency; the line was not checked', {
+            modelId: plan.modelId,
+            deployRegion: plan.deployRegion,
+            reachedRegions: plan.reachedRegions,
+        });
+
+        return;
     }
 
     // 4. Reserve — PROD ONLY (ADR-0024 §3, owner ruling 2026-08-21). Sandbox and every pr-{N} call ungated,
@@ -718,6 +756,8 @@ function productionDeps(stage: string, region: string): VerificationDeps {
 
     cachedDeps = {
         stage,
+        // The Lambda's own region — the same value the stack's residency derivation used at synth time.
+        deployRegion: region,
         settings: createVerificationSettings({
             load: createSsmSettingsLoader({ stage, region }),
             ttlMs: SETTINGS_TTL_MS,

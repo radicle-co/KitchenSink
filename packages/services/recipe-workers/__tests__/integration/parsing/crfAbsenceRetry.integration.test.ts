@@ -31,6 +31,8 @@ import { lineDigest, parseKey } from '@kitchensink/recipe-core/parsing/parse-key
 import { PARSE_PROMPT_VERSION } from '@kitchensink/recipe-core/parsing/parse-prompt';
 import type { EngineAnswer, ParsedLine, ParseEnginePort } from '@kitchensink/recipe-import-core';
 
+import { NOVA_2_LITE_MODEL_ID } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+
 import { PARSE_LEG_MODEL_ID, processParseLine, type ParseLineDeps } from '../../../src/handlers/parseLine.js';
 import { CrfEngineUnavailableError } from '../../../src/parsing/crfInvoke.js';
 import { disposableDatabaseUrl } from '../disposableDatabaseUrl.js';
@@ -225,5 +227,155 @@ describe.skipIf(!canRun)('a CRF outage never lands (integration)', () => {
         expect((line.rows[0] as { status: string }).status).toBe('parsed');
         // Every line terminal → the aggregate closes the job, which is the statement the two writers share.
         expect((job.rows[0] as { status: string }).status).toBe('complete');
+    });
+});
+
+/**
+ * A RESIDENCY-REFUSED PARSE MODEL NEVER LANDS EITHER — against a real PostgreSQL (ADR-0024 §4b).
+ *
+ * ## ⛔ WHY THIS TIER, AND NOT ONLY `parseLine.test.ts`
+ *
+ * The unit tier proves that no `UPDATE recipe_parse_job_lines` was ISSUED. The claim an operator depends on
+ * is about the DATABASE: after a refusal the row is still `pending`, its job is still `running`, and the CRF's
+ * reading is still cached — so the moment the model is cleared, a redelivered line completes without
+ * re-buying anything. A fake pool returns whatever it was seeded with no matter what the statement says.
+ *
+ * ## ⛔ THE DEFECT THIS IS THE REGRESSION TEST FOR — the one the obvious design ships
+ *
+ * A residency refusal reads like engine absence, so the natural implementation returns `{ unavailable: true }`
+ * from the parse port. Do that and this file's own subject repeats one engine over: `processParseLine` reads
+ * absence as a deterministic per-line fact, lands the CRF's SINGLE-ENGINE reading as the line's permanent
+ * answer, and a deployment fault becomes a fact about an ingredient — with green unit tests, because the
+ * handler behaved exactly as its contract says. `ResidencyRefusedError` exists to keep the refusal on the
+ * outage side of that split.
+ *
+ * ⚠️ AND YET IT IS NOT TRANSIENT: unlike the outage above, `processParseLine` RESOLVES rather than rejecting,
+ * because no redelivery can make feature 016 record a warrant. Both halves are asserted below; either one
+ * alone is satisfiable by a wrong implementation.
+ *
+ * ⚠️ NO LLM CACHE ROW IS SEEDED HERE, unlike the suite above — the refusal happens inside `gatedConverse`,
+ * which a cache hit would never reach.
+ *
+ * Runs against `DATABASE_URL`; skipped without it.
+ */
+describe.skipIf(!canRun)('a residency-refused parse model never lands (integration)', () => {
+    let pool: pg.Pool;
+    let converse: ReturnType<typeof vi.fn>;
+
+    beforeAll(() => {
+        pool = new pg.Pool({ connectionString: DATABASE_URL });
+    });
+
+    afterEach(async () => {
+        await pool.query('DELETE FROM recipe_parse_jobs WHERE owner_id = $1', [OWNER]);
+        await pool.query('DELETE FROM ingredient_parse_cache WHERE line_digest = $1', [lineDigest(LINE, digest)]);
+    });
+
+    afterAll(async () => {
+        await pool.end();
+    });
+
+    /** One running job with one pending line, and NO cached LLM reading. */
+    async function seedUncached(): Promise<{ jobId: string; storedDigest: string }> {
+        const job = await pool.query(
+            `INSERT INTO recipe_parse_jobs (owner_id, status, expires_at)
+             VALUES ($1, 'running', now() + interval '1 day')
+             RETURNING id`,
+            [OWNER],
+        );
+        const jobId = (job.rows[0] as { id: string }).id;
+        const storedDigest = lineDigest(LINE, digest);
+
+        await pool.query(
+            `INSERT INTO recipe_parse_job_lines (job_id, line_index, source_line, line_digest)
+             VALUES ($1, 0, $2, $3)`,
+            [jobId, LINE, storedDigest],
+        );
+
+        return { jobId, storedDigest };
+    }
+
+    /**
+     * The handler's deps over the REAL pool, with the parse model overridden to a residency-refused one.
+     *
+     * ⛔ `NOVA_2_LITE_MODEL_ID` is named rather than fabricated: it is a real registry entry, profile-only over
+     * three regions and carrying no warrant, which is exactly the state the shipped table is in. A fixture id
+     * would test a shape the registry does not have.
+     */
+    function deps(): ParseLineDeps {
+        converse = vi.fn();
+
+        return {
+            stage: 'integration',
+            gated: {
+                stage: 'integration',
+                deployRegion: 'us-east-1',
+                settings: { resolve: vi.fn().mockResolvedValue({ ceilingMicros: 100_000_000, modelId: 'unused' }) },
+                ledger: { reserve: vi.fn(), settle: vi.fn() },
+                bedrock: { converse },
+                emit: vi.fn(),
+                now: () => new Date('2026-09-04T12:00:00.000Z'),
+            },
+            crf: crfPort({ parsed: crfParse } as unknown as EngineAnswer),
+            pool: { query: async (text: string, params: unknown[]) => pool.query(text, params) },
+            digest,
+            parseModelId: NOVA_2_LITE_MODEL_ID,
+        } as unknown as ParseLineDeps;
+    }
+
+    /** Run one line, returning the rejection if there was one. */
+    async function run(jobId: string, storedDigest: string): Promise<unknown> {
+        return processParseLine(deps(), {
+            jobId,
+            lineIndex: 0,
+            sourceLine: LINE,
+            lineDigest: storedDigest,
+            userId: OWNER,
+            requestedAt: '2026-09-04T12:00:00.000Z',
+        }).then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+    }
+
+    it('⛔ leaves the row PENDING — the CRF-only reading is not written as the line’s parse', async () => {
+        const { jobId, storedDigest } = await seedUncached();
+
+        // ⛔ RESOLVES. A rejection here would be the transient path, i.e. twenty redeliveries and a DLQ entry
+        // for a fault no redelivery can fix.
+        expect(await run(jobId, storedDigest)).toBeUndefined();
+
+        const line = await pool.query(
+            'SELECT status, proposal FROM recipe_parse_job_lines WHERE job_id = $1 AND line_index = 0',
+            [jobId],
+        );
+
+        expect(line.rows[0]).toEqual({ status: 'pending', proposal: null });
+    });
+
+    it('leaves the JOB running, so the line completes once 016 clears a model', async () => {
+        const { jobId, storedDigest } = await seedUncached();
+
+        await run(jobId, storedDigest);
+
+        const job = await pool.query('SELECT status FROM recipe_parse_jobs WHERE id = $1', [jobId]);
+
+        expect((job.rows[0] as { status: string }).status).toBe('running');
+    });
+
+    it('never reaches Bedrock, and writes no LLM cache row for a call that was not made', async () => {
+        // ⛔ A cached absence would make the deployment fault PERMANENT for this line — the same reasoning
+        // KTD-F applies to the outage case one describe up.
+        const { jobId, storedDigest } = await seedUncached();
+
+        await run(jobId, storedDigest);
+
+        expect(converse).not.toHaveBeenCalled();
+
+        const cached = await pool.query('SELECT engine FROM ingredient_parse_cache WHERE line_digest = $1', [
+            storedDigest,
+        ]);
+
+        expect(cached.rows.map((row) => (row as { engine: string }).engine)).not.toContain('llm');
     });
 });

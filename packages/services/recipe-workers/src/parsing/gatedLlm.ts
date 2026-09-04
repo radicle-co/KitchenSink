@@ -21,6 +21,34 @@
  *  - the dollar metric carries the call site — `ingredient-parse` for BOTH the first attempt and the retry,
  *    `foodness-validator`, `measurement-validator` (three of `SPEND_CALL_SITES`' four; the fourth,
  *    `verification-gate`, is `verifyLine.ts`'s) — attribution on the METRIC only, one pool, no sub-budgets.
+ *
+ * ## ⛔ THIS IS THE SECOND OPINION, AND IT IS ONLY WORTH ANYTHING IF IT IS INDEPENDENT (ADR-0026 §1)
+ *
+ * KTD-10 runs BOTH engines on every line and lets a comparator adjudicate, precisely so that neither reading
+ * is anchored to the other. The owner's constraint, verbatim: *"we have to be careful not to send the failed
+ * result from the CRF Lambda or any context of it so we don't poison it — it'll be effectively like a try
+ * again."* Showing the model our parse pulls it toward agreeing with what it was shown, which inflates the
+ * agreement rate the comparator is calibrated against INVISIBLY — the failure looks like the two engines
+ * getting better, and no assertion about the answers can tell the two apart.
+ *
+ * So the independence is STRUCTURAL, not a convention, and it is pinned at the TYPE level in
+ * `__tests__/gatedLlm.test.ts` — a reviewer can miss a second argument, `tsc` cannot:
+ *
+ *  - {@link GatedLlmDeps} carries infrastructure only. Its KEY SET is pinned, so a `crf`/`hint`/`priorParse`
+ *    member — required or optional — is a build failure.
+ *  - {@link createGatedLlmEngine} takes the deps and a model id. There is no third parameter.
+ *  - The port it returns takes SOURCE LINES and nothing else, read through the returned value so a widening
+ *    of `ParseEnginePort.parse` upstream fails here too.
+ *  - `buildParsePrompt` takes the line and nothing else — pinned one layer down, in `recipe-core`'s
+ *    `parsePrompt.test.ts`, and it is the last gate anything smuggled through a carrier would have to pass.
+ *
+ * ⚠️ The two VALIDATOR legs are OUT of that scope, deliberately: `createGatedMeasurementValidator` judges a
+ * `ParsedLine` (R7 — the LLM's OWN attempt, never the CRF's), and the retry carries D5's clamped foodness
+ * carve-out. The rule is about the CRF's reading reaching the parse legs, not about parses reaching models.
+ *
+ * ⚠️ THE PIN HAS BEEN LOST ONCE ALREADY. It lived on `LlmParseDeps` in `llmParse.ts`, deleted 2026-08-29;
+ * the property moved here with the code and the pin did not follow it, leaving the whole rule resting on
+ * `buildParsePrompt`'s arity alone. If these legs move again, the pins move WITH them.
  */
 import {
     FOODNESS_MAX_OUTPUT_TOKENS,
@@ -76,7 +104,15 @@ import { isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
 import type { EmfMetric } from '../common/metrics.js';
 import { logger } from '../common/logger.js';
 
-/** Everything the gated legs talk to, injected. */
+/**
+ * Everything the gated legs talk to, injected — infrastructure, and ONLY infrastructure.
+ *
+ * ⛔ ITS KEY SET IS PINNED (`__tests__/gatedLlm.test.ts`). This is the outward CARRIER: the one bundle that
+ * reaches the parse legs from outside, and therefore the natural place a CRF reading would be threaded in as
+ * "context". Adding ANY member here — `crf`, `crfReading`, `hint`, `priorParse` — breaks that assignment,
+ * which is the point: ADR-0026 §1's poisoning failure is invisible in the answers, so it has to be caught
+ * before the code exists. See this module's header for the owner's own words and the other three pins.
+ */
 export interface GatedLlmDeps {
     readonly stage: string;
     /** The region these legs invoke Bedrock from — the residency half of the plan (ADR-0024 §4b). */

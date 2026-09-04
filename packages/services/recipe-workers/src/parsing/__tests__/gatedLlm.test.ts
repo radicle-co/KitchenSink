@@ -22,6 +22,7 @@ import {
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { FOODNESS_MAX_OUTPUT_TOKENS, FOODNESS_MODEL_ID } from '@kitchensink/recipe-core/parsing/foodness-prompt';
 import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
+import type { RetryFailure } from '@kitchensink/recipe-core/parsing/parse-retry-prompt';
 import type { ConverseRequest } from '@kitchensink/bedrock-client';
 
 import { INPUT_BOUND_EXCEEDED_METRIC_NAME, RESIDENCY_REFUSED_METRIC_NAME } from '../../common/spendMetrics.js';
@@ -33,6 +34,13 @@ import {
     createGatedRetryPort,
     type GatedLlmDeps,
 } from '../gatedLlm.js';
+
+/**
+ * Tuple- and union-exact type equality, in the invariant-position form `recipe-core`'s `parsePrompt.test.ts`
+ * and `recipe-import-core`'s `parsedLine.test.ts` already use. Invariant, so a merely-ASSIGNABLE type fails:
+ * `[string]` and `[string, unknown?]` are not interchangeable, and neither are `'a' | 'b'` and `'a' | 'b' | 'c'`.
+ */
+type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 
 interface Usage {
     readonly inputTokens: number;
@@ -92,6 +100,81 @@ function turnsOf(request: ConverseRequest): readonly string[] {
 }
 
 const NOVA_RATE = BEDROCK_MODEL_REGISTRY[NOVA_MICRO_MODEL_ID]!.rate;
+
+/**
+ * ⛔ THE NO-POISONING RULE, ENFORCED BY THE TYPE SYSTEM — the pin that did not follow the code it guarded.
+ *
+ * ADR-0026 §1, in the owner's words: _"we have to be careful not to send the failed result from the CRF
+ * Lambda or any context of it so we don't poison it — it'll be effectively like a try again."_ The whole
+ * premise of KTD-10's comparator is that the two engines are INDEPENDENT; a model shown our parse anchors on
+ * it and agrees more often, so the failure is INVISIBLE — the metric that looks like the pipeline improving
+ * is the metric that moves, and no assertion about the ANSWERS can tell the two apart. That is why this is
+ * enforced by `tsc` and not by review: a reviewer can miss a second argument, `tsc` cannot.
+ *
+ * ⛔ WHY IT IS RESTATED HERE. The rule was pinned in TWO places, and only one of them still stands on its
+ * own: `buildParsePrompt`'s one-argument signature, in `recipe-core`'s `parsePrompt.test.ts`. The other sat
+ * on the OUTWARD CARRIER — `LlmParseDeps`' key set, in `llmParse.test.ts` — and when that leg was deleted
+ * (2026-08-29) the property moved here with {@link createGatedLlmEngine} while the pin did not follow it. A
+ * guard left in a place no reader of the live code opens is a recorded failure mode of this work; so is a
+ * guard that quietly stops existing.
+ *
+ * ⚠️ WHAT THESE FOUR ASSERTIONS DO NOT COVER, stated so nobody reads more into them than they say:
+ *
+ *  - The two VALIDATOR legs are deliberately out of scope. `MeasurementValidatorPort.judge(line, parse)`
+ *    takes a `ParsedLine` BY DESIGN — it is the gate's quantity machinery judging the LLM's OWN attempt
+ *    (R7), never the CRF's — and the retry's `RetryFailure` context is D5's conscious, clamped carve-out
+ *    from the same rule. Pinning them as "no parse may reach an LLM call" would be a FALSE claim.
+ *  - A member's TYPE could still be widened to smuggle a reading (`settings.resolve()` answering one). The
+ *    key-set pin sees a new KEY, not a new field inside an existing port's payload. What closes that path is
+ *    one layer down: whatever a carrier held still has to reach the model through `buildParsePrompt(line)`.
+ *  - Nothing here stops a body that CONCATENATES a reading onto `prompt.userMessage`. Types pin signatures,
+ *    not statements; that residue is the comparator's own corpus-diff check, not this file's.
+ */
+describe('⛔ the no-poisoning rule, pinned on the carrier a CRF reading would arrive through', () => {
+    it('exposes no slot on the deps through which an engine reading could arrive', () => {
+        // ⛔ Adding `crf`, `crfReading`, `hint`, `priorParse` or ANY other member to `GatedLlmDeps` — required
+        // or optional — breaks this assignment. Every member named here is infrastructure: a stage label, the
+        // deploy region, a settings resolver, the spend ledger, the Bedrock adapter, a metric sink and a
+        // clock. None of them can hold a parse.
+        const depsAreOnlyInfrastructure: Exact<
+            keyof GatedLlmDeps,
+            'stage' | 'deployRegion' | 'settings' | 'ledger' | 'bedrock' | 'emit' | 'now'
+        > = true;
+
+        expect(depsAreOnlyInfrastructure).toBe(true);
+    });
+
+    it('builds the first-attempt engine from the deps and a MODEL ID, and nothing else', () => {
+        // The deleted pin's other half: a third parameter is the obvious place a "context" argument lands.
+        const takesOnlyDepsAndModelId: Exact<Parameters<typeof createGatedLlmEngine>, [GatedLlmDeps, string]> = true;
+
+        expect(takesOnlyDepsAndModelId).toBe(true);
+    });
+
+    it('hands that engine SOURCE LINES and nothing else', () => {
+        // ⛔ Read through the RETURNED port, not off the interface, so a widening of `ParseEnginePort.parse`
+        // in `recipe-import-core` — the seam where a batch of CRF answers would naturally be passed
+        // alongside the lines — fails HERE, in the leg that must never receive them.
+        const parseTakesOnlyLines: Exact<
+            Parameters<ReturnType<typeof createGatedLlmEngine>['parse']>,
+            [readonly string[]]
+        > = true;
+
+        expect(parseTakesOnlyLines).toBe(true);
+    });
+
+    it('keeps the retry`s carve-out to the line and the VALIDATOR`s own rejections', () => {
+        // ⚠️ The retry DOES carry context, and that is D5's deliberate carve-out — a foodness verdict is new
+        // information, clamped by `parse-retry-prompt`. What this pins is that the carve-out stays exactly
+        // that shape: a third parameter, or a failure list of some other type, is a build failure.
+        const retryTakesLineAndFailures: Exact<
+            Parameters<ReturnType<typeof createGatedRetryPort>['parse']>,
+            [string, readonly RetryFailure[]]
+        > = true;
+
+        expect(retryTakesLineAndFailures).toBe(true);
+    });
+});
 
 describe('gatedConverse — the input-token bound the plan is priced from', () => {
     it('prices the FOODNESS call over every turn it sends, few-shot turns included', async () => {
@@ -283,5 +366,81 @@ describe('gatedConverse — a residency-unapproved model', () => {
 
         expect(converse).toHaveBeenCalledTimes(1);
         expect(converse.mock.calls[0]?.[0]?.invocationId).toBe(FOODNESS_MODEL_ID);
+    });
+});
+
+/**
+ * THE SERVICE TIER — why the shipped gated leg sends NONE, and what would have to be true before it could.
+ *
+ * ⛔ THIS IS THE ASSERTION THAT STOPS A PLAUSIBLE, EXPENSIVE MISTAKE. The reasoning that leads to it is
+ * entirely sound right up to the last step: `flex` is half price on every token class and — unlike batch —
+ * KEEPS PROMPT CACHING (ADR-0024 §5a, `BedrockConverseClient.ts:88-91`), the parse leg's 19,777-character
+ * system prompt is almost the whole bill, `ConverseRequest.serviceTier` already exists, and
+ * `cookbook-import`'s ungated leg already asks for it. Every one of those is true. The step that does not
+ * follow is that the SHIPPED model can be asked.
+ *
+ * ⛔ `amazon.nova-lite-v1:0` — `PARSE_LEG_MODEL_ID`, what this leg actually calls — DOES NOT SUPPORT `flex`,
+ * measured against the live account on 2026-09-04:
+ *
+ *   aws bedrock-runtime converse --model-id amazon.nova-lite-v1:0 --service-tier '{"type":"flex"}' …
+ *   → ValidationException: The provided service tier is not supported for this model.
+ *
+ * The AWS Price List API says the same thing structurally: in us-east-1, `Nova Pro` publishes
+ * `USE1-NovaPro-*-flex` and `-priority` usage types and `Nova 2 Lite` publishes `USE1-Nova2.0Lite-*-flex`
+ * (input $0.000165/1K, exactly half), while **`Nova Lite` v1 and `Nova Micro` publish neither** — only
+ * on-demand, batch, custom-model and provisioned. `flex` is a PER-MODEL capability, not a request flag.
+ *
+ * ⛔ AND THE FAILURE WOULD NOT BE A LOST DISCOUNT — IT WOULD BE A TOTAL, SILENT-UNTIL-DLQ OUTAGE OF THE PARSE
+ * PIPELINE. `ValidationException` is in `UNBILLED_FAILURES`, so it becomes a `BedrockInvalidRequestError`,
+ * which `gatedConverse` refunds and RE-THROWS; `processParseLine` collects any engine throw as TRANSIENT and
+ * re-throws it before landing, so the message redelivers, deterministically fails again on every line, and
+ * burns `maxReceiveCount` into the DLQ. Every ingredient line, every time, behind a green unit suite.
+ *
+ * ⚠️ THE ACCOUNTING IS ALREADY CONSISTENT, which is the other half of why there is nothing to repair here.
+ * `BEDROCK_MODEL_REGISTRY` holds STANDARD on-demand rates — the Nova Pro entry says so in as many words
+ * ("pricing a flex or priority run off this entry would be wrong in both directions") — and a `Converse` call
+ * with no `serviceTier` is billed at exactly those rates. So today's reservation and today's settle price the
+ * call the tier it is actually made on. Sending `flex` WITHOUT tier-aware rates would make every reservation
+ * 2× the real cost: safe in ADR-0024's one-way direction, but it would halve the usable ceiling.
+ *
+ * ⚠️ WHAT WOULD HAVE TO CHANGE FIRST, so this is a route and not a wall: (1) a residency-clear, flex-capable
+ * model for this leg — which today means 016 recording a `residencyApproval` on the Nova 2 Lite entry; (2) the
+ * registry declaring which tiers a model publishes, so the tier cannot be asked for where it does not exist;
+ * and (3) tier-aware rates, which narrows a SHIPPED reservation and is therefore an ADR-0024 decision rather
+ * than a side effect. Until all three, the tier stays absent — and absent is not an oversight.
+ */
+describe('gatedConverse — the service tier the shipped leg must NOT ask for', () => {
+    it('sends NO serviceTier on any of the four gated legs', async () => {
+        const { deps, converse } = makeDeps({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+
+        await createGatedLlmEngine(deps, NOVA_LITE_MODEL_ID).parse(['2 cups flour']);
+        await createGatedRetryPort(deps, NOVA_LITE_MODEL_ID).parse('2 cups flour', [
+            { kind: 'measurement', statedByModel: '2 cups' },
+        ]);
+        await createGatedFoodnessValidator(deps).judge('flour');
+        await createGatedMeasurementValidator(deps, NOVA_LITE_MODEL_ID).judge('2 cups flour', PARSE);
+
+        // Non-vacuity: all four legs really were called, so this is not passing on an empty call list.
+        expect(converse).toHaveBeenCalledTimes(4);
+
+        for (const [request] of converse.mock.calls as [ConverseRequest][]) {
+            expect(request.serviceTier).toBeUndefined();
+        }
+    });
+
+    it('still asks for the lever the shipped model DOES support — the prompt cache', async () => {
+        // ⛔ The pair matters. A leg that stopped setting `cachePrompt` would pass the assertion above while
+        // re-billing 5,025 tokens of system prompt as FRESH input on every line — the exact cost this tier
+        // reasoning was chasing, lost in the other direction.
+        const { deps, converse } = makeDeps({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+
+        await createGatedLlmEngine(deps, NOVA_LITE_MODEL_ID).parse(['2 cups flour']);
+
+        // Asserted separately from the cast so a leg that made NO call fails as "undefined", rather than
+        // throwing a TypeError out of an optional chain that short-circuits (oxlint no-unsafe-optional-chaining).
+        const firstCall = converse.mock.calls[0];
+
+        expect(firstCall, 'the leg made no Bedrock call at all').toBeDefined();
+        expect((firstCall?.[0] as ConverseRequest | undefined)?.cachePrompt).toBe(true);
     });
 });

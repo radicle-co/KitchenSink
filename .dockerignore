@@ -55,3 +55,12 @@
 !packages/schemas/identity/prod.package.json
 !packages/schemas/recipe/dist
 !packages/schemas/recipe/prod.package.json
+
+# ⛔ The CDK CLI, and nothing else, is re-excluded AFTER the `!node_modules` allowlist above (in
+# .dockerignore the LAST matching line wins). `aws-cdk` is a ROOT `dependencies` entry so that it survives
+# the deploy workflows' `npm prune --omit=dev` — every `cdk deploy` runs after that prune, and as a
+# devDependency it was removed, leaving `npx cdk` to fetch an unpinned CLI from the registry mid-deploy.
+# It is a DEPLOY tool, though: no service runs it, so this line keeps it out of the images and leaves them
+# byte-identical to before that declaration. `serviceImageToolExclusion` in postPruneToolchain.test.ts
+# asserts the pairing, so neither half can be removed on its own.
+node_modules/aws-cdk

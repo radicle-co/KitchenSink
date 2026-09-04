@@ -256,6 +256,11 @@ jobs:
 
             # Upload the tsc-emitted .js.map files so Lambda stack traces symbolicate against the
             # commit-SHA release (U11). Guarded on the token + project so it no-ops until configured.
+            #
+            # `sentry-cli` is a devDependency of identity-webhooks, invoked with `--no-install`, so the binary
+            # that runs with the Sentry token in scope is the one the lockfile pins. It used to be
+            # `npx @sentry/cli@latest`, which executed whatever the registry served that day, inside the
+            # production deploy — `postPruneToolchain.test.ts` refuses any `npx` the lockfile does not pin.
             - name: Upload webhooks Lambda source maps to Sentry
               if: ${{ steps.flags.outputs.deploy_webhooks == 'true' && env.SENTRY_AUTH_TOKEN != '' && vars.SENTRY_WEBHOOKS_PROJECT != '' }}
               continue-on-error: true
@@ -264,8 +269,8 @@ jobs:
                   SENTRY_PROJECT: ${{ vars.SENTRY_WEBHOOKS_PROJECT }}
                   SENTRY_RELEASE_SHA: ${{ github.sha }}
               run: |
-                  npx @sentry/cli@latest sourcemaps inject packages/services/identity-webhooks/dist
-                  npx @sentry/cli@latest sourcemaps upload --release "${SENTRY_RELEASE_SHA}" packages/services/identity-webhooks/dist
+                  npx --no-install sentry-cli sourcemaps inject packages/services/identity-webhooks/dist
+                  npx --no-install sentry-cli sourcemaps upload --release "${SENTRY_RELEASE_SHA}" packages/services/identity-webhooks/dist
 
             - name: Build global infra
               if: steps.flags.outputs.deploy_global == 'true'
@@ -294,26 +299,85 @@ jobs:
               if: steps.flags.outputs.deploy_food == 'true'
               run: npx turbo run build --filter=@kitchensink/food-service
 
+            # Hoisted here from the Docker step below (2026-09-03): everything that BUILDS sits above the
+            # prune, only pushes, deploys and smokes sit below. `bundle:lambda` is `node esbuild.mjs`, and
+            # esbuild survives the prune today only because `packages/tools/esbuild` declares it as a
+            # runtime dependency — a fact nobody chose for this step's benefit, and one a dependency
+            # cleanup could remove with no diff here. `docker:prepare` only writes `prod.package.json`.
+            - name: Prepare the food service image manifest and bundle its Lambdas
+              if: steps.flags.outputs.deploy_food == 'true'
+              run: |
+                  npm run docker:prepare --workspace=packages/services/food-service
+                  npm run bundle:lambda --workspace=packages/services/food-service
+
             - name: Build recipe service + workers packages
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: npx turbo run build --filter=@kitchensink/recipe-service --filter=@kitchensink/recipe-workers
 
+            - name: Prepare the recipe service image manifest and bundle its Lambdas
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  # Regenerate prod.package.json from the dev manifest before the image is built — the same
+                  # step food and identity already had. Recipe was the ONE service without it, which is how its
+                  # manifest came to omit eight declared runtime dependencies and to name `./dist/main.js`, an
+                  # entry point the build does not emit. prodManifestParity.test.ts checks the CONTENTS; this
+                  # is what stops them going stale in the first place.
+                  npm run docker:prepare --workspace=packages/services/recipe-service
+                  npm run bundle:lambda --workspace=packages/services/recipe-service
+
             # ADR-0025's Python CRF Lambda, staged HERE — above the prune, with the other builds — for the
             # reason the block comment above gives: `bundle:lambda` runs a bare `tsx` and `^...` resolves a
-            # closure through turbo, both devDependencies, so either one on the far side of the prune exits
-            # 127. Its `cdk deploy` stays down with the other deploys; the staged asset is just a directory
-            # on the runner and survives the prune untouched.
+            # closure through turbo, and neither is declared as a runtime dependency anywhere (turbo is
+            # removed by the prune outright). Its `cdk deploy` stays down with the other deploys; the staged
+            # asset is just a directory on the runner and survives the prune untouched.
+            #
+            # The package ITSELF is built too (not only its `^...` imports, as before): its `dist/` now
+            # carries the compiled deploy smoke that the post-prune step runs under plain `node`.
             #
             # The pip install cross-stages arm64 / CPython 3.13 wheels and never executes them, so the
             # runner's own Python major does not matter. `buildAsset.ts` verifies the tree it produced and
             # exits non-zero on any finding, so a broken asset fails here rather than on a cold start.
-            - name: Build the workspace packages the ingredient-parser app imports
+            - name: Build the ingredient-parser package and the workspace packages its app imports
               if: steps.flags.outputs.deploy_recipe == 'true'
-              run: npx turbo run build --filter='@kitchensink/ingredient-parser^...'
+              run: npx turbo run build --filter=@kitchensink/ingredient-parser
 
             - name: Stage the CRF Lambda asset (pip, arm64 / CPython 3.13)
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: npm run bundle:lambda --workspace=packages/services/ingredient-parser
+
+            # ⛔ COMPILED CDK APPS AND SMOKES — everything after the prune runs under plain `node`.
+            #
+            # `aws-cdk` is REMOVED by `npm prune --omit=dev` (dev-only in every workspace; it is now a ROOT
+            # dependency, see "Verify runtime dependencies") and `tsx` survives the prune only through
+            # `vite`'s optional peer edge — nothing declares it. So every post-prune `npx tsx …/x.ts` was a
+            # registry fallback waiting for a dependency bump, and two of them were the CDK app runner itself
+            # (`--app "npx tsx …/app.ts"`). The identity and webhooks legs always compiled (`infra:build`,
+            # below); the feature legs now do the same. `postPruneToolchain.test.ts` derives from the
+            # manifests and the lockfile that nothing after the prune needs a tool the prune took.
+            #
+            # Gated on the UNION of the service legs, not per leg: recipe's `infra/smoke/deployedSmoke.ts`
+            # is the post-deploy smoke of the identity AND food legs too, and food's
+            # `infra/bin/printFoodHost.ts` is what the RECIPE leg resolves its food origin with. A per-leg
+            # gate here would have to restate every consumer's flag at every consumer. The `^...` builds are
+            # the dist-exporting workspaces these two infra projects import (infra-alb, infra-security,
+            # infra-messaging — ADR-0013), which a service-only run has not necessarily built yet.
+            - name: Compile the food + recipe CDK apps and post-deploy smokes (any service leg)
+              if: |
+                  steps.flags.outputs.deploy_service == 'true' ||
+                  steps.flags.outputs.deploy_food == 'true' ||
+                  steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  npx turbo run build --filter='@kitchensink/food-service^...' --filter='@kitchensink/recipe-service^...'
+                  npm run infra:build --workspace=packages/services/food-service
+                  npm run infra:build --workspace=packages/services/recipe-service
+
+            # Their closures were built by the turbo steps above (turbo's graph follows devDependencies, so
+            # the dist-exporting infra packages are in it).
+            - name: Compile the recipe-workers and ingredient-parser CDK apps
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  npm run infra:build --workspace=packages/services/recipe-workers
+                  npm run infra:build --workspace=packages/services/ingredient-parser
 
             - name: Resolve AWS Account ID
               id: account
@@ -379,9 +443,16 @@ jobs:
             - name: Prune dev dependencies
               run: npm prune --omit=dev
 
+            # Everything below runs against the PRUNED tree. `aws-cdk-lib` is a runtime dependency of every
+            # CDK app; the CDK CLI (`aws-cdk`) is a ROOT `dependencies` entry precisely so that it survives
+            # this prune — as a devDependency it was removed here, and every `npx cdk` below then resolved
+            # it from the registry, unpinned, on each production deploy. `--no-install` makes that fallback
+            # impossible: absence fails HERE, with the reason, instead of at the first deploy.
+            # `postPruneToolchain.test.ts` asserts the same property statically for every pruning job.
             - name: Verify runtime dependencies
               run: |
                   node -e "require('aws-cdk-lib')" || (echo 'FATAL: aws-cdk-lib missing after prune' && exit 1)
+                  npx --no-install cdk --version || (echo 'FATAL: the CDK CLI (aws-cdk) is missing after prune — keep it in the ROOT package.json dependencies, never only in a devDependencies block' && exit 1)
 
             # Gated on ANY image-pushing deploy, not just identity: a food- or recipe-only change still
             # needs the registry, and without this the push step would receive an empty
@@ -636,7 +707,7 @@ jobs:
                   # own annotation is hardcoded to "the DEPLOYED recipe service", which is actively
                   # misleading in an identity failure at 3am. Deriving that string from `--base-url` inside
                   # deployedSmoke.ts is the proper fix and belongs with the `--preflight-path` follow-up.
-                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                  node packages/services/recipe-service/infra/dist/smoke/deployedSmoke.js \
                     --base-url "https://identity.${DOMAIN_NAME}" \
                     --web-origin "https://${DOMAIN_NAME}" \
                     --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
@@ -663,9 +734,6 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
               run: |
-                  npm run docker:prepare --workspace=packages/services/food-service
-                  npm run infra:build --workspace=packages/services/food-service
-                  npm run bundle:lambda --workspace=packages/services/food-service
                   docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile \
                     -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
 
@@ -749,7 +817,7 @@ jobs:
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: |
                   set -euo pipefail
-                  food_url=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts \
+                  food_url=$(node packages/services/food-service/infra/dist/bin/printFoodHost.js \
                     "${STAGE}" "${DOMAIN_NAME}")
                   echo "url=${food_url}" >> "$GITHUB_OUTPUT"
                   echo "recipe will call food at ${food_url}"
@@ -764,14 +832,6 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
               run: |
-                  # Regenerate prod.package.json from the dev manifest before the image is built — the same
-                  # step food and identity already had. Recipe was the ONE service without it, which is how its
-                  # manifest came to omit eight declared runtime dependencies and to name `./dist/main.js`, an
-                  # entry point the build does not emit. prodManifestParity.test.ts checks the CONTENTS; this
-                  # is what stops them going stale in the first place.
-                  npm run docker:prepare --workspace=packages/services/recipe-service
-                  npm run infra:build --workspace=packages/services/recipe-service
-                  npm run bundle:lambda --workspace=packages/services/recipe-service
                   docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \
                     -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
 
@@ -782,7 +842,8 @@ jobs:
             # sandbox-deploy.yml; `cdkAppDeployCoverage.test.ts` asserts the app has a deployer at all.
             #
             # ⚠️ Its BUILD half sits far above, before `npm prune --omit=dev` — `bundle:lambda` runs a bare
-            # `tsx`, a devDependency, so staging here would exit 127. Only the deploy belongs on this side.
+            # `tsx`, which nothing declares as a runtime dependency. Only the deploy belongs on this side,
+            # and it runs the COMPILED app (`infra/dist/bin/app.js`, from `infra:build` above the prune).
             #
             # ⚠️ FIRST-EVER DEPLOY of this function. ADR-0025 §"Residual risk" records that the arm64 /
             # CPython 3.13 wheels in the asset have never been loaded by a Python 3.13 interpreter on ARM,
@@ -797,7 +858,7 @@ jobs:
             - name: CDK Deploy (ingredient parser — the CRF engine parseLine invokes)
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: |
-                  npx cdk deploy --app "npx tsx packages/services/ingredient-parser/infra/bin/app.ts" \
+                  npx cdk deploy --app "node packages/services/ingredient-parser/infra/dist/bin/app.js" \
                     --all --require-approval never
 
             # ⛔ HALF ONE of the proof ADR-0025's residual risk asks for. A Lambda whose code package will
@@ -807,7 +868,7 @@ jobs:
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
-                    "npx tsx packages/services/ingredient-parser/infra/bin/app.ts"
+                    "node packages/services/ingredient-parser/infra/dist/bin/app.js"
 
             # ⛔ HALF TWO, and the stronger one: RUN the engine. `State=Active` says AWS accepted the
             # package; only an invocation proves the interpreter loaded, the 90 MB of wheels imported and the
@@ -829,7 +890,7 @@ jobs:
             - name: Smoke test — the deployed CRF engine loads, reads a line, and is the PINNED engine (prod)
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: |
-                  npx tsx packages/services/ingredient-parser/infra/smoke/deployedSmoke.ts \
+                  node packages/services/ingredient-parser/dist/infra/smoke/deployedSmoke.js \
                     --function-name "kitchensink-ingredient-parser-${STAGE}" \
                     --region "${DEFAULT_AWS_REGION}"
 
@@ -849,7 +910,7 @@ jobs:
                   RECIPE_MEDIA_BUCKET: ${{ steps.recipe-infra.outputs.media_bucket }}
                   HANDLE_SYNC_TOPIC_ARN: ${{ steps.recipe-infra.outputs.handle_sync_topic_arn }}
               run: |
-                  npx cdk deploy --app "npx tsx packages/services/recipe-workers/infra/bin/app.ts" \
+                  npx cdk deploy --app "node packages/services/recipe-workers/infra/dist/bin/app.js" \
                     --all --require-approval never
 
             # ⛔ THE check whose absence let the CRF outage happen, now asserted against the ACCOUNT rather
@@ -876,7 +937,7 @@ jobs:
                   HANDLE_SYNC_TOPIC_ARN: ${{ steps.recipe-infra.outputs.handle_sync_topic_arn }}
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
-                    "npx tsx packages/services/recipe-workers/infra/bin/app.ts"
+                    "node packages/services/recipe-workers/infra/dist/bin/app.js"
 
             # ⛔ The question every step above is structurally unable to ask: is PROD running the code THIS
             # COMMIT declares? Every input to `verify` is the deploy itself, so it reports green whenever the
@@ -903,7 +964,7 @@ jobs:
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: |
                   bash .github/scripts/verify-deployment.sh drift "${DEFAULT_AWS_REGION}" "${STAGE}" \
-                    "npx tsx packages/services/recipe-workers/infra/bin/app.ts" --warn-only
+                    "node packages/services/recipe-workers/infra/dist/bin/app.js" --warn-only
 
             - name: CDK Deploy (recipe service)
               if: steps.flags.outputs.deploy_recipe == 'true'
@@ -978,7 +1039,7 @@ jobs:
                     --query "taskDefinition.containerDefinitions[0].environment[?name=='FOOD_SERVICE_URL'].value | [0]" \
                     --output text)
                   [ "$food_url" = 'None' ] && food_url=''
-                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                  node packages/services/recipe-service/infra/dist/smoke/deployedSmoke.js \
                     --base-url "https://recipe.${DOMAIN_NAME}" \
                     --web-origin "https://${DOMAIN_NAME}" \
                     --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
@@ -1053,7 +1114,7 @@ jobs:
                   # hardcoded to "the DEPLOYED recipe service", which is actively misleading in a food
                   # failure at 3am. Deriving that string from `--base-url` inside deployedSmoke.ts is the
                   # proper fix, and belongs with the `--preflight-path` follow-up the identity leg names.
-                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                  node packages/services/recipe-service/infra/dist/smoke/deployedSmoke.js \
                     --base-url "https://food.${DOMAIN_NAME}" \
                     --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
                     --running-image-tag "${image##*:}" \

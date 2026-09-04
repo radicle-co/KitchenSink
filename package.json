@@ -53,6 +53,10 @@
         "local:seed-food": "npm run seed-food --workspace=@kitchensink/local-sandbox",
         "local:dev": "npm run local:up && turbo run dev"
     },
+    "//dependencies": "The CDK CLI is a runtime dependency of the DEPLOY, not a build tool: the deploy workflows prune devDependencies mid-job and every `cdk deploy` necessarily runs after that, so as a devDependency it was removed and each `npx cdk` resolved an unpinned CLI from the registry inside the production deploy. Excluded from the service images by .dockerignore. Keep the range equal to the workspaces' so npm hoists one copy. See postPruneToolchain.test.ts.",
+    "dependencies": {
+        "aws-cdk": "^2.1134.0"
+    },
     "overrides": {
         "@types/node": "^24.13.3",
         "@types/react": "^19.2.0",

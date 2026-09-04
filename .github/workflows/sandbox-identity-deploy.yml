@@ -254,12 +254,26 @@ jobs:
               if: steps.flags.outputs.deploy_service == 'true'
               run: npm run bundle:lambda --workspace=packages/services/identity
 
+            # The identity smoke below the prune runs recipe-service's `infra/smoke/deployedSmoke.ts` — the
+            # ONE post-deploy smoke every service leg shares — under plain `node`, so it is compiled HERE,
+            # above the prune, together with the dist-exporting workspaces its infra project imports
+            # (ADR-0013). It used to run under `npx tsx`, which nothing declares as a runtime dependency;
+            # `postPruneToolchain.test.ts` asserts that nothing below the prune needs a tool the prune took.
+            - name: Compile the shared post-deploy smoke (recipe-service infra)
+              if: steps.flags.outputs.deploy_service == 'true'
+              run: |
+                  npx turbo run build --filter='@kitchensink/recipe-service^...'
+                  npm run infra:build --workspace=packages/services/recipe-service
+
             - name: Prune dev dependencies
               run: npm prune --omit=dev
 
+            # Same check as prod-deploy.yml: the CDK CLI is a ROOT dependency so that it survives the prune,
+            # and `--no-install` makes the registry fallback impossible.
             - name: Verify runtime dependencies
               run: |
                   node -e "require('aws-cdk-lib')" || (echo 'FATAL: aws-cdk-lib missing after prune' && exit 1)
+                  npx --no-install cdk --version || (echo 'FATAL: the CDK CLI (aws-cdk) is missing after prune — keep it in the ROOT package.json dependencies, never only in a devDependencies block' && exit 1)
 
             - name: Resolve AWS Account ID
               id: account
@@ -446,7 +460,7 @@ jobs:
                     --query 'services[0].taskDefinition' --output text)
                   image=$(aws ecs describe-task-definition --task-definition "$task_def" \
                     --query 'taskDefinition.containerDefinitions[0].image' --output text)
-                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                  node packages/services/recipe-service/infra/dist/smoke/deployedSmoke.js \
                     --base-url "https://identity.sandbox.${DOMAIN_NAME}" \
                     --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
                     --running-image-tag "${image##*:}" \

@@ -17,13 +17,16 @@
  *     legs, by EXECUTING the embedded bash. That is step-level reachability inside one job; invariant 1 here
  *     is JOB-level reachability across the `needs` graph of every workflow. Different failure, no overlap.
  *   - `prodDeployBuildOrder.test.ts` — `turbo run build` before `npm prune`, in `prod-deploy.yml` only.
- *     Invariant 3 generalises the same one-way door to every workflow and every dev-dependency build tool,
- *     which is how it found the two real violations recorded in `KNOWN_BUILDS_AFTER_PRUNE` below. The
- *     prod-deploy-specific claims that file owns (exactly one prune; every pushed image has a build) are not
- *     restated here.
+ *     The prod-deploy-specific claims that file owns (exactly one prune; every pushed image has a build)
+ *     are not restated here.
+ *   - `postPruneToolchain.test.ts` — the one-way door generalised to every pruning job and every tool,
+ *     DERIVED from the manifests and the lockfile rather than from a list of build commands. That is where
+ *     invariant 3 of this file went (2026-09-03): its enumerated `BUILD_COMMANDS` regex could not tell a
+ *     tool the prune removes (`aws-cdk`, `turbo`) from one a workspace declares as runtime (`typescript`,
+ *     `esbuild`), so it carried two false findings as a ratchet and missed eight real `npx cdk` registry
+ *     fallbacks — including the identity leg's — because it exempted `npx cdk deploy` by name.
  *   - `globalBootstrapBundle.test.ts` — `bundle:lambda` before `cdk deploy`/prune for the global app. It
- *     anchors on `findIndex` (the FIRST bundle and FIRST prune), which is precisely why it does not see the
- *     LATER `bundle:lambda` calls that invariant 3 reports.
+ *     anchors on `findIndex` (the FIRST bundle and FIRST prune).
  *
  * ## How it is asserted (and what it refuses to do)
  *
@@ -61,10 +64,8 @@
  *   2. **Artifact pairing** — replacing the `needs` closure with "every other job" makes `unordered.yml` pass,
  *      so the closure walk is load-bearing. Real tree: adding an unpaired `download-artifact` to
  *      `_ci-heavy.yml` reds both the pairing assertion and the anti-vacuity check.
- *   3. **Prune ordering** — dropping the same-job restriction turns `other-job.yml` into a false positive;
- *      dropping the `index <= pruneIndex` comparison reds the correctly-ordered fixture; emptying
- *      `KNOWN_BUILDS_AFTER_PRUNE` reds the real-tree assertion, which is the proof those two entries are real
- *      findings and not decoration.
+ *   3. **Prune ordering** — MOVED to `postPruneToolchain.test.ts` (see above); the number is kept so the
+ *      other invariants keep their names.
  *   4. **Silent-success inventory** — folding the `×N` count to a constant reds `twice.yml`; deleting one
  *      allowlist entry reds the real-tree equality; dropping the job-level branch reds `whole-job.yml`.
  *      Real tree: adding one `aws sts get-caller-identity ||
@@ -439,78 +440,9 @@ function findUnreachableArtifacts(workflows: readonly Workflow[]): readonly stri
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Invariant 3 — prune before build
+// Invariant 3 — prune before build: MOVED to `postPruneToolchain.test.ts` (2026-09-03), where "what the
+// prune removes" is derived from the manifests and the lockfile instead of an enumerated command regex.
 // ---------------------------------------------------------------------------------------------------------
-
-/** `npm prune --omit=dev` and its equivalents: the one-way door. */
-const PRUNE = /npm prune|--omit=dev/;
-
-/**
- * Commands that need a devDependency binary. `docker buildx build` is deliberately absent (it must run
- * AFTER the prune, so the image ships production deps only), and so is `npx cdk deploy` — `npx` falls back
- * to the registry when the local binary is gone, which is how the post-prune CDK steps work today. `npm run
- * …` does NOT have that fallback: it resolves from `node_modules/.bin` and exits 127.
- */
-const BUILD_COMMANDS =
-    /turbo run build|npm run [\w:@/-]*build\b|npm run bundle:lambda|nest build|(?:^|\s)tsc\s|node esbuild\.mjs|cdk synth|next build/g;
-
-/** Build-like steps that follow a prune step IN THE SAME JOB (a different job gets a fresh checkout). */
-function findBuildsAfterPrune(workflows: readonly Workflow[]): readonly string[] {
-    const violations: string[] = [];
-
-    for (const { file, doc } of workflows) {
-        for (const [name, job] of Object.entries(doc.jobs ?? {})) {
-            const steps = job.steps ?? [];
-            const pruneIndex = steps.findIndex((step) => PRUNE.test(step.run ?? ''));
-
-            if (pruneIndex === -1) {
-                continue;
-            }
-
-            steps.forEach((step, index) => {
-                if (index <= pruneIndex) {
-                    return;
-                }
-
-                const matched = [...new Set((step.run ?? '').match(BUILD_COMMANDS) ?? [])].map((text) => text.trim());
-
-                if (matched.length > 0) {
-                    violations.push(`${file}::${name}::${stepLabel(step)} → ${matched.sort().join(', ')}`);
-                }
-            });
-        }
-    }
-
-    return [...violations].sort();
-}
-
-/**
- * Currently-present build-after-prune orderings — a ratchet, not an excuse (same posture as
- * `scripts/boundaries-baseline.json`): the equality assertion below means a NEW one fails the build.
- *
- * ⚠️ CORRECTED 2026-08-07 — these two are an ordering SMELL, not a live defect, and the original
- * reasoning here was wrong. It claimed both legs "have never run" and "will exit 127 on the first one
- * that does". Both halves are false: prod-deploy run 30764536782 executed the prune at step 17 and then
- * these very steps at 32 and 38, and all three reported success. The premise behind the prediction —
- * "typescript and esbuild are devDependencies with no production dependent anywhere in the tree" — does
- * not hold either: `typescript` is declared in the ROOT `peerDependencies` (`^5`), and `esbuild` is a
- * production `dependencies` entry of `packages/tools/esbuild`, so neither binary is removed by
- * `npm prune --omit=dev`. `prod-deploy.yml` also runs an explicit "Verify runtime dependencies" step
- * immediately after the prune.
- *
- * They stay listed because the ORDERING is still worth pinning: it survives on a transitive
- * peer/production edge that nothing asserts, so a future dependency cleanup could remove the compiler
- * out from under these steps with no signal here. The identity leg does the same two builds BEFORE the
- * prune (steps 11/12), which is the shape to converge on. Treat fixing it as hygiene, not an incident —
- * and do not "fix" it on the strength of an exit-127 claim that production has already falsified.
- */
-const KNOWN_BUILDS_AFTER_PRUNE: readonly string[] = [
-    // `npm run infra:build` is `tsc -p infra/tsconfig.json`; `bundle:lambda` is `node esbuild.mjs`. Both
-    // resolve after the prune today — see the corrected note above for why, and why that is fragile
-    // rather than fine.
-    'prod-deploy.yml::deploy::Build, tag, and push food service Docker image → npm run bundle:lambda, npm run infra:build',
-    'prod-deploy.yml::deploy::Build, tag, and push recipe service Docker image → npm run bundle:lambda, npm run infra:build',
-];
 
 // ---------------------------------------------------------------------------------------------------------
 // Invariant 4 — the silent-success inventory
@@ -1039,97 +971,6 @@ describe('invariant 2 — every artifact download has an upload before it', () =
 
         // …and the pattern-shaped consumers still exist, so the paragraph above is not guarding an empty set.
         expect(downloaded.some((download) => (download.pattern ?? '').includes('*'))).toBe(true);
-    });
-});
-
-// ---------------------------------------------------------------------------------------------------------
-// Invariant 3 — prune before build
-// ---------------------------------------------------------------------------------------------------------
-
-describe('invariant 3 — no build-like step runs after the dev-dependency prune', () => {
-    it('flags a build placed after the prune in the same job', () => {
-        const violations = findBuildsAfterPrune(
-            fixture({
-                'late-build.yml': [
-                    'name: late build',
-                    'on:',
-                    '    push:',
-                    '        branches: [main]',
-                    'jobs:',
-                    '    deploy:',
-                    '        runs-on: ubuntu-latest',
-                    '        steps:',
-                    '            - name: Prune dev dependencies',
-                    '              run: npm prune --omit=dev',
-                    '            - name: Build the service infra',
-                    '              run: npm run infra:build --workspace=packages/services/food-service',
-                    '',
-                ].join('\n'),
-            }),
-        );
-
-        expect(violations.join('\n')).toMatch(/late-build\.yml::deploy/);
-        expect(violations.join('\n')).toMatch(/infra:build/);
-    });
-
-    it('does NOT flag a build that precedes the prune, nor the docker build that must follow it', () => {
-        const violations = findBuildsAfterPrune(
-            fixture({
-                'ordered.yml': [
-                    'name: ordered',
-                    'on:',
-                    '    push:',
-                    '        branches: [main]',
-                    'jobs:',
-                    '    deploy:',
-                    '        runs-on: ubuntu-latest',
-                    '        steps:',
-                    '            - name: Build the service infra',
-                    '              run: npm run infra:build --workspace=packages/services/food-service',
-                    '            - name: Prune dev dependencies',
-                    '              run: npm prune --omit=dev',
-                    '            - name: Push the image',
-                    '              run: docker buildx build -t image .',
-                    '',
-                ].join('\n'),
-            }),
-        );
-
-        expect(violations).toEqual([]);
-    });
-
-    it('does NOT flag a build in a DIFFERENT job from the prune', () => {
-        const violations = findBuildsAfterPrune(
-            fixture({
-                'other-job.yml': [
-                    'name: other job',
-                    'on:',
-                    '    push:',
-                    '        branches: [main]',
-                    'jobs:',
-                    '    deploy:',
-                    '        runs-on: ubuntu-latest',
-                    '        steps:',
-                    '            - run: npm prune --omit=dev',
-                    '    build:',
-                    '        runs-on: ubuntu-latest',
-                    '        steps:',
-                    '            - run: npx turbo run build',
-                    '',
-                ].join('\n'),
-            }),
-        );
-
-        expect(violations).toEqual([]);
-    });
-
-    it('has no violations beyond the recorded, still-open ones', () => {
-        expect(
-            findBuildsAfterPrune(realWorkflows()),
-            'a devDependency build after `npm prune --omit=dev` exits 127 ("command not found"), which reads ' +
-                'like a broken toolchain rather than a step-ordering mistake. If you FIXED one of the recorded ' +
-                'violations, delete its entry from KNOWN_BUILDS_AFTER_PRUNE.',
-        ).toEqual([...KNOWN_BUILDS_AFTER_PRUNE].sort());
     });
 });
 

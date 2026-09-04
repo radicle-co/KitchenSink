@@ -504,7 +504,10 @@ describe('useCollectionsInfinite', () => {
         expect(result.current.hasNextPage).toBe(false);
     });
 
-    it('caches under the SAME key as the flat useCollections list (one logical cache entry)', async () => {
+    // REWRITTEN (PR #91 review): this used to pin the infinite hook to the SAME key as the flat list. One key
+    // cannot hold both shapes — `queryKeyShapes.test.ts` reproduces the flat body being handed to an infinite
+    // reader — so the hook now caches under its own `'infinite'` segment, still inside the `collections` prefix.
+    it('caches under its OWN infinite key, inside the collections prefix the flat list shares', async () => {
         const client = makeGuardedClient();
         vi.spyOn(client, 'listCollections').mockResolvedValue(
             makePaginatedResponse([makeCollection()], { hasMore: false, page: 1 }),
@@ -513,7 +516,9 @@ describe('useCollectionsInfinite', () => {
         const { result, queryClient } = renderRecipeHook(() => useCollectionsInfinite({ pageSize: 10 }), { client });
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(cachedQueryKeys(queryClient)).toEqual([['recipe-service', 'collections', 'list', { pageSize: 10 }]]);
+        expect(cachedQueryKeys(queryClient)).toEqual([
+            ['recipe-service', 'collections', 'list', 'infinite', { pageSize: 10 }],
+        ]);
     });
 });
 

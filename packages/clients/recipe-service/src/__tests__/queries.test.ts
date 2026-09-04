@@ -69,13 +69,17 @@ describe('recipeQueries (P5 repository read seam)', () => {
         expect(listRecipes).toHaveBeenCalledExactlyOnceWith(params);
     });
 
-    it('keys listInfinite() under the SAME list key and preserves the hasMore→page+1 pager contract', async () => {
+    // REWRITTEN (PR #91 review): this used to pin listInfinite() to the SAME key as list(). One key cannot
+    // serve two data shapes — `queryKeyShapes.test.ts` reproduces the collision — so the pager now keys under
+    // its own `recipeListInfinite` entry, still inside the `recipeLists` prefix.
+    it('keys listInfinite() under its OWN infinite key and preserves the hasMore→page+1 pager contract', async () => {
         const listRecipes = vi.fn().mockResolvedValue({ data: [], total: 0, page: 2, pageSize: 20, hasMore: true });
         const client = makeFakeClient({ listRecipes });
         const params = { pageSize: 20 };
         const options = recipeQueries(client).listInfinite(params);
 
-        expect(options.queryKey).toEqual(recipeServiceKeys.recipeList(params));
+        expect(options.queryKey).toEqual(recipeServiceKeys.recipeListInfinite(params));
+        expect(options.queryKey).not.toEqual(recipeServiceKeys.recipeList(params));
         expect(options.initialPageParam).toBe(1);
         expect(options.getNextPageParam({ data: [], total: 0, page: 2, pageSize: 20, hasMore: true }, [], 1, [])).toBe(
             3,
@@ -137,7 +141,9 @@ describe('recipeQueries (P5 repository read seam)', () => {
         expect(searchRecipes).toHaveBeenCalledExactlyOnceWith(params);
     });
 
-    it('keys searchInfinite() under the SAME search key (not a distinct namespace) at the 15s policy', async () => {
+    // REWRITTEN (PR #91 review): the infinite search keys under its own `recipeSearchInfinite` entry — inside
+    // the `recipeSearches` prefix, so a distinct SHAPE rather than a distinct namespace.
+    it('keys searchInfinite() under its OWN infinite key, inside the search prefix, at the 15s policy', async () => {
         const searchRecipes = vi.fn().mockResolvedValue({
             results: [],
             total: 0,
@@ -150,7 +156,8 @@ describe('recipeQueries (P5 repository read seam)', () => {
         const params = { query: 'pie' };
         const options = recipeQueries(client).searchInfinite(params);
 
-        expect(options.queryKey).toEqual(recipeServiceKeys.recipeSearch(params));
+        expect(options.queryKey).toEqual(recipeServiceKeys.recipeSearchInfinite(params));
+        expect(options.queryKey).not.toEqual(recipeServiceKeys.recipeSearch(params));
         expect(options.staleTime).toBe(15_000);
         expect(options.initialPageParam).toBe(1);
         expect(
@@ -214,13 +221,15 @@ describe('collectionQueries (P5 repository read seam)', () => {
         expect(getCollectionById).toHaveBeenCalledExactlyOnceWith('col_1');
     });
 
-    it('keys listInfinite() under the SAME list key and preserves the hasMore→page+1 pager contract', async () => {
+    // REWRITTEN (PR #91 review) for the same reason as the recipe pair above.
+    it('keys listInfinite() under its OWN infinite key and preserves the hasMore→page+1 pager contract', async () => {
         const listCollections = vi.fn().mockResolvedValue({ data: [], total: 0, page: 2, pageSize: 20, hasMore: true });
         const client = makeFakeClient({ listCollections });
         const params = { pageSize: 20 };
         const options = collectionQueries(client).listInfinite(params);
 
-        expect(options.queryKey).toEqual(recipeServiceKeys.collectionList(params));
+        expect(options.queryKey).toEqual(recipeServiceKeys.collectionListInfinite(params));
+        expect(options.queryKey).not.toEqual(recipeServiceKeys.collectionList(params));
         expect(options.initialPageParam).toBe(1);
         expect(options.getNextPageParam({ data: [], total: 0, page: 2, pageSize: 20, hasMore: true }, [], 1, [])).toBe(
             3,

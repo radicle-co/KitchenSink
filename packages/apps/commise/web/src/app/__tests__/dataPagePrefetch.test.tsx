@@ -177,7 +177,7 @@ describe('[locale]/discover/page.tsx SSR prefetch', () => {
         expect(queries).toHaveLength(1);
         // sortBy defaults to RELEVANCE, matching the container's initial (URL-independent) view state.
         expect(queries[0]?.queryKey).toEqual(
-            recipeServiceKeys.recipeSearch({ query: 'paella', dietaryFlags: ['vegan'], sortBy: 'relevance' }),
+            recipeServiceKeys.recipeSearchInfinite({ query: 'paella', dietaryFlags: ['vegan'], sortBy: 'relevance' }),
         );
         // The infinite query shape: one fetched page, page 1.
         expect(queries[0]?.state.data).toEqual({ pages: [response], pageParams: [1] });
@@ -216,7 +216,7 @@ describe('[locale]/collections/page.tsx SSR prefetch', () => {
         const queries = dehydratedQueries(element);
 
         expect(queries).toHaveLength(1);
-        expect(queries[0]?.queryKey).toEqual(recipeServiceKeys.collectionList());
+        expect(queries[0]?.queryKey).toEqual(recipeServiceKeys.collectionListInfinite());
         // The infinite query shape: one fetched page, page 1.
         expect(queries[0]?.state.data).toEqual({ pages: [response], pageParams: [1] });
     });

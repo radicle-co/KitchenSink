@@ -18,8 +18,8 @@ export const dynamic = 'force-dynamic';
  * B19 — SSR prefetch + `HydrationBoundary`: a server `QueryClient` prefetches the SAME query the container's
  * `useCollectionsInfinite()` reads. The container is an INFINITE query (W5/C7 "Load more"), so this uses
  * `prefetchInfiniteQuery` (not `prefetchQuery`) over the P5 `collectionQueries(client).listInfinite({})`
- * factory — a flat `prefetchQuery` would dehydrate a bare page body under the same key an infinite observer
- * expects `{ pages, pageParams }` for, breaking `query.data?.pages.flatMap(...)` on hydration. Authenticated
+ * factory. The two shapes key separately (`recipeServiceKeys.collectionListInfinite`, PR #91 review), so a
+ * flat `prefetchQuery` would land under a key this container never reads and hydrate nothing. Authenticated
  * with THIS request's own Clerk session token (`auth().getToken()`, the `profile/page.tsx` pattern). A
  * failed prefetch dehydrates to an empty state (`prefetchInfiniteQuery` never throws; `dehydrate()` drops
  * non-`success` queries), so the container's own client-side fetch takes over — never a 500.

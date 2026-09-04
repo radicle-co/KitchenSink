@@ -1,25 +1,35 @@
 /**
  * Integration suite for `.github/scripts/teardown-sandbox-pr.sh` §0c and §1 — waking the shared tier, and
- * dropping EVERY per-PR logical database rather than food's alone.
+ * reclaiming every per-PR logical database through the PLATFORM REAPER.
  *
- * ## The two defects it exists for
+ * ⚠️ REWRITTEN 2026-09-04 (ADR-0030). This file used to prove that §1 discovered a drop door on each of the
+ * PR's OWN stacks and invoked it. It now proves the opposite of the first half and more of the second: §1
+ * invokes ONE reaper, published by `kitchensink-data-sandbox`, and it does so **whether or not the PR still
+ * owns a stack** — which is the whole point, and the case the old shape could not reach.
  *
- * **1. Half the databases were never dropped.** §1 hardcoded `kitchensink-food-service-$PR` and the output
- * key `FoodMigrationFunctionName`. `RecipeServiceStack` has exported `RecipeMigrationFunctionName` since it
- * shipped and `recipe-service`'s migrate handler implements `action: 'drop'` — and nothing ever invoked it.
- * Every reaped recipe preview left `kitchensink_recipes_pr_{N}` behind, silently: the script reported
- * success for dropping what it was told to drop, the stack deleted cleanly, and a logical database is not a
- * CloudFormation resource so nothing in the console showed it.
+ * ## The three defects it exists for
  *
- * **2. The drop could not have worked at its most common trigger time anyway.** A preview expires at 00:00
+ * **1. Half the databases were never dropped.** §1 originally hardcoded `kitchensink-food-service-$PR` and
+ * the output key `FoodMigrationFunctionName`. `RecipeServiceStack` has exported `RecipeMigrationFunctionName`
+ * since it shipped and `recipe-service`'s migrate handler implements `action: 'drop'` — and nothing ever
+ * invoked it. Every reaped recipe preview left `kitchensink_recipes_pr_{N}` behind, silently.
+ *
+ * **2. A door inside a stack cannot open once the stack is gone.** The shape that fixed defect 1 —
+ * discovering doors by the output pattern `^[A-Za-z]+MigrationFunctionName$` across the PR's own stacks —
+ * still reclaimed nothing for a PR whose stack was already deleted or resting in `DELETE_FAILED` /
+ * `UPDATE_ROLLBACK_FAILED` (which publishes no outputs), and nothing at all for the databases stranded while
+ * `RecipeMigrationFunctionName` went uninvoked. Those are not edge cases: they are precisely the population
+ * the reaper was built for, and `reaps a PR whose stacks are ALL GONE` is the assertion that says so.
+ *
+ * **3. The drop could not have worked at its most common trigger time anyway.** A preview expires at 00:00
  * America/New_York, `SandboxSchedulerStack`'s STOP schedule fires at 00:00 America/New_York, and
  * `sandbox-reconcile.yml` runs at :17 — so the reconciler invokes an in-VPC Lambda against a database that
- * was stopped seventeen minutes earlier. Nothing in either reclamation path woke the tier.
+ * was stopped seventeen minutes earlier. The reaper is in-VPC too, so §0c's wake is as load-bearing as ever.
  *
- * `perPrDatabaseDropDoors.test.ts` proves the CONVENTION statically — every per-PR database has a drop door
- * and the script names none of them individually. It cannot prove the script's control flow: that the doors
- * are found across ALL of the PR's stacks, that the wake precedes the drop, or that a wake failure does not
- * take the rest of the teardown with it. That is what this file is for.
+ * `perPrDatabaseDropDoors.test.ts` proves the CONVENTION statically — the reaper's register covers every
+ * database family the infra tree derives, and the script names no per-service door. It cannot prove the
+ * script's control flow: that the reaper is found and invoked with this PR's token and no other, that the
+ * wake precedes it, or that a failure does not take the rest of the teardown with it. That is this file.
  *
  * ## What is real here, and what is stubbed
  *
@@ -29,29 +39,28 @@
  *   invocation and answers from canned fixtures.
  *
  * The call LOG is the assertion surface, exactly as in `ecsQuiesce.integration.test.ts`: the guarantees under
- * test are *which* functions were invoked and *in what order*, and a test that only checked the exit status
- * would pass a script that dropped nothing.
+ * test are *which* functions were invoked, *with what payload*, and *in what order*, and a test that only
+ * checked the exit status would pass a script that dropped nothing.
  *
  * ## Mutation evidence (each applied, and the named test watched to fail)
  *
- *   1. §1's discovery reverted to the hardcoded `FoodMigrationFunctionName` query → `drops the database
- *      behind EVERY migration-runner output` fails, naming the recipe function. This is the red-before-green
- *      run for the real defect.
- *   2. The `[[ $key =~ $DROP_DOOR_PATTERN ]]` filter removed → `invokes nothing for an output that is not a
- *      drop door` fails, and the script invokes `{"action":"drop"}` at a service URL output.
- *   3. The §0c wake moved BELOW §1 → `wakes the shared tier BEFORE it invokes any drop` fails.
+ *   1. §1 reverted to discovering doors across `$PR_STACKS` → `reaps a PR whose stacks are ALL GONE` fails,
+ *      and `invokes exactly ONE function` reports the two per-service migration runners. This is the
+ *      red-before-green run for the defect ADR-0030 exists for.
+ *   2. The payload's `pr` field dropped → `hands the reaper THIS PR's token and no other` fails, and the
+ *      reaper would reap whatever a token-less drop resolved to (it refuses; the point is the script must
+ *      not rely on that).
+ *   3. The §0c wake moved BELOW §1 → `wakes the shared tier BEFORE it invokes the reaper` fails.
  *   4. The wake's `|| teardown_failed=1` branch changed to `exit 1` → `a failed wake does not stop the stack
  *      deletes` fails, and the stacks leak — the 2026-07-28 incident shape that
  *      `sandboxReclamationReachability.test.ts` invariant 1 exists to forbid.
- *   5a. Either drop-failure branch left at `::warning::` with no `teardown_failed=1` → `a failed DROP fails
- *      the run` / `a drop the FUNCTION rejected fails the run too` fail. This is the red-before-green run for
- *      the owner's 2026-09-03 severity ruling, and both were red on the tree that shipped the discovery fix.
+ *   5a. Either drop-failure branch left at `::warning::` with no `teardown_failed=1` → `a failed invoke fails
+ *      the run` / `a drop the FUNCTION rejected fails the run too` fail. Owner ruling, 2026-09-03.
  *   5b. The failed drop changed from `teardown_failed=1` to `exit 1` → `a failed drop still does not stop the
- *      stack deletes` fails, and the stacks leak. Same shape as mutation 4, one section down: the ruling
- *      makes the run RED, it does not make the step ABORT.
- *   5. `PR_STACKS` computed twice (once per section) instead of shared → not detectable here, and
- *      deliberately so: it is a consistency property, asserted by construction in the script rather than by
- *      a test that would have to race the API.
+ *      stack deletes` fails. The ruling makes the run RED; it does not make the step ABORT.
+ *   6. The absent-reaper branch softened to a `::warning::` or a silent skip → `an ABSENT reaper is an error`
+ *      fails, which is the shape where a platform stack that has not deployed ADR-0030 yet leaks every
+ *      preview's database behind a green teardown.
  */
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -70,9 +79,9 @@ let logFile: string;
 /**
  * A stub `aws` that logs every call and answers from files the test writes.
  *
- * `describe-stacks` is routed on the `--query` it carries, because the script asks that one verb three
- * different questions — the Environment tag, and the outputs — and answering them alike would make the
- * outputs test pass for the wrong reason.
+ * `describe-stacks` is routed on the `--query` it carries, because the script asks that one verb two
+ * different questions — a stack's Environment tag, and a stack's outputs — and answering them alike would
+ * make the reaper lookup pass for the wrong reason.
  */
 const AWS_STUB = `#!/usr/bin/env bash
 printf '%s\\n' "$*" >> "$AWS_CALL_LOG"
@@ -98,7 +107,11 @@ case "$1 $2" in
         done
         case "$*" in
             *Tags*) cat "$AWS_STUB_DIR/tag-$stack" 2>/dev/null || echo 'None' ;;
-            *Outputs*) cat "$AWS_STUB_DIR/outputs-$stack" 2>/dev/null || true ;;
+            # The script's query FILTERS by OutputKey, so the stub answers per key rather than dumping the
+            # whole outputs file — otherwise a bogus "function name" (the first line of the file) is what
+            # gets invoked, and the suite passes for a script that looked up the wrong thing.
+            *PerPrDatabaseReaperFunctionName*) cat "$AWS_STUB_DIR/reaper-$stack" 2>/dev/null || echo 'None' ;;
+            *Outputs*) cat "$AWS_STUB_DIR/outputs-$stack" 2>/dev/null || echo 'None' ;;
         esac
         ;;
     'lambda invoke')
@@ -118,7 +131,9 @@ case "$1 $2" in
                 ;;
             *)
                 for arg in "$@"; do
-                    case "$arg" in /*.json) echo '{"dropped":"dropped"}' > "$arg" ;; esac
+                    case "$arg" in
+                        /*.json) echo '{"action":"drop","dropped":["kitchensink_food_pr_73"]}' > "$arg" ;;
+                    esac
                 done
                 ;;
         esac
@@ -137,6 +152,8 @@ exit 0
 interface RunResult {
     readonly status: number;
     readonly stdout: string;
+    /** Captured separately: the diagnostics §1 prints for a failed invoke go to STDERR. */
+    readonly stderr: string;
     /** Every stubbed invocation, in order, one argv string per line. */
     readonly calls: readonly string[];
 }
@@ -177,11 +194,17 @@ function run(token: string, fixtures: Fixtures, env: Readonly<Record<string, str
               .filter((line) => line.length > 0)
         : [];
 
-    return { status: result.status ?? -1, stdout: result.stdout, calls };
+    return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr, calls };
 }
+
+/** The PLATFORM data stack, which is where the reaper lives — never a stack the PR owns. */
+const REAPER_FIXTURE: Fixtures = {
+    'reaper-kitchensink-data-sandbox': 'kitchensink-data-sandbox-reaper',
+};
 
 /** The two stacks a PR that deployed both feature services owns, plus the tags and outputs they publish. */
 const BOTH_SERVICES: Fixtures = {
+    ...REAPER_FIXTURE,
     'db-instances': 'kitchensink-data-sandbox-db',
     'nat-instances': 'i-0nat\tGlobal-sandbox-NatInstance',
     stacks: 'kitchensink-food-service-pr-73\tkitchensink-recipe-service-pr-73\tkitchensink-alb-sandbox',
@@ -202,6 +225,12 @@ const BOTH_SERVICES: Fixtures = {
 const indexOfCall = (calls: readonly string[], ...fragments: readonly string[]): number =>
     calls.findIndex((call) => fragments.every((fragment) => call.includes(fragment)));
 
+/** Every `--function-name` the run invoked, in order. */
+const invokedFunctions = (calls: readonly string[]): readonly string[] =>
+    calls
+        .filter((call) => call.startsWith('lambda invoke'))
+        .map((call) => /--function-name (\S+)/.exec(call)?.[1] ?? '');
+
 beforeEach(() => {
     workdir = mkdtempSync(join(tmpdir(), 'teardown-db-'));
     binDir = join(workdir, 'bin');
@@ -219,68 +248,78 @@ beforeEach(() => {
     }
 });
 
-describe('teardown drops every per-PR logical database (ADR-0006)', () => {
-    it('drops the database behind EVERY migration-runner output, not just food"s', () => {
-        const { calls } = run('pr-73', BOTH_SERVICES);
-        const invoked = calls
-            .filter((call) => call.startsWith('lambda invoke'))
-            .map((call) => /--function-name (\S+)/.exec(call)?.[1] ?? '');
-
-        // ⛔ Set equality. "Contains recipe" would pass a script that also invoked something it should not,
-        // and "contains food" is what passed for two months while recipe leaked.
-        expect([...invoked].sort()).toEqual(['food-migrate-pr-73', 'recipe-migrate-pr-73']);
-    });
-
-    it('invokes nothing for an output that is not a drop door', () => {
+describe('teardown reclaims per-PR databases through the reaper (ADR-0030)', () => {
+    it('invokes exactly ONE function — the platform reaper, never a per-service migration runner', () => {
         const { calls } = run('pr-73', BOTH_SERVICES);
 
-        expect(indexOfCall(calls, 'lambda invoke', 'commise.app')).toBe(-1);
+        // ⛔ Set equality. "Contains the reaper" would pass a script that ALSO kept invoking the two
+        // per-service doors, which is the second authority ADR-0030 exists to remove.
+        expect(invokedFunctions(calls)).toEqual(['kitchensink-data-sandbox-reaper']);
     });
 
-    it('drops BEFORE the stack that owns the runner is deleted', () => {
-        // The runner is the only thing that can reach the PRIVATE_ISOLATED RDS, and it is torn down with its
-        // stack. After the delete, the database can only be removed by redeploying that service.
+    it("hands the reaper THIS PR's token and no other", () => {
+        const { calls } = run('pr-73', BOTH_SERVICES);
+        const invoke = calls.find((call) => call.startsWith('lambda invoke')) ?? '';
+
+        expect(invoke).toContain('"action":"drop"');
+        expect(invoke).toContain('"pr":"pr-73"');
+    });
+
+    it('⛔ reaps a PR whose stacks are ALL GONE — the case a per-stack door could never reach', () => {
+        // THE reason this capability exists. A PR whose stack was already deleted, or reaped while
+        // `RecipeMigrationFunctionName` went uninvoked, owns a logical database and nothing that can open it.
+        // Under the old shape this run invoked nothing and reported success.
+        const { calls, stdout } = run('pr-73', { ...REAPER_FIXTURE, ...BOTH_SERVICES, stacks: '' });
+
+        expect(invokedFunctions(calls)).toEqual(['kitchensink-data-sandbox-reaper']);
+        expect(stdout).toContain('[db-drop]');
+    });
+
+    it('⛔ reaps a PR whose stack is wedged and publishes NO outputs', () => {
+        // A stack in DELETE_FAILED / UPDATE_ROLLBACK_FAILED answers `describe-stacks --query Outputs` with
+        // nothing, so door discovery found no door — while the database it created is very much there.
+        const { calls } = run('pr-73', {
+            ...BOTH_SERVICES,
+            'outputs-kitchensink-food-service-pr-73': 'None',
+            'outputs-kitchensink-recipe-service-pr-73': 'None',
+        });
+
+        expect(invokedFunctions(calls)).toEqual(['kitchensink-data-sandbox-reaper']);
+    });
+
+    it('reads the reaper from the PLATFORM stack, not from anything the PR owns', () => {
         const { calls } = run('pr-73', BOTH_SERVICES);
 
-        expect(indexOfCall(calls, 'lambda invoke', 'recipe-migrate-pr-73')).toBeGreaterThanOrEqual(0);
-        expect(indexOfCall(calls, 'delete-stack')).toBeGreaterThanOrEqual(0);
-        expect(indexOfCall(calls, 'lambda invoke', 'recipe-migrate-pr-73')).toBeLessThan(
-            indexOfCall(calls, 'delete-stack'),
-        );
-    });
-
-    it('finds a drop door on a stack matched by TAG, which no name rule would catch', () => {
-        // `kitchensink-recipe-service-pr-73` is suffix-named, so `pr_scope_belongs` (a PREFIX rule) does not
-        // match it — it is reachable only through the App-level Environment tag. Section 1 shares section 2's
-        // discovery precisely so it inherits that, and this is the assertion that says so.
-        const { calls } = run('pr-73', { ...BOTH_SERVICES, 'tag-kitchensink-recipe-service-pr-73': 'None' });
-        const invoked = calls
-            .filter((call) => call.startsWith('lambda invoke'))
-            .map((call) => /--function-name (\S+)/.exec(call)?.[1] ?? '');
-
-        expect(invoked).not.toContain('recipe-migrate-pr-73');
+        expect(indexOfCall(calls, 'describe-stacks', 'kitchensink-data-sandbox', 'Outputs')).toBeGreaterThanOrEqual(0);
     });
 
     it('never reaches into a stack that is not this PR"s', () => {
         const { calls } = run('pr-73', BOTH_SERVICES);
 
         expect(indexOfCall(calls, 'delete-stack', 'kitchensink-alb-sandbox')).toBe(-1);
-        expect(indexOfCall(calls, 'lambda invoke', 'sandbox')).toBe(-1);
     });
 
-    it('says so plainly when the PR owns no database at all', () => {
-        // The common case: a web-only or docs-only PR. Saying nothing reads as a step that was skipped.
-        const { stdout } = run('pr-73', {
+    it('⛔ an ABSENT reaper is an ERROR — the databases are being left behind', () => {
+        // The platform stack has not deployed ADR-0030 yet, or the output was renamed. Either way this PR's
+        // databases stay on the shared instance, so a silent skip here would be the green-check-over-a-leak
+        // shape the whole teardown path has been rebuilt twice to remove.
+        const { status, stdout, calls } = run('pr-73', {
             ...BOTH_SERVICES,
-            stacks: 'kitchensink-alb-sandbox',
+            'reaper-kitchensink-data-sandbox': 'None',
         });
 
-        expect(stdout).toContain('no per-PR database to drop');
+        expect(stdout).toContain('publishes no PerPrDatabaseReaperFunctionName');
+        expect(invokedFunctions(calls)).toEqual([]);
+        expect(status).not.toBe(0);
+        // …and the rest of the teardown still runs.
+        expect(indexOfCall(calls, 'delete-stack', 'kitchensink-food-service-pr-73')).toBeGreaterThanOrEqual(0);
     });
 });
 
 describe('teardown wakes the shared tier before it needs it', () => {
-    it('wakes the shared tier BEFORE it invokes any drop', () => {
+    it('wakes the shared tier BEFORE it invokes the reaper', () => {
+        // The reaper is VPC-attached and the shared sandbox RDS is stopped nightly (ADR-0007), so without
+        // the wake this drop cannot work at its most common trigger time.
         const { calls } = run('pr-73', BOTH_SERVICES);
         const wake = indexOfCall(calls, 'rds describe-db-instances');
         const drop = indexOfCall(calls, 'lambda invoke');
@@ -289,20 +328,38 @@ describe('teardown wakes the shared tier before it needs it', () => {
         expect(drop).toBeGreaterThan(wake);
     });
 
-    it('a failed DROP fails the run, exactly as a failed wake does', () => {
-        // ⛔ Owner ruling, 2026-09-03: a failed drop and a failed wake are BOTH errors.
-        //
-        // The severities used to disagree, and backwards: the wake — which exists for no other purpose than
-        // to make the drop possible — failed the run, while the drop it was serving only warned. So the
-        // outcome the wake is a means to could fail on its own and the run stayed green, which is the
-        // "green check over a real leak" shape this whole teardown path has been closing.
+    it('drops BEFORE the stacks are deleted — now a preference, still asserted', () => {
+        // ⚠️ No longer a PRECONDITION: the reaper is not torn down with the PR, so a drop after §2 would
+        // still work. It stays ahead of §2 because §2 waits on each delete and a wedged stack can consume
+        // the whole run, which would cost the drop its turn.
+        const { calls } = run('pr-73', BOTH_SERVICES);
+
+        expect(indexOfCall(calls, 'lambda invoke')).toBeGreaterThanOrEqual(0);
+        expect(indexOfCall(calls, 'delete-stack')).toBeGreaterThanOrEqual(0);
+        expect(indexOfCall(calls, 'lambda invoke')).toBeLessThan(indexOfCall(calls, 'delete-stack'));
+    });
+
+    it('a failed invoke fails the run, exactly as a failed wake does', () => {
+        // ⛔ Owner ruling, 2026-09-03: a failed drop and a failed wake are BOTH errors. The severities used
+        // to disagree, and backwards — the wake, which exists for no other purpose than to make the drop
+        // possible, failed the run while the drop it was serving only warned.
         const { status, stdout } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DROP: 'invoke-fails' });
 
-        // Anchored to the DROP's own line, not a bare `::error::`: the end-of-run summary emits one too, so
-        // a looser assertion would pass on a script that still only warned here.
         expect(stdout).toContain('::error::could not invoke');
         expect(stdout).toContain('will be left behind');
         expect(status, 'a leaked per-PR database is not a silent outcome').not.toBe(0);
+    });
+
+    it('names AWS CLI v1 as the cause when that is what happened', () => {
+        // ⚠️ Cost a real diagnosis on 2026-08-27: the invoke failed with `Unknown options:
+        // --cli-binary-format` because the operator's shell resolved AWS CLI v1, and the message named the
+        // function but not the one fact that identified the cause in seconds.
+        const { stderr } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DROP: 'invoke-fails' });
+
+        // STDERR, deliberately: the reason lines are the ones that used to go to /dev/null, and asserting
+        // them on stdout would pass while they were being discarded again.
+        expect(stderr).toContain('CLI v1');
+        expect(stderr).toContain('--cli-binary-format');
     });
 
     it('a drop the FUNCTION rejected fails the run too — the CLI exiting 0 is not success', () => {
@@ -310,9 +367,8 @@ describe('teardown wakes the shared tier before it needs it', () => {
         // the exit status alone reports a successful drop for a database that is still there.
         const { status, stdout } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DROP: 'function-error' });
 
-        expect(stdout).toContain('::error::per-PR DB drop via');
-        expect(stdout).toContain('FunctionError');
-        expect(status, 'a FunctionError means the database survived — the run must go red').not.toBe(0);
+        expect(stdout).toContain('::error::per-PR DB drop for pr-73 returned a FunctionError');
+        expect(status, 'a FunctionError means the databases survived — the run must go red').not.toBe(0);
     });
 
     it('a failed drop still does not stop the stack deletes', () => {

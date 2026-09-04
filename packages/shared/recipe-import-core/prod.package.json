@@ -16,7 +16,8 @@
         "entities": "^8.0.0",
         "fraction.js": "^5.3.4",
         "parse-ingredient": "^2.2.0",
-        "sanitize-html": "^2.17.6"
+        "sanitize-html": "^2.17.6",
+        "zod": "^4.4.3"
     },
     "engines": {
         "node": "24.x"

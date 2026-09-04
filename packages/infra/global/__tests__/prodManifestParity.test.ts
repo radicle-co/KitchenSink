@@ -188,6 +188,17 @@ describe('prod.package.json agrees with the manifest it is derived from', () => 
      * naming a directory, which is the difference between a guard that covers what exists and a guard that
      * covers what someone remembered.
      */
+    /**
+     * ⛔ WIDENED A SECOND TIME (2026-09-04, PR #91 review). The check above caught only a RANGE that disagreed;
+     * it said nothing about a dependency that was simply ABSENT — and that is the older of the two drifts
+     * this file's own docstring opens with ("omitted EIGHT declared runtime dependencies"). Measured when this
+     * was widened: `packages/schemas/recipe/prod.package.json` declared only `zod` while its sources import
+     * `@kitchensink/recipe-core` and `@kitchensink/schema-food` at runtime (and `recipe-service/Dockerfile`
+     * line 48 COPYs that manifest into the image); `shared/identity-db` omitted `@kitchensink/identity-core`
+     * (COPY'd by `identity/Dockerfile`); `recipe-workers` and `recipe-import-core` omitted most of theirs.
+     * So the repo-wide rule is now the SAME three-way rule the per-service test applies: nothing omitted,
+     * nothing extra, no range disagreement.
+     */
     it('holds EVERY production manifest to the same parity, not just the deployable services', () => {
         const manifests = globSync('packages/**/prod.package.json', {
             cwd: repoRoot,
@@ -205,13 +216,29 @@ describe('prod.package.json agrees with the manifest it is derived from', () => 
             const devDependencies = dev.dependencies ?? {};
             const prodDependencies = prod.dependencies ?? {};
 
-            return Object.entries(prodDependencies)
-                .filter(([name, range]) => devDependencies[name] !== undefined && devDependencies[name] !== range)
-                .map(
-                    ([name, range]) =>
-                        `${prodPath}: ${name} is '${range}' here but '${String(devDependencies[name])}' in ` +
-                        'package.json — the image ships the workspace-resolved version, so the manifest lies',
-                );
+            return [
+                ...Object.keys(devDependencies)
+                    .filter((name) => prodDependencies[name] === undefined)
+                    .map(
+                        (name) =>
+                            `${prodPath}: ${name} is a declared runtime dependency but is MISSING from the ` +
+                            'production manifest',
+                    ),
+                ...Object.entries(prodDependencies)
+                    .filter(([name, range]) => devDependencies[name] !== undefined && devDependencies[name] !== range)
+                    .map(
+                        ([name, range]) =>
+                            `${prodPath}: ${name} is '${range}' here but '${String(devDependencies[name])}' in ` +
+                            'package.json — the image ships the workspace-resolved version, so the manifest lies',
+                    ),
+                ...Object.keys(prodDependencies)
+                    .filter((name) => devDependencies[name] === undefined)
+                    .map(
+                        (name) =>
+                            `${prodPath}: ${name} is declared in the production manifest but not in package.json, ` +
+                            'so it is not installed',
+                    ),
+            ];
         });
 
         expect(problems, problems.join('\n')).toStrictEqual([]);

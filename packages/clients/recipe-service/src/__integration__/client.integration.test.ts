@@ -13,7 +13,7 @@ import type { AddressInfo } from 'node:net';
 import { CONTRACT_HASH } from '@kitchensink/schema-recipe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { NotFoundError, RecipeServiceClient } from '../index.js';
+import { NotFoundError, RecipeServiceClient, shouldRetryRecipeServiceFailure } from '../index.js';
 import { resetContractSkewLatchForTests } from '../contractSkew.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
@@ -358,5 +358,62 @@ describe('RecipeServiceClient contract skew (integration, real HTTP server)', ()
         });
         expect(server.received).toHaveLength(5);
         expect(server.healthProbes).toHaveLength(1);
+    });
+});
+
+describe('shouldRetryRecipeServiceFailure (integration, real HTTP server)', () => {
+    /**
+     * ⛔ THE ONE THING THE UNIT TIER CANNOT SAY. `retryPolicy.test.ts` constructs each error class by hand
+     * and hands it to the predicate, which proves the classification and nothing about the CHAIN that
+     * produces it: real socket → ky → `send`'s own `401` replay logic → `errorForStatus`/`errorForCode` →
+     * the typed class → the predicate. A break anywhere in that chain leaves the predicate correct and the
+     * app still retrying a `404` four times, which is exactly the defect.
+     *
+     * So these drive a REAL status off a REAL server through the client's REAL transport (no injected
+     * fetch), and then ask the predicate about whatever actually came back.
+     */
+    let server: TestServer | undefined;
+
+    beforeEach(() => {
+        resetContractSkewLatchForTests();
+    });
+
+    afterEach(async () => {
+        await server?.close();
+        server = undefined;
+    });
+
+    /**
+     * Issue one read against a server answering `status`, and classify whatever the client threw.
+     *
+     * @param status - The HTTP status the server answers with.
+     * @returns The predicate's verdict on the real error.
+     * @sideEffect Boots a server and performs a real HTTP request.
+     */
+    async function verdictFor(status: number): Promise<boolean> {
+        server = await startServer([{ status, json: { message: 'nope' } }]);
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, token: 'tok-int', fetch });
+        const failure = await client.getRecipeById('rec_1').then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+
+        expect(failure).toBeInstanceOf(Error);
+
+        return shouldRetryRecipeServiceFailure(failure);
+    }
+
+    it.each([404, 400, 403, 410])('refuses to retry a real %i off the wire', async (status) => {
+        await expect(verdictFor(status)).resolves.toBe(false);
+    });
+
+    it.each([500, 502, 503])('still retries a real %i off the wire', async (status) => {
+        // The assertion a blanket refusal cannot pass — and it runs through the same mapping as the rows
+        // above, so a status→class regression shows up here rather than as four silent extra requests.
+        await expect(verdictFor(status)).resolves.toBe(true);
+    });
+
+    it('still retries a real 429, the one 4xx a status RANGE would have refused', async () => {
+        await expect(verdictFor(429)).resolves.toBe(true);
     });
 });

@@ -24,10 +24,15 @@ import { signInWithTicket } from './utils/auth';
  *    reported bug — an unbounded client wait leaves `status === 'loading'` forever, so the skeleton stays and
  *    the empty branch is never reached (see `DEFAULT_REQUEST_TIMEOUT_MS` in the recipe-service client).
  *  - **Which create control is on screen (L1: exactly one per state).** The pinned FAB ("New recipe") is
- *    present while loading / erroring / populated and SUPPRESSED in the true empty state, where the
- *    empty-state CTA ("Create your first recipe") takes over. That inversion makes the pair a real
- *    discriminator between first-run and a hung skeleton — the FAB alone is not, which is exactly why the
- *    mobile `list-detail` flow's `assertVisible: 'New recipe'` also passed against a hung load.
+ *    present while erroring and while populated, and SUPPRESSED in the true empty state, where the
+ *    empty-state CTA ("Create your first recipe") takes over. The PAIR is the discriminator — the FAB alone
+ *    is not, which is exactly why the mobile `list-detail` flow's `assertVisible: 'New recipe'` also passed
+ *    against a hung load.
+ *
+ *    ⚠️ The FAB is now withheld while the list is LOADING as well, so its absence no longer separates
+ *    first-run from a hung skeleton on its own — the live-region assertion above carries that alone. It was
+ *    mounted over an unsettled list and then unmounted as the empty library resolved, taking an already-open
+ *    create menu with it; `shouldShowCreateDial`'s JSDoc has the account.
  *
  * The second spec pins the state a recently-fixed defect got WRONG: a quick-filter chip that narrows to zero
  * is a NO-MATCH (the viewer has recipes; their own criteria excluded them), never first-run — it keeps the
@@ -47,9 +52,11 @@ test.describe('recipe list — zero-row states', () => {
         await expect(page.getByText('No recipes yet')).toBeVisible();
         await expect(page.getByText('Create your first recipe to see it here.')).toBeVisible();
 
-        // The empty-state CTA is the SOLE create control here, and the pinned FAB is suppressed (L1). The
-        // FAB's ABSENCE is load-bearing: it renders in every OTHER state, including the loading one, so
-        // asserting only its presence (as the mobile flow did) cannot tell first-run from a stuck skeleton.
+        // The empty-state CTA is the SOLE create control here, and the pinned FAB is suppressed (L1) — the
+        // PAIR is what names this state. ⚠️ The FAB's absence alone no longer separates first-run from a
+        // stuck skeleton: it is now withheld while the list is LOADING too (it used to mount over an
+        // unsettled library and then unmount as the empty state resolved). The live-region assertion below
+        // carries that discrimination on its own.
         await expect(page.getByRole('button', { name: 'Create your first recipe' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'New recipe' })).toHaveCount(0);
 

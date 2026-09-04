@@ -73,6 +73,11 @@ export {
     isVersionConflictError,
 } from './errors.js';
 
+// This client's half of the app-wide query retry policy. It sits beside `errors.ts` because only the module
+// that DEFINES a failure can say whether repeating it is worth anything; the app composes the owners'
+// predicates rather than re-deriving the classification from status codes.
+export { shouldRetryRecipeServiceFailure } from './retryPolicy.js';
+
 export type {
     AddIngredientByFoodRequest,
     CloneCollectionRequest,

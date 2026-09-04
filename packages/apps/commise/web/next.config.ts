@@ -62,6 +62,10 @@ const nextConfig: NextConfig = {
         // bundler platform-resolves the `.native` leaf — Next must transpile it, not treat it as opaque.
         '@commise/ui',
         '@commise/i18n',
+        // The app's shared TanStack Query configuration (`createAppQueryClient`), mounted by
+        // `RecipeProviders`. Webpack happens to resolve the workspace symlink to a real path outside
+        // `node_modules` and so transpiles it anyway; listed here so it does not depend on that.
+        '@commise/query',
         '@kitchensink/recipe-service-client',
         '@kitchensink/recipe-core',
     ],

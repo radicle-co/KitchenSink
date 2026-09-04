@@ -47,6 +47,10 @@ export {
     isUnauthorizedError,
     isUnexpectedResponseError,
 } from './errors.js';
+
+// This client's half of the app-wide query retry policy — beside `errors.ts`, because only the module that
+// DEFINES a failure can say whether repeating it is worth anything.
+export { shouldRetryProfileServiceFailure } from './retryPolicy.js';
 export { IMPERSONATION_BLOCK, SUSPENDED_BLOCK, deriveAuthState } from './authState.js';
 export type { AuthBlockMessage, AuthState, DeriveAuthStateInput } from './authState.js';
 export {

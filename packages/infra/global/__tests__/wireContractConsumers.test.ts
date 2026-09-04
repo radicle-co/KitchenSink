@@ -234,6 +234,10 @@ describe("the repository's clients and apps", () => {
             'packages/apps/commise/features/recipes',
             'packages/apps/commise/i18n',
             'packages/apps/commise/mobile',
+            // The app-wide TanStack Query configuration. It declares no wire type of its own — it composes
+            // the two clients' retry Specifications — but it depends on a client, so discovery finds it and
+            // §15's rules run over it like any other consumer.
+            'packages/apps/commise/query',
             'packages/apps/commise/ui',
             'packages/apps/commise/web',
             'packages/clients/bedrock',

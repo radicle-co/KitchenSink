@@ -25,6 +25,7 @@
         "packages/apps/commise/mobile",
         "packages/apps/commise/ui",
         "packages/apps/commise/i18n",
+        "packages/apps/commise/query",
         "packages/apps/commise/features/*",
         "packages/clients/*"
     ],

@@ -23,7 +23,8 @@
  *     component instead of remembering an order whose violation only shows up at runtime.
  */
 import { ClerkProvider } from '@clerk/expo';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createAppQueryClient } from '@commise/query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { JSX, ReactNode } from 'react';
 import { useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -47,7 +48,13 @@ if (!publishableKey) {
  * @returns The provider tree wrapping `children`, in the enforced order documented above.
  */
 export function AppProviders({ children }: { readonly children: ReactNode }): JSX.Element {
-    const [queryClient] = useState(() => new QueryClient());
+    // ⛔ `createAppQueryClient`, never a bare `new QueryClient()`. A bare client takes TanStack's default
+    // `retry: 3` with exponential backoff and applies it to EVERY failure, including a `404` — four requests
+    // and ~7s of pure backoff for one miss. The factory carries the shared policy (a 4xx cannot succeed on
+    // repeat and is not retried; 5xx and transport failures still are), and it lives in `@commise/query`
+    // precisely because the web facade mounts the SAME decision: this file and `RecipeProviders.tsx` each
+    // built their own client, so the platforms could only agree by inspection.
+    const [queryClient] = useState(createAppQueryClient);
 
     return (
         <TamaguiProvider config={tamaguiConfig} defaultTheme="light">

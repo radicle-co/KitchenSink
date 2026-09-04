@@ -38,23 +38,6 @@ import { signInWithTicket } from './utils/auth';
  */
 const POLL_SETTLE_TIMEOUT_MS = 20_000;
 
-/**
- * Bound for the not-found leg, and it is NOT padding — it is the cost of a known defect, scoped here
- * exactly as `collections.spec.ts` scopes it for the same reason. `RecipeProviders` builds a bare
- * `new QueryClient()`, so TanStack Query's DEFAULT retry (3 attempts, exponential backoff) applies to a
- * `404` as much as to a network blip: the API takes four requests to say "no" and the viewer waits ~7s,
- * comfortably past Playwright's 5s `expect` default. Fixing it is one predicate on `defaultOptions`
- * (`retry: (n, e) => !isNotFoundError(e) && n < 3`) but it changes retry behaviour for EVERY recipe query,
- * so it is a separable PR with its own tier of tests.
- *
- * ⚠️ NOTHING ON DISK TRACKS THAT PR. `collections.spec.ts` points at "the T109 follow-ups"; T109 is
- * `specs/001-commise-recipe-app/tasks.md`'s COMPLETED "add Playwright E2E tests for collections" and says
- * nothing about retries. This is now the SECOND spec paying the same 20-second toll for the same unowned
- * defect — the repo's own rule is that the third occurrence is the trigger, and this comment is the count.
- * Until then the wait is REAL and this spec waits it out rather than pretending the surface is faster.
- */
-const NOT_FOUND_SETTLE_TIMEOUT_MS = 20_000;
-
 test.describe('recipes — paste an ingredient list and review the parse (U9)', () => {
     test('pastes a list, watches it settle, and reviews the parsed lines', async ({ page }) => {
         await signInWithTicket(page);
@@ -64,10 +47,16 @@ test.describe('recipes — paste an ingredient list and review the parse (U9)', 
         // true-empty library so the empty state's own "Create your first recipe" CTA is the sole create
         // affordance. With `recipes: []` this test was asserting a control the product does not render.
         //
-        // It did not fail as "no such button", which is why it read as a mystery for so long: the dial IS
-        // mounted while the list is still LOADING (loading renders no CTA to compete with), so the first
+        // It did not fail as "no such button", which is why it read as a mystery for so long: the dial WAS
+        // mounted while the list was still LOADING (loading rendered no CTA to compete with), so the first
         // press landed, the menu opened — and then the empty library settled, `showDial` flipped false and
         // Playwright reported `element was detached from the DOM` on the second press, for 60s.
+        //
+        // ⚠️ That transition is FIXED — `shouldShowCreateDial` now withholds the dial until the library has
+        // resolved, so a first-run cook is never handed a control that is about to unmount. The seed here is
+        // still REQUIRED, and for the original reason: the dial is suppressed over a settled true-empty
+        // library too. What changed is only that `recipes: []` would now fail honestly ("no such button")
+        // instead of detaching mid-interaction.
         await mockRecipeApi(page, {
             viewerId,
             tier: 'premium',
@@ -255,9 +244,13 @@ test.describe('recipes — paste an ingredient list and review the parse (U9)', 
 
         await page.goto(route('/recipes/parse/00000000-0000-4000-8000-0000000000ff'));
 
+        // ⛔ NO EXPLICIT TIMEOUT — Playwright's default is the assertion. This leg used to carry a 20s bound
+        // with a docblock explaining that the wait was real: `RecipeProviders` built a bare `new QueryClient()`,
+        // so TanStack's default `retry: 3` applied to a `404` and the viewer waited ~7s while the API took four
+        // requests to say "no". That is fixed (`@commise/query`'s shared retry policy), so the generous bound
+        // is now the thing hiding a regression: at the default, a 404 that starts retrying again fails here.
         await expect(page.getByRole('region', { name: 'Your ingredients' }).getByRole('alert')).toContainText(
             'We couldn’t find that list.',
-            { timeout: NOT_FOUND_SETTLE_TIMEOUT_MS },
         );
     });
 });

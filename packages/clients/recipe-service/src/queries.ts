@@ -48,6 +48,7 @@ import type { Ingredient } from '@kitchensink/recipe-core';
 import type { ParseJobResponse, RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import type { RecipeServiceClient } from './client.js';
+import { shouldRetryRecipeServiceFailure } from './retryPolicy.js';
 import type { ListCollectionsParams, ListRecipesParams } from './types.js';
 
 // ─── Query-key factory ──────────────────────────────────────────────────────────────────────────
@@ -208,12 +209,28 @@ export function withDeadline(signal: AbortSignal | undefined, deadlineMs: number
 /**
  * Retries for the deferred nutrition read. ONE, deliberately.
  *
- * The library default (3, with exponential backoff) would stack on top of the transport's own retries and
+ * The app-level default (3, with exponential backoff) would stack on top of the transport's own retries and
  * push the worst case past {@link NUTRITION_BATCH_DEADLINE_MS} — at which point the deadline, not the retry
  * policy, decides the outcome, and the retries are pure latency. One retry covers the single dropped
  * connection this is actually worth defending against.
  */
 const NUTRITION_BATCH_RETRIES = 1;
+
+/**
+ * This read's retry rule: the app-wide classification, NARROWED to {@link NUTRITION_BATCH_RETRIES}.
+ *
+ * ⛔ A PREDICATE, NOT THE BARE NUMBER IT USED TO BE. TanStack's `retry` is one option, so a numeric override
+ * REPLACES the client-level predicate rather than tightening it — this was the one query in either app that
+ * still spent a retry on a `400`, invisibly, because the composition point cannot see a per-query override.
+ * A narrowing has to restate what it narrows.
+ *
+ * @param failureCount - How many attempts have already failed.
+ * @param error - The value the read rejected with.
+ * @returns `true` while another attempt is both within this read's own bound and worth making.
+ */
+function shouldRetryNutritionBatch(failureCount: number, error: unknown): boolean {
+    return failureCount < NUTRITION_BATCH_RETRIES && shouldRetryRecipeServiceFailure(error);
+}
 
 /**
  * Cache policy for the nutrition batch. Longer than the recipe list's 30s because the underlying data is
@@ -301,7 +318,7 @@ export function recipeQueries(client: RecipeServiceClient) {
                         signal: withDeadline(signal, NUTRITION_BATCH_DEADLINE_MS),
                     }),
                 staleTime: NUTRITION_BATCH_STALE_TIME_MS,
-                retry: NUTRITION_BATCH_RETRIES,
+                retry: shouldRetryNutritionBatch,
                 // The service REJECTS an empty list (asking about nothing is a caller bug, not an empty
                 // answer), so firing this would be a guaranteed 400 — gate it here instead.
                 enabled: recipeIds.length > 0,

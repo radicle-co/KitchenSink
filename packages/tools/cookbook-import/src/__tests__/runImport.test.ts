@@ -23,7 +23,7 @@
  * makes "no regression in line count" a property of the code rather than a hope, and it is the one to change
  * — deliberately, with the oracle in hand — when the pipeline is promoted to the authority.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -324,6 +324,63 @@ describe('the run WITH the parse observation', () => {
         expect(api.created.length).toBeGreaterThan(0);
         expect(report.parseObservation?.tierFailures).toEqual({ crf: 1 });
         expect(report.parseObservation?.agreement['single-engine']).toBe(report.parseObservation?.lines);
+    });
+});
+
+/**
+ * The ledger write sat inside the same `try` as the create. A POST that succeeded and a ledger write that
+ * then failed (ENOSPC, a permissions change, a full tmpfs) was caught as a REFUSED create: the run logged it
+ * as refused, kept going, and the next resume re-created a recipe that already existed — the exact duplicate
+ * the ledger is there to prevent, manufactured by the ledger's own failure path.
+ */
+describe('a ledger that cannot persist stops the run — it is not a refused create', () => {
+    it('rethrows the persistence failure and processes no further recipe', async () => {
+        const api = makeApi();
+        const ledger = makeLedger();
+        vi.spyOn(ledger, 'record').mockImplementation(() => {
+            throw new Error('ENOSPC: no space left on device');
+        });
+
+        await expect(
+            runImport({
+                book: BOOK,
+                plainText: readExcerpts(),
+                client: api,
+                ledger,
+                limit: 10,
+                settleMs: 0,
+                parseObservation: { kind: 'off' },
+                log: () => undefined,
+            }),
+        ).rejects.toThrow(/ENOSPC/);
+
+        // Exactly one create reached the service: the one whose ledger write failed. Had the failure been
+        // handled as a refusal, the loop would have gone on to create the rest of the excerpts.
+        expect(api.created).toHaveLength(1);
+    });
+
+    it('logs the created recipe id BEFORE the ledger write, so a failed write still leaves a trail to reconcile', async () => {
+        const api = makeApi();
+        const ledger = makeLedger();
+        const lines: string[] = [];
+        vi.spyOn(ledger, 'record').mockImplementation(() => {
+            throw new Error('EACCES: permission denied');
+        });
+
+        await runImport({
+            book: BOOK,
+            plainText: readExcerpts(),
+            client: api,
+            ledger,
+            limit: 10,
+            settleMs: 0,
+            parseObservation: { kind: 'off' },
+            log: (message) => {
+                lines.push(message);
+            },
+        }).catch(() => undefined);
+
+        expect(lines.some((line) => line.includes('created') && line.includes('rec_1'))).toBe(true);
     });
 });
 

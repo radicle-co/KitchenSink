@@ -431,16 +431,10 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
             },
         };
 
+        let created: RecipeDetail;
+
         try {
-            const created = await client.createRecipe(body);
-
-            ledger.record(book.ebookId, block.title, created.id);
-            report.imported += 1;
-            log(`  created  ${recipe.title}  (${lines.length} lines)`);
-
-            if (report.examples.length < MAX_EXAMPLES) {
-                report.examples.push({ recipeId: created.id, title: recipe.title, lines: exampleLines });
-            }
+            created = await client.createRecipe(body);
         } catch (error) {
             // A refused create is recorded and the run CONTINUES: one malformed candidate out of hundreds
             // must not discard the rest (004-FR-026's partial-failure rule, applied to a curation errand).
@@ -449,6 +443,21 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
                 reason: error instanceof Error ? error.message : String(error),
             });
             log(`  REFUSED  ${recipe.title} — ${error instanceof Error ? error.message : String(error)}`);
+            continue;
+        }
+
+        // ⛔ The ledger write is OUTSIDE the `try` above, and it is logged with the id FIRST. The recipe now
+        // exists remotely; a ledger that cannot persist (ENOSPC, a permission change) is not a refused create
+        // and must not be handled as one — that path kept the run going and the next resume re-created a
+        // recipe that already existed, the exact duplicate the ledger exists to prevent. So the failure is
+        // FATAL: it propagates, the run stops, and the id already in the log is the operator's trail to the
+        // one row the ledger does not know about.
+        log(`  created  ${recipe.title}  (${lines.length} lines)  ${created.id}`);
+        ledger.record(book.ebookId, block.title, created.id);
+        report.imported += 1;
+
+        if (report.examples.length < MAX_EXAMPLES) {
+            report.examples.push({ recipeId: created.id, title: recipe.title, lines: exampleLines });
         }
     }
 

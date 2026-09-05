@@ -1626,15 +1626,34 @@ jobs:
     # this PR's own `pr-{N}` services, resolved by `resolve-sandbox`, and the job SKIPS when there is no
     # sandbox.
     #
-    # ⛔⛔ OPEN BLOCKER, STATED RATHER THAN HIDDEN — this job cannot PASS against a live sandbox yet, and the
-    # blocker is a CREDENTIAL, not a trigger. `mintLinkageCredentials.ts` mints a THROWAWAY RSA keypair and
-    # both services used to be booted against it; a DEPLOYED stage verifies that stage's own Clerk instance
-    # and has never heard of this key, so every authenticated call in the suite will answer 401. Closing it
-    # needs a deployed-stage credential — a real Clerk user + session token for the stage's instance — which
-    # is exactly the thing `deployed-e2e.yml`'s header records as not yet wired, and which re-opens the
-    # shared-dev-instance fixture collision that made `bbf7ea7c` fail. ⛔ Do NOT "fix" this by pointing the
-    # job back at services booted on the runner, and do NOT make it skip-tolerant so it goes quiet: a tier
-    # that passes when its dependencies are absent is the exact failure this suite was written to remove.
+    # ⛔ GATED OFF — and the reason CHANGED on 2026-09-05. The credential half is solved; the CATALOG half
+    # is not. Turning it on is the repository variable `LINKAGE_E2E_ENABLED`, no code edit.
+    #
+    # SOLVED — the credential. `mintLinkageCredentials.ts` used to self-sign with a throwaway RSA keypair,
+    # which worked only while both services were booted on this runner against that key; a deployed stage
+    # verifies against its own Clerk instance and answered 401 to every call. It now signs in a fixed Clerk
+    # TEST PROFILE (`+clerk_test`, fixed code 424242, exempt from the instance's mail quota) against the
+    # Frontend API with `Origin` set to the stage's web origin — so the token carries `azp` equal to that
+    # origin, which is what `CLERK_AZP_PATTERN` is anchored against (ADR-0001), plus grants in the signed
+    # `public_metadata`. Proven against the live `pr-91` stage: recipe answers
+    # `200 {"catalogAvailability":"ok"}`, which is the exact assertion the degraded tier can never make.
+    #
+    # ⛔ Do NOT "simplify" that to Clerk's Backend API (`POST /sessions` → `POST /sessions/{id}/tokens`).
+    # That token carries NO `azp`, and an `azp`-less token is admitted only by `isNativeClientToken` — the
+    # `client_type: 'native'` claim from the mobile app's own template — whose docstring is explicit that a
+    # token is admitted because it PROVES it is native, "not merely because it lacks an origin". Measured:
+    # a Backend-API token gets 401 from BOTH services.
+    #
+    # REMAINING — the per-PR food catalog is EMPTY, so the suite has nothing to link to. Under ADR-0006 each
+    # preview gets its own fresh logical database, and nothing seeds it: `/api/v1/foods/search?query=flour`
+    # answers `{"results":[]}` on a live, healthy `pr-91`. That is ADR-0006's own "open consequence" bullet
+    # showing up in a test. Closing it is a DESIGN CHOICE not yet made — seed a handful of rows through
+    # ADR-0029's authored-foods door (a production path, but the rows are private until promoted), drive a
+    # real USDA fetch and wait for it, or seed the per-PR database at deploy time.
+    #
+    # ⚠️ The gate switches off the whole JOB, so the check is visibly ABSENT rather than falsely green. It
+    # must not become a skip-tolerant SUITE: the specs still fail loudly when food is unreachable, which is
+    # the property they were split from the degraded-path specs to have.
     #
     # ⚠️ `RECIPE_DEV_AUTH_USER_ID` is deliberately NEVER set: under recipe's dev bypass there is no bearer to
     # forward, so `FoodCatalogGateway` degrades to `catalogAvailability: 'unavailable'` WITHOUT ISSUING A
@@ -1644,7 +1663,8 @@ jobs:
         timeout-minutes: 20
         runs-on: ubuntu-latest
         needs: [install, resolve-sandbox]
-        if: needs.resolve-sandbox.outputs.live == 'true'
+        # Both halves are required: a live sandbox to drive, AND a catalog with rows in it. See above.
+        if: needs.resolve-sandbox.outputs.live == 'true' && vars.LINKAGE_E2E_ENABLED == 'true'
         env:
             # REQUIRED with no default, and the suite THROWS rather than skipping when one is absent: by the
             # time it runs, `resolve-sandbox` has already reported the stage serving, so absence is a

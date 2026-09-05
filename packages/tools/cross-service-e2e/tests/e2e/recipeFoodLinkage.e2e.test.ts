@@ -54,9 +54,8 @@ import {
 } from '@kitchensink/schema-recipe';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-/** The credential artefact `mintLinkageCredentials.ts` writes; both services are booted against it. */
+/** The credential artefact `mintLinkageCredentials.ts` writes — a real token from the STAGE's own Clerk. */
 interface LinkageCredentials {
-    readonly publicKeyPem: string;
     readonly token: string;
     readonly azp: string;
     readonly sub: string;

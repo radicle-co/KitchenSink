@@ -28,43 +28,26 @@ expiry, and dispatches the deploys.
 an absolute epoch in the `SandboxExpiresAt` stack tag. Nothing downstream recomputes it.
 
 **3. An hourly reconciler converges reality to intent.** `sandbox-reconcile.yml` reaps anything past its
-expiry and — ~~when no sandbox is live at all — stops the shared sandbox tier~~.
+expiry and, when no sandbox is live at all, **DELETES** the shared sandbox tier.
 
-> ⚠️ STALE (2026-09-04): only the FIRST half of §3 still holds. **The reconciler stops nothing.** The
-> `{"action":"stop"}` invocation was WITHDRAWN by the owner ruling recorded in "Update (2026-09-03)" at the
-> bottom of this ADR. What the last step of `sandbox-reconcile.yml` does now is invoke
-> `.github/scripts/sandbox-shared-tier.sh down` — a DELETE of the ALB + identity stacks, not a stop of the
-> RDS/NAT/ECS tier (`.github/workflows/sandbox-reconcile.yml:212-247`, whose own comment records the
-> withdrawal). `sharedTierLifecycle.test.ts` asserts the absence in both directions: no `{"action":"stop"}`
-> and no hand-rolled `stop-db-instance` / `--desired-count 0` equivalent.
+⛔ Deletes, never stops. The last step invokes `.github/scripts/sandbox-shared-tier.sh down`, which removes
+the ALB and identity stacks; there is no `{"action":"stop"}` anywhere, and `sharedTierLifecycle.test.ts`
+asserts that in both directions — no stop invocation, and no hand-rolled `stop-db-instance` or
+`--desired-count 0` equivalent.
 
 **4. ADR-0010's ensure-exists gate gains a precondition.** `deploy-gate.sh decide` takes `<intent>` as a
 new REQUIRED first parameter; absence of a stack no longer deploys on its own.
 
-> ⚠️ AMENDED (2026-09-04, owner ruling): **this still governs DEPLOYMENT and no longer governs
-> VALIDATION.** [ADR-0032](0032-deployed-ecosystem-test-tier.md) §6 records the ruling — _"Absent is fatal
-> because a PR with no deployed target cannot be validated."_ The gate is untouched: `intent = false` still
-> returns `deploy=false`, and a validation tier may NOT conjure its own target by re-arming ensure-exists.
-> What changes is what an absent stack means to the deployed-ecosystem test tier: not "reaped, carry on"
-> but "there is nothing to validate" — so that tier SKIPS, and a skip is not a pass. Two questions, two
-> answers, both correct.
->
-> ⚠️ REAFFIRMED and WIDENED (2026-09-05, owner ruling): _"all end to end tests (playwright, e2e, maestro,
-> etc) … should be skipped if the sandbox for the PR is not running."_ The same two-questions reading holds;
-> what grew is the set of jobs on the validation side — it is now **every** e2e tier, because there is no
-> longer a locally-booted e2e tier to fall back to (ADR-0032 §1, superseded 2026-09-05).
+⚠️ **This governs DEPLOYMENT, not VALIDATION.** The gate is untouched — `intent = false` still returns
+`deploy=false`, and a validation tier may NOT conjure its own target by re-arming ensure-exists. What
+differs is what an absent stack MEANS to the deployed test tier: not "reaped, carry on" but "there is
+nothing to validate", so that tier skips ([ADR-0032](0032-deployed-ecosystem-test-tier.md) §6). Two
+questions, two answers, both correct.
 
-~~**5. ADR-0007's 09:00 start schedule is deleted.** The 00:00 stop survives.~~
-
-> ⛔ FALSE (2026-09-04): **the 09:00 start schedule EXISTS.** It was restored under its original construct id
-> by the owner ruling recorded in "Update (2026-09-03)" below — _"The RDS should still be stopped and started
-> on the original schedule."_ Proof:
-> `packages/infra/global/lib/platform/SandboxSchedulerStack.ts:200-207` —
-> `new scheduler.Schedule(this, 'SandboxStartSchedule', { schedule: dailyAt('9'), … { action: 'start' } })`,
-> `TimeZone.AMERICA_NEW_YORK`, beside `SandboxStopSchedule` at `dailyAt('0')`
-> (`SandboxSchedulerStack.ts:188-195`). `SandboxSchedulerStack.test.ts` pins both cron expressions and the
-> pairing of each action to its own hour. ADR-0007 §"stop at 00:00 ET, start at 09:00 ET, daily" is therefore
-> the accurate description of the live schedule, not this line.
+**5. ADR-0007's schedules BOTH survive** — stop at 00:00 ET, start at 09:00 ET
+(`SandboxSchedulerStack`, `TimeZone.AMERICA_NEW_YORK`), with `SandboxSchedulerStack.test.ts` pinning both
+cron expressions and each action to its own hour. ⚠️ An earlier draft of this ADR deleted the 09:00 start;
+that was reversed by owner ruling, and ADR-0007's description is the accurate one.
 
 ## Why each of these, and what breaks without it
 
@@ -82,25 +65,13 @@ deploy that builds it. Below two hours the expiry rolls to the following midnigh
 ### ⛔ The gate amendment MUST ship with the reaper, and shipping either alone is a defect
 
 ADR-0010 made an ABSENT stack a reason to **deploy**, because a preview missing one of its services is
-broken behind a green check. Under on-demand, ~~absent stops meaning "broken" and starts meaning
-"deliberately reaped at midnight"~~ — so ensure-exists, left alone, **rebuilds every environment on the first
-push after the reaper ran**. Silently. Behind a green check. That is ADR-0010's own failure mode running
-backwards, and it would restore the entire bill while every signal stayed green.
+broken behind a green check. Under on-demand, absent stops meaning "broken" to the DEPLOY question and
+starts meaning "deliberately reaped at midnight" — so ensure-exists, left alone, **rebuilds every environment
+on the first push after the reaper ran. Silently. Behind a green check.**
 
-> ⚠️ AMENDED (2026-09-04, owner ruling) — **the struck clause is true of the DEPLOY question and FALSE of
-> the VALIDATE question, and it was written as though there were only one question.** The owner's ruling is
-> verbatim: _"Absent is fatal because a PR with no deployed target cannot be validated."_
->
-> | question                          | absent means                             | outcome                          |
-> | --------------------------------- | ---------------------------------------- | -------------------------------- |
-> | should I build this preview?      | deliberately reaped — do not rebuild it  | skip the deploy (this ADR, kept) |
-> | may I claim this PR is validated? | **fatal** — there is nothing to validate | skip the tier, claim NOTHING     |
->
-> The paragraph's own conclusion is UNWEAKENED — rebuilding a reaped environment because a test wanted one
-> is the same silent rebuild behind a green check — which is why
-> [ADR-0032](0032-deployed-ecosystem-test-tier.md) §6 resolves the second question with a SKIPPED job rather
-> than a deploy. ⛔ Do not read that skip as a pass, and do not make the tier a required check that a skip
-> would satisfy silently.
+⚠️ That re-reading is for DEPLOYMENT only. To the deployed TEST tier an absent stack still means "there is
+nothing to validate", so that tier skips rather than carrying on
+([ADR-0032](0032-deployed-ecosystem-test-tier.md) §6).
 
 So `intent` is a REQUIRED first parameter rather than a defaulted one: a default is a position, silently
 asserted on behalf of every caller that never considered it. Intent is carried by the `sandbox-up` PR
@@ -130,21 +101,17 @@ deploy died before stamping one, and reaping something reproducible by one butto
 mistake. The expensive one is infrastructure no process will ever collect — which is exactly what ADR-0005
 was written after.
 
-### Why the 00:00 stop survives while the 09:00 start goes
+### Why BOTH schedules survive
 
-> ⛔ FALSE (2026-09-04) — THIS WHOLE SUBSECTION IS REVERSED. Both schedules exist
-> (`SandboxSchedulerStack.ts:188-207`). The argument below is preserved because its _premise_ is the
-> instructive part and it expired rather than being wrong: it held while the shared ALB and identity service
-> were merely STOPPED, and this ADR's own Update of 2026-08-30 made them DELETED STACKS — a schedule cannot
-> create a stack, so a 09:00 `start` can now resurrect only the two resources that were ever stoppable (the
-> sandbox RDS instance and the NAT EC2 instance). See "Update (2026-09-03) — the 09:00 start is RESTORED"
-> below for the ruling and the reasoning.
+⚠️ This subsection used to argue the opposite, and the argument expired rather than being wrong — which is
+why the premise is worth keeping. It held while the shared ALB and identity service were merely STOPPED; the
+2026-08-30 amendment below made them DELETED STACKS, and a schedule cannot create a stack. So a 09:00
+`start` can now resurrect only the two resources that were ever stoppable — the sandbox RDS instance and the
+NAT EC2 instance — rather than "the whole tier, regardless of intent".
 
-~~The start would resurrect the whole tier every weekday morning regardless of intent, silently undoing the
-reaper.~~ The stop is kept for a **different** reason than "backstop": it is the thing that catches the 7-day
-RDS auto-restart in the weeks when GitHub Actions does not run at all. ~~The scheduler Lambda keeps its
-`start` action — that is how the button wakes the tier — only the _schedule_ is removed.~~ ⚠️ STALE
-(2026-09-04): the scheduler Lambda keeps its `start` action AND its schedule.
+The 00:00 stop is kept for a reason of its own, not as a backstop: it is what catches the 7-day RDS
+auto-restart in weeks when GitHub Actions does not run at all. The scheduler Lambda keeps its `start` action
+AND its schedule.
 
 ### One teardown implementation, still
 
@@ -163,29 +130,18 @@ discovery step deliberately omits `set -e` so one stack's hiccup cannot cancel t
 - **Previews no longer appear on their own.** A push to a PR with no live sandbox deploys nothing and says
   so. This is the intended behaviour and the largest workflow change here.
 
-    > ⚠️ AMENDED (2026-09-04, owner ruling): this consequence STANDS, and it now has a second half this
-    > bullet never stated. A PR with no live sandbox also gets **no deployed-ecosystem test result** —
-    > k6 and the deployed e2e suite SKIP rather than run against a locally booted stand-in
-    > ([ADR-0032](0032-deployed-ecosystem-test-tier.md) §§1, 6). So "deploys nothing and says so" is
-    > completed by "validates nothing and says so"; neither is a green check for work that did not happen.
-    >
-    > ⚠️ WIDENED (2026-09-05, owner ruling): the second half is now **every** end-to-end tier, not just the
-    > API-level pair this bullet named — _"all end to end tests (playwright, e2e, maestro, etc) … should be
-    > skipped if the sandbox for the PR is not running."_ A PR with no live sandbox therefore runs **no
-    > end-to-end test of any kind** and is green on that basis, which is the ruled outcome. ⚠️ The `§§1, 6`
-    > citation above should now be read as **§6 alone**: ADR-0032 §1's two-tier split (a local-booting
-    > "hermetic" tier kept beside the deployed one) was superseded by the same ruling. The skip rule is
-    > unchanged and its reach is larger.
+    ⚠️ It has a second half: a PR with no live sandbox also gets **no end-to-end test result of any
+    kind** — every e2e tier skips rather than running against a locally booted stand-in
+    ([ADR-0032](0032-deployed-ecosystem-test-tier.md)). So "deploys nothing and says so" is completed by
+    "validates nothing and says so", and such a PR is green on that basis, which is the ruled outcome.
+    Neither half is a green check for work that happened.
 
 - Expected saving **$30–45/month**, on top of the $101 already recovered from Container Insights.
 - **A sandbox can expire mid-session.** Press the button again — it re-stamps the expiry and redeploys,
   which is also how you extend one you are still working in.
-- ~~**The residual floor is the sandbox ALB (~$16.43/mo) and its RDS storage.** An ALB cannot be stopped, only
-  deleted, and deleting it requires tearing down every stack importing its listener ARN first — ADR-0002's
-  export-in-use deadlock. Deliberately out of scope.~~
-  ⚠️ STALE (2026-09-04): superseded by "Update (2026-08-30)" in this same ADR — the ALB and the shared
-  identity service ARE reclaimed (`.github/scripts/sandbox-shared-tier.sh`, `sandboxSharedTier.test.ts`).
-  What remains of the floor is the RDS gp3 storage (~$11.13/mo).
+- **The residual floor is the RDS storage**, not the ALB. An ALB cannot be stopped, only deleted — and the
+  amendment below does exactly that, putting `kitchensink-alb-sandbox` and the shared identity service on
+  the same on-demand lifecycle rather than leaving them as a floor.
 - Per-PR logical databases (ADR-0006) are destroyed with the preview. Acceptable, and the reason a logical
   seed template is a prerequisite for treating sandbox data as reproducible.
 
@@ -201,7 +157,7 @@ discovery step deliberately omits `set -e` so one stack's hiccup cannot cancel t
 - Sandbox storage is still 100 GB against a modelled full-scope need of ~10–11 GB; shrinking it needs a
   deliberate instance replacement (`allocatedStorage` is hardcoded, `deletionProtection` is on).
 
-## Update (2026-08-30) — the ALB was not an immovable floor, and the shared tier joins the lifecycle
+## Amendment — the ALB was not an immovable floor, and the shared tier joins the lifecycle
 
 This ADR recorded the sandbox ALB (~$16.43/mo) and its RDS storage as "the residual floor … deliberately out
 of scope", on the grounds that deleting an ALB requires tearing down every stack importing its listener ARN
@@ -297,12 +253,9 @@ order fails 1.
 - **Saving $23.73/month**, on top of this ADR's original $30–45 and the $101 from Container Insights.
 - **A button press now costs ~5–8 minutes more** — ALB creation plus DNS — and fails loudly if the rebuild
   fails, rather than deploying previews nobody can sign into.
-- ~~**Sandbox identity CloudWatch log groups are destroyed and recreated**, so log history no longer survives
-  across sandboxes.~~
-  ⚠️ STALE (2026-09-04): retired by "The log-group edge" section below, which this ADR already says retires
-  it. `ServiceLogsStack` owns the group under the stable name `/kitchensink/identity-service/{stage}`
-  (`packages/infra/global/lib/platform/ServiceLogsStack.ts:71-73`) and `IdentityServiceStack` imports it
-  (`IdentityServiceStack.ts:263-267`), so log history now DOES survive a sandbox teardown.
+- **Sandbox identity CloudWatch log groups survive a teardown.** Retired by "The log-group edge" below,
+  which this ADR already describes: the groups are retained rather than destroyed with the stack, so history
+  crosses sandbox lifetimes.
 - `continue-on-error` is deliberately absent from the reclaim step. The first draft had one so a failed ALB
   delete would not block stopping the RDS; that bought it by reporting the job GREEN, which is how an ALB
   that never deletes bills forever behind a passing check. `workflowInvariants` invariant 4 caught it. It was
@@ -401,7 +354,7 @@ mutation-checked: pointing the drain back at the identity service fails 1 synth 
 - The ~$11.13/month of sandbox RDS gp3 storage remains, as does the note that shrinking it needs a deliberate
   instance replacement (`6056779c` reverted an attempt that wedged the data stack).
 
-## Update (2026-09-03) — the 09:00 start is RESTORED, and the reconciler stops nothing
+## Amendment — the 09:00 start is RESTORED, and the reconciler stops nothing
 
 Owner ruling, verbatim:
 

@@ -189,13 +189,25 @@ jobs:
     preview-domain:
         name: Publish sandbox preview address
         runs-on: ubuntu-latest
+        # ⛔ ALSO ON `workflow_dispatch`, and that is not a widening for convenience. `sandbox-up.yml` — the
+        # button — starts a preview by DISPATCHING this workflow, so gating on `pull_request` alone meant the
+        # button brought the APIs up and never created the browsable address. Nothing caught it, because
+        # `resolve-sandbox` derives liveness from `deploy-gate.sh evaluate`, which probes STACKS: a
+        # button-started sandbox reports `live=true` with no preview host in DNS, and the manual
+        # `deployed-e2e.yml` run then drives Playwright at an origin nobody published.
+        #
+        # ⚠️ The fork guard applies to the `pull_request` arm only — a dispatch can only come from someone
+        # with write access. The dispatch arm is constrained instead to a `pr-{N}` stage, because a named
+        # stage owns no per-PR preview address and `previewDomainScope.ts` refuses it anyway.
         if: |
-            github.event_name == 'pull_request' && github.event.action != 'closed' &&
-            github.event.pull_request.head.repo.full_name == github.repository
+            (github.event_name == 'pull_request' && github.event.action != 'closed' &&
+             github.event.pull_request.head.repo.full_name == github.repository) ||
+            (github.event_name == 'workflow_dispatch' && startsWith(inputs.stage, 'pr-'))
         # Reads AWS + Vercel credentials — see the `Sandbox` binding note on `cleanup` above.
         environment: Sandbox
         env:
-            PR: pr-${{ github.event.pull_request.number }}
+            # On a dispatch the PR token IS the stage; on a `pull_request` it comes from the event payload.
+            PR: ${{ github.event_name == 'workflow_dispatch' && inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0

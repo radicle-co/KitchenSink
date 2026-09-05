@@ -25,12 +25,11 @@
     - Every CDK app that deploys a feature service sets
       `Environment = stage.startsWith('pr-') ? stage : 'global'` at the `App` level. The roster is not
       enumerated here — it has grown twice — and what matters is that a new app adopts the rule.
-    - ⚠️ **One app tags nothing: the web router.** `packages/apps/commise/web/infra/bin/app.ts` calls
-      `attachSecurityChecks` and `stampCommitProvenance` but never `Tags.of(app).add('Environment', …)`, so
-      `kitchensink-sandbox-router-{stage}` carries no `Environment` tag in either direction. It is SAFE under
-      the model — its name is `kitchensink-*`, so `pr_scope_belongs` answers false — but it is not
-      `Environment=global` either, so "tag everything" is not literally true. A real gap in the convention,
-      not in the safety property.
+    - ⚠️ The web router app tags with `Tags.of(app)` while every other app is told NOT to, and that is
+      deliberate rather than an inconsistency: the aspect form would rewrite every taggable resource on
+      every commit, which matters for the apps whose stacks churn. `Environment` is invariant for a given
+      stack — it can only move when the stage does, which is a different stack — so the rewrite it would
+      cause never happens here. The app's own comment carries the reasoning.
 
 2. **Name ephemeral resources with a `pr-{N}` prefix** where the resource type allows it (stacks, ECR repos), so the cleanup can find resources that could not be tagged (auto-created log groups, etc.) by name as well as by tag.
 3. **The `cleanup` job in `sandbox-deploy.yml` (on PR close) deletes anything matching `pr-{N}` — by tag OR by name — with no denylist.** All of it lives in `.github/scripts/teardown-sandbox-pr.sh`, which both `cleanup` and the daily `reap-abandoned` job call so the two cannot drift. It deletes the PR's CloudFormation stacks (feature stacks use the suffix `kitchensink-{service}-pr-{N}` convention and are caught by the `Environment=pr-{N}` tag — **not** by `belongs`, which is a prefix rule), sweeps remaining `Environment=pr-{N}`-tagged resources (deleting log groups + ECR, reporting any other type for a future handler), and sweeps `pr-{N}`-named log groups + ECR repos.

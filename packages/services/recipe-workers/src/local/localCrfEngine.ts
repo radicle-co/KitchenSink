@@ -33,6 +33,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 import type { LambdaClient } from '@aws-sdk/client-lambda';
 
@@ -45,6 +46,9 @@ const ENGINE_PACKAGE_DIR = path.resolve(MODULE_DIR, '..', '..', '..', 'ingredien
 export const ENGINE_HANDLER_DIR = path.join(ENGINE_PACKAGE_DIR, 'src');
 
 /** The distribution whose version the engine reports. */
+/** Mirrors `packaging.ts`'s `NLTK_DATA_DIRECTORY`; the deployed asset stages the corpus here. */
+const NLTK_DATA_DIRECTORY = 'nltk_data';
+
 const DISTRIBUTION = 'ingredient-parser-nlp';
 
 /** `ingredient-parser-nlp==2.3.0` in the pin file. */
@@ -147,7 +151,18 @@ export function createPythonEngineRunner(options: PythonEngineRunnerOptions = {}
             // argv. A recipe line is user text of arbitrary length and content, and an argv-carried request
             // would hit the platform argument limit on a full batch and would put user text in a process
             // listing.
-            const child = spawn(python, ['-c', DRIVER, handlerDir], { stdio: ['pipe', 'pipe', 'pipe'] });
+            // ⛔ NLTK_DATA, or this silently DOWNLOADS. The engine asks `nltk.data.find` for a POS tagger
+            // at import and, missing it, fetches it into `$HOME/nltk_data` — which is what killed the first
+            // deployed invocation (ADR-0025: Lambda's filesystem is read-only outside `/tmp`). The deployed
+            // path is fixed by staging the corpus into the asset; this local path inherited the old
+            // behaviour, so a machine without `~/nltk_data` reaches the network on first use and a machine
+            // WITH it silently uses a copy nobody pinned. Pointing at the staged corpus when it exists makes
+            // the two paths read the same bytes; when it does not, the previous behaviour is unchanged.
+            const stagedCorpus = path.join(ENGINE_PACKAGE_DIR, 'dist-asset', NLTK_DATA_DIRECTORY);
+            const child = spawn(python, ['-c', DRIVER, handlerDir], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                env: existsSync(stagedCorpus) ? { ...process.env, NLTK_DATA: stagedCorpus } : process.env,
+            });
             let stdout = '';
             let stderr = '';
 

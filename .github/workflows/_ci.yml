@@ -235,11 +235,20 @@ jobs:
 
                   recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
                   food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")
-                  web="https://${stage}.sandbox.${DOMAIN_NAME}"
-
+                  # ⛔ THE BROWSER ORIGIN BRANCHES ON THE STAGE, exactly as the identity origin below does.
+                  # It used to be the unconditional preview form, which resolves `prod` to
+                  # `https://prod.sandbox.{apex}` — a host that is neither prod nor a preview and answers
+                  # nothing. The service origins were already correct, so a prod flow would have driven a
+                  # browser at a dead host while every API call went to the real one.
+                  #
+                  # Prod is the APEX; every other stage is the per-PR preview subdomain (ADR-0001, cutover
+                  # executed 2026-07-13 — the older `sandbox.{apex}/pr-{N}` path form 404s BY DESIGN and
+                  # must not be reintroduced here).
                   if [ "${BASE_STAGE}" = 'prod' ]; then
+                      web="https://${DOMAIN_NAME}"
                       identity="https://identity.${DOMAIN_NAME}"
                   else
+                      web="https://${stage}.sandbox.${DOMAIN_NAME}"
                       identity="https://identity.${BASE_STAGE}.${DOMAIN_NAME}"
                   fi
 

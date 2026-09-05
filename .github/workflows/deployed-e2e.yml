@@ -280,7 +280,11 @@ jobs:
     # protection, and zero runner minutes. ⛔ Do NOT make it skip-tolerant (`always()` / `!cancelled()`):
     # that would run the suite against thin air and turn "there is nothing to do" back into a red check.
     deployed-e2e:
-        name: Deployed E2E (${{ needs.resolve.outputs.stage }})
+        # ⛔ A CONSTANT. Branch protection matches a required check by its RENDERED name, so an
+        # interpolated stage would publish a different check per run — and renders the raw `${{ … }}`
+        # verbatim when the job is skipped and the expression never resolves. The stage is reported in
+        # the job summary instead. Pinned by workflowInvariants' invariant 8.
+        name: Deployed E2E
         runs-on: ubuntu-latest
         needs: resolve
         if: needs.resolve.outputs.live == 'true'

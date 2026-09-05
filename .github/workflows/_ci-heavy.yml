@@ -906,7 +906,9 @@ jobs:
               run: docker logs recipe-load 2>&1 | tail -150 || true
 
     load-test-sandbox:
-        name: Load test (k6 — DEPLOYED ${{ inputs.load_test_target }} origins) · heavy tier
+        # ⛔ A CONSTANT — see `deployed-e2e.yml`'s note and workflowInvariants' invariant 8. The target
+        # (sandbox vs prod) is reported in the job summary, never in the check name a rule matches on.
+        name: Load test (k6 — deployed origins) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
         # k6-target: DEPLOYED origins — this PR's own `pr-{N}` preview (owner ruling 2026-09-04: "k6 should

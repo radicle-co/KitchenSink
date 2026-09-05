@@ -1651,3 +1651,90 @@ describe('invariant 7 — a job whose name says "E2E" targets a deployed environ
         ]);
     });
 });
+
+describe('invariant 8 — a JOB name is a constant, because branch protection matches on it', () => {
+    /**
+     * ⛔ A REQUIRED CHECK IS MATCHED BY ITS RENDERED NAME. A job whose `name:` interpolates an expression
+     * therefore publishes a DIFFERENT check name per run — `Deployed E2E (pr-91)` on one event and
+     * `Deployed E2E (prod)` on another — and a branch-protection rule naming either one reads the other as
+     * *missing* rather than as failing. Worse, an expression that cannot resolve renders literally: the
+     * first deployed-e2e run published `Deployed E2E (${{ needs.resolve.outputs.stage }})`, verbatim, because
+     * the job was skipped and `needs.resolve.outputs.stage` never evaluated.
+     *
+     * ⚠️ SCOPED TO JOB NAMES ONLY, and that is deliberate. Step names (`Load ${{ inputs.stage }} Clerk
+     * secrets`) and artifact names (`maestro-report-${{ inputs.stage }}`) SHOULD interpolate — a step name is
+     * never a required check, and an artifact name must differ per stage or the uploads collide. Widening
+     * this to every `name:` would forbid the correct thing along with the broken one.
+     *
+     * ⛔ AND `matrix`/`strategy` ARE EXEMPT, WHICH IS THE WHOLE DISTINCTION. `Test (${{ matrix.group }})` is
+     * not merely tolerable, it is REQUIRED: without it every leg of the matrix publishes the same check
+     * name. It is safe for the same reason it is required — the value set is ENUMERATED IN THE WORKFLOW, so
+     * the rendered names are a known, finite, stable set (`Test (infra)`, `Test (services)`, …) that a
+     * branch-protection rule can name. `needs.*` and `inputs.*` are the opposite: their values come from a
+     * previous job's runtime output or from whatever a human typed into a dispatch form, so the set is
+     * neither known nor bounded. The first version of this guard flagged all four matrix jobs and had to be
+     * narrowed — the red run is what taught the distinction, which is why it is written down here.
+     *
+     * The dynamic part belongs in the job SUMMARY or a step name, where it is read by a human rather than
+     * matched by a rule.
+     *
+     * DESIGN PATTERN: Specification over a derived set — the workflow tree is discovered, never listed.
+     */
+    /**
+     * Every `${{ … }}` in a string, as its trimmed body.
+     *
+     * ⚠️ AN EXTRACTION, NOT A NEGATIVE LOOKAHEAD. The first attempt was
+     * `/\$\{\{\s*(?!matrix\.|strategy\.)/`, which passes every matrix job through as an offender:
+     * `\s*` backtracks to consume ZERO characters, the lookahead then compares against `" matrix."` with
+     * its leading space, does not match `matrix.`, and the NEGATIVE lookahead therefore succeeds. Reading
+     * the body out and testing it directly cannot be fooled that way.
+     */
+    const INTERPOLATIONS = /\$\{\{([\s\S]*?)\}\}/g;
+
+    /** Whether a job name interpolates anything the workflow does not itself enumerate. Pure. */
+    function hasUnboundedInterpolation(name: string): boolean {
+        return [...name.matchAll(INTERPOLATIONS)].some((match) => {
+            const body = (match[1] ?? '').trim();
+
+            // ⛔ `needs.*` ONLY — the failure this guard was built from, and the only one demonstrated.
+            // A `needs` output is EMPTY when the job producing it was skipped, and GitHub then renders the
+            // raw `${{ … }}` into the check name: the first `deployed-e2e` run published
+            // `Deployed E2E (${{ needs.resolve.outputs.stage }})` verbatim.
+            //
+            // ⚠️ NOT asserted, though arguably worse for branch protection: `inputs.*` and `github.*`
+            // (`Deploy food sandbox (pr-${{ github.event.pull_request.number }})`). Those ALWAYS resolve, so
+            // they never render as garbage — they only vary, and the jobs carrying them are manual or
+            // per-PR and are not required checks. Forcing them constant would strip information a human
+            // reads in the checks list to prevent a harm they do not currently cause. If one of those jobs
+            // ever becomes a required check, widen this — deliberately, not by tightening a regex.
+            return body.startsWith('needs.');
+        });
+    }
+
+    /** Every `jobs.<key>.name` in the tree, with its file, ignoring step and artifact names. Pure. */
+    function jobNames(): readonly { readonly file: string; readonly key: string; readonly name: string }[] {
+        return realWorkflows().flatMap(({ file, doc }) =>
+            Object.entries(doc.jobs ?? {})
+                .filter(([, job]) => typeof (job as { name?: unknown }).name === 'string')
+                .map(([key, job]) => ({ file, key, name: (job as { name: string }).name })),
+        );
+    }
+
+    it('never interpolates an expression into a job name', () => {
+        const offenders = jobNames()
+            .filter((job) => hasUnboundedInterpolation(job.name))
+            .map((job) => `${job.file}::${job.key} → ${job.name}`);
+
+        expect(
+            offenders,
+            'a job name containing ${{ }} publishes a different required-check name per run, and renders ' +
+                'the raw expression when it cannot resolve',
+        ).toEqual([]);
+    });
+
+    it('is not vacuous — it reads real job names', () => {
+        // ⛔ Without this, a discovery that stopped finding jobs would make the gate above pass by finding
+        // nothing — the failure mode every derived-set guard in this file is most exposed to.
+        expect(jobNames().length).toBeGreaterThanOrEqual(30);
+    });
+});

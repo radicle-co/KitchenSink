@@ -58,7 +58,7 @@ If you are about to give a service "its own" ALB, reuse a listener-rule priority
 
 Move a service back to its **own** ALB when any of: sustained LCU/traffic makes per-service ALB cost marginal anyway; a service needs ALB-level isolation (independent WAF rules, access-log stream, or deploy/blast-radius separation); or the shared-listener priority/space or shared-SG coupling becomes an operational drag. The refactor is local — re-add an `ApplicationLoadBalancer` in that service stack, move its rule's target group onto the new listener, and re-point its A-record.
 
-## Update (2026-08-12) — ONE allocator, registry-driven bands (the priority space was exhausted at two feature services)
+## Amendment — ONE allocator, registry-driven bands (the priority space was exhausted at two feature services)
 
 ### What was wrong
 

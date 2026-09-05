@@ -31,7 +31,7 @@
 2. **Fargate egresses via the IGW, not the NAT.** The identity service moves to **public subnets + `assignPublicIp`**, inbound still locked to the ALB SG; it reaches the private RDS intra-VPC by SG. (Food's API + worker do the same in 003.)
 3. **Minimize NAT membership to the irreducible set.** After (1)+(2), the NAT serves **only** Lambdas that are VPC-attached because the RDS is private — the "no alternative" case. Nothing joins it for convenience. ⚠️ The RULE is what this decision fixes; the MEMBERSHIP is not frozen, and it has since grown well past the four functions named when this was written — see the 2026-08-20 update. A guard test asserts `NetworkStack` has 0 NAT Gateways and a `t4g.nano` instance.
 
-## Update (2026-08-20) — the consumer list grew, and is now asserted
+## Amendment — the consumer list grew, and is now asserted
 
 **The rule in Decision 3 held. The list under it did not, and nothing failed, because a prose list cannot go
 red.** Written in June around three webhook handlers plus a migration runner, the set was by then **17

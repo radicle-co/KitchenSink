@@ -1,9 +1,9 @@
 # 0008 — Additional cost levers: gp3 storage, Fargate Spot (non-prod), and budget guardrails
 
-- Status: Accepted
-- Date: 2026-07-01
-- Deciders: platform
-- Related: [0002](0002-vpc-consolidation-and-cidr-scheme.md), [0004](0004-minimize-nat-egress.md), [0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md), [0007](0007-sandbox-cost-controls.md)
+- **Status:** Accepted
+- **Date:** 2026-07-01
+- **Deciders:** platform
+- **Related:** [0002](0002-vpc-consolidation-and-cidr-scheme.md), [0004](0004-minimize-nat-egress.md), [0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md), [0007](0007-sandbox-cost-controls.md)
 
 ## Context
 
@@ -26,8 +26,9 @@ provisioned IOPS or throughput is set — at 100 GB gp3 uses its free baseline, 
 `Iops` nor `StorageThroughput`. Flipping prod to gp3 later is a safe online modify (no downtime), but
 is **deliberately deferred** to preserve the prod-no-diff proof on this change; do it in its own PR.
 
-**2. Fargate Spot for non-prod tasks.** The identity service and the food service (API service,
-fetch worker, and the change-refresh scheduled RunTask) derive their capacity strategy from `stage`:
+**2. Fargate Spot for non-prod tasks.** Every ECS service and scheduled task in the repository derives
+its capacity strategy from `stage` — stated as a rule rather than a roster, because a copy of a list cannot
+detect that the list grew (the ADR-0003 / ADR-0004 lesson). The rule reads:
 `prod →` on-demand `FARGATE` (unchanged → no prod diff), **non-prod → `FARGATE_SPOT`** (weight 1).
 Non-prod is interruption-tolerant: previews are disposable and the fetch worker is idempotent (an
 interrupted lease expires and the `fetch_queue` row re-leases, so a Spot reclaim only delays, never
@@ -35,13 +36,6 @@ drops, a fetch). The gating is on `stage`, not `baseStage`, so a `pr-{N}` previe
 though it imports the sandbox platform (ADR-0006). Each cluster advertises the `FARGATE_SPOT`
 capacity provider (`enableFargateCapacityProviders`) only for non-prod, so no
 `ClusterCapacityProviderAssociations` resource is added to the prod template.
-
-> ⚠️ STALE (2026-09-04): the enumeration in the first sentence is no longer complete — the **recipe service**
-> joined and does exactly the same thing
-> (`packages/services/recipe-service/infra/lib/RecipeServiceStack.ts:148,201,412`). The RULE above is
-> unchanged and still correctly stated; only the list of services subject to it has grown. Do not read the
-> two-service list as "recipe is exempt". (Enumeration rot is the ADR-0004 / ADR-0003 lesson: a copy of a list
-> cannot detect that the list grew.)
 
 **3. Account-wide cost guardrails (new additive stack).** A standalone `CostGuardrailsStack` (name
 `kitchensink-cost-guardrails`, tagged `Environment=global`) is created **once**, guarded to

@@ -1,24 +1,9 @@
 # 0002 — One VPC per stage with distinct CIDRs (prod 10.0.0.0/16, sandbox 10.1.0.0/16)
 
-- **Status:** Accepted — _per-stage CIDR threading implemented_ (`NetworkStack` takes `stage`, `cidrForStage` assigns the range; prod unchanged, sandbox renumbered). The **sandbox VPC/RDS recreation** and **legacy `dev` retirement** are operational steps (see the runbook) and remain to be executed. ⚠️ UNVERIFIABLE FROM THE REPO (2026-09-04): whether those two operations have since been run is live AWS state — nothing in the tree records it either way. The CODE half is verified: `packages/infra/global/lib/platform/NetworkStack.ts:25-30` assigns prod `10.0.0.0/16`, sandbox `10.1.0.0/16`, everything else `10.2.0.0/16`, and `packages/infra/global/__tests__/NetworkStack.test.ts:14-38` pins all three.
+- **Status:** Accepted
 - **Date:** 2026-06-14
 - **Area:** AWS network topology · CDK global infra · RDS · cross-stack exports
 - **Related:** `docs/plans/2026-06-14-004-refactor-vpc-consolidation-plan.md`, `docs/runbooks/sandbox-vpc-recreation.md`, `docs/plans/2026-06-14-003-feat-tailscale-private-aws-access-plan.md` (depends on this), `packages/infra/global/lib/platform/NetworkStack.ts`, `.github/workflows/prod-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`
-
-## ⚠️ Before you change this — the trap
-
-If you are about to change a stage's VPC CIDR in `cidrForStage`, or "just `cdk deploy`" a CIDR change — **stop and read this first.**
-
-- **Changing the prod CIDR (or a construct ID that feeds the VPC) replaces the prod VPC, which replaces the prod RDS.** RDS is `removalPolicy: DESTROY`, ~~`deletionProtection: false`~~ — there is no safety snapshot. ~~Prod data is gone.~~ Prod is kept on `10.0.0.0/16` precisely so the explicit value equals the prior CDK default and produces **no diff**. The gate before any prod deploy is an **empty `cdk diff` for the whole prod network + data stacks**, not just "the VPC looks unchanged."
-    - ⚠️ STALE (2026-09-04): `deletionProtection` is now **`true`, on every stage** — owner ruling
-      2026-08-08, `packages/infra/global/lib/platform/DataStack.ts:267`, whose comment names _this_ ADR's
-      hazard as the reason. `removalPolicy: DESTROY` is unchanged (`DataStack.ts:269`) and there is still no
-      safety snapshot, so the trap still binds — but the outcome is no longer silent data loss. A replacing
-      change now **FAILS LOUDLY in CloudFormation** until someone deliberately disables protection first.
-      Do not read this as licence to skip the empty-`cdk diff` gate above: protection stops the delete, it
-      does not stop a wedged, half-applied network update.
-- **A CIDR change cannot be a one-shot `cdk deploy --all`.** CloudFormation refuses to change an export while another stack imports it, and the service/webhooks stacks import the network/data exports. The swap is an ordered teardown (see the runbook). A naive deploy deadlocks on export-in-use.
-- **Never `cdk destroy` the global/data stack to recover from a wedged update.** Its buckets are `autoDeleteObjects: true` + `DESTROY`; destroy empties them and drops the DB. Fix forward only. `destroy` is the procedure for the service/webhooks stacks, not the data stack.
 
 ## Context
 
@@ -33,15 +18,7 @@ If you are about to change a stage's VPC CIDR in `cidrForStage`, or "just `cdk d
 2. **Recreate sandbox fresh; do not migrate data.** Sandbox identity data is minimal; the sandbox RDS is rebuilt in the new VPC after a verified-empty check and a pre-destroy snapshot (insurance), via the ordered teardown in the runbook.
 3. **Retire the legacy `dev` VPC/RDS** after a CFN **and** non-CFN dependency sweep, PII-aware row check, and staged disable-then-delete.
 4. **Single authoritative stack set** in `packages/infra/global`; the service/webhooks duplicate definitions are deleted, with infra tests relocated to the global package.
-5. **Cross-VPC router topology: Option A (peer the VPCs, one prod router).** The peering connection, routes, and cross-VPC DB SG rule are built with the Tailscale router (~~ADR 0003~~ / plan 003), not here; this ADR establishes the distinct-CIDR precondition that makes peering legal.
-    - ⛔ FALSE (2026-09-04): **there is no Tailscale ADR, and ADR-0003 is something else entirely** — it is
-      `0003-shared-alb-per-stage.md`, "One shared internet-facing ALB per stage". The only surviving
-      reference is the plan, `docs/plans/2026-06-14-003-feat-tailscale-private-aws-access-plan.md` (which
-      exists). ⚠️ STALE (2026-09-04): the router was never built and neither was the peering — `tailscale`
-      appears in no source file in `packages/`, and no `CfnVPCPeeringConnection` exists anywhere in
-      `packages/infra/global/lib` (the only hit is the word "peered" in a `NetworkStack.ts:16` comment). The
-      distinct-CIDR precondition landed; nothing consumes it yet, so the prod↔sandbox coupling listed under
-      _Consequences_ has not been incurred.
+5. **Cross-VPC router topology: Option A (peer the VPCs, one prod router).** The peering connection, routes, and cross-VPC DB SG rule are built with the Tailscale router (`docs/plans/2026-06-14-003-feat-tailscale-private-aws-access-plan.md`), not here; this ADR establishes the distinct-CIDR precondition that makes peering legal.
 
 ## Consequences
 
@@ -56,6 +33,14 @@ If you are about to change a stage's VPC CIDR in `cidrForStage`, or "just `cdk d
 - Landing the `packages/infra/global/**` change redeploys prod service + webhooks and re-runs prod migrations (idempotent) — a prod-touching merge, gated by a clean all-stacks `cdk diff`.
 - Sandbox has a brief outage during recreation and its test data is discarded (snapshot taken first).
 - **Option A couples prod↔sandbox at the routing layer** once peering lands — gated by route tables, the cross-VPC DB SG rule, and the tailnet ACL; reversible in ~5 minutes. The developer laptop bridges both VPCs regardless once the router exists, so the tailnet ACL is the load-bearing control either way.
+
+**What this decision makes expensive to reverse**
+
+These follow directly from pinning a CIDR per stage, and they bind for as long as it stands.
+
+- **Changing the prod CIDR — or any construct ID that feeds the VPC — replaces the prod VPC, which replaces the prod RDS.** The database carries `removalPolicy: DESTROY` and takes no automatic snapshot, so nothing in the stack preserves the data across a replacement. `deletionProtection` is `true` on every stage (`DataStack.ts`, whose comment names this hazard as its reason), which converts the outcome from silent loss into a loud CloudFormation failure — it stops the delete, not a wedged half-applied network update. Prod is kept on `10.0.0.0/16` precisely so the explicit value equals the prior CDK default and produces **no diff**; the gate before any prod deploy is an empty `cdk diff` across the whole prod network + data stacks, not "the VPC looks unchanged."
+- **A CIDR change cannot be a one-shot `cdk deploy --all`.** CloudFormation refuses to change an export while another stack imports it, and the service/webhooks stacks import the network/data exports. The swap is an ordered teardown (see the runbook); a naive deploy deadlocks on export-in-use.
+- **`cdk destroy` is not a recovery path for the global/data stack.** Its buckets are `autoDeleteObjects: true` + `DESTROY`, so destroying empties them and drops the database. Recovery is fix-forward; `destroy` is the procedure for the service/webhooks stacks only.
 
 ## Alternatives considered
 

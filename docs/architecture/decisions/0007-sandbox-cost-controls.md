@@ -1,6 +1,6 @@
 # 0007 — Sandbox cost controls: right-sizing + scheduled nightly shutdown
 
-- Status: Accepted
+- **Status:** Accepted
 - Date: 2026-07-01
 - Deciders: platform
 - Related: [0002](0002-vpc-consolidation-and-cidr-scheme.md), [0003](0003-shared-alb-per-stage.md), [0004](0004-minimize-nat-egress.md), [0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md)

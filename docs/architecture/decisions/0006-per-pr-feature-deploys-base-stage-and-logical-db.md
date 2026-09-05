@@ -1,6 +1,6 @@
 # 0006 — Per-PR feature-service deploys: base-stage imports + per-PR logical database
 
-- Status: Accepted
+- **Status:** Accepted
 - Date: 2026-07-01
 - Deciders: platform
 - Related: [0002](0002-vpc-consolidation-and-cidr-scheme.md), [0003](0003-shared-alb-per-stage.md), [0005](0005-environment-tagging-and-pr-cleanup.md)

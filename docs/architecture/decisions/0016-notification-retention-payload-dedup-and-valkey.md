@@ -1,10 +1,6 @@
 # 0016 — A notification is retained until the client acks it or 3 days pass, deduplicated by canonical payload while pending, in ElastiCache Serverless for Valkey
 
-- **Status**: Accepted — ⛔ **NOT IMPLEMENTED.** As of 2026-09-04 no notification service, schema
-  package, client, ElastiCache/Valkey resource, `canonicalize` dependency, ack endpoint or dedup key
-  exists in the repository. The ONE shipped part is the 2026-08-16 amendment's DynamoDB message
-  substrate (`MessageSubstrateStack`, `packages/shared/messaging`) — a different store for a different
-  job, not this decision. `Accepted` here means the decision stands, NOT that it runs.
+- **Status:** Accepted
 - **Date**: 2026-08-12
 - **Drivers**: owner directive 2026-08-12, verbatim — _"Keep the notification until the client indicates
   that it has been consumed or three days have passed. Dedup messages based on payload so we don't have

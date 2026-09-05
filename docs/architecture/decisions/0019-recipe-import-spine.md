@@ -1,11 +1,6 @@
 # 0019 — The recipe import spine: one bulk processor, source-typed channels, and status-shell placeholders
 
-- **Status**: Accepted — ⛔ **NOT IMPLEMENTED.** As of 2026-09-04 there is no bulk-import endpoint, no
-  channel adapter, no `queued/processing/succeeded/failed/errored` status contract, no per-entity
-  emitter, no image-processing service and no §5 placeholder. ⚠️ NAME COLLISION, and it invites exactly
-  the wrong conclusion: `recipe-import-core`, `/api/v1/recipe-parse-jobs` and
-  `packages/tools/cookbook-import` DO exist, but they are ingredient-LINE parsing (ADR-0026), not this
-  spine. `Accepted` here means the decision stands, NOT that it runs.
+- **Status:** Accepted
 - **Date**: 2026-08-14
 - **Drivers**: Owner ruling (2026-08-14). Feature 004 and feature 011 had each specified their own
   photo-import pipeline, feature 011's own prerequisite table already asserted a boundary

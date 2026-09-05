@@ -1,10 +1,13 @@
 # 0029 — Authored foods: the substances-only amendment to the single-writer rule
 
-Date: 2026-08-31 · Status: accepted · Plan: `docs/plans/2026-08-30-001-feat-resolution-funnel-earned-autonomy-plan.md` (U10–U12, U16, U18–U19) · Owner rulings: 2026-08-30 Q3a/Q3b/Q3c, 2026-08-30 promotion Sybil gate
+- **Status:** Accepted
+- **Date:** 2026-08-31
+- **Plan:** `docs/plans/2026-08-30-001-feat-resolution-funnel-earned-autonomy-plan.md` (U10–U12, U16, U18–U19)
+- **Owner rulings:** Q3a, Q3b, Q3c and the promotion Sybil gate (all 2026-08-30)
 
 ## Context
 
-Two standing decisions boxed in the ingredient catalog. T150 (2026-08-08) ruled that **a recipe is a
+Two standing decisions boxed in the ingredient catalog. T150 ruled that **a recipe is a
 method, not a substance**: a finished dish is never written into the food database, and the food DB keeps
 a single writer — the USDA/source pipeline. That rule was doing two jobs at once: keeping recipes out of
 the food table (its point), and keeping _users_ out of it entirely (a side effect). The side effect meant
@@ -43,7 +46,7 @@ The decision decomposes into rulings, each with its enforcement point:
    enters a global mapping — the mapping-scope policy's `correctedFoodIsPrivate` clamp), and the detail
    read's viewer overlay (`RESOLVED_UNAVAILABLE`, plan U13). A clone by a non-author UNBINDS the line
    into a freeform row rather than carrying a reference the cloner cannot see.
-5. **Promotion: corroboration TRIGGERS, a human PUBLISHES (owner ruling 2026-08-30).** Cross-author
+5. **Promotion: corroboration TRIGGERS, a human PUBLISHES (owner ruling: the promotion Sybil gate).** Cross-author
    agreement (distinct tenured authors, macro agreement around the median) mints a row in the
    `food_promotions` moderation queue (migration 0015) and nothing more; only an operator holding
    `food:admin` publishes, electing the OLDEST contributing food canonical. Publication is TWO-PHASE by

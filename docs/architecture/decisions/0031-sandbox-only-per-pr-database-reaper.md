@@ -1,8 +1,8 @@
 # 0031 — The per-PR database reaper is a sandbox-only capability that counts before it reclaims
 
-Date: 2026-09-04
-Status: accepted
-Owner ruling: 2026-09-04 — "build the reaper, deployed at sandbox stages ONLY, never prod."
+- **Status:** Accepted
+- **Date:** 2026-09-04
+- **Owner ruling:** "build the reaper, deployed at sandbox stages ONLY, never prod."
 
 ## Context
 

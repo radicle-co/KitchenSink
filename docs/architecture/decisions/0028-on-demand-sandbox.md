@@ -1,6 +1,6 @@
 # 0028 — On-demand sandboxes: a button in GitHub, and midnight teardown
 
-- Status: Accepted
+- **Status:** Accepted
 - Date: 2026-08-27
 - Deciders: owner, platform
 - Related: [0005](0005-environment-tagging-and-pr-cleanup.md), [0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md), [0007](0007-sandbox-cost-controls.md), [0010](0010-ensure-exists-per-pr-deploy-gate.md), [0032](0032-deployed-ecosystem-test-tier.md)

@@ -1,10 +1,10 @@
 # 0030 — First-party analytics events: one store, two doors, lifetime counts
 
-Date: 2026-09-01
-Status: accepted
-Origin: `docs/brainstorms/2026-08-31-analytics-events-requirements.md` (owner dialogue, 2026-08-31) →
-`docs/plans/2026-09-01-001-feat-analytics-events-plan.md` (five-persona review + staff-architect
-blueprint, 2026-09-01). Greenlit by the U15 report's "Owner rulings" §2.
+- **Status:** Accepted
+- **Date:** 2026-09-01
+- **Origin:** `docs/brainstorms/2026-08-31-analytics-events-requirements.md` (owner dialogue) →
+  `docs/plans/2026-09-01-001-feat-analytics-events-plan.md` (five-persona review + staff-architect
+  blueprint). Greenlit by the U15 report's "Owner rulings" §2.
 
 ## Decision
 

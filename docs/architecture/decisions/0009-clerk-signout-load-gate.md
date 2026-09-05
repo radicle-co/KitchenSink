@@ -1,6 +1,6 @@
 # 0009 — Sign-out goes through one command that verifies the session actually ended
 
-- Status: Accepted
+- **Status:** Accepted
 - Date: 2026-07-27 (mobile half added 2026-07-27)
 - Deciders: web, mobile
 - Related: [0001](0001-sandbox-front-end-addressing.md)

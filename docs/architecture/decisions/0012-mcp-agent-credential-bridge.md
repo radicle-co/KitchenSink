@@ -1,6 +1,6 @@
 # 0012 — MCP agent credential bridge: Clerk proves identity, we own the grant
 
-- **Status**: Accepted (feature 005 design baseline — not yet implemented)
+- **Status:** Accepted
 - **Date**: 2026-08-02
 
 > ⚠️ STALE (2026-09-04) — **NOTHING IN THIS ADR HAS SHIPPED, re-verified today.** The "not yet implemented"

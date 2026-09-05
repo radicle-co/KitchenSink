@@ -2,6 +2,7 @@ import nextEnv from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
 
 import { AUTH_STATE_PATH, SESSION_OWNING_SPEC_GLOBS } from './tests/e2e/utils/authState';
+import { mockedSpecGlobs } from './tests/e2e/utils/specTier';
 import { resolveServiceUrls, serviceUrlEnv } from './tests/e2e/utils/serviceUrls';
 import { resolveWebServerMode, webServerCommand } from './tests/e2e/utils/webServerMode';
 
@@ -20,6 +21,26 @@ loadEnvConfig(process.cwd());
 const BASE_PATH = process.env.E2E_BASE_PATH ?? '';
 const LOCALE = process.env.E2E_LOCALE ?? 'en';
 const PORT = Number(process.env.PORT ?? 3000);
+// ── The DEPLOYED tier excludes every spec that stubs the recipe API ───────────────────────────────
+//
+// `mockRecipeApi` intercepts `/api/v1/**` in the BROWSER. A Next `page.tsx` prefetches inside the Next
+// server's own process, which the browser mock cannot reach — so the mocked suite silently relies on the
+// local harness having NO recipe API to answer that prefetch (`ssrPrefetch.spec.ts` documents the same
+// mechanism from the other side). Against a deployed preview a real service answers it with real, empty
+// data, the page renders that, and the stub never applies: the specs then fail on fixtures nobody served.
+//
+// ⛔ Do not "fix" a failing mocked spec by seeding data into a preview. It is not an end-to-end test —
+// the owner's ruling scopes this tier to tests "which should be hitting remote services", and a spec
+// that stubs every API call is not one. It keeps its full value locally, where its assumption holds.
+// The partition is DERIVED per spec (see `utils/specTier.ts`), so a new mocked spec excludes itself.
+const deployedTargetIgnores = process.env['PLAYWRIGHT_BASE_URL'] ? mockedSpecGlobs() : [];
+
+// The inverse selection, for the tier that OWNS the mocked specs. CI runs them against a locally-booted app
+// where their stub assumption holds; without this the deployed switch would leave 39 specs running nowhere.
+// It is an explicit opt-in rather than "whenever PLAYWRIGHT_BASE_URL is unset", so a developer running the
+// suite locally still gets the whole thing.
+const mockedTierOnly = process.env['PLAYWRIGHT_MOCKED_ONLY'] === '1';
+
 const ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 // WHICH BACKENDS the app under test calls — every one overridable, each defaulting to the port that
@@ -102,7 +123,8 @@ export default defineConfig({
         {
             // Every signed-in spec. Restores the shared session; `signInWithTicket` becomes a navigation.
             name: 'chromium',
-            testIgnore: SESSION_OWNING_SPEC_GLOBS,
+            testIgnore: [...SESSION_OWNING_SPEC_GLOBS, ...deployedTargetIgnores],
+            ...(mockedTierOnly ? { testMatch: mockedSpecGlobs() } : {}),
             use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE_PATH },
             dependencies: ['setup'],
         },
@@ -111,7 +133,10 @@ export default defineConfig({
             // dependency on `setup` — they mint their own session exactly as the whole suite used to, so a
             // failure here is never a symptom of the shared one.
             name: 'own-session',
-            testMatch: SESSION_OWNING_SPEC_GLOBS,
+            testMatch: mockedTierOnly
+                ? SESSION_OWNING_SPEC_GLOBS.filter((glob) => mockedSpecGlobs().includes(glob))
+                : SESSION_OWNING_SPEC_GLOBS,
+            testIgnore: deployedTargetIgnores,
             use: { ...devices['Desktop Chrome'] },
         },
     ],

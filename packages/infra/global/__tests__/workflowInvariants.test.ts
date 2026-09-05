@@ -507,6 +507,11 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Load ${{ inputs.stage }} Clerk secrets ×1',
     'continue-on-error _ci.yml::build::Load sandbox (dev-instance) Clerk secrets for the web build ×1',
     'continue-on-error _ci.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for the preview web E2E ×1',
+    // Same reason as its `e2e-web` sibling directly above: the secrets action is allowed to fail so a fork
+    // PR (which has no access to them) reports a clean skip rather than a red job, and EVERY step below it
+    // is gated on `steps.secrets.outcome == 'success'` — so a failure here cannot produce a green run that
+    // tested nothing; it produces a job that visibly did nothing.
+    'continue-on-error _ci.yml::integration-web-playwright::Load sandbox (dev-instance) Clerk secrets for the stubbed-API web suite ×1',
     // Same fork-PR degradation, one job downstream: `e2e-web` is a 4-way shard matrix whose Playwright steps
     // skip when the Clerk secrets are withheld, so it uploads no blob. `download-artifact` FAILS on a pattern
     // that matches nothing, which would turn that designed skip into an unfixable red on exactly the PRs that

@@ -2436,6 +2436,370 @@ jobs:
     # merged report matters most. Because the job then runs on failure, its own green would otherwise mask a
     # red shard, so the final step compares `needs.e2e-web.result` and exits non-zero. That comparison IS the
     # gate: without it this job would report success over a broken suite.
+    integration-web-playwright:
+        # ⛔ A CONSTANT, INCLUDING THE SHARD. A skipped job never evaluates its name, so an
+        # interpolated one renders the RAW `${{ … }}` in the checks list — observed on this very job
+        # once the liveness gate started skipping it:
+        #   `E2E (web — Playwright against the deployed preview) ${{ matrix.shard }}/${{ strategy.job-total }}`
+        # ⚠️ `matrix`/`strategy` are NOT exempt from that, which is what the first version of
+        # workflowInvariants' invariant 8 assumed. They render correctly only while the job RUNS;
+        # these shards now skip by default, so that is the uncommon case. The shard number stays in
+        # the STEP name, where a human reads it and no required-check rule matches on it.
+        name: Integration (web — Playwright over a stubbed API, locally booted)
+        # 30 + the sandbox wake's own 15-minute bound (see the wake step below). A run that lands in ADR-0007's
+        # 00:00–09:00 ET window legitimately waits minutes for a stopped `db.t4g.micro` to reach `available`,
+        # and a JOB timeout is precisely the misleading failure that step exists to prevent: it would kill the
+        # shard mid-wake with "the job running on runner … has exceeded the maximum execution time" rather than
+        # the script's own annotated verdict. The wake is self-bounding, so this only has to be wide enough to
+        # let that bound be the one that fires.
+        timeout-minutes: 45
+        runs-on: ubuntu-latest
+        # `build-ui` rather than `build`: the `.next` artifact is gone with the local server, but
+        # `mockupFidelity.spec.ts` still imports `@commise/ui/tokens/gradients`, whose exports map resolves to
+        # `./dist/…`, so the shard holding that spec fails to COLLECT without the UI dist.
+        needs: [build, build-ui]
+        # SHARDED, 4 ways. This job WAS the entire critical path of a PR run: measured on the green run
+        # 31514368684 it started at +4.0m and ran 15.5m, ending at 19.5m, while every other job in the
+        # pipeline finished by ~+6m (next slowest: `Test`, 4.8m). Wall clock was 19.4m for 42.1m of summed
+        # job time — i.e. already ~2.2x compressed, with nothing left to win anywhere but here.
+        #
+        # WHY FOUR. The suite's cost is FLAT per test, not concentrated in one slow spec — measured from the
+        # dot-reporter timeline of that same run: 8.29 s/test over tests 1–80, then 8.12 s/test over the
+        # remaining 22 (102 tests, 14.5m). So there is no dominant serial spec to isolate, and sharding by
+        # test count tracks sharding by time. Playwright balances whole FILES (it never splits one), and the
+        # largest file here holds 9 tests against ~25.5 per shard, so 4 shards balance cleanly. Above ~4 the
+        # win collapses into fixed cost — ~1.4m of checkout/deps/browser install plus a Next dev-server boot,
+        # paid per shard — while the Clerk fixture count, the runner minutes, and the exposure to the
+        # `waitForTestUserExternalId` setup flake all keep scaling linearly. 4 buys ~5.2m per shard
+        # (≈ +6.5m runner minutes total) for roughly a 9m cut in wall clock; 8 would roughly double the added
+        # cost to shave ~1.5m more, against the repo's cost posture (ADR-0007/ADR-0008).
+        #
+        # ⚠️ `COMMISE_E2E_SHARD` below is LOAD-BEARING, not decoration — see the env block.
+        strategy:
+            # Never fail-fast. Two reasons, both concrete: a cancelled shard is killed before Playwright's
+            # `globalTeardown` runs, which LEAKS its Clerk fixture user (reclaimed only by the 12h age-gated
+            # sweep); and one shard's failure would otherwise destroy the other three shards' results, so the
+            # merged report — the whole point of the blob/merge split below — would be missing most of the run.
+            fail-fast: false
+            matrix:
+                # ⛔ EIGHT, and the ceiling is arithmetic — see the Clerk interlock above.
+                #
+                # The only Clerk limit SHARED across shards is the Backend API (100 req/10s on a dev
+                # instance); per-user and per-IP limits do not bind, because each shard provisions its own
+                # user on its own runner IP. This suite spends ~1 BAPI call per test, so:
+                #   4 shards ≈ 5 req/10s  → 20x margin      8 shards ≈ 10 req/10s → 10x margin
+                #
+                # Measured 2026-08-18: 108 tests in 34 files at ~9.8s each, and `setup` is a DEPENDENCY
+                # project so it is not sharded — it runs IN FULL in every shard, at a measured 32-35s.
+                # That fixed toll is what bounds this, not Clerk:
+                #   4 shards → 27 tests + 35s setup ≈ 300s     8 shards → 14 tests + 35s ≈ 167s
+                # Past ~8 the toll dominates (16 shards would pay 16x35s to run 7 tests each), so raising
+                # this further buys nothing. `--shard` distributes whole FILES, and there are 34 of them,
+                # so 8 shards still have real work to split.
+                shard: [1, 2, 3, 4, 5, 6]
+        # `id-token: write` is what makes the Argos upload SECRETLESS (U10a): the CLI exchanges a short-lived
+        # GitHub OIDC token for a build-scoped Argos credential, so no `ARGOS_TOKEN` secret exists to leak — and
+        # a FORK pull request, which cannot read repository secrets at all, still uploads (Argos falls back to
+        # its tokenless GitHub-Actions path when OIDC is unavailable). `contents: read` must be restated because
+        # a job-level `permissions:` REPLACES the workflow default rather than adding to it.
+        permissions:
+            contents: read
+            id-token: write # the secretless Argos OIDC exchange — see the note above
+        # ⛔ THE DEPLOYED PREVIEW, and nothing on this runner. `playwright.config.ts` reads
+        # `PLAYWRIGHT_BASE_URL` as `baseURL` and — critically — declares NO `webServer` when it is set, so
+        # there is no `next start`, no `.next` artifact to download and no port to bind.
+        #
+        # ⚠️ `NEXT_PUBLIC_RECIPE_API_URL` / `NEXT_PUBLIC_IDENTITY_API_URL` are deliberately GONE rather than
+        # re-pointed. They were the SERVER-side statement for the Next process this job used to run; the
+        # preview's own Vercel deployment states its own, and a value here would be read by nothing while
+        # reading as configuration. The specs themselves never build a URL out of them — every one mocks the
+        # API with the origin-agnostic glob `page.route('**/api/v1/**')` (tests/e2e/utils/recipeApi.ts).
+        env:
+            # No `PLAYWRIGHT_BASE_URL`: the config declares its own `webServer` when this is unset, which
+            # is exactly the harness these specs need — an app whose `NEXT_PUBLIC_API_URL` points at itself,
+            # where no recipe API answers, so every SSR prefetch fails and the page falls back to the client
+            # fetch the browser stub CAN intercept.
+            PLAYWRIGHT_MOCKED_ONLY: '1'
+            # ⚠️ THE CLERK SAFETY INTERLOCK FOR SHARDING. Read before touching the matrix.
+            #
+            # Each shard is a SEPARATE Playwright process, so each runs `globalSetup` AND `globalTeardown`.
+            # `deriveRunKey` (tests/e2e/utils/runFixtureIdentity.ts) keys the run-scoped Clerk fixture on
+            # GITHUB_RUN_ID + GITHUB_RUN_ATTEMPT + GITHUB_JOB — and `GITHUB_JOB` is the job's ID, identical
+            # for every leg of a matrix. Without this variable all four shards would derive the SAME key, so
+            # (a) four concurrent `createUser` calls would race one unique username, and (b) the first shard
+            # to finish would DELETE the shared sign-in fixture the other three are still authenticating as,
+            # since teardown's `own` rule matches it. That is bbf7ea7c's cross-workflow failure — "test
+            # sign-in user is missing — globalSetup should have created it" — reproduced INSIDE one run.
+            #
+            # With it, each shard provisions, uses and deletes its OWN user, so teardown can never reach a
+            # sibling's live fixture. That is also what keeps the SERIALIZATION guarantee intact: the suite is
+            # serial (`workers: 1`, `fullyParallel: false`) because concurrent sign-ins AS ONE USER flake, and
+            # Clerk's Frontend-API sign-in limits are scoped per USER and per IP. Four shards means four
+            # distinct users on four distinct runner IPs, each still driving its sign-ins strictly one at a
+            # time — so the per-user/per-IP budget each shard sees is unchanged from today's single stream,
+            # rather than four streams contending for one. The per-INSTANCE limit that IS shared is the
+            # Backend API (100 req/10s on a dev instance); this suite spends ~1 BAPI call per test, so four
+            # shards ask for ~5 per 10s against that 100 — a ~20x margin.
+            #
+            # ── HOW THE `setup` PROJECT INTERACTS WITH THIS (verified against Playwright's own source) ──
+            #
+            # The suite now authenticates ONCE per run in a `setup` project and persists `storageState`
+            # (tests/e2e/auth.setup.ts), which took the run from ~90 ticket sign-ins to ~7. A setup project
+            # reached through `dependencies:` is classified `"dependency"`, not `"top-level"`
+            # (`buildProjectsClosure` in playwright/lib/runner/index.js), and only top-level project suites are
+            # handed to `filterForShard`. So `setup` is NOT sharded: it runs IN FULL in every shard.
+            #
+            # That is the correct behaviour here, and it is this variable that makes it correct. Each shard
+            # derives its own run key, provisions its own Clerk user, and therefore must authenticate as ITS
+            # user — and `authStatePath` keys the state FILE on the same run key, so no shard can restore a
+            # session belonging to a user another shard's teardown deletes. Sharing one key or one state file
+            # would recreate bbf7ea7c inside the run, one layer lower down.
+            #
+            # Do NOT delete this, do NOT raise `workers` above 1, and do NOT let two shards share a key.
+            COMMISE_E2E_SHARD: ${{ matrix.shard }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            # STILL REQUIRED after the move to `next start`, for a different reason — worth stating, because
+            # the old one no longer holds. The server this job runs is PRE-BUILT (`@commise/ui` is in
+            # `transpilePackages`, so it is compiled INTO the artifact; `.next/server` carries no
+            # `require("@commise/ui…")` at all), so the dev server's `theme.css` import is gone. But
+            # `tests/e2e/mockupFidelity.spec.ts` imports `@commise/ui/tokens/gradients`, which the package's
+            # own exports map resolves to `./dist/tokens/gradients.js` — Playwright loads that spec directly,
+            # so the dist must exist or the shard holding it fails to collect.
+            - name: Restore UI build artifacts
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: packages/apps/commise/ui/dist
+                  key: ${{ runner.os }}-ui-dist-${{ github.sha }}
+            - name: Ensure @commise/ui is built (fallback if the per-SHA cache restore missed)
+              run: '[ -n "$(ls -A packages/apps/commise/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/ui'
+            # The suite drives ClerkJS in a browser against the PREVIEW origin, `pr-{N}.sandbox.{apex}`, and
+            # that origin is served by the SANDBOX Clerk instance. Clerk *production* instances (pk_live) are
+            # domain-locked and refuse to initialize on any origin other than their production domain —
+            # ClerkJS aborts with "Production Keys are only allowed for domain <domain>", so <SignIn> never
+            # mounts and the sign-in page renders without the auth form (only the Next.js <title> survives).
+            # So these are always the sandbox (dev-instance) keys regardless of the pipeline stage — which is
+            # also why the wake below is always about the SANDBOX database.
+            #
+            # These are the BACKEND keys the fixture provisioning uses (`globalSetup` calls Clerk's Backend
+            # API to create the run-scoped user); the publishable key the BROWSER runs on is the one the
+            # preview's own Vercel build inlined.
+            - name: Load sandbox (dev-instance) Clerk secrets for the stubbed-API web suite
+              id: secrets
+              continue-on-error: true
+              uses: ./.github/actions/load-secrets
+              with:
+                  stage: sandbox
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+            # ⛔ ADR-0007 × THIS SUITE'S CLERK FIXTURE — the same nightly shutdown that wedges deploys, hitting
+            # a job that deploys NOTHING. `globalSetup` creates a run-scoped Clerk user and then BLOCKS for 30s
+            # waiting for `external_id` to be backfilled; that backfill is the sandbox `user.created` webhook —
+            # a VPC-attached Lambda that reaches Secrets Manager and the Clerk Backend API through the sandbox
+            # NAT instance and writes the app user to the sandbox RDS. ADR-0007 stops BOTH nightly, 00:00–09:00
+            # ET, so inside that window the backfill can never arrive.
+            #
+            # Observed 2026-08-25 at 01:37 ET on dcf2aaef: all eight shards dead in ~1 minute each, NO test
+            # results produced at all, every one failing with `waitForTestUserExternalId: … still has no
+            # externalId after 30000ms`. That message names a webhook outage because it was written without
+            # knowing the outage is on a SCHEDULE — the suite is not flaky overnight, it is impossible.
+            #
+            # Waking here is near-free on a daytime run (two describe calls against an already-`available`
+            # instance and an already-`running` NAT — `ensure` is idempotent) and starts the tier only on a run
+            # that actually lands in the window, which is exactly when it must. The nightly schedule is
+            # untouched, so ADR-0007's cost intent stands. The script takes no instance argument by
+            # construction — it discovers and validates — so it cannot address the prod database.
+            #
+            # ⛔ It runs BEFORE the artifact download and the browser install, and its exit status is NOT
+            # suppressed: a wake failure must end this job immediately and by its own name, rather than let the
+            # suite proceed and die 30s later inside globalSetup with a message that sends the reader hunting a
+            # webhook outage. Diagnosing that misdirection is most of what this incident cost.
+            #
+            # ⚠️ This runs on the `main` (prod) pipeline too, and that is correct rather than a leak: this job
+            # ALWAYS authenticates against the sandbox dev instance whatever `inputs.stage` says (see the step
+            # above for why pk_live cannot serve localhost), so it is always the SANDBOX that has to be awake.
+            #
+            # AWS credentials come from the `load-secrets` step above, which configures them with the SAME
+            # static keys the deploy workflows already run this script under — so this needs no IAM change.
+            - name: Wake the shared sandbox (ADR-0007 stops the RDS + NAT this suite's Clerk fixture needs)
+              if: steps.secrets.outcome == 'success'
+              run: bash .github/scripts/sandbox-wake.sh ensure "${DEFAULT_AWS_REGION}"
+            # Cache the Playwright browser binaries (~/.cache/ms-playwright) keyed on the lockfile so
+            # the Chromium download only happens when the Playwright version changes.
+            # `next start` SERVES a build; it does not make one. The `build` job publishes `.next` and this
+            # restores it in place (the artifact's entries are relative to `.next`, which is what makes the
+            # bare `path:` below correct).
+            - name: Restore the web production build
+              if: steps.secrets.outcome == 'success'
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: web-next-build-${{ inputs.stage }}
+                  path: packages/apps/commise/web/.next
+            - name: Cache Playwright browsers
+              id: playwright-cache
+              if: steps.secrets.outcome == 'success'
+              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+            # Cache miss: download the browser + OS deps. Cache hit: browsers are restored, so only the
+            # OS-level system dependencies still need installing.
+            # ⛔ BOUNDED AND RETRIED, because this step is the one that hangs.
+            #
+            # Both commands shell out to `apt-get` for Chromium's OS libraries. On 2026-08-18 two shards sat
+            # in `install-deps` for 1h47m — the log's last line is apt fetching package lists from the
+            # Ubuntu/Microsoft/Google mirrors, then nothing — while the other two had already cleared it and
+            # finished in 6 and 10 minutes. A mirror stall is not our defect, but an UNBOUNDED one is: with
+            # no step timeout it presents as "CI is still running" rather than a failure anyone can retry.
+            #
+            # 18 SECONDS is the measured normal for the cache-hit path. The budget is nevertheless 8
+            # minutes, because a 3-minute one FAILED ALL EIGHT SHARDS on 2026-08-18: the mirror was serving
+            # font packages at 30-60s each, which is slow rather than stuck, and a bound tight enough to
+            # catch a stall is also tight enough to reject a bad night. 8 minutes still turns the 1h47m
+            # hang seen earlier into a fast, retryable failure, which is the property that matters.
+            #
+            # ⚠️ Running this job in `mcr.microsoft.com/playwright` — which would remove apt entirely — was
+            # TRIED and REVERTED. The image boots, but the dependency cache saved by the `install` job on
+            # the host is not found inside the container, so `@commise/ui` cannot build (`tsc`, exit 127)
+            # and every shard fails deterministically. That trades a transient mirror problem for a
+            # permanent one. It is still the right long-term fix; it needs the node_modules question solved
+            # first (install inside the container, or a container-keyed cache).
+            #
+            # The retry then absorbs exactly the
+            # transient this was: one stalled fetch costs ~3 minutes and self-heals instead of costing a
+            # re-run of the whole shard. `apt-get update` is re-run first because a half-populated list is
+            # the state a killed fetch leaves behind.
+            - name: Install Playwright browsers (cache miss)
+              if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit != 'true'
+              timeout-minutes: 12
+              run: |
+                  npx playwright install --with-deps chromium \
+                      || { echo "::warning::playwright install stalled or failed — retrying once"; \
+                           sudo apt-get update -qq; \
+                           npx playwright install --with-deps chromium; }
+            # ⛔ PROBE, don't pre-install. A cached browser BINARY is useless without its shared libraries,
+            # but on the ubuntu-latest image those libraries are already present — and `install-deps` pays a
+            # full `apt-get update` against Azure's mirrors to discover that. Every shard paid it, so one
+            # flaky mirror took out shards 2/8 and 6/8 (`has timed out after 8 minutes`) on a run whose only
+            # change was documentation, and the retry-once wrapper could not help: the stall consumed the
+            # whole budget before the fallback was reached.
+            #
+            # Launching the browser is the ONLY evidence that actually matters here — it is exactly what the
+            # shard is about to do, and it costs ~2s instead of ~3min. So apt is now the FALLBACK, reached
+            # only when the launch really fails, and it keeps the update+retry that a genuine miss needs.
+            # `--no-sandbox` because the probe runs as root on the runner, where Chromium's sandbox refuses
+            # to start; the tests themselves launch through Playwright's own config, which is unaffected.
+            - name: Ensure Playwright system deps (cache hit)
+              if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit == 'true'
+              timeout-minutes: 8
+              run: |
+                  if node -e "require('playwright-core').chromium.launch({args:['--no-sandbox']}).then(b => b.close())"; then
+                      echo "chromium launches — system deps already satisfied, skipping apt"
+                  else
+                      echo "::warning::chromium failed to launch on the cached browser — installing system deps"
+                      npx playwright install-deps chromium \
+                          || { echo "::warning::playwright install-deps stalled or failed — retrying once"; \
+                               sudo apt-get update -qq; \
+                               npx playwright install-deps chromium; }
+                  fi
+            # `--shard` is Playwright's own splitter (it distributes whole FILES to balance test count, and
+            # never splits a file). `--reporter=blob` overrides the config's `html` for CI only: a blob report
+            # is the machine-readable intermediate that `merge-reports` recombines in the report job below, so
+            # a failure stays diagnosable from ONE artifact instead of four partial HTML reports. The config
+            # keeps `html` as its default so a local `npx playwright test` is unchanged.
+            - name: Run the stubbed-API web suite (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+              if: steps.secrets.outcome == 'success'
+              # ⚠️ The shard coordinates reach the shell through `env:`, NOT by `${{ }}` interpolation into
+              # the `run:` body. Expanding a template directly into a shell script is the
+              # `template-injection` class: the expansion happens BEFORE the shell sees the line, so the
+              # value is spliced in as code rather than passed as data. These two happen to be integers
+              # GitHub generates, so nothing is exploitable here today — but the audit is gating precisely
+              # so that the pattern never gets copied to a value an outsider controls (a PR title, a branch
+              # name, a comment body). The step NAME above may keep its `${{ }}`: a name is not executed.
+              env:
+                  SHARD_INDEX: ${{ matrix.shard }}
+                  SHARD_TOTAL: ${{ strategy.job-total }}
+              run: |
+                  npm run test:e2e --workspace=@commise/web -- \
+                      --shard="${SHARD_INDEX}/${SHARD_TOTAL}" \
+                      --reporter=blob
+            # One blob per shard, consumed ONLY by the report job. `!cancelled()` rather than `failure()`: the
+            # merged report must describe the whole run, so a PASSING shard's blob is required too.
+            - name: Upload blob report (shard ${{ matrix.shard }})
+              if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: integration-web-blob-${{ inputs.stage }}-${{ matrix.shard }}
+                  path: packages/apps/commise/web/blob-report
+                  retention-days: 1
+                  if-no-files-found: ignore
+            # The visual-regression PNGs and the mockup-fidelity pairs are produced by whichever SHARD happens
+            # to hold `visualRegression.spec.ts` / `mockupFidelity.spec.ts`. They are staged per shard here and
+            # consolidated in the report job, so Argos still receives ONE build for the commit rather than four
+            # competing partial uploads.
+            - name: Upload visual + fidelity output (shard ${{ matrix.shard }})
+              if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: integration-web-visual-${{ inputs.stage }}-${{ matrix.shard }}
+                  path: |
+                      packages/apps/commise/web/screenshots
+                      packages/apps/commise/web/mockup-fidelity
+                  retention-days: 1
+                  if-no-files-found: ignore
+            # Failure-only: the raw traces for THIS shard. The human-readable report is the MERGED one built
+            # by `e2e-web-report`; this is the trace payload the blob report does not carry.
+            - name: Upload Playwright traces (shard ${{ matrix.shard }})
+              if: failure() && steps.secrets.outcome == 'success'
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: playwright-traces-${{ inputs.stage }}-${{ matrix.shard }}
+                  path: packages/apps/commise/web/test-results
+                  retention-days: 7
+                  if-no-files-found: ignore
+
+    # THE SINGLE SIGNAL for the web E2E tier, and the reason sharding does not cost the owner four checks to
+    # reconcile. It recombines the four blob reports into ONE Playwright HTML report, does the ONE Argos upload
+    # for the commit, and then RE-ASSERTS the shards' verdict as its own status.
+    #
+    # `!cancelled()` (not `success()`) is what makes it run when a shard FAILED — which is exactly when the
+    # merged report matters most. Because the job then runs on failure, its own green would otherwise mask a
+    # red shard, so the final step compares `needs.e2e-web.result` and exits non-zero. That comparison IS the
+    # gate: without it this job would report success over a broken suite.
     e2e-web-report:
         name: E2E (web — Playwright against the deployed preview) · merged report
         timeout-minutes: 15

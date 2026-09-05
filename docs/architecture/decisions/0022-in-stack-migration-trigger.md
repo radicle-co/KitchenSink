@@ -309,11 +309,14 @@ from the workflows themselves, so a fifth stack with a runner is covered the day
 
 ## Residual risk — stated plainly, not mitigated
 
-- **`RecipeSchemaMigrationRunner` has no safety-net invoke.** `RecipeWorkersStack` emits it with no
-  `CfnOutput`, and every workflow's recipe leg resolves `RecipeMigrationFunctionName` from the
-  recipe-SERVICE stack instead — so this one runner is reachable only by its own in-stack Trigger, with no
-  redundancy behind it. Not a live skew risk (recipe-service's runner applies the same SQL under the same
-  barrier), and `prod-deploy.yml` records it at the call site as not closable from there.
+- **`RecipeSchemaMigrationRunner` has no pipeline safety-net invoke.** Its in-stack Trigger is the
+  mechanism and runs on every deploy of this stack, so the schema is migrated; what it lacks is the §4 net
+  for the case no code change explains. ⚠️ It DOES publish `RecipeWorkersMigrationFunctionName` — an
+  earlier version of this bullet said otherwise and was wrong — but nothing outside its own stack test
+  reads that output, because ADR-0031's per-PR reaper superseded the per-stack drop door it was added for
+  and covers that case strictly more completely (the reaper needs no stack, so it also reclaims a database
+  when every stack is gone). The output is therefore vestigial rather than missing, and the gap is narrow:
+  recipe-service's runner applies the same SQL under the same barrier.
 - **The barrier cannot order an EventBridge `RunTask`.** Food's 6-hourly change-refresh task is an
   EventBridge target rather than a deployed service, so CloudFormation has no ordering to give it. It
   retries on its own schedule, which is the mitigation by default rather than by design.

@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-27
 - Deciders: owner, platform
-- Related: [0005](0005-environment-tagging-and-pr-cleanup.md), [0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md), [0007](0007-sandbox-cost-controls.md), [0010](0010-ensure-exists-per-pr-deploy-gate.md)
+- Related: [0005](0005-environment-tagging-and-pr-cleanup.md), [0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md), [0007](0007-sandbox-cost-controls.md), [0010](0010-ensure-exists-per-pr-deploy-gate.md), [0032](0032-deployed-ecosystem-test-tier.md)
 
 ## Context
 
@@ -41,6 +41,14 @@ expiry and — ~~when no sandbox is live at all — stops the shared sandbox tie
 **4. ADR-0010's ensure-exists gate gains a precondition.** `deploy-gate.sh decide` takes `<intent>` as a
 new REQUIRED first parameter; absence of a stack no longer deploys on its own.
 
+> ⚠️ AMENDED (2026-09-04, owner ruling): **this still governs DEPLOYMENT and no longer governs
+> VALIDATION.** [ADR-0032](0032-deployed-ecosystem-test-tier.md) §6 records the ruling — _"Absent is fatal
+> because a PR with no deployed target cannot be validated."_ The gate is untouched: `intent = false` still
+> returns `deploy=false`, and a validation tier may NOT conjure its own target by re-arming ensure-exists.
+> What changes is what an absent stack means to the deployed-ecosystem test tier: not "reaped, carry on"
+> but "there is nothing to validate" — so that tier SKIPS, and a skip is not a pass. Two questions, two
+> answers, both correct.
+
 ~~**5. ADR-0007's 09:00 start schedule is deleted.** The 00:00 stop survives.~~
 
 > ⛔ FALSE (2026-09-04): **the 09:00 start schedule EXISTS.** It was restored under its original construct id
@@ -69,10 +77,25 @@ deploy that builds it. Below two hours the expiry rolls to the following midnigh
 ### ⛔ The gate amendment MUST ship with the reaper, and shipping either alone is a defect
 
 ADR-0010 made an ABSENT stack a reason to **deploy**, because a preview missing one of its services is
-broken behind a green check. Under on-demand, absent stops meaning "broken" and starts meaning
-"deliberately reaped at midnight" — so ensure-exists, left alone, **rebuilds every environment on the first
+broken behind a green check. Under on-demand, ~~absent stops meaning "broken" and starts meaning
+"deliberately reaped at midnight"~~ — so ensure-exists, left alone, **rebuilds every environment on the first
 push after the reaper ran**. Silently. Behind a green check. That is ADR-0010's own failure mode running
 backwards, and it would restore the entire bill while every signal stayed green.
+
+> ⚠️ AMENDED (2026-09-04, owner ruling) — **the struck clause is true of the DEPLOY question and FALSE of
+> the VALIDATE question, and it was written as though there were only one question.** The owner's ruling is
+> verbatim: _"Absent is fatal because a PR with no deployed target cannot be validated."_
+>
+> | question                          | absent means                             | outcome                          |
+> | --------------------------------- | ---------------------------------------- | -------------------------------- |
+> | should I build this preview?      | deliberately reaped — do not rebuild it  | skip the deploy (this ADR, kept) |
+> | may I claim this PR is validated? | **fatal** — there is nothing to validate | skip the tier, claim NOTHING     |
+>
+> The paragraph's own conclusion is UNWEAKENED — rebuilding a reaped environment because a test wanted one
+> is the same silent rebuild behind a green check — which is why
+> [ADR-0032](0032-deployed-ecosystem-test-tier.md) §6 resolves the second question with a SKIPPED job rather
+> than a deploy. ⛔ Do not read that skip as a pass, and do not make the tier a required check that a skip
+> would satisfy silently.
 
 So `intent` is a REQUIRED first parameter rather than a defaulted one: a default is a position, silently
 asserted on behalf of every caller that never considered it. Intent is carried by the `sandbox-up` PR
@@ -134,6 +157,13 @@ discovery step deliberately omits `set -e` so one stack's hiccup cannot cancel t
 
 - **Previews no longer appear on their own.** A push to a PR with no live sandbox deploys nothing and says
   so. This is the intended behaviour and the largest workflow change here.
+
+    > ⚠️ AMENDED (2026-09-04, owner ruling): this consequence STANDS, and it now has a second half this
+    > bullet never stated. A PR with no live sandbox also gets **no deployed-ecosystem test result** —
+    > k6 and the deployed e2e suite SKIP rather than run against a locally booted stand-in
+    > ([ADR-0032](0032-deployed-ecosystem-test-tier.md) §§1, 6). So "deploys nothing and says so" is
+    > completed by "validates nothing and says so"; neither is a green check for work that did not happen.
+
 - Expected saving **$30–45/month**, on top of the $101 already recovered from Container Insights.
 - **A sandbox can expire mid-session.** Press the button again — it re-stamps the expiry and redeploys,
   which is also how you extend one you are still working in.

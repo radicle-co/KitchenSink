@@ -1,0 +1,380 @@
+name: Deployed E2E
+
+# THE single entrypoint for the e2e tiers that drive a REAL deployed stage — one button, one run, one place
+# that decides what is safe to point at what (owner rulings 2026-09-04).
+#
+#   > "Absent is fatal because a PR with no deployed target cannot be validated."
+#   > "All the end to end tests should be skipped if nothing sandbox is running and I should have a single
+#      e2e job that I can manually run that will run all end to end tests."
+#   > "End to end tests should always run against production."
+#
+# ## Why ONE entrypoint, structurally
+#
+# Two callers driving the same deployed tier on the same commit is not a hypothetical: `heavy-e2e.yml`'s
+# header records commit `bbf7ea7c`, where `e2e-web` ran from two callers at once and the two Playwright
+# suites — against ONE shared sandbox Clerk instance — each tore down the other's sign-in fixture (ci-pr's
+# run passed 78/1 while the identical job here failed). Three things keep that from recurring:
+#
+#   1. this file is the ONLY workflow that runs the deployed tier
+#      (`packages/infra/global/__tests__/deployedE2eEntrypoint.test.ts` analyzer 1 fails on a second caller);
+#   2. `concurrency` below is keyed on the TARGET STAGE, not on `github.ref`, so two dispatches at different
+#      refs against ONE stage queue instead of overlapping — a ref-keyed group would let both through, which
+#      is precisely the shape that failed; and
+#   3. every spec this tier runs today is UNAUTHENTICATED, so it creates no Clerk fixture for a sibling run
+#      to destroy. That is a property of the current suite, not a licence: the day an authenticated tier is
+#      added here, (1) and (2) are what carry it.
+#
+# ## What runs, against what
+#
+# | target  | reached by | suite |
+# |---|---|---|
+# | `pr-{N}` sandbox | the `deployed-e2e` PR label, or a manual dispatch | the whole deployed tier below |
+# | `prod` | a MANUAL dispatch, and nothing else | the same tier — every spec in it is non-destructive |
+#
+# The prod half is the same job body on purpose, and that is only sound because the tier is non-destructive
+# BY CONSTRUCTION: unauthenticated `GET`s and CORS preflights, no writes, no Clerk user creation, no
+# erasure route. ⛔ The FULL web suite must NEVER be pointed at prod — it calls Clerk `createUser` from four
+# concurrent shards racing a unique username, 39 of its 46 specs write real data (recipes, collections,
+# ratings, photos), and `accountDangerZone.spec.ts` drives the GDPR erasure flow. Real users' data and the
+# production Clerk tenant are not a test fixture.
+#
+# ## ⛔ What is deliberately NOT here — read before adding it
+#
+# **The deployed BROWSER (Playwright) half is not wired, and cannot pass today.** ADR-0001's
+# "Update (2026-07-28)": a preview is UNREACHABLE in a browser. The sandbox router's Host swap leaves the
+# Next app terminating the Vercel deployment host, so Clerk's handshake `redirect_url` dead-ends at
+# `vercel.com/login` and Next rejects every Server Action with a 500 (`Origin !== Host`). That is an INFRA
+# fix — resolving `pr-{N}.sandbox.<domain>` directly to Vercel (Route 53 CNAME + Vercel domain + a
+# per-deployment alias), which retires the router/KVS/bypass token for previews — not a workflow fix. Do NOT
+# add a job here that cannot pass; add it the day that ADR's update says previews are browser-reachable.
+#
+# **A deployed AUTHENTICATED read is not wired either, and the blocker is a credential, not a trigger.** A
+# deployed stage verifies that stage's own Clerk instance; the linkage tier's `mintLinkageCredentials.ts`
+# mints a THROWAWAY keypair the deployed services do not trust, and `recipe-service` serves no
+# unauthenticated route at all (`app.module.ts` applies `AuthMiddleware.forRoutes('*')`, excluding only the
+# health probes and the service-principal erasure route). So today's deployed tier proves the authorization
+# boundary and the transport, and cannot prove a read path. Closing it needs a deployed-stage credential —
+# a real Clerk user + session token for the stage's instance — and that is exactly what re-opens the
+# shared-dev-instance fixture collision above, so it belongs behind (1) and (2), here, and nowhere else.
+
+on:
+    # The manual door — this is the "single e2e job I can run" of the ruling. It is also the ONLY way to
+    # reach production: nothing automatic may point a suite at prod.
+    #
+    # ⚠️ `workflow_dispatch` is resolved from the DEFAULT BRANCH only, so this door does not open until the
+    # file reaches `main`. The label below is what makes the tier runnable before then — the same reasoning
+    # `heavy-e2e.yml` records for its own label path.
+    workflow_dispatch:
+        inputs:
+            target:
+                description: Which deployed environment to drive
+                type: choice
+                options:
+                    - sandbox
+                    - prod
+                default: sandbox
+            stage:
+                description: 'Sandbox stage to drive, e.g. pr-91 (ignored when target is prod)'
+                type: string
+                required: false
+    pull_request:
+        branches: [main]
+        # `labeled` is what makes the opt-in usable: adding `deployed-e2e` to an open PR starts a run without
+        # a new push. The other three keep an already-labelled PR covered on every push. There is no
+        # automatic path — a deployed run costs a real environment's time and, for prod, is a deliberate act.
+        types: [opened, synchronize, reopened, labeled]
+
+permissions:
+    contents: read
+
+concurrency:
+    # Keyed on the TARGET STAGE, never on `github.ref` — see (2) in the header. `cancel-in-progress: false`
+    # because a half-cancelled suite against a shared environment is worse than a queued one.
+    group: deployed-e2e-${{ github.event.inputs.target == 'prod' && 'prod' || github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
+    cancel-in-progress: false
+
+env:
+    NODE_VERSION: 24
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+
+jobs:
+    # ── Resolve the target, then ask whether there is anything deployed to talk to ─────────────────────
+    #
+    # Gated only on the LABEL (and only for a `pull_request`), which is the one condition knowable before a
+    # job starts. Everything else — which stage, which origins, whether they are serving — needs the AWS API
+    # and the public internet, so it lives in steps.
+    resolve:
+        name: Resolve target and liveness
+        runs-on: ubuntu-latest
+        outputs:
+            stage: ${{ steps.target.outputs.stage }}
+            recipe_origin: ${{ steps.target.outputs.recipe_origin }}
+            food_origin: ${{ steps.target.outputs.food_origin }}
+            web_origin: ${{ steps.target.outputs.web_origin }}
+            live: ${{ steps.live.outputs.live }}
+        if: >-
+            github.event_name != 'pull_request' ||
+            contains(github.event.pull_request.labels.*.name, 'deployed-e2e')
+        steps:
+            - name: Checkout
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            # ⛔ THE prod guard, as a STEP that fails rather than as an `if:` that skips. A skip is
+            # indistinguishable from "there was nothing to do", and a mis-triggered prod run is a thing
+            # somebody must SEE. Only `workflow_dispatch` carries a human's intent; every other event
+            # resolves to this PR's sandbox and can never select prod, so this is defence in depth against a
+            # trigger added later (a `schedule:` or a `workflow_run:` would otherwise inherit the input).
+            - name: Refuse a prod target on anything but a manual dispatch
+              env:
+                  TARGET: ${{ github.event.inputs.target }}
+                  EVENT: ${{ github.event_name }}
+              run: |
+                  set -euo pipefail
+                  if [ "${TARGET:-sandbox}" = 'prod' ] && [ "$EVENT" != 'workflow_dispatch' ]; then
+                      echo "::error::a deployed run against PRODUCTION is a deliberate act — only a manual workflow_dispatch may select it (got event ${EVENT})"
+                      exit 1
+                  fi
+                  echo "target=${TARGET:-sandbox} on ${EVENT}"
+            - name: Setup Node.js
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - name: Install dependencies
+              run: npm ci
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # `printPublicOrigin.mjs` imports `@kitchensink/infra-alb`, which exports `./dist` (the compiled
+            # CDK apps run under plain `node`, whose type-stripping resolves a `.js` specifier inside a `.ts`
+            # file literally rather than through `extensionAlias`). `^...` asks turbo for the dependency
+            # CLOSURE rather than naming packages, so the next dist-exporting dependency needs no edit here —
+            # the lesson `sandbox-deploy.yml` paid for twice with `infra-security` and then `infra-alb`.
+            - name: Build the workspace packages the origin resolver imports
+              run: npx turbo run build --filter='@kitchensink/loadtest^...'
+            # ⛔ NO HOST LITERAL. Every origin comes from `publicServiceOriginForStage` (ADR-0003/0006: prod
+            # is the bare label `recipe.{apex}`, every other stage the DASH form `recipe-{stage}.{apex}`,
+            # because a 3-label `recipe.pr-7.{apex}` matches no wildcard on the shared ALB certificate and
+            # fails the TLS handshake before any listener rule is consulted). `food-loadtest.yml` shipped
+            # `https://food-pr-59.commise.app` as a dispatch DEFAULT for months after PR 59 closed, and a
+            # stale literal answers `000` — which reads as an outage rather than as a stale default.
+            - name: Resolve this target's stage and service origins
+              id: target
+              env:
+                  TARGET: ${{ github.event.inputs.target }}
+                  INPUT_STAGE: ${{ github.event.inputs.stage }}
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+              run: |
+                  set -euo pipefail
+                  if [ "${TARGET:-sandbox}" = 'prod' ]; then
+                      stage='prod'
+                  elif [ -n "${INPUT_STAGE:-}" ]; then
+                      stage="${INPUT_STAGE}"
+                  elif [ -n "${PR_NUMBER:-}" ]; then
+                      stage="pr-${PR_NUMBER}"
+                  else
+                      echo "::error::no stage to drive — dispatch with target=prod, or pass stage=pr-{N}, or add the deployed-e2e label to a pull request"
+                      exit 1
+                  fi
+
+                  recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
+                  food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")
+
+                  # The BROWSER origin the recipe service must allow cross-origin. Prod is the apex; a
+                  # preview is the per-PR SUBDOMAIN (ADR-0001, cutover executed 2026-07-13 — the older
+                  # `sandbox.<domain>/pr-{N}` path form 404s BY DESIGN and must not be restored here).
+                  # `DOMAIN_NAME` is a repo variable, so no host is typed into this file.
+                  if [ "${stage}" = 'prod' ]; then
+                      web="https://${DOMAIN_NAME}"
+                  else
+                      web="https://${stage}.sandbox.${DOMAIN_NAME}"
+                  fi
+
+                  {
+                      echo "stage=${stage}"
+                      echo "recipe_origin=${recipe}"
+                      echo "food_origin=${food}"
+                      echo "web_origin=${web}"
+                  } >>"$GITHUB_OUTPUT"
+                  echo "stage=${stage} recipe=${recipe} food=${food} web=${web}"
+            # ⛔ THE SKIP, and it consumes the answer the repo ALREADY publishes rather than re-deriving it.
+            #
+            # `deploy-gate.sh` has emitted `live` since 2026-09-02 — "is there a preview to talk to at all,
+            # by the end of this run" — and until now nothing outside `sandbox-deploy.yml`'s own steps read
+            # it. Re-implementing "is anything deployed" here as a `curl` loop would be a SECOND, drifting
+            # definition of a question one script already answers against both CloudFormation and the origin.
+            #
+            # ⚠️ `live` ALONE is not the condition, and the difference matters. The gate reports `live=true`
+            # for an environment it is ABOUT TO CREATE (an absent stack under intent) — true for the deploy
+            # job that follows it, false for this workflow, which deploys nothing. The state this tier can
+            # run in is the gate's own `deploy=false` arm: "unchanged and already deployed and serving (all
+            # stacks usable, origin 200)". So the condition is `live && !deploy`, per service.
+            #
+            # `intent=true` is passed unconditionally BECAUSE of that pairing: intent is the gate's
+            # on-demand-sandbox term (the `sandbox-up` label), and passing `false` would collapse every
+            # answer to `live=false` and make this tier permanently silent. Passing `true` cannot cause a
+            # deploy — there is no deploy step in this workflow — and a torn-down sandbox still resolves to
+            # SKIP, because its absent stacks produce `deploy=true`. `changed`/`forced` are `false` for the
+            # same reason: this run has no diff to react to and is not a deploy button.
+            #
+            # ⛔ Absence SKIPS, it never fails. `deployGateStepGuards.test.ts` records why:
+            # "red-over-nothing is the mirror of green-over-nothing", and `Sandbox Deploy` was permanently
+            # red on PR #91 for exactly this. `GITHUB_OUTPUT=` is cleared per call so the two evaluations
+            # cannot overwrite each other's `deploy=`/`live=` keys; ONE combined `live=` is written at the
+            # end.
+            - name: Is anything deployed at this stage? (deploy-gate liveness)
+              id: live
+              env:
+                  STAGE: ${{ steps.target.outputs.stage }}
+                  RECIPE_ORIGIN: ${{ steps.target.outputs.recipe_origin }}
+                  FOOD_ORIGIN: ${{ steps.target.outputs.food_origin }}
+              run: |
+                  set -euo pipefail
+
+                  # Run the gate with its GITHUB_OUTPUT suppressed and capture the verdict, so both services
+                  # can be asked without the second answer clobbering the first.
+                  ask() {
+                      local service="$1" health="$2"
+                      shift 2
+                      GITHUB_OUTPUT='' bash .github/scripts/deploy-gate.sh evaluate \
+                          true "${service}" false false "${health}" "${DEFAULT_AWS_REGION}" "$@"
+                  }
+
+                  field() {
+                      printf '%s\n' "$1" | sed -n "s/^${2}=//p" | tail -1
+                  }
+
+                  recipe_verdict=$(ask recipe "${RECIPE_ORIGIN}/health" \
+                      "kitchensink-ingredient-parser-${STAGE}" \
+                      "kitchensink-recipe-workers-${STAGE}" \
+                      "kitchensink-recipe-service-${STAGE}")
+                  echo "${recipe_verdict}"
+
+                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" "kitchensink-food-service-${STAGE}")
+                  echo "${food_verdict}"
+
+                  live='false'
+                  if [ "$(field "${recipe_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${recipe_verdict}" deploy)" = 'false' ] &&
+                      [ "$(field "${food_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${food_verdict}" deploy)" = 'false' ]; then
+                      live='true'
+                  fi
+
+                  echo "live=${live}" >>"$GITHUB_OUTPUT"
+                  if [ "${live}" = 'true' ]; then
+                      echo "::notice::${STAGE} is deployed and serving — running the deployed e2e tier"
+                  else
+                      echo "::notice::nothing is deployed and serving at ${STAGE} — SKIPPING the deployed e2e tier (this is not a failure; deploy the stage, or press Run workflow on Sandbox Deploy, and try again)"
+                  fi
+
+    # ── The deployed tier itself ───────────────────────────────────────────────────────────────────────
+    #
+    # `if: needs.resolve.outputs.live == 'true'` is the whole of the owner's "skipped if nothing sandbox is
+    # running": GitHub renders this as SKIPPED — visually distinct from green, still passing for branch
+    # protection, and zero runner minutes. ⛔ Do NOT make it skip-tolerant (`always()` / `!cancelled()`):
+    # that would run the suite against thin air and turn "there is nothing to do" back into a red check.
+    deployed-e2e:
+        name: Deployed E2E (${{ needs.resolve.outputs.stage }})
+        runs-on: ubuntu-latest
+        needs: resolve
+        if: needs.resolve.outputs.live == 'true'
+        steps:
+            # ⛔ FIRST, and before anything is fetched: every URL this job probes arrives from ANOTHER job's
+            # output, and this job's whole purpose is to send requests to them. An origin outside our own
+            # apex is either a resolver that was handed the wrong domain (an empty or re-pointed
+            # `DOMAIN_NAME` repo variable resolves to `https://recipe-pr-91.` — a name, and a request, that
+            # is not ours) or a `needs` plumbing mistake. Refusing here is cheaper than discovering it in a
+            # request log, and it fails LOUDLY rather than skipping: a target this job cannot vouch for is a
+            # defect, not an absence.
+            - name: Confirm every resolved target is under this repository's own domain
+              env:
+                  RECIPE_ORIGIN: ${{ needs.resolve.outputs.recipe_origin }}
+                  FOOD_ORIGIN: ${{ needs.resolve.outputs.food_origin }}
+                  WEB_ORIGIN: ${{ needs.resolve.outputs.web_origin }}
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo "::error::the DOMAIN_NAME repository variable is empty — every resolved origin would be a bare label"
+                      exit 1
+                  fi
+                  for origin in "${RECIPE_ORIGIN}" "${FOOD_ORIGIN}" "${WEB_ORIGIN}"; do
+                      case "${origin}" in
+                          "https://${DOMAIN_NAME}" | "https://"*".${DOMAIN_NAME}")
+                              echo "target ${origin}"
+                              ;;
+                          *)
+                              echo "::error::resolved target '${origin}' is not under ${DOMAIN_NAME} — refusing to drive it"
+                              exit 1
+                              ;;
+                      esac
+                  done
+            - name: Checkout
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Setup Node.js
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - name: Install dependencies
+              run: npm ci
+            # `vitest.deployed.config.ts` imports `@kitchensink/vitest`, which exports COMPILED `./*.js` from
+            # its package root rather than `./src` — so on a fresh checkout the tier's own config cannot
+            # resolve until that package is built. `^...` asks turbo for the dependency CLOSURE rather than
+            # naming packages: the same idiom, and the same lesson, as the resolver build in `resolve` above.
+            - name: Build the workspace packages the deployed tier imports
+              run: npx turbo run build --filter='@kitchensink/cross-service-e2e^...'
+            # The five classifiers in `deployedSmoke.ts` are the repo's ONE authority on "is this deployment
+            # good", and this composes them rather than standing a second one beside them. Two of the five
+            # apply here: health, and the CORS preflight — the check that a browser can reach the service at
+            # all, which `/health` cannot make (a preflight is credential-less by spec, so a service whose
+            # auth runs ahead of CORS answers 401 and is unreachable from every browser while staying 200 to
+            # curl; a stale pre-CORS recipe build served pr-73 for fifteen days behind exactly that green).
+            #
+            # ⚠️ The image-currency and dependency-wiring checks are deliberately NOT invoked here. Both
+            # compare against what a DEPLOY just produced, and this workflow deploys nothing: currency would
+            # need a tag this run did not push, and wiring needs the running ECS task's `FOOD_SERVICE_URL`.
+            # Both already run, on every event that has a preview, in `sandbox-deploy.yml`'s own smoke steps
+            # (guarded on `live`) and in `prod-deploy.yml`. Restating them here would be a third copy of the
+            # ECS task-definition lookup, which is how the two existing copies came to differ.
+            - name: Smoke test — the deployed recipe service is live and browser-reachable
+              env:
+                  RECIPE_ORIGIN: ${{ needs.resolve.outputs.recipe_origin }}
+                  WEB_ORIGIN: ${{ needs.resolve.outputs.web_origin }}
+              run: |
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "${RECIPE_ORIGIN}" \
+                    --web-origin "${WEB_ORIGIN}"
+            # NO `--web-origin`, and that is DERIVED rather than an oversight: `food-service/src/main.ts` has
+            # no `app.enableCors(…)` because nothing outside the cluster calls it (its only consumer is the
+            # recipe service, server-to-server), so sending it a preflight would assert a browser path that
+            # does not exist. `prodDeploySmokeDepth.test.ts` reads each service's `main.ts` and requires the
+            # flag exactly when CORS is enabled, so if food ever becomes browser-facing the build says so.
+            - name: Smoke test — the deployed food service is live
+              env:
+                  FOOD_ORIGIN: ${{ needs.resolve.outputs.food_origin }}
+              run: |
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "${FOOD_ORIGIN}"
+            # ⛔ The authorization boundary of the DEPLOYED artefact, which every other tier is structurally
+            # blind to: each of them boots a service the runner configured, so an unverified `CLERK_JWT_KEY`,
+            # a missing one, or a `RECIPE_DEV_AUTH_USER_ID` that survived into a stage is invisible to a
+            # fully green unit / integration / e2e / linkage suite and visible here on the first request.
+            #
+            # Non-destructive BY CONSTRUCTION — unauthenticated GETs only — which is what makes the SAME
+            # suite safe to run against production. Both origins are REQUIRED with no default, and the suite
+            # THROWS rather than skipping when one is absent: by the time it runs, the gate above has already
+            # reported the stage serving, so absence is a regression, not an excuse to pass quietly.
+            - name: Deployed E2E — the authorization boundary holds on the running stage
+              env:
+                  DEPLOYED_RECIPE_URL: ${{ needs.resolve.outputs.recipe_origin }}
+                  DEPLOYED_FOOD_URL: ${{ needs.resolve.outputs.food_origin }}
+              run: npm run test:deployed --workspace=@kitchensink/cross-service-e2e

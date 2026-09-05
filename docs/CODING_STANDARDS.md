@@ -507,6 +507,8 @@ export function registerIngredient(name: string, _metadata: unknown): void {
 ## 7. Testing Conventions
 
 - Test pyramid: >= 70% unit, <= 20% integration, <= 10% E2E.
+- "E2E" in that pyramid means the **hermetic contract** tier. A test that boots its own target is not an
+  end-to-end test of the system — see [§7.1a](#71a-the-two-end-to-end-shaped-tiers--and-neither-satisfies-the-other).
 - Every test file opens with a block comment mapping requirement IDs to test descriptions.
 - Global registries MUST be cleared in `beforeEach`.
 
@@ -516,22 +518,69 @@ export function registerIngredient(name: string, _metadata: unknown): void {
 
 This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this repository — permanently.
 
-| Work under test                                                                                  | REQUIRED tests — write **ALL** of them, test-first. Omitting **any one** = the work is INCOMPLETE.                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **UI code** (components, screens, hooks)                                                         | (1) a **vitest component test** (React Testing Library) for **EVERY** UI path/state — loading, empty, populated, error, gated, disabled, and every other branch — **NOT just the happy path, NOT a representative sample; every single path**; **AND** (2) a **Playwright** test (web) for **EVERY** happy-path / user story — Playwright **IS** the UI's integration test. Mobile parity: a **Maestro** flow per story. |
-| **Non-UI code** (services, DALs, domain logic, controllers, DTOs, workers, libraries, utilities) | **unit tests AND integration tests — BOTH, always.** Integration exercises the **real** dependency (Docker Postgres for the DB, LocalStack for AWS). A unit test alone is a **VIOLATION**.                                                                                                                                                                                                                               |
-| **Services** (deployable HTTP APIs)                                                              | everything above **PLUS end-to-end tests** (boot the service against real Postgres + LocalStack and drive it over HTTP) **AND k6 load/performance tests** (assert the service's latency/throughput SLOs). Unit + integration alone is **NOT SUFFICIENT** for a deployable API.                                                                                                                                           |
+| Work under test                                                                                  | REQUIRED tests — write **ALL** of them, test-first. Omitting **any one** = the work is INCOMPLETE.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **UI code** (components, screens, hooks)                                                         | (1) a **vitest component test** (React Testing Library) for **EVERY** UI path/state — loading, empty, populated, error, gated, disabled, and every other branch — **NOT just the happy path, NOT a representative sample; every single path**; **AND** (2) a **Playwright** test (web) for **EVERY** happy-path / user story — Playwright **IS** the UI's integration test. Mobile parity: a **Maestro** flow per story.                                                                                          |
+| **Non-UI code** (services, DALs, domain logic, controllers, DTOs, workers, libraries, utilities) | **unit tests AND integration tests — BOTH, always.** Integration exercises the **real** dependency (Docker Postgres for the DB, LocalStack for AWS). A unit test alone is a **VIOLATION**.                                                                                                                                                                                                                                                                                                                        |
+| **Services** (deployable HTTP APIs)                                                              | everything above **PLUS hermetic contract tests** (boot the service against real Postgres + LocalStack and drive it over HTTP) **AND deployed-ecosystem tests** (drive the service at a real deployed origin — [§7.1a](#71a-the-two-end-to-end-shaped-tiers--and-neither-satisfies-the-other), ADR-0032) **AND k6 load/performance tests** (assert the service's latency/throughput SLOs). Unit + integration alone is **NOT SUFFICIENT** for a deployable API, and neither tier above substitutes for the other. |
 
 **Absolute rules — no interpretation, no exceptions:**
 
 - **EVERY UI path/state gets a vitest component test.** Every branch, every state. Not a sample, not the happy path only — every one.
 - **EVERY happy-path / user story gets a Playwright (web) AND a Maestro (mobile) test.**
 - **EVERY non-UI unit gets BOTH a unit test AND an integration test.** Never one without the other.
-- **EVERY service additionally gets e2e AND k6 tests**, on top of unit + integration.
+- **EVERY service additionally gets hermetic contract, deployed-ecosystem AND k6 tests**, on top of unit + integration. A green hermetic suite is not evidence that anything is deployed, and a green deployed suite is not a licence to delete the hermetic one ([§7.1a](#71a-the-two-end-to-end-shaped-tiers--and-neither-satisfies-the-other)).
 - A feature is **NOT DONE** — not "done pending tests", not "done except CI", not "done, tests to follow" — until **every** category it touches has **passing** tests of **every** required kind.
 - This is a **HARD MERGE GATE.** A change that adds or modifies code without its required tests is incomplete by definition and **MUST be rejected in review**.
 - **"It can't run in this environment" is NEVER an excuse to omit a test.** If a required test cannot execute locally (e.g. no Docker), it is still **written** and **run in CI** — a missing test file is a violation; a written-but-CI-only test is fine.
 - The `>= 70% unit / <= 20% integration / <= 10% E2E` pyramid still holds; **k6 is a separate, additional performance gate**, not part of the pyramid.
+
+### 7.1a The two end-to-end-shaped tiers — and NEITHER satisfies the other
+
+A test that **boots its own target** is a **hermetic contract test**. It is not an end-to-end test of the
+system, however many HTTP requests it makes.
+
+This is not vocabulary policing. Until 2026-09-04 every job in `.github/workflows/_ci.yml` named `E2E` stood
+its own backend up on the runner, and the worst of them read `E2E (recipe ↔ food LIVE — both services, one
+real Clerk token)` while pointing at `LINKAGE_FOOD_URL=http://localhost:3002`. A stale, pre-CORS recipe build
+then served `pr-73` for **fifteen days** behind unbroken green checks — `/health` answered 200, `cdk synth`
+exited 0, and k6, Playwright, Maestro and every service e2e suite passed **because each boots or mocks its
+own backend** and is therefore structurally incapable of observing a deploy (ADR-0032).
+
+| Tier                   | Target                                                                                                                      | What it can prove                                                                                                                                       | What it CANNOT prove                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Hermetic contract**  | a backend the job boots or mocks itself — Docker Postgres, LocalStack, an in-process Nest app, a `next start`, a route mock | the code honours its contracts: SQL, wire shapes, S3/SQS side effects, seeded fixtures, error/degraded branches, every UI state, authorization refusals | anything at all about the deployed system                              |
+| **Deployed ecosystem** | a real deployed origin — this PR's sandbox, or prod                                                                         | the deploy itself: image tag, DNS, listener rule, the schema that actually shipped, cross-service wiring, the origin a client really receives           | anything that needs a fixture, a mock, a forced error, or a seeded row |
+
+**Neither tier substitutes for the other, in either direction.**
+
+- A green hermetic suite is **NOT** evidence that anything is deployed, reachable, or correctly wired. It
+  never issued a request that left the runner. Reporting it as "end-to-end passed" is a false status, and
+  false status is worse than a known gap.
+- A green deployed suite is **NOT** a replacement for the hermetic tier and **MUST NOT** be used to thin or
+  delete it. It cannot seed a fixture, force an error branch, assert a LocalStack side effect, drive a mocked
+  UI path, or run at all on a PR with nothing deployed.
+
+**Which one is the hard merge gate.** The **hermetic contract tier runs on every PR and is the gate** — it
+needs no AWS, no stage and no deploy, so it can be required of every change without qualification. The
+**deployed-ecosystem tier is owned by ADR-0032**: what it targets, when it runs, when it may be skipped and
+when its absence is fatal are that ADR's decisions, not this section's.
+
+**Naming is enforced, not advisory.** A CI job's name states its **target**, because the fifteen-day failure
+was a naming failure before it was a testing failure. `E2E` is **RESERVED** for a job whose target is a
+deployed origin; a job that boots its own target is named `Hermetic (<subject> — <what it stands up>)`. This
+is asserted by `packages/infra/global/__tests__/workflowInvariants.test.ts` **invariant 7**: a job whose
+displayed name says `E2E` while declaring service containers, naming a `localhost`/`127.0.0.1` target, or
+naming no remote target at all fails the build.
+
+⛔ Read that guard in the correct direction. The fix for a flagged job is to **rename it**, never to strip its
+Postgres so the guard goes quiet. The hermetic suites are **kept exactly as they are** — only the label was
+wrong.
+
+⚠️ The **directories keep their `e2e` names** (`tests/e2e/*.e2e.test.ts`, `vitest.e2e.config.ts`,
+`tests/e2e/*.spec.ts`, `.maestro/`), and so do the CI job **keys** (`GITHUB_JOB` is folded into the
+run-scoped Clerk fixture identity by `deriveRunKey`, so renaming a key silently re-keys every fixture user).
+A suite's tier is decided by **what it targets**, never by the folder it sits in or the key above its name.
 
 ### Test File Location
 
@@ -556,6 +605,9 @@ Two regimes, matching the [§1 File Naming](#1-file-naming) split. Pick by the p
 
 #### Every regime
 
+- **Both `E2E` rows above are the hermetic contract tier** ([§7.1a](#71a-the-two-end-to-end-shaped-tiers--and-neither-satisfies-the-other)).
+  The directory names predate the taxonomy and are deliberately kept; the deployed-ecosystem tier's
+  location and wiring are ADR-0032's to define.
 - **Load / performance (k6)**: `packages/tools/loadtest/` — scripts are shared across services, not
   colocated per package. Required for every deployable service ([§7.1](#71-test-mandate--absolute-non-negotiable-every-phase-every-feature-every-contributor)).
 - **Mocks**: `__mocks__/` directories co-located with source.

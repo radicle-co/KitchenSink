@@ -25,14 +25,39 @@ const BAPI = 'https://api.clerk.com/v1';
 const POOL_SIZE = Number(process.env['POOL_SIZE'] ?? 10);
 const EMAIL_DOMAIN = process.env['EMAIL_DOMAIN'] ?? 'radcile.com';
 const ADMIN_SCOPE = process.env['ADMIN_SCOPE'] ?? 'food:admin';
-const FOOD_BASE_URL = (process.env['FOOD_BASE_URL'] ?? 'https://food-pr-59.commise.app').replace(/\/$/, '');
+// ⛔ NO DEFAULT. This read `?? 'https://food-pr-59.commise.app'` — a host that stopped resolving
+// the day PR 59 closed, so a caller who forgot the variable got a dead target instead of an error.
+// Resolve the origin from the stage instead: `node printPublicOrigin.mjs food <stage> <apex>`.
+const FOOD_BASE_URL = (process.env['FOOD_BASE_URL'] ?? '').replace(/\/$/, '');
+
+if (!FOOD_BASE_URL) {
+    throw new Error('FOOD_BASE_URL is required — resolve it with printPublicOrigin.mjs, never a typed host');
+}
 const OUT_DIR = process.env['OUT_DIR'] ?? '.';
 const CONCURRENCY = Number(process.env['CONCURRENCY'] ?? 4);
 
 // Stable names → stable emails, so the pool is deterministic + reusable across runs.
 const NAMES = [
-    'alfa', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliett',
-    'kilo', 'lima', 'mike', 'november', 'oscar', 'papa', 'quebec', 'romeo', 'sierra', 'tango',
+    'alfa',
+    'bravo',
+    'charlie',
+    'delta',
+    'echo',
+    'foxtrot',
+    'golf',
+    'hotel',
+    'india',
+    'juliett',
+    'kilo',
+    'lima',
+    'mike',
+    'november',
+    'oscar',
+    'papa',
+    'quebec',
+    'romeo',
+    'sierra',
+    'tango',
 ];
 
 if (!SK) {
@@ -137,7 +162,14 @@ async function provisionUser(name) {
     const user = await findOrCreateUser(name);
     const session = await freshSession(user.id);
 
-    return { name, email: user.email, userId: user.id, sessionId: session.sessionId, jwt: session.jwt, reused: user.reused };
+    return {
+        name,
+        email: user.email,
+        userId: user.id,
+        sessionId: session.sessionId,
+        jwt: session.jwt,
+        reused: user.reused,
+    };
 }
 
 async function provisionAdmin() {
@@ -174,7 +206,14 @@ async function provisionAdmin() {
         await delay(1500);
     }
 
-    return { name: 'admin', email: user.email, userId: user.id, sessionId: session.sessionId, jwt: session.jwt, verified };
+    return {
+        name: 'admin',
+        email: user.email,
+        userId: user.id,
+        sessionId: session.sessionId,
+        jwt: session.jwt,
+        verified,
+    };
 }
 
 const names = NAMES.slice(0, POOL_SIZE);
@@ -185,15 +224,36 @@ const failures = settled.filter((r) => !r.ok);
 
 if (failures.length > 0) {
     failures.slice(0, 5).forEach((f) => console.error(`  - ${f.error?.message ?? f.error}`));
-    throw new Error(`${failures.length}/${POOL_SIZE} pool users failed. Persistent users are NOT torn down — re-run to fill gaps.`);
+    throw new Error(
+        `${failures.length}/${POOL_SIZE} pool users failed. Persistent users are NOT torn down — re-run to fill gaps.`,
+    );
 }
 
 const pool = settled.map((r) => r.value);
 const reused = pool.filter((p) => p.reused).length;
 
-writeFileSync(join(OUT_DIR, 'pool.json'), `${JSON.stringify(pool.map(({ reused: _r, ...rest }) => rest), null, 2)}\n`);
-writeFileSync(join(OUT_DIR, 'tokens.json'), `${JSON.stringify(pool.map((p) => p.jwt), null, 2)}\n`);
-writeFileSync(join(OUT_DIR, 'admin.json'), `${JSON.stringify({ jwt: admin.jwt, sessionId: admin.sessionId, userId: admin.userId }, null, 2)}\n`);
+writeFileSync(
+    join(OUT_DIR, 'pool.json'),
+    `${JSON.stringify(
+        pool.map(({ reused: _r, ...rest }) => rest),
+        null,
+        2,
+    )}\n`,
+);
+writeFileSync(
+    join(OUT_DIR, 'tokens.json'),
+    `${JSON.stringify(
+        pool.map((p) => p.jwt),
+        null,
+        2,
+    )}\n`,
+);
+writeFileSync(
+    join(OUT_DIR, 'admin.json'),
+    `${JSON.stringify({ jwt: admin.jwt, sessionId: admin.sessionId, userId: admin.userId }, null, 2)}\n`,
+);
 
-console.log(`Pool ready: ${pool.length} users (${reused} reused, ${pool.length - reused} created), admin verified=${admin.verified}.`);
+console.log(
+    `Pool ready: ${pool.length} users (${reused} reused, ${pool.length - reused} created), admin verified=${admin.verified}.`,
+);
 console.log(`Wrote pool.json / tokens.json / admin.json to ${OUT_DIR}. Persistent — run \`npm run sweep\` to delete.`);

@@ -52,6 +52,21 @@ on:
                 required: false
                 type: boolean
                 default: true
+            load_test_target:
+                description: >-
+                    WHICH ENVIRONMENT the deployed k6 tier measures (owner ruling 2026-09-04) — `sandbox`,
+                    meaning this PR's own `pr-{N}` preview, or `prod`.
+
+                    ⛔ `prod` is REFUSED at runtime unless the run was manually dispatched. The refusal is a
+                    STEP inside `load-test-sandbox`, not a job-level `if:`, because an `if:` would SKIP —
+                    reporting a green heavy run that load-tested nothing, which is the failure mode this
+                    file's Maestro stage guard already exists to prevent one job over.
+
+                    The DEFAULT IS THE SAFE ONE and must stay that way: a caller that says nothing measures
+                    the sandbox.
+                required: false
+                type: string
+                default: sandbox
             run_mobile_maestro:
                 description: Run the mobile Maestro job (Android emulator + release APK).
                 required: false
@@ -130,7 +145,7 @@ jobs:
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
     e2e-mobile-maestro:
-        name: E2E (mobile — Maestro) · heavy tier
+        name: Hermetic (mobile — Maestro on an emulator; recipe-service booted on the runner) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
         # Cross-platform mandate: the Vitest mobile e2e (above) covers logic; Maestro drives the real UI
@@ -505,9 +520,18 @@ jobs:
               run: docker logs recipe-maestro 2>&1 | tail -100 || true
 
     load-test:
-        name: Load test (recipe — k6) · heavy tier
+        name: Load test (recipe — k6, isolated substrate) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
+        # ⛔ k6-target: isolated substrate — and it must STAY one. Re-pointing this job at a deployed
+        # preview would not move its assertions, it would DELETE them: the seeded corpus `prepare-db.mjs`
+        # writes lives in a runner-local Postgres no runner can reach on AWS; the erasure pool is signed by
+        # a THROWAWAY EdDSA keypair the deployed service does not trust; `versionArchiveRead` reads a
+        # snapshot the fixture PUTs to LocalStack; the parse-job fan-out proof is the DEPTH of an SQS queue
+        # nothing drains, which on a real stage has real consumers; `ingredientSuggestLatency` asserts
+        # degradation against an UNREACHABLE food origin, and the sandbox's food origin is reachable; and
+        # `nutritionBatch`'s evidence is a local stub's chunk counters. The deployed measurement the owner
+        # asked for is `load-test-sandbox` below — a SIBLING, not a replacement.
         # T081/SC-009 performance gate. Gated behind `run_load_test` so the heavy k6 run never fires on an
         # ordinary PR / push pipeline — no such pipeline calls this file at all, and a caller that wants only
         # the emulator switches the input off. Reached via `heavy-e2e.yml` (nightly schedule, manual dispatch,
@@ -881,10 +905,222 @@ jobs:
               if: failure()
               run: docker logs recipe-load 2>&1 | tail -150 || true
 
-    load-test-food:
-        name: Load test (food — k6) · heavy tier
+    load-test-sandbox:
+        name: Load test (k6 — DEPLOYED ${{ inputs.load_test_target }} origins) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
+        # k6-target: DEPLOYED origins — this PR's own `pr-{N}` preview (owner ruling 2026-09-04: "k6 should
+        # test the sandbox for the PR. We should still be able to run k6 in the prod pipeline by triggering
+        # the job manually").
+        #
+        # ## What this measures that the three isolated jobs structurally CANNOT
+        #
+        # They own their substrate: a dedicated Postgres, LocalStack, a container they configured, and no
+        # rate limiter. That is what makes their assertions possible — and it is also why not one of their
+        # numbers says anything about the thing a reviewer actually opens. This job measures the real path:
+        # DNS, the shared ALB and its listener rule, a 0.5-vCPU `FARGATE_SPOT` task at `desiredCount=1`, and
+        # the service's own auth middleware, for THIS PR.
+        #
+        # ## ⛔ It GATES on correctness and only REPORTS latency, deliberately
+        #
+        # Every budget in this repo (`RECIPE_SAVE_P95_MS=500`, food's `READ_P95_MS`, identity's NFR-011a
+        # p99, the derived `NUTRITION_BATCH_P95_MS` — "9.04 ms per ms of food latency at the cap") was
+        # calibrated against a runner-local container. A per-PR preview is half a reclaimable vCPU sharing a
+        # `db.t4g.micro` with every other open PR's logical database (ADR-0006) behind a shared ALB
+        # (ADR-0003). Carrying those numbers across produces a gate that reddens on the NEIGHBOURS' traffic,
+        # and the predictable next step is somebody switching it off — which costs more than never having
+        # had it. So `deployedOrigin.load.js` thresholds ONLY facts a slow machine cannot cause (no 5xx; a
+        # protected route never answers 2xx unauthenticated) and REPORTS every latency figure. A budget can
+        # be set here once enough runs exist to know the distribution; until then it would be a number
+        # nobody believes. Read its docblock before adding one.
+        #
+        # ## ⛔ The rate limiter is respected, not raised
+        #
+        # `ThrottlerGuard` buckets by client IP and one runner is one IP. The isolated jobs crank
+        # `RATE_LIMIT_*` because they own the container — which `recipe-service/tests/load/README.md` warns
+        # makes the result stop proving anything about the production limits. A deployed preview is not ours
+        # to reconfigure per run, so the shape stays UNDER the limit instead (~60 req/min against a default
+        # `RATE_LIMIT_READ` of 120/min, the other half left for the preview's real users). A 429 is counted
+        # and surfaced, never thresholded.
+        #
+        # ## ⛔ An absent preview SKIPS — it never fails
+        #
+        # A `pr-{N}` sandbox is legitimately absent: reaped by the nightly sweep, torn down on close, or
+        # never deployed because `deploy-gate.sh` decided nothing changed. Red-over-nothing is the mirror of
+        # green-over-nothing and costs the same thing (`deployGateStepGuards.test.ts`), so the liveness
+        # probe is the gate for every step below it and its absence is a NOTICE.
+        if: ${{ inputs.run_load_test }}
+        env:
+            DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+            LOAD_TEST_TARGET: ${{ inputs.load_test_target }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No step here performs a git push/fetch/remote operation, so the checkout token is pure
+                  # attack surface left in the workspace (zizmor: artipacked).
+                  persist-credentials: false
+            # ⛔ FIRST, and deliberately a STEP rather than a job-level `if:` — the same construction as the
+            # Maestro stage guard above, for the same reason: an `if:` would SKIP silently, reporting a green
+            # heavy run that load-tested nothing. This is the ONLY thing standing between a schedule, a PR
+            # event or a mis-wired caller and a load run against production, so it must be able to go RED.
+            - name: Refuse a prod target on anything but a manual dispatch
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+              run: |
+                  set -euo pipefail
+                  if [ "${LOAD_TEST_TARGET}" = 'prod' ] && [ "${EVENT_NAME}" != 'workflow_dispatch' ]; then
+                      echo "::error::a prod k6 target is MANUAL-ONLY, and this run was triggered by '${EVENT_NAME}'"
+                      exit 1
+                  fi
+                  echo "k6 target: ${LOAD_TEST_TARGET} (event: ${EVENT_NAME})"
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL — see the identical note on the jobs above.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            - name: Install k6
+              run: |
+                  sudo gpg -k
+                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+                      | sudo tee /etc/apt/sources.list.d/k6.list
+                  sudo apt-get update
+                  sudo apt-get install -y k6
+            - name: Build the workspace package the origin resolver imports
+              run: npx turbo run build --filter=@kitchensink/infra-alb
+            # ⛔ THE HOST SHAPE IS RESOLVED, NEVER TYPED. `publicServiceOriginForStage` is THE authority
+            # (ADR-0003 / ADR-0006: prod is the bare label, every other stage the DASH form, because a
+            # 3-label `recipe.pr-7.{apex}` matches no wildcard on the shared ALB cert and dies in the TLS
+            # handshake). A literal in YAML rots without saying so — `food-loadtest.yml` carried
+            # `food-pr-59` as its dispatch default long after PR 59 closed, and an unresolvable name reads
+            # as an outage rather than as a stale default.
+            - name: Resolve the target stage and its origins
+              id: target
+              env:
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  FALLBACK_STAGE: ${{ inputs.stage }}
+              run: |
+                  set -euo pipefail
+                  if [ "${LOAD_TEST_TARGET}" = 'prod' ]; then
+                      stage='prod'
+                  elif [ -n "${PR_NUMBER}" ]; then
+                      stage="pr-${PR_NUMBER}"
+                  else
+                      # A scheduled / dispatched run with no PR in context (recipe-loadtest.yml) measures the
+                      # shared stage the caller named. If nothing is deployed there, the probe below skips.
+                      stage="${FALLBACK_STAGE}"
+                  fi
+                  recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
+                  food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")
+                  {
+                      echo "stage=${stage}"
+                      echo "recipe=${recipe}"
+                      echo "food=${food}"
+                  } >>"$GITHUB_OUTPUT"
+                  echo "k6 will measure stage ${stage} — recipe ${recipe}, food ${food}"
+            # ⛔ ABSENCE IS A SKIP. Reuses `deploy-gate.sh`'s OWN retry-aware probe rather than a second
+            # `curl` matcher, so "did the origin answer" has one definition in this repo. A reusable
+            # workflow cannot `needs:` the gate job that publishes `live` (it lives in `sandbox-deploy.yml`,
+            # a different workflow), so the function is sourced instead of the output consumed — same
+            # authority, the only reachable form.
+            - name: Probe whether the target is live
+              id: live
+              run: |
+                  set -euo pipefail
+                  # shellcheck source=.github/scripts/deploy-gate.sh
+                  source .github/scripts/deploy-gate.sh
+                  live_for() {
+                      local code
+                      code=$(deploy_gate_probe "${1}/health")
+                      # Diagnostic to STDERR so the captured stdout is the verdict and nothing else.
+                      echo "${2} origin ${1} answered ${code}" >&2
+                      if [ "${code}" = '200' ]; then
+                          echo 'true'
+                      else
+                          echo 'false'
+                      fi
+                  }
+                  recipe_live=$(live_for "${RECIPE_ORIGIN}" recipe)
+                  food_live=$(live_for "${FOOD_ORIGIN}" food)
+                  {
+                      echo "recipe=${recipe_live}"
+                      echo "food=${food_live}"
+                  } >>"$GITHUB_OUTPUT"
+                  if [ "${recipe_live}" != 'true' ] && [ "${food_live}" != 'true' ]; then
+                      echo "::notice::no ${TARGET_STAGE} preview is serving — the deployed k6 tier has nothing to measure, so it is SKIPPED (not failed)"
+                  fi
+              env:
+                  RECIPE_ORIGIN: ${{ steps.target.outputs.recipe }}
+                  FOOD_ORIGIN: ${{ steps.target.outputs.food }}
+                  TARGET_STAGE: ${{ steps.target.outputs.stage }}
+            - name: Run k6 against the deployed recipe origin
+              if: steps.live.outputs.recipe == 'true'
+              working-directory: packages/tools/loadtest
+              env:
+                  TARGET_BASE_URL: ${{ steps.target.outputs.recipe }}
+                  TARGET_SERVICE: recipe
+                  # `GET /api/v1/recipes` is auth-protected on every stage; unauthenticated it MUST be a 401.
+                  PROTECTED_PATH: /api/v1/recipes
+              run: k6 run deployedOrigin.load.js
+            - name: Run k6 against the deployed food origin
+              if: steps.live.outputs.food == 'true'
+              working-directory: packages/tools/loadtest
+              env:
+                  TARGET_BASE_URL: ${{ steps.target.outputs.food }}
+                  TARGET_SERVICE: food
+                  # ADR-0010's smoke reads this same route's `401` as its PASS, for the same reason.
+                  PROTECTED_PATH: /api/v1/foods/search?q=salt
+              run: k6 run deployedOrigin.load.js
+            - name: Publish the deployed-origin reports to the job summary
+              if: ${{ always() && steps.live.outputs.recipe != '' }}
+              working-directory: packages/tools/loadtest
+              run: |
+                  set -euo pipefail
+                  shopt -s nullglob
+                  reports=(k6-deployed-*-report.md)
+                  if [ ${#reports[@]} -eq 0 ]; then
+                      echo "No deployed preview was serving — nothing measured." >>"$GITHUB_STEP_SUMMARY"
+                      exit 0
+                  fi
+                  for report in "${reports[@]}"; do
+                      cat "${report}" >>"$GITHUB_STEP_SUMMARY"
+                  done
+            - name: Upload the deployed-origin k6 summaries
+              if: ${{ always() && steps.live.outputs.recipe != '' }}
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: deployed-k6-summaries-${{ steps.target.outputs.stage }}
+                  path: |
+                      packages/tools/loadtest/k6-deployed-*-summary.json
+                      packages/tools/loadtest/k6-deployed-*-report.md
+                  retention-days: 7
+                  if-no-files-found: ignore
+
+    load-test-food:
+        name: Load test (food — k6, isolated substrate) · heavy tier
+        runs-on: ubuntu-latest
+        needs: [install]
+        # ⛔ k6-target: isolated substrate — same reasoning as `load-test`, plus two of its own: the SC
+        # scripts present a Clerk RS256 pool minted from a throwaway keypair, and `drainDemotion.perf.ts`
+        # is not k6 at all — it calls `FetchQueueDao.leaseNext()` over a direct `DATABASE_URL` against a
+        # 180,000-row fixture, which is unreachable from a runner and unseedable on a shared preview.
         # CR-002 / U4b performance gate for food's internal service-principal erasure route, PLUS the T-195
         # SC-001/003/004/005/007 tier — the food mirror of the recipe `load-test` job, gated behind the SAME
         # `run_load_test` input so both heavy k6 runs fire together (nightly / manual / `heavy-e2e` PR label /
@@ -1201,9 +1437,15 @@ jobs:
               run: docker logs food-load 2>&1 | tail -150 || true
 
     load-test-identity:
-        name: Load test (identity — k6) · heavy tier
+        name: Load test (identity — k6, isolated substrate) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
+        # ⛔ k6-target: isolated substrate — and this one CANNOT be re-pointed even in principle. There is
+        # no per-PR identity deploy: `sandbox-deploy.yml` deploys food and recipe only, and identity is the
+        # ONE shared `identity.sandbox.{apex}` every preview signs in against (ADR-0001), so load against it
+        # is load against every other open PR's sign-in. Its own docblock below also forbids the only way a
+        # deployed run could authenticate ("Do NOT 'improve' it by provisioning real Clerk users") — the
+        # shared Clerk dev instance is a single per-IP rate limit that has already turned CI red.
         # The NFR-011a / SC-005 / SC-006 / SC-007 performance gate for `@kitchensink/identity-service` — the
         # third k6 job, gated behind the SAME `run_load_test` input as recipe and food so the whole tier moves
         # together (nightly / manual / `heavy-e2e` PR label / a PR touching food's measured query paths) and

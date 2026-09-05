@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "test:e2e": "vitest run --config vitest.e2e.config.ts",
+        "test:deployed": "vitest run --config vitest.deployed.config.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",

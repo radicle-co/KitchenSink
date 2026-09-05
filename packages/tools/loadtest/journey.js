@@ -22,7 +22,7 @@
  *   5. The pool must have >= MAX_VUS tokens or the distinct-user invariant breaks under scale-up
  *      (setup() asserts this).
  *
- * Run:  k6 run --env FOOD_BASE_URL=https://food-pr-59.commise.app journey.js
+ * Run:  k6 run --env FOOD_BASE_URL="$(node printPublicOrigin.mjs food pr-73 commise.app)" journey.js
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
@@ -30,7 +30,7 @@ import { SharedArray } from 'k6/data';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
 // ── Config (env with safe smoke-run defaults) ───────────────────────────────────────────────────────
-const BASE_URL = (__ENV.FOOD_BASE_URL || 'https://food-pr-59.commise.app').replace(/\/$/, '');
+const BASE_URL = (__ENV.FOOD_BASE_URL || '').replace(/\/$/, '');
 const POOL_FILE = __ENV.POOL_FILE || './pool.json';
 const CORPUS_FILE = __ENV.CORPUS_FILE || './corpus/food-queries.json';
 
@@ -231,6 +231,14 @@ const pool = new SharedArray('pool', () => {
 });
 
 export function setup() {
+    // ⛔ No target, no run — never a green run against a default host that no longer exists.
+    if (!BASE_URL) {
+        throw new Error(
+            'FOOD_BASE_URL is required — resolve it with `node printPublicOrigin.mjs food <stage> <apex>`. ' +
+                'It used to default to a typed host that stopped resolving when that PR closed.',
+        );
+    }
+
     // Distinct-user invariant (invariant #5): every concurrent VU needs its own user.
     if (pool.length < MAX_VUS) {
         throw new Error(

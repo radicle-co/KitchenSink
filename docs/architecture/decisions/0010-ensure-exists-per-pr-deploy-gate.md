@@ -3,7 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-29
 - **Drivers**: issue #124 ("the entire ecosystem needs to exist and be deployed and fully working all the way down")
-- **Relates to**: [ADR-0003](0003-shared-alb-per-stage.md) (shared ALB + host rules), [ADR-0005](0005-environment-tagging-and-pr-cleanup.md) (per-PR teardown), [ADR-0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md) (per-PR feature deploys), [ADR-0007](0007-sandbox-cost-controls.md) / [ADR-0008](0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md) (cost posture)
+- **Relates to**: [ADR-0003](0003-shared-alb-per-stage.md) (shared ALB + host rules), [ADR-0005](0005-environment-tagging-and-pr-cleanup.md) (per-PR teardown), [ADR-0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md) (per-PR feature deploys), [ADR-0007](0007-sandbox-cost-controls.md) / [ADR-0008](0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md) (cost posture), [ADR-0028](0028-on-demand-sandbox.md) (the `intent` precondition), [ADR-0032](0032-deployed-ecosystem-test-tier.md) (the deployed-ecosystem test tier)
 
 ## Context — the failure
 
@@ -120,13 +120,41 @@ nothing.
 Recipe requires food's origin, so `deploy-recipe` keeps `needs: deploy-food`. A **skipped** dependency skips
 its dependents, so the ordering is protected twice:
 
-1. `deploy-food`'s job-level `if:` stays true for every non-closed `pull_request` event (its gate skips the
-   _work_, per step), so on a PR it always reaches a conclusion.
+1. ~~`deploy-food`'s job-level `if:` stays true for every non-closed `pull_request` event~~ (its gate skips
+   the _work_, per step), so on a PR it always reaches a conclusion.
 2. `deploy-recipe`'s `if:` is prefixed with `!cancelled() && needs.deploy-food.result != 'failure'`, which
    _also fixes_ `workflow_dispatch` with `service: recipe` — there `deploy-food` is genuinely skipped, and the
    previous unqualified `if:` skipped the recipe deploy along with it.
 
 A food deploy that **fails** still blocks recipe, on purpose.
+
+> ⚠️ AMENDED (2026-09-04, owner ruling) — **belt 1 is NARROWED: it is now "true whenever `intent` is true",
+> not "true for every non-closed `pull_request` event".**
+>
+> The original wording was written when a preview existed on every PR. Under
+> [ADR-0028](0028-on-demand-sandbox.md) §4 it no longer does: on a PR with no `sandbox-up` label the gate
+> returns `deploy=false` before reaching any of §1's four rows, and the deploy job is a SKIP by design
+> ([ADR-0032](0032-deployed-ecosystem-test-tier.md) §6 makes the deployed test tier skip alongside it, for
+> the separate reason that a PR with no deployed target cannot be validated). Keeping belt 1 unconditionally
+> true would mean running `setup-node` + `npm ci` + `configure-aws-credentials` on every push to every PR
+> that has deliberately no environment — cost with no possible outcome.
+>
+> ⛔ **The narrowing is safe because belt 2 already discharges it, and this ADR says so in its own words.**
+> Belt 2 is `!cancelled() && needs.deploy-food.result != 'failure'`, and §5's point 2 above records that it
+> _"also fixes `workflow_dispatch` with `service: recipe` — there `deploy-food` is **genuinely skipped**"_.
+> A `deploy-food` skipped for want of intent is the same shape as a `deploy-food` skipped for want of a
+> dispatch input: `result == 'skipped'`, which is `!= 'failure'`, so `deploy-recipe` still reaches its own
+> gate and reaches the same `intent = false` conclusion on its own. Ordering is preserved because a food
+> deploy that **fails** still blocks recipe — that half is untouched.
+>
+> ⚠️ **Stated limitation: `intent` in a job-level `if:` is an event-payload SNAPSHOT.** `github.event`
+> carries the PR's labels **as they were when the run was created**, so a push whose run started before the
+> `sandbox-up` label was applied evaluates `intent = false` and skips — the label lands, and that already-
+> queued run does not see it. The cure is to press the button again (or re-run the workflow), which is the
+> same remedy ADR-0028 gives for a sandbox that expires mid-session. This is **not a new limitation**: the
+> step-level expression already in place reads the same snapshot, so narrowing the job-level `if:` moves
+> where the skip happens, not whether it can happen. It is recorded here because a job-level skip is more
+> visible than a step-level one, and someone will read it as a regression.
 
 **ALB listener priorities are untouched.** The disjoint bands stay as they are (identity 100, food 200, recipe
 300; ~~per-PR food `10000 + N`, per-PR recipe `30000 + N`, named stages in a higher band~~) — this ADR changes

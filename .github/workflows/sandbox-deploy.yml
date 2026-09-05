@@ -515,12 +515,36 @@ jobs:
     deploy-food:
         name: Deploy food sandbox (pr-${{ github.event.pull_request.number }})
         runs-on: ubuntu-latest
+        # ⛔ THE INTENT TERM IS PART OF THE JOB-LEVEL GATE (2026-09-04), and its absence was a reporting bug.
+        #
+        # Without it this job ran on every non-closed PR event, evaluated the ensure-exists gate, and — for a
+        # PR whose sandbox is deliberately down — skipped every step and reported GREEN. Green and
+        # green-having-deployed-nothing are the same colour, so the run graph said "food deployed" for a PR
+        # with no food service. SKIPPED is GitHub's own "there was nothing to do": visually distinct, still
+        # passing for branch protection, and zero runner minutes (this job otherwise pays a checkout, `npm
+        # ci`, a turbo build and two AWS round trips to learn it has nothing to do).
+        #
+        # ⚠️ INTENT IS THE ONLY ONE OF THE GATE'S FOUR CONDITIONS THAT MAY MOVE HERE. `changed`, stack status
+        # and origin health are all knowable only AFTER the job starts (a paths-filter, `describe-stacks`, an
+        # HTTP probe), so they stay in the step-level gate where they already are — hoisting one would need
+        # `steps.*` in a job-level `if:`, where it is always empty and the job would silently never run.
+        #
+        # ⚠️ THIS RELAXES ADR-0010 §5's BELT 1, deliberately, and belt 2 is what carries the ordering now.
+        # Belt 1 said this job's `if:` must stay true for every non-closed `pull_request` event because a
+        # skipped dependency skips its dependents. That is still true of GitHub, and it is now HARMLESS:
+        # `deploy-recipe` carries the SAME intent term, so on a PR with no `sandbox-up` label both jobs skip
+        # together — which is the intended outcome, not a lost deploy. When intent IS present, both jobs run
+        # and the ordering is unchanged. And belt 2 (`!cancelled() && needs.deploy-food.result != 'failure'`)
+        # already handles a SKIPPED dependency: ADR-0010 records that clause being what lets a
+        # `workflow_dispatch` of `service: recipe` run, and in that case `deploy-food` IS skipped — so a
+        # skipped `deploy-food` leaving `deploy-recipe` runnable is behaviour this pipeline already relies on
+        # in production, not a property inferred from the docs. A FAILED food deploy still blocks recipe.
+        # `deployedE2eEntrypoint.test.ts` analyzers 6 and 7 assert both halves.
         if: |
-            (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+            (github.event_name == 'pull_request' && github.event.action != 'closed' &&
+              contains(github.event.pull_request.labels.*.name, 'sandbox-up')) ||
             (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'food')
-        # Reads AWS credentials and deploys — see the `Sandbox` binding note on `cleanup` above. It must stay
-        # unprotected: ADR-0010 requires this job to reach a CONCLUSION on every non-closed PR event, because
-        # a skipped dependency skips `deploy-recipe`.
+        # Reads AWS credentials and deploys — see the `Sandbox` binding note on `cleanup` above.
         environment: Sandbox
         env:
             STAGE: ${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
@@ -817,11 +841,16 @@ jobs:
     # two jobs previously ran concurrently, so any ordering was luck.
     #
     # The ordering guarantee has TWO independent belts, because a skipped dependency skips its dependents:
-    #   1. `deploy-food`'s own job-level `if:` is true for EVERY non-closed `pull_request` event (its
-    #      ensure-exists gate is what skips the WORK, per-step), so on a PR it always reaches a conclusion.
+    #   1. ⚠️ AMENDED 2026-09-04 — belt 1 USED to be "`deploy-food`'s job-level `if:` is true for EVERY
+    #      non-closed `pull_request` event". The intent term (see the long note on `deploy-food`) relaxes it
+    #      so that a PR with no live sandbox reports SKIPPED instead of green-having-deployed-nothing. It is
+    #      safe because THIS job carries the SAME intent term: the two skip together, which is the intended
+    #      outcome, and when intent is present both run in the original order.
     #   2. `!cancelled() && needs.deploy-food.result != 'failure'` below, which also lets a
     #      `workflow_dispatch` of `service: recipe` run — there `deploy-food` IS skipped, and the old
-    #      unqualified `if:` therefore skipped the recipe deploy along with it.
+    #      unqualified `if:` therefore skipped the recipe deploy along with it. That dispatch case is the
+    #      LIVE PROOF that this clause handles a skipped dependency, so belt 2 now carries what belt 1 used
+    #      to; `deployedE2eEntrypoint.test.ts` analyzer 7 fails if either half of it is dropped.
     # A food deploy that FAILS still blocks recipe on purpose: recipe requires a working food origin
     # (ADR-0010), and half-wiring a preview behind a green check is the failure this whole change removes.
     deploy-recipe:
@@ -830,7 +859,8 @@ jobs:
         needs: deploy-food
         if: |
             !cancelled() && needs.deploy-food.result != 'failure' && (
-              (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+              (github.event_name == 'pull_request' && github.event.action != 'closed' &&
+                contains(github.event.pull_request.labels.*.name, 'sandbox-up')) ||
               (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'recipe')
             )
         # Reads AWS credentials and deploys — see the `Sandbox` binding note on `cleanup` above.

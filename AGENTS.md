@@ -351,6 +351,27 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
                         vs `engine.schema.ts` "NORMALISED"), which is why the promotion adapters take `raw` as a PARAMETER rather
                         than trusting either.
 
+- **ADR-0032 — a test that boots its own backend is NOT an end-to-end test (2026-09-04).** Two tiers, named
+  for their TARGET. **Hermetic contract tests** boot their own service/Postgres/LocalStack on the runner,
+  run on every PR, and are the hard merge gate — they are KEPT, only mislabelled: until 2026-09-04 every
+  `_ci.yml` job called `E2E` stood its own backend up, the worst reading `E2E (recipe ↔ food LIVE)` while
+  pointing at `localhost:3002`. **Deployed-ecosystem tests** target a real deployed origin and live behind
+  ONE manual entrypoint, `.github/workflows/deployed-e2e.yml`. ⛔ NEITHER SATISFIES THE OTHER: a green
+  hermetic suite is not evidence anything is deployed (it never left the runner — a stale pre-CORS build
+  served `pr-73` for FIFTEEN days behind green checks), and a green deployed suite must never be used to
+  thin the hermetic tier (it cannot seed a fixture, force an error branch, or assert a LocalStack side
+  effect). ⛔ `E2E` is RESERVED for a deployed target and ENFORCED by `workflowInvariants.test.ts`
+  invariant 7 — the fix for a flagged job is to RENAME it, never to strip its Postgres so the guard goes
+  quiet. ⛔ "No sandbox live" is a SKIP, never a failure: `deployGateStepGuards.test.ts` records that
+  red-over-nothing is the mirror of green-over-nothing, and the condition is `live && !deploy` (the gate
+  answers `live=true` for an environment it is about to CREATE). ⚠️ k6 against a per-PR preview is a
+  SAME-SHAPE REGRESSION DETECTOR, not a capacity number — 0.5-vCPU FARGATE_SPOT at desiredCount=1 on a
+  shared `db.t4g.micro`; correctness is gated (5xx, unauthenticated-success), latency is REPORTED and
+  never gated (n=90 per series by construction). The three isolated-substrate k6 jobs are NOT re-pointed:
+  their subject IS the local substrate (dev-auth bypass, LocalStack S3 fixtures, an SQS queue nothing
+  drains), and identity has no per-PR instance at all. ⚠️ The deployed BROWSER half is blocked on
+  ADR-0001's preview-reachability infra fix, so the CORS class the original defect belonged to is covered
+  only by `classifyPreflight`. See `docs/architecture/decisions/0032-deployed-ecosystem-test-tier.md`.
 - **ADR-0030 — first-party analytics events: one store, two doors, lifetime counts (2026-09-01).**
   `analytics_events` (recipe DB, migration 0043) + `recipe_impact_signals`, folded by a DELTA-upsert on
   EXACTLY one INSERT-only trigger — ⛔ never 0010's recompute (retention would corrupt lifetime counts) and

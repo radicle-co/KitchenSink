@@ -16,6 +16,9 @@
         "ratelimit": "node ratelimit.mjs",
         "sweep": "node sweep.mjs"
     },
+    "dependencies": {
+        "@kitchensink/infra-alb": "*"
+    },
     "devDependencies": {
         "@types/k6": "^2.0.0"
     },

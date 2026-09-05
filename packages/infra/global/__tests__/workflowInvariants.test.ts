@@ -97,15 +97,19 @@ interface WorkflowStep {
     readonly run?: string;
     readonly uses?: string;
     readonly if?: string;
+    readonly env?: Readonly<Record<string, unknown>>;
     readonly with?: Readonly<Record<string, unknown>>;
     readonly 'continue-on-error'?: boolean;
 }
 
 interface WorkflowJob {
+    readonly name?: string;
     readonly needs?: string | readonly string[];
     readonly if?: string;
     readonly uses?: string;
+    readonly env?: Readonly<Record<string, unknown>>;
     readonly with?: Readonly<Record<string, unknown>>;
+    readonly services?: Readonly<Record<string, unknown>>;
     readonly steps?: readonly WorkflowStep[];
     readonly 'continue-on-error'?: boolean;
 }
@@ -1277,5 +1281,373 @@ describe('invariant 6 — every `pg_isready` healthcheck names the role it probe
             .flatMap((file) => [...readFileSync(join(WORKFLOW_DIR, file), 'utf8').matchAll(PG_ISREADY)]);
 
         expect(found.length).toBeGreaterThanOrEqual(14);
+    });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Invariant 7 — a job whose NAME says "E2E" targets a DEPLOYED environment
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * A displayed job name that claims the end-to-end tier.
+ *
+ * ⚠️ The job KEY is deliberately NOT consulted when an explicit `name:` exists. A reader — and branch
+ * protection — see the `name:`; the key is an internal identifier this repo cannot freely rename (it is
+ * `GITHUB_JOB`, which `deriveRunKey` folds into the Clerk fixture identity, so `e2e-web` → `contract-web`
+ * would silently re-key every run-scoped test user). The fallback to the key covers the only case where the
+ * key IS what a reader sees: a job with no `name:` at all.
+ */
+const E2E_CLAIM = /\be2e\b|\bend[\s-]?to[\s-]?end\b/i;
+
+/** A host that lives on the runner, not in a deployed environment. `10.0.2.2` is the Android emulator alias. */
+const RUNNER_HOST = /\blocalhost\b|\b127\.0\.0\.1\b|\b0\.0\.0\.0\b|\bhost\.docker\.internal\b|\b10\.0\.2\.2\b/;
+
+/** A configuration key whose VALUE is expected to name the origin under test. */
+const TARGET_KEY = /url|origin|host|endpoint|domain|base/i;
+
+/** An expression resolving to configuration supplied from OUTSIDE the workflow file. */
+const EXTERNAL_EXPRESSION = /\$\{\{\s*(?:vars|secrets|inputs|env)\./;
+
+/** An absolute origin that is not on the runner. */
+const REMOTE_ORIGIN = /https?:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)[a-z0-9$.{[-]/i;
+
+/** Every `key: value` pair a job states as configuration — job `env`, and each step's `env` and `with`. */
+function configPairs(job: WorkflowJob): readonly (readonly [string, string])[] {
+    const maps: Readonly<Record<string, unknown>>[] = [job.env ?? {}];
+
+    for (const step of job.steps ?? []) {
+        maps.push(step.env ?? {}, step.with ?? {});
+    }
+
+    return maps.flatMap((map) => Object.entries(map).map(([key, value]) => [key, String(value)] as const));
+}
+
+/** Every `run:` body in a job, concatenated. */
+function runBodies(job: WorkflowJob): string {
+    return (job.steps ?? [])
+        .map((step) => step.run ?? '')
+        .filter((body) => body !== '')
+        .join('\n');
+}
+
+/**
+ * Jobs whose displayed name claims the end-to-end tier while the target under test lives on the runner.
+ *
+ * Three independent findings, all derived from the YAML rather than from a list of job names:
+ *
+ *   - `service-containers` — the job provisions the target's backing stores itself. A test of a DEPLOYED
+ *     system needs none; it consumes the ones that stage already runs.
+ *   - `runner-target` — a configuration value, or a `run:` body, names `localhost`/`127.0.0.1`/the emulator
+ *     alias. Whatever else the job does, that address is on this runner.
+ *   - `no-deployed-target` — the BACKSTOP, and the one that catches a job whose boot is invisible in YAML
+ *     because it happens inside the suite (an in-process Nest app, a Playwright `webServer`). A job that
+ *     names no remote origin anywhere — no literal `https://…`, no `URL`/`ORIGIN`/`HOST`-shaped key fed from
+ *     `vars`/`secrets`/`inputs` — is not pointed at a deployed environment, because it is not pointed at
+ *     anything outside itself.
+ *
+ * The first two are evidence of a local target; the third is the absence of a remote one. Reported together
+ * so a finding says WHICH property failed rather than only that one did.
+ */
+function findLocallyTargetedE2eJobs(workflows: readonly Workflow[]): readonly string[] {
+    const found: string[] = [];
+
+    for (const { file, doc } of workflows) {
+        for (const [key, job] of Object.entries(doc.jobs ?? {})) {
+            const displayed = job.name ?? key;
+
+            if (!E2E_CLAIM.test(displayed)) {
+                continue;
+            }
+
+            const findings: string[] = [];
+            const services = Object.keys(job.services ?? {}).sort();
+
+            if (services.length > 0) {
+                findings.push(`service-containers (${services.join(', ')})`);
+            }
+
+            const pairs = configPairs(job);
+            const runners = pairs.filter(([, value]) => RUNNER_HOST.test(value)).map(([name]) => name);
+
+            if (runners.length > 0 || RUNNER_HOST.test(runBodies(job))) {
+                findings.push(`runner-target (${[...new Set(runners)].sort().join(', ') || 'in a run: body'})`);
+            }
+
+            const namesRemote =
+                pairs.some(([name, value]) => TARGET_KEY.test(name) && EXTERNAL_EXPRESSION.test(value)) ||
+                pairs.some(([, value]) => REMOTE_ORIGIN.test(value)) ||
+                REMOTE_ORIGIN.test(runBodies(job));
+
+            if (!namesRemote) {
+                findings.push('no-deployed-target');
+            }
+
+            if (findings.length > 0) {
+                found.push(`${file}::${key} → ${findings.join('; ')}`);
+            }
+        }
+    }
+
+    return found.sort();
+}
+
+/**
+ * ⛔ THE ONE JOB OUTSIDE `_ci.yml` THAT STILL CLAIMS THE TIER IT DOES NOT OCCUPY.
+ *
+ * `_ci-heavy.yml`'s Maestro job boots the real recipe-service in Docker against a Postgres service container
+ * on the runner and drives an Android emulator at `10.0.2.2` — hermetic by construction, and its own comment
+ * says so ("SELF-CONTAINED"). It is listed rather than renamed here ONLY because `_ci-heavy.yml` is owned by
+ * a concurrent change; the rename belongs with that file.
+ *
+ * ⚠️ This is a set EQUALITY, not a ratchet, and both directions are the point: a NEW mis-named job fails the
+ * build, and so does a stale entry once the Maestro job is renamed. Delete the entry in the same change that
+ * renames the job — an inventory that only ever grows is the rot this repo has already paid for once
+ * (ADR-0004's consumer list).
+ */
+const PENDING_E2E_RENAMES: readonly string[] = [
+    // ⛔ EMPTY, AND THAT IS THE POINT. This held `_ci-heavy.yml::e2e-mobile-maestro` for exactly as long as
+    // the rename was owned by a concurrent change; it was cleared in the same change that renamed the job,
+    // as the entry's own instruction required. Asserted by set EQUALITY, so a stale entry fails just as
+    // loudly as a new offender — an allowlist that outlives its exception is how the next one gets in.
+];
+
+describe('invariant 7 — a job whose name says "E2E" targets a deployed environment', () => {
+    /**
+     * ## Why this invariant exists
+     *
+     * Owner ruling, 2026-09-04: _"None of the end to end tests should be testing against local services in
+     * the pipeline. Also update the naming to be correct."_
+     *
+     * Every job in `_ci.yml` that called itself `E2E` stood its own target up on the runner — Postgres and
+     * LocalStack service containers, a `next start` on `localhost:3000`, two Nest apps booted side by side.
+     * The worst of them was named `E2E (recipe ↔ food LIVE — both services, one real Clerk token)` while
+     * pointing at `LINKAGE_FOOD_URL=http://localhost:3002`. Nothing about it was live.
+     *
+     * ⛔ Those suites are NOT the defect and must not be deleted — they assert things a deployed tier
+     * structurally cannot (LocalStack S3/SQS side effects, seeded fixtures, `page.route`-mocked UI branches,
+     * the SSR-degradation path `ssrPrefetch.spec.ts` covers). The defect was the NAME: a reader, and an owner
+     * reading a green checks list, learned "the deployed system works end to end" from a suite that had never
+     * touched a deployed system. `docs/CODING_STANDARDS.md` §7.1 now separates the two tiers explicitly, and
+     * this guard is what stops the naming drifting back after the next agent reads that standard.
+     *
+     * ## Mutation evidence (red before green)
+     *
+     * Written FIRST, against the pre-rename tree. It flagged all nine offenders — the eight in `_ci.yml`
+     * plus `_ci-heavy.yml::e2e-mobile-maestro` — and the file's real-tree assertion below was RED until the
+     * renames landed:
+     *
+     *     _ci.yml::e2e-backend → no-deployed-target
+     *     _ci.yml::e2e-cross-service-linkage → service-containers (localstack, postgres);
+     *         runner-target (FOOD_DATABASE_URL, LINKAGE_AZP, LINKAGE_FOOD_URL, LINKAGE_RECIPE_URL, PGHOST,
+     *         RECIPE_DATABASE_URL)
+     *     _ci.yml::e2e-food → service-containers (localstack, postgres); runner-target (DATABASE_URL);
+     *         no-deployed-target
+     *     _ci.yml::e2e-identity-boot → service-containers (postgres);
+     *         runner-target (CLERK_AUTHORIZED_PARTIES, DATABASE_URL)
+     *     _ci.yml::e2e-mobile → no-deployed-target
+     *     _ci.yml::e2e-recipe → service-containers (localstack, postgres);
+     *         runner-target (AWS_ENDPOINT_URL, CLOUDFRONT_URL, DATABASE_URL, S3_ENDPOINT); no-deployed-target
+     *     _ci.yml::e2e-web → runner-target (NEXT_PUBLIC_IDENTITY_API_URL, NEXT_PUBLIC_RECIPE_API_URL);
+     *         no-deployed-target
+     *     _ci.yml::e2e-web-report → no-deployed-target
+     *     _ci-heavy.yml::e2e-mobile-maestro → service-containers (postgres);
+     *         runner-target (DATABASE_URL, EXPO_PUBLIC_IDENTITY_API_URL, EXPO_PUBLIC_RECIPE_API_URL)
+     *
+     * The two `no-deployed-target`-only findings are the ones a boot-command regex CANNOT reach: `e2e-backend`
+     * boots the Nest app in-process inside vitest and `e2e-mobile` boots nothing at all, so neither states a
+     * single address in YAML. That is exactly why the backstop is stated as the absence of a REMOTE target
+     * rather than the presence of a local one.
+     */
+    it('flags a job that provisions the database it tests against', () => {
+        const violations = findLocallyTargetedE2eJobs(
+            fixture({
+                'own-db.yml': [
+                    'name: own db',
+                    'on:',
+                    '    push:',
+                    '        branches: [main]',
+                    'jobs:',
+                    '    suite:',
+                    '        name: E2E (recipe — Postgres)',
+                    '        runs-on: ubuntu-latest',
+                    '        services:',
+                    '            postgres:',
+                    '                image: postgres:18',
+                    '        steps:',
+                    '            - name: Run the suite',
+                    '              env:',
+                    '                  RECIPE_ORIGIN: ${{ vars.SANDBOX_RECIPE_ORIGIN }}',
+                    '              run: npm run test:e2e',
+                    '',
+                ].join('\n'),
+            }),
+        );
+
+        expect(violations.join('\n')).toMatch(/own-db\.yml::suite → service-containers \(postgres\)/);
+    });
+
+    it('flags a job whose target address is on the runner', () => {
+        const violations = findLocallyTargetedE2eJobs(
+            fixture({
+                'localhost.yml': [
+                    'name: localhost',
+                    'on:',
+                    '    push:',
+                    '        branches: [main]',
+                    'jobs:',
+                    '    suite:',
+                    '        name: E2E (recipe ↔ food LIVE)',
+                    '        runs-on: ubuntu-latest',
+                    '        env:',
+                    '            LINKAGE_FOOD_URL: http://localhost:3002',
+                    '        steps:',
+                    '            - name: Run the suite',
+                    '              env:',
+                    '                  RECIPE_ORIGIN: ${{ vars.SANDBOX_RECIPE_ORIGIN }}',
+                    '              run: npm run test:e2e',
+                    '',
+                ].join('\n'),
+            }),
+        );
+
+        expect(violations.join('\n')).toMatch(/localhost\.yml::suite → runner-target \(LINKAGE_FOOD_URL\)/);
+    });
+
+    it('flags a job that names no deployed target at all — the in-process boot YAML cannot see', () => {
+        const violations = findLocallyTargetedE2eJobs(
+            fixture({
+                'in-process.yml': [
+                    'name: in process',
+                    'on:',
+                    '    push:',
+                    '        branches: [main]',
+                    'jobs:',
+                    '    suite:',
+                    '        name: E2E (backend services)',
+                    '        runs-on: ubuntu-latest',
+                    '        steps:',
+                    '            - name: Run the suite',
+                    '              run: npm run test:e2e --workspace=@kitchensink/identity-service',
+                    '',
+                ].join('\n'),
+            }),
+        );
+
+        expect(violations).toEqual(['in-process.yml::suite → no-deployed-target']);
+    });
+
+    it('flags a job that has no name: and whose KEY claims the tier', () => {
+        const violations = findLocallyTargetedE2eJobs(
+            fixture({
+                'unnamed.yml': [
+                    'name: unnamed',
+                    'on:',
+                    '    push:',
+                    '        branches: [main]',
+                    'jobs:',
+                    '    e2e-recipe:',
+                    '        runs-on: ubuntu-latest',
+                    '        steps:',
+                    '            - run: npm run test:e2e',
+                    '',
+                ].join('\n'),
+            }),
+        );
+
+        expect(violations).toEqual(['unnamed.yml::e2e-recipe → no-deployed-target']);
+    });
+
+    it('does NOT flag a genuine deployed-ecosystem job', () => {
+        const violations = findLocallyTargetedE2eJobs(
+            fixture({
+                'deployed.yml': [
+                    'name: deployed',
+                    'on:',
+                    '    push:',
+                    '        branches: [main]',
+                    'jobs:',
+                    '    suite:',
+                    '        name: E2E (deployed sandbox — recipe ↔ food)',
+                    '        runs-on: ubuntu-latest',
+                    '        env:',
+                    '            RECIPE_ORIGIN: ${{ vars.SANDBOX_RECIPE_ORIGIN }}',
+                    '        steps:',
+                    '            - name: Run the suite',
+                    '              run: npm run test:e2e --workspace=@kitchensink/deployed-e2e',
+                    '',
+                ].join('\n'),
+            }),
+        );
+
+        expect(violations).toEqual([]);
+    });
+
+    it('does NOT flag a hermetic job that no longer claims the tier', () => {
+        // The whole point of the rename: the suite is unchanged, the name stopped lying, and the guard is
+        // silent. A rule that still flagged this would be a rule to delete the tests instead of naming them.
+        const violations = findLocallyTargetedE2eJobs(
+            fixture({
+                'renamed.yml': [
+                    'name: renamed',
+                    'on:',
+                    '    push:',
+                    '        branches: [main]',
+                    'jobs:',
+                    '    hermetic-recipe:',
+                    '        name: Hermetic (recipe — self-booted service + Postgres)',
+                    '        runs-on: ubuntu-latest',
+                    '        services:',
+                    '            postgres:',
+                    '                image: postgres:18',
+                    '        steps:',
+                    '            - run: npm run test:e2e --workspace=@kitchensink/recipe-service',
+                    '',
+                ].join('\n'),
+            }),
+        );
+
+        expect(violations).toEqual([]);
+    });
+
+    it('holds for every job in .github/workflows/', () => {
+        expect(
+            findLocallyTargetedE2eJobs(realWorkflows()),
+            'a job named "E2E" that boots its own target teaches a reader — and an owner reading a green ' +
+                'checks list — that the DEPLOYED system passed, from a suite that never reached it. Either ' +
+                'point the job at a deployed environment, or name it for the hermetic contract tier it is ' +
+                '(docs/CODING_STANDARDS.md §7.1)',
+        ).toEqual(PENDING_E2E_RENAMES);
+    });
+
+    it('is not vacuous — the analyzer still recognises the shapes it is asserting about', () => {
+        // ⛔ Once `_ci.yml` is clean the real-tree assertion above passes whether the analyzer works or not:
+        // a regex that stops matching finds nothing and reports success. So re-run it over a tree that is
+        // KNOWN to violate every finding, and require all three.
+        const violations = findLocallyTargetedE2eJobs(
+            fixture({
+                'canary.yml': [
+                    'name: canary',
+                    'on:',
+                    '    push:',
+                    '        branches: [main]',
+                    'jobs:',
+                    '    a:',
+                    '        name: E2E (recipe — Postgres + LocalStack)',
+                    '        runs-on: ubuntu-latest',
+                    '        services:',
+                    '            postgres:',
+                    '                image: postgres:18',
+                    '        steps:',
+                    '            - env:',
+                    '                  DATABASE_URL: postgres://postgres@localhost:5432/recipe_e2e',
+                    '              run: npm run test:e2e',
+                    '',
+                ].join('\n'),
+            }),
+        );
+
+        expect(violations).toEqual([
+            'canary.yml::a → service-containers (postgres); runner-target (DATABASE_URL); no-deployed-target',
+        ]);
     });
 });

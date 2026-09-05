@@ -5,19 +5,37 @@
 # with the Maestro half switched off, so the k6 jobs run without the 50-minute emulator — on a weekly
 # schedule and on demand. (Mirrors the per-service load-test trigger pattern of food-loadtest.yml.)
 #
-# NOTE: `run_load_test` is ONE input covering EVERY k6 job in `_ci-heavy.yml` (recipe + food + identity), so
-# this caller runs all of them, not only the recipe one. Accepted rather than plumbed around with a
-# per-service input — see the same note in heavy-e2e.yml.
+# NOTE: `run_load_test` is ONE input covering EVERY k6 job in `_ci-heavy.yml` — the three ISOLATED-SUBSTRATE
+# jobs (recipe + food + identity, which boot their own containers against seeded fixtures) AND the DEPLOYED
+# job, which measures a real preview's origin. This caller runs all four, not only the recipe one. Accepted
+# rather than plumbed around with a per-service input — see the same note in heavy-e2e.yml.
 #
-# Trigger: Actions → "Recipe load test (k6)" → Run workflow, or `gh workflow run recipe-loadtest.yml`.
+# ⚠️ On the weekly cron there is no PR in context, so the deployed job measures the stage this caller names
+# (`sandbox`). If nothing is serving there, that job SKIPS — an absent preview is not a failure.
+#
+# Trigger: Actions → "Load test (k6 — every service tier)" → Run workflow, or
+# `gh workflow run recipe-loadtest.yml -f load_test_target=sandbox`.
 #
 # Requires the `RECIPE_LOAD_TEST_TOKEN` repo secret (a Clerk token minted for authenticated load
 # requests); the k6 job reads it to hit protected endpoints. Set it before the first real run — without
 # it the load scripts cannot authenticate.
-name: Recipe load test (k6)
+name: Load test (k6 — every service tier)
 
 on:
-    workflow_dispatch: {}
+    workflow_dispatch:
+        inputs:
+            # ⛔ MANUAL-ONLY, BY CONSTRUCTION. `prod` is refused at runtime by `_ci-heavy.yml`'s own
+            # `Refuse a prod target on anything but a manual dispatch` step unless `github.event_name` is
+            # `workflow_dispatch` — so the weekly cron below CANNOT reach production even if this default
+            # were changed. The default stays `sandbox` regardless, because a scheduled run takes defaults.
+            load_test_target:
+                description: 'Which ENVIRONMENT the deployed k6 tier measures — sandbox or prod (manual only)'
+                required: false
+                type: choice
+                options:
+                    - sandbox
+                    - prod
+                default: sandbox
     # Weekly regression run (Monday 05:00 UTC) so the perf gate is exercised regularly, not just on demand.
     schedule:
         - cron: '0 5 * * 1'
@@ -40,6 +58,9 @@ jobs:
         uses: ./.github/workflows/_ci-heavy.yml
         with:
             stage: sandbox
+            # The DEPLOYED tier's target. Empty on a scheduled run (no dispatch inputs), which falls back to
+            # `sandbox` — the safe value, and the only one an automatic trigger is allowed to produce.
+            load_test_target: ${{ inputs.load_test_target || 'sandbox' }}
             # The 50-minute emulator job is not what a weekly load run is for.
             run_mobile_maestro: false
         # Explicit, not `inherit` — `_ci-heavy.yml` declares exactly these two, and `inherit` would hand it

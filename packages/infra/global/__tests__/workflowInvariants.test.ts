@@ -1689,45 +1689,55 @@ describe('invariant 8 — a JOB name is a constant, because branch protection ma
      * its leading space, does not match `matrix.`, and the NEGATIVE lookahead therefore succeeds. Reading
      * the body out and testing it directly cannot be fooled that way.
      */
-    const INTERPOLATIONS = /\$\{\{([\s\S]*?)\}\}/g;
+    /**
+     * Any `${{ … }}` at all.
+     *
+     * ⛔ NO CONTEXT IS EXEMPT, and the exemptions this guard used to carry were each disproven by the next
+     * observation. It began asserting on `needs.*` alone, reasoning that `inputs.*` and `github.*` "always
+     * resolve"; PR #91 then published `Deploy food sandbox (pr-${{ github.event.pull_request.number }})`
+     * raw. It was widened but kept `matrix`/`strategy` exempt on OBSERVED evidence — `Test (services)` and
+     * `Analyze (python)` rendered correctly on that same run. That evidence was real and the conclusion was
+     * still wrong: those jobs RAN. The owner's 2026-09-05 ruling then made the Playwright shards skip by
+     * default, and the checks list published:
+     *
+     *     E2E (web — Playwright against the deployed preview) ${{ matrix.shard }}/${{ strategy.job-total }}
+     *
+     * One clause covers every case, and it is about EVALUATION rather than context: **a job that does not
+     * RUN never evaluates its name.** So the subject is not "which context" but "can this job skip", which
+     * `jobNames()` decides by the presence of an `if:`.
+     *
+     * ⚠️ An extraction, not a negative lookahead. An earlier attempt used `/\$\{\{\s*(?!matrix\.)/`, which
+     * flagged every matrix job: `\s*` backtracks to zero characters, the lookahead then compares against
+     * `" matrix."` with its leading space, and the NEGATIVE therefore succeeds. This form cannot be fooled
+     * that way, and is kept even though the exemption it was built for is gone.
+     */
+    const INTERPOLATION = /\$\{\{[\s\S]*?\}\}/;
 
-    /** Whether a job name interpolates anything the workflow does not itself enumerate. Pure. */
-    function hasUnboundedInterpolation(name: string): boolean {
-        return [...name.matchAll(INTERPOLATIONS)].some((match) => {
-            const body = (match[1] ?? '').trim();
-
-            // ⛔ ANYTHING BUT `matrix`/`strategy`, AND THE EXCLUSION OF `github.*` WAS DISPROVEN BY
-            // OBSERVATION WITHIN THE HOUR. This guard first asserted on `needs.*` alone, on the reasoning
-            // that `inputs.*` and `github.*` "always resolve, so they never render as garbage". PR #91's
-            // own checks list then showed, verbatim:
-            //
-            //     Deploy food sandbox (pr-${{ github.event.pull_request.number }})
-            //     Deploy recipe sandbox (pr-${{ github.event.pull_request.number }})
-            //
-            // A job that does not RUN never evaluates its name, so a skipped job publishes the raw
-            // expression whatever context it reads — which is precisely when a human is scanning the list
-            // trying to work out what did and did not happen. `needs.*` was never the special case; it was
-            // just the first one seen.
-            //
-            // `matrix`/`strategy` stay exempt because their names DO render (observed green on the same
-            // run: `Test (services)`, `Analyze (python)`) and because without interpolation every leg of a
-            // matrix publishes an identical check name.
-            return !body.startsWith('matrix.') && !body.startsWith('strategy.');
-        });
-    }
-
-    /** Every `jobs.<key>.name` in the tree, with its file, ignoring step and artifact names. Pure. */
+    /**
+     * Every `jobs.<key>.name` in the tree that belongs to a job which CAN SKIP, with its file.
+     *
+     * ⛔ ONLY SKIPPABLE JOBS, and the `if:` is what decides it. A job's name renders when it RUNS, so a job
+     * that always runs renders correctly and may interpolate freely; every job that ever published a raw
+     * `${{ … }}` — `deployed-e2e`, `deploy-food`, the Playwright shards — carries an `if:`, and every job a
+     * blanket version wrongly flagged (`test`, `build`, `analyze`) carries none. Collapsing
+     * `Test (infra|services|frontend)` into three identical check names would lose real information to
+     * prevent a harm those jobs cannot suffer.
+     *
+     * ⚠️ Step names and artifact names are NOT in scope — a step name is never a required check, and an
+     * artifact name must differ per stage or the uploads collide.
+     */
     function jobNames(): readonly { readonly file: string; readonly key: string; readonly name: string }[] {
         return realWorkflows().flatMap(({ file, doc }) =>
             Object.entries(doc.jobs ?? {})
                 .filter(([, job]) => typeof (job as { name?: unknown }).name === 'string')
+                .filter(([, job]) => (job as { if?: unknown }).if !== undefined)
                 .map(([key, job]) => ({ file, key, name: (job as { name: string }).name })),
         );
     }
 
     it('never interpolates an expression into a job name', () => {
         const offenders = jobNames()
-            .filter((job) => hasUnboundedInterpolation(job.name))
+            .filter((job) => INTERPOLATION.test(job.name))
             .map((job) => `${job.file}::${job.key} → ${job.name}`);
 
         expect(
@@ -1740,6 +1750,7 @@ describe('invariant 8 — a JOB name is a constant, because branch protection ma
     it('is not vacuous — it reads real job names', () => {
         // ⛔ Without this, a discovery that stopped finding jobs would make the gate above pass by finding
         // nothing — the failure mode every derived-set guard in this file is most exposed to.
-        expect(jobNames().length).toBeGreaterThanOrEqual(30);
+        // Skippable named jobs only — a smaller population than the 30+ named jobs in the tree.
+        expect(jobNames().length).toBeGreaterThanOrEqual(5);
     });
 });

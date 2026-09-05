@@ -2055,7 +2055,15 @@ jobs:
     # ⚠️ `PLAYWRIGHT_BASE_URL` is what switches the suite over: `playwright.config.ts` reads it as `baseURL`
     # AND omits its `webServer` entirely when it is set, so nothing is compiled or served on this runner.
     e2e-web:
-        name: E2E (web — Playwright against the deployed preview) ${{ matrix.shard }}/${{ strategy.job-total }}
+        # ⛔ A CONSTANT, INCLUDING THE SHARD. A skipped job never evaluates its name, so an
+        # interpolated one renders the RAW `${{ … }}` in the checks list — observed on this very job
+        # once the liveness gate started skipping it:
+        #   `E2E (web — Playwright against the deployed preview) ${{ matrix.shard }}/${{ strategy.job-total }}`
+        # ⚠️ `matrix`/`strategy` are NOT exempt from that, which is what the first version of
+        # workflowInvariants' invariant 8 assumed. They render correctly only while the job RUNS;
+        # these shards now skip by default, so that is the uncommon case. The shard number stays in
+        # the STEP name, where a human reads it and no required-check rule matches on it.
+        name: E2E (web — Playwright against the deployed preview)
         if: needs.resolve-sandbox.outputs.live == 'true'
         # 30 + the sandbox wake's own 15-minute bound (see the wake step below). A run that lands in ADR-0007's
         # 00:00–09:00 ET window legitimately waits minutes for a stopped `db.t4g.micro` to reach `available`,

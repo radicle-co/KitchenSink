@@ -107,6 +107,18 @@ jobs:
     resolve:
         name: Resolve target and liveness
         runs-on: ubuntu-latest
+        # ⛔ THE STAGE IS DECIDED HERE, AT JOB LEVEL, AND THE STEP BELOW ONLY VALIDATES IT. It used to be
+        # computed in the step and read back as a step output, which is invisible to static analysis:
+        # `stackProbeCoverage.test.ts` reads `env:` at file and job level only, so every stack this job
+        # probes came back "whose stage this guard cannot resolve, so nothing here can say whether the set
+        # is complete" — a probe set nothing could check. Deciding it once here keeps ONE representation of
+        # the precedence and makes the probe set legible to the guard.
+        env:
+            STAGE: >-
+                ${{ github.event.inputs.target == 'prod' && 'prod'
+                || github.event.inputs.stage
+                || (github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number))
+                || '' }}
         outputs:
             stage: ${{ steps.target.outputs.stage }}
             recipe_origin: ${{ steps.target.outputs.recipe_origin }}
@@ -165,22 +177,22 @@ jobs:
             # stale literal answers `000` — which reads as an outage rather than as a stale default.
             - name: Resolve this target's stage and service origins
               id: target
-              env:
-                  TARGET: ${{ github.event.inputs.target }}
-                  INPUT_STAGE: ${{ github.event.inputs.stage }}
-                  PR_NUMBER: ${{ github.event.pull_request.number }}
               run: |
                   set -euo pipefail
-                  if [ "${TARGET:-sandbox}" = 'prod' ]; then
-                      stage='prod'
-                  elif [ -n "${INPUT_STAGE:-}" ]; then
-                      stage="${INPUT_STAGE}"
-                  elif [ -n "${PR_NUMBER:-}" ]; then
-                      stage="pr-${PR_NUMBER}"
-                  else
+                  # VALIDATES the job-level `STAGE`; it does not re-derive it. Two derivations of one fact
+                  # is how the probe set and the thing probed drift apart.
+                  stage="${STAGE:-}"
+                  if [ -z "${stage}" ]; then
                       echo "::error::no stage to drive — dispatch with target=prod, or pass stage=pr-{N}, or add the deployed-e2e label to a pull request"
                       exit 1
                   fi
+                  case "${stage}" in
+                      prod | pr-[0-9]*) ;;
+                      *)
+                          echo "::error::refusing an unrecognised stage '${stage}' — expected 'prod' or 'pr-{N}'"
+                          exit 1
+                          ;;
+                  esac
 
                   recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
                   food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")

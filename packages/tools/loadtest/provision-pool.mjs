@@ -3,9 +3,23 @@
  *
  * WHY: the FAPI ticket-exchange flow (dev_browser → sign_ins) is per-IP rate-limited, so minting a pool
  * from one machine trips a multi-minute cool-down. Clerk's BACKEND API can create a session + mint a
- * session token directly (POST /sessions, POST /sessions/{id}/tokens) — no FAPI, no per-IP throttle. The
- * resulting token has no `azp`, which the food guard accepts (Clerk's verifyToken only checks `azp` when
- * present). Confirmed: GET /api/v1/foods/search → 200 with such a token.
+ * session token directly (POST /sessions, POST /sessions/{id}/tokens) — no FAPI, no per-IP throttle.
+ *
+ * ⛔ STALE, AND MEASURED FALSE ON 2026-09-05. This used to end: "The resulting token has no `azp`, which
+ * the food guard accepts (Clerk's verifyToken only checks `azp` when present). Confirmed: GET
+ * /api/v1/foods/search → 200 with such a token." That was true of Clerk's own SDK and is no longer true of
+ * US. On a preview stage `resolveAzpEnforcement` validates `azp` against an anchored pattern, and an
+ * `azp`-LESS token is admitted only by `isNativeClientToken` — the `client_type: 'native'` claim minted by
+ * the mobile app's own JWT template, whose docstring is explicit that a token is admitted because it
+ * PROVES it is native, "not merely because it lacks an origin". Re-measured against the live
+ * `pr-91` stage: a Backend-API token returns **401** from BOTH food and recipe.
+ *
+ * ⚠️ So a pool minted this way will 401 against any stage running the pattern guard. If that is what you
+ * are hitting, mint through the Frontend API with `Origin` set to the stage's web origin instead — see
+ * `packages/tools/cross-service-e2e/scripts/mintLinkageCredentials.ts`, which does exactly that with a
+ * `+clerk_test` profile and asserts the resulting `azp` before writing it out. The per-IP throttle this
+ * file exists to dodge is the cost of that route, and it is why this one has not simply been switched: a
+ * POOL of N users through FAPI is what trips the cool-down. ONE token does not.
  *
  * PERSISTENT: users have STABLE emails (test-{name}@radcile.com) and are created-or-REUSED, never torn
  * down by a load run — so the pool survives across runs (only `npm run sweep` deletes them). Each run

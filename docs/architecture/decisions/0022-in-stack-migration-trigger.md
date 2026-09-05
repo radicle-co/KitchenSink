@@ -156,10 +156,15 @@ its bundle. It is not redundant: it catches a stage whose schema is behind for a
 explains — a restore, a stage created later, a `deploy_webhooks`-only run. What it must never become again
 is the thing that is relied upon.
 
-⚠️ The net is **partial, and gated** — it is not a second guarantee. Every surviving invoke sits behind a
-path-diff or `workflow_dispatch` gate, which is sound for a change-set shipping new SQL but false in exactly
-the scenario named above; and one runner has no invoke at all. Both gaps are recorded under _Residual risk_
-rather than papered over here.
+The invoke is **unconditional** on prod, which is the repair rather than an oversight: it used to carry a
+path-diff gate, and a path diff is derived from the change-set, so it is false in exactly the scenario this
+net exists for — a schema behind for a reason no code change explains. All call sites go through
+`.github/scripts/run-migrations.sh`, the one definition of "did the runner succeed", which reads BOTH
+`FunctionError` and the payload's `errorType` (an UNHANDLED failure sets the first, a HANDLED one can report
+only the second, and reading one is how a leg once stayed green through a failure).
+
+⚠️ Sandbox keeps an ensure-exists gate, and the asymmetry is deliberate: `deploy` is TRUE whenever the stack
+is absent or the origin is not serving (ADR-0010), so it cannot skip the case this net is for.
 
 ### 5. A stack with no runner of its own must be DEPLOYED after one that has
 
@@ -304,17 +309,11 @@ from the workflows themselves, so a fifth stack with a runner is covered the day
 
 ## Residual risk — stated plainly, not mitigated
 
-- **Every safety-net invoke is GATED; none is unconditional.** `run_migrations` / `deploy_food` /
-  `deploy_recipe` in `prod-deploy.yml` are pure path-diff plus `workflow_dispatch`. That is sound for a
-  change-set shipping new SQL — the gate is derived from the paths holding it — but it does NOT cover the
-  case §4 says the net exists for: a stage whose schema is behind for a reason no code change explains. In
-  exactly that scenario the gate is false, no `cdk deploy` runs, the Trigger does not fire, and nothing
-  migrates. Sandbox is better protected (its gate is ADR-0010's ensure-exists probe); prod has the weaker net.
-- **`RecipeSchemaMigrationRunner` has no safety net at all and is unreachable by CI.** It is emitted with no
-  `CfnOutput` and no workflow references it, so §4's invoke does not exist for that one. Not a live skew
-  risk — recipe-service's own runner applies the same SQL under the same gate — but it is the barrier with
-  zero redundancy. Separately, `sandbox-deploy.yml`'s food invoke inspects nothing, so a runner that threw
-  leaves the job green; its recipe sibling greps for `errorType` and fails.
+- **`RecipeSchemaMigrationRunner` has no safety-net invoke.** `RecipeWorkersStack` emits it with no
+  `CfnOutput`, and every workflow's recipe leg resolves `RecipeMigrationFunctionName` from the
+  recipe-SERVICE stack instead — so this one runner is reachable only by its own in-stack Trigger, with no
+  redundancy behind it. Not a live skew risk (recipe-service's runner applies the same SQL under the same
+  barrier), and `prod-deploy.yml` records it at the call site as not closable from there.
 - **The barrier cannot order an EventBridge `RunTask`.** Food's 6-hourly change-refresh task is an
   EventBridge target rather than a deployed service, so CloudFormation has no ordering to give it. It
   retries on its own schedule, which is the mitigation by default rather than by design.

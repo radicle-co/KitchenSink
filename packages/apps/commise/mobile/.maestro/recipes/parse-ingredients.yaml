@@ -76,9 +76,23 @@ appId: io.commise.mobile
       visible: '2 of 2 lines read'
       timeout: 60000
 
-# The proposals a cook came for, and the row labels assistive tech announces.
-- assertVisible: 'Line 1'
-- assertVisible: 'Line 2'
+# ⛔ THE ROW NAMES ASSISTIVE TECH ANNOUNCES — the assertion this flow exists for, and the one no other
+# tier can make. It failed for real on run 33946430253, the first run ever to get past `2 of 2 lines read`:
+# the rows had rendered and settled (the failure screenshot shows both cards complete) and `Line 1` was
+# simply not in the device's accessibility hierarchy. The row header was a `View` carrying only
+# `accessibilityLabel` and `accessibilityRole`, which names nothing on either native platform — no
+# accessibility element on iOS, and on Android's Fabric renderer a pure-layout `View` is FLATTENED out of
+# the native tree along with its label. The component suite could not see it: react-native-web under jsdom
+# renders that same header as `<h1 aria-label="Line 1">`, which resolves an accessible name perfectly.
+#
+# The header is now one accessibility element, which is read INSTEAD of the `Text` children inside it, so
+# its name restates them — hence the full composed string rather than the bare number. Both halves come
+# from the device: the failing run's screenshot shows row 1 reading `2 cups flour` / `Read` and row 2
+# reading `1 tsp salt` / `Read`. Asserting the WHOLE name (Maestro matches a selector against the whole
+# text) is what keeps this falsifiable: drop `accessible` and it vanishes again, and shorten the label back
+# to `Line 1` and a cook navigating by heading stops hearing which line failed.
+- assertVisible: 'Line 1: 2 cups flour. Read'
+- assertVisible: 'Line 2: 1 tsp salt. Read'
 
 # ⛔ A SETTLED job offers NO retry — the control re-drives exactly the `failed_retryable` population, so on
 # a complete job it provably does nothing. This is the assertion that catches it being rendered anyway.

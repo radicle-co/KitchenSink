@@ -173,6 +173,41 @@ describe('ParseJobReview (native) — a job in progress', () => {
 });
 
 describe('ParseJobReview (native) — a finished job', () => {
+    /**
+     * ⛔ THE ROW'S NAME MUST CARRY WHAT THE GROUPING SWALLOWS — the regression behind CI run 33946430253.
+     *
+     * The header is ONE accessibility element (`accessible`), which is what makes its name exist at all on
+     * device: on iOS a `View` that is not an accessibility element has no `accessibilityLabel`, and on
+     * Android's Fabric renderer a `View` carrying no background, border, `testID` or `accessible` is
+     * FLATTENED out of the native view tree, taking its label and its `header` role with it. Being one
+     * element also means assistive tech reads the label INSTEAD of the two `Text` children, so a bare
+     * "Line 1" would silence both the submitted line and its status — including "Couldn't read".
+     *
+     * ⚠️ WHAT THIS TIER CANNOT SEE, stated plainly rather than implied: this suite renders through
+     * react-native-web under jsdom, where view flattening does not exist and `accessible` is not even
+     * projected to the DOM. It therefore pins the NAME, not the mechanism. The mechanism is observable
+     * only on a device, which is exactly why `.maestro/recipes/parse-ingredients.yaml` asserts these same
+     * two names — it is the tier that caught this, and the only one that could.
+     */
+    it('⛔ names the row with the line, its text and its status — the grouped header reads all three', () => {
+        renderReview(
+            withJob('ready', [
+                line({ lineIndex: 0, sourceLine: '2 cups flour', status: 'parsed', proposal: proposal() }),
+            ]),
+        );
+
+        expect(screen.getByRole('heading', { name: 'Line 1: 2 cups flour. Read' })).toBeTruthy();
+        // The visible text is unchanged — the composed name adds an announcement, it does not replace copy.
+        expect(screen.getByText('2 cups flour')).toBeTruthy();
+        expect(screen.getByText(messages.lineParsed)).toBeTruthy();
+    });
+
+    it('⛔ carries the FAILING status into the row name, where a cook navigating by heading meets it', () => {
+        renderReview(withJob('ready', [line({ lineIndex: 4, sourceLine: '???', status: 'unparseable' })]));
+
+        expect(screen.getByRole('heading', { name: `Line 5: ???. ${messages.lineUnparseable}` })).toBeTruthy();
+    });
+
     it('shows the measure and the foods a parsed line proposed', () => {
         renderReview(withJob('ready', [line({ status: 'parsed', proposal: proposal() })]));
 

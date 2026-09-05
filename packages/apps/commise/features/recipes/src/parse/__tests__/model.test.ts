@@ -341,6 +341,24 @@ describe('toParseJobViewState — the one place a state is decided', () => {
 // ── toParseLineModel ──────────────────────────────────────────────────────────────────────────────
 
 describe('toParseLineModel', () => {
+    /**
+     * The two row names are DIFFERENT on purpose, and the difference is the platform's, not the copy's.
+     * Web names a `<li>`, which does not suppress its contents, so `label` alone is the row's name there.
+     * Native groups the header into ONE accessibility element — the only way the name reaches iOS at all,
+     * and the only way it survives Fabric's view flattening on Android — and a grouped element is read
+     * INSTEAD of its children, so its name must restate what those children say.
+     */
+    it('⛔ composes a native row name that restates the line, its text and its status', () => {
+        const model = toParseLineModel(
+            line({ lineIndex: 0, sourceLine: '2 cups flour', status: 'parsed', proposal: proposal() }),
+            messages,
+            'en',
+        );
+
+        expect(model.label).toBe('Line 1');
+        expect(model.headerLabel).toBe('Line 1: 2 cups flour. Read');
+    });
+
     it('renders the measure through the shared formatter both platforms already use', () => {
         const model = toParseLineModel(line({ status: 'parsed', proposal: proposal() }), messages, 'en');
 

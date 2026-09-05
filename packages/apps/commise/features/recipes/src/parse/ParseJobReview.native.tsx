@@ -63,13 +63,31 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }) =
     }
 
     return (
-        // ⛔ NOT `accessible` on this container. That prop collapses the whole subtree into ONE iOS
+        // ⛔ NOT `accessible` on this container. That prop collapses the whole subtree into ONE
         // accessibility element, which would make the Edit / Save / Cancel controls and the input
         // unreachable by VoiceOver. Every sibling use of `accessible` in this package is on a genuine leaf
         // (a placeholder image, a star readout), never around interactive children. The row's name moves to
-        // its non-interactive header instead.
+        // its non-interactive header instead — where the prop IS both safe and REQUIRED; see below.
         <View style={styles.row}>
-            <View accessibilityRole="header" accessibilityLabel={model.label} style={styles.rowHeader}>
+            {/*
+             * ⛔ `accessible` IS LOAD-BEARING HERE, and its absence was invisible in every tier but Maestro.
+             *
+             * A `View` carrying only `accessibilityLabel` names NOTHING on either native platform. On iOS a
+             * view that is not an accessibility element has no label to read. On Android's Fabric renderer
+             * the view does not even survive: `ViewShadowNode::initialize` keeps a node only if it forms a
+             * view — a background, a border, a `testID`, `accessible`, `focusable`, an explicit
+             * `importantForAccessibility` — and `styles.rowHeader` is pure layout, so the node, its label
+             * and its `header` role were all flattened away. CI run 33946430253 is the evidence: the rows
+             * rendered and settled, and `Line 1` was nowhere in the device hierarchy.
+             *
+             * ⛔ AND THE NAME HAD TO GROW WITH THE PROP. One accessibility element is read INSTEAD of the
+             * `Text` children it wraps, so shipping `accessible` with the bare `Line 1` would have silenced
+             * the submitted line and its status — `Couldn't read` included. `headerLabel` restates both.
+             *
+             * ⛔ Still NOT `accessible` on the row container above: that one wraps the edit control and the
+             * correction seam, and collapsing them would put those out of reach entirely.
+             */}
+            <View accessible accessibilityRole="header" accessibilityLabel={model.headerLabel} style={styles.rowHeader}>
                 <Text style={styles.source}>{model.sourceLine}</Text>
                 <Text style={[styles.status, { color: TONE_COLOR[model.tone] }]}>{model.statusLabel}</Text>
             </View>

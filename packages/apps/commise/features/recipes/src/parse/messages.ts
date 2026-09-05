@@ -122,6 +122,15 @@ export interface RecipeParseMessages {
 
     /** Accessible label for one line's row. Contains `{line}` (1-based). */
     readonly lineLabel: string;
+    /**
+     * Accessible name of one row's HEADER on native, where that header is a single accessibility element
+     * and is therefore read INSTEAD of the two `Text` children inside it. It must restate what they say,
+     * so it contains `{line}` (1-based), `{source}` and `{status}`.
+     *
+     * ⛔ Web deliberately keeps {@link lineLabel} instead: an `aria-label` on the `<li>` names the row
+     * WITHOUT suppressing its contents, so composing there would make a screen reader say the line twice.
+     */
+    readonly lineHeaderLabel: string;
     /** Status word for a line whose parse has not landed yet. */
     readonly linePending: string;
     /** Status word for a line that parsed. */
@@ -198,6 +207,7 @@ export const recipeParseMessages: LocalizedMessages<RecipeParseMessages> = {
         retryFailed: 'That didn’t go through. Try again in a moment.',
 
         lineLabel: 'Line {line}',
+        lineHeaderLabel: 'Line {line}: {source}. {status}',
         linePending: 'Reading…',
         lineParsed: 'Read',
         lineUnparseable: 'Couldn’t read',

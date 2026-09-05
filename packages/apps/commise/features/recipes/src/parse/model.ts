@@ -323,8 +323,15 @@ export type ParseLineTone = 'progress' | 'success' | 'warning' | 'error';
 export interface ParseLineModel {
     /** The WIRE index (0-based) — what `PATCH /{id}/lines/{lineIndex}` takes. */
     readonly lineIndex: number;
-    /** The line's accessible label, numbered from ONE for a human. */
+    /** The line's accessible label, numbered from ONE for a human. Web names the row with this. */
     readonly label: string;
+    /**
+     * The NATIVE row header's accessible name — the line's number plus the text and status the header
+     * shows. Native groups that header into one accessibility element, which is read instead of its
+     * children, so the name has to carry them; web's `<li>` label does not suppress anything and keeps
+     * {@link label}. Same knowledge, two platform-correct renderings of it.
+     */
+    readonly headerLabel: string;
     /** The stored line, as submitted or last edited. */
     readonly sourceLine: string;
     readonly status: ParseJobLineStatus;
@@ -388,6 +395,11 @@ export function toParseLineModel(
     const base = {
         lineIndex: line.lineIndex,
         label: fillTemplate(messages.lineLabel, { line: humanNumber }),
+        headerLabel: fillTemplate(messages.lineHeaderLabel, {
+            line: humanNumber,
+            source: line.sourceLine,
+            status: statusLabel,
+        }),
         sourceLine: line.sourceLine,
         status: line.status,
         statusLabel,

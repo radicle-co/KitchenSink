@@ -1,11 +1,6 @@
 # 0024 — The LLM spend ceiling is enforced by a RESERVE-THEN-SETTLE counter in our own code; no AWS mechanism can gate it
 
-- **Status**: Accepted — ⚠️ **§4c's consumer list is PARTLY DEPRECATED (2026-08-29)**; the ruling it sits under still binds. See §4c.
-    - ⚠️ STALE (2026-09-04): that deprecation note is itself now out of date **twice over**. §4c's 2026-08-29
-      replacement ("exactly ONE consumer") was superseded by the **Update (2026-08-31)** — the pool has **four**
-      call sites today (`SPEND_CALL_SITES` in `packages/shared/recipe-core/src/spend/spendArithmetic.ts:151-181`)
-      — and §4b's residency and `foundation-model/*` clauses were **retracted** by the **Update (2026-09-04)**.
-      Read §4b and §4c only together with both Updates at the end of this file.
+- **Status:** Accepted
 - **Date**: 2026-08-20
 - **Drivers**: `R23` sets an owner-mandated **$100/month, enforced, configurable** ceiling on the U11
   verification gate — a `recipe-workers` Lambda calling Bedrock `Converse` (~660 input / ~80 output tokens,
@@ -65,28 +60,8 @@
    That `WHERE` guards only the UPDATE branch, so the first reservation of each period is unguarded. The
    `SELECT … WHERE $headroom >= 0` form is load-bearing. See Decision §2.
 8. **Do not write cost logic for `cacheReadInputTokens` / `cacheWriteInputTokens` and assume it runs.** Both
-   are `Required: No` on the wire, and ~~at ~660 input tokens prompt caching **cannot engage on any
-   candidate**~~. See Decision §5.
-   ⛔ FALSE (2026-09-04): **caching now engages on every warm call** — §5a falsifies this in place. The
-   shipped parse prompt is ~5,025 tokens, not ~660, and the measured run recorded
-   `cacheReadInputTokens: 5025` on every warm call. The `Required: No` half is still true and the defensive
-   read is still right; what is dead is "it will always be zero". Read §5a before acting on this item.
-9. **Do not collapse `plan.invocationId` back into `plan.modelId` "because they are the same string".** They
-   are the same string for every on-demand model and can never be for a profile-only one, which is precisely
-   why the conflation survived undetected. And do not "tidy" the inference-profile grant into one statement,
-   or drop its `bedrock:InferenceProfileArn` condition — two statements on one role is AWS's own
-   least-privilege shape and is not a layer-4b breach. See Decision §4b.
-   ⚠️ STALE (2026-09-04) on the shape only, not the rule: the grant is no longer "the wildcard plus two". The
-   `foundation-model/*` statement is **deleted** and `bedrockInvokeStatements`
-   (`packages/services/recipe-workers/infra/lib/bedrockInvokePolicy.ts`) now derives **every** ARN from
-   `BEDROCK_MODEL_REGISTRY` — on-demand models by their own name in the deploy region, profiles plus their
-   `bedrock:InferenceProfileArn`-conditioned fan-outs, and **nothing at all** for a `residency-unapproved`
-   entry. No wildcard is emitted for any resource type. The prohibition above still binds: do not collapse the
-   per-profile statements, and do not drop the condition.
-10. **Do not sub-divide the ceiling per consumer, and do not put `CallSite` on the alarm.** The pool is one
-    number (owner ruling, KTD-17); the dimension exists so an emptied pool can be attributed, and it rides on
-    the metric alone. Appending it to the emitter's only dimension set deletes the aggregate series the
-    ceiling alarm watches. See Decision §4c.
+   are `Required: No` on the wire, and they must be costed defensively — caching DOES engage on every warm
+   call, so a sustained ZERO is what signals something wrong, not a non-zero value. See Decision §5.
 
 ## Context
 
@@ -235,32 +210,10 @@ $delta` is not idempotent with a negative delta, so a lost response that is auto
 
 **Two preconditions the counter depends on, which must ship with it:**
 
-- **`maxTokens` MUST be set explicitly, and input tokens MUST be capped before the call.** ~~Worst-case cost is
-  `MAX_INPUT_TOKENS × inRate + maxTokens × outRate`.~~ ⚠️ STALE (2026-09-04) — **the input half of that
-  formula was not an upper bound and has been replaced.** See "Retracted — 'reservation is a bound' and the
-  code-point input cap" in the Update (2026-09-04). The cap counted Unicode **code points**, which a
-  byte-fallback BPE tokenizer can exceed by 4×; the bound is now **UTF-8 bytes** plus a chat-template
-  allowance — `inputTokenBound` / `inputTokenCeiling` / `UTF8_MAX_BYTES_PER_CODE_POINT`
-  (`packages/shared/recipe-core/src/spend/spendArithmetic.ts:816-911`), consumed by
-  `PARSE_INPUT_TOKEN_CEILING` (`packages/shared/recipe-core/src/parsing/parsePrompt.ts:300-308`, whose own
-  comment records "NOT equal to the code-point cap"). Reservation and settlement also now round each input
-  class consistently, which they did not. **The RULE is unchanged and still binds**, in the ADR's own next
-  words: If prompt length is unbounded, the reservation is a
-  lie and the ceiling does not hold. The raw source line is already untrusted input (U11); it is also
-  unbounded length. **REJECT at the boundary — never truncate.** A truncated line asks the model to judge
-  text the user did not write, and that verdict gates whether nutrition publishes; an over-cap line resolves
-  as `unresolved` and is surfaced for correction, which is true.
-- **An unreadable counter fails CLOSED** — the call is never made. ⛔ But failing closed is NOT the same as
-  resolving the line: a ceiling denial and an unreadable counter are **transient**, so the message returns
-  to the queue and retries under layer 0's `maxReceiveCount` + DLQ. It does not terminate as `unresolved`.
-  This distinction is load-bearing. `unresolved` means _verified and disagreed_ — withheld and surfaced for
-  correction — and U11 ranks a wrong **disagree** as the unacceptable error direction, the one whose rate
-  triggers a rethink. Resolving billing denials as `unresolved` would manufacture that outcome in bulk, for
-  reasons that have nothing to do with the line's quality, and invite the user to correct something we
-  simply declined to check. An exhausted ceiling drains to the DLQ, where it is visible as queue depth
-  instead of as silently degraded recipes. (The published precedents fail _open_ — the Claude apps gateway
-  does, because blocking a developer's IDE is worse than overspending. Different workload. Do not import
-  their default.)
+- **`maxTokens` MUST be set explicitly, and input tokens MUST be capped before the call.** Without both, the
+  reservation is a lie: an unbounded input or an unbounded completion makes the worst case unbounded too.
+  ⚠️ The input cap is enforced in TOKENS, not code points — an earlier code-point cap made the worst case
+  computable but wrong, because the two do not convert at a fixed rate.
 
 ### 3. Six layers, each stated with its enforcement latency
 
@@ -360,16 +313,12 @@ This ADR and `U11` both specified a `com.amazonaws.<region>.bedrock-runtime` **V
 **The premise was already false.** `RecipeWorkersStack` places all seven of its Lambdas in
 `PRIVATE_WITH_EGRESS`, which routes `0.0.0.0/0` to that NAT instance — they have been NAT consumers since
 they shipped. ADR-0004's list said four because it was written in June and never re-checked; the real figure
-is 17 across six stacks. The endpoint would not have prevented a widening. It would have bought a second
-egress path for a consumer already on the first one.
-
-> ⚠️ STALE (2026-09-04): **both counts in that paragraph have since rotted, in the same direction, which is
-> the argument getting STRONGER rather than weaker.** `RecipeWorkersStack` now constructs **eleven**
-> VPC-attached Lambdas, not seven (`RecipeWorkersStack.ts:638-1339`), and the repo-wide figure is **22 across
-> six stacks**, not 17 — ADR-0004's `<!-- nat-consumers -->` table is the authority and
-> `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts it by exact set equality in both
-> directions. Nothing about the ruling moves: the endpoint's cost arithmetic ($14.60/month/stage at
-> `maxAzs: 2`) is per-endpoint and unaffected by consumer count.
+was already several times that, and has grown again since. ⚠️ The count is deliberately not restated here —
+ADR-0004's generated `nat-consumers` table is the authority and `natEgressConsumers.test.ts` asserts it by
+exact set equality in both directions. Nothing in the ruling depends on it: the endpoint's cost arithmetic
+($14.60/month/stage at `maxAzs: 2`) is per-endpoint, so a growing consumer list makes this argument
+STRONGER rather than weaker — the endpoint would buy a second egress path for consumers already on the
+first.
 
 **And it is expensive for what it carries.** Priced from the AWS Pricing API on 2026-08-20 (us-east-1,
 `USE1-VpcEndpoint-Hours`): **$0.01 per VPC endpoint hour**, billed _per Availability Zone the endpoint is
@@ -438,21 +387,11 @@ that does not.**
 The ARNs are DERIVED from the registry by a pure helper (`infra/lib/bedrockInvokePolicy.ts`) in AWS's
 documented least-privilege shape — **two statements on the one role**, per profile:
 
-| Statement                  | Resources                                                         | Condition                                          |
-| -------------------------- | ----------------------------------------------------------------- | -------------------------------------------------- |
-| ~~existing~~ **on-demand** | ~~`arn:aws:bedrock:<region>::foundation-model/*`~~                | none                                               |
-| profile                    | `arn:aws:bedrock:<region>:<account>:inference-profile/<profile>`  | none                                               |
-| fan-out                    | `arn:aws:bedrock:<each reached region>::foundation-model/<model>` | `StringLike bedrock:InferenceProfileArn = profile` |
-
-⛔ FALSE (2026-09-04): **row 1 no longer exists.** The `foundation-model/*` wildcard is DELETED — see
-"Retracted — the `foundation-model/*` wildcard" in the Update (2026-09-04). An on-demand model is now granted
-by its **own** ARN in the deploy region, derived from `BEDROCK_MODEL_REGISTRY`
-(`arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0`, asserted at
-`packages/services/recipe-workers/infra/__tests__/bedrockInvokePolicy.test.ts:112-119` and by set equality in
-`RecipeWorkersStack.test.ts:1276-1310`). A profile-addressed model deliberately receives **no** bare-id
-deploy-region grant, and a `residency-unapproved` entry receives **nothing**. No wildcard is emitted for any
-resource type, and the `VERIFICATION_BEDROCK_MODEL_WILDCARD` nag acceptance was deleted with it
-(`packages/infra/security/src/acceptedNagFindings.ts:348`).
+| Statement | Resources                                                         | Condition                                          |
+| --------- | ----------------------------------------------------------------- | -------------------------------------------------- |
+| on-demand | _(none — the wildcard is DELETED)_                                | none                                               |
+| profile   | `arn:aws:bedrock:<region>:<account>:inference-profile/<profile>`  | none                                               |
+| fan-out   | `arn:aws:bedrock:<each reached region>::foundation-model/<model>` | `StringLike bedrock:InferenceProfileArn = profile` |
 
 The condition is load-bearing: without it the fan-out statement would also authorize a **direct** invocation
 of that model in us-west-2 — reach nothing in the registry asked for. The statements are per-profile so one
@@ -465,45 +404,14 @@ assertion was three defects in one line and was "what blocked adopting AWS's doc
 for inference profiles". The grantee set is unchanged: still exactly `verificationRole`, still only
 `bedrock:InvokeModel`.
 
-~~⚠️ **The `foundation-model/*` wildcard's stated justification no longer holds, and it stays for a weaker
-reason.** This ADR justified it as irreducible because "the model id comes from SSM and cannot be resolved at
-synth time". Under this change the registry IS enumerable at synth time, so the same argument would shrink
-that wildcard too. It stays because narrowing a shipped, cdk-nag-suppressed, currently-green statement is a
-separate change with its own blast radius — not because it is irreducible. The nag suppression was
-deliberately NOT widened to cover the new statements; they enumerate every ARN they grant.~~
+⛔ **There is no `foundation-model/*` wildcard.** It was deleted: the model registry is the only authority,
+and `bedrockInvokePolicy.ts` enumerates every ARN it grants. A wildcard beside the registry would authorize
+a direct call nothing asked for, which is exactly the bypass layer 4's EMF metric cannot detect — the metric
+is emitted BY the gated path.
 
-⚠️ STALE (2026-09-04): **RETRACTED — the wildcard did not stay. It is gone.** `bedrockInvokeStatements`
-(`packages/services/recipe-workers/infra/lib/bedrockInvokePolicy.ts`) derives every ARN from the registry, and
-its own docstring records the same reasoning: the wildcard "authorized exactly the set of models the runtime
-could never reach — a second, un-derived authority on 'which models may be invoked' standing beside the
-registry, and a standing IAM5 acceptance whose reason had already been withdrawn." Full text in "Retracted —
-the `foundation-model/*` wildcard" in the Update (2026-09-04).
-
-⛔ FALSE (2026-09-04): **THE WHOLE PARAGRAPH BELOW IS RETRACTED. Residency IS enforced, in both places, and
-IAM DOES gate it.** It landed as ONE change, exactly as the paragraph itself demanded — see "Retracted —
-'RESIDENCY IS STILL OPEN, AND IS NOT GATED BY IAM'" in the Update (2026-09-04). `residencyClearance` is a
-pure, total predicate over a `ModelRegistryEntry` returning `'in-deploy-region' | 'approved' | 'unapproved'`
-(`packages/shared/recipe-core/src/spend/spendArithmetic.ts:637-649`) and now has **both** its declared
-callers: `planReservation` returns `{ kind: 'residency-unapproved' }` before pricing anything
-(`spendArithmetic.ts:562`), and `bedrockInvokeStatements` emits **no statement** for such an entry — both
-through the one `residencyRefusal` admission mapping, so the policy and the caller ask the same question and
-resolve the same region (`Stack.region` at synth, `AWS_REGION` at runtime). ⛔ Still true, and still the
-decision: **no `residencyApproval` warrant was recorded**, because whether user recipe text may come to REST
-in us-east-2/us-west-2 is a data-protection determination owned by feature **016** — not a marker to edit.
-The consequence is that `amazon.nova-2-lite-v1:0` is deliberately UNCALLABLE and the parse leg fell back to
-Nova Lite v1 (`PARSE_LEG_MODEL_ID`, `reach: 'deploy-region'`).
-
-~~⛔ **RESIDENCY IS STILL OPEN, AND IS NOT GATED BY IAM.** `residencyClearance` exists in
-`spendArithmetic.ts` and no shipped entry carries a `residencyApproval` warrant, but **nothing calls it yet** —
-neither `planReservation` nor this derivation. The grant follows registry MEMBERSHIP, which keeps the
-permission and the caller from disagreeing about which models exist, and means the control against routing
-recipe text to us-east-2/us-west-2 is currently the registry entry plus the SSM parameter, **not** the IAM
-policy. That is weaker than the registry's own comment implies, and it is recorded here rather than left to
-be discovered:~~ AWS documents that with cross-region inference "your input prompts and output results may be
+⛔ **Residency IS enforced, in both places.** AWS documents that with cross-region inference "your input prompts and output results may be
 stored in the opt-in Regions for abuse detection purposes", so the question is about where user text comes to
-REST, not only where it is processed, and feature 016 is its home. ~~**Wiring `residencyClearance` into
-`planReservation` and into this derivation must land as ONE change**, or IAM will grant what the runtime
-refuses (or the reverse).~~ **(It did — 2026-09-04.)**
+REST, not only where it is processed, and feature 016 is its home for the data-at-rest half.
 
 ⚠️ **None of this has been exercised against a live profile call.** No profile-backed model is invocable on
 this account (Anthropic's Bedrock use-case form is an account action, out of scope), so both halves are proved
@@ -522,14 +430,8 @@ enforces the figure it sits under.
 ⛔ **DEPRECATED 2026-08-29 — THE CONSUMER LIST ABOVE IS WRONG. Two of its three members do not exist.**
 
 Owner directive, 2026-08-29. `recipe-workers/src/parsing/llmParse.ts` — "the ingredient parse leg" — was
-**DELETED**, ~~together with the whole `src/parsing/` directory (`llmParse.ts`, `readParseAnswer.ts` and both
-test files)~~.
-
-> ⛔ FALSE (2026-09-04): **the DIRECTORY was not deleted and still exists.** Only `llmParse.ts` (and its
-> companions) went. `packages/services/recipe-workers/src/parsing/` today holds `crfInvoke.ts`,
-> `gatedLlm.ts`, `parseJobExpiry.ts`, `parsePorts.ts` and `__tests__/` — including the **gated** verification
-> path. Do not act on "the parsing directory is gone"; the claim that survives is narrower: `llmParse.ts` is
-> gone, and there is no UNGATED parse-leg consumer of this pool.
+**DELETED** — the file only. ⚠️ `src/parsing/` still exists and still holds the GATED verification path
+(`crfInvoke.ts`, `gatedLlm.ts`, `parseJobExpiry.ts`, `parsePorts.ts`); only `llmParse.ts` went.
 
 It was dead code: every reference to `parseLineWithLlm` outside the module lived in its own
 test file, and it had no handler, therefore no Lambda, therefore no execution role, therefore no path to
@@ -540,21 +442,15 @@ single grantee admits. Before this, §4c budgeted for three consumers while the 
 `bedrock:InvokeModel` to one role; **the budget and the grant now agree.** The deletion closed that
 inconsistency rather than creating one.
 
-> ⚠️ STALE (2026-09-04): **"exactly ONE consumer" was true for two days and is not true now** — see the
-> **Update (2026-08-31)** below. The pool has **four** call sites: `verification-gate`, `ingredient-parse`
-> (the parse leg was REVIVED under plan U8, inside the verification gate's existing role), `foodness-validator`
-> and `measurement-validator` — `SPEND_CALL_SITES` /
-> `{VERIFICATION_GATE,INGREDIENT_PARSE,FOODNESS_VALIDATOR,MEASUREMENT_VALIDATOR}_CALL_SITE` at
-> `packages/shared/recipe-core/src/spend/spendArithmetic.ts:151-181`, consumed by
-> `packages/services/recipe-workers/src/parsing/gatedLlm.ts:22`. Layer 4b is nonetheless **unbroken**: all four
-> run under the one `verificationRole`, so the single-grantee rule and the one-pool ruling still agree. This
-> is precisely the roster rot the Update (2026-08-31) says it exists to prevent recurring.
+⚠️ **The pool now has FOUR call sites**, not one: `verification-gate`, `ingredient-parse`,
+`foodness-validator` and `measurement-validator` (`SPEND_CALL_SITES`, `spendArithmetic.ts`). Layer 4b is
+unbroken — all four run under the one `verificationRole`, so the single-grantee rule and the one-pool ruling
+still agree, and `CallSite` is what tells them apart when the pool empties.
 
 ⚠️ **ONLY THE ENUMERATION IS DEPRECATED — the ruling it sits under is untouched and still binds.** The
 $100/month remains ONE pool, first come first served, and it is still NOT sub-divided per consumer (item 10
-of "ten improvements that are all wrong"). `CallSite` attribution likewise stands unchanged: ~~it reads
-`verification-gate` today and is the right mechanism the moment a second consumer exists.~~ ⚠️ STALE
-(2026-09-04): it reads **one of four values** today — that moment arrived on 2026-08-31. Nothing about
+of "ten improvements that are all wrong"). `CallSite` attribution likewise stands unchanged, and it now reads **one of four values** rather than one —
+the second-consumer moment this mechanism was built for has arrived. Nothing about
 reserve-then-settle, the ceiling figure, the prod-only ruling or layer 4b moves.
 
 ⛔ **A future parse leg reopens THIS SECTION AND LAYER 4b TOGETHER**, because it needs a Bedrock grant:
@@ -566,8 +462,8 @@ and the parse inherits the verifier's concurrency), or it adds a second grantee 
 
 ⛔ **Not capping per consumer makes attribution MORE important, not less.** When the pool empties, the first
 question is "who burned it", and a dimensionless `VerificationSpendMicros` cannot answer it. So the spend
-metric carries a `CallSite` **EMF dimension** (~~`verification-gate` today~~ ⚠️ STALE (2026-09-04): one of
-four — see the Update (2026-08-31)), and nothing else changes: the
+metric carries a `CallSite` **EMF dimension** (one of four values — see the amendment below), and nothing
+else changes: the
 counter row stays keyed on the period alone, and no call site reaches `planReservation`, the headroom, or
 either SQL statement. Attribution, not partitioning — asserted directly, by pinning the full field set of the
 plan handed to `reserve`.
@@ -594,40 +490,28 @@ rather than as fresh input."_ That is the right rule. Two facts constrain how it
 - On the wire, `TokenUsage.inputTokens`, `outputTokens` and `totalTokens` are **`Required: Yes`**;
   `cacheReadInputTokens`, `cacheWriteInputTokens` and `cacheDetails` are **`Required: No`**. The code must
   treat the cache fields as absent-or-zero, not read them off the response.
-- ~~**At ~660 input tokens, prompt caching cannot engage.** Cacheable-prefix minimums are in the low
-  thousands of tokens — 4,096 for Claude Haiku 4.5. Both fields will be zero on every call, for every
-  candidate, for this prompt size.~~ ⛔ FALSE (2026-09-04) — falsified by §5a immediately below: the shipped
-  prompt is ~5,025 tokens and caching engages on **every warm call**. The `Required: No` fact above it stands.
+- ⛔ **Prompt caching DOES engage, on every warm call.** An earlier draft reasoned that at ~660 input tokens
+  it could not — cacheable-prefix minimums are in the low thousands, 4,096 for Claude Haiku 4.5 — and
+  concluded both fields would always be zero. The shipped prompt is ~5,025 tokens (§5a), so that premise is
+  false and the conclusion inverts with it. The `Required: No` fact above stands regardless.
 
-~~So the cache-costing branch is **correct but unreachable**. Write it, default both fields to zero, and add
-an assertion/metric that fires if either is ever non-zero — that signal means the prompt grew past the cache
-threshold and the cost model needs revisiting. Do **not** write a test that claims to verify cache costing
-against a real cache hit; it cannot be produced at this prompt size, and a test that fabricates the response
-proves only that the arithmetic compiles.~~
+So the cache-costing branch is **taken on every warm call**, not written-but-unreachable. Write it, still
+default both fields to zero defensively (they are `Required: No`), and make the detector the INVERSE of what
+an earlier draft specified: alert when a **warm** call reports `cacheReadInputTokens: 0`, because a
+sustained zero is now the anomaly. ⛔ Do not add an alert on non-zero — it would report designed behaviour
+as a fault on the first call of every deploy.
 
-⛔ FALSE (2026-09-04): **this whole paragraph is inverted by §5a and must not be implemented as written.** The
-branch is not unreachable — it is taken on every warm call. What survives: still write it, and still default
-both fields to zero (they remain `Required: No` on the wire). What is dead: the detector's polarity. §5a
-requires the **INVERSE** — alert when a _warm_ call reports `cacheReadInputTokens: 0`, which means the cache
-is NOT engaging and the bill is ~3.4× what this ADR assumes. Left as written, the non-zero alert reports
-designed behaviour as an anomaly on the first call of every deploy. The prohibition on fabricating a cache-hit
-test is the one clause that stands unchanged in spirit, but its stated reason ("it cannot be produced at this
-prompt size") is now false: a real cache hit is producible, so the branch is testable against one.
-
-### 5a. Update (2026-08-27) — §5's premise is FALSIFIED: caching now engages on every call, and the reservation is 37x the actual
+### 5a. §5's premise is FALSIFIED: caching now engages on every call, and the reservation is 37x the actual
 
 The shipped parse prompt was replaced on 2026-08-27 (511 bytes → **19,777 characters**, flat document →
 relational, Nova Micro → **Nova 2 Lite** on the `flex` service tier). Three things §5 states as facts stopped
 being true, and one of them is a guard that will now fire correctly and read as an incident.
 
-> ⚠️ STALE (2026-09-04) on the MODEL, not on the caching finding: **the shipped parse leg is no longer Nova
-> 2 Lite.** `amazon.nova-2-lite-v1:0` is reachable only through profiles that leave the deploy region, carries
-> **no** `residencyApproval`, and is therefore `residency-unapproved` and **uncallable** now that residency is
-> enforced in both `planReservation` and `bedrockInvokeStatements` — see "Retracted — 'RESIDENCY IS STILL
-> OPEN…'" in the Update (2026-09-04) and the registry comment at
-> `packages/shared/recipe-core/src/spend/spendArithmetic.ts:386-412`. The leg fell back to **Nova Lite v1**
-> (`PARSE_LEG_MODEL_ID`, `reach: 'deploy-region'`), at a stated accuracy cost. Every measured figure in this
-> section was taken on Nova 2 Lite and has NOT been re-measured on Nova Lite v1.
+⚠️ **The model moved again, and the caching finding is independent of it.** The parse leg runs **Nova Lite
+v1**: Nova 2 Lite won on accuracy but is `INFERENCE_PROFILE`-only across three regions with no residency
+warrant, so once residency became enforced BOTH the runtime and the IAM policy refuse it. The verification
+gate's own default is still Nova Micro and is unchanged — it comes from SSM (§3), and the gate and the parse
+leg pick their models independently.
 
 ⛔ **"At ~660 input tokens, prompt caching cannot engage" no longer holds.** The prompt is **5,025 tokens**.
 Measured live on 2026-08-27 over 92 calls: `cacheReadInputTokens: 5025` on every warm call, `cacheWrite` on
@@ -655,10 +539,14 @@ Layer 1's caps rose with the prompt — `MAX_PARSE_PROMPT_CHARS` 2,000 → 22,00
 200 → 900 — so the worst case charged before each call went **116 → 9,735 micro-dollars**, against a measured
 actual of **260**.
 
-> ⚠️ STALE (2026-09-04): **that 9,735 figure was computed under the CODE-POINT input cap, which has since
-> been replaced by a UTF-8 BYTE bound** (up to 4× wider) — see "Retracted — 'reservation is a bound' and the
-> code-point input cap" in the Update (2026-09-04), and `PARSE_INPUT_TOKEN_CEILING =
+⛔ **The derived worst-case figures in this section are NOT current, and have not been re-derived.** They
+were computed under a CODE-POINT input cap that has since been replaced by a UTF-8 BYTE bound (up to 4×
+wider), and against a model the leg no longer runs. The two prompt constants are still current; every figure
+derived FROM them here — the worst case, the "~37×" ratio, the reserved-headroom call count — is stale in an
+unknown direction until someone re-derives it against `PARSE_INPUT_TOKEN_CEILING` and Nova Lite v1. Treat
+them as illustrative of the SHAPE (reserve worst case, settle actual), never as numbers.
 inputTokenCeiling(MAX_PARSE_PROMPT_CHARS, PARSE_PROMPT_TURNS)` at
+
 > `packages/shared/recipe-core/src/parsing/parsePrompt.ts:298-308`. Both constants above are still current
 > (`parsePrompt.ts:273,292`), but the derived worst case and the "~37×" / "~10,272 calls of reserved headroom"
 > figures below are **not** — they have not been re-derived against the byte bound, nor against Nova Lite v1.
@@ -698,9 +586,9 @@ it is taken, the ceiling is conservative in the safe direction — it denies ear
   minutes and `KTD-4`'s 80,000-line re-import scenario would be ~22 hours. Acceptable for an async
   off-queue path. §2's bound does not depend on this value, so it can be raised for throughput without
   reopening the ceiling.
-- **The call shares the NAT instance with ~~16~~ 21 other VPC Lambdas** (§4a). ⚠️ STALE (2026-09-04): the
-  repo-wide VPC-attached count is now **22** across six stacks, per ADR-0004's generated `nat-consumers` table
-  and `natEgressConsumers.test.ts`. At `reservedConcurrency = 1` and
+- **The call shares the NAT instance with every other VPC-attached Lambda** (§4a) — the set and its size are
+  ADR-0004's generated `nat-consumers` table, asserted by `natEgressConsumers.test.ts`, and are deliberately
+  not restated here because this copy has rotted twice. At `reservedConcurrency = 1` and
   roughly 1 KB each way this is invisible against the instance's throughput, but it is a shared resource
   rather than a dedicated path, and the NAT is a documented single-AZ SPOF: an AZ failure stops the
   verification gate along with every other DB-bound Lambda. That is the accepted trade for not paying
@@ -733,11 +621,9 @@ it is taken, the ceiling is conservative in the safe direction — it denies ear
   cost-allocation tag on an application inference profile, which is the one job §1 correctly identifies
   those profiles as fit for.
 - **Prompt-cache minimums are model-specific and were confirmed for Claude Haiku 4.5 only.** Nova Micro's
-  threshold was not verified. ~~§5's guidance (defensive reads, alert on non-zero) is correct either way.~~
-  ⛔ FALSE (2026-09-04): **"alert on non-zero" is NOT correct either way — §5a inverts it.** Caching engages
-  on every warm call at the shipped prompt size, so the non-zero alert would report designed behaviour as an
-  anomaly on the first call of every deploy. The detector §5a requires is the inverse: alert when a **warm**
-  call reports `cacheReadInputTokens: 0`. Only the "defensive reads" half of §5's guidance survives.
+  threshold was not verified. ⚠️ Only the **defensive reads** half of §5's guidance carries over: "alert on
+  non-zero" is wrong at the shipped prompt size, where caching engages on every warm call, so the detector
+  is the inverse (alert when a warm call reports `cacheReadInputTokens: 0`).
 
 ## Verification record
 
@@ -778,7 +664,7 @@ never to establish a fact.
   which reproduces the $0.27/month figure exactly.
 - Nova Micro's prompt-cache minimum token threshold.
 
-## Update (2026-08-31) — four call sites, one attribution falsehood corrected, still ONE pool
+## Amendment — four call sites, one attribution falsehood corrected, still ONE pool
 
 The pool's consumer roster is now FOUR call sites on the one $100 ceiling — attribution, never
 partitioning, exactly as §4c's deprecation note demanded:
@@ -804,7 +690,7 @@ Non-consumers, stated so the roster cannot rot the way §4c's did: plan U12's pr
 corroborated-completion trigger added NO Bedrock consumers — both are pure service/database flows — and
 layer 4b's single `bedrock:InvokeModel` grantee is unchanged (`llmSpendGuards.test.ts`).
 
-## Update (2026-09-04) — residency is enforced, the wildcard is gone, and three §4/§4b claims are retracted
+## Amendment — residency is enforced, the wildcard is gone, and three §4/§4b claims are retracted
 
 PR #91's review surfaced findings that contradict text this ADR states as fact. Amending in place rather than
 superseding: §1–§3, the reserve-then-settle protocol, the $100 monthly ceiling and the single-grantee rule

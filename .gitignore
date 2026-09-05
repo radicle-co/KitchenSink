@@ -157,3 +157,4 @@ __pycache__/
 # Test-created temp directories, confined here by @kitchensink/vitest so they can be removed.
 .tmp-test/
 .local-sandbox/
+docs/ideation/

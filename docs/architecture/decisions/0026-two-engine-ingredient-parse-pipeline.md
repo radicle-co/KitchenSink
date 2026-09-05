@@ -1260,12 +1260,20 @@ and published `ABSENT_QUANTITY` for numbers the phrase plainly stated.
   anything in anger. `handle-sync-worker` — 4.6 KB of raw `tsc` output, dying on every cold start with
   `ERR_MODULE_NOT_FOUND` while two guard tests watched — is the precedent for what an unguarded Lambda asset
   costs. Its design and derivation are [ADR-0025 §3](0025-ingredient-parser-python-deployable.md).
-- ⚠️ **The CRF leg has never run on its target interpreter.** ADR-0025 records it: the handler is exercised
+- ~~⚠️ **The CRF leg has never run on its target interpreter.** ADR-0025 records it: the handler is exercised
   against the real engine on x86 / CPython 3.10, but the **arm64 / CPython 3.13 wheels in the asset have
-  never been loaded by a Python 3.13 interpreter on ARM**. The first real proof is a deploy — and until then,
-  note the interaction with §3: a CRF leg that fails to import surfaces as `single-engine` on **every** line,
-  which is correct behaviour and quiet behaviour at the same time. Watch the `single-engine` rate after the
-  first deploy, not just the error rate.
+  never been loaded by a Python 3.13 interpreter on ARM**. The first real proof is a deploy~~ — ⚠️ **RESOLVED
+  (2026-09-05), and the deploy found a DIFFERENT fault than this bullet predicted.** The arm64 / CPython 3.13
+  wheels loaded without complaint on the first real deploy of `kitchensink-ingredient-parser-pr-91`
+  (`Init Duration: 2180 ms`, `Max Memory Used: 118 MB`). What failed was the invocation: `ingredient_parser`
+  imports NLTK, whose `download_nltk_resources()` (`_common.py:121`) fetches
+  `averaged_perceptron_tagger_eng` into `$HOME` — read-only on Lambda outside `/tmp` — so the handler died
+  with `[Errno 30]` before parsing anything. The 5.5 MB corpus is now baked into the asset at build time.
+  ⛔ **The rest of this bullet stands and is the thing to actually watch**, because it was right about the
+  SHAPE even while wrong about the cause: a CRF leg that fails to import surfaces as `single-engine` on
+  **every** line, which is correct behaviour and quiet behaviour at the same time. This deploy failed loudly
+  only because the post-deploy smoke invokes the function; nothing in the pipeline itself would have said a
+  word. Watch the `single-engine` rate after any parser change, not just the error rate.
 
 ## Update (2026-08-31) — the retry carve-out's boundary, restated as a rule
 

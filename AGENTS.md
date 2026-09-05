@@ -197,7 +197,7 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   repo's first non-Node deployable.** A named exception to ADR-0017's "no new deployable" default on
   ADR-0019 §3's three grounds, and it **owns no database** (the parse cache is a table in the recipe
   database). Three things look wrong and are not: it is **deliberately not VPC-attached** (no database, no
-  private endpoint, no run-time network call — attaching it would put it on ADR-0004's NAT list); it carries
+  private endpoint, no run-time network call **once the NLTK corpus is baked into the asset** — ⚠️ that claim was FALSE until 2026-09-05: `ingredient_parser` calls `nltk.download()` on import, which the first real deploy proved by dying with `[Errno 30] Read-only file system` — attaching it would put it on ADR-0004's NAT list); it carries
   **no `esbuild.mjs`**, so `serviceInfraWiringInvariants`' W2 skips it exactly as that guard's docstring
   anticipates, and its replacement packaging guard **enumerates nothing** (handler module from the CDK
   `handler:` string, imports from the handler's Python AST, every engine file from pip's own `RECORD`

@@ -194,7 +194,14 @@ describe('createVerificationQueue — a partial failure is a failure, and never 
         expect(seen).toHaveLength(2);
     });
 
-    it('reports EVERY failing batch, not just the first', async () => {
+    /**
+     * ⚠️ REWRITTEN 2026-09-05 — this case previously asserted `'3 of 21 messages'`, which was ENCODING A BUG
+     * rather than describing intent. All 21 messages are lost here; three is the number of failed BATCHES.
+     * `sqsBatchQueue` now counts messages, so the honest figure is 21 of 21, and the test's own name — "every
+     * failing batch" — is asserted directly by naming all three batches instead of inferring them from a
+     * count that happened to equal them. Both halves are stronger than the line they replace.
+     */
+    it('reports EVERY failing batch, and counts every message lost with them', async () => {
         const send: VerificationBatchSend = async () => {
             throw new Error('unreachable');
         };
@@ -203,7 +210,12 @@ describe('createVerificationQueue — a partial failure is a failure, and never 
             .enqueue(Array.from({ length: 21 }, () => makeMessage()))
             .catch((caught: unknown) => caught);
 
-        expect(String(error)).toContain('3 of 21 messages');
+        // Every message really was lost — 21, not the three batches that carried them.
+        expect(String(error)).toContain('21 of 21 messages');
+        // …and all three batches are still named, which is what this case is actually for.
+        expect(String(error)).toContain('batch 0 failed');
+        expect(String(error)).toContain('batch 1 failed');
+        expect(String(error)).toContain('batch 2 failed');
     });
 
     it('chunks at SQS’s limit of ten entries per call', async () => {

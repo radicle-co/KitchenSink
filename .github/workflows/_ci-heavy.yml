@@ -172,6 +172,36 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
+            # ⛔ THE BROKER THE SERVICE WAS ALREADY BEING TOLD IT HAD. The boot step below has passed
+            # `SQS_ENDPOINT=http://localhost:4566` and `RECIPE_PARSE_QUEUE_URL=.../recipe-parse-line` since
+            # U9 shipped, and until now NOTHING listened on 4566 in this job. That is not a latent
+            # misconfiguration, it is the direct cause of a red tier: `recipes/parse-ingredients` failed on
+            # `Assert that "2 of 2 lines read" is visible` in runs 33924615847 and its successor, and the
+            # container's own log names the reason —
+            #
+            #     WARN [ParseJobsService] parse-job 50b1621d-…: enqueue failed, marking 2 line(s)
+            #     failed_retryable — … AggregateError [ECONNREFUSED]
+            #
+            # ⚠️ NOTE WHAT THAT IS AND IS NOT. `ParseJobsService.enqueueOrMark` converts the send failure
+            # into a `202` whose job is `partial` and whose every line is `failed_retryable` — so the API
+            # answered, the review screen rendered, and only the COUNT was wrong (`failed_retryable` is not
+            # settled, per `parse/model.ts`). The lines were never `pending`, because no message was ever
+            # enqueued; a reader chasing "the queue filled and nothing drained it" is one layer too far in.
+            #
+            # Mirrors `load-test`'s LocalStack below, `SQS_ENDPOINT_STRATEGY` included, so the two jobs
+            # stand the same broker up the same way. Community tier, no auth token.
+            localstack:
+                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                env:
+                    SERVICES: s3,sqs
+                    SQS_ENDPOINT_STRATEGY: path
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
         steps:
             # ⛔ SANDBOX-ONLY, and refused LOUDLY rather than skipped. This job USES `inputs.stage` for a
             # write: the `load-secrets` + `ensure-signin-user.mjs` steps below provision the shared Clerk
@@ -332,6 +362,77 @@ jobs:
               run: |
                   node packages/services/recipe-service/tests/load/prepare-db.mjs
                   npm run seed --workspace=@kitchensink/recipe-service
+            # The buckets and queues the boot step below names. LocalStack starts with an EMPTY account, so
+            # a running broker is not the same as an addressable queue — without this the enqueue fails with
+            # `NonExistentQueue` instead of `ECONNREFUSED`, which is the same red for a new reason.
+            #
+            # ⚠️ ALL FIVE, not just the parse queue. The service is booted holding all five names; leaving
+            # four of them dangling would put four expected errors in a log this job greps on failure, which
+            # is where a real one hides. Only `recipe-parse-line` is DRAINED (by the worker below) — the
+            # other two accumulate messages nobody reads, which is exactly their state today and harms
+            # nothing: both producers already swallow a send failure, so neither flow's behaviour moves.
+            - name: Bootstrap LocalStack (S3 buckets + the service's SQS queues)
+              if: steps.secrets.outcome == 'success'
+              env:
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_DEFAULT_REGION: us-east-1
+              run: |
+                  set -euo pipefail
+                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-photos
+                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-versions
+                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name erasure
+                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-verification
+                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-parse-line
+                  # Addressable at the exact URL BOTH sides are pointed at — the producer (the container's
+                  # `RECIPE_PARSE_QUEUE_URL`) and the consumer (the worker step's). Asserted by round-trip
+                  # rather than by reading `get-queue-url`'s answer back: LocalStack echoes a URL in its own
+                  # spelling (`…/queue/us-east-1/000000000000/…`) while still ACCEPTING the path form, so a
+                  # string comparison against its echo would fail on a queue that works perfectly. What has
+                  # to be true is that a send and a receive both land, and that is what this measures.
+                  PARSE_QUEUE_URL=http://localhost:4566/000000000000/recipe-parse-line
+                  aws --endpoint-url=http://localhost:4566 sqs send-message \
+                      --queue-url "${PARSE_QUEUE_URL}" --message-body '{"probe":true}' > /dev/null
+                  RECEIVED=$(aws --endpoint-url=http://localhost:4566 sqs receive-message \
+                      --queue-url "${PARSE_QUEUE_URL}" --wait-time-seconds 5 \
+                      --query 'Messages[0].Body' --output text)
+                  if [ "${RECEIVED}" != '{"probe":true}' ]; then
+                      echo "::error::the parse-line queue is not addressable at ${PARSE_QUEUE_URL} (round-trip returned '${RECEIVED}'). The recipe-service container and the parse-line worker are both pointed at that URL, so nothing would drain and recipes/parse-ingredients would fail on '2 of 2 lines read'." >&2
+                      exit 1
+                  fi
+                  aws --endpoint-url=http://localhost:4566 sqs purge-queue --queue-url "${PARSE_QUEUE_URL}"
+            # ⛔ THE PARSE-LINE WORKER RUNS THE DEPLOYED `handler.py`, SO THIS RUNNER NEEDS THE ENGINE.
+            #
+            # `src/local/localCrfEngine.ts` puts `packages/services/ingredient-parser/src/handler.py` behind
+            # the `LambdaClient` seam as a subprocess (ADR-0025). Without the engine the CRF leg throws, and
+            # `handlers/parseLine.ts` treats everything an ENGINE throws as TRANSIENT and re-throws BEFORE
+            # any landing — deliberately, per ADR-0026's 2026-08-31 update — so the message redelivers and
+            # the line stays `pending` forever. An absent engine is a queue that drains nothing.
+            #
+            # ⛔ NOT `bundle:lambda` / `infra/bin/buildAsset.ts`: that installs arm64 / CPython 3.13 wheels
+            # into a `--target` directory for the Lambda, which this x86-64 runner's interpreter cannot load.
+            # These two steps are copied from `_ci.yml`'s `integration-recipe-workers` — the fourth instance
+            # of one established pattern, not a second way to install the engine. The pin is DERIVED from
+            # `requirements.txt`, never restated (ADR-0025 calls it load-bearing three times over).
+            #
+            # ⚠️ Placed BEFORE the ~12-minute APK build on purpose: a broken install then costs ~9s and
+            # fails at minute 7, not minute 20.
+            - name: Install the CRF ingredient parser (the parse-line worker runs the real handler.py)
+              if: steps.secrets.outcome == 'success'
+              run: python3 -m pip install --user --requirement packages/services/ingredient-parser/requirements.txt
+            # The engine is loaded by a SUBPROCESS the worker spawns, whose failure this job would otherwise
+            # see only as a Maestro timeout 20 minutes later. `import ingredient_parser` rather than only the
+            # metadata version, because that is the exact statement `handler.py` makes — and it is the one
+            # that loads `python-crfsuite` and the CRF model, which metadata alone never touches.
+            - name: Assert the CRF engine is importable — the parse worker must not silently stall
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  set -uo pipefail
+                  if ! version=$(python3 -c "import ingredient_parser, importlib.metadata as m; print(m.version('ingredient-parser-nlp'))" 2>&1); then
+                      echo "::error::the CRF engine is not importable on this runner (${version}). The parse-line worker spawns handler.py per line; without the engine every line's CRF leg throws, parseLine.ts re-throws it as transient, nothing lands, and recipes/parse-ingredients fails on '2 of 2 lines read' 20 minutes from now with no explanation. Fix the install step above; do not let this job pass without the engine." >&2
+                      exit 1
+                  fi
+                  echo "CRF engine importable: ingredient-parser-nlp ${version}"
             # Boot the service with the dev-auth bypass + raised rate limits (the flows all run as one dev
             # user = the seed's FREE owner, so they see the seeded recipes). Bound to the runner's
             # localhost:3000; the emulator reaches it at http://10.0.2.2:3000.
@@ -361,6 +462,87 @@ jobs:
                       sleep 2
                   done
                   curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-maestro; exit 1; }
+            # ⛔ THE CONSUMER. `RecipeWorkersStack` attaches the parse queue to a Lambda with an
+            # `SqsEventSource`; nothing in this job deploys a Lambda, so the producer's messages had no
+            # reader even once the queue existed. `src/local/main.ts` is the piece written for exactly this
+            # gap — it drains the queue in-process, running the SHIPPED `processParseLine` over the real
+            # CRF handler and an OFFLINE LLM substitute (`localBedrockTransport.ts`; no model is called, and
+            # parse QUALITY is therefore not what this tier observes — the POLL ADVANCING is).
+            #
+            # ⚠️ `npm run dev` is `tsx --env-file=.env.development …`, and that committed file names a
+            # DIFFERENT database and a DIFFERENT queue (`kitchensink-recipe-parse-dev`, the one `local:up`
+            # creates). Node resolves a conflict in the ENVIRONMENT's favour — measured on Node 24.20.0 —
+            # so the values below win. That is a precedence rule, not a guarantee, which is why the next
+            # lines read the queue URL back out of the worker's own startup log instead of trusting it: if
+            # the worker ever polled the file's queue, SQS would report an empty queue rather than an error
+            # and this job would look healthy while every line stayed `pending`.
+            - name: Start the parse-line worker (nothing else drains the queue)
+              if: steps.secrets.outcome == 'success'
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_maestro
+                  RECIPE_PARSE_QUEUE_URL: http://localhost:4566/000000000000/recipe-parse-line
+                  SQS_ENDPOINT: http://localhost:4566
+                  STAGE: dev
+                  AWS_REGION: us-east-1
+              run: |
+                  set -uo pipefail
+                  npm run dev --workspace=@kitchensink/recipe-workers > /tmp/parse-worker.log 2>&1 &
+                  echo "PARSE_WORKER_PID=$!" >> "$GITHUB_ENV"
+                  for i in $(seq 1 30); do
+                      if grep -q 'local parse worker draining the parse queue' /tmp/parse-worker.log; then break; fi
+                      sleep 1
+                  done
+                  if ! grep -q "\"queueUrl\":\"${RECIPE_PARSE_QUEUE_URL}\"" /tmp/parse-worker.log; then
+                      echo "::error::the parse-line worker is not draining ${RECIPE_PARSE_QUEUE_URL}. A worker on the wrong queue polls successfully forever and reports nothing, so this is checked rather than assumed. Worker log follows." >&2
+                      cat /tmp/parse-worker.log
+                      exit 1
+                  fi
+                  echo "parse-line worker draining ${RECIPE_PARSE_QUEUE_URL}"
+            # ⛔ PROVE THE BACKEND HALF BEFORE PAYING FOR THE EMULATOR. `recipes/parse-ingredients` asserts
+            # `2 of 2 lines read`, which is `settled === total` over the job the API reports — so the same
+            # claim can be made here against the same service, in seconds, ~20 minutes before the device can
+            # make it. When this step is red the Maestro failure is NOT an app defect, and saying so here is
+            # the difference between a diagnosable red and an opaque 60-second timeout.
+            #
+            # ⛔ NOT the flow's own two lines. `reseed.mjs` truncates the recipe tables but NOT
+            # `ingredient_parse_cache`, so probing `2 cups flour` / `1 tsp salt` would leave warm cache rows
+            # that answer the device flow without either engine running — the probe would retire the legs it
+            # exists to prove. Different lines keep the flow's own CRF + LLM crossing genuine.
+            #
+            # ⚠️ The `202` body is checked for `running`, not merely for a `2xx`: an unreachable or absent
+            # queue also answers `202`, with `partial` and every line `failed_retryable`. Accepting the
+            # status code alone is precisely the blindness that let this ship.
+            - name: Prove a parse job settles (the backend half of recipes/parse-ingredients)
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  set -uo pipefail
+                  CREATED=$(curl -sS -X POST http://localhost:3000/api/v1/recipe-parse-jobs \
+                      -H 'content-type: application/json' \
+                      -d '{"text":"1 cup sugar\n2 tbsp butter"}')
+                  JOB_ID=$(CREATED="${CREATED}" node -e '
+                      const body = JSON.parse(process.env.CREATED);
+                      if (body.status !== "running") {
+                          console.error(`::error::the parse job was accepted as "${body.status}", not "running" — the enqueue failed and every line is already failed_retryable. Check the LocalStack bootstrap and the container SQS_ENDPOINT/RECIPE_PARSE_QUEUE_URL. Body: ${process.env.CREATED}`);
+                          process.exit(1);
+                      }
+                      console.log(body.id);
+                  ') || exit 1
+                  echo "parse job ${JOB_ID} accepted as running"
+                  for i in $(seq 1 30); do
+                      POLLED=$(curl -sS "http://localhost:3000/api/v1/recipe-parse-jobs/${JOB_ID}")
+                      STATUS=$(POLLED="${POLLED}" node -e 'process.stdout.write(JSON.parse(process.env.POLLED).status)')
+                      if [ "${STATUS}" != 'running' ]; then break; fi
+                      sleep 2
+                  done
+                  POLLED="${POLLED}" node -e '
+                      const body = JSON.parse(process.env.POLLED);
+                      const settled = body.lines.filter((line) => line.status === "parsed" || line.status === "unparseable").length;
+                      if (body.status !== "complete" || settled !== body.lines.length) {
+                          console.error(`::error::the parse job never settled — status "${body.status}", ${settled} of ${body.lines.length} lines read. This is the exact assertion recipes/parse-ingredients makes on device ("N of M lines read"), so that flow WILL fail; the cause is on the runner (queue, worker or CRF engine), not in the app. Body: ${process.env.POLLED}`);
+                          process.exit(1);
+                      }
+                      console.log(`parse path proven: ${settled} of ${body.lines.length} lines read, job ${body.status}.`);
+                  ' || { echo "--- parse-line worker log ---"; tail -60 /tmp/parse-worker.log; exit 1; }
             # Build a standalone RELEASE APK (JS bundle EMBEDDED). A debug APK loads its JS from a Metro
             # bundler at runtime — absent in CI, so the app renders nothing. The release build bundles the
             # JS in-APK (with EXPO_PUBLIC_* inlined at build time → the emulator host alias for the
@@ -469,6 +651,21 @@ jobs:
                       /usr/local/share/powershell /opt/hostedtoolcache/CodeQL \
                       /usr/local/lib/android/sdk/ndk || true
                   df -h /
+            # ⛔ THE WORKER HAS TO SURVIVE THE ~12 MINUTES OF GRADLE BETWEEN ITS START AND THIS POINT. It
+            # holds a pg pool and spawns a Python child per line, and if it died — OOM during the APK build,
+            # an unhandled pool error — the queue would still ACCEPT every message and `recipes/parse-
+            # ingredients` would fail on the same assertion for a completely different reason. A dead
+            # background process is silent by nature; this is the only thing that makes it loud.
+            - name: Assert the parse-line worker is still alive
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  set -uo pipefail
+                  if [ -z "${PARSE_WORKER_PID:-}" ] || ! kill -0 "${PARSE_WORKER_PID}" 2>/dev/null; then
+                      echo "::error::the parse-line worker (pid ${PARSE_WORKER_PID:-unset}) died between its start and the emulator. Nothing will drain the parse queue, so recipes/parse-ingredients would fail on '2 of 2 lines read' for a runner fault rather than an app defect. Worker log follows." >&2
+                      cat /tmp/parse-worker.log
+                      exit 1
+                  fi
+                  echo "parse-line worker alive (pid ${PARSE_WORKER_PID})"
             # Boot the emulator, install the APK, and run the flows. Install + test run INSIDE the
             # emulator-runner `script` (the emulator is only up there). `adb reverse` also maps the
             # emulator's own localhost:3000 to the runner, a belt-and-suspenders alongside 10.0.2.2.
@@ -518,6 +715,45 @@ jobs:
             - name: Recipe-service logs on failure
               if: failure() && steps.secrets.outcome == 'success'
               run: docker logs recipe-maestro 2>&1 | tail -100 || true
+            # The worker's own view of the same failure: `message left for redelivery` names a CRF or
+            # database fault the recipe-service log cannot see, because the worker is a separate process the
+            # service never talks to.
+            #
+            # ⚠️ NO `|| true` HERE, and the absent-file case is BRANCHED rather than suppressed (invariant 4
+            # of `workflowInvariants.test.ts`): the log is missing precisely when the job died before the
+            # worker started, and "the worker never started" is the most useful sentence this step can
+            # print, not something to swallow.
+            - name: Parse-line worker log on failure
+              if: failure() && steps.secrets.outcome == 'success'
+              run: |
+                  set -uo pipefail
+                  if [ -f /tmp/parse-worker.log ]; then
+                      tail -120 /tmp/parse-worker.log
+                  else
+                      echo "no parse-line worker log on disk — the job failed before the worker was started"
+                  fi
+            # ⚠️ `always()`: the runner reclaims the job's processes either way, so this is not cleanup for
+            # its own sake — `SIGTERM` is what makes the worker print its `local parse worker stopped`
+            # summary, and that summary carries the processed/failed counts. Worth reading on a GREEN run
+            # too: "0 processed" alongside passing flows would mean the parse assertions were satisfied by
+            # something other than a parse.
+            - name: Stop the parse-line worker (and report what it drained)
+              if: always() && steps.secrets.outcome == 'success'
+              run: |
+                  set -uo pipefail
+                  if [ -n "${PARSE_WORKER_PID:-}" ] && kill -0 "${PARSE_WORKER_PID}" 2>/dev/null; then
+                      # Branched, never `|| true` (invariant 4): the process CAN exit between the liveness
+                      # test and the signal, and that race deserves a line rather than a swallowed status.
+                      if ! kill -TERM "${PARSE_WORKER_PID}" 2>/dev/null; then
+                          echo "the parse-line worker exited between the liveness check and the signal"
+                      fi
+                      for i in $(seq 1 10); do
+                          if ! kill -0 "${PARSE_WORKER_PID}" 2>/dev/null; then break; fi
+                          sleep 1
+                      done
+                  fi
+                  grep -h 'local parse worker stopped' /tmp/parse-worker.log \
+                      || echo "::warning::the parse-line worker printed no stop summary — it was already gone, or it never started"
 
     load-test:
         name: Load test (recipe — k6, isolated substrate) · heavy tier

@@ -139,11 +139,18 @@ export function createSqsBatchEnqueue<T>(
     return async (messages: readonly T[]): Promise<void> => {
         const { sendable, refused } = partitionSendable(schema, messages);
         const problems = refused.map((fields) => `refused by the contract (${fields})`);
+        // ⛔ COUNTED SEPARATELY FROM `problems`, because one problem is not one message. A contract refusal
+        // and a per-entry rejection each describe ONE message, but a REJECTED BATCH describes up to
+        // `SQS_BATCH_LIMIT` of them. Counting problems undercounts exactly when the queue is unreachable —
+        // the arm that fires during an outage. Observed 2026-09-04: two lines lost, reported as
+        // "1 of 2 messages were not delivered", in the same sentence that said "marking 2 line(s)".
+        let undelivered = refused.length;
 
         if (sendable.length > 0) {
             // Concurrent, and SETTLED rather than raced: one failing batch must not abandon the others.
+            const batched = batches(sendable);
             const results = await Promise.allSettled(
-                batches(sendable).map(async (batch) => send({ QueueUrl: queueUrl, Entries: batch.map(entryFor) })),
+                batched.map(async (batch) => send({ QueueUrl: queueUrl, Entries: batch.map(entryFor) })),
             );
 
             for (const [index, result] of results.entries()) {
@@ -153,6 +160,7 @@ export function createSqsBatchEnqueue<T>(
                     problems.push(
                         `batch ${String(index)} failed: ${reason instanceof Error ? reason.message : String(reason)}`,
                     );
+                    undelivered += batched[index]?.length ?? 0;
 
                     continue;
                 }
@@ -163,13 +171,14 @@ export function createSqsBatchEnqueue<T>(
                     problems.push(
                         `batch ${String(index)} entry ${failure.Id ?? '?'} rejected: ${failure.Code ?? 'unknown'}`,
                     );
+                    undelivered += 1;
                 }
             }
         }
 
         if (problems.length > 0) {
             throw new Error(
-                `${label}: ${String(problems.length)} of ${String(messages.length)} messages ` +
+                `${label}: ${String(undelivered)} of ${String(messages.length)} messages ` +
                     `were not delivered — ${problems.join('; ')}`,
             );
         }

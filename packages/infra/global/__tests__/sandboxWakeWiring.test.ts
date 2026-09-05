@@ -32,12 +32,17 @@
  * ⚠️ Prod is deliberately out of scope. The prod instance is never stopped, and `sandbox-wake.sh` is scoped so
  * that it cannot address a prod database at all (see `sandboxWake.test.ts`).
  */
+import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { App } from 'aws-cdk-lib';
+import { Template } from 'aws-cdk-lib/assertions';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
+
+import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js';
 
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
 
@@ -58,6 +63,23 @@ interface Doc {
 
 /** The wake gate's invocation, as it appears in a `run:` body. */
 const WAKE_INVOCATION = 'sandbox-wake.sh ensure';
+
+/** The gate script itself, read as text so the knob names can be checked against their definition. */
+const WAKE_SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/sandbox-wake.sh', import.meta.url));
+
+/**
+ * The gate's tuning knobs. Every one of them exists ONLY so the vitest suites can drive the real loops
+ * without sleeping for them, and every one of them can DEFEAT the gate if set in CI:
+ * `SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS=0` restores the exact 2026-09-05 race behind a green step, and
+ * `SANDBOX_WAKE_TIMEOUT_SECONDS=0` turns the instance wait into a coin flip.
+ */
+const TUNING_KNOBS = [
+    'SANDBOX_WAKE_TIMEOUT_SECONDS',
+    'SANDBOX_WAKE_POLL_SECONDS',
+    'SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS',
+    'SANDBOX_WAKE_STOP_SETTLE_SECONDS',
+    'SANDBOX_WAKE_MAX_BOUNDARY_WAIT_SECONDS',
+] as const;
 
 /**
  * A step that hands a CloudFormation stack to CDK. `infra:deploy` is included because a workspace script
@@ -291,5 +313,108 @@ describe('sandbox DB wake wiring — every exemption is justified and live', () 
         for (const [id, why] of EXEMPT_DEPLOY_STEPS) {
             expect(why.trim().split(/\s+/).length, `${id} needs a real reason, not a word`).toBeGreaterThan(5);
         }
+    });
+});
+
+/**
+ * ⛔ THE 2026-09-05 WEDGE — and why the rule above was not enough on its own.
+ *
+ * `sandbox-identity-deploy.yml::deploy` HAS carried the wake step throughout, the suite above asserts it by
+ * name, and on run 33943032063 it RAN and passed honestly: `available (ready)` at 03:52:52Z, which was true.
+ * The scheduler stopped the instance at 04:00:07Z and CloudFormation's `ModifyDBInstance` died at 04:02:11Z
+ * on `Cannot modify a stopped DB Instance`, wedging `kitchensink-data-sandbox` in `UPDATE_ROLLBACK_FAILED`.
+ *
+ * The gate's answer went STALE. Its replacement asks whether the instance will still be up when the caller
+ * finishes, and that question is parameterised — which introduces a way to disable the fix that leaves every
+ * assertion above green: set the headroom to zero in a workflow's `env:`. So the knobs are prohibited in the
+ * workflow tree outright. They exist for the suites and for nothing else.
+ */
+describe('sandbox DB wake wiring — the headroom gate cannot be defused from a workflow', () => {
+    it.each(TUNING_KNOBS)('no workflow sets %s', (knob) => {
+        const offenders = readdirSync(WORKFLOW_DIR)
+            .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
+            .filter((file) => readFileSync(join(WORKFLOW_DIR, file), 'utf8').includes(knob));
+
+        expect(
+            offenders,
+            `${knob} is a TEST seam. Setting it in a workflow defeats the gate while every wiring assertion ` +
+                'above stays green — `SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS=0` restores the exact race that ' +
+                'wedged kitchensink-data-sandbox on 2026-09-05. Delete it; if a caller genuinely needs a ' +
+                'different headroom, change the default in the script and say why.',
+        ).toEqual([]);
+    });
+
+    // Guards the vacuity directly: the prohibition above is only meaningful while these names are the ones
+    // the script actually reads. A rename would otherwise leave five assertions passing about nothing.
+    it.each(TUNING_KNOBS)('%s is still a knob the script reads', (knob) => {
+        expect(
+            readFileSync(WAKE_SCRIPT, 'utf8'),
+            `${knob} no longer appears in sandbox-wake.sh — the prohibition above has gone vacuous.`,
+        ).toContain(knob);
+    });
+});
+
+/**
+ * ⛔ THE GATE AND THE SCHEDULE MUST AGREE, and nothing but this made them.
+ *
+ * `sandbox-wake.sh` resolves "the next nightly stop" as 00:00 `America/New_York`. That is a COPY of a fact
+ * whose original lives in `SandboxSchedulerStack` — and a copy of a fact is exactly what this repo keeps
+ * getting bitten by (ADR-0025 §3: "a copy of a list cannot detect that the list is incomplete"). Move the
+ * stop to 01:00, or off `America/New_York`, and the gate goes on guarding a boundary that no longer exists:
+ * it would report `clear` for a deploy that is about to be stopped out from under it, which is the
+ * 2026-09-05 wedge again, now with a gate that looks like it is working.
+ *
+ * The two are tied through BEHAVIOUR rather than through matching strings: the cron comes from the
+ * SYNTHESIZED stack, and the hour it names is compared against where the gate's own `next-stop` actually
+ * lands. A reworded comment cannot satisfy this, and a changed schedule cannot escape it.
+ */
+describe('sandbox DB wake wiring — the gate guards the boundary the scheduler actually fires at', () => {
+    /** The stop schedule, read out of the synthesized stack rather than out of the source text. */
+    const stopSchedule = (): { readonly expression: string; readonly timezone: string } => {
+        const template = Template.fromStack(
+            new SandboxSchedulerStack(new App(), 'SandboxScheduler-sandbox', {
+                env: { account: '123456789012', region: 'us-east-1' },
+                stage: 'sandbox',
+            }),
+        );
+        const schedules = Object.values(template.findResources('AWS::Scheduler::Schedule')) as {
+            Properties: { ScheduleExpression: string; ScheduleExpressionTimezone: string; Target: { Input: string } };
+        }[];
+        const stop = schedules.find(({ Properties }) => Properties.Target.Input.includes('stop'));
+
+        if (stop === undefined) {
+            throw new Error('no `stop` schedule found — SandboxSchedulerStack no longer provisions one');
+        }
+
+        return {
+            expression: stop.Properties.ScheduleExpression,
+            timezone: stop.Properties.ScheduleExpressionTimezone,
+        };
+    };
+
+    it('resolves the next stop to the very minute the stop cron fires, in that cron`s own zone', () => {
+        const { expression, timezone } = stopSchedule();
+        const [minute, hour] = expression.replace(/^cron\(|\)$/g, '').split(' ');
+
+        // An arbitrary mid-afternoon instant; the answer must be the NEXT firing of that cron.
+        const boundary = spawnSync('bash', [WAKE_SCRIPT, 'next-stop', '1788616800'], {
+            encoding: 'utf8',
+        }).stdout.trim();
+
+        const rendered = spawnSync('date', ['-d', `@${boundary}`, '+%H:%M'], {
+            encoding: 'utf8',
+            env: { ...process.env, TZ: timezone },
+        }).stdout.trim();
+
+        expect(
+            rendered,
+            `sandbox-wake.sh lands on ${rendered} ${timezone} but the scheduler's stop cron is ` +
+                `"${expression}". The gate would guard a boundary the scheduler does not fire at, and report ` +
+                '`clear` for a deploy that is about to be stopped mid-flight.',
+        ).toBe(`${hour?.padStart(2, '0')}:${minute?.padStart(2, '0')}`);
+    });
+
+    it('reasons in the same timezone the stop cron is expressed in', () => {
+        expect(readFileSync(WAKE_SCRIPT, 'utf8')).toContain(`SANDBOX_WAKE_SCHEDULE_TZ='${stopSchedule().timezone}'`);
     });
 });

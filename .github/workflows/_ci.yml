@@ -503,6 +503,45 @@ jobs:
                   npm ci
             - run: npx turbo run format:check
 
+    # ────────────────────────────────────────────────────────────────────────────────────────────────
+    # ⛔ PYTHON WAS UNCHECKED. ESLint does not read `.py`, `tsc` does not read `.py`, and Prettier does not
+    # format it — so the `lint` / `format` / `typecheck` jobs above are STRUCTURALLY BLIND to the two
+    # Python sources this repository owns, and a syntax error in either reached a deploy unopposed.
+    # ADR-0025 recorded that as a residual risk and named one file; there are two.
+    #
+    # This job is deliberately CHEAP and standalone: it restores no `node_modules` and `needs:` nothing,
+    # because `ruff` and `mypy` come from pip and the root scripts are plain commands. It runs in well
+    # under a minute, so it reports before the expensive tiers have finished booting.
+    #
+    # ⚠️ `python3 -m pip`, never bare `pip`: the tools must land in the interpreter this job then runs
+    # them under. Same reason the engine-installing steps further down spell it that way.
+    #
+    # `packages/infra/global/__tests__/pythonSourceChecks.test.ts` asserts that this job exists and runs
+    # every declared check — a linter no job invokes is the silent success this repository has already
+    # paid for twice (21 unwired k6 scripts, one Maestro flow executed by nothing for months).
+    python-checks:
+        name: Lint, format and typecheck (Python)
+        timeout-minutes: 10
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            - name: Install the pinned Python toolchain
+              run: python3 -m pip install --user --disable-pip-version-check --requirement requirements-dev.txt
+            # ⛔ Three SEPARATE steps, not one `&&` chain. A chain stops at the first failure, so a lint
+            # error would hide every type error behind it and the next push would surface them one at a
+            # time. Each check reports its own verdict in its own annotation.
+            - name: Lint (ruff)
+              run: npm run lint:python
+            - name: Format check (ruff)
+              run: npm run format:check:python
+            - name: Typecheck (mypy)
+              run: npm run typecheck:python
+
     typecheck:
         name: Typecheck
         timeout-minutes: 20

@@ -154,6 +154,10 @@ tmp/
 __pycache__/
 *.py[cod]
 
+# ruff and mypy incremental caches (see requirements-dev.txt and the root pyproject.toml).
+.ruff_cache/
+.mypy_cache/
+
 # Test-created temp directories, confined here by @kitchensink/vitest so they can be removed.
 .tmp-test/
 .local-sandbox/

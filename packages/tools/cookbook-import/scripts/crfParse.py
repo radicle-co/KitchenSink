@@ -25,7 +25,8 @@ import sys
 from ingredient_parser import parse_ingredient
 
 
-def row(line: str) -> dict:
+def row(line: str) -> dict[str, object]:
+    """Flatten one parsed line to the four fields the comparison reads, plus its three modifiers."""
     parsed = parse_ingredient(line)
 
     return {
@@ -39,6 +40,7 @@ def row(line: str) -> dict:
 
 
 def main() -> None:
+    """Stream stdin to stdout, one JSON-encoded input line to one JSON output row, in order."""
     for raw in sys.stdin:
         raw = raw.strip()
 

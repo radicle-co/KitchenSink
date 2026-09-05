@@ -56,7 +56,7 @@ class InvalidRequest(ValueError):
     """The request is not something this engine can be asked. Reported as a refusal, never retried."""
 
 
-def _lines_of(event: Any) -> list[str]:
+def _lines_of(event: object) -> list[str]:
     """Validate the request and return its lines.
 
     Raises:
@@ -88,9 +88,7 @@ def _lines_of(event: Any) -> list[str]:
             raise InvalidRequest(f"line {index} is empty")
 
         if len(line) > MAX_LINE_CHARS:
-            raise InvalidRequest(
-                f"line {index} is {len(line)} characters, more than the {MAX_LINE_CHARS} allowed"
-            )
+            raise InvalidRequest(f"line {index} is {len(line)} characters, more than the {MAX_LINE_CHARS} allowed")
 
     return lines
 
@@ -123,7 +121,7 @@ def parse_line(line: str) -> dict[str, Any]:
     }
 
 
-def handle(event: Any, _context: Any = None) -> dict[str, Any]:
+def handle(event: object, _context: object = None) -> dict[str, Any]:
     """Parse a batch of ingredient lines.
 
     Args:

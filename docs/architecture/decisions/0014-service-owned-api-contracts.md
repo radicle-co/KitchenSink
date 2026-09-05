@@ -52,7 +52,10 @@ packages/schemas/<service>/    @kitchensink/schema-<service>  — GENERATED, com
 ├── src/types.ts               `z.infer` types
 ├── src/contractHash.ts       SHA-256 over the service's authored *.schema.ts sources
 ├── src/index.ts               barrel — named exports only
-└── openapi.yaml               DERIVED from the zod, for oasdiff / docs / integrators
+├── openapi.yaml               DERIVED from the zod, for oasdiff / docs / integrators
+└── contract.schema.json       DERIVED from the zod — a comparison FINGERPRINT for the
+                               breaking-change classifier. Generates nothing; see the
+                               clarification under "Alternatives rejected §1".
                         │
                         ▼
 packages/clients/<service>  →  web + mobile      (depend on the leaf, never on the service)
@@ -147,6 +150,41 @@ One honest limitation is recorded rather than hidden: `oasdiff breaking` is wort
 `@nestjs/swagger` emits **no response schema** for a handler returning an `interface`, so until every
 response type is a decorated class or zod-derived, that check is blind to response changes — which is most
 of what actually breaks a client.
+
+#### ⚠️ A COMPARISON FINGERPRINT IS NOT A CODEGEN INPUT — `contract.schema.json` does not reverse this
+
+_(Clarification added 2026-09-05, reversing no decision.)_ Each schema package now also commits
+`packages/schemas/<service>/contract.schema.json` — `z.toJSONSchema(schema, { io: 'output' })` over every zod
+export of its `schemas.ts`, key-sorted, written by the same generator on the same run and therefore gated by
+the same regenerate-and-diff (`npm run contract:verify`; no new CI job). It looks exactly like the alternative
+rejected above, and it is the opposite of it, on the one axis that matters: **direction of consumption.**
+
+- A **codegen input** is READ to PRODUCE something — types, zod, a client. That is what is rejected here, and
+  the reason is loss: `readonly`, branded and template-literal types and discriminated unions do not survive
+  the round trip, so anything generated from the projection would be a weaker statement than the zod it came
+  from, while claiming to be authoritative.
+- A **comparison fingerprint** GENERATES NOTHING. Nothing compiles against it, nothing imports it, no client is
+  emitted from it. Its only reader is a pure classifier (`@kitchensink/contract-gen`'s
+  `contractCompatibility.ts`) that holds the committed document against the freshly generated one and answers
+  _breaking or not_. Lossiness is fatal for an authority and harmless for a photograph: what a comparison needs
+  is that the same zod always projects to the same bytes.
+
+The zod in `packages/schemas/<service>/src` remains the single authority, and `openapi.yaml` remains derived
+and outbound-only. If a future change ever proposes generating a type, a schema or a client FROM
+`contract.schema.json`, that is the rejected alternative returning and this section is the reason to refuse it.
+
+**The blind spot, stated because an artifact that hides one is a false guarantee.** A zod
+`.refine()`/`.superRefine()` predicate **does not project into JSON Schema at all**. A business rule living
+inside a refinement can be tightened until it rejects every request a client sends, and both the committed
+fingerprint and the classifier's verdict will be byte-identical to before. A `.transform()` cannot be
+represented either and is recorded as `unrepresentable` rather than dropped, so a schema that stops being
+representable surfaces as a breaking finding instead of a silent hole. Refinement semantics are covered by
+each service's own tests, not by this artifact. The classifier is correspondingly **fail-closed**: any JSON
+Schema keyword it does not model is reported as breaking when it changes, because a differ that answers "no
+breaking change" for a keyword it never learned is the same "contract that lies" this section rejects — which
+is also why no third-party differ was adopted (JSON Schema has no official compatibility checker;
+`json-schema-diff` v1.0.0 has incomplete keyword coverage; `oasdiff` is a Go binary that would additionally
+put the DERIVED `openapi.yaml` on the gating path).
 
 ### 2. Let the client depend on the service package directly
 

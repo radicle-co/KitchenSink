@@ -1,6 +1,6 @@
 # `@kitchensink/schema-identity`
 
-**GENERATED PACKAGE — DO NOT EDIT `src/` OR `openapi.yaml` BY HAND.**
+**GENERATED PACKAGE — DO NOT EDIT `src/`, `openapi.yaml` OR `contract.schema.json` BY HAND.**
 
 The identity API's wire contract is **authored as zod** in the identity service, co-located with the controller
 each schema serves:

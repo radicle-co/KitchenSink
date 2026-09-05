@@ -7,6 +7,12 @@
  * package `packages/schemas/<service>` (`@kitchensink/schema-<service>`), stamps a `CONTRACT_HASH` into both
  * sides, and derives the `openapi.yaml` the package publishes for external consumers.
  *
+ * It also publishes the two halves of the CONTRACT GOLDEN MASTER: `contractFingerprint.ts` projects the
+ * published zod into the committed `contract.schema.json`, and `contractCompatibility.ts` is the pure
+ * classifier that says whether the move from one such document to the next is breaking. Neither generates
+ * any code — see the module docstrings, which say so at length, because a committed JSON Schema looks exactly
+ * like the alternative ADR-0014 §1 rejected.
+ *
  * A service's own `contract/` directory therefore holds only what is genuinely service-specific: its paths, its
  * import allowlist, its non-contract exclusions, and its OpenAPI document. The procedure — and above all the
  * IMPORT RESTRICTION that keeps the leaf a leaf — lives here, once.
@@ -26,6 +32,22 @@ export type { AuthoredSchema, SchemaDiscoveryOptions, SchemaExclusion } from './
 
 export { collectComposedSources, composedSourceKey } from './composedSources.js';
 export type { ComposedSource, ComposedSourceOptions } from './composedSources.js';
+
+export {
+    classifyContractChanges,
+    formatContractChanges,
+    hasBreakingChange,
+    jsonEquals,
+} from './contractCompatibility.js';
+export type { ContractChange, ContractChangeKind, ContractDocument, JsonValue } from './contractCompatibility.js';
+
+export {
+    buildContractFingerprint,
+    serializeContractFingerprint,
+    sortJsonKeysDeep,
+    CONTRACT_FINGERPRINT_FILENAME,
+} from './contractFingerprint.js';
+export type { ContractFingerprint, ContractFingerprintMetadata } from './contractFingerprint.js';
 
 export {
     collectModuleReferences,

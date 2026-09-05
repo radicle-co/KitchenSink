@@ -24,6 +24,14 @@ docs/mockups/_assets
 # that coincidence into a permanently-failing check nobody can explain.
 packages/schemas/*/openapi.yaml
 
+# The published-contract fingerprints — the golden master the breaking-change classifier compares against
+# (`@kitchensink/contract-gen`'s `contractFingerprint.ts`). Same argument as the OpenAPI entry above, except
+# that here it is NOT a coincidence and the entry is load-bearing: `JSON.stringify(…, 4)` expands every array
+# while Prettier collapses a short one onto a single line, so WITHOUT this entry `lint-staged`'s
+# `prettier --write` on staged `*.json` reformats the artifact at commit time and the regenerate-and-diff gate
+# reds on drift that is not drift, on every single run. The generator owns these bytes.
+packages/schemas/*/contract.schema.json
+
 # The staged Python Lambda asset — ~3,000 files of pip output (third-party Python, licences, model cards)
 # rewritten by `npm run bundle:lambda`. It is gitignored build output that this repository did not author,
 # and reformatting a dependency's own README changes nothing anyone reads while making `format:check` walk

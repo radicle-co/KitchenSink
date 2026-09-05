@@ -1,6 +1,6 @@
 # `@kitchensink/schema-recipe`
 
-**GENERATED PACKAGE — DO NOT EDIT `src/` OR `openapi.yaml` BY HAND.**
+**GENERATED PACKAGE — DO NOT EDIT `src/`, `openapi.yaml` OR `contract.schema.json` BY HAND.**
 
 The recipe API's wire contract is **authored as zod** in the recipe service, co-located with the controller
 each schema serves:

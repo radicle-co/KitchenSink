@@ -10,7 +10,9 @@
  *  - a DELETED authored schema disappears from the package (drift in the opposite direction),
  *  - the same `CONTRACT_HASH` lands in BOTH the service and the leaf (drift layer 3 needs both, or the boot
  *    assertion compares a value against itself),
- *  - regeneration is byte-idempotent, which is what makes CI's regenerate-and-diff gate meaningful.
+ *  - regeneration is byte-idempotent, which is what makes CI's regenerate-and-diff gate meaningful,
+ *  - the published-contract fingerprint is derived from the bytes that were just published, and is
+ *    re-derived on EVERY run rather than served from Node's ESM module cache.
  */
 import { mkdir, readFile, readdir, writeFile, rm, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -19,6 +21,7 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import { CONTRACT_FINGERPRINT_FILENAME, type ContractFingerprint } from '../contractFingerprint.js';
 import { buildOpenApiDocument } from '../openapi.js';
 import { formatGenerationSummary, generateSchemaPackage } from '../generate.js';
 import type { ContractGenerationConfig } from '../generate.js';
@@ -181,6 +184,7 @@ describe('generateSchemaPackage', () => {
                 'src/index.ts',
                 'src/contractHash.ts',
                 'openapi.yaml',
+                CONTRACT_FINGERPRINT_FILENAME,
             ].map((path) => readGenerated(harness, path)),
         );
 
@@ -192,6 +196,7 @@ describe('generateSchemaPackage', () => {
                 'src/index.ts',
                 'src/contractHash.ts',
                 'openapi.yaml',
+                CONTRACT_FINGERPRINT_FILENAME,
             ].map((path) => readGenerated(harness, path)),
         );
 
@@ -225,6 +230,99 @@ describe('generateSchemaPackage', () => {
         });
 
         expect(await readdir(join(harness.schemaPackageRoot, 'src/schemas'))).toStrictEqual(['widgets.schema.ts']);
+    });
+
+    describe('the published-contract fingerprint', () => {
+        /**
+         * Read and parse the generated fingerprint.
+         *
+         * @returns The parsed document.
+         * @sideEffect Reads the filesystem.
+         */
+        async function readFingerprint(): Promise<ContractFingerprint> {
+            return JSON.parse(await readGenerated(harness, CONTRACT_FINGERPRINT_FILENAME)) as ContractFingerprint;
+        }
+
+        it('projects every published zod export into contract.schema.json', async () => {
+            await generateSchemaPackage(harness.config);
+
+            const fingerprint = await readFingerprint();
+
+            expect(Object.keys(fingerprint.schemas)).toStrictEqual(['widgetSchema']);
+            expect(fingerprint.schemas['widgetSchema']).toMatchObject({
+                type: 'object',
+                properties: { id: { type: 'string' } },
+            });
+            expect(fingerprint.contract).toBe('@kitchensink/schema-widget');
+            expect(fingerprint.regenerate).toBe(harness.config.regenerateCommand);
+        });
+
+        it('marks it generated and says, in the file, that it generates nothing', async () => {
+            await generateSchemaPackage(harness.config);
+
+            const fingerprint = await readFingerprint();
+
+            expect(fingerprint.$comment).toContain('DO NOT EDIT');
+            expect(fingerprint.notCodegen).toMatch(/generates nothing/iu);
+            expect(fingerprint.blindTo).toMatch(/refine/u);
+        });
+
+        // ⛔ THE ESM-CACHE TRAP. Node keys its module cache by URL and cannot invalidate it, so deriving the
+        // fingerprint by importing the committed `src/schemas.ts` would fingerprint whatever that path held the
+        // FIRST time this process imported it. Two generations in one process is exactly the shape that would
+        // expose it, and this is the test that fails if the throwaway-copy import is ever "simplified" away.
+        it('re-derives the fingerprint from the CURRENT sources on a second generation in the same process', async () => {
+            await writeFile(
+                join(harness.serviceRoot, 'src/widgets/gadgets.schema.ts'),
+                COMPLIANT_SCHEMA.replace(/widget/gu, 'gadget'),
+            );
+            await generateSchemaPackage(harness.config);
+
+            expect(Object.keys((await readFingerprint()).schemas).sort()).toStrictEqual([
+                'gadgetSchema',
+                'widgetSchema',
+            ]);
+
+            await rm(join(harness.serviceRoot, 'src/widgets/gadgets.schema.ts'));
+            await generateSchemaPackage(harness.config);
+
+            expect(Object.keys((await readFingerprint()).schemas)).toStrictEqual(['widgetSchema']);
+        });
+
+        it('picks up a CHANGED shape on a second generation in the same process', async () => {
+            await generateSchemaPackage(harness.config);
+
+            await writeFile(
+                join(harness.serviceRoot, 'src/widgets/widgets.schema.ts'),
+                "import { z } from 'zod';\n\nexport const widgetSchema = z.object({ id: z.string().max(4) });\n",
+            );
+            await generateSchemaPackage(harness.config);
+
+            expect((await readFingerprint()).schemas['widgetSchema']).toMatchObject({
+                properties: { id: { maxLength: 4 } },
+            });
+        });
+
+        // The throwaway copy lives inside the schema package so that its imports resolve. If it survived, the
+        // drift gate would report it as an uncommitted generator output on every run.
+        it('leaves no throwaway import directory behind', async () => {
+            await generateSchemaPackage(harness.config);
+
+            expect((await readdir(harness.schemaPackageRoot)).sort()).toStrictEqual([
+                'contract.schema.json',
+                'openapi.yaml',
+                'src',
+            ]);
+        });
+
+        it('reports how many schemas were fingerprinted, so a silent collapse to zero is visible', async () => {
+            const result = await generateSchemaPackage(harness.config);
+
+            expect(result.fingerprintedSchemas).toBe(1);
+            expect(formatGenerationSummary(result, '@kitchensink/schema-widget')).toContain(
+                'contract.schema.json — 1 schema(s)',
+            );
+        });
     });
 
     describe('refusals', () => {
@@ -355,6 +453,7 @@ describe('formatGenerationSummary', () => {
                 schemas: [{ servicePath: 'src/widgets/widgets.schema.ts', moduleName: 'widgets.schema', source: '' }],
                 composed: [],
                 contractHash: 'abcdef0123456789',
+                fingerprintedSchemas: 7,
                 coverage: {
                     totalOperations: 3,
                     operationsFullyTyped: 3,
@@ -369,6 +468,7 @@ describe('formatGenerationSummary', () => {
         expect(summary).toContain('src/widgets/widgets.schema.ts');
         expect(summary).toContain('abcdef012345');
         expect(summary).toContain('3/3 fully typed');
+        expect(summary).toContain('contract.schema.json — 7 schema(s)');
         expect(summary).not.toContain('⚠️');
     });
 
@@ -379,6 +479,7 @@ describe('formatGenerationSummary', () => {
                 schemas: [{ servicePath: 'src/a/a.schema.ts', moduleName: 'a.schema', source: '' }],
                 composed: [],
                 contractHash: '0'.repeat(64),
+                fingerprintedSchemas: 2,
                 coverage: {
                     totalOperations: 2,
                     operationsFullyTyped: 1,

@@ -22,8 +22,9 @@
  *
  * @sideEffect Reads the service's schema sources and WRITES the schema package plus two hash stamps.
  */
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { stringify } from 'yaml';
 
 import {
@@ -35,6 +36,12 @@ import {
     type SchemaExclusion,
 } from './authoredSchema.js';
 import { collectComposedSources, type ComposedSource } from './composedSources.js';
+import {
+    buildContractFingerprint,
+    serializeContractFingerprint,
+    CONTRACT_FINGERPRINT_FILENAME,
+    type ContractFingerprint,
+} from './contractFingerprint.js';
 import {
     findUnpublishedSiblingImports,
     findViolations,
@@ -87,6 +94,13 @@ export interface ContractGenerationResult {
     readonly composed: readonly ComposedSource[];
     /** The contract fingerprint written into both the service and the schema package. */
     readonly contractHash: string;
+    /**
+     * How many zod schemas the published `contract.schema.json` projects.
+     *
+     * Reported on every run so that a collapse to a number nobody expects — the shape a silent projection
+     * failure would take — is visible rather than inferred from a file nobody opens.
+     */
+    readonly fingerprintedSchemas: number;
     /** The OpenAPI coverage report. */
     readonly coverage: OpenApiBuildResult['coverage'];
 }
@@ -171,9 +185,73 @@ export function assertSiblingImportsResolve(
     }
 }
 
+/** One generated schema module, as the exact text that was written into the package. */
+interface PublishedModule {
+    /** The flat module name, without extension. */
+    readonly moduleName: string;
+    /** The file's full text, banner included. */
+    readonly text: string;
+}
+
 /**
- * Generate a service's schema package: the copied zod, the inferred types, the barrel, both hash stamps, and
- * the derived `openapi.yaml`.
+ * Import the schemas that were just published and project them into the committed fingerprint.
+ *
+ * ── ⚠️ WHY IT IMPORTS A THROWAWAY COPY RATHER THAN THE FILES IT JUST WROTE ──
+ *
+ * Zod schemas are runtime values, so the only way to project them is to EVALUATE the module — and Node's ESM
+ * module cache is keyed by URL with no way to invalidate an entry. Importing the committed
+ * `src/schemas.ts` would therefore serve, on every generation after the first IN THE SAME PROCESS, whatever
+ * that path held the first time. A `?v=` query on the barrel does not fix it either: measured under vitest,
+ * the barrel is re-evaluated while its statically-imported siblings still come from cache. One generation per
+ * process happens to be true today, which is exactly the kind of "safe because nothing does that yet" that
+ * stops being true silently.
+ *
+ * So the same bytes are written a second time into a fresh directory whose URL has never been imported, and
+ * that copy is what gets evaluated. The directory lives INSIDE the schema package because the generated
+ * modules import `zod` and the workspace packages the contract composes from: resolution walks up from the
+ * importing file, and anywhere outside the package (`os.tmpdir()`, most obviously) those specifiers do not
+ * resolve.
+ *
+ * @param config - The service's contract configuration.
+ * @param modules - The modules exactly as they were published.
+ * @returns The fingerprint document.
+ * @throws When the published modules cannot be evaluated, or project to nothing (see
+ *   {@link buildContractFingerprint}).
+ * @sideEffect Writes and then removes a throwaway directory under the schema package root, and evaluates the
+ *   published modules.
+ */
+async function deriveContractFingerprint(
+    config: ContractGenerationConfig,
+    modules: readonly PublishedModule[],
+): Promise<ContractFingerprint> {
+    const scratch = await mkdtemp(join(config.schemaPackageRoot, '.contract-fingerprint-'));
+
+    try {
+        for (const published of modules) {
+            await writeFile(join(scratch, `${published.moduleName}.ts`), published.text);
+        }
+
+        const barrel = modules.map((published) => `export * from './${published.moduleName}.js';`).join('\n');
+
+        await writeFile(join(scratch, 'schemas.ts'), `${barrel}\n`);
+
+        const specifier = pathToFileURL(join(scratch, 'schemas.ts')).href;
+        const published = (await import(specifier)) as Readonly<Record<string, unknown>>;
+
+        return buildContractFingerprint(published, {
+            schemaPackageName: config.schemaPackageName,
+            regenerateCommand: config.regenerateCommand,
+        });
+    } finally {
+        // ⚠️ Always, including on the throw path: a surviving directory is an uncommitted generator output,
+        // which is exactly what the drift gate reports as failure.
+        await rm(scratch, { recursive: true, force: true });
+    }
+}
+
+/**
+ * Generate a service's schema package: the copied zod, the inferred types, the barrel, both hash stamps, the
+ * derived `openapi.yaml`, and the published-contract fingerprint `contract.schema.json`.
  *
  * @param config - The service's contract configuration.
  * @returns What was published, for the caller to print.
@@ -181,7 +259,8 @@ export function assertSiblingImportsResolve(
  *   breached, or when a sibling import names a module that will not be published. Every one of those is checked
  *   BEFORE anything is written, so a failed run leaves the committed package untouched rather than
  *   half-rewritten.
- * @sideEffect Deletes and rewrites the generated `src/schemas/` directory and writes six files.
+ * @sideEffect Deletes and rewrites the generated `src/schemas/` directory and writes seven files, and
+ *   evaluates the published modules from a throwaway copy (see {@link deriveContractFingerprint}).
  */
 export async function generateSchemaPackage(config: ContractGenerationConfig): Promise<ContractGenerationResult> {
     const schemas = await discoverAuthoredSchemas(config.serviceRoot, { excludeFiles: config.excludeFiles });
@@ -220,10 +299,15 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
     await rm(schemasDir, { recursive: true, force: true });
     await mkdir(schemasDir, { recursive: true });
 
-    for (const schema of schemas) {
-        const header = `${banner}\n// Source: ${config.servicePathPrefix}/${schema.servicePath}\n\n`;
+    const published: PublishedModule[] = schemas.map((schema) => ({
+        moduleName: schema.moduleName,
+        text:
+            `${banner}\n// Source: ${config.servicePathPrefix}/${schema.servicePath}\n\n` +
+            flattenSiblingImports(schema.source),
+    }));
 
-        await writeFile(join(schemasDir, `${schema.moduleName}.ts`), header + flattenSiblingImports(schema.source));
+    for (const module of published) {
+        await writeFile(join(schemasDir, `${module.moduleName}.ts`), module.text);
     }
 
     const exports = schemas.map((schema) => `export * from './schemas/${schema.moduleName}.js';`).join('\n');
@@ -281,7 +365,20 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
         ].join('\n'),
     );
 
-    return { schemas, composed, contractHash, coverage: config.openApi.coverage };
+    const fingerprint = await deriveContractFingerprint(config, published);
+
+    await writeFile(
+        join(config.schemaPackageRoot, CONTRACT_FINGERPRINT_FILENAME),
+        serializeContractFingerprint(fingerprint),
+    );
+
+    return {
+        schemas,
+        composed,
+        contractHash,
+        fingerprintedSchemas: Object.keys(fingerprint.schemas).length,
+        coverage: config.openApi.coverage,
+    };
 }
 
 /**
@@ -305,6 +402,8 @@ export function formatGenerationSummary(result: ContractGenerationResult, schema
         // the hash moved.
         `  ${result.composed.length} composed source(s) in the fingerprint:`,
         ...result.composed.map((source) => `    ${source.key}`),
+        `  ${CONTRACT_FINGERPRINT_FILENAME} — ${result.fingerprintedSchemas} schema(s) projected into JSON ` +
+            'Schema for breaking-change comparison',
         `  openapi.yaml — ${result.coverage.totalOperations} operation(s), ` +
             `${result.coverage.componentCount} component schema(s), ` +
             `${result.coverage.operationsFullyTyped}/${result.coverage.totalOperations} fully typed`,

@@ -1,6 +1,6 @@
 # `@kitchensink/schema-food`
 
-**GENERATED PACKAGE — DO NOT EDIT `src/` OR `openapi.yaml` BY HAND.**
+**GENERATED PACKAGE — DO NOT EDIT `src/`, `openapi.yaml` OR `contract.schema.json` BY HAND.**
 
 > ⚠️ Despite every `food_*` name, this is the **INGREDIENT** contract. The service's data comes from the USDA and
 > it holds ingredients, not dishes. A recipe is never written back into it — a recipe is a method, not a

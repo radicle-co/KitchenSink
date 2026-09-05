@@ -85,6 +85,12 @@ import { discoverContractOwners, formatOwnershipReport } from './contractOwners.
  */
 const GENERATED_ROOTS = [
     'packages/schemas/*/openapi.yaml',
+    // The contract fingerprint (`z.toJSONSchema` over every zod export) joins the same visibility
+    // check as its sibling: the drift DIFF already covers it, because that is a whole-tree
+    // `git diff HEAD` — what this list adds is the gitignore check. Without the entry, someone
+    // gitignoring the artifact would make the gate go quietly blind FOR THAT FILE while still
+    // reporting green, which is the vacuity the note below is about.
+    'packages/schemas/*/contract.schema.json',
     // ⚠️ `:(glob)` AND the `/**` SUFFIX ARE BOTH REQUIRED, and both were measured against real git rather
     // than reasoned about. Two separate traps:
     //

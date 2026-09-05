@@ -1696,18 +1696,23 @@ describe('invariant 8 — a JOB name is a constant, because branch protection ma
         return [...name.matchAll(INTERPOLATIONS)].some((match) => {
             const body = (match[1] ?? '').trim();
 
-            // ⛔ `needs.*` ONLY — the failure this guard was built from, and the only one demonstrated.
-            // A `needs` output is EMPTY when the job producing it was skipped, and GitHub then renders the
-            // raw `${{ … }}` into the check name: the first `deployed-e2e` run published
-            // `Deployed E2E (${{ needs.resolve.outputs.stage }})` verbatim.
+            // ⛔ ANYTHING BUT `matrix`/`strategy`, AND THE EXCLUSION OF `github.*` WAS DISPROVEN BY
+            // OBSERVATION WITHIN THE HOUR. This guard first asserted on `needs.*` alone, on the reasoning
+            // that `inputs.*` and `github.*` "always resolve, so they never render as garbage". PR #91's
+            // own checks list then showed, verbatim:
             //
-            // ⚠️ NOT asserted, though arguably worse for branch protection: `inputs.*` and `github.*`
-            // (`Deploy food sandbox (pr-${{ github.event.pull_request.number }})`). Those ALWAYS resolve, so
-            // they never render as garbage — they only vary, and the jobs carrying them are manual or
-            // per-PR and are not required checks. Forcing them constant would strip information a human
-            // reads in the checks list to prevent a harm they do not currently cause. If one of those jobs
-            // ever becomes a required check, widen this — deliberately, not by tightening a regex.
-            return body.startsWith('needs.');
+            //     Deploy food sandbox (pr-${{ github.event.pull_request.number }})
+            //     Deploy recipe sandbox (pr-${{ github.event.pull_request.number }})
+            //
+            // A job that does not RUN never evaluates its name, so a skipped job publishes the raw
+            // expression whatever context it reads — which is precisely when a human is scanning the list
+            // trying to work out what did and did not happen. `needs.*` was never the special case; it was
+            // just the first one seen.
+            //
+            // `matrix`/`strategy` stay exempt because their names DO render (observed green on the same
+            // run: `Test (services)`, `Analyze (python)`) and because without interpolation every leg of a
+            // matrix publishes an identical check name.
+            return !body.startsWith('matrix.') && !body.startsWith('strategy.');
         });
     }
 

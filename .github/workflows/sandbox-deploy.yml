@@ -513,7 +513,11 @@ jobs:
     # ═══════════════════════════════════════════════════════════════════
     #
     deploy-food:
-        name: Deploy food sandbox (pr-${{ github.event.pull_request.number }})
+        # ⛔ A CONSTANT — a job that does not RUN never evaluates its name, so this published
+        # `Deploy food sandbox (pr-${{ github.event.pull_request.number }})` verbatim in PR #91's checks
+        # list the moment the intent gate started skipping it. The PR is already the scope of the checks
+        # list. Pinned by workflowInvariants' invariant 8.
+        name: Deploy food sandbox
         runs-on: ubuntu-latest
         # ⛔ THE INTENT TERM IS PART OF THE JOB-LEVEL GATE (2026-09-04), and its absence was a reporting bug.
         #
@@ -854,7 +858,8 @@ jobs:
     # A food deploy that FAILS still blocks recipe on purpose: recipe requires a working food origin
     # (ADR-0010), and half-wiring a preview behind a green check is the failure this whole change removes.
     deploy-recipe:
-        name: Deploy recipe sandbox (pr-${{ github.event.pull_request.number }})
+        # ⛔ A CONSTANT — see the note on `deploy-food` above.
+        name: Deploy recipe sandbox
         runs-on: ubuntu-latest
         needs: deploy-food
         if: |

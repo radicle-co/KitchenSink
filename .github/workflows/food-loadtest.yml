@@ -77,7 +77,9 @@ env:
 
 jobs:
     loadtest:
-        name: Run k6 food-API journey (DEPLOYED ${{ inputs.target_stage }} origin)
+        # ⛔ A CONSTANT — the target stage is reported in the job summary, never in the check name.
+        # Pinned by workflowInvariants' invariant 8.
+        name: Run k6 food-API journey (deployed origin)
         runs-on: ubuntu-latest
         timeout-minutes: 30
         steps:

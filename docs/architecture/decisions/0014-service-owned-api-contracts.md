@@ -235,50 +235,8 @@ under time pressure. Authoring lives beside the controller it serves.
 - **Nothing in a schema package is hand-edited.** To change a contract you edit the service's `*.schema.ts`
   and regenerate; a hand-edit is discarded by CI rather than shipped.
 
-**Known-incomplete work (as of 2026-08-11) — do not read this ADR as a description of a finished state.**
-
-> ⚠️ **Refreshed 2026-08-12 — the four bullets below were written on 2026-08-11 and THREE of them were stale
-> within a day.** Keeping the original text visible, because the pattern matters more than the numbers: a
-> "known-incomplete" list is the part of an ADR most likely to rot, and two of these errors were the same error —
-> a count taken from the **worktree** (including `.next/standalone/` and `dist/`) rather than from
-> **`git ls-files`**.
-
-- ✅ **Three schema packages now exist**, each with `schemas.ts`, `types.ts`, `contractHash.ts`, a barrel and a
-  generated `openapi.yaml`: `packages/schemas/recipe` (**8** published wire-schema files, `openapi.yaml` 4,945
-  lines / 34 paths), `packages/schemas/food` (5, 922 / 12), `packages/schemas/identity` (5, 716 / 10).
-  ~~"Converged so far: the search/photos/ratings vertical only"~~ and ~~"Food and identity … neither has a schema
-  package yet"~~ are both superseded.
-    - ⚠️ **STALE (2026-09-04): every number in the bullet above has grown; the shape has not.** Re-counted on
-      disk: `packages/schemas/recipe/src/schemas/` holds **11** files and `packages/schemas/recipe/openapi.yaml`
-      is **7,264 lines / 44 paths**; `packages/schemas/food/src/schemas/` holds **7** and its `openapi.yaml` is
-      **2,177 / 22**; `packages/schemas/identity/src/schemas/` still holds **5** and its `openapi.yaml` is
-      **760 / 10**. The counts are a snapshot of a growing surface — do not treat any of them as a target.
-- ✅ **`openapi.yaml` now exists for all three services.** ~~"does not exist for any service yet"~~ is superseded;
-  `@kitchensink/schema-recipe`'s `./openapi.yaml` export names a real file.
-- 🔄 `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2,827 lines (2,810 of body plus a superseded
-  header), verified by nothing — is now **genuinely superseded**: the generated document exists and covers **34
-  paths against its 32**. ⚠️ The ~~"57 source files cite as their authority"~~ figure was **wrong**: counted over
-  `git ls-files` only, it is **12 files under `packages/`**, 26 under `specs/`, 5 under `docs/`. The citations
-  have **not** been repointed, so two documents still describe the recipe service.
-    - ⚠️ **STALE (2026-09-04): the margin is far wider than "34 against 32" now.** Re-counted:
-      `specs/001-commise-recipe-app/contracts/api.openapi.yaml` is **2,839 lines / 32 paths** (unchanged in path
-      count), against the generated `packages/schemas/recipe/openapi.yaml`'s **44 paths**. Citations re-counted
-      over `git ls-files`: **11** under `packages/`, **27** under `specs/`, **5** under `docs/` — and they are
-      **still not repointed**, so the two-documents problem this bullet names is unchanged.
-- ⚠️ **`@kitchensink/schema-notifications` (014) does not exist**, and neither does any 005 / 011 / 012 / 013
-  schema package. Those features are specs.
-- ~~**A `CLAUDE.md` pointer is still owed.** Per this directory's README, an ADR that governs code needs an
-  always-in-context tripwire. `docs/CODING_STANDARDS.md` §15 is the normative rule and is already reachable
-  from the engineering-quality-bar mandate, and **`AGENTS.md` now carries the ruling INLINE** (added 2026-08-12,
-  alongside ADR-0015/0016/0017), which is what the review bots ingest. Still missing: the root-`CLAUDE.md`
-  "looks wrong, isn't" pointer, and the co-located `// ⚠️ DELIBERATE` guard comments at the generator and at
-  `packages/clients/usda/src/schemas.ts`.~~
-    - ⚠️ **STALE (2026-09-04) — all three are now paid.** The root-`CLAUDE.md` "looks wrong, isn't" pointer
-      exists (`CLAUDE.md:237`, "The service OWNS its wire types…", carrying all three counter-intuitive facts
-      and the inverse case); `packages/clients/usda/src/schemas.ts:17` carries the literal
-      `⚠️ DELIBERATE — DO NOT "CONVERGE" THIS FILE ONTO A SCHEMA PACKAGE`; and each generator entry point
-      (`packages/services/{recipe-service,food-service,identity}/contract/generate.ts`) opens with a
-      "DIRECTION OF DERIVATION, which must never be inverted" docblock. Nothing on this bullet is still owed.
-
-**Where this ADR and an existing hand-written client type conflict, this ADR wins — the client is the one
-that changes.**
+**On the "known-incomplete" list this ADR used to carry.** Every item on it has since been paid, and the
+list is removed rather than annotated as paid — a follow-up that is done is not a consequence. One durable
+lesson is kept, because it recurs: a known-incomplete list is the part of an ADR most likely to rot, and two
+of its four errors were the same error — a file count taken from the **worktree** (which includes
+`.next/standalone/` and `dist/`) rather than from `git ls-files`.

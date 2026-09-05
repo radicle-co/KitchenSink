@@ -1,23 +1,19 @@
 # 0004 — Minimize NAT: one t4g.nano NAT instance, Fargate egress via the IGW
 
-- **Status:** Accepted — _implemented_ (`NetworkStack` uses `NatProvider.instanceV2`; the identity Fargate service moved to public subnets with `assignPublicIp`). ~~Food's equivalent (API + worker to public subnets; batch jobs as Fargate, not Lambdas) lands with feature 003.~~ ⚠️ STALE (2026-09-04): food's equivalent **has landed** — API `FoodServiceStack.ts:508`, worker `:586`, and the change-refresh `RunTask` `:658` are all `SubnetType.PUBLIC` + `assignPublicIp: true`. So has recipe's (`RecipeServiceStack.ts:415`).
+- **Status:** Accepted
 - **Date:** 2026-06-21
 - **Area:** AWS network topology · cost · `NetworkStack` NAT · ECS subnet placement · VPC Lambda egress
 - **Related:** issue #46, `packages/infra/global/lib/platform/NetworkStack.ts`, `packages/services/identity/infra/lib/IdentityServiceStack.ts`, `packages/infra/global/__tests__/NetworkStack.test.ts`, `packages/infra/global/__tests__/natEgressConsumers.test.ts`, ADR-0002 (VPC/CIDR — the replacement trap), ADR-0022 (a migration runner per DB-touching stack), ADR-0024 (the LLM gate whose endpoint this update dropped)
 
 ## ⚠️ Before you change this — the trap
 
-- **Do not move the DB-bound lambdas off the NAT, and do not "simplify" by deleting the NAT.** ⚠️ That set is no longer the three webhook handlers plus a migration runner this ADR was written around — it is ~~**19 VPC-attached Lambdas across six stacks**~~ — listed and machine-checked in [the 2026-08-20 update](#update-2026-08-20--the-consumer-list-grew-and-is-now-asserted). Read it before reasoning about "what is on the NAT". They are VPC-attached for exactly one reason: the RDS is `publiclyAccessible: false` (PRIVATE_ISOLATED), so they can only reach it from inside the VPC — and a VPC Lambda's only outbound paths are a NAT or VPC endpoints. `assignPublicIp` does **not** give a Lambda internet/AWS egress (that works only for Fargate/EC2). Removing the NAT silently breaks their Secrets Manager / CloudWatch Logs / SQS / Clerk access.
-    - ⚠️ STALE (2026-09-04): **22**, not 19 — still across six stacks. Counted straight off the
-      machine-checked table (`DataStack` 3 + `WebhooksStack` 5 + `IdentityServiceStack` 1 +
-      `FoodServiceStack` 1 + `RecipeServiceStack` 1 + `RecipeWorkersStack` 11 = 22), which
-      `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts by exact set equality against
-      the infra tree, in both directions — it passes today, so the TABLE is correct and **every prose
-      count in this ADR is behind it** (this trap said 19; the 2026-09-04 update heading says 20).
-      ⛔ **Quote the table, never a number from prose.** The two the narrative never names are
-      `AnalyticsRetentionSweeperFunction`
-      (`packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts:866`) and
-      `RecipeSchemaMigrationRunner` (`:1339`).
+- **Do not move the DB-bound lambdas off the NAT, and do not "simplify" by deleting the NAT.** The
+  consumer set is no longer the three webhook handlers plus a migration runner this ADR was written around;
+  it has grown several times over, across six stacks. Its members are the marked table below and its size is
+  whatever that table says — `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts the table
+  against the infra tree by exact set equality, in both directions, so an addition that skips the table and a
+  table entry with no construct both fail. Do not restate the count in prose; that copy has rotted three
+  times.
 - **Do not open the NAT instance security group beyond the VPC CIDR.** It is `OUTBOUND_ONLY` by default with inbound restricted to the VPC range so only the private subnets route through it.
 - **The single NAT instance is a deliberate single-AZ SPOF + ~5 Gbps cap.** Fine at this scale; revisit (HA NAT instances per-AZ, or back to a managed Gateway) when uptime/throughput demands grow.
 - **Tasks now get public IPs.** That is _egress-only_ — inbound is locked to the ALB security group. Do not relax the service SG's inbound rules thinking the task is "already public."
@@ -62,8 +58,7 @@ AWS network."_
 `publiclyAccessible: false`. Fargate still egresses via the IGW and is not on this list. `log-forwarder` is
 still deliberately non-VPC.
 
-**Update (2026-09-04) — ~~20~~, and one of them exists at NON-PROD STAGES ONLY.** ⚠️ STALE (2026-09-04, same day): the count in this heading was wrong when written — the table below already listed **22**, and the guard asserts the table. See the correction in the trap at the top. ADR-0031's
-`PerPrDatabaseReaperFunction` joins the `DataStack` row. It is VPC-attached for the same single reason as
+**One consumer exists at NON-PROD STAGES ONLY.** `PerPrDatabaseReaperFunction` joins the `DataStack` row. It is VPC-attached for the same single reason as
 everything else here: it reads `pg_database` and issues `DROP DATABASE` against the `PRIVATE_ISOLATED`
 instance, and `assignPublicIp` gives a VPC Lambda no egress (Fargate only). It makes no other network call —
 Secrets Manager is its only AWS API, on the NAT like its two `DataStack` siblings — so it needs **no**

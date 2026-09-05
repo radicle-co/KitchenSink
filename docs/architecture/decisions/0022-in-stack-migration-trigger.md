@@ -156,16 +156,10 @@ its bundle. It is not redundant: it catches a stage whose schema is behind for a
 explains — a restore, a stage created later, a `deploy_webhooks`-only run. What it must never become again
 is the thing that is relied upon.
 
-⛔ FALSE (2026-09-04): **"each deploy workflow keeps its idempotent `aws lambda invoke`" does not hold for
-every runner, and every invoke that does exist is GATED.** Both defects were found and reported — not
-fixed — by the Update (2026-09-02) below; the sentence above was left standing and is the one a reader
-believes. Concretely: (a) `RecipeSchemaMigrationRunner` (`RecipeWorkersStack.ts:1339`) is emitted with **no
-`CfnOutput`** and **no workflow references it** — repo-wide, the only non-doc mentions are its construction
-and three test files — so it has no safety net at all; and (b) `run_migrations` / `deploy_food` /
-`deploy_recipe` in `prod-deploy.yml` are path-diff plus `workflow_dispatch`, so in the exact scenario this
-section names ("a restore, a stage created later") the gate is false, no `cdk deploy` runs, the Trigger does
-not fire, and **nothing migrates**. The safety net is real only where a code change explains the skew. Read
-the Update's "⚠️ Two things this update did NOT fix" before relying on this paragraph.
+⚠️ The net is **partial, and gated** — it is not a second guarantee. Every surviving invoke sits behind a
+path-diff or `workflow_dispatch` gate, which is sound for a change-set shipping new SQL but false in exactly
+the scenario named above; and one runner has no invoke at all. Both gaps are recorded under _Residual risk_
+rather than papered over here.
 
 ### 5. A stack with no runner of its own must be DEPLOYED after one that has
 
@@ -178,27 +172,43 @@ commands. So a DB-touching stack is safe in exactly one of two ways, and both ar
 Route 2 is a property of the pipeline and therefore has to be _asserted_, which is what
 `prodDeployMigrationOrder.test.ts` now does — see "How this is enforced" below.
 
+### 6. Every runner holds a session advisory lock across the apply loop
+
+Migrations run on every deploy, and recipe's SQL has TWO deployed runners (`RecipeServiceStack` and
+`RecipeWorkersStack`) plus a pipeline invoke — so concurrent runs are the normal case, not a hypothetical.
+Observed on the first attempt: two `runMigrations` calls started together against one clean database fail
+with `Key (extname)=(pgcrypto) already exists` — a RED DEPLOY of a schema that was already correct, because
+the loser's throw is a `FunctionError` the Trigger rethrows.
+
+All three runners therefore take a session `pg_advisory_lock` for the whole apply loop, bounded by
+`lock_timeout` and released explicitly before the client returns to the pool. ⚠️ This changes deploy
+behaviour: a second runner WAITS rather than racing. That is the intended trade — a bounded wait ending in
+"everything skipped" beats a fast failure on a correct schema.
+
+**The ledger is the idempotency mechanism, and hardening the SQL is the DANGEROUS repair.** Audited
+statement by statement, zero of the migrations across the three services would silently double-apply data;
+most would error loudly and the rest are already re-runnable. The guarantee is entirely `schema_migrations`,
+never the SQL — which is why the files are deliberately bare `CREATE TABLE` and must stay that way. Four
+files carry destructive DML that is unreachable only because a `CREATE TABLE` / `ADD COLUMN` /
+`RENAME COLUMN` above it errors first and takes it down in the same rollback, and two of those are
+unqualified whole-table `DELETE`s. Adding `IF NOT EXISTS` to the loud half would make those reachable.
+
 ## The audit: every stack that touches a database, and what it does
 
-| Stack                                                     | DB-touching compute                                           | Ordered by                                     |
-| --------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------- |
-| `IdentityServiceStack` (`packages/services/identity`)     | 1 Fargate service, 1 runner                                   | **in-stack Trigger**, `executeBefore` derived  |
-| `FoodServiceStack` (`packages/services/food-service`)     | 2 Fargate services, 1 runner                                  | **in-stack Trigger**, `executeBefore` derived  |
-| `RecipeServiceStack` (`packages/services/recipe-service`) | 1 Fargate service, 1 runner                                   | **in-stack Trigger**, `executeBefore` derived  |
-| `RecipeWorkersStack` (`packages/services/recipe-workers`) | ~~6 Lambdas~~ **10 Lambdas**, 1 runner (recipe-service's SQL) | **in-stack Trigger**, `executeBefore` derived  |
-| `WebhooksStack` (`packages/services/identity-webhooks`)   | 5 Lambdas, **no runner**                                      | route 2 — deploys after `identity` (see below) |
-| `DataStack` (`packages/infra/global`)                     | 2 bootstrap Lambdas (custom-resource providers)               | **N/A — it CREATES the databases** (see below) |
+| Stack                                                     | DB-touching compute                                  | Ordered by                                     |
+| --------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------- |
+| `IdentityServiceStack` (`packages/services/identity`)     | 1 Fargate service, 1 runner                          | **in-stack Trigger**, `executeBefore` derived  |
+| `FoodServiceStack` (`packages/services/food-service`)     | 2 Fargate services, 1 runner                         | **in-stack Trigger**, `executeBefore` derived  |
+| `RecipeServiceStack` (`packages/services/recipe-service`) | 1 Fargate service, 1 runner                          | **in-stack Trigger**, `executeBefore` derived  |
+| `RecipeWorkersStack` (`packages/services/recipe-workers`) | DB-touching Lambdas, 1 runner (recipe-service's SQL) | **in-stack Trigger**, `executeBefore` derived  |
+| `WebhooksStack` (`packages/services/identity-webhooks`)   | 5 Lambdas, **no runner**                             | route 2 — deploys after `identity` (see below) |
+| `DataStack` (`packages/infra/global`)                     | 2 bootstrap Lambdas (custom-resource providers)      | **N/A — it CREATES the databases** (see below) |
 
-⚠️ STALE (2026-09-04): **this table is a CENSUS, not a check, and its counts have already rotted once** —
-see the Update (2026-09-02) §3 below, which is where the correction was recorded. `RecipeWorkersStack` today
-constructs **ten** DB-touching Lambdas plus its runner (`VersionArchiveWorkerFunction`,
-`ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`,
-`ErasureOrphanSweeperFunction`, `AnalyticsRetentionSweeperFunction`, `IngredientVerificationFunction`,
-`RecipeParseLineFunction`, `BandDrainFunction` — `RecipeWorkersStack.ts:638-1339`). The barrier needed no
-edit to cover them, which is the mechanism working; the table is what fell behind. The table is also not a
-census of STACKS — `IngredientParserStack`, `EdgeStack`, `SandboxSchedulerStack` and `SandboxRouterStack` are
-absent because none touches a database. Do not read a count here as current;
-`packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts` is the authority.
+⚠️ **This table is a snapshot, not a check, and it must not be read as current.** Its counts have already
+rotted once: `RecipeWorkersStack` grew four DB-touching Lambdas and the barrier swept every one of them with
+no edit, which is §2's derivation working — the table is simply what fell behind. It is also not a census of
+stacks; the ones absent from it touch no database. What IS a check is
+`packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts`.
 
 Two stacks deliberately do not carry a barrier.
 
@@ -238,6 +248,13 @@ to be behind; they are the reason one exists. A barrier here would be circular. 
 decision.
 
 ## How this is enforced
+
+A stack with DB-touching compute and **no runner at all** was invisible to every guard, because each one
+started from a runner it could see — the `1e96ac08` defect verbatim.
+`packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts` asserts the missing direction: a stack that
+names a DB connection variable or an `rds-db:connect` / `grantConnect` grant AND constructs compute must ship
+a runner behind a barrier, or be a recorded exemption carrying a reason and a citation that must exist on
+disk. `WebhooksStack` and `DataStack` are the two exemptions.
 
 Three layers, each asserting something the others structurally cannot see:
 
@@ -285,87 +302,19 @@ from the workflows themselves, so a fifth stack with a runner is covered the day
   prod deploy discovered at the worst moment.
 - **Expand-first is now mandatory**, and it costs a release of latency on every contraction. §3.
 
-## Update (2026-09-02) — the advisory lock landed, and the audit table below is a CENSUS now
-
-The owner's standing rule was restated: _"all migrations should always be executed on deploy, though every
-migration should ensure that it does not execute or change the database if that migration has been ran in
-the past and has been applied to the target database."_ Three things changed out of auditing this decision
-against it.
-
-**1. The "no advisory lock" residual risk is CLOSED.** It was recorded as unmitigated on the grounds that
-"nothing in the pipelines runs two concurrently … It has not been observed." Two premises moved: migrations
-now run on every deploy, and recipe's SQL already has TWO deployed runners (`RecipeServiceStack` and
-`RecipeWorkersStack`) plus a pipeline invoke. It was then _observed on the first attempt_ — two
-`runMigrations` calls started together against one clean database fail with
-`Key (extname)=(pgcrypto) already exists`, i.e. a RED DEPLOY of a schema that was already correct, because
-the loser's throw is a `FunctionError` the Trigger rethrows. All three runners now take a session
-`pg_advisory_lock` for the whole apply loop, bounded by `lock_timeout` and released explicitly before the
-client goes back to the pool. ⚠️ **This changes deploy behaviour**: a second runner WAITS rather than
-racing. That is the intended trade — a bounded wait ending in "everything skipped" beats a fast failure on a
-correct schema. Asserted by `packages/infra/global/__tests__/migrationRunnerLock.test.ts` (all three
-runners, discovered by handler path) and demonstrated by
-`packages/services/recipe-service/__tests__/integration/database/migrationRunner.integration.test.ts`.
-
-**2. The ledger is the idempotency mechanism, and hardening the SQL is the DANGEROUS repair.** Audited
-statement by statement, **zero** of the 68 migrations across the three services would silently double-apply
-data; 51 would error loudly and 17 are already re-runnable. The guarantee is entirely `schema_migrations`,
-never the SQL — which is why the files are deliberately bare `CREATE TABLE` and must stay that way. ⛔ Four
-files carried destructive DML that was unreachable only because a `CREATE TABLE`/`ADD COLUMN`/`RENAME COLUMN`
-above it errors first and takes it down in the same rollback; **two of those were unqualified whole-table
-`DELETE`s** (`recipe-service/…/0041_ingredient_source_phrase.sql`,
-`food-service/…/0002_fetch_requesters_rekey.sql`). Adding `IF NOT EXISTS` to the loud half does not make
-those files idempotent — it UNMASKS the wipe.
-
-⛔ **Both unqualified wipes were SCRUBBED on 2026-09-02** (owner ruling: _"I don't want hidden bombs in the
-app"_), reversing this update's first draft, which recorded them in place on the grounds that they could not
-fire today. The ruling is the better call: a guard an editor defeats by making an otherwise-reasonable change
-to a line they are not looking at is a bomb whether or not it is currently armed, and a comment does not
-disarm it. Behaviour-preserving on every reachable path, verified rather than argued — `schema_migrations` is
-`name TEXT PRIMARY KEY` with **no checksum** and the skip is a pure name match, so a body edit cannot reach a
-database that already ran the file; and on a fresh database the target tables hold **0 rows** when the file
-runs (no migration inserts into any of them). Both services' schemas dump byte-identical to their pre-scrub
-baseline. The four qualified statements are untouched.
-`packages/infra/global/__tests__/migrationDestructiveDml.test.ts` now enforces the rule with **no recorded
-exceptions at all** — it fails any migration carrying an unqualified `DELETE`/`UPDATE`, verified by
-reintroducing one into a real migration file. ⚠️ Its liveness check had to be fixed in the same change: it
-read the raw file, so the scrub notes _quoting_ the removed statements kept it green — a text gate satisfied
-by prose, the exact trap `schemaMigrationBarrier.test.ts` records. It now matches parsed statements only.
-
-**3. The audit table's counts had rotted, and the missing gate is now built.** `RecipeWorkersStack` carries
-**ten** DB-touching Lambdas, not the six recorded below — the derivation swept the four that landed since
-(`AnalyticsRetentionSweeperFunction`, `IngredientVerificationFunction`, `RecipeParseLineFunction`,
-`BandDrainFunction`) with no edit to the barrier, which is the mechanism working, but it means the table is
-a snapshot rather than a check. The table is also not a census: `IngredientParserStack`, `EdgeStack`,
-`SandboxSchedulerStack` and `SandboxRouterStack` are absent (none touches a database). Both gaps have the
-same cause — every existing guard starts from a runner it can see, so a stack with DB-touching compute and
-**no runner at all** is invisible to all of them. That is the `1e96ac08` defect verbatim.
-`packages/infra/global/__tests__/dbTouchingStackBarrier.test.ts` now asserts the missing direction: a stack
-that names a DB connection variable or an `rds-db:connect`/`grantConnect` grant AND constructs compute must
-ship a runner behind a barrier, or be a recorded exemption carrying a reason and a citation that must exist
-on disk. `WebhooksStack` and `DataStack` are the two exemptions, for the reasons already stated above.
-
-⚠️ **Two things this update did NOT fix**, both in `.github/workflows` and both reported rather than
-changed:
+## Residual risk — stated plainly, not mitigated
 
 - **Every safety-net invoke is GATED; none is unconditional.** `run_migrations` / `deploy_food` /
   `deploy_recipe` in `prod-deploy.yml` are pure path-diff plus `workflow_dispatch`. That is sound for a
-  change-set shipping new SQL (the gate is derived from the paths holding it), but it does **not** cover the
-  case §4 says the safety net exists for — "a stage whose schema is behind for a reason no code change
-  explains — a restore, a stage created later". In exactly that scenario the gate is false, no `cdk deploy`
-  runs, the Trigger does not fire, and nothing migrates. Sandbox is better protected: its gate is ADR-0010's
-  ensure-exists probe. Prod is the stage with the weaker net.
-- **`RecipeSchemaMigrationRunner` has no safety net at all and is unreachable by CI** — it is emitted with
-  no `CfnOutput` and no workflow references it, so §4's "each deploy workflow keeps its idempotent
-  `aws lambda invoke` of the runner" is false for that one. Not a live skew risk (recipe-service's own
-  runner applies the same SQL under the same gate), but it is the barrier with zero redundancy. Separately,
-  `sandbox-deploy.yml`'s **food** invoke inspects nothing, so a runner that threw leaves the job green —
-  its recipe sibling immediately below greps for `errorType` and fails.
-
-## Residual risk — stated plainly, not mitigated
-
-- ~~**No advisory lock.**~~ **CLOSED 2026-09-02** — see the Update above. All three runners hold a session
-  `pg_advisory_lock` across the apply loop, so a concurrent runner waits and then skips rather than
-  re-executing a migration the winner just committed.
+  change-set shipping new SQL — the gate is derived from the paths holding it — but it does NOT cover the
+  case §4 says the net exists for: a stage whose schema is behind for a reason no code change explains. In
+  exactly that scenario the gate is false, no `cdk deploy` runs, the Trigger does not fire, and nothing
+  migrates. Sandbox is better protected (its gate is ADR-0010's ensure-exists probe); prod has the weaker net.
+- **`RecipeSchemaMigrationRunner` has no safety net at all and is unreachable by CI.** It is emitted with no
+  `CfnOutput` and no workflow references it, so §4's invoke does not exist for that one. Not a live skew
+  risk — recipe-service's own runner applies the same SQL under the same gate — but it is the barrier with
+  zero redundancy. Separately, `sandbox-deploy.yml`'s food invoke inspects nothing, so a runner that threw
+  leaves the job green; its recipe sibling greps for `errorType` and fails.
 - **The barrier cannot order an EventBridge `RunTask`.** Food's 6-hourly change-refresh task is an
   EventBridge target rather than a deployed service, so CloudFormation has no ordering to give it. It
   retries on its own schedule, which is the mitigation by default rather than by design.

@@ -2991,7 +2991,13 @@ jobs:
                   esac
 
     e2e-mobile:
-        name: Hermetic (mobile — Vitest; the real useAuth hook over a mocked Clerk)
+        # ⛔ NOT "Hermetic". This job boots no backend and drives no deployment — it is a Vitest component
+        # test of the real `useAuth` hook over a mocked Clerk — so it was never the tier ADR-0032's ruling
+        # was about. But `Hermetic` is the exact label that ruling forbids ("do NOT re-create a
+        # locally-booted e2e job under any label — `Hermetic`, `Contract`, `E2E-local`"), and a reader
+        # scanning the checks cannot tell a forbidden tier from a component test by its name. §1's rule is
+        # that a tier's name states its TARGET; this one now does.
+        name: Test (mobile — the real useAuth hook over a mocked Clerk)
         # ⛔ RE-ENABLED 2026-09-05, AND THE DISABLE REASON WAS NEVER TRUE OF THIS JOB. It read: "this job
         # reaches REMOTE services (sandbox Clerk / stage secrets / upstream APIs)". It does not, and did not
         # then: the suite mocks `@clerk/expo` outright, references no secret, and boots nothing. Measured

@@ -845,9 +845,10 @@ jobs:
             # `tsx`, which nothing declares as a runtime dependency. Only the deploy belongs on this side,
             # and it runs the COMPILED app (`infra/dist/bin/app.js`, from `infra:build` above the prune).
             #
-            # ⚠️ FIRST-EVER DEPLOY of this function. ADR-0025 §"Residual risk" records that the arm64 /
-            # CPython 3.13 wheels in the asset have never been loaded by a Python 3.13 interpreter on ARM,
-            # and that "the first real proof is a deploy".
+            # ⚠️ NOT YET DEPLOYED TO PROD, though no longer unproven anywhere: a sandbox deploy on
+            # 2026-09-05 loaded the arm64 / CPython 3.13 wheels (discharging ADR-0025's original residual)
+            # and the function still threw at import, on an NLTK corpus missing from the asset. Prod
+            # inherits the fix, not the proof.
             #
             # ⛔ CORRECTED (2026-09-02) — this comment used to end "it degrades the parse rather than
             # breaking the recipe service", and that is NO LONGER TRUE. A CRF invocation failure now

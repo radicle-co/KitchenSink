@@ -1107,8 +1107,9 @@ jobs:
             # Pass 0 — the CRF ENGINE, before the worker that invokes it. There is no CloudFormation edge
             # between the two: `RecipeWorkersStack` formats the parser's ARN by hand precisely because the
             # function lives in another CDK app (ADR-0025), so nothing but this ordering stops `parseLine`
-            # from going live pointed at a function that does not exist yet. Its asset is ~102 MB of arm64
-            # CPython 3.13 wheels staged by pip, so this step is the slow one; it runs first so a failure
+            # from going live pointed at a function that does not exist yet. Its asset is ~94 MB of arm64
+            # CPython 3.13 wheels staged by pip plus the NLTK tagger corpus, so this step is the slow one;
+            # it runs first so a failure
             # here costs nothing downstream.
             #
             # ⚠️ `bundle:lambda` shells out to the RUNNER's `python3 -m pip` with `--platform` /
@@ -1128,10 +1129,12 @@ jobs:
                   npx cdk deploy \
                     --app "npx tsx packages/services/ingredient-parser/infra/bin/app.ts" \
                     --all --require-approval never
-            # ⛔ The FIRST thing that has ever asked whether the CRF function can actually run. ADR-0025's own
-            # residual risk is that "the arm64/CPython 3.13 wheels have never been loaded by a Python 3.13
-            # interpreter on ARM" and that "the first real proof is a deploy" — but a Lambda whose code
-            # package will not load still deploys clean and dies on its first cold start, and `crfInvoke.ts`
+            # ⛔ The FIRST thing that has ever asked whether the CRF function can actually run. ADR-0025's
+            # arm64/CPython-3.13 residual is now DISCHARGED — the wheels DID load on a real deploy — but
+            # that is not why this check exists, and the same deploy proved it: the function loaded and then
+            # threw anyway, reaching for an NLTK corpus it tried to download into a read-only filesystem.
+            # The claim is therefore the wider one — a code package that loads can still die on its first
+            # cold start, for a reason no template check can see — and `crfInvoke.ts`
             # maps that to per-line `unavailable`, which the pipeline reads as `single-engine llm`. So the
             # failure would be a quality regression in parsed ingredients, not a red check. `State=Failed`
             # is the signal, and this step is what reads it.
@@ -1146,9 +1149,10 @@ jobs:
             # — never a `jq` probe, which would be a SECOND bearer of the engine's wire contract, free to
             # drift from the zod every other consumer parses through.
             #
-            # It is the first real proof of ADR-0025's standing residual: the asset's arm64 / CPython 3.13
-            # wheels "have never been loaded by a Python 3.13 interpreter on ARM". A code package that cannot
-            # import deploys CLEAN and dies on its first cold start, and nothing downstream reports it —
+            # It is the only proof that the function's import path works at all. ADR-0025's arm64 / CPython
+            # 3.13 wheel residual is discharged; what replaced it is broader and was found HERE — a code
+            # package that imports cleanly can still die on its first cold start (the corpus case), and a
+            # package that cannot import deploys CLEAN and dies too. Nothing downstream reports either —
             # `crfInvoke.ts` maps a failed invoke to `unavailable` per line and ADR-0026 §3 has the pipeline
             # read that as `single-engine llm`, which is the RIGHT behaviour and is exactly why a permanently
             # broken engine is invisible.

@@ -19,6 +19,18 @@
  * | every dependency the handler imports | the handler's own Python **AST**, minus `sys.stdlib_module_names` |
  * | every engine file, byte for byte     | **pip's own `RECORD`** manifest for the installed distribution |
  * | the distribution to look for         | `requirements.txt`, normalised per PEP 503/427                 |
+ * | every NLTK resource the engine needs | the **engine's own AST** — the string arguments of its `nltk.data.find(…)` calls |
+ * | every corpus file, byte for byte     | the corpus **archive's own central directory**, staged as `nltk_data/RECORD` |
+ *
+ * ## ⚠️ The corpus row is here because the guard was blind to it once, in production
+ *
+ * The engine's `_utils.py` calls `download_nltk_resources()` AT IMPORT, which calls `nltk.data.find` for
+ * three tagger files and, on `LookupError`, `nltk.download(…)` — a write to `$HOME`. The first real deploy
+ * loaded the code package fine and then threw
+ * `OSError: [Errno 30] Read-only file system: '/home/sbx_user1051'`. Every check above was green, because
+ * the corpus is not in pip's `RECORD`: it is downloaded, not installed. So a second manifest, from a second
+ * authority, covers it — and the resource paths are read out of the LIBRARY, so a release that needs a
+ * fourth file fails the build instead of silently reaching for the network again. See ADR-0025.
  *
  * ⛔ `RECORD` is the load-bearing choice. It is pip's per-file manifest of what it installed, with a
  * declared size for every real file — so "the model artifact is present and whole" needs no one to know
@@ -65,6 +77,30 @@ const engineRecord: readonly RecordedFile[] = [
     { path: 'ingredient_parser/en/data/model.en.crfsuite', bytes: 1_596_376 },
 ];
 
+/**
+ * The tagger corpus's manifest, as the downloaded archive's own central directory declares it.
+ *
+ * A SECOND authority beside pip's `RECORD`, for files pip never installed. Paths are relative to the
+ * staging root — the same coordinate system `RECORD` uses — so one predicate reads both.
+ */
+const corpusRecord: readonly RecordedFile[] = [
+    {
+        path: 'nltk_data/taggers/averaged_perceptron_tagger_eng/averaged_perceptron_tagger_eng.classes.json',
+        bytes: 285,
+    },
+    {
+        path: 'nltk_data/taggers/averaged_perceptron_tagger_eng/averaged_perceptron_tagger_eng.tagdict.json',
+        bytes: 25_788,
+    },
+    {
+        path: 'nltk_data/taggers/averaged_perceptron_tagger_eng/averaged_perceptron_tagger_eng.weights.json',
+        bytes: 5_677_744,
+    },
+];
+
+/** What the ENGINE asks `nltk.data.find` for, rooted at the staging root. Read from its AST, never listed. */
+const corpusResources: readonly string[] = corpusRecord.map((entry) => entry.path);
+
 /** A staged asset that satisfies every derivation above. */
 const stagedAsset: readonly StagedFile[] = [
     { path: 'handler.py', bytes: 4_096 },
@@ -73,6 +109,7 @@ const stagedAsset: readonly StagedFile[] = [
     { path: 'ingredient_parser/en/data/model.en.crfsuite', bytes: 1_596_376 },
     { path: 'pint/__init__.py', bytes: 5_000 },
     { path: '_pycrfsuite.cpython-313-x86_64-linux-gnu.so', bytes: 2_000_000 },
+    ...corpusRecord.map((entry) => ({ path: entry.path, bytes: Number(entry.bytes) })),
 ];
 
 const expectation = {
@@ -80,6 +117,8 @@ const expectation = {
     handlerImports: ['json', 'ingredient_parser', 'pint', '_pycrfsuite'],
     stdlibModules: ['json', 'sys', 'logging'],
     engineRecord,
+    corpusResources,
+    corpusRecord,
 };
 
 /** The staged asset with one entry replaced or removed, so a mutation reads as one line in the test. */
@@ -161,6 +200,69 @@ describe('assetViolations', () => {
 
         expect(violations.length).toBeGreaterThan(0);
         expect(violations.join(' ')).toMatch(/manifest/u);
+    });
+
+    it('reports the tagger corpus when the asset does not carry it', () => {
+        // ⛔ THE MUTATION CHECK FOR THE DEFECT THAT SHIPPED. This asset is otherwise perfect: the handler is
+        // there, every import resolves, every file pip recorded is present and whole. It deploys, it loads,
+        // and it throws `OSError: [Errno 30] Read-only file system` the first time the engine is imported,
+        // because `download_nltk_resources()` cannot find the tagger and reaches for the network.
+        const violations = assetViolations(
+            without('nltk_data/taggers/averaged_perceptron_tagger_eng/averaged_perceptron_tagger_eng.weights.json'),
+            expectation,
+        );
+
+        // Two findings, from two independent derivations: the engine asked for this path, and the archive
+        // recorded shipping it. Either alone would have caught it; both is the point of two authorities.
+        expect(violations).toHaveLength(2);
+        expect(violations.join(' ')).toContain('averaged_perceptron_tagger_eng.weights.json');
+        expect(violations.join(' ')).toMatch(/read-only|download/iu);
+    });
+
+    it('reports a corpus file that is present but the wrong size', () => {
+        // A half-written 5.7 MB weights file is the worst case: `nltk.data.find` SUCCEEDS, so nothing tries
+        // to download, and the tagger dies on a JSON parse error at cold start instead.
+        const truncated = stagedAsset.map((entry) =>
+            entry.path.endsWith('averaged_perceptron_tagger_eng.weights.json') ? { ...entry, bytes: 12 } : entry,
+        );
+        const violations = assetViolations(truncated, expectation);
+
+        expect(violations).toHaveLength(1);
+        expect(violations[0]).toMatch(/weights\.json/u);
+        expect(violations[0]).toMatch(/5677744/u);
+    });
+
+    it('reports an empty corpus manifest rather than passing vacuously', () => {
+        // ⛔ NON-VACUITY FLOOR, second authority. The corpus manifest is written during staging; if staging
+        // silently did nothing, the per-file loop below it would check an empty set and report success —
+        // which is precisely the state the function was deployed in.
+        const violations = assetViolations(stagedAsset, { ...expectation, corpusRecord: [] });
+
+        expect(violations.length).toBeGreaterThan(0);
+        expect(violations.join(' ')).toMatch(/corpus/iu);
+    });
+
+    it('reports an empty corpus resource set rather than passing vacuously', () => {
+        // ⛔ NON-VACUITY FLOOR, first authority. The resource paths come from the engine's own AST. If that
+        // scan ever stops matching — a library that renames the call, a parse that yields nothing — the
+        // guard must say so, not conclude that the engine needs no corpus.
+        const violations = assetViolations(stagedAsset, { ...expectation, corpusResources: [] });
+
+        expect(violations.length).toBeGreaterThan(0);
+        expect(violations.join(' ')).toMatch(/nltk|corpus/iu);
+    });
+
+    it('does not demand a corpus file the archive shipped but the engine never asks for', () => {
+        // Negative control for the two floors above: the archive's manifest is the whole package, which may
+        // carry more than the three files the engine looks up. Requiring the ENGINE to ask for every one of
+        // them would make the guard fire on a correct asset.
+        const extra = 'nltk_data/taggers/averaged_perceptron_tagger_eng/README';
+        const withExtra = {
+            ...expectation,
+            corpusRecord: [...corpusRecord, { path: extra, bytes: 40 }],
+        };
+
+        expect(assetViolations([...stagedAsset, { path: extra, bytes: 40 }], withExtra)).toEqual([]);
     });
 
     it('names every missing thing at once rather than stopping at the first', () => {

@@ -9,19 +9,21 @@ changing anything in it.
 
 ## Layout
 
-| Path                         | What it is                                                                                         |
-| ---------------------------- | -------------------------------------------------------------------------------------------------- |
-| `src/handler.py`             | The Lambda handler. Batches lines, flattens the parser's own text, never emits `foundation_foods`. |
-| `src/engine.schema.ts`       | The wire contract + the inbound boundary a caller reads the response through.                      |
-| `requirements.txt`           | The engine, pinned exactly. The pin is load-bearing three ways — read the file.                    |
-| `infra/lib/assetContents.ts` | The packaging predicate. Pure, derived, no lists.                                                  |
-| `infra/bin/buildAsset.ts`    | Stages the asset with pip, then runs the predicate and refuses a bad one.                          |
-| `infra/lib/packaging.ts`     | The handler string, the staging path, and the interpreter/CPU wheels target.                       |
+| Path                         | What it is                                                                                           |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/handler.py`             | The Lambda handler. Batches lines, flattens the parser's own text, never emits `foundation_foods`.   |
+| `src/engine.schema.ts`       | The wire contract + the inbound boundary a caller reads the response through.                        |
+| `requirements.txt`           | The engine, pinned exactly. The pin is load-bearing three ways — read the file.                      |
+| `infra/lib/assetContents.ts` | The packaging predicate. Pure, derived, no lists.                                                    |
+| `infra/bin/buildAsset.ts`    | Stages the asset with pip AND the NLTK tagger corpus, then runs the predicate and refuses a bad one. |
+| `infra/lib/packaging.ts`     | The handler string, the staging path, and the interpreter/CPU wheels target.                         |
 
 ## Commands
 
 ```bash
-# Stage the Lambda asset (~91 MB; needs python3 + network). Refuses to produce a broken one.
+# Stage the Lambda asset (~94 MB; needs python3 + network). Refuses to produce a broken one.
+# Includes the NLTK part-of-speech tagger the engine loads at import: without it the deployed
+# function calls nltk.download() and dies on Lambda's read-only filesystem (ADR-0025).
 npm run bundle:lambda --workspace=@kitchensink/ingredient-parser
 
 # Unit tier — the packaging predicate against fakes, the stack, the boundary.

@@ -3,8 +3,8 @@
  *
  * A named exception to ADR-0017's "no new deployable service" default, on the three grounds ADR-0019 §3
  * uses: the workload is CPU-shaped and bursty rather than request-shaped, it carries a vendor dependency
- * (a 102 MB Python CRF with native wheels) the recipe service should not link, and it scales on a different
- * axis from recipe CRUD. ADR-0019 also fixes the consequence, which this stack honours literally: **the new
+ * (a ~94 MB Python CRF with native wheels, a CRF model and a downloaded tagger corpus) the recipe service
+ * should not link, and it scales on a different axis from recipe CRUD. ADR-0019 also fixes the consequence, which this stack honours literally: **the new
  * deployable owns no database.** The parse cache lives in the recipe database. See ADR-0025.
  *
  * DESIGN PATTERN: an **Adapter** in front of a third-party engine, deployed as a stateless function. It
@@ -16,12 +16,19 @@
  * ADR-0004: every VPC-attached Lambda egresses through one `t4g.nano` NAT instance, and the ADR's consumer
  * table is asserted in BOTH directions by `natEgressConsumers.test.ts` — attach this and the ADR must be
  * amended in the same change. There is nothing to attach it FOR: no database, no private endpoint, no
- * egress at all at run time (the engine is packaged into the asset, so it makes no network call).
+ * egress at all at run time (the engine AND the NLTK tagger corpus it loads are packaged into the asset, so
+ * it makes no network call).
+ *
+ * ⚠️ That last clause was FALSE until 2026-09-05. The corpus was not packaged, so the engine reached for
+ * `nltk.download()` at import — a run-time network call this function had neither egress nor a writable
+ * filesystem for. It failed on the read-only filesystem before it could fail on the network. The fix is the
+ * `NLTK_DATA` environment variable below plus the staging that fills it; see ADR-0025's update.
  *
  * ## Packaging — zip, no `esbuild.mjs`, and a synth-time refusal
  *
- * `infra/bin/buildAsset.ts` stages the asset with pip, and `Code.fromAsset` publishes it through S3 (so the
- * 50 MB direct-upload limit does not bind; the 250 MB unzipped limit does, and the asset is ~102 MB).
+ * `infra/bin/buildAsset.ts` stages the asset — pip for the engine, nltk for the tagger corpus — and
+ * `Code.fromAsset` publishes it through S3 (so the
+ * 50 MB direct-upload limit does not bind; the 250 MB unzipped limit does, and the asset is ~94 MB).
  * Because this service carries no `esbuild.mjs`, W2 of `serviceInfraWiringInvariants.test.ts` SKIPS it —
  * honestly, per its own docstring, but that leaves the hole `handle-sync-worker` fell through. So the
  * staging directory is verified HERE, at synth, before it can be zipped: `Code.fromAsset` throws on a
@@ -37,7 +44,7 @@ import { existsSync, readdirSync } from 'node:fs';
 
 import { PYTHON_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
 
-import { HANDLER, LAMBDA_ARCHITECTURE } from './packaging.js';
+import { HANDLER, LAMBDA_ARCHITECTURE, NLTK_DATA_PATH } from './packaging.js';
 
 export interface IngredientParserStackProps extends StackProps {
     /** Deploy stage — `prod` or an ephemeral `pr-{N}`. Drives naming only; this stack imports nothing. */
@@ -131,6 +138,13 @@ export class IngredientParserStack extends Stack {
                 // Python buffers stdout by default, which loses the last log lines when a function is frozen
                 // mid-write. Nothing about the parse depends on this; the diagnosis of a failed parse does.
                 PYTHONUNBUFFERED: '1',
+                // ⛔ NOT optional, and not a tuning knob. The engine's `_utils.py` calls
+                // `download_nltk_resources()` at import; without this, `nltk.data.find` misses (nothing on
+                // nltk's default search path exists on Lambda), the engine calls `nltk.download()`, and the
+                // write to `$HOME` raises `OSError: [Errno 30] Read-only file system`. That is exactly how
+                // the first real deploy of this function failed. `buildAsset.ts` stages the corpus at the
+                // other end of this same constant, and the packaging guard refuses an asset without it.
+                NLTK_DATA: NLTK_DATA_PATH,
             },
         });
     }

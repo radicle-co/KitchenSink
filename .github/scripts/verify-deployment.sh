@@ -22,8 +22,9 @@
 #   * a stack at rest in `UPDATE_ROLLBACK_COMPLETE` is USABLE to ADR-0010's gate — correctly, the stack is
 #     intact at its previous revision — while the RESOURCE that failed to update sits at
 #     `UPDATE_ROLLBACK_COMPLETE` too. The deploy that did not land reported green because nobody looked.
-#   * a Lambda whose code package cannot load deploys fine and dies on its first cold start. ADR-0025 records
-#     precisely that residual for the parser's arm64 / CPython 3.13 wheels: "the first real proof is a deploy".
+#   * a Lambda whose code package cannot load deploys fine and dies on its first cold start — and so does one
+#     that loads but dies at import. ADR-0025's parser hit the second case on 2026-09-05: the arm64 / CPython
+#     3.13 wheels loaded (discharging that residual) and it threw reaching for an absent NLTK corpus.
 #
 # ## Why it enumerates nothing
 #

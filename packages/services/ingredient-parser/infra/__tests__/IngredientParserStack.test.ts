@@ -4,6 +4,7 @@
  * | Invariant                                                                | Test                                                        |
  * | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
  * | The function runs the ONE pinned Python runtime, never a literal          | 'runs the pinned Python runtime'                            |
+ * | `NLTK_DATA` names the corpus the build stages, so nothing downloads      | 'points NLTK at the corpus the build stages, not at $HOME'  |
  * | It is NOT VPC-attached, so it is not an ADR-0004 NAT consumer             | 'attaches no VPC, so it never reaches the NAT instance'     |
  * | It introduces no VPC interface endpoint                                   | 'introduces no interface VPC endpoint'                      |
  * | The `handler:` string resolves to a Python module that exists             | 'deploys a handler that resolves to a real module'          |
@@ -34,6 +35,7 @@ import { AdvisoryAwsSolutionsChecks, PYTHON_LAMBDA_RUNTIME } from '@kitchensink/
 import { IngredientParserStack } from '../lib/IngredientParserStack.js';
 import { handlerModuleOf } from '../lib/assetContents.js';
 import { readHandlerImports } from '../lib/assetInspection.js';
+import { LAMBDA_TASK_ROOT, NLTK_DATA_DIRECTORY } from '../lib/packaging.js';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -68,6 +70,20 @@ describe('IngredientParserStack', () => {
         // keeps the pin itself current against cdk-nag's family-generic L1 rule.
         templateFor(stagedAsset()).hasResourceProperties('AWS::Lambda::Function', {
             Runtime: PYTHON_LAMBDA_RUNTIME.name,
+        });
+    });
+
+    it('points NLTK at the corpus the build stages, not at $HOME', () => {
+        // ⚠️ THIS ASSERTION ALONE PROVES LITTLE, and it is here for the one thing it does prove: that the
+        // two ends of the same constant are wired together. The engine's `_utils.py` runs
+        // `download_nltk_resources()` at IMPORT; unset, `nltk.data.find` misses every default search path
+        // (none of which exist on Lambda), `nltk.download()` writes to `$HOME`, and the function dies with
+        // `OSError: [Errno 30] Read-only file system` — which is how the first real deploy of this stack
+        // failed, with a green build and a green synth. That the corpus is actually THERE is asserted by
+        // the packaging guard; that the engine actually READS it from there is asserted by invoking the
+        // handler under this exact variable in `tests/handler.integration.test.ts`.
+        templateFor(stagedAsset()).hasResourceProperties('AWS::Lambda::Function', {
+            Environment: { Variables: { NLTK_DATA: `${LAMBDA_TASK_ROOT}/${NLTK_DATA_DIRECTORY}` } },
         });
     });
 

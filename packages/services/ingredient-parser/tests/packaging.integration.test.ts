@@ -7,10 +7,11 @@
  * unzipped limit. Those live on the far side of a boundary — pip, the network, the filesystem — and
  * _"a unit test that mocks the boundary proves your code calls the mock correctly"_.
  *
- * So this tier RUNS THE BUILD and then interrogates what came out, including the mutation: it removes the
- * model artifact from the real staged tree and asserts the guard reports it, then puts it back.
+ * So this tier RUNS THE BUILD and then interrogates what came out, including the mutations: it removes the
+ * model artifact from the real staged tree, and separately the tagger corpus, and asserts the guard reports
+ * each, then puts them back.
  *
- * ⚠️ Needs network (pip) and `python3`. It is called by name from `.github/workflows/_ci.yml`, per §7.1 —
+ * ⚠️ Needs network (pip, and nltk's package index for the corpus) and `python3`. It is called by name from `.github/workflows/_ci.yml`, per §7.1 —
  * a non-unit tier CI does not invoke is a tier that does not exist.
  */
 import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -24,11 +25,13 @@ import { type AssetExpectation, assetViolations, handlerModuleOf } from '../infr
 import {
     readEngineRecord,
     readHandlerImports,
+    readNltkRecord,
+    readNltkResourceRequests,
     readRequirements,
     readStagedAsset,
     readStdlibModules,
 } from '../infra/lib/assetInspection.js';
-import { ASSET_DIRECTORY, EXTENSION_TAG, HANDLER, TARGET_CPU } from '../infra/lib/packaging.js';
+import { ASSET_DIRECTORY, EXTENSION_TAG, HANDLER, NLTK_DATA_DIRECTORY, TARGET_CPU } from '../infra/lib/packaging.js';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const assetDirectory = path.join(packageRoot, ASSET_DIRECTORY);
@@ -50,12 +53,20 @@ beforeAll(() => {
     engineRequirement = String(engine);
 
     const handlerModule = handlerModuleOf(HANDLER);
+    const engineRecord = readEngineRecord(assetDirectory, engineRequirement);
 
     expectation = {
         handlerModule,
         handlerImports: readHandlerImports(path.join(packageRoot, 'src', `${handlerModule}.py`)),
         stdlibModules: readStdlibModules(),
-        engineRecord: readEngineRecord(assetDirectory, engineRequirement),
+        engineRecord,
+        // ⛔ Re-derived here, not copied from the build. `readNltkResourceRequests` re-reads the INSTALLED
+        // engine's AST and `readNltkRecord` re-reads the manifest staging left behind, so this tier is
+        // asking the same two authorities the build asked — against the tree that would actually ship.
+        corpusResources: readNltkResourceRequests(assetDirectory, engineRecord).map(
+            (resource) => `${NLTK_DATA_DIRECTORY}/${resource}`,
+        ),
+        corpusRecord: readNltkRecord(assetDirectory, NLTK_DATA_DIRECTORY),
     };
 }, 600_000);
 
@@ -96,6 +107,57 @@ describe('the staged asset', () => {
         }
 
         // …and the tree is sound again, so a failure above cannot leave a broken asset behind.
+        expect(assetViolations(readStagedAsset(assetDirectory), expectation)).toEqual([]);
+    });
+
+    it('carries every NLTK resource the installed engine will look up, read from the engine itself', () => {
+        // ⛔ THE OUTER NON-VACUITY FLOOR FOR THE CORPUS. `assetViolations` reports an EMPTY resource set as
+        // a violation, which proves the predicate cannot pass by finding nothing — it does not prove that
+        // the scan finds anything against the real library. This does: the engine's own installed sources
+        // are parsed, and the paths that come back must be paths that exist in the tree.
+        const requested = readNltkResourceRequests(assetDirectory, expectation.engineRecord);
+
+        expect(requested.length).toBeGreaterThan(0);
+
+        for (const resource of requested) {
+            expect(existsSync(path.join(assetDirectory, NLTK_DATA_DIRECTORY, resource))).toBe(true);
+        }
+    });
+
+    it('carries a corpus manifest with real files in it, so the check above is not vacuous', () => {
+        // The tagger weights are ~5.7 MB and are the reason the corpus is worth staging at all. A manifest
+        // whose largest entry is a few hundred bytes means something was staged, but not the model weights.
+        const sized = expectation.corpusRecord.filter((entry) => entry.bytes !== undefined);
+
+        expect(sized.length).toBeGreaterThan(0);
+        expect(Math.max(...sized.map((entry) => Number(entry.bytes)))).toBeGreaterThan(1_000_000);
+    });
+
+    it('reports the tagger corpus when it is removed — the guard, against the real tree', () => {
+        // ⛔ THE MUTATION CHECK FOR THE DEFECT THAT SHIPPED, on the filesystem. This is the state the
+        // function was DEPLOYED in: an asset that passes every pip-derived check and, on import, calls
+        // `nltk.download()` into a read-only `$HOME`. Nothing here names the file — it is taken from the
+        // corpus manifest, removed, and the guard is asked what it thinks.
+        const largest = expectation.corpusRecord
+            .filter((entry) => entry.bytes !== undefined)
+            .reduce((left, right) => (Number(left.bytes) >= Number(right.bytes) ? left : right));
+        const victim = path.join(assetDirectory, largest.path);
+        const rescue = path.join(mkdtempSync(path.join(tmpdir(), 'ingredient-parser-corpus-')), 'artifact');
+
+        copyFileSync(victim, rescue);
+
+        try {
+            rmSync(victim);
+
+            const violations = assetViolations(readStagedAsset(assetDirectory), expectation);
+
+            expect(violations.length).toBeGreaterThan(0);
+            expect(violations.join(' ')).toContain(largest.path);
+        } finally {
+            copyFileSync(rescue, victim);
+            rmSync(path.dirname(rescue), { recursive: true, force: true });
+        }
+
         expect(assetViolations(readStagedAsset(assetDirectory), expectation)).toEqual([]);
     });
 

@@ -23,6 +23,35 @@ export const HANDLER = 'handler.handle';
 /** Where `npm run bundle:lambda` stages the asset, relative to the package root. Gitignored build output. */
 export const ASSET_DIRECTORY = 'build/asset';
 
+/**
+ * Where the NLTK tagger corpus is staged INSIDE the asset, relative to the asset root.
+ *
+ * ⛔ Load-bearing, and the reason this is a constant rather than two strings. The engine's `_utils.py` calls
+ * `download_nltk_resources()` at import, which asks `nltk.data.find` for three tagger files and, failing to
+ * find them, calls `nltk.download(…)` — a write to `$HOME`, which on Lambda is read-only. The first deploy
+ * of this function died exactly that way. `buildAsset.ts` stages the corpus HERE and the stack points
+ * `NLTK_DATA` at the same place ({@link NLTK_DATA_PATH}); if the two ever disagreed, the function would go
+ * back to reaching for the network at cold start.
+ */
+export const NLTK_DATA_DIRECTORY = 'nltk_data';
+
+/**
+ * The directory Lambda unpacks a zip-packaged function into.
+ *
+ * A published AWS constant (`LAMBDA_TASK_ROOT`), stated once so the `NLTK_DATA` value below is not a
+ * literal path buried in the stack.
+ */
+export const LAMBDA_TASK_ROOT = '/var/task';
+
+/**
+ * The `NLTK_DATA` the deployed function runs with — an ABSOLUTE path, because that is all nltk accepts.
+ *
+ * `nltk/data.py` puts `$NLTK_DATA` at the FRONT of its search path, ahead of `~/nltk_data` and the
+ * `sys.prefix` locations, none of which exist on Lambda. Setting it is what turns the engine's lookup from
+ * a `LookupError` (→ download → crash) into a hit on a file that shipped in the asset.
+ */
+export const NLTK_DATA_PATH = `${LAMBDA_TASK_ROOT}/${NLTK_DATA_DIRECTORY}`;
+
 /** The CPU the function runs on. ARM matches every other Lambda here and is ~20% cheaper per GB-second. */
 export const LAMBDA_ARCHITECTURE = Architecture.ARM_64;
 

@@ -20,6 +20,19 @@
  * imports from the handler's own Python AST, the stdlib set from `sys.stdlib_module_names`, and every
  * engine file from **pip's own `RECORD`**. Nobody has to know that the CRF model is called
  * `model.en.crfsuite`, and nobody has to remember to add it here when it is renamed.
+ *
+ * ## ⚠️ Two manifests, because pip's does not cover everything the engine loads
+ *
+ * The engine's `en/_utils.py` calls `download_nltk_resources()` at import time, which asks
+ * `nltk.data.find` for three NLTK tagger files and, when it cannot find them, calls `nltk.download(…)` —
+ * a write to `$HOME`. On Lambda that is a read-only filesystem, and the first real deploy of this function
+ * threw `OSError: [Errno 30] Read-only file system: '/home/sbx_user1051'` with every check in this module
+ * green. It was green honestly: the corpus is DOWNLOADED, not installed, so it appears in no `RECORD`.
+ *
+ * So the expectation carries a second pair of derivations for it — the resource paths out of the engine's
+ * own AST (`corpusResources`) and a per-file manifest out of the downloaded archive's central directory
+ * (`corpusRecord`). Neither is a list anyone here maintains: an engine release that needs a fourth resource
+ * fails the BUILD rather than quietly reaching for the network again.
  */
 
 /** One file in the staged asset directory. */
@@ -53,6 +66,20 @@ export interface AssetExpectation {
     readonly stdlibModules: readonly string[];
     /** pip's `RECORD` rows for the engine distribution. */
     readonly engineRecord: readonly RecordedFile[];
+    /**
+     * The NLTK resources the ENGINE looks up at import, as paths relative to the staging root.
+     *
+     * Read from the string arguments of the engine's own `nltk.data.find(…)` calls, so this is what the
+     * installed library will actually ask for rather than what someone believed it asked for.
+     */
+    readonly corpusResources: readonly string[];
+    /**
+     * The corpus archive's own per-file manifest, as paths relative to the staging root.
+     *
+     * The archive's central directory is the authority, exactly as pip's `RECORD` is for the engine — an
+     * upstream statement of what the package contains, so a partial extraction is detectable.
+     */
+    readonly corpusRecord: readonly RecordedFile[];
 }
 
 /**
@@ -118,6 +145,49 @@ export function distInfoDirectory(requirement: string): string {
 }
 
 /**
+ * Every way a staged tree fails to match one manifest, file by file.
+ *
+ * Shared by pip's `RECORD` and the corpus archive's central directory because the question is identical —
+ * "is every file some upstream authority declared present, and whole?" — and only the noun changes. Rows
+ * with no declared size are skipped: pip records `.pyc` entries that way, and demanding them would make the
+ * guard fire on a correct asset.
+ *
+ * @param stagedByPath - The staged tree, indexed by path.
+ * @param manifest - The upstream manifest to satisfy.
+ * @param subject - What the manifest is OF, e.g. `engine`, used to open each finding. Pure.
+ * @returns One finding per missing or mis-sized file.
+ */
+function manifestViolations(
+    stagedByPath: ReadonlyMap<string, number>,
+    manifest: readonly RecordedFile[],
+    subject: string,
+): readonly string[] {
+    const violations: string[] = [];
+
+    for (const recorded of manifest) {
+        if (recorded.bytes === undefined) {
+            continue;
+        }
+
+        const actual = stagedByPath.get(recorded.path);
+
+        if (actual === undefined) {
+            violations.push(`the asset is missing the ${subject} file '${recorded.path}', which its manifest records`);
+            continue;
+        }
+
+        if (actual !== recorded.bytes) {
+            violations.push(
+                `the ${subject} file '${recorded.path}' is ${actual} bytes but its manifest records ` +
+                    `${recorded.bytes} — a truncated or substituted artifact loads worse than a missing one`,
+            );
+        }
+    }
+
+    return violations;
+}
+
+/**
  * Every reason this staged asset would fail at cold start.
  *
  * @param staged - The staged asset's files (see `assetInspection.readStagedAsset`).
@@ -137,6 +207,21 @@ export function assetViolations(staged: readonly StagedFile[], expectation: Asse
         violations.push(
             'the engine packaging manifest (pip RECORD) is empty or was not found — the per-file check below ' +
                 'would pass against nothing, which is how a guard silently stops guarding',
+        );
+    }
+
+    if (expectation.corpusResources.length === 0) {
+        violations.push(
+            'no NLTK corpus resource was read out of the engine — the scan of its `nltk.data.find` calls ' +
+                'yielded nothing, so the check below would conclude the engine needs no corpus rather than ' +
+                'noticing that nobody looked',
+        );
+    }
+
+    if (expectation.corpusRecord.length === 0) {
+        violations.push(
+            'the NLTK corpus manifest is empty or was not found — the per-file check below would pass ' +
+                'against nothing, which is how a guard silently stops guarding',
         );
     }
 
@@ -162,25 +247,20 @@ export function assetViolations(staged: readonly StagedFile[], expectation: Asse
 
     const stagedByPath = new Map(staged.map((file) => [file.path, file.bytes]));
 
-    for (const recorded of expectation.engineRecord) {
-        if (recorded.bytes === undefined) {
+    for (const resource of expectation.corpusResources) {
+        if (stagedByPath.has(resource)) {
             continue;
         }
 
-        const actual = stagedByPath.get(recorded.path);
-
-        if (actual === undefined) {
-            violations.push(`the asset is missing the engine file '${recorded.path}', which pip recorded installing`);
-            continue;
-        }
-
-        if (actual !== recorded.bytes) {
-            violations.push(
-                `the engine file '${recorded.path}' is ${actual} bytes but pip recorded ${recorded.bytes} — a ` +
-                    'truncated or substituted artifact loads worse than a missing one',
-            );
-        }
+        violations.push(
+            `the asset does not carry the NLTK resource '${resource}', which the engine looks up when it is ` +
+                'imported — not finding it, the engine calls nltk.download(), which writes to $HOME and dies ' +
+                "on Lambda's read-only filesystem",
+        );
     }
+
+    violations.push(...manifestViolations(stagedByPath, expectation.engineRecord, 'engine'));
+    violations.push(...manifestViolations(stagedByPath, expectation.corpusRecord, 'NLTK corpus'));
 
     return violations;
 }

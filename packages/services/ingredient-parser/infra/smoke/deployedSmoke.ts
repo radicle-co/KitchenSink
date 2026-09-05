@@ -103,8 +103,16 @@ export function pinnedEngineVersion(requirementsFile: string): string {
  * The invocation reached the function and the function did not throw. Pure.
  *
  * ⛔ `aws lambda invoke` exits 0 when the FUNCTION threw — the failure is in the response, not in the exit
- * status — so BOTH inputs are consulted. A `Failed` state, an unloadable code package, or a cold-start
- * `ImportError` from the arm64 wheels all arrive as a `FunctionError`.
+ * status — so BOTH inputs are consulted. A `Failed` state, an unloadable code package, or anything the
+ * import path raises all arrive as a `FunctionError`.
+ *
+ * ⚠️ The reason names the cold-start failures that have ACTUALLY happened, and refuses to pick one. It used
+ * to assert that a `FunctionError` on a first deploy was "almost certainly the ADR-0025 residual: the arm64
+ * / CPython 3.13 wheels … failing to import". The first real deploy then threw for an entirely different
+ * reason — the engine looked up an NLTK tagger the asset had not staged and tried to DOWNLOAD it, onto a
+ * read-only filesystem — while the arm64 wheels imported perfectly. A confident wrong diagnosis in a CI log
+ * is worse than none: it sends the next reader to the wrong file. The classifier cannot know which it is,
+ * so it names both and points at the log that does know.
  *
  * @param exitStatus - The CLI's exit status; non-zero is a transport or permission failure.
  * @param functionError - `--query FunctionError --output text`, which prints `None` when nothing threw.
@@ -126,9 +134,11 @@ export function classifyInvocation(exitStatus: number, functionError: string, di
         return {
             ok: false,
             reason:
-                `the CRF engine threw on invocation (FunctionError=${trimmed}). On a first deploy this is ` +
-                'almost certainly the ADR-0025 residual: the arm64 / CPython 3.13 wheels in the asset failing ' +
-                'to import on a real ARM interpreter.',
+                `the CRF engine threw on invocation (FunctionError=${trimmed}). The stack converged, so this ` +
+                'is the import path, not the deploy — read the function’s CloudWatch log, which names the ' +
+                'exception. Two causes have really happened here: an ImportError from the arm64 / CPython ' +
+                '3.13 wheels, and an OSError on the read-only filesystem when the engine looks for data the ' +
+                'asset did not stage (ADR-0025). Do not assume either without the log.',
         };
     }
 

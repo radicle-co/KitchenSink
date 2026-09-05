@@ -3,12 +3,17 @@
  *
  * ## Why this smoke exists at all
  *
- * ADR-0025 records, as a standing residual, that the asset's arm64 / CPython 3.13 wheels "have never been
+ * ADR-0025 recorded, as a standing residual, that the asset's arm64 / CPython 3.13 wheels "have never been
  * loaded by a Python 3.13 interpreter on ARM" and that "the first real proof is a deploy". A Lambda whose
  * code package cannot import deploys CLEAN — `cdk deploy` exits 0, CloudFormation reports success — and
  * dies on its first cold start. Nothing downstream reports that: `crfInvoke.ts` maps a failed invoke to
  * `unavailable` per line and ADR-0026 §3 has the pipeline read that as `single-engine llm`, which is the
  * RIGHT behaviour (absence is not dissent) and is exactly why a permanently broken engine is invisible.
+ *
+ * ⚠️ That deploy has now happened, and it earned this check twice over: the wheels imported (the residual
+ * is DISCHARGED) and the function threw anyway, on an NLTK corpus the asset had never staged. The class of
+ * failure this smoke exists for is "the code package loads and the import path dies anyway", which is
+ * wider than the one hypothesis it was written around — see 'FAILS a FunctionError' below.
  *
  * So the deploy is the only place it can be caught, and this is the only check that fires at zero traffic.
  *
@@ -44,13 +49,19 @@ describe('classifyInvocation — `aws lambda invoke` exits 0 when the FUNCTION t
         expect(classifyInvocation(0, 'None\n', '')).toMatchObject({ ok: true });
     });
 
-    it('⛔ FAILS a FunctionError — the cold-start ImportError ADR-0025 warns about', () => {
+    it('⛔ FAILS a FunctionError, and points at the log rather than naming one cause', () => {
         const verdict = classifyInvocation(0, 'Unhandled', '');
 
         expect(verdict.ok).toBe(false);
-        // The message has to name the likely cause, because at 3am "the engine threw" is not actionable and
-        // the arm64 wheels are the standing suspect on a first deploy.
-        expect(verdict.reason).toMatch(/arm64/);
+        // ⚠️ REWRITTEN to prove the NEW behaviour. This assertion was `toMatch(/arm64/)`, on the reasoning
+        // that "the arm64 wheels are the standing suspect on a first deploy". The first real deploy then
+        // threw for a different reason entirely — an unstaged NLTK corpus and a read-only `$HOME` — while
+        // the arm64 wheels loaded fine, and the smoke's confident sentence sent the reader to the wrong
+        // file. So what is required now is that the message stays actionable WITHOUT guessing: it must
+        // point at the log, and it must name both failures that have actually occurred.
+        expect(verdict.reason).toMatch(/log/iu);
+        expect(verdict.reason).toMatch(/arm64/u);
+        expect(verdict.reason).toMatch(/read-only/u);
     });
 
     it('⛔ FAILS a transport failure, and keeps the CLI’s own diagnostic', () => {

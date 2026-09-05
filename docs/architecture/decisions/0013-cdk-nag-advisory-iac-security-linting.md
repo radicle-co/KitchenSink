@@ -1,24 +1,14 @@
 # 0013 — cdk-nag on every CDK app, ADVISORY (warnings only), with a byte-identical-template guarantee
 
-- **Status:** Accepted — implemented. `attachSecurityChecks(app)` is called from all ~~seven~~ **eight** CDK app entrypoints; findings are reported as CDK warnings. **Burn-down pass #1 is done (115 → 62) — see "Update (2026-08-07)" for the record, the three escalations awaiting an owner decision, and the remaining backlog.**
+- **Status:** Accepted
 - **Date:** 2026-08-07
 - **Area:** IaC security · CDK Aspects · prod-template stability
-- **Related:** `docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md` (no-prod-diff), `0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md` (no-prod-diff), `packages/infra/security/**`, ~~`packages/infra/global/__tests__/cdk-nag-{attachment,template-parity,synth.integration}.test.ts`~~, `packages/infra/global/tests/nagRulesAtZero.integration.test.ts`
+- **Related:** `docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md` (no-prod-diff), `0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md` (no-prod-diff), `packages/infra/security/**`, `packages/infra/global/__tests__/cdkNag{Attachment,TemplateParity}.test.ts` and `tests/cdkNagSynth.integration.test.ts`, `packages/infra/global/tests/nagRulesAtZero.integration.test.ts`
 
-> ⚠️ STALE (2026-09-04) — two corrections to the header, both of which a reader greps and fails on.
->
-> 1. **There are EIGHT CDK app entrypoints, not seven.** `ingredient-parser` joined
->    ([ADR-0025](0025-ingredient-parser-python-deployable.md)) and is pinned in `KNOWN_ENTRYPOINTS`
->    (`packages/infra/global/__tests__/cdkNagAttachment.test.ts:41-50`) alongside the other seven. Later
->    sections of this ADR already say "all eight apps"; the header, Context and Update (2026-08-07) still say
->    seven, and in the historical sections that is correct **as history** (seven was the count at adoption).
->    The Status line is a present-tense claim, so it is the one that is wrong.
-> 2. **The three guard files are named `cdkNag*`, not `cdk-nag-*`, and one of them is in `tests/`, not
->    `__tests__/`.** The real paths are `packages/infra/global/__tests__/cdkNagAttachment.test.ts`,
->    `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` and
->    `packages/infra/global/tests/cdkNagSynth.integration.test.ts` (the `tests/` directory is this repo's
->    integration tier). The brace-expansion spelling above resolves to nothing on disk. The same wrong
->    spelling appears once more, under "The test contract changed, deliberately".
+⚠️ **Every CDK app attaches, and the roster is asserted rather than counted here.**
+`packages/infra/global/__tests__/cdkNagAttachment.test.ts` pins the entrypoint list and fails when an app is
+added without `attachSecurityChecks`. This ADR deliberately quotes no total: the number has been wrong twice
+already, in both directions.
 
 ## ⚠️ Before you change this — the two traps
 
@@ -66,12 +56,13 @@
 
 - `packages/infra/security/src/attachSecurityChecks.ts` carries the "annotation-only, and a suppression is NOT" rationale at the wiring point.
 - `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` — byte-identical prod + sandbox templates, per stack, plus "a suppression would show up here" (`no cdk_nag metadata`) and a mutating-Aspect negative control.
-- ~~`packages/infra/global/__tests__/cdkNagSynth.integration.test.ts`~~ — ⚠️ STALE (2026-09-04): it lives in the integration tier, at `packages/infra/global/tests/cdkNagSynth.integration.test.ts` — a real `cdk synth` at prod and sandbox: exit 0, warnings present, no CLI error line. This is the only tier that can catch the ERROR→exit-1 regression, because it is a property of the CLI, not of in-process synthesis.
+- `packages/infra/global/tests/cdkNagSynth.integration.test.ts` — the integration tier, so `tests/` rather
+  than `__tests__/` (`docs/CODING_STANDARDS.md` §7).
 - `packages/infra/global/__tests__/cdkNagAttachment.test.ts` — discovery-based; also pins the known entrypoint set so a broken walk cannot pass silently.
 
 ---
 
-## Update (2026-08-07) — burn-down #1: 115 → 62, and three escalations
+## Amendment — burn-down #1: 115 → 62, and three escalations
 
 The first burn-down pass. **115 findings → 62** across the seven prod apps, with zero cdk-nag errors and every app still synthesizing `exit 0`. Advisory mode is unchanged; nothing was promoted to blocking.
 
@@ -98,7 +89,7 @@ The 2 remaining `L1` findings are CDK's own `custom_resources.Provider` framewor
 
 ### The test contract changed, deliberately
 
-~~`cdk-nag-{template-parity,synth.integration}.test.ts`~~ (⚠️ STALE (2026-09-04): the real names are `__tests__/cdkNagTemplateParity.test.ts` and `tests/cdkNagSynth.integration.test.ts`) asserted that **no** prod template contained `cdk_nag`. That was the correct contract at zero suppressions, and it is unsatisfiable once suppressions exist — so the only way to "keep it passing" would have been to delete it, dropping the control at the exact moment it starts mattering.
+`__tests__/cdkNagTemplateParity.test.ts` and `tests/cdkNagSynth.integration.test.ts` asserted that **no** prod template contained `cdk_nag`. That was the correct contract at zero suppressions, and it is unsatisfiable once suppressions exist — so the only way to "keep it passing" would have been to delete it, dropping the control at the exact moment it starts mattering.
 
 It is now an **allowlist**: `EXPECTED_PLATFORM_SUPPRESSIONS` is an exact, closed inventory of `stack/logicalId → ruleId`, plus an assertion that every reason is readable. Same guarantee — no unreviewed suppression reaches a prod template — but it fails loudly and names the resource.
 
@@ -115,23 +106,16 @@ Two properties are now separated, and both still hold:
 
 ### ⛔ ESCALATED — owner's call, deliberately left as-is
 
-Three findings are real risks that cdk-nag is right about, whose resolution is a business trade-off rather than an engineering one. ~~**Nothing was changed for any of them.**~~ Costs are us-east-1; the RDS instance rates were queried live from the AWS Pricing API, storage and WAF rates are published list prices.
-
-> ⚠️ STALE (2026-09-04): "nothing was changed for any of them" is true of #2 (`RDS3`) and #3 (`SMG4`) and
-> **false of #1** — `RDS10` was subsequently FIXED. See the mark on #1.
+Three findings are real risks that cdk-nag is right about, whose resolution is a business trade-off rather
+than an engineering one. ⚠️ Two of the three still stand unchanged (`RDS3`, `SMG4`); the first (`RDS10`,
+deletion protection) has since been RESOLVED — `deletionProtection` is `true` on every stage. Costs are
+us-east-1; the RDS instance rates were queried live from the AWS Pricing API, storage and WAF rates are published list prices.
 
 #### 1. `RDS10` — deletion protection disabled on `Data-prod/Database`
 
-~~Today: `deletionProtection: false`, `removalPolicy: DESTROY`, **no final snapshot**.~~ A stack delete, a construct-ID change that replaces the instance, or a CIDR change (ADR-0002) destroys production data with no recovery path.
-
-> ⛔ FALSE (2026-09-04): `deletionProtection` is **`true`**
-> (`packages/infra/global/lib/platform/DataStack.ts:267`), so the escalation's recommendation was taken and
-> the finding has cleared — the backlog table further down already records `RDS10` at **0** ("the escalated
-> deletion-protection finding has CLEARED and nothing said so"). What is still accurate: `removalPolicy`
-> remains `RemovalPolicy.DESTROY` (`DataStack.ts:269`, left as-is deliberately — the in-code comment says
-> flipping it to `RETAIN` is a separate decision), and there is still no final snapshot. So the
-> option-table row that was chosen is `deletionProtection: true` at $0, and the rows below it are still
-> open decisions.
+Today: `deletionProtection: true` (every stage), `removalPolicy: DESTROY`, **no final snapshot**. The
+protection converts a replacing change from silent data loss into a loud CloudFormation refusal; it does not
+give the stack a snapshot to recover from.
 
 | Option                                             | Monthly cost                            | Consequence                                                                               |
 | -------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -211,7 +195,7 @@ asserted as well.
 - **`packages/services/recipe-workers/dist/tsconfig.tsbuildinfo` (390 KB) and `dist/scripts/` ship inside all six recipe-workers Lambda assets**, because `Code.fromAsset(DIST_PATH)` points at the whole `dist/`. A TypeScript incremental-build cache is not deployable code, and including a build artifact in the asset makes the asset hash — and therefore `Code.S3Key` in the prod template — churn on unrelated rebuilds, adding noise to exactly the prod diff review ADR-0002 makes load-bearing.
 - **`packages/services/{identity,identity-webhooks}/cdk.context.json` pin a prod VPC id that no longer exists** (`vpc-0ec22fac8e09a5751`; the live `KitchenSink-prod` VPC is `vpc-007a83efa4b118d25`). It is currently harmless because CI passes `IDENTITY_VPC_ID` from a live lookup, so the stale cache entry is never hit — but a `--lookups false` synth of those apps resolves against a VPC that is gone.
 
-## Update (2026-09-03) — the `SQS4` zero REGRESSED, because a burn-down count is not a control
+## Amendment — the `SQS4` zero REGRESSED, because a burn-down count is not a control
 
 `RecipeParseQueue` and `RecipeParseDlq` (`RecipeWorkersStack`, added with the service parse leg) shipped with
 no `enforceSSL`, while their eight siblings in the same file had it. That put the burn-down table's
@@ -245,7 +229,7 @@ constructed through `sqs.Queue` would still land in the advisory channel unobser
 
 **⛔ That residual is CLOSED — see the next section. Read it before citing the paragraph above.**
 
-## Update (2026-09-03, later) — the row is now MECHANISED: the real rules run over every app
+## Amendment — the row is now MECHANISED: the real rules run over every app
 
 The residual above ("nothing runs the `SQS4` rule across all seven apps and asserts the count is zero") is
 discharged by `packages/infra/global/tests/nagRulesAtZero.integration.test.ts`. Owner ruling, same day, on
@@ -276,14 +260,10 @@ assertion. `SNS3` and `SQS4` are its first two members.
 `infrastructureManifest.test.ts`'s "synth needs AWS credentials and an uncached context …". `CDK_CONTEXT_JSON`
 pre-seeds the context-provider cache so `Vpc.fromLookup` never calls AWS (the trick `recipe-workers`'
 own app-synth spec already used); `CDK_OUTDIR` redirects the assembly; the environment variables are ONE
-shared block of ~20 keys, because no two entrypoints disagree about what a key means. ~~All eight apps
-synthesize with **no credentials and no network**, at prod, in ~15 s.~~
-
-> ⛔ FALSE (2026-09-04): **SEVEN** of the eight apps synthesize — `ingredient-parser` does not, and the very
-> next section of this ADR says so ("`ingredient-parser` is not synthesized … it refuses until
-> `python3 -m pip` fetches ~90 MB of arm64 wheels"). The exclusion is explicit in the suite itself, in
-> `UNSYNTHESIZABLE` (`packages/infra/global/tests/nagRulesAtZero.integration.test.ts:247-252`). Everything
-> else in the sentence — no credentials, no network, at prod, ~15 s — holds for those seven.
+shared block of ~20 keys, because no two entrypoints disagree about what a key means. The apps that can
+synthesize with **no credentials and no network** do so at prod in ~15 s. ⚠️ Not all of them can:
+`ingredient-parser` needs its ~94 MB asset staged first, so it is outside that census by construction rather
+than by omission. The census names its own subjects; this ADR does not restate the count.
 
 ### The two honest limits, and the assertion that keeps each honest
 
@@ -325,7 +305,7 @@ suite's own numbers for that comparison come from `queueBaselineDeclarations.tes
 that AST reading weakens the cross-check — which is why that reader keeps its own per-property negative
 control.
 
-## Update (2026-09-03, later the same day) — the WHOLE table becomes a control, and it had already rotted
+## Amendment — the WHOLE table becomes a control, and it had already rotted
 
 The residual above said the un-burnt-down rows "still need their burn-down" before they could be asserted.
 That conflated two things. A rule at **zero** can be asserted by a predicate (`no non-Compliant row`); a rule
@@ -395,17 +375,8 @@ findings.some(isEdgeVerifier) === (EDGE_LAMBDA_RUNTIME.name !== NODE_LAMBDA_RUNT
 row must come out of the table, with nobody having to remember to check. An `L1` on any other function we
 control is not covered by either exemption and reds as unexplained.
 
-> ⚠️ STALE (2026-09-04) — **the `L1` count of 1 is a census over seven apps, and there is a SECOND accepted
-> `L1` it cannot see.** [ADR-0025](0025-ingredient-parser-python-deployable.md) pins the CRF parser to
-> `python3.13` (`latestPythonRuntimeBelow(ENGINE_PYTHON_CEILING)`, because
-> `ingredient-parser-nlp==2.3.0` declares `Requires-Python: <3.14`) while `aws-cdk-lib` already exposes
-> `python3.14`, and records that its `AwsSolutions-L1` finding is likewise left **REPORTING and must not be
-> suppressed**. Because `ingredient-parser` is in `UNSYNTHESIZABLE`, that finding never reaches this census —
-> so the row's `1` and the "reds as unexplained" clause are both scoped to the seven apps that DO synthesize,
-> and neither contradicts ADR-0025. ⚠️ But the day `ingredient-parser` becomes synthesizable here, the
-> unexplained-`L1` assertion above will red on the Python function unless `EDGE_VERIFIER` /
-> `CDK_PROVIDER_FRAMEWORK` gains a third explained class. Recorded so that is a decision rather than a
-> surprise.
+⚠️ **An `L1` count here is a census, not a target**, and it is taken over the synthesizable apps only —
+ADR-0025's Python runtime carries a second accepted `L1` that this number does not include.
 
 ### What is now MECHANISED versus merely MEASURED — revised
 
@@ -429,7 +400,7 @@ updates below.** `CFR4` was a measurement artifact; `CFR1`/`CFR2` and `DDB3` are
 register keys; `CFR3` is FIXED (the three `EdgeStack` findings that remain are false positives from a rule
 that reads the legacy property). Nothing on the production edge is untriaged.
 
-## Update (2026-09-03, triage) — `CFR4` was a defect in the MEASUREMENT, and the census now synthesizes what production deploys
+## Amendment — `CFR4` was a defect in the MEASUREMENT, and the census now synthesizes what production deploys
 
 ⛔ **The three `CFR4` findings were never true of production.** The census spawned each CDK entrypoint with a
 deliberately minimal child environment — essentially `PATH`, `HOME` and a block of stubbed coordinates — so
@@ -467,14 +438,8 @@ naming the one key we knew about is what closes this for the next posture flag a
 
 ### Measured before / after — the only row that moved is `CFR4`
 
-Both censuses ran the real pack over ~~all eight synthesizable apps~~ at `prod`; the only difference is the
+Both censuses ran the real pack over every synthesizable app at `prod`; the only difference is the
 overlay. Every other rule is byte-identical, resource for resource, not merely equal in count.
-
-> ⛔ FALSE (2026-09-04): **seven**, not eight. The repository has eight CDK apps and only seven of them are
-> synthesizable by this suite — `ingredient-parser` is listed in `UNSYNTHESIZABLE`
-> (`packages/infra/global/tests/nagRulesAtZero.integration.test.ts:247-252`), which this ADR's own "two honest
-> limits" table and its revised residual both state. Every count in the table below, and every count in the
-> backlog table above, is therefore a census over **seven** apps.
 
 | Rule                                                                                                                                       | Stubbed posture (before) | Deployed posture (after) |
 | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | ------------------------ |
@@ -494,7 +459,7 @@ a key nobody supplies. Anti-vacuity on the reader itself is asserted directly (`
 present in the overlay) and again indirectly, since a reader that stopped matching would put `CFR4` back to 3
 against a table that records 0.
 
-## Update (2026-09-03, triage) — `CFR1` / `CFR2` on `EdgeStack` are ACCEPTED, under their own key
+## Amendment — `CFR1` / `CFR2` on `EdgeStack` are ACCEPTED, under their own key
 
 Owner triage. `EdgeStack`'s three production distributions now carry
 `AcceptedNagFindings.PRODUCTION_EDGE_GEO_INAPPLICABLE_AND_WAF_DEFERRED`. **Measured: `CFR1` 3 → 0 and
@@ -550,7 +515,7 @@ compared the two stages' whole suppression sets, which assumed both stages build
 stacks both stages build, the excluded prod-only stacks are pinned by name, and the shared set is asserted
 non-empty so the comparison cannot pass by comparing nothing.
 
-## Update (2026-09-03, triage) — `DDB3` on the message substrate is ACCEPTED, and the FIRST reason offered for it was wrong
+## Amendment — `DDB3` on the message substrate is ACCEPTED, and the FIRST reason offered for it was wrong
 
 Owner triage. `MessageSubstrateStack`'s `MessageTable` **and** `FoodServiceStack`'s per-PR `FoodMessageTable`
 now carry `AcceptedNagFindings.MESSAGE_SUBSTRATE_ROWS_OUTLIVE_NOTHING`. **Measured: `DDB3` 1 → 0.** Total
@@ -610,7 +575,7 @@ is discovered and compared by **equality** to `DynamoPublisher` alone, in both d
 DynamoDB's own replicated write, not a restore window — so this acceptance does not discharge R1.3, and
 nothing yet does.
 
-## Update (2026-09-03, triage) — `CFR3` is FIXED, and the lint still reports it, on purpose
+## Amendment — `CFR3` is FIXED, and the lint still reports it, on purpose
 
 Owner approval. `EdgeStack`'s three production distributions now deliver access logs to a dedicated S3
 bucket. **⚠️ The `CFR3` count does not move: it stays at 4.** That is not a failed fix — it is the honest

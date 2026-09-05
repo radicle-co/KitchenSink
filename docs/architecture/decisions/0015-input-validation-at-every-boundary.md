@@ -180,12 +180,16 @@ proof of what they sent.
 **Still owed.**
 
 - No service validates responses (decision 9 / alternative 1) — that is the intended state, not a gap.
-- **A root `CLAUDE.md` pointer is owed.** Per this directory's README, an ADR that governs code needs an
-  always-in-context tripwire, and no "looks wrong, isn't" bullet cites this one. The co-located guards are
-  paid: the `sql.raw()` call sites no longer exist (a lint ban replaced them), every service's pipe
-  registration carries a comment stating that Nest's own `ValidationPipe` would pass every body straight
-  through — validating nothing while looking like it validates — and the response-validation note is carried
-  normatively by `docs/CODING_STANDARDS.md` §15 and `specs/governance-rules.md` GR-016 §16-g.
+- ⚠️ **A root `CLAUDE.md` pointer is NOT owed, and that is a deliberate reading of this directory's rule.**
+  The rule exists so a decision is visible at the moment an agent would undo it. Both of this ADR's
+  undoable rules already are, MECHANICALLY, which is strictly stronger than prose in a file that is read
+  linearly: `sql.raw()` is banned by an unscoped `no-restricted-syntax` rule in the shared ESLint config
+  (covered by `packages/tools/eslint/__tests__/rawSqlBan.test.js`), so the failure arrives as a lint error
+  on the line being typed; and the one-pipe rule is normative in `docs/CODING_STANDARDS.md` §15 and
+  `specs/governance-rules.md` GR-016. Every service's pipe registration additionally carries a comment
+  stating that Nest's own `ValidationPipe` would pass every body straight through — validating nothing
+  while looking like it validates. Adding a paragraph to the always-loaded file to restate a lint rule
+  would cost every future session context and buy no enforcement.
 
 **Questions this ADR left open — both since ruled on elsewhere.**
 

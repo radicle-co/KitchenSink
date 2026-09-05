@@ -89,7 +89,7 @@ from the browser's `__session` cookie before signing out and afterwards asserts,
 that the session is no longer `active` (plus that the cookie is gone). That is the only assertion that fails
 when a sign-out resolves without revoking.
 
-## Update (2026-07-27) — the mobile half, and where the command actually lives
+### The command is shared; each platform supplies a thin adapter
 
 Mobile was **not** exposed to the load race above (it already used `useAuth().signOut`, and `AuthGate`
 genuinely blocks the tree while Clerk loads because there is no SSR `initialState`). It was, however, exposed
@@ -99,7 +99,7 @@ fire-and-forget, nothing awaited, no failure path. `AccountSettings.tsx` did it 
 left the viewer silently signed in and told nothing; in the danger-zone case there was nowhere to report it at
 all. Not a security hole — a silent-failure hole.
 
-So the decision above is now split by what is platform-neutral and what is not:
+The decision therefore splits by what is platform-neutral and what is not:
 
 1. **`signOutAndVerify` (`@commise/features-account`, `src/session/`) owns the ordering, the
    `status: 'error'` short-circuit, and the fail-closed post-condition.** These are the same invariant on both
@@ -128,6 +128,17 @@ sign-out through the same `close.error` alert as a failed closure — the same c
 `AccountCloseForm` documents. The closure is recoverable and the alert is now at least shown (it used to be
 swallowed entirely), so this is a truthfulness wrinkle, not a silent failure.
 
+### Where sign-out lands
+
+Sign-out lands on the **sign-in form**, not a public welcome page — but the command does not name that
+destination. `useSignOutAndLeave` hard-navigates to the app's public entry `/`, and the locale root's own
+auth gate decides what a signed-out caller sees (`/{locale}` redirects a signed-out caller to
+`/{locale}/sign-in`; mobile's `AuthGate` opens directly on its sign-in form).
+
+Keeping the navigation target as the bare `/` is deliberate: the signed-out destination stays defined in
+exactly ONE place (`[locale]/page.tsx`), so this command cannot drift from it, and the locale keeps being
+negotiated by the middleware instead of guessed by the caller.
+
 ## Consequences
 
 - A sign-out clicked during the clerk-js bootstrap shows the ordinary busy state for the remainder of the load,
@@ -139,24 +150,14 @@ swallowed entirely), so this is a truthfulness wrinkle, not a silent failure.
 - Any NEW control whose correctness depends on ending the Clerk session must issue `useSignOutAndLeave()` (web)
   or `useSignOutAndVerify()` (mobile) rather than calling `signOut` from either hook directly. Calling it
   directly re-opens this hole.
-
-## Update (2026-07-28) — where sign-out LANDS (owner decision)
-
-Sign-out on web now lands on the **sign-in form**, not a public welcome page. Nothing in the decision above
-changed: `useSignOutAndLeave` still hard-navigates to the app's public entry `/`, and the locale root's own auth
-gate still decides what a signed-out caller sees. What changed is that gate's answer — the owner removed the
-branded welcome/auth-entry surface on **both** platforms, so `/{locale}` redirects a signed-out caller to
-`/{locale}/sign-in` (and mobile's `AuthGate` opens directly on its sign-in form). Consequences for this ADR:
-
-- The landing assertion in `tests/e2e/signOut.spec.ts` targets `/sign-in` and Clerk's `<SignIn>` email field.
-  Point **5** above still governs it: the landing is a proxy, and the load-bearing assertion remains the Clerk
-  **Backend API** check that the session is no longer `active`.
-- Keeping the navigation target as the bare `/` — rather than pointing the command at `/sign-in` — is
-  deliberate. The signed-out destination stays defined in exactly ONE place (`[locale]/page.tsx`), so this
-  command cannot drift from it, and the locale keeps being negotiated by the middleware instead of guessed by
-  the caller.
-- The historical trace in **Context** is left as recorded evidence; the `h1="Welcome to Commise"` in it is
-  Home's own (screen-reader) heading under a still-live session, and that heading is unaffected by this change.
+- The landing assertion in `tests/e2e/signOut.spec.ts` targets `/sign-in` and Clerk's `<SignIn>` email
+  field, but the landing is only a proxy: the load-bearing assertion is the Clerk **Backend API** check
+  that the session is no longer `active`.
+- **Known gap, left rather than changed silently:** mobile's account CLOSURE still signs out inside
+  `useDeleteAccount`'s `mutationFn` without the post-condition, and reports a failed sign-out through the
+  same `close.error` alert as a failed closure — the same conflation web's `AccountCloseForm` documents.
+  The closure is recoverable and the alert is at least shown, so this is a truthfulness wrinkle rather
+  than a silent failure.
 
 ## Scope: development vs production instances
 

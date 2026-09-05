@@ -163,10 +163,7 @@ dehydration, or `/recipes` silently doubles its batch traffic.
 **server** streaming and false of the mechanism — `use(promise)` + `<Suspense>` work identically on the RN
 client. The old prop-driven `isLoading` shape is not a constraint to copy.
 
-> ⚠️ STALE (2026-09-04): the attribution moved. The claim is stated in the **web** entry
-> (`packages/apps/commise/features/recipes/src/widget/RecipeHomeWidget.tsx:14`, and echoed in
-> `docs/generated/components/groups/features-recipes.json`); `RecipeHomeWidget.native.tsx:33-34` now carries
-> this correction itself, in the same words. The correction still stands — only "which file says it" changed.
+> The claim is stated in the **web** entry (`packages/apps/commise/features/recipes/src/widget/RecipeHomeWidget.tsx:14`, and echoed in `docs/generated/components/groups/features-recipes.json`); `RecipeHomeWidget.native.tsx:33-34` now carries this correction itself, in the same words. The correction still stands — only "which file says it" changed.
 
 **One promise, N per-card boundaries.** `use()` memoizes per promise, so N boundaries over one promise cost
 one fetch and fill together.
@@ -180,8 +177,6 @@ one fetch and fill together.
   as an argued allowlist entry, because strictness is the mechanism that refuses
   `{state:'unaccounted', caloriesPerServing: 0}`. Consequence: adding a field to this union is a breaking
   change; a new fact belongs in a new member.
-- ~~`leadCaloriesPerServing` survives on the detail read only. Once cards consume the batch hook that is two
-  sources for one number — the drift U10 removed.~~ **Follow-up PAID (2026-08-19).** The field is gone from
   the wire `Recipe` (`recipe-core`), from `RecipeResponse`, from `recipeRowToDomain`'s (now removed) derived
   parameter, and from the DAL's dead create/update inputs; `packages/schemas/recipe` and its `openapi.yaml`
   were regenerated. **No migration was owed** — migration 0019 had already dropped

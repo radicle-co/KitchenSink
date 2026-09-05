@@ -35,13 +35,9 @@ imports from). Resolution:
 | `sandbox`      | `sandbox`   |
 | `pr-{N}` / any | `sandbox`   |
 
-⚠️ STALE (2026-09-04): the `sandbox → sandbox` row is **live arithmetic but a dead deploy target** for a
-feature service. The resolver is still exactly this table (`const baseStage = stage === 'prod' ? 'prod' :
-'sandbox'` — `packages/services/food-service/infra/bin/app.ts:30`,
-`packages/services/recipe-service/infra/bin/app.ts:25`), but the very next lines (`:39` / `:34`) **refuse**
-the deploy when `stage !== 'prod' && stage === baseStage`. See the _Amendment (2026-07-29)_ below: a feature
-service has no persistent non-prod instance, so `stage=sandbox` is not deployable for one. The row still
-governs what a `pr-{N}` deploy IMPORTS, which is what it is for.
+The `sandbox → sandbox` row is live arithmetic but a dead deploy target for a feature service: the
+resolver is exactly this table (`const baseStage = stage === 'prod' ? 'prod' : 'sandbox'`), and the very
+next lines refuse the deploy when `stage !== 'prod' && stage === baseStage`.
 
 All platform imports (`kitchensink-{network,data,alb,domain}-…`, `kitchensink/{…}/food/usda-api-key`,
 `Vpc.fromLookup`) use **`baseStage`**. A per-PR deploy therefore rides the **shared sandbox** VPC,
@@ -91,14 +87,13 @@ ordered migrations into it and records them in that DB's own `schema_migrations`
 (the `sandbox-deploy.yml` cleanup job) **drops** `kitchensink_food_pr_{N}` alongside the tagged
 stacks.
 
-⚠️ STALE (2026-09-04): **the drop no longer runs through the per-service migration runner.** It moved to
-ADR-0031's `PerPrDatabaseReaperFunction`, declared once in `DataStack`
-(`packages/infra/global/lib/platform/DataStack.ts:403`, name published at `:434`) beside the instance
-itself, and invoked from `.github/scripts/teardown-sandbox-pr.sh:269-300`. The reason is exactly the
-weakness ADR-0005's residue list named: the old door lived on the PR's OWN stack and was destroyed with it
-seconds later, so a failed drop had no retry. The per-service `action: 'drop'` doors still exist and are
-still tested in their packages — teardown simply no longer depends on them. **Creation** is unchanged: the
-in-VPC migration runner still does `SELECT 1 FROM pg_database` → `CREATE DATABASE`.
+**The drop does not run through the per-service migration runner.** It is ADR-0031's
+`PerPrDatabaseReaperFunction`, declared once in `DataStack` beside the instance itself and invoked from
+`.github/scripts/teardown-sandbox-pr.sh`. The reason is the weakness ADR-0005's residue list named: a door
+living on the PR's OWN stack is destroyed with it seconds later, so a failed drop has no retry. The
+per-service `action: 'drop'` doors still exist and are still tested in their packages; teardown simply does
+not depend on them. **Creation** is unchanged — the in-VPC migration runner does
+`SELECT 1 FROM pg_database` → `CREATE DATABASE`.
 
 This is deliberately **not** a per-PR RDS instance and **not** a shared-tables model: a logical
 database gives clean isolation at ~zero cost (one instance, marginal storage), while shared tables
@@ -117,7 +112,7 @@ would let previews corrupt each other.
 - `prod`/`sandbox` behaviour is unchanged (`stage == baseStage`, DB name `kitchensink_food`), so the
   synthesized prod/sandbox templates do not diff on this change.
 
-## ⚠️ Update (2026-08-24) — an OPEN consequence of the two keying choices, not a reversal of either
+**Open consequence of the two keying choices — not a reversal of either.**
 
 The `baseStage`-keyed secret import and the `stage`-keyed per-PR database interact in a way neither
 half describes. `kitchensink/sandbox/food/usda-api-key` is the SAME credential in every open preview,

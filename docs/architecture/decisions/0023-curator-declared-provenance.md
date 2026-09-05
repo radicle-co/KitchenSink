@@ -246,13 +246,6 @@ buys nothing that `details.requiredScope` does not already make actionable.
   the request.
 - **`sourceUrl` is a citation, not a promise.** Nothing re-checks that it still resolves; 004-`FR-017` already
   anticipates a source disappearing, but no such checker ships.
-- ~~**The `create` docstring still describes the pre-ADR behaviour** ("A create is always a `user_created`
-  recipe"). Stale, and it is the first thing the next reader will believe.~~
-  ⚠️ STALE (2026-09-04) — **this risk is CLOSED; the docstring was fixed.**
-  `packages/services/recipe-service/src/recipes/recipes.service.ts:1181-1191` now opens with _"⚠️ A create is
-  no longer ALWAYS `user_created` (004-FR-024 / ADR-0023). It carries the provenance the caller DECLARED,
-  resolved by {@link evaluateProvenance}…"_, and the string "A create is always a `user_created` recipe" no
-  longer appears anywhere in the repository.
 - **The `imported_public` → `private` transition remains gated by C-004 as before**: premium **and** a
   substantive edit. A curated import is public and stays public unless a premium owner substantively edits it.
   That is unchanged by this ADR and is called out because it is the first question asked about a corpus of

@@ -17,7 +17,7 @@ export default async function globalSetup() {
     console.log(`[e2e setup] run key=${RUN_KEY} sign-in fixture=${TEST_USER_EMAIL}`);
     // Provision THIS RUN's sign-in account so the sign-in/auth specs have a user to authenticate as. It is
     // run-scoped on purpose: a fixed, shared fixture let two concurrent CI runs delete each other's user
-    // (see runFixtureIdentity.ts).
+    // (see @kitchensink/e2e-fixtures).
     const userId = await ensureSignInTestUser();
 
     // Block until the async user.created webhook has backfilled `external_id` onto this fresh user, so every

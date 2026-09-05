@@ -80,7 +80,7 @@ export async function signInWithTicket(page: Page, options: SignInOptions = {}):
     const userId = data[0]?.id;
 
     if (!userId) {
-        // The fixture is RUN-SCOPED (runFixtureIdentity.ts), so this can no longer mean "a concurrent run
+        // The fixture is RUN-SCOPED (@kitchensink/e2e-fixtures), so this can no longer mean "a concurrent run
         // deleted it". It means this process derived a DIFFERENT run key than globalSetup did — i.e. the
         // pinned COMMISE_E2E_RUN_KEY did not reach this worker — or globalSetup never ran.
         throw new Error(

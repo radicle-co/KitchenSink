@@ -68,7 +68,7 @@ export default defineConfig({
     // readViewerAppId.test.ts) as Playwright specs and crash the run on their `vitest` imports.
     testMatch: '**/*.spec.ts',
     // Serial (single worker), not parallel: this run's specs share ONE Clerk test user (run-scoped — see
-    // tests/e2e/utils/runFixtureIdentity.ts) and ONE Next server, and concurrent sign-ins — plus, in `dev`
+    // @kitchensink/e2e-fixtures) and ONE Next server, and concurrent sign-ins — plus, in `dev`
     // mode, on-demand route compilation — under load flake intermittently. Reliability matters more than
     // wall-clock for a red-alert auth suite. NOTE: this says nothing about two SEPARATE runs — those are
     // isolated by the per-run fixture identity, not by the worker count.

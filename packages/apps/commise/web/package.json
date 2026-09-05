@@ -58,6 +58,7 @@
     "devDependencies": {
         "@argos-ci/cli": "^6.9.1",
         "@commise/test-utils": "*",
+        "@kitchensink/e2e-fixtures": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",

@@ -10,11 +10,11 @@ import {
     signInFixtureEmail,
     signInFixtureUsername,
     signUpEmail,
-} from './runFixtureIdentity';
+} from '@kitchensink/e2e-fixtures';
 
 /**
  * This run's identity, derived once per process and pinned into the environment so `globalSetup`, every
- * Playwright worker, and `globalTeardown` agree. See `runFixtureIdentity.ts` for WHY it is per-run: a
+ * Playwright worker, and `globalTeardown` agree. See `@kitchensink/e2e-fixtures` for WHY it is per-run: a
  * fixed, shared fixture on the shared sandbox Clerk instance let two concurrent CI runs delete each
  * other's sign-in user.
  */

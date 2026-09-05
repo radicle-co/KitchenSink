@@ -1,0 +1,38 @@
+{
+    "name": "@kitchensink/e2e-fixtures",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "The ONE derivation of a run-scoped end-to-end fixture identity, shared by the web (Playwright) and mobile (Maestro) suites so two runs can never address the same Clerk user",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "provision:signin": "tsx src/provisionSignInFixture.ts",
+        "teardown:signin": "tsx src/teardownSignInFixture.ts"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "tsx": "^4.20.6",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    },
+    "dependencies": {
+        "@clerk/backend": "^3.16.12"
+    }
+}

@@ -36,7 +36,7 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { resolveRunKey } from './runFixtureIdentity';
+import { resolveRunKey } from '@kitchensink/e2e-fixtures';
 
 /**
  * Directory holding saved `storageState`.
@@ -51,7 +51,7 @@ export const AUTH_STATE_DIR = fileURLToPath(new URL('../../../.auth/', import.me
  * Path of the `storageState` for a given run key.
  *
  * Keyed on the RUN KEY, not a fixed `user.json`, for the same reason the Clerk fixture is (see
- * `runFixtureIdentity.ts`): each shard derives its own key and provisions its own Clerk user, so a fixed name
+ * `@kitchensink/e2e-fixtures`): each shard derives its own key and provisions its own Clerk user, so a fixed name
  * would let shard 2 restore a session belonging to shard 1's user — which shard 1's teardown then deletes.
  * It also makes a stale file from a previous local run unreachable rather than silently restored, since a
  * session for a deleted user fails in a way that looks nothing like its cause.

@@ -11,7 +11,7 @@ import {
     signInFixtureUsername,
     signUpEmail,
     type CleanupCandidate,
-} from '../runFixtureIdentity.js';
+} from '../src/runFixtureIdentity.js';
 
 /** RFC 5321 caps an email local part at 64 chars; Clerk caps a username at 64. */
 const MAX_LOCAL_PART = 64;

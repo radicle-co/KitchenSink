@@ -16,7 +16,7 @@
  * ⚠️ The child is spawned ASYNCHRONOUSLY and the poll interval is driven to zero through
  * `SANDBOX_WAKE_POLL_SECONDS`, so the real loop runs every iteration without the suite sleeping for it.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -146,6 +146,8 @@ const ensure = async (options: {
     readonly natDiscovery?: string;
     readonly natStates?: readonly string[];
     readonly natStartFails?: boolean;
+    readonly requiredHeadroomSeconds?: number;
+    readonly maxBoundaryWaitSeconds?: number;
 }): Promise<EnsureResult> => {
     const token = Math.random().toString(36).slice(2);
     const logFile = join(workdir, `aws-${token}.log`);
@@ -171,6 +173,14 @@ const ensure = async (options: {
             AWS_STUB_NAT_START: options.natStartFails === true ? 'FAIL' : 'OK',
             SANDBOX_WAKE_POLL_SECONDS: '0',
             SANDBOX_WAKE_TIMEOUT_SECONDS: String(options.timeoutSeconds ?? 60),
+            // ⛔ Zero headroom by DEFAULT, so every case above asserts exactly what it asserted before the
+            // headroom gate existed. Left at its 45-minute production default, each of them would BLOCK for
+            // up to 45 minutes of wall clock whenever the suite happened to run in the band before 00:00 ET
+            // — which is precisely when this repo's CI does run (the incident this gate exists for was a
+            // 23:52 ET job). A suite whose duration depends on the hour is a suite nobody trusts.
+            SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS: String(options.requiredHeadroomSeconds ?? 0),
+            SANDBOX_WAKE_STOP_SETTLE_SECONDS: '0',
+            SANDBOX_WAKE_MAX_BOUNDARY_WAIT_SECONDS: String(options.maxBoundaryWaitSeconds ?? 0),
         },
     });
 
@@ -480,5 +490,89 @@ describe('sandbox_wake_ensure — both halves are reported in one run', () => {
 
         expect(result.status).not.toBe(0);
         expect(`${result.stdout}${result.stderr}`).toContain(SANDBOX_NAT_ID);
+    });
+});
+
+/**
+ * ⛔ THE HEADROOM GATE — the 2026-09-05 wedge of `kitchensink-data-sandbox`.
+ *
+ * Run 33943032063 of `sandbox-identity-deploy.yml` passed the wake gate at 03:52:52Z with a TRUE
+ * `available (ready)`; the scheduler issued `StopDBInstance` at 04:00:07Z; CloudFormation's
+ * `ModifyDBInstance` died at 04:02:11Z on `Cannot modify a stopped DB Instance`, and the rollback failed the
+ * same way. Neither of the two gates this file already covers could have caught it — both were green.
+ *
+ * The verdict itself is pinned against literal epochs (including both DST changeover nights) in
+ * `__tests__/sandboxWake.test.ts`. What is proven HERE is the wiring: that `ensure` consults it, honours a
+ * `crossing` verdict by refusing rather than falling through, and issues NOTHING mutating while it does.
+ *
+ * ⚠️ The wall clock is a genuine input to this gate, and the suite says so rather than pretending otherwise.
+ * A `crossing` verdict can only be forced when the live headroom is below the largest headroom the gate will
+ * accept (`SANDBOX_WAKE_MIN_SCHEDULE_PERIOD_SECONDS`, 79200) — true for 22 of every 24 hours, and false for
+ * the ~2 hours just after 00:00 ET, when the next stop is nearly a full day away. Both arms assert
+ * something substantive, and the arm taken is named in the failure message.
+ */
+describe('sandbox_wake_ensure — a deploy that would CROSS the 00:00 ET stop is refused, not waved through', () => {
+    /** The largest headroom the gate will accept as a request; one more is misuse. */
+    const MAX_ACCEPTED_HEADROOM = 79_200;
+
+    /**
+     * The seconds remaining before the next 00:00 ET stop, read from the real script.
+     *
+     * @returns Live headroom in seconds.
+     * @sideEffect Spawns `bash`.
+     */
+    const liveHeadroom = (): number => {
+        const now = Math.floor(Date.now() / 1000);
+        const boundary = Number(
+            spawnSync('bash', [SCRIPT, 'next-stop', String(now)], { encoding: 'utf8' }).stdout.trim(),
+        );
+
+        return boundary - now;
+    };
+
+    it('refuses, mutates nothing, and names the boundary — or, inside the post-midnight band, proceeds', async () => {
+        const headroom = liveHeadroom();
+        const forcesCrossing = headroom + 1 < MAX_ACCEPTED_HEADROOM;
+
+        const result = await ensure({
+            statuses: ['available'],
+            // One second more than remains: `crossing` by construction, for any clock outside the band.
+            requiredHeadroomSeconds: forcesCrossing ? headroom + 1 : MAX_ACCEPTED_HEADROOM - 1,
+            maxBoundaryWaitSeconds: 0,
+        });
+
+        if (forcesCrossing) {
+            expect(result.status, `crossing arm (headroom ${headroom}s): the gate must FAIL`).toBe(1);
+            expect(result.stdout).toContain('Waiting for the boundary');
+            expect(result.stdout).toContain('did not reach the 00:00 America/New_York boundary');
+            // ⛔ The whole point: nothing was started, and no deploy was allowed past.
+            expect(result.awsCalls).not.toContain('start-db-instance');
+            expect(result.awsCalls).not.toContain('start-instances');
+
+            return;
+        }
+
+        expect(result.status, `clear arm (headroom ${headroom}s): the gate must PASS`).toBe(0);
+        expect(result.stdout).not.toContain('Waiting for the boundary');
+    });
+
+    // The negative case, and it holds at EVERY hour: a caller that declares no headroom requirement must
+    // never be delayed or refused. This is what keeps the gate from becoming a nightly outage of its own.
+    it('does not fire for a caller with zero required headroom, at any hour', async () => {
+        const result = await ensure({ statuses: ['available'] });
+
+        expect(result.status).toBe(0);
+        expect(result.stdout).not.toContain('Waiting for the boundary');
+        expect(result.stdout).toContain('is available');
+    });
+
+    // ⛔ A headroom no schedule can ever satisfy is a configuration error, not a verdict. Answering
+    // `crossing` to it would refuse every deploy at every hour, forever, behind a plausible-looking message.
+    it('treats an unsatisfiable required headroom as misuse rather than refusing forever', async () => {
+        const result = await ensure({ statuses: ['available'], requiredHeadroomSeconds: MAX_ACCEPTED_HEADROOM });
+
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain('can never be satisfied');
+        expect(result.awsCalls).not.toContain('start-db-instance');
     });
 });

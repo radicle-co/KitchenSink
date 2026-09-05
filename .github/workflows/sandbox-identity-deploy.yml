@@ -188,6 +188,17 @@ jobs:
             # Run whenever ANY stack in this workflow will deploy. Nothing here keeps the tier awake and
             # the nightly schedule is untouched (ADR-0007's cost intent stands); the script takes no
             # instance argument by construction, so it cannot address the prod database.
+            #
+            # ⚠️ 2026-09-05 — this step being PRESENT is not the whole guarantee, and reading it as one is how
+            # the wedge above happened anyway. On run 33943032063 it ran at 23:52:52 ET and answered
+            # `available (ready)`, truthfully; the scheduler stopped the instance at 00:00:07 and the global
+            # `cdk deploy` below reached `DatabaseB269D8BB` at 00:02:11, nine minutes after the check, dying
+            # on `Cannot modify a stopped DB Instance` — CloudFormation's own ModifyDBInstance, NOT the
+            # ADR-0022 Trigger, which is why grepping for `connect ETIMEDOUT` finds nothing. The gate now
+            # also asserts HEADROOM (that the instance will still be up ~45 minutes later, the longest
+            # observed run of this job) and waits out the 00:00 boundary rather than deploying across it, so
+            # this step can now legitimately take minutes. Do NOT set any `SANDBOX_WAKE_*` env var here to
+            # make it faster — those are test seams, and `sandboxWakeWiring.test.ts` fails the build for it.
             - name: Wake the shared sandbox database
               if: |
                   steps.flags.outputs.deploy_global == 'true' ||

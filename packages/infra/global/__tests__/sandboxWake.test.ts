@@ -260,3 +260,111 @@ describe('nat_wake_classify — every EC2 lifecycle state maps to exactly one ac
         expect(run('classify-ec2').status).toBe(2);
     });
 });
+
+/**
+ * ⛔ THE THIRD INCIDENT — and the one the two gates above CANNOT catch, because both of them passed.
+ *
+ * Measured on the live account, 2026-09-05, run `33943032063` of `sandbox-identity-deploy.yml`:
+ *
+ * | UTC        | ET       | what happened                                                              |
+ * | ---------- | -------- | -------------------------------------------------------------------------- |
+ * | `03:52:09` | 23:52:09 | the job starts                                                              |
+ * | `03:52:52` | 23:52:52 | `sandbox-wake.sh ensure` reports `available (ready)` + NAT `running (ready)` |
+ * | `04:00:07` | 00:00:07 | the scheduler Lambda issues `StopDBInstance` (ADR-0007's nightly stop)       |
+ * | `04:02:11` | 00:02:11 | CloudFormation issues `ModifyDBInstance` on `DatabaseB269D8BB`              |
+ * | `04:04:24` | 00:04:24 | `UPDATE_FAILED` — `Cannot modify a stopped DB Instance`                     |
+ * | `04:07:05` | 00:07:05 | the rollback re-issues the same modify → `UPDATE_ROLLBACK_FAILED`           |
+ *
+ * The gate did not fail and was not missing. It answered a question that was TRUE when it was asked and
+ * FALSE nine minutes later: a time-of-check-to-time-of-use race against the 00:00 ET boundary. Every
+ * artefact written before this — the script header, ADR-0007's 2026-08-23 update, ADR-0028 §"Cost" — frames
+ * the hazard as "a deploy that LANDS inside the window". This is a deploy that STARTS OUTSIDE it and
+ * CROSSES IN, which no wake can fix, because there is nothing to wake at the moment of the check.
+ *
+ * ⚠️ Note also that the failing operation is NOT the ADR-0022 migration Trigger. It is CloudFormation's own
+ * `ModifyDBInstance` on the RDS resource in `DataStack`, which is entered on EVERY data-stack deploy
+ * (verified over nine consecutive updates on 2026-09-04). So the exposure does not depend on a stack owning
+ * a migration Trigger, and the error string is different (`Cannot modify a stopped DB Instance`, not
+ * `connect ETIMEDOUT`) — which is why a reader searching for the known symptom finds nothing.
+ *
+ * The cure is that the gate must stop asserting "the database is up NOW" and start asserting "the database
+ * will STILL be up when the caller is done" — a headroom check against the next 00:00 America/New_York.
+ * That decision is pure and calendar-dependent, so it is exposed as its own subcommand and tested here
+ * rather than only inside `ensure`.
+ */
+describe('sandbox_wake_next_stop — the next 00:00 America/New_York, DST and all', () => {
+    // Epochs are pinned as literals with their ET rendering in the name: a helper that recomputed them
+    // would share any bug with the code under test.
+    it.each([
+        // The incident itself: 23:52:52 EDT → the stop 7m08s later.
+        [1788580372, 1788580800, '2026-09-04 23:52:52 EDT → 2026-09-05 00:00 EDT'],
+        // Just past a boundary: the next stop is a full day out, which is what makes a woken instance safe.
+        [1788582600, 1788667200, '2026-09-05 00:30 EDT → 2026-09-06 00:00 EDT'],
+        [1788616800, 1788667200, '2026-09-05 10:00 EDT → 2026-09-06 00:00 EDT'],
+        // Winter — the offset is EST, so a UTC-arithmetic implementation lands an hour wrong.
+        [1768451400, 1768453200, '2026-01-14 23:30 EST → 2026-01-15 00:00 EST'],
+    ])('next-stop(%d) = %d   (%s)', (now, expected) => {
+        expect(run('next-stop', String(now)).stdout).toBe(String(expected));
+    });
+
+    // ⛔ The boundary is STRICTLY after `now`. At exactly 00:00 the stop for that midnight has fired; the
+    // one that matters is tomorrow's. An inclusive comparison answers `now`, which makes the headroom zero
+    // for the whole second and refuses a deploy that is in fact perfectly safe.
+    it('answers TOMORROW when handed the boundary instant itself', () => {
+        expect(run('next-stop', '1788580800').stdout).toBe('1788667200');
+    });
+
+    // ⛔ THE DST CASES. These are the reason this is `TZ=America/New_York` date arithmetic and not
+    // `now - (now % 86400)`: the interval between two consecutive stops is 82800s across spring-forward and
+    // 90000s across fall-back, and a fixed 86400 is wrong on both nights in opposite directions.
+    it('spans only 22 hours across spring-forward (2026-03-08)', () => {
+        const answer = Number(run('next-stop', '1772949600').stdout);
+
+        expect(answer, '2026-03-08 01:00 EST → 2026-03-09 00:00 EDT').toBe(1773028800);
+        expect(answer - 1772949600).toBe(79_200);
+    });
+
+    it('spans 25 hours across fall-back (2026-11-01)', () => {
+        const answer = Number(run('next-stop', '1793505600').stdout);
+
+        expect(answer, '2026-11-01 00:00 EDT → 2026-11-02 00:00 EST').toBe(1793595600);
+        expect(answer - 1793505600).toBe(90_000);
+    });
+
+    it.each([[], ['banana'], ['1788580372x'], ['-1']])('treats %j as misuse', (...args) => {
+        expect(run('next-stop', ...(args as string[])).status).toBe(2);
+    });
+});
+
+describe('sandbox_wake_headroom — would the database still be up when the caller finishes?', () => {
+    // ⛔ THE NON-VACUITY CASE. These are the exact inputs of run 33943032063. If this ever reports `clear`,
+    // the guard has stopped guarding the incident it was written for.
+    it('reports `crossing` for the 23:52:52 EDT deploy that wedged kitchensink-data-sandbox', () => {
+        expect(run('headroom', '1788580372', '2700').stdout).toBe('crossing');
+    });
+
+    // The other side: a mid-morning deploy has fourteen hours of headroom and must not be delayed.
+    it('reports `clear` for a 10:00 EDT deploy', () => {
+        expect(run('headroom', '1788616800', '2700').stdout).toBe('clear');
+    });
+
+    // The comparison is `>=`, so a caller that fits EXACTLY proceeds. Asserted from both sides, one second
+    // apart, because an off-by-one here is invisible in production until the night it is not.
+    it('reports `clear` when the headroom is exactly what was asked for', () => {
+        expect(run('headroom', String(1788580800 - 2700), '2700').stdout).toBe('clear');
+    });
+
+    it('reports `crossing` one second short of that', () => {
+        expect(run('headroom', String(1788580800 - 2700 + 1), '2700').stdout).toBe('crossing');
+    });
+
+    // ⛔ A headroom at or beyond the schedule's own period can NEVER be satisfied — waiting for the boundary
+    // would leave the caller in `crossing` again and loop forever. That is misuse, not a verdict.
+    it.each(['86400', '90000'])('refuses an unsatisfiable headroom of %s seconds', (required) => {
+        expect(run('headroom', '1788616800', required).status).toBe(2);
+    });
+
+    it.each([[], ['1788580372'], ['1788580372', 'banana'], ['banana', '2700']])('treats %j as misuse', (...args) => {
+        expect(run('headroom', ...(args as string[])).status).toBe(2);
+    });
+});

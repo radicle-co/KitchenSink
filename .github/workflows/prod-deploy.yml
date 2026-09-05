@@ -967,6 +967,34 @@ jobs:
                   bash .github/scripts/verify-deployment.sh drift "${DEFAULT_AWS_REGION}" "${STAGE}" \
                     "node packages/services/recipe-workers/infra/dist/bin/app.js" --warn-only
 
+            # ⛔ THE WORKERS' OWN ADR-0022 §4 SAFETY NET — not a duplicate of the recipe-service net below.
+            #
+            # `RecipeSchemaMigrationRunner` in `RecipeWorkersStack` addresses the SAME database with the SAME
+            # bundle as the service's runner, so when both stacks exist this applies nothing and costs one
+            # Lambda invocation (`schema_migrations` is keyed by filename and the runner skips on a name
+            # match). What it covers is the window BETWEEN the two `cdk deploy`s: workers deploy first, the
+            # workers Trigger has by then CREATED and migrated the database, and two hard-failing steps plus
+            # the service deploy's own failure modes stand in front of the service net — one of which wedged
+            # `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED`. In that state the database
+            # exists and the only net that could reach it is this one.
+            #
+            # Position is load-bearing for the reason `run-migrations.sh` states at length: it must sit AFTER
+            # the `cdk deploy` that ships the runner's bundle, never before, or it invokes the previous
+            # release's runner carrying the previous migration set and exits 0 having applied nothing.
+            #
+            # `packages/infra/global/__tests__/migrationSafetyNetCoverage.test.ts` asserts that every runner
+            # output a pipeline can reach has a net — discovered from the `CfnOutput`, which is the same
+            # shape `teardown-sandbox-pr.sh` uses to find per-PR drop doors, so the two consumers of that
+            # convention cannot drift apart again.
+            #
+            # UNGATED, exactly like the identity, food and recipe-service nets in this file: the one case a
+            # net exists for is a schema behind for a reason NO CODE CHANGE explains, which is precisely
+            # when the path-diff flag reads `false`.
+            - name: Run recipe-workers DB migrations (always — ADR-0022 §4 safety net)
+              run: |
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-recipe-workers-${STAGE}" RecipeWorkersMigrationFunctionName recipe-workers
+
             - name: CDK Deploy (recipe service)
               if: steps.flags.outputs.deploy_recipe == 'true'
               env:
@@ -997,11 +1025,9 @@ jobs:
             # deployed, so this is also the step that exercises the script's stated-skip path today: an
             # absent stack is a `::notice::`, never a silent pass and never a red.
             #
-            # ⚠️ RESIDUAL, and it is not closable from this file: `RecipeSchemaMigrationRunner` in
-            # `RecipeWorkersStack` has NO `CfnOutput`, so the WORKERS half of the recipe schema has no safety
-            # net at all — its only path is the in-stack Trigger. `run-migrations.sh` reports a stack that
-            # publishes no such output as an ERROR rather than a skip, which is what will surface it the day
-            # a runner loses its output; giving the workers runner one is a CDK change, not a workflow one.
+            # ⚠️ This is the SERVICE half. The workers half has its own net, invoked above immediately after
+            # the workers deploy — it must run there rather than here, because a net may only follow the
+            # `cdk deploy` that shipped the bundle it invokes.
             - name: Run recipe DB migrations (always — ADR-0022 §4 safety net)
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \

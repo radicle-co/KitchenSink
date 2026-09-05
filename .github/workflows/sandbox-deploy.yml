@@ -1248,6 +1248,34 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh drift "${DEFAULT_AWS_REGION}" "${STAGE}" \
                     "npx tsx packages/services/recipe-workers/infra/bin/app.ts" --warn-only
+            # ⛔ THE WORKERS' OWN ADR-0022 §4 SAFETY NET — not a duplicate of the recipe-service net below.
+            #
+            # `RecipeSchemaMigrationRunner` in `RecipeWorkersStack` addresses the SAME database with the SAME
+            # bundle as the service's runner, so when both stacks exist this applies nothing and costs one
+            # Lambda invocation (`schema_migrations` is keyed by filename and the runner skips on a name
+            # match). What it covers is the window BETWEEN the two `cdk deploy`s: workers deploy first, the
+            # workers Trigger has by then CREATED and migrated the database, and two hard-failing steps plus
+            # the service deploy's own failure modes stand in front of the service net — one of which wedged
+            # `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED`. In that state the database
+            # exists and the only net that could reach it is this one.
+            #
+            # Position is load-bearing for the reason `run-migrations.sh` states at length: it must sit AFTER
+            # the `cdk deploy` that ships the runner's bundle, never before, or it invokes the previous
+            # release's runner carrying the previous migration set and exits 0 having applied nothing.
+            #
+            # `packages/infra/global/__tests__/migrationSafetyNetCoverage.test.ts` asserts that every runner
+            # output a pipeline can reach has a net — discovered from the `CfnOutput`, which is the same
+            # shape `teardown-sandbox-pr.sh` uses to find per-PR drop doors, so the two consumers of that
+            # convention cannot drift apart again.
+            #
+            # Guarded on `deploy`, matching the food and recipe-service nets in this file: ensure-exists
+            # already forces a deploy when the stack is absent or the origin is not serving, and the
+            # ADR-0007 nightly-wake step must stay ahead of any invoke.
+            - name: Run recipe-workers migrations (ADR-0022 §4 safety net)
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-recipe-workers-${STAGE}" RecipeWorkersMigrationFunctionName recipe-workers
             # Pass 2 — the service, which can only synth once the SSM parameters above exist.
             - name: CDK Deploy — recipe service
               if: steps.gate.outputs.deploy == 'true'

@@ -48,6 +48,7 @@ import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
 import { prodDeployLiteralEnvironment } from './prodDeployEnvironment.js';
+import { readRepoFile, runnerDeployingPackages, stackSources } from './migrationRunners.js';
 
 /** Repo root — this file sits at `packages/infra/global/__tests__`, so the root is four levels up. */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -390,14 +391,21 @@ function bundlingScripts(serviceDir: string): readonly string[] {
 }
 
 describe('prod-deploy.yml — a migration runner is invoked only AFTER the deploy that ships its SQL', () => {
-    it('discovers migration steps at all, and one per service that owns a runner', () => {
+    it('discovers migration steps at all, and one per package that DEPLOYS a runner', () => {
         // Anchors everything below. If the discovery predicate stops matching — a step renamed, the AWS CLI
         // call reshaped — the positional assertions would pass vacuously over an empty list rather than
         // fail, which is the single way a guard like this rots.
+        //
+        // ⚠️ The count is against packages that DEPLOY a runner, not `runnerPackages()` — which is the set
+        // that AUTHORS one (`src/**\/migrate/handler.ts`). Those were the same set until `recipe-workers`
+        // grew a safety net: it deploys recipe-service's bundle deliberately ("the runner has to be
+        // deployed WITH the SQL it applies"), so it authors no handler while owning a real pipeline step.
+        // Counting against the authoring set would have made the correct pipeline look like a defect —
+        // and the two sets are stated ONCE, in `migrationRunners.ts`, so they cannot drift independently.
         const steps = migrationSteps(prodDeploySteps());
 
-        expect(steps.length, 'expected the identity, food and recipe migration invocations').toBe(
-            runnerPackages().length,
+        expect(steps.length, 'expected one migration invocation per package that deploys a runner').toBe(
+            runnerDeployingPackages(readRepoFile, stackSources()).length,
         );
     });
 
@@ -862,7 +870,14 @@ describe('a stack that shares a service database is ordered behind that schema, 
         ).toStrictEqual([
             '.github/workflows/prod-deploy.yml:identity+identity-webhooks',
             '.github/workflows/prod-deploy.yml:recipe-service+recipe-workers',
+            // ⚠️ The recipe pair is discovered in BOTH directions, and that is the correct reading rather
+            // than a duplicate: since `recipe-workers` gained its own ADR-0022 §4 safety net it is a
+            // migration OWNER too, whose peer (`recipe-service`) deploys LATER — which the next assertion
+            // exempts on exactly that ground. Losing these two entries would mean the workers net had been
+            // deleted, which is the state this file must not let pass quietly.
+            '.github/workflows/prod-deploy.yml:recipe-workers+recipe-service',
             '.github/workflows/sandbox-deploy.yml:recipe-service+recipe-workers',
+            '.github/workflows/sandbox-deploy.yml:recipe-workers+recipe-service',
             '.github/workflows/sandbox-identity-deploy.yml:identity+identity-webhooks',
         ]);
     });

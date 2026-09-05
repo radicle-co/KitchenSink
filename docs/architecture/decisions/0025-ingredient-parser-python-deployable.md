@@ -54,65 +54,32 @@ database.** The parse cache is a table in the recipe database (KTD-14), not besi
 holds no state, so it can be redeployed or scaled to zero without owning data.
 
 **It is not VPC-attached**, and that is a decision rather than an omission. There is nothing to attach it
-for — no database, no private endpoint, ~~no run-time network call at all, because the engine and its model
-are packaged into the asset~~ no run-time network call at all, because the engine, its model **and the NLTK
-tagger corpus it loads** are packaged into the asset. A VPC attachment would put it on ADR-0004's single
-`t4g.nano` NAT instance and would require amending that ADR's consumer table in the same change, which
-`natEgressConsumers.test.ts` asserts in both directions. No interface VPC endpoint is introduced either
-(they bill $0.01 per endpoint-hour **per AZ** — $14.60/month/stage at `maxAzs: 2`).
+for: no database, no private endpoint, and no run-time network call — the engine, its model **and the NLTK
+tagger corpus it loads at import** are all packaged into the asset. A VPC attachment would put it on
+ADR-0004's single `t4g.nano` NAT instance and would require amending that ADR's consumer table in the same
+change, which `natEgressConsumers.test.ts` asserts in both directions. No interface VPC endpoint is
+introduced either (they bill $0.01 per endpoint-hour **per AZ** — $14.60/month/stage at `maxAzs: 2`).
 
-> ⚠️ **STALE (2026-09-05) — "no run-time network call at all" was FALSE when it was written, and is true
-> only as of this update.** The engine's `ingredient_parser/en/_utils.py:73` calls
-> `download_nltk_resources()` **at import**, which is `_common.py:121`: three `nltk.data.find` lookups for
-> the `averaged_perceptron_tagger_eng` files and, on `LookupError`, `nltk.download(…)` — an HTTP fetch and
-> a write under `$HOME`. That is a run-time network call, on the cold-start path, in a function this ADR
-> deliberately gave no egress. It is load-bearing, not incidental: `preprocess.py:566` tags every token and
-> the tag becomes a CRF feature (`features["pos"]`, and the neighbouring tags), so it cannot be stubbed out.
->
-> The first real deploy of `kitchensink-ingredient-parser-pr-91` therefore succeeded, loaded its code
-> package, and threw on invocation with
-> `OSError: [Errno 30] Read-only file system: '/home/sbx_user1051'`. **It never reached the network** — the
-> read-only filesystem refused it first — so the missing egress was never the visible symptom, and the
-> conclusion above ("nothing to attach it for") happens to remain correct for the fixed function.
->
-> **Why §3's guard did not catch it, and what changed.** Every derivation in §3 comes from **pip's
-> `RECORD`**, which is exhaustive over what pip INSTALLED. NLTK data is not installed; it is downloaded.
-> The corpus was therefore outside the guard's subject set entirely, and the guard reported success
-> honestly — the same shape of blindness §3 was written to prevent, one authority over. The fix adds a
-> **second authority** rather than a list: the resource paths are read out of the engine's own AST (the
-> string arguments of its `nltk.data.find` calls, so an engine release needing a fourth file fails the
-> BUILD), and the per-file manifest is the downloaded archive's own central directory, persisted into the
-> asset as `nltk_data/RECORD` in pip's format. `buildAsset.ts` stages the corpus and
-> `IngredientParserStack` sets `NLTK_DATA=/var/task/nltk_data` from the same constant. Both `RECORD`s are
-> checked by the same predicate; an empty resource set and an empty corpus manifest are each reported as
-> violations in their own right.
->
-> **Cost:** +5,716,405 bytes unzipped (88.1 MB → 93.8 MB, of a 250 MB limit) and +1.46 MB zipped
-> (29.2 MB → 30.7 MB measured at `-9`; deployed `CodeSize` was 32,409,132 bytes, so expect ≈ 33.9 MB of a
-> 50 MB limit — and `Code.fromAsset` publishes through S3, where that limit does not bind anyway).
->
-> **Proof:** `tests/handler.integration.test.ts` invokes the handler with `$HOME` pointed at a directory it
-> may not write, once without `NLTK_DATA` (which must fail at `nltk/downloader.py`'s `os.makedirs`) and
-> once with it pointed at the staged corpus (which must parse, and must not print the engine's
-> "Downloading required NLTK resource" line). ⚠️ The reproduction is a mode-0555 directory, so the child
-> sees `EACCES` (errno 13) where Lambda saw `EROFS` (errno 30); a test cannot mount a read-only filesystem.
-> The raising call is the same one.
+The corpus is load-bearing rather than incidental, which is why it is packaged rather than fetched:
+`ingredient_parser/en/_utils.py` calls `download_nltk_resources()` at import, and `preprocess.py` tags every
+token so the tag can become a CRF feature (`features["pos"]`, and the neighbouring tags). It cannot be
+stubbed out, and left unpackaged it makes an HTTP fetch and a `$HOME` write on the cold-start path of a
+function with no egress and a read-only filesystem.
 
 ### 2. Zip-packaged, with **no `esbuild.mjs`**, so W2 skips it truthfully
 
 The asset is staged by `infra/bin/buildAsset.ts` and published by `Code.fromAsset`, which uploads through S3
-— so the 50 MB direct-upload limit does not bind. The staged tree is ~~**91 MB unzipped**~~ **93.8 MB
-unzipped** (measured 2026-09-05, after the corpus was added; 30.7 MB zipped), inside the 250 MB limit, and
-the integration tier asserts that rather than assuming it.
+— so the 50 MB direct-upload limit does not bind. The staged tree is **93.8 MB unzipped** (30.7 MB zipped),
+inside the 250 MB limit, and the integration tier asserts that rather than assuming it.
 
 The service deliberately carries **no `esbuild.mjs`**, so W2 skips it for the reason its own docstring
 anticipates: _"A service with no `esbuild.mjs` is skipped rather than reported: it packages its Lambdas some
 other way."_ That is the honest route.
 
-> ⛔ **The rejected alternative was a container image.** It would have forced an amendment to
-> `RecipeWorkersStack.test.ts:511`, which reads `fn.Properties?.Handler` unguarded and whose docstring
-> explicitly warns against letting a real Lambda _"leave the guard by looking like a provider"_. Weakening a
-> guard to admit a new shape is worse than adding a guard for it.
+The rejected alternative was a **container image**. It would have forced an amendment to
+`RecipeWorkersStack.test.ts`, which reads `fn.Properties?.Handler` unguarded and whose docstring explicitly
+warns against letting a real Lambda _"leave the guard by looking like a provider"_. Weakening a guard to
+admit a new shape is worse than adding a guard for it.
 
 ### 3. Its **own** packaging guard, derived and non-vacuous
 
@@ -123,29 +90,29 @@ of a list cannot detect that the list is incomplete."_
 
 So the replacement guard **enumerates nothing**. Every subject is derived:
 
-| What is checked                       | Derived from                                                                                        |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| the handler module is in the asset    | the CDK `handler:` string, split at its last dot                                                    |
-| every dependency the handler imports  | the handler's own Python **AST**, minus `sys.stdlib_module_names`                                   |
-| every engine file, byte for byte      | **pip's own `RECORD`** manifest for the installed distribution                                      |
-| which distribution to look for        | `requirements.txt`, normalised per PEP 503/427                                                      |
-| the interpreter and CPU wheels target | the runtime pin and the function's declared `architecture`                                          |
-| which NLTK resources must be staged   | the **engine's own AST** — the string arguments of its `nltk.data.find(…)` calls (added 2026-09-05) |
-| every corpus file, byte for byte      | the corpus **archive's own central directory**, persisted as `nltk_data/RECORD` (added 2026-09-05)  |
+| What is checked                       | Derived from                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------- |
+| the handler module is in the asset    | the CDK `handler:` string, split at its last dot                                 |
+| every dependency the handler imports  | the handler's own Python **AST**, minus `sys.stdlib_module_names`                |
+| every engine file, byte for byte      | **pip's own `RECORD`** manifest for the installed distribution                   |
+| which distribution to look for        | `requirements.txt`, normalised per PEP 503/427                                   |
+| the interpreter and CPU wheels target | the runtime pin and the function's declared `architecture`                       |
+| which NLTK resources must be staged   | the **engine's own AST** — the string arguments of its `nltk.data.find(…)` calls |
+| every corpus file, byte for byte      | the corpus **archive's own central directory**, persisted as `nltk_data/RECORD`  |
 
-`RECORD` is the load-bearing choice: it is pip's per-file manifest with a declared size for every real file,
-so "the model artifact is present and whole" needs nobody to know that the model is called
-`model.en.crfsuite` or that it is 1,596,376 bytes. Delete it, truncate it, or ship a source-only install
-with no model, and the derivation notices without being told.
+`RECORD` is the load-bearing choice for the engine's own files: it is pip's per-file manifest with a declared
+size for every real file, so "the model artifact is present and whole" needs nobody to know that the model is
+called `model.en.crfsuite` or that it is 1,596,376 bytes. Delete it, truncate it, or ship a source-only
+install with no model, and the derivation notices without being told.
 
-⚠️ **`RECORD` is also the limit of what pip can be asked, and that limit shipped a broken function.** It is
-exhaustive over what pip INSTALLED, and the engine also loads a part-of-speech tagger that pip never
-installs — NLTK data is downloaded, not installed. The guard was green and the deployed function threw; see
-the STALE note in §1. The corpus is now covered by the last two rows of the table above, a **second
-authority** rather than a second list. Both manifests are read by the same predicate and the same two
-failure modes (`missing`, `wrong size`) are reported for each. The general lesson is recorded here because
-it will recur: _a derivation is only as complete as the authority it derives from, and "everything the
-package needs" and "everything pip installed" are not the same set._
+**`RECORD` is also the limit of what pip can be asked, which is why the corpus needs a second authority
+rather than a second list.** `RECORD` is exhaustive over what pip INSTALLED; NLTK data is downloaded, not
+installed, so it appears in no `RECORD` and a guard built only on that authority reports success honestly
+while the function is broken. The general rule this encodes, because it will recur: _a derivation is only as
+complete as the authority it derives from, and "everything the package needs" and "everything pip installed"
+are not the same set._ Both manifests are read by the same predicate and the same two failure modes
+(`missing`, `wrong size`) are reported for each; an empty resource set and an empty corpus manifest are each
+reported as violations in their own right, so a guard with nothing to check cannot pass.
 
 Two further properties, both deliberate:
 
@@ -169,12 +136,12 @@ because the repository chooses its own Node major. This one cannot: `ingredient-
 `latestPythonRuntimeBelow(ENGINE_PYTHON_CEILING)` = `python3.13`, and both halves are asserted rather than
 written down.
 
-⛔ **The resulting `AwsSolutions-L1` finding is left reporting, and must not be suppressed.** This is the
-precedent `lambdaRuntime.ts` already records for the two `framework-onEvent` functions: the finding is
-ACCURATE (this really is not the newest Python), it is not ours to fix (the ceiling belongs to the engine),
-it clears itself the moment the engine supports the newer Python, and suppressing it would write
-`cdk_nag` metadata into a template in exchange for hiding a genuinely stale runtime later. cdk-nag is
-advisory here (ADR-0013), so the finding is a warning, not a broken build.
+**The resulting `AwsSolutions-L1` finding is left reporting, and is not suppressed.** This is the precedent
+`lambdaRuntime.ts` already records for the two `framework-onEvent` functions: the finding is ACCURATE (this
+really is not the newest Python), it is not ours to fix (the ceiling belongs to the engine), it clears itself
+the moment the engine supports the newer Python, and suppressing it would write `cdk_nag` metadata into a
+template in exchange for hiding a genuinely stale runtime later. cdk-nag is advisory here (ADR-0013), so the
+finding is a warning, not a broken build.
 
 What is asserted instead is that the finding is **explained**:
 `ruleIdsForRuntime(PIN).includes('AwsSolutions-L1') === (PIN.name !== latestPythonRuntimeKnownToCdk())`. The
@@ -190,7 +157,7 @@ status code), and the content inside our envelope is a third party's reading, wh
 releases. So: **no `packages/schemas/*` copy and no OpenAPI document**, for the same reason ADR-0014 forbids
 writing one for `usda-client`.
 
-⛔ **The CRF's `foundation_foods` output is rejected outright.** The engine can attach a Food Data Central
+**The CRF's `foundation_foods` output is rejected outright.** The engine can attach a Food Data Central
 match to each name. Accepting it would stand up a **second, unowned ingredient-resolution authority** beside
 `resolutionCascade.ts`, and it is measurably wrong — it mis-mapped soy flour in the sample. The handler
 never passes the flag and never reads the field, and the caller's schema is `strictObject`, so the key's
@@ -218,10 +185,10 @@ language runtime, and this is not a lower Node version — it is a different lan
   controls Node's does — one pinned constant, one place, and a drift test that fails when it falls behind.
   A future non-Node deployable inherits that obligation, not this waiver.
 
-> ⚠️ **Ratification.** GR-008's own amendment process reserves rule changes to the senior product owner.
-> Nothing here changes GR-008's text or severity — it records a waiver the rule already provides for. If the
-> owner would rather read GR-008 as forbidding a non-Node runtime outright, this decision is the thing to
-> reverse, and the reversal is a single ADR status change plus deleting one package.
+GR-008's own amendment process reserves rule changes to the senior product owner. Nothing here changes
+GR-008's text or severity — it records a waiver the rule already provides for. If the owner would rather read
+GR-008 as forbidding a non-Node runtime outright, this decision is the thing to reverse, and the reversal is
+a single ADR status change plus deleting one package.
 
 ## Consequences
 
@@ -230,60 +197,37 @@ language runtime, and this is not a lower Node version — it is a different lan
 - A second language in the deployed surface, with its own toolchain, its own runtime pin and its own
   packaging path. That is the cost of the engine, and it was paid deliberately.
 - One standing `AwsSolutions-L1` warning per synth of this app until the engine supports Python 3.14.
-- The integration tier needs **network** (pip, and since 2026-09-05 nltk's package index) and takes ~20 s.
+- The integration tier needs **network** — pip, and nltk's package index for the corpus — and takes ~20 s.
   It runs in the same CI job that already installs the pinned engine for the cookbook-import parse
   comparison.
-
-**Residual risk, stated rather than hidden:**
-
-- ⚠️ **Nothing in this repository lints or typechecks Python.** ESLint does not read `.py` and neither
-  tsconfig project includes it, so a syntax error in `handler.py` is invisible to `npm run lint`,
-  `npm run typecheck` and every unit suite. Three things mitigate it and none is a substitute for a Python
-  linter: the packaging guard **parses** the handler with `ast` (so a file that does not parse fails the
-  build), the handler integration tier imports and invokes it against the real engine, and the module is 140
-  lines with one third-party call. If more Python lands here, a `ruff` job is owed.
-- ⚠️ ~~**No deployment has been performed.** The stack synthesizes, the asset builds and is verified, and the
-  handler is exercised against the real engine on x86/CPython 3.10 — but the arm64/CPython 3.13 wheels in
-  the asset have never been loaded by a Python 3.13 interpreter on ARM. The first real proof is a deploy.~~
-  ⚠️ STALE (2026-09-04): **there was no DEPLOYER when this was written, and now there is one, with the
-  post-deploy proof this risk asked for.** The stack deploys in both pipelines — `sandbox-deploy.yml:1084-1132`
-  (built, bundled, `cdk deploy`d as the third stack, then verified) and `prod-deploy.yml:340-894` — and
-  `packages/services/ingredient-parser/infra/smoke/deployedSmoke.ts` invokes the **running** function and
-  validates the answer with this package's own zod, asserting the interpreter loaded, the model ran and the
-  engine version is the pinned one. Its docstring cites this very paragraph ("the first real proof is a
-  deploy") as its reason to exist. It is the earliest signal because nothing downstream reports the failure:
-  `crfInvoke.ts` maps a failed invoke to `unavailable` per line and ADR-0026 §3 reads that as absence, so a
-  permanently broken engine is silent. See `e005aa6b fix(ci): the crf parser had no deployer — parseline
-invoked a function nobody created`.
-  ⚠️ ~~UNVERIFIABLE FROM THE REPO (2026-09-04): whether a live deploy has actually **run** to a stage, and
-  therefore whether the arm64/CPython 3.13 wheels have now been loaded on ARM, is live AWS/CI-run state. The
-  repo proves the path and the assertion exist, not that they have executed.~~
-  ✅ **DISCHARGED (2026-09-05) — the wheels have now been loaded on ARM, and they worked.**
-  `kitchensink-ingredient-parser-pr-91` deployed and its Python 3.13 / arm64 interpreter **imported the
-  whole asset**: `Init Duration: 2180 ms`, `Max Memory Used: 118 MB` (of the 1,024 MB the stack allocates).
-  No `ImportError`, no missing shared object, no wrong-ABI extension — `--platform manylinux2014_aarch64`
-  plus `--only-binary=:all:` did exactly what §2 claimed. This is a real result from a real deploy and it
-  closes the residual this ADR was written with.
-  ⚠️ The same invocation then threw for a **different** reason — the unstaged NLTK corpus, see the STALE
-  note in §1 — so "the wheels load" and "the function works" were separate facts, and the deploy proved the
-  first while disproving the second. The cold-start numbers above are therefore measured up to the point of
-  that failure; the post-fix figures will be higher by whatever reading 5.7 MB of tagger JSON costs, and are
-  **not yet measured**.
-- ⚠️ The engine ships **`nltk`, `numpy` and `regex`** as transitive dependencies. They are packaged but the
-  parse path may not touch all of them; nothing prunes the asset, and 91 MB is well inside the limit, so
-  pruning would trade a real risk (removing something imported lazily) for no benefit.
-  ⚠️ AMENDED (2026-09-05): **`nltk` is not merely packaged — it is on the import path, and it wants data.**
-  See the STALE note in §1. The asset is now 93.8 MB unzipped and the same reasoning against pruning holds
-  a fortiori: it is 37% of the 250 MB limit, and this package has just demonstrated that the expensive
-  failure here is a MISSING file, not a spare one.
-- ⚠️ **The build now needs the network twice and `nltk` on the build host, transiently.** Staging the corpus
+- **The build needs the network twice, and `nltk` on the build host transiently.** Staging the corpus
   installs `nltk` (at the version the asset itself records, so the downloader matches the consumer) into a
   temporary directory and calls `nltk.download`, which fetches from `raw.githubusercontent.com`. The asset's
-  own `nltk` cannot be used for this — it sits beside arm64/CPython-3.13 wheels no build host can load. So
-  the build has a second network dependency and a second failure mode (`nltk`'s package index unreachable),
-  both of which fail loudly at build time rather than at cold start.
-- ⚠️ **Nothing has deployed since the fix.** The corpus is staged, the guard covers it, and the handler has
-  been invoked against the staged tree with an unwritable `$HOME` — but on x86/CPython 3.10, because that is
-  the only interpreter that can import this engine on a build host. That the deployed arm64 function finds
-  `NLTK_DATA` at `/var/task/nltk_data` and reads the tagger there is inferred from the same import path, not
-  observed. `deployedSmoke.ts` is what observes it, and it has not yet run against a corpus-carrying asset.
+  own `nltk` cannot be used for this — it sits beside arm64/CPython-3.13 wheels no build host can load. Both
+  the second dependency and its failure mode (`nltk`'s index unreachable) surface at build time rather than
+  at cold start.
+- **Nothing prunes the asset.** `nltk`, `numpy` and `regex` ship as transitive dependencies and the parse
+  path may not touch all of them. At 37% of the 250 MB limit, pruning would trade a real risk — removing
+  something imported lazily — for no benefit, and the expensive failure in this package has been a _missing_
+  file, not a spare one.
+
+**Residual risk:**
+
+- **Nothing in this repository lints or typechecks Python.** ESLint does not read `.py` and neither tsconfig
+  project includes it, so a syntax error in `handler.py` is invisible to `npm run lint`, `npm run typecheck`
+  and every unit suite. Three things mitigate it and none is a substitute for a Python linter: the packaging
+  guard **parses** the handler with `ast` (so a file that does not parse fails the build), the handler
+  integration tier imports and invokes it against the real engine, and the module is 140 lines with one
+  third-party call. If more Python lands here, a `ruff` job is owed.
+- **The deployed cold start is the only place an asset defect can surface, and it surfaces silently.** A code
+  package that cannot import — or that imports and then dies reaching for something unstaged — deploys
+  CLEAN. Nothing downstream reports it: `crfInvoke.ts` maps a failed invoke to `unavailable` per line and
+  ADR-0026 §3 reads that as absence, which is the right behaviour and is exactly why a permanently broken
+  engine would be quiet. `infra/smoke/deployedSmoke.ts` exists for this: it invokes the **running** function
+  and validates the answer with this package's own zod, asserting the interpreter loaded, the model ran and
+  the engine version is the pinned one. It is the earliest signal, and it is the only one.
+- **The build host cannot rehearse the deployed interpreter.** Every local proof — the packaging guard, the
+  handler integration tier, the unwritable-`$HOME` invocation — runs on whatever interpreter the host has,
+  because the staged arm64/CPython-3.13 wheels cannot be loaded anywhere else. That the deployed function
+  resolves `NLTK_DATA` at `/var/task/nltk_data` and reads the tagger there is inferred from the same import
+  path, not observed locally. `deployedSmoke.ts` is what observes it.

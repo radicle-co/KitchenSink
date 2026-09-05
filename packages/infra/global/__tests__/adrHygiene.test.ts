@@ -20,7 +20,7 @@
  * list here would be that failure applied to the very documents that record it. Every ADR on disk is
  * discovered and every ADR is subject to the same rules, so a new one cannot be born non-conforming.
  *
- * @see docs/architecture/decisions/0033-adrs-record-decisions-not-status.md
+ * @see docs/architecture/decisions/README.md — the same rule, stated where an author reads it
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -93,11 +93,10 @@ describe('ADRs record decisions, not status', () => {
             const body = read(name);
             const afterHeader = body.slice(body.indexOf('\n## '));
 
-            // Not every date is rot, and an earlier version of this rule was wrong to say so: a date inside
-            // a plan's FILENAME, an external fact ("AWS added Valkey 9.0 on 2026-06-02"), and the
-            // provenance of a ruling ("owner ruling, 2026-08-15") are all legitimate — they describe the
-            // world the decision was made in, and they do not go stale. What rots is the dated annotation
-            // that re-scores the document against a later reading of reality. That is what this catches.
+            // Not every date is rot: a date inside a plan's FILENAME, an external fact ("AWS added Valkey
+            // 9.0 on 2026-06-02"), and the provenance of a ruling ("owner ruling, 2026-08-15") are all
+            // legitimate — they describe the world the decision was made in, and they do not go stale.
+            //
             // ⚠️ ADJACENCY is the whole rule, and a wider window was wrong twice over. The rot has ONE
             // shape — an audit verdict stamped with the date it was reached, `STALE (2026-09-04)` — and it
             // is that stamp, not the date, that re-scores the document against a later reading of reality.

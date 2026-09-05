@@ -518,8 +518,12 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // cannot supply secrets. Not silent: the merge step tests the directory and reports "no blob reports
     // found", and the job's final step still re-asserts `needs.e2e-web.result`, so a genuinely failing suite
     // is red regardless of what these two downloads did.
-    'continue-on-error _ci.yml::e2e-web-report::Download shard blob reports ×1',
-    'continue-on-error _ci.yml::e2e-web-report::Download shard visual + fidelity output ×1',
+    // Three downloads, all tolerant for the same reason the single one was: on a fork PR the shards skip
+    // entirely (no secrets), and this job must render "no blobs" rather than invent a red for a designed
+    // skip. The blob merge below is separately guarded on the directory being non-empty.
+    'continue-on-error _ci.yml::e2e-web-report::Download shard blob reports (deployed tier) ×1',
+    'continue-on-error _ci.yml::e2e-web-report::Download shard blob reports (stubbed tier) ×1',
+    'continue-on-error _ci.yml::e2e-web-report::Download shard visual + fidelity output (stubbed tier) ×1',
     // Source maps are an observability nicety: a Sentry upload outage must not block a production deploy.
     'continue-on-error prod-deploy.yml::deploy::Upload webhooks Lambda source maps to Sentry ×1',
     // Best-effort disk reclamation before the Android system image — the paths may not exist on every runner

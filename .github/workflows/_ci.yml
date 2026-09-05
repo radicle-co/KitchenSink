@@ -2423,22 +2423,11 @@ jobs:
                   path: packages/apps/commise/web/blob-report
                   retention-days: 1
                   if-no-files-found: ignore
-            # The visual-regression PNGs and the mockup-fidelity pairs are produced by whichever SHARD happens
-            # to hold `visualRegression.spec.ts` / `mockupFidelity.spec.ts`. They are staged per shard here and
-            # consolidated in the report job, so Argos still receives ONE build for the commit rather than four
-            # competing partial uploads.
-            - name: Upload visual + fidelity output (shard ${{ matrix.shard }})
-              if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-              with:
-                  name: e2e-web-visual-${{ inputs.stage }}-${{ matrix.shard }}
-                  path: |
-                      packages/apps/commise/web/screenshots
-                      packages/apps/commise/web/mockup-fidelity
-                  retention-days: 1
-                  if-no-files-found: ignore
-            # Failure-only: the raw traces for THIS shard. The human-readable report is the MERGED one built
-            # by `e2e-web-report`; this is the trace payload the blob report does not carry.
+            # ⛔ NO visual/fidelity upload here. Both specs that produce it (`visualRegression`,
+            # `mockupFidelity`) stub the recipe API, so `specTier.ts` puts them in the stubbed tier and this
+            # job never runs them. An upload kept "just in case" would be a PRODUCER THAT CANNOT PRODUCE: it
+            # finds no files, `if-no-files-found: ignore` passes, and the report job uploads an empty set to
+            # Argos with every check green. That shipped for one commit.
             - name: Upload Playwright traces (shard ${{ matrix.shard }})
               if: failure() && steps.secrets.outcome == 'success'
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -2821,16 +2810,24 @@ jobs:
     # red shard, so the final step compares `needs.e2e-web.result` and exits non-zero. That comparison IS the
     # gate: without it this job would report success over a broken suite.
     e2e-web-report:
-        name: E2E (web — Playwright against the deployed preview) · merged report
+        name: E2E (web — Playwright) · merged report
         timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [resolve-sandbox, e2e-web]
+        # BOTH web tiers, because the suite is split across them and the report is for the whole suite.
+        # ⛔ The visual + fidelity output comes ONLY from the stubbed tier — `visualRegression.spec.ts` and
+        # `mockupFidelity.spec.ts` both stub the recipe API, so `specTier.ts` places them there. A report job
+        # consuming only the deployed tier's artifacts uploads NOTHING to Argos and still goes green, because
+        # `if-no-files-found: ignore` and `continue-on-error: true` cannot tell that apart from the fork-PR
+        # skip they exist for. Invariant 2 catches the wiring half; removing the deployed tier's now-empty
+        # upload step catches the other half.
+        needs: [resolve-sandbox, e2e-web, integration-web-playwright]
         # ⛔ `!cancelled()` makes this run when a SHARD failed — which is exactly when the merged report
         # matters most — but it must NOT make it run when there is no sandbox: `!cancelled()` alone is true
         # for a SKIPPED dependency, so this job would go green with nothing to merge and publish an empty
         # report as the tier's single signal. The liveness term is what keeps "nothing deployed" a SKIP here
         # too, in step with the shards it reports on.
-        if: ${{ needs.resolve-sandbox.outputs.live == 'true' && !cancelled() }}
+        # NOT gated on a live sandbox: the stubbed tier runs regardless, and it owns the visual half.
+        if: ${{ !cancelled() }}
         permissions:
             # Checkout only — this job merges blob artifacts and uploads to Argos; it writes nothing to the repo.
             contents: read
@@ -2899,17 +2896,25 @@ jobs:
             # `merge-multiple` flattens all four shards' blobs into one directory, which is the input shape
             # `merge-reports` expects. Absent blobs are tolerated: on a fork PR the shards skip their run
             # entirely (no secrets), and this job must not invent a red for that designed skip.
-            - name: Download shard blob reports
+            - name: Download shard blob reports (deployed tier)
               uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
               with:
                   pattern: e2e-web-blob-${{ inputs.stage }}-*
                   path: packages/apps/commise/web/blob-report
                   merge-multiple: true
               continue-on-error: true
-            - name: Download shard visual + fidelity output
+            - name: Download shard blob reports (stubbed tier)
               uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
               with:
-                  pattern: e2e-web-visual-${{ inputs.stage }}-*
+                  pattern: integration-web-blob-${{ inputs.stage }}-*
+                  path: packages/apps/commise/web/blob-report
+                  merge-multiple: true
+              continue-on-error: true
+            # ⛔ The stubbed tier is the ONLY producer of these — both specs that make them stub the API.
+            - name: Download shard visual + fidelity output (stubbed tier)
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  pattern: integration-web-visual-${{ inputs.stage }}-*
                   path: packages/apps/commise/web
                   merge-multiple: true
               continue-on-error: true

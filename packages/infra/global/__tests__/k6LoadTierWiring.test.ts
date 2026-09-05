@@ -699,12 +699,59 @@ describe('every committed k6 load script is invoked by a workflow step', () => {
         expect(violations).toEqual([]);
     });
 
-    it('holds for the real tree', () => {
+    /**
+     * ⛔ THE REAL TREE NOW HAS AN ACCEPTED LOSS, AND IT IS RECORDED RATHER THAN HIDDEN.
+     *
+     * Owner ruling 2026-09-05: *"K6 should also be hitting sandbox or production … It follows the same
+     * pattern as the end to end tests"*. The three isolated-substrate k6 jobs were deleted, and with them
+     * every step that invoked these scripts — they need a runner-local service, a seeded database and
+     * cranked `RATE_LIMIT_*`, none of which a deployed target gives or should give.
+     *
+     * ⚠️ WHAT THIS COSTS, stated so nobody has to rediscover it: **nothing fails a PR when these budgets
+     * regress.** They encode spec-level acceptance criteria — SC-009's read/write budget, SC-001/003/004/
+     * 005/007/011, FR-046's ceiling probe, ADR-0021's nutrition fan-out, CR-002/U4a/U4b erasure latency and
+     * NFR-011a's p99. The scripts are deliberately KEPT, not deleted: they remain correct and runnable by
+     * hand (`npm run test:load` per package), and deleting them would hide the loss instead of reporting it.
+     *
+     * ⛔ THIS LIST MAY ONLY SHRINK. It is not a place to park a newly-unwired script — a NEW k6 script that
+     * no job runs is the original defect (identity's four sat unexecuted after review) and must still go
+     * red. The set equality below is what enforces that in both directions.
+     */
+    const UNWIRED_BY_OWNER_RULING: readonly string[] = [
+        'packages/services/food-service/tests/load/authFlood.load.js',
+        'packages/services/food-service/tests/load/localStoreRead.load.js',
+        'packages/services/food-service/tests/load/localStoreThroughput.load.js',
+        'packages/services/food-service/tests/load/nutritionBatch.load.js',
+        'packages/services/food-service/tests/load/search.load.js',
+        'packages/services/food-service/tests/load/serviceErasure.load.js',
+        'packages/services/identity/tests/load/adminUserSearch.load.js',
+        'packages/services/identity/tests/load/authRejection.load.js',
+        'packages/services/identity/tests/load/provisioningAndRename.load.js',
+        'packages/services/identity/tests/load/sessionHotPath.load.js',
+        'packages/services/recipe-service/tests/load/analyticsIngest.load.js',
+        'packages/services/recipe-service/tests/load/ingredientCorrection.load.js',
+        'packages/services/recipe-service/tests/load/ingredientSuggestLatency.load.js',
+        'packages/services/recipe-service/tests/load/nutritionBatch.load.js',
+        'packages/services/recipe-service/tests/load/parseJobCreate.load.js',
+        'packages/services/recipe-service/tests/load/pullFromSource.load.js',
+        'packages/services/recipe-service/tests/load/saveUnderArchive.load.js',
+        'packages/services/recipe-service/tests/load/sc009ReadWrite.load.js',
+        'packages/services/recipe-service/tests/load/searchLatency.load.js',
+        'packages/services/recipe-service/tests/load/serviceErasure.load.js',
+        'packages/services/recipe-service/tests/load/versionArchiveRead.load.js',
+    ];
+
+    it('holds for the real tree, except the losses the owner accepted — and that set is EXACT', () => {
+        const unwired = findUnwiredLoadScripts(committedLoadScripts(), realWorkflows()).map((finding) =>
+            finding.replace(/ → .*$/u, ''),
+        );
+
         expect(
-            findUnwiredLoadScripts(committedLoadScripts(), realWorkflows()),
+            [...unwired].sort(),
             'a k6 script no job runs is a performance gate that cannot fail — the same silent success as a ' +
-                "`|| true`, and how identity's four scripts sat unexecuted after review",
-        ).toEqual([]);
+                "`|| true`, and how identity's four scripts sat unexecuted after review. A NEW one belongs " +
+                'in a job, never in the accepted-loss list; a re-wired one must be REMOVED from that list.',
+        ).toEqual([...UNWIRED_BY_OWNER_RULING].sort());
     });
 });
 

@@ -137,7 +137,12 @@ const GATED_JOB = 'heavy';
  * four scripts existed for weeks with no job running them, and a list that omitted the new job would let it
  * be quietly gated differently — or dropped — without any scenario noticing.
  */
-const LOAD_TEST_JOBS = ['load-test', 'load-test-food', 'load-test-identity'] as const;
+// ⚠️ ONE job since 2026-09-05, not three. `load-test`, `load-test-food` and `load-test-identity` were
+// DELETED when k6 moved to deployed origins (owner ruling: "K6 should also be hitting sandbox or
+// production … It follows the same pattern as the end to end tests"). Once the local substrate went,
+// what remained of the three was one script against one origin — data, not three jobs. Per-service
+// attribution survives as a STEP inside this job, each gated on its own origin's liveness.
+const LOAD_TEST_JOBS = ['load-test-deployed'] as const;
 const MAESTRO_JOB = 'e2e-mobile-maestro';
 
 interface WorkflowStep {

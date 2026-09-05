@@ -1,25 +1,29 @@
-# Recipe-service k6 load test (T081/SC-009 performance gate).
+# k6 load test against the DEPLOYED origins (owner ruling 2026-09-05: "K6 should also be hitting sandbox or
+# production, depending on the flow … It follows the same pattern as the end to end tests").
 #
-# The recipe k6 job lives in the reusable `_ci-heavy.yml`, which no ordinary PR/push pipeline calls, so the
-# heavy run never fires on one. This workflow is the intended opt-in CALLER: it invokes `_ci-heavy.yml`
-# with the Maestro half switched off, so the k6 jobs run without the 50-minute emulator — on a weekly
-# schedule and on demand. (Mirrors the per-service load-test trigger pattern of food-loadtest.yml.)
+# The k6 job lives in the reusable `_ci-heavy.yml`, which no ordinary PR/push pipeline calls, so the heavy
+# run never fires on one. This workflow is the intended opt-in CALLER: it invokes `_ci-heavy.yml` with the
+# Maestro half switched off, so k6 runs without the 50-minute emulator — on a weekly schedule and on demand.
 #
-# NOTE: `run_load_test` is ONE input covering EVERY k6 job in `_ci-heavy.yml` — the three ISOLATED-SUBSTRATE
-# jobs (recipe + food + identity, which boot their own containers against seeded fixtures) AND the DEPLOYED
-# job, which measures a real preview's origin. This caller runs all four, not only the recipe one. Accepted
-# rather than plumbed around with a per-service input — see the same note in heavy-e2e.yml.
+# NOTE: `_ci-heavy.yml` now holds exactly ONE k6 job (`load-test-deployed`). It resolves this stage's
+# deployed recipe, food and identity origins and runs `deployedOrigin.load.js` against each one that is
+# serving. The three runner-local k6 jobs this caller used to reach (`load-test`, `load-test-food`,
+# `load-test-identity`) were DELETED under the same ruling — their subject was the substrate they booted, so
+# a deployed origin cannot carry their assertions. The scripts they ran are still committed under
+# `packages/services/*/tests/load/` and are still runnable by hand (`npm run test:load` in each package);
+# what is gone is their CI wiring, and each package's `tests/load/README.md` says so.
 #
-# ⚠️ On the weekly cron there is no PR in context, so the deployed job measures the stage this caller names
-# (`sandbox`). If nothing is serving there, that job SKIPS — an absent preview is not a failure.
+# ⚠️ On the weekly cron there is no PR in context, so the job measures the stage this caller names
+# (`sandbox`). If nothing is serving there, each leg SKIPS — an absent preview is not a failure.
 #
-# Trigger: Actions → "Load test (k6 — every service tier)" → Run workflow, or
+# Trigger: Actions → "Load test (k6 — deployed origins)" → Run workflow, or
 # `gh workflow run recipe-loadtest.yml -f load_test_target=sandbox`.
 #
-# Requires the `RECIPE_LOAD_TEST_TOKEN` repo secret (a Clerk token minted for authenticated load
-# requests); the k6 job reads it to hit protected endpoints. Set it before the first real run — without
-# it the load scripts cannot authenticate.
-name: Load test (k6 — every service tier)
+# ⚠️ No load-test credential is needed or read: `deployedOrigin.load.js` is deliberately UNAUTHENTICATED —
+# its two series are `/health` and a protected route that MUST refuse an anonymous caller. (The old
+# `RECIPE_LOAD_TEST_TOKEN` repo secret was consumed only by the deleted runner-local recipe job; it is
+# referenced now solely by the committed scripts' own local-run instructions.)
+name: Load test (k6 — deployed origins)
 
 on:
     workflow_dispatch:
@@ -29,7 +33,7 @@ on:
             # `workflow_dispatch` — so the weekly cron below CANNOT reach production even if this default
             # were changed. The default stays `sandbox` regardless, because a scheduled run takes defaults.
             load_test_target:
-                description: 'Which ENVIRONMENT the deployed k6 tier measures — sandbox or prod (manual only)'
+                description: 'Which ENVIRONMENT the k6 tier measures — sandbox or prod (manual only)'
                 required: false
                 type: choice
                 options:
@@ -50,7 +54,7 @@ permissions:
 
 jobs:
     loadtest:
-        # HEAVY tier only, and only its k6 half: `_ci-heavy.yml` holds nothing but the load tests and the
+        # HEAVY tier only, and only its k6 half: `_ci-heavy.yml` holds nothing but the k6 job and the
         # Maestro job, so this caller no longer has to switch the base tier off to avoid re-running
         # lint/typecheck/test/build/integration/e2e on a commit ci-pr.yml already covered — nor to avoid
         # starting a second `e2e-web` against the shared sandbox Clerk instance. Use ci-full.yml for
@@ -58,7 +62,7 @@ jobs:
         uses: ./.github/workflows/_ci-heavy.yml
         with:
             stage: sandbox
-            # The DEPLOYED tier's target. Empty on a scheduled run (no dispatch inputs), which falls back to
+            # The k6 tier's target. Empty on a scheduled run (no dispatch inputs), which falls back to
             # `sandbox` — the safe value, and the only one an automatic trigger is allowed to produce.
             load_test_target: ${{ inputs.load_test_target || 'sandbox' }}
             # The 50-minute emulator job is not what a weekly load run is for.

@@ -1,5 +1,27 @@
 # identity-service load / performance tests (k6)
 
+> ## ⛔ CI NO LONGER RUNS THESE (owner ruling, 2026-09-05)
+>
+> Verbatim: _"K6 should also be hitting sandbox or production, depending on the flow, as I already stated
+> earlier. It follows the same pattern as the end to end tests"_ — i.e. k6 measures a DEPLOYED environment
+> and SKIPS when this PR's sandbox is not running.
+>
+> The job that ran the scripts below (`load-test-identity` in `.github/workflows/_ci-heavy.yml`) booted its own
+> substrate on the runner, and every assertion here IS that substrate — a throwaway RS256 keypair, a seeded 20,000-row `users` table, and a deliberate refusal to contact any Clerk instance — and, on top of all that, there is no per-PR identity deploy to re-point it at: `identity.sandbox.{apex}` is the ONE identity every preview signs in against. A deployed origin cannot
+> present any of it, so the job was DELETED rather than re-pointed, along with the container, the
+> migrations, the seeding and the fixtures it needed.
+>
+> **What CI runs instead:** one job, `load-test-deployed`, running
+> `packages/tools/loadtest/deployedOrigin.load.js` against this stage's deployed recipe, food and identity
+> origins. It gates on the two facts a slow, shared machine cannot cause — no 5xx, and a protected route
+> never answering 2xx unauthenticated — and REPORTS latency without a threshold, because every budget in
+> the table below was calibrated on a dedicated runner container and would redden on a neighbour's traffic
+> on a 0.5-vCPU `FARGATE_SPOT` preview sharing a `db.t4g.micro`.
+>
+> **These scripts are still committed, still correct, and still runnable by hand** — see the run
+> instructions below. What is gone is the automatic gate: nothing now fails a PR when one of the budgets
+> in this table regresses. That is a real, accepted loss of coverage, not an oversight.
+
 These are **k6** scripts — the required performance gate for `@kitchensink/identity-service` (per
 `docs/CODING_STANDARDS.md §7.1`, which mandates unit **AND** integration **AND** e2e **AND** k6 for a
 deployable HTTP service). They are a separate gate from the vitest pyramid: ES-module JavaScript run by
@@ -247,7 +269,11 @@ real scans worse. The fix, when it is needed, is a trigram (`pg_trgm` GIN) index
 not a bigger budget; `adminLookupById` is in the same script precisely so the indexed-vs-scan gap stays
 visible while it is still cheap.
 
-## CI — `load-test-identity` in `_ci-heavy.yml`
+## CI — `load-test-identity` in `_ci-heavy.yml` (DELETED)
+
+> ⛔ **HISTORICAL — this job was DELETED on 2026-09-05** (owner ruling; see the banner at the top of
+> this file). The description below is kept as the record of what it did, so a future decision to
+> restore it as a manual-dispatch tier does not have to be reconstructed from a diff.
 
 The tier **runs**: `.github/workflows/_ci-heavy.yml` → job `load-test-identity`, gated behind the same
 `run_load_test` input as the recipe and food load jobs, so it never fires on an ordinary PR pipeline. Ways

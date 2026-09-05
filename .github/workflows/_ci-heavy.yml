@@ -1,41 +1,50 @@
 name: CI — heavy tiers (reusable)
 
-# The HEAVY test tiers: mobile Maestro (Android emulator + Gradle APK build) and the recipe + food +
-# identity k6 load tests. Parameterized by `stage`, and called ONLY by heavy-e2e.yml /
-# recipe-loadtest.yml / ci-full.yml — never by ci-pr.yml or ci-main.yml.
+# The HEAVY test tiers: mobile Maestro (Android emulator + Gradle APK build) and the k6 load test against
+# this stage's DEPLOYED origins. Parameterized by `stage`, and called ONLY by heavy-e2e.yml /
+# recipe-loadtest.yml / ci-full.yml / deployed-e2e.yml — never by ci-pr.yml or ci-main.yml.
 #
-# ## Why these three jobs live in their OWN reusable workflow
+# ## Why these jobs live in their OWN reusable workflow
 #
 # They used to sit in `_ci.yml` behind `run_mobile_maestro` / `run_load_test` inputs that defaulted to
 # false, with a `run_base_jobs` input to stop a heavy-only caller re-running the base tier. That worked,
 # but GitHub renders EVERY job of a called workflow in EVERY caller's run graph regardless of its `if:` —
-# so each ordinary PR run displayed three permanently-`skipped` entries. A reader clicking one sees a job
-# that never runs and no explanation, which reads as a broken pipeline rather than a deliberate tier. The
+# so each ordinary PR run displayed permanently-`skipped` entries. A reader clicking one sees a job that
+# never runs and no explanation, which reads as a broken pipeline rather than a deliberate tier. The
 # `if:`-gate cannot hide them; only moving the jobs to a workflow those callers don't call can.
 #
 # Splitting the file also deletes the `run_*` plumbing outright: tier membership is now a property of
-# WHICH reusable workflow a caller invokes, not of three booleans threaded through ~16 `if:` expressions.
+# WHICH reusable workflow a caller invokes, not of booleans threaded through ~16 `if:` expressions.
 #
 # ## Why they are opt-in at all (cost + duration)
 #
-# Maestro boots an Android emulator and Gradle-builds a release APK (~50 min measured); the three k6 jobs
-# build and boot three service images and drive minutes of sustained load. Together that is tens of
-# runner-minutes per push, which contradicts the repo's cost posture (ADR-0007/ADR-0008). So they run
-# nightly, on demand, or on a PR carrying the `heavy-e2e` label — and they are BLOCKING when they do run:
-# a red load threshold or a broken on-device flow is a real defect.
+# Maestro boots an Android emulator and Gradle-builds a release APK (~50 min measured); the k6 job drives
+# minutes of sustained load against three deployed origins. Together that is tens of runner-minutes per
+# push, which contradicts the repo's cost posture (ADR-0007/ADR-0008). So they run nightly, on demand, or
+# on a PR carrying the `heavy-e2e` label — and they are BLOCKING when they do run: a 5xx from a preview or
+# a broken on-device flow is a real defect.
 #
 # The k6 half has ONE further way in, which the emulator deliberately does not share: `heavy-e2e.yml` also
 # switches `run_load_test` on automatically for a PR that touched food's measured query paths (T-198 — a pure
 # latency regression such as a dropped index is invisible to every deterministic tier). The caller owns that
 # decision and its rationale; nothing in this file needs to know which clause let the run through.
 #
-# ## The Maestro tier drives a DEPLOYED sandbox, or it SKIPS
+# ## BOTH tiers drive a DEPLOYED environment, or they SKIP
 #
-# Owner ruling 2026-09-05: every end-to-end tier hits remote services, and is SKIPPED when the PR's sandbox
-# is not running. So `e2e-mobile-maestro` no longer boots its own recipe-service, Postgres, LocalStack, queue
-# consumer and profile stub on the runner — it points the APK at this stage's deployed origins, and
-# `resolve-mobile-target` decides (through `deploy-gate.sh`, the repo's one liveness authority) whether there
-# is anything to point it at. No sandbox means a SKIPPED job, never a red one.
+# Owner rulings 2026-09-05: every end-to-end tier hits remote services and is SKIPPED when the PR's sandbox
+# is not running, and "K6 should also be hitting sandbox or production, depending on the flow … It follows
+# the same pattern as the end to end tests". So neither tier boots a backend on the runner any more:
+#
+#   • `e2e-mobile-maestro` points the APK at this stage's deployed origins, and `resolve-mobile-target`
+#     decides (through `deploy-gate.sh`, the repo's one liveness authority) whether there is anything to
+#     point it at.
+#   • `load-test-deployed` resolves the same origin authority and probes each origin's `/health`, running
+#     each service's leg only if that origin is serving.
+#
+# No sandbox means a SKIPPED tier, never a red one. The three runner-local k6 jobs this file used to carry
+# (`load-test`, `load-test-food`, `load-test-identity`) are DELETED, not re-pointed — the substrate they
+# owned was the thing they asserted. See the `load-test-deployed` header and the READMEs beside the
+# scripts.
 #
 # ## Why `install` is duplicated from `_ci.yml`
 #
@@ -54,19 +63,19 @@ on:
                 type: string
             run_load_test:
                 description: >-
-                    Run the recipe + food + identity k6 load-test jobs. A caller opts each tier in
-                    independently so `recipe-loadtest.yml` can run k6 without paying for the 50-minute
-                    emulator job.
+                    Run the k6 load test against this stage's deployed recipe, food and identity origins. A
+                    caller opts each tier in independently so `recipe-loadtest.yml` can run k6 without
+                    paying for the 50-minute emulator job.
                 required: false
                 type: boolean
                 default: true
             load_test_target:
                 description: >-
-                    WHICH ENVIRONMENT the deployed k6 tier measures (owner ruling 2026-09-04) — `sandbox`,
-                    meaning this PR's own `pr-{N}` preview, or `prod`.
+                    WHICH ENVIRONMENT the k6 tier measures (owner rulings 2026-09-04 / 2026-09-05) —
+                    `sandbox`, meaning this PR's own `pr-{N}` preview, or `prod`.
 
                     ⛔ `prod` is REFUSED at runtime unless the run was manually dispatched. The refusal is a
-                    STEP inside `load-test-sandbox`, not a job-level `if:`, because an `if:` would SKIP —
+                    STEP inside `load-test-deployed`, not a job-level `if:`, because an `if:` would SKIP —
                     reporting a green heavy run that load-tested nothing, which is the failure mode this
                     file's Maestro stage guard already exists to prevent one job over.
 
@@ -726,438 +735,103 @@ jobs:
                   echo "recipe   ${RECIPE_ORIGIN}/health → $(deploy_gate_probe "${RECIPE_ORIGIN}/health")"
                   echo "identity ${IDENTITY_ORIGIN}/health → $(deploy_gate_probe "${IDENTITY_ORIGIN}/health")"
 
-    load-test:
-        name: Load test (recipe — k6, isolated substrate) · heavy tier
-        runs-on: ubuntu-latest
-        needs: [install]
-        # ⛔ k6-target: isolated substrate — and it must STAY one. Re-pointing this job at a deployed
-        # preview would not move its assertions, it would DELETE them: the seeded corpus `prepare-db.mjs`
-        # writes lives in a runner-local Postgres no runner can reach on AWS; the erasure pool is signed by
-        # a THROWAWAY EdDSA keypair the deployed service does not trust; `versionArchiveRead` reads a
-        # snapshot the fixture PUTs to LocalStack; the parse-job fan-out proof is the DEPTH of an SQS queue
-        # nothing drains, which on a real stage has real consumers; `ingredientSuggestLatency` asserts
-        # degradation against an UNREACHABLE food origin, and the sandbox's food origin is reachable; and
-        # `nutritionBatch`'s evidence is a local stub's chunk counters. The deployed measurement the owner
-        # asked for is `load-test-sandbox` below — a SIBLING, not a replacement.
-        # T081/SC-009 performance gate. Gated behind `run_load_test` so the heavy k6 run never fires on an
-        # ordinary PR / push pipeline — no such pipeline calls this file at all, and a caller that wants only
-        # the emulator switches the input off. Reached via `heavy-e2e.yml` (nightly schedule, manual dispatch,
-        # the `heavy-e2e` PR label, or a PR touching food's measured query paths) and `recipe-loadtest.yml`.
-        # Boots the recipe-service against a Postgres + LocalStack service pair and runs ALL SEVEN tests/load
-        # k6 scripts; a threshold breach exits k6 non-zero and fails the job.
-        #
-        # ⚠️ `run_load_test` covers ALL THREE k6 jobs, so the food-path auto-trigger runs this recipe job too.
-        # That is accepted (bounded extra runner-minutes) rather than plumbed around with a per-service input.
-        if: ${{ inputs.run_load_test }}
-        services:
-            postgres:
-                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: recipe_load
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U postgres"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-            # Three of the seven scripts need REAL AWS-side state that a placeholder endpoint cannot provide:
-            # `service-erasure` enqueues to SQS on its accept path (a dead endpoint would 500 the 202),
-            # `version-archive-read` reads a snapshot the fixture PUTs to S3, and `save-under-archive`
-            # measures save latency *while the archive is queued*. LocalStack Community covers S3 + SQS.
-            localstack:
-                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    SERVICES: s3,sqs
-                    # Path-style SQS URLs (http://localhost:4566/000000000000/<name>) so the queue the
-                    # bootstrap step creates is addressable at the exact ACCOUNT_ERASURE_QUEUE_URL the
-                    # service is booted with. The default `standard` strategy would hand back a
-                    # sqs.<region>.localhost.localstack.cloud host instead.
-                    SQS_ENDPOINT_STRATEGY: path
-                ports:
-                    - 4566:4566
-                options: >-
-                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
-                    --health-interval 5s
-                    --health-timeout 5s
-                    --health-retries 20
-        steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-              with:
-                  # No job here performs a git push/fetch/remote operation (verified), so the
-                  # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
-                  persist-credentials: false
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-              with:
-                  node-version: 24
-            - name: Restore dependencies
-              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-              with:
-                  path: |
-                      node_modules
-                      packages/*/node_modules
-                      packages/*/*/node_modules
-                      packages/*/*/*/node_modules
-                      packages/*/*/*/*/node_modules
-                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
-            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
-            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
-            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
-            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
-            # exactly what made it look like flake instead of a missing fallback.
-            #
-            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
-            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
-            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
-            # eviction rate, which is the number worth watching.
-            - name: Install dependencies if the cache missed
-              run: |
-                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
-                      exit 0
-                  fi
-                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
-                  npm ci
-            - name: Install k6
-              run: |
-                  sudo gpg -k
-                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
-                      | sudo tee /etc/apt/sources.list.d/k6.list
-                  sudo apt-get update
-                  sudo apt-get install -y k6
-            # Build the service AND its shared deps (turbo `^build`), so the Dockerfile can COPY their
-            # dist + prod.package.json. A plain `node dist/src/main.js` boot cannot resolve the workspace
-            # `@kitchensink/*` bare specifiers outside the image (the src-exports/.js tangle), so we boot the
-            # PROVEN Docker image instead — the same artifact prod runs.
-            - name: Build recipe-service (+ shared deps)
-              run: npx turbo run build --filter=@kitchensink/recipe-service
-            - name: Build recipe-service image
-              run: docker build -f packages/services/recipe-service/Dockerfile -t recipe-load:ci .
-            # Apply migrations + seed the catalog ingredients the load payloads attach by id. MANDATORY:
-            # since T043b every create validates each line's ingredientId, so without these every write 400s
-            # and trips the k6 failure-rate threshold.
-            - name: Prepare load database
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
-              run: node packages/services/recipe-service/tests/load/prepare-db.mjs
-            # The S3 buckets + the SQS queues the booted service and the fixture step address.
-            # LocalStack starts with an EMPTY account, so without this the erasure accept path's SendMessage
-            # fails (NonExistentQueue → 500, not the asserted 202) and the archive PUT fails (NoSuchBucket).
-            - name: Bootstrap LocalStack (S3 buckets + the service's SQS queues)
-              env:
-                  AWS_ACCESS_KEY_ID: test
-                  AWS_SECRET_ACCESS_KEY: test
-                  AWS_DEFAULT_REGION: us-east-1
-              run: |
-                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-photos
-                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-versions
-                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name erasure
-                  # U11's verification queue. The producer swallows a send failure, so this is not strictly
-                  # required to boot — but without it every recipe write in the load run logs an error, and
-                  # a log full of expected errors is where a real one hides.
-                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-verification
-                  # ⛔ U9's parse-line queue. MISSING SINCE U9 SHIPPED (5c217859 added RECIPE_PARSE_QUEUE_URL
-                  # to both boot steps and the k6 script, but never this line), and its absence is INVISIBLE
-                  # to k6 by construction: `ParseJobsService.enqueueOrMark` CONVERTS a send failure into a
-                  # 202 whose lines are all `failed_retryable`, and the scenario's check deliberately accepts
-                  # `running` OR `partial` because a real enqueue failure under load must not fail the run.
-                  # So without this queue every create takes the failure branch, ZERO SendMessageBatch calls
-                  # are ever issued, and the scenario reports green while measuring nothing — the concurrent
-                  # fan-out it exists to bound (p95 bounded by the SLOWEST batch, not the sum) never happens.
-                  # MEASURED against the real image: no queue → `"status":"partial"`, all lines
-                  # `failed_retryable`; queue present → `"status":"running"`, lines `pending`.
-                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-parse-line
-                  # Fail loudly HERE (with the actual URL in the log) rather than as an opaque k6 threshold
-                  # breach if the queue is not addressable where the service is pointed. Asserted on the PATH
-                  # only, deliberately: the SQS client overrides the host via SQS_ENDPOINT and uses just the
-                  # queue URL's account/name path, so the host LocalStack echoes back is immaterial.
-                  QUEUE_URL=$(aws --endpoint-url=http://localhost:4566 sqs get-queue-url \
-                      --queue-name erasure --query QueueUrl --output text)
-                  echo "erasure queue: ${QUEUE_URL}"
-                  case "${QUEUE_URL}" in
-                      */000000000000/erasure) ;;
-                      *) echo "queue path does not match ACCOUNT_ERASURE_QUEUE_URL's /000000000000/erasure"; exit 1 ;;
-                  esac
-            # W8-a.7 fixture for `versionArchiveRead.load.js`: a public recipe whose version 1 exists ONLY
-            # in the S3 archive (its recipe_versions row is deliberately absent), so every GET is forced down
-            # the transparent S3-fallback branch the script measures. k6 cannot seed Postgres or S3 itself.
-            # Idempotent (fixed ids, ON CONFLICT DO NOTHING); needs the migrated DB + the versions bucket.
-            - name: Seed the version-archive fixture
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
-                  S3_ENDPOINT: http://localhost:4566
-                  S3_FORCE_PATH_STYLE: 'true'
-                  S3_BUCKET_VERSIONS: commise-versions
-              run: npx tsx packages/services/recipe-service/tests/load/prepareVersionArchiveFixture.ts
-            # CR-002 / U4a: mint the EdDSA service-erasure token pool + a THROWAWAY keypair. k6's goja runtime
-            # cannot sign Ed25519, so the tokens are minted here and loaded by the script via `open()`.
-            #
-            # ORDERING IS LOAD-BEARING: this step generates a fresh keypair and writes the SPKI public key the
-            # service must be booted trusting, so it MUST precede the boot step. The minted tokens are
-            # single-target and short-lived (120s — the verifier's contract max, deliberately not extendable),
-            # which is why the erasure script runs FIRST among the k6 scripts, on a shortened shape (see the
-            # k6 step). Owners are synthetic, ULID-shaped and non-existent, so every erase is a harmless
-            # no-op that touches no real data.
-            - name: Mint the service-erasure token pool
-              run: npx tsx packages/services/recipe-service/tests/load/prepareErasureTokens.ts
-            # Boot the image with the dev-auth bypass (RECIPE_DEV_AUTH_USER_ID) so the load needs no live
-            # Clerk token, and with the per-user rate limits raised — the whole load is ONE dev user, so the
-            # default RATE_LIMIT_* (120/30/60) would 429 under concurrency and fail the status checks. S3/SQS
-            # now point at the LocalStack service container (real buckets + a real queue), and
-            # RECIPE_SERVICE_PRINCIPAL_JWT_KEY carries the public half of the keypair minted above so the
-            # ServiceErasureGuard trusts the load's tokens (and still fails closed on the expired one).
-            - name: Boot recipe-service (Docker, dev-bypass)
-              run: |
-                  docker run -d --name recipe-load --network host \
-                      -e NODE_ENV=development \
-                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_load \
-                      -e PORT=3000 \
-                      -e CLERK_JWT_KEY=load-test-placeholder-key \
-                      -e CLERK_AUTHORIZED_PARTIES=http://localhost:3000 \
-                      -e AWS_REGION=us-east-1 \
-                      -e S3_ENDPOINT=http://localhost:4566 -e S3_FORCE_PATH_STYLE=true \
-                      -e S3_BUCKET_PHOTOS=commise-photos -e S3_BUCKET_VERSIONS=commise-versions \
-                      -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
-                      -e SQS_ENDPOINT=http://localhost:4566 \
-                      -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
-                      -e INGREDIENT_VERIFICATION_QUEUE_URL=http://localhost:4566/000000000000/recipe-verification \
-                      -e RECIPE_PARSE_QUEUE_URL=http://localhost:4566/000000000000/recipe-parse-line \
-                      -e FOOD_SERVICE_URL=http://localhost:3002 \
-                      -e RECIPE_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/recipe-service/tests/load/erasure-public-key.pem)" \
-                      -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \
-                      -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
-                      -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
-                      -e RATE_LIMIT_ANALYTICS=1000000 \
-                      recipe-load:ci
-                  for i in $(seq 1 40); do
-                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
-                      sleep 2
-                  done
-                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-load; exit 1; }
-            # The erasure scenario runs FIRST and on a SHORTENED shape (15s ramp + 25s hold + 10s down = 50s
-            # against the tokens' 120s TTL, ~25s of which the boot above already consumed). The thresholds are
-            # unchanged by the shape — per tests/load/README.md the peak/duration are env-driven precisely so
-            # a CI smoke shape and a distributed full-scale run share one pass/fail bar — so this trades only
-            # sample count, never strictness, and it removes the token-expiry flake class entirely. Running it
-            # last on the default 105s shape would expire the pool mid-run and fail on 401s.
-            - name: Run k6 service-erasure load script (CR-002 / U4a)
-              working-directory: packages/services/recipe-service
-              env:
-                  RECIPE_API_BASE_URL: http://localhost:3000
-                  RECIPE_LOAD_RAMP_UP: 15s
-                  RECIPE_LOAD_HOLD: 25s
-                  RECIPE_LOAD_RAMP_DOWN: 10s
-              run: k6 run --summary-export=k6-erasure-summary.json tests/load/serviceErasure.load.js
-            # `ingredient-suggest-latency` (search Stage 2 / F2) needs NO prepare step of its own: the catalog
-            # ingredients `prepare-db.mjs` already seeded are the local half of the blend, and the food-catalog
-            # half is deliberately left UNREACHABLE here — `FOOD_SERVICE_URL` is set to http://localhost:3002
-            # above with nothing listening on it. (It is set EXPLICITLY, not defaulted: since issue #120 the
-            # variable is required with no in-code fallback, because that fallback is what silently pointed the
-            # deployed service at itself.) An unreachable food service is the exact worst case the script exists
-            # to defend: the blend must bound the failing catalog read and degrade to local-only
-            # (`catalogAvailability: 'unavailable'`) while still answering 200, so its strict `http_req_failed`
-            # threshold is what proves the F2 fallback never leaks the dependency's failure to the caller.
-            #
-            # NOTE the load container runs with the dev-auth bypass, so requests carry NO bearer — and recipe now
-            # calls food AS THE CALLER. With no credential to forward the gateway degrades WITHOUT issuing a
-            # request, so this scenario measures the short-circuit path rather than the transport timeout; the
-            # timeout itself is proven in `__tests__/integration/ingredients/blendedSuggest.integration.test.ts`
-            # and `foodTokenForwarding.integration.test.ts`. Do NOT set FOOD_CATALOG_BLEND_ENABLED=false here —
-            # that reports 'disabled' and skips the cross-service call entirely, silently retiring the behavior
-            # under test.
-            #
-            # `nutrition-batch` is NOT in this block — it needs a reachable food origin and a forwarded
-            # bearer, and it gets both in its own step below.
-            #
-            # `ingredient-correction` (U14) belongs in this block for the same reason the others do: it makes
-            # no cross-service call at all (a correction's `foodId` is deliberately NOT verified against the
-            # food service — migration 0021 requires every reader to treat an unresolvable mapping as a miss),
-            # so an unreachable food origin is irrelevant to it. What it measures is CONTENTION: two of its
-            # scenarios pile concurrent writers onto the same phrase's row lock, and its `http_req_failed`
-            # threshold is the assertion that a LOSER of that race gets a `200 recorded:false` rather than a
-            # unique-index violation leaking out as a 5xx.
-            - name: Run k6 load scripts
-              working-directory: packages/services/recipe-service
-              env:
-                  RECIPE_API_BASE_URL: http://localhost:3000
-              run: |
-                  k6 run --summary-export=k6-sc009-summary.json tests/load/sc009ReadWrite.load.js
-                  k6 run --summary-export=k6-search-summary.json tests/load/searchLatency.load.js
-                  k6 run --summary-export=k6-suggest-summary.json tests/load/ingredientSuggestLatency.load.js
-                  k6 run --summary-export=k6-save-summary.json tests/load/saveUnderArchive.load.js
-                  k6 run --summary-export=k6-pull-summary.json tests/load/pullFromSource.load.js
-                  k6 run --summary-export=k6-version-archive-summary.json tests/load/versionArchiveRead.load.js
-                  k6 run --summary-export=k6-parse-job-summary.json tests/load/parseJobCreate.load.js
-                  k6 run --summary-export=k6-correction-summary.json tests/load/ingredientCorrection.load.js
-                  k6 run --summary-export=k6-analytics-ingest-summary.json tests/load/analyticsIngest.load.js
-            # ⛔ THE GUARD AGAINST THE PARSE-JOB SCENARIO GOING QUIET, the sibling of the food stub's counters
-            # below. k6's thresholds cannot tell a real fan-out from a short-circuit here, and the scenario's
-            # own check CANNOT either — `enqueueOrMark` converts a send failure into a `202 partial`, and the
-            # check accepts `running` OR `partial` on purpose, because an enqueue failure under load is a
-            # legitimate answer rather than a defect. So a missing queue, a mis-addressed URL, or a producer
-            # regression all report GREEN while zero SendMessageBatch calls are made. SQS's own counter is the
-            # thing that can tell the difference: nothing consumes this queue in this job, so every message the
-            # run enqueued is still sitting in it.
-            #
-            # The floor is DERIVED, never a magic number: the smaller of the two paste shapes is 8 lines, so a
-            # run that truly fanned out sent at least 8 messages per iteration. Half of that absorbs whatever
-            # sends genuinely failed under pressure while staying four orders of magnitude above the ZERO a
-            # missing queue produces — which is the failure this exists to catch, and which it did not catch.
-            - name: Assert the parse-job scenario actually enqueued (U9 fan-out was exercised)
-              working-directory: packages/services/recipe-service
-              env:
-                  AWS_ACCESS_KEY_ID: test
-                  AWS_SECRET_ACCESS_KEY: test
-                  AWS_DEFAULT_REGION: us-east-1
-              run: |
-                  ENQUEUED=$(aws --endpoint-url=http://localhost:4566 sqs get-queue-attributes \
-                      --queue-url http://localhost:4566/000000000000/recipe-parse-line \
-                      --attribute-names ApproximateNumberOfMessages \
-                      --query 'Attributes.ApproximateNumberOfMessages' --output text)
-                  echo "parse-line queue depth after the load run: ${ENQUEUED}"
-                  ENQUEUED="${ENQUEUED}" node -e '
-                      const summary = require("./k6-parse-job-summary.json");
-                      const iterations = summary.metrics.iterations.count;
-                      const enqueued = Number(process.env.ENQUEUED);
-                      const floor = Math.floor(iterations * 4);
-                      if (!(enqueued >= floor)) {
-                          console.error(`::error::the parse-job fan-out was not exercised — ${iterations} iterations enqueued ${enqueued} messages, below the ${floor} floor (a missing or mis-addressed RECIPE_PARSE_QUEUE_URL reports 202-partial and looks green)`);
-                          process.exit(1);
-                      }
-                      console.log(`parse-job fan-out exercised: ${iterations} iterations, ${enqueued} messages enqueued (floor ${floor}).`);
-                  '
-            # ── The deferred-nutrition batch (ADR-0021 §4 + its residual-risk note) ────────────────────
-            #
-            # This scenario is the ONE that needs food to ANSWER, and it is why it has its own steps. Its
-            # subject is a FAN-OUT: `ceil(distinctFoods / 100) / 6` waves of food calls, so it must be
-            # measured with (a) recipe ids that actually resolve to many distinct foods, and (b) a food
-            # origin that replies with latency. Without both it measures a short-circuit — which is exactly
-            # what the superseded `capBatch` did, padding to the 500-id cap with ids that resolve to no
-            # recipe and reporting a one-call fan-out as if it were the cap.
-            #
-            # The stub is started HERE and stopped immediately after, deliberately: every other script in
-            # this job is written against an UNREACHABLE food (`FOOD_SERVICE_URL` points at :3002 with
-            # nothing listening), and `ingredient-suggest-latency` in particular asserts that degradation.
-            # Bracketing the stub around one step leaves every one of those conditions untouched.
-            #
-            # ⚠️ Seeded AFTER the other scripts, on purpose: it adds 1,000 PUBLIC recipes and 5,012 catalog
-            # ingredients, which are rows `searchLatency` and `ingredientSuggestLatency` would otherwise have
-            # to rank. Their budgets were set against the corpus `prepare-db.mjs` leaves behind, so seeding
-            # earlier would move two other scenarios' numbers for a reason that has nothing to do with them.
-            - name: Seed the nutrition fan-out fixture
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
-              run: npx tsx packages/services/recipe-service/tests/load/prepareNutritionFanoutFixture.ts
-            - name: Run k6 nutrition-batch load script (ADR-0021 fan-out at the 500-id cap)
-              working-directory: packages/services/recipe-service
-              env:
-                  RECIPE_API_BASE_URL: http://localhost:3000
-                  # Five scenarios run SEQUENTIALLY (a fan-out cost is only attributable when the two
-                  # overlap shapes do not contend), so the shape is shortened the way the erasure step is:
-                  # 5 x 50s rather than 5 x 105s. Thresholds are unaffected — per tests/load/README.md the
-                  # peak/duration are env-driven precisely so a CI smoke shape and a full-scale run share
-                  # one pass/fail bar — so this trades sample count, never strictness.
-                  RECIPE_LOAD_RAMP_UP: 15s
-                  RECIPE_LOAD_HOLD: 30s
-                  RECIPE_LOAD_RAMP_DOWN: 5s
-                  # The stated assumption the measured p95 is a function of. 25ms is the order of a warm
-                  # same-region 100-id read (food budgets ONE golden-record read at 50ms p95, SC-001, and
-                  # answers `?ids=` from a 3-query view) — not a measurement of food, which is why it is
-                  # named here rather than buried, and why the summary is uploaded with it.
-                  FOOD_STUB_DELAY_MS: 25
-              run: |
-                  # Output to a FILE, not the step's stdout: a background process holding the step's pipes
-                  # can keep the runner waiting after the script itself has finished.
-                  node tests/load/foodNutritionStub.mjs > food-stub.log 2>&1 &
-                  STUB_PID=$!
-                  for i in $(seq 1 20); do
-                      if curl -sf http://localhost:3002/health > /dev/null; then break; fi
-                      sleep 1
-                  done
-                  curl -sf http://localhost:3002/health > /dev/null || { echo "food stub did not start"; exit 1; }
-                  curl -sf -X POST http://localhost:3002/__stats/reset > /dev/null
-                  k6 run --summary-export=k6-nutrition-batch-summary.json tests/load/nutritionBatch.load.js
-                  # ⛔ THE GUARD AGAINST THIS SCENARIO GOING QUIET AGAIN. k6's thresholds cannot tell a fast
-                  # answer from an empty one; the stub's own counters can. A run that measured the cap must
-                  # show chunked requests of exactly 100 ids — no chunking (or no requests at all) means the
-                  # gateway short-circuited and the latency numbers describe nothing.
-                  STATS=$(curl -sf http://localhost:3002/__stats)
-                  echo "food stub: ${STATS}"
-                  node -e '
-                      const s = JSON.parse(process.argv[1]);
-                      const fail = (m) => { console.error(`::error::nutrition fan-out was not exercised — ${m}`); process.exit(1); };
-                      if (s.requests < 1000) fail(`the stub served only ${s.requests} chunk requests`);
-                      if (s.maxIdsInOneRequest !== 100) fail(`the widest chunk was ${s.maxIdsInOneRequest} ids, not food’s 100-id cap`);
-                      if (s.overCapRequests > 0) fail(`${s.overCapRequests} requests exceeded food’s 100-id cap`);
-                  ' "${STATS}"
-                  # Bracket closed: every later step (and any step appended after this one) sees the same
-                  # unreachable food origin the rest of this job is written against. Reported either way
-                  # rather than suppressed — a stub that is already gone is information, not an excuse.
-                  if kill "${STUB_PID}"; then echo "food stub stopped"; else echo "food stub already exited"; fi
-            - name: Upload k6 summaries
-              if: always()
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-              with:
-                  name: recipe-k6-summaries-${{ inputs.stage }}
-                  path: packages/services/recipe-service/k6-*-summary.json
-                  retention-days: 7
-                  if-no-files-found: warn
-            # A k6 threshold breach reports only latency/status aggregates; the service-side exception that
-            # caused a 500 (a missing queue, an S3 error, a rejected token) is only in the container log.
-            - name: Recipe-service logs on failure
-              if: failure()
-              run: docker logs recipe-load 2>&1 | tail -150 || true
-
-    load-test-sandbox:
-        # ⛔ A CONSTANT — see `deployed-e2e.yml`'s note and workflowInvariants' invariant 8. The target
-        # (sandbox vs prod) is reported in the job summary, never in the check name a rule matches on.
+    # ── The ONE k6 job, and it measures a DEPLOYED environment ────────────────────────────────────────────
+    #
+    # Owner ruling, 2026-09-05, verbatim:
+    #
+    #   > "K6 should also be hitting sandbox or production, depending on the flow, as I already stated
+    #      earlier. It follows the same pattern as the end to end tests"
+    #
+    # — where "the same pattern" is the ruling this file's Maestro tier already implements one job above:
+    #
+    #   > "all end to end tests … which should be hitting remote services … should be skipped if the sandbox
+    #      for the PR is not running. There should also be a manual job that I can trigger that will run the
+    #      end to end tests. Ignore anything any ADR says: my word is law."
+    #
+    # ## What this replaces, and why it is ONE job rather than four
+    #
+    # This file used to carry FOUR k6 jobs: three that booted their own substrate on the runner
+    # (`load-test`, `load-test-food`, `load-test-identity` — a Postgres service container, a LocalStack, a
+    # locally-built service image, migrations, seeded fixtures and throwaway signing keypairs apiece) and
+    # this one, which measures the deployed origins. Under the ruling the first three lose their subject:
+    # what they asserted WAS the substrate, and a deployed origin cannot present a seeded corpus, a
+    # runner-local queue whose depth is the fan-out evidence, or a keypair the deployed service does not
+    # trust. So they are deleted rather than re-pointed, and the coverage that went with them is recorded in
+    # the READMEs beside the scripts (`packages/services/*/tests/load/README.md`).
+    #
+    # What is LEFT of them, once the substrate is gone, is "run `deployedOrigin.load.js` against one origin"
+    # — which differs per service only in `TARGET_BASE_URL`, `TARGET_SERVICE` and `PROTECTED_PATH`. That is
+    # DATA, not a job. Three more jobs would mean three more checkouts, node setups, cache restores and k6
+    # installs (~2 minutes of setup apiece to run a 3-minute script), and — the part that actually costs —
+    # three more copies of the prod refusal, the origin resolution and the skip semantics, which is the
+    # "a copy of a list cannot detect that the list is incomplete" shape this repo has already paid for
+    # three times. One job, one leg per service, each gated on its OWN liveness probe, keeps the run graph's
+    # per-service attribution without the duplication.
+    #
+    # ## ⛔ It GATES on correctness and only REPORTS latency, deliberately
+    #
+    # Every budget the deleted jobs enforced (`RECIPE_SAVE_P95_MS=500`, food's `READ_P95_MS`, identity's
+    # NFR-011a p99, the derived `NUTRITION_BATCH_P95_MS`) was calibrated against a runner-local container
+    # with a dedicated Postgres and no rate limiter. A per-PR preview is a DIFFERENT MACHINE: half a
+    # reclaimable vCPU of `FARGATE_SPOT` at `desiredCount=1`, on a `db.t4g.micro` shared with every other
+    # open PR's logical database (ADR-0006), behind an ALB shared with every other service (ADR-0003).
+    # Carrying those numbers across would produce a gate that reddens on the NEIGHBOURS' traffic, and the
+    # predictable next step is somebody switching it off — which costs more than never having had it. So
+    # `deployedOrigin.load.js` thresholds ONLY facts a slow machine cannot cause (no 5xx; a protected route
+    # never answers 2xx unauthenticated) and REPORTS every latency figure. A budget can be set here once
+    # enough runs exist to know the distribution; until then it would be a number nobody believes. Read its
+    # docblock before adding one.
+    #
+    # ## ⛔ The rate limiter is respected, not raised
+    #
+    # `UserThrottlerGuard` keys per authenticated user and falls back to the caller's address (the ALB's
+    # `X-Forwarded-For` leftmost hop) when there is none, and one runner is one address. The deleted jobs
+    # cranked `RATE_LIMIT_*` because they owned the container — which `recipe-service/tests/load/README.md`
+    # warns makes the result stop proving anything about the production limits. A deployed preview is not
+    # ours to reconfigure per run, so the shape stays UNDER the limit instead (~60 req/min per series
+    # against a default `RATE_LIMIT_READ` of 120/min, the other half left for the preview's real users). A
+    # 429 is counted and surfaced, never thresholded.
+    #
+    # ## ⚠️ IDENTITY IS NOT PER-PR, and that is a fact about the topology rather than a shortcut
+    #
+    # `sandbox-deploy.yml` deploys food and recipe only. There is no `pr-{N}` identity: every preview signs
+    # in against the ONE shared `identity.sandbox.{apex}` (ADR-0001), which is also why this job spells that
+    # host from the DOT form `IdentityServiceStack` itself uses (`isProd ? 'identity' : identity.${stage}`)
+    # rather than through `publicServiceOriginForStage`, which would answer the dash form `identity-sandbox`
+    # — a name nothing serves. So the identity leg CANNOT be isolated to this PR: it measures the shared
+    # service, and a finding there is a platform signal, not a statement about this branch. Two things make
+    # that acceptable rather than merely tolerated: the leg is ~180 unauthenticated requests at 1/s over
+    # three minutes (it contacts NO Clerk instance — the shared dev instance's per-IP rate limit, which has
+    # already turned CI red once, is untouched), and an identity OUTAGE skips rather than reds, because the
+    # `/health` probe below is the gate. What is left to go red on is a shared identity that serves health
+    # but 5xxs a protected route or answers it 2xx unauthenticated — which is worth reddening every open
+    # PR for.
+    #
+    # ## ⛔ An absent preview SKIPS — it never fails
+    #
+    # A `pr-{N}` sandbox is legitimately absent: reaped by the nightly sweep, torn down on close, or never
+    # deployed because `deploy-gate.sh` decided nothing changed. Red-over-nothing is the mirror of
+    # green-over-nothing and costs the same thing (`deployGateStepGuards.test.ts`), so the liveness probe is
+    # the gate for every step below it and its absence is a NOTICE.
+    #
+    # ⛔ THE SKIP IS AT STEP LEVEL, NOT JOB LEVEL, and that is not an oversight. A job-level `if:` on the
+    # liveness answer would need the answer from ANOTHER job (a job cannot skip on its own steps), and it
+    # would also skip the prod refusal below — reporting a green heavy run that load-tested nothing, which
+    # is exactly the failure mode the refusal exists to prevent. `resolve-mobile-target` is a separate job
+    # for the opposite reason: the emulator tier costs ~50 minutes to start, so its decision must be made
+    # before it starts. This job costs a checkout.
+    load-test-deployed:
+        # ⛔ A CONSTANT — and deliberately the SAME string it published as `load-test-sandbox`, because
+        # branch protection matches a required check by its RENDERED name and this job is skippable
+        # (`inputs.run_load_test`). A skipped job never evaluates its name, so an interpolated one publishes
+        # the raw `${{ … }}` verbatim (workflowInvariants invariant 8). The target — which stage, which
+        # services — is reported in the job summary.
         name: Load test (k6 — deployed origins) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
-        # k6-target: DEPLOYED origins — this PR's own `pr-{N}` preview (owner ruling 2026-09-04: "k6 should
-        # test the sandbox for the PR. We should still be able to run k6 in the prod pipeline by triggering
-        # the job manually").
-        #
-        # ## What this measures that the three isolated jobs structurally CANNOT
-        #
-        # They own their substrate: a dedicated Postgres, LocalStack, a container they configured, and no
-        # rate limiter. That is what makes their assertions possible — and it is also why not one of their
-        # numbers says anything about the thing a reviewer actually opens. This job measures the real path:
-        # DNS, the shared ALB and its listener rule, a 0.5-vCPU `FARGATE_SPOT` task at `desiredCount=1`, and
-        # the service's own auth middleware, for THIS PR.
-        #
-        # ## ⛔ It GATES on correctness and only REPORTS latency, deliberately
-        #
-        # Every budget in this repo (`RECIPE_SAVE_P95_MS=500`, food's `READ_P95_MS`, identity's NFR-011a
-        # p99, the derived `NUTRITION_BATCH_P95_MS` — "9.04 ms per ms of food latency at the cap") was
-        # calibrated against a runner-local container. A per-PR preview is half a reclaimable vCPU sharing a
-        # `db.t4g.micro` with every other open PR's logical database (ADR-0006) behind a shared ALB
-        # (ADR-0003). Carrying those numbers across produces a gate that reddens on the NEIGHBOURS' traffic,
-        # and the predictable next step is somebody switching it off — which costs more than never having
-        # had it. So `deployedOrigin.load.js` thresholds ONLY facts a slow machine cannot cause (no 5xx; a
-        # protected route never answers 2xx unauthenticated) and REPORTS every latency figure. A budget can
-        # be set here once enough runs exist to know the distribution; until then it would be a number
-        # nobody believes. Read its docblock before adding one.
-        #
-        # ## ⛔ The rate limiter is respected, not raised
-        #
-        # `ThrottlerGuard` buckets by client IP and one runner is one IP. The isolated jobs crank
-        # `RATE_LIMIT_*` because they own the container — which `recipe-service/tests/load/README.md` warns
-        # makes the result stop proving anything about the production limits. A deployed preview is not ours
-        # to reconfigure per run, so the shape stays UNDER the limit instead (~60 req/min against a default
-        # `RATE_LIMIT_READ` of 120/min, the other half left for the preview's real users). A 429 is counted
-        # and surfaced, never thresholded.
-        #
-        # ## ⛔ An absent preview SKIPS — it never fails
-        #
-        # A `pr-{N}` sandbox is legitimately absent: reaped by the nightly sweep, torn down on close, or
-        # never deployed because `deploy-gate.sh` decided nothing changed. Red-over-nothing is the mirror of
-        # green-over-nothing and costs the same thing (`deployGateStepGuards.test.ts`), so the liveness
-        # probe is the gate for every step below it and its absence is a NOTICE.
+        # A hung origin that answers the health probe and then stalls every request would otherwise burn a
+        # runner for six hours. Three legs of ~3 minutes plus setup is well inside this.
+        timeout-minutes: 30
         if: ${{ inputs.run_load_test }}
         env:
             DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
@@ -1195,7 +869,13 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL — see the identical note on the jobs above.
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. This job restores `node_modules` and never installs,
+            # so before this step a miss did not degrade it — it killed it: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. The miss is
+            # real and expected: the repo's Actions cache sits under a 10 GB cap with LRU eviction, and every
+            # lockfile change mints a fresh entry, so an in-flight run CAN have its entry evicted underneath
+            # it. The `::warning::` keeps that visible — a silent reinstall would hide the eviction rate,
+            # which is the number worth watching.
             - name: Install dependencies if the cache missed
               run: |
                   if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
@@ -1220,6 +900,12 @@ jobs:
             # handshake). A literal in YAML rots without saying so — `food-loadtest.yml` carried
             # `food-pr-59` as its dispatch default long after PR 59 closed, and an unresolvable name reads
             # as an outage rather than as a stale default.
+            #
+            # ⚠️ IDENTITY IS THE ONE ORIGIN THAT DOES NOT COME THROUGH THAT DOOR — see the job header. Its
+            # host is the DOT form `IdentityServiceStack` itself spells, and its STAGE is not this run's
+            # target stage but the identity DEPLOYMENT the target signs in against: `prod` for a prod
+            # target, the shared `sandbox` for everything else, because no `pr-{N}` identity exists.
+            # `DOMAIN_NAME` is a repo variable, so no host is typed into this file either way.
             - name: Resolve the target stage and its origins
               id: target
               env:
@@ -1233,24 +919,52 @@ jobs:
                       stage="pr-${PR_NUMBER}"
                   else
                       # A scheduled / dispatched run with no PR in context (recipe-loadtest.yml) measures the
-                      # shared stage the caller named. If nothing is deployed there, the probe below skips.
+                      # stage the caller named. If nothing is deployed there, the probe below skips.
                       stage="${FALLBACK_STAGE}"
                   fi
+
                   recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
                   food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")
+
+                  # The identity DEPLOYMENT the target signs in against — never `pr-{N}`, because none
+                  # exists. Published as its own output so the identity leg's report cannot label a shared
+                  # sandbox measurement with this PR's stage.
+                  if [ "${stage}" = 'prod' ]; then
+                      identity_stage='prod'
+                      identity="https://identity.${DOMAIN_NAME}"
+                  else
+                      identity_stage='sandbox'
+                      identity="https://identity.${identity_stage}.${DOMAIN_NAME}"
+                  fi
+
                   {
                       echo "stage=${stage}"
                       echo "recipe=${recipe}"
                       echo "food=${food}"
+                      echo "identity=${identity}"
+                      echo "identity_stage=${identity_stage}"
                   } >>"$GITHUB_OUTPUT"
-                  echo "k6 will measure stage ${stage} — recipe ${recipe}, food ${food}"
+                  echo "k6 will measure stage ${stage} — recipe ${recipe}, food ${food}, identity ${identity} (identity stage ${identity_stage})"
             # ⛔ ABSENCE IS A SKIP. Reuses `deploy-gate.sh`'s OWN retry-aware probe rather than a second
             # `curl` matcher, so "did the origin answer" has one definition in this repo. A reusable
             # workflow cannot `needs:` the gate job that publishes `live` (it lives in `sandbox-deploy.yml`,
             # a different workflow), so the function is sourced instead of the output consumed — same
             # authority, the only reachable form.
-            - name: Probe whether the target is live
+            #
+            # ⛔ THE HTTP PROBE, NOT `deploy-gate.sh evaluate`, and the difference is deliberate. `evaluate`
+            # additionally asks CloudFormation about a stage's stacks, which needs AWS credentials this job
+            # is not given (both are `required: false` on this workflow, so a fork or Dependabot PR holds
+            # neither) and would make this job a subject of `stackProbeCoverage.test.ts` — obliging it to
+            # probe EVERY stack of each app rather than the one origin it is about to drive. For a load
+            # test, an origin answering `200 /health` is the more direct evidence anyway: it is the thing
+            # being measured.
+            - name: Probe whether each target origin is live
               id: live
+              env:
+                  RECIPE_ORIGIN: ${{ steps.target.outputs.recipe }}
+                  FOOD_ORIGIN: ${{ steps.target.outputs.food }}
+                  IDENTITY_ORIGIN: ${{ steps.target.outputs.identity }}
+                  TARGET_STAGE: ${{ steps.target.outputs.stage }}
               run: |
                   set -euo pipefail
                   # shellcheck source=.github/scripts/deploy-gate.sh
@@ -1268,23 +982,23 @@ jobs:
                   }
                   recipe_live=$(live_for "${RECIPE_ORIGIN}" recipe)
                   food_live=$(live_for "${FOOD_ORIGIN}" food)
+                  identity_live=$(live_for "${IDENTITY_ORIGIN}" identity)
                   {
                       echo "recipe=${recipe_live}"
                       echo "food=${food_live}"
+                      echo "identity=${identity_live}"
                   } >>"$GITHUB_OUTPUT"
-                  if [ "${recipe_live}" != 'true' ] && [ "${food_live}" != 'true' ]; then
-                      echo "::notice::no ${TARGET_STAGE} preview is serving — the deployed k6 tier has nothing to measure, so it is SKIPPED (not failed)"
+                  if [ "${recipe_live}" != 'true' ] && [ "${food_live}" != 'true' ] &&
+                      [ "${identity_live}" != 'true' ]; then
+                      echo "::notice::no ${TARGET_STAGE} origin is serving — the deployed k6 tier has nothing to measure, so it is SKIPPED (not failed)"
                   fi
-              env:
-                  RECIPE_ORIGIN: ${{ steps.target.outputs.recipe }}
-                  FOOD_ORIGIN: ${{ steps.target.outputs.food }}
-                  TARGET_STAGE: ${{ steps.target.outputs.stage }}
             - name: Run k6 against the deployed recipe origin
               if: steps.live.outputs.recipe == 'true'
               working-directory: packages/tools/loadtest
               env:
                   TARGET_BASE_URL: ${{ steps.target.outputs.recipe }}
                   TARGET_SERVICE: recipe
+                  TARGET_STAGE: ${{ steps.target.outputs.stage }}
                   # `GET /api/v1/recipes` is auth-protected on every stage; unauthenticated it MUST be a 401.
                   PROTECTED_PATH: /api/v1/recipes
               run: k6 run deployedOrigin.load.js
@@ -1294,8 +1008,23 @@ jobs:
               env:
                   TARGET_BASE_URL: ${{ steps.target.outputs.food }}
                   TARGET_SERVICE: food
+                  TARGET_STAGE: ${{ steps.target.outputs.stage }}
                   # ADR-0010's smoke reads this same route's `401` as its PASS, for the same reason.
                   PROTECTED_PATH: /api/v1/foods/search?q=salt
+              run: k6 run deployedOrigin.load.js
+            # ⚠️ The SHARED sandbox identity — see the job header. Not per-PR, and deliberately so.
+            - name: Run k6 against the deployed identity origin (shared — see the job header)
+              if: steps.live.outputs.identity == 'true'
+              working-directory: packages/tools/loadtest
+              env:
+                  TARGET_BASE_URL: ${{ steps.target.outputs.identity }}
+                  TARGET_SERVICE: identity
+                  # The identity deploy stage, NOT this run's target stage — see the resolve step.
+                  TARGET_STAGE: ${{ steps.target.outputs.identity_stage }}
+                  # `AuthMiddleware` protects every route but `/health`, so `GET /api/v1/users/me` with no
+                  # Authorization header MUST be a 401 — and it is refused before any database or Clerk work,
+                  # which is why this leg costs the shared service almost nothing.
+                  PROTECTED_PATH: /api/v1/users/me
               run: k6 run deployedOrigin.load.js
             - name: Publish the deployed-origin reports to the job summary
               if: ${{ always() && steps.live.outputs.recipe != '' }}
@@ -1305,7 +1034,7 @@ jobs:
                   shopt -s nullglob
                   reports=(k6-deployed-*-report.md)
                   if [ ${#reports[@]} -eq 0 ]; then
-                      echo "No deployed preview was serving — nothing measured." >>"$GITHUB_STEP_SUMMARY"
+                      echo "No deployed origin was serving — nothing measured." >>"$GITHUB_STEP_SUMMARY"
                       exit 0
                   fi
                   for report in "${reports[@]}"; do
@@ -1321,560 +1050,3 @@ jobs:
                       packages/tools/loadtest/k6-deployed-*-report.md
                   retention-days: 7
                   if-no-files-found: ignore
-
-    load-test-food:
-        name: Load test (food — k6, isolated substrate) · heavy tier
-        runs-on: ubuntu-latest
-        needs: [install]
-        # ⛔ k6-target: isolated substrate — same reasoning as `load-test`, plus two of its own: the SC
-        # scripts present a Clerk RS256 pool minted from a throwaway keypair, and `drainDemotion.perf.ts`
-        # is not k6 at all — it calls `FetchQueueDao.leaseNext()` over a direct `DATABASE_URL` against a
-        # 180,000-row fixture, which is unreachable from a runner and unseedable on a shared preview.
-        # CR-002 / U4b performance gate for food's internal service-principal erasure route, PLUS the T-195
-        # SC-001/003/004/005/007 tier — the food mirror of the recipe `load-test` job, gated behind the SAME
-        # `run_load_test` input so both heavy k6 runs fire together (nightly / manual / `heavy-e2e` PR label /
-        # a PR touching food's measured query paths) and never on an ordinary PR push. This is the job the
-        # automatic path exists FOR: the SC-007 search script here is what catches a latency regression that
-        # every deterministic tier passes straight through.
-        #
-        # SIMPLER than the recipe job by design: food's erase is a SYNCHRONOUS indexed DELETE on
-        # `fetch_requesters` with no SQS hand-off and no S3, so this needs only a migrated Postgres — no
-        # LocalStack (see packages/services/food-service/tests/load/README.md).
-        if: ${{ inputs.run_load_test }}
-        services:
-            postgres:
-                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: food_load
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U postgres"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-        steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-              with:
-                  # No job here performs a git push/fetch/remote operation (verified), so the
-                  # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
-                  persist-credentials: false
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-              with:
-                  node-version: 24
-            - name: Restore dependencies
-              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-              with:
-                  path: |
-                      node_modules
-                      packages/*/node_modules
-                      packages/*/*/node_modules
-                      packages/*/*/*/node_modules
-                      packages/*/*/*/*/node_modules
-                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
-            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
-            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
-            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
-            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
-            # exactly what made it look like flake instead of a missing fallback.
-            #
-            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
-            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
-            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
-            # eviction rate, which is the number worth watching.
-            - name: Install dependencies if the cache missed
-              run: |
-                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
-                      exit 0
-                  fi
-                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
-                  npm ci
-            - name: Install k6
-              run: |
-                  sudo gpg -k
-                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
-                      | sudo tee /etc/apt/sources.list.d/k6.list
-                  sudo apt-get update
-                  sudo apt-get install -y k6
-            # Build the service AND its shared deps (turbo `^build`) so the Dockerfile can COPY their dist +
-            # prod.package.json, then build the PROVEN image — a plain `node dist/src/main.js` boot cannot
-            # resolve the workspace `@kitchensink/*` bare specifiers outside the image. Mirrors the recipe job.
-            - name: Build food-service (+ shared deps)
-              run: npx turbo run build --filter=@kitchensink/food-service
-            # Rewrite the food package.json exports/main to ./dist — the image COPYs prod.package.json over
-            # the committed package.json (which exports ./src). Mirrors sandbox-deploy.yml's food image build.
-            - name: Prepare food-service prod manifest
-              run: npm run docker:prepare --workspace=packages/services/food-service
-            - name: Build food-service image
-              run: docker build -f packages/services/food-service/Dockerfile -t food-load:ci .
-            # Apply the hand-authored, ordered food schema DDL (src/db/migrations/*.sql — the same source of
-            # truth tests/support/db.ts applies) to the throwaway DB. The erasure route DELETEs from
-            # `fetch_requesters`, so without the schema every request 500s instead of returning 200.
-            - name: Apply food schema migrations
-              env:
-                  PGHOST: localhost
-                  PGPORT: '5432'
-                  PGUSER: postgres
-                  PGPASSWORD: postgres
-                  PGDATABASE: food_load
-              run: |
-                  psql -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
-                  for f in packages/services/food-service/src/db/migrations/*.sql; do
-                      echo "applying $f"
-                      psql -v ON_ERROR_STOP=1 -f "$f"
-                  done
-            # Mint the EdDSA token pool + a throwaway keypair BEFORE the boot, which must trust the public
-            # half. Same ordering constraint (and same 120s contract-max TTL) as the recipe job.
-            - name: Mint the food service-erasure token pool
-              run: npx tsx packages/services/food-service/tests/load/prepareErasureTokens.ts
-            # Mint the Clerk RS256 pool the T-195 SC scripts present. Also BEFORE the boot: the container is
-            # given the public half as CLERK_JWT_KEY, so a pool minted afterwards would verify against a key
-            # the service does not hold and every read would be a 401. Neither pool is in the repo (both are
-            # gitignored live credentials), so this job MUST mint them and can never assume they exist.
-            - name: Mint the food Clerk session-token pool (T-195)
-              run: npx tsx packages/services/food-service/tests/load/prepareClerkTokens.ts
-            # PORT=3000 (not food's 3002 default) so the script's FOOD_API_BASE_URL default host:port applies.
-            # USDA_API_KEY is schema-required but never called on any measured path (search is local-only by
-            # FR-009, reads never reach an adapter), so a dummy satisfies boot without any source traffic.
-            # BOTH auth keys are supplied: the internal erasure route is guarded by FoodServiceErasureGuard
-            # (EdDSA) while every /api/v1/foods/* route is guarded by FoodAuthGuard (Clerk RS256), and the
-            # T-195 scripts measure the latter. CLERK_AUTHORIZED_PARTIES is the exact-match list mode the
-            # minted `azp` claims — the production posture (ADR-0001), not the preview pattern.
-            - name: Boot food-service (Docker)
-              run: |
-                  docker run -d --name food-load --network host \
-                      -e NODE_ENV=development \
-                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_load \
-                      -e PORT=3000 \
-                      -e STAGE=load \
-                      -e USDA_API_KEY=load-test-dummy-key \
-                      -e FOOD_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/food-service/tests/load/erasure-public-key.pem)" \
-                      -e CLERK_JWT_KEY="$(cat packages/services/food-service/tests/load/clerk-public-key.pem)" \
-                      -e CLERK_AUTHORIZED_PARTIES=https://food-load.test \
-                      food-load:ci
-                  for i in $(seq 1 40); do
-                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
-                      sleep 2
-                  done
-                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs food-load; exit 1; }
-            # Shortened shape for the same reason as the recipe erasure run: the minted tokens live 120s (the
-            # verifier's contract max), so a 50s run started right after boot never races the TTL. Thresholds
-            # are shape-independent (see tests/load/README.md), so strictness is unchanged.
-            #
-            # ⚠️ THIS RUNS FIRST, and the ordering is load-bearing. The T-195 fixture seed below writes ~180,000
-            # rows and takes ~15s+, which on a slower runner is enough to eat into the erasure pool's 120s TTL.
-            # Erasure first means the short-TTL run happens while the pool is freshest.
-            - name: Run k6 food service-erasure load script (CR-002 / U4b)
-              working-directory: packages/services/food-service
-              env:
-                  FOOD_API_BASE_URL: http://localhost:3000
-                  FOOD_LOAD_RAMP_UP: 15s
-                  FOOD_LOAD_HOLD: 25s
-                  FOOD_LOAD_RAMP_DOWN: 10s
-              run: k6 run --summary-export=k6-erasure-summary.json tests/load/serviceErasure.load.js
-            # ── T-195: SC-001 / SC-004 / SC-005 / SC-007 ────────────────────────────────────────────────
-            # Seed the local store the SC scripts read. Deliberately AFTER the boot: the seeder is additive
-            # and never drops the schema, precisely so the already-running container's pool is not left
-            # holding sessions against dropped tables (see the script's docblock).
-            - name: Seed the food performance fixture (50,000 RESOLVED foods)
-              working-directory: packages/services/food-service
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load
-              run: npx tsx tests/load/preparePerfFixture.ts
-            - name: Run k6 local-store read load script (SC-001 read p95, SC-004 serve rate)
-              working-directory: packages/services/food-service
-              env:
-                  FOOD_API_BASE_URL: http://localhost:3000
-              run: k6 run --summary-export=k6-local-store-read-summary.json tests/load/localStoreRead.load.js
-            - name: Run k6 local-store throughput load script (SC-005 served reads/sec)
-              working-directory: packages/services/food-service
-              env:
-                  FOOD_API_BASE_URL: http://localhost:3000
-              run: |
-                  k6 run --summary-export=k6-local-store-throughput-summary.json \
-                      tests/load/localStoreThroughput.load.js
-            - name: Run k6 search load script (SC-007 search p95 at 50,000 foods)
-              working-directory: packages/services/food-service
-              env:
-                  FOOD_API_BASE_URL: http://localhost:3000
-              run: k6 run --summary-export=k6-search-summary.json tests/load/search.load.js
-            # ── Plan U8: the one route whose cost the CALLER chooses ────────────────────────────────────
-            # `GET /api/v1/foods/nutrition?ids=…` fans out over up to 100 six-round-trip golden-record reads
-            # per request, so this step asserts three things no correctness tier can see: that the batch
-            # AMORTIZES (its budget is `READ_P95_MS × NUTRITION_BATCH_IDS` — the line at which one batched id
-            # costs as much as a whole standalone read), that the single-read path is not STARVED while the
-            # fan-out runs (a control scenario in the same contention window, held to SC-001), and that the
-            # per-request id cap is enforced BEFORE any database work — an over-cap request must be cheaper
-            # than a served read, and its check pins the published `BATCH_TOO_LARGE` + `details.maxNames`
-            # envelope, so a lifted cap turns 101 golden-record reads into a red step rather than a silent
-            # unbounded read. Placed with the read-latency scripts and ahead of the flood on purpose.
-            #
-            # ⚠️ ITS BUDGET IS DERIVED, NOT MEASURED — U8's endpoint has no numbered success criterion, and
-            # no CI run has produced a number for it yet. Record the first observed p95s beside the
-            # derivation in `tests/load/lib/common.js` (as SEARCH_P95_MS records its own history) and tighten
-            # from there. If it breaches on its first run, read the CONTROL scenario before touching the
-            # budget: a green control beside a red batch is the fan-out, both red is the pool or the host.
-            - name: Run k6 batch-nutrition load script (U8 amortization, starvation guard, id-cap bound)
-              working-directory: packages/services/food-service
-              env:
-                  FOOD_API_BASE_URL: http://localhost:3000
-              run: k6 run --summary-export=k6-nutrition-batch-summary.json tests/load/nutritionBatch.load.js
-            # FR-052/SC-011 under the flood shape the per-source cap CANNOT see: the bucket key is the
-            # leftmost X-Forwarded-For hop, which the shared ALB appends to, so an attacker rotates it every
-            # request. Asserts the rejection stays cheap and fails closed, and that a legitimate caller is
-            # not starved, while the shedder's bucket map is under real concurrency (finding 02.F-F1).
-            - name: Run k6 auth-flood load script (FR-052/SC-011 rotating source key)
-              working-directory: packages/services/food-service
-              env:
-                  FOOD_API_BASE_URL: http://localhost:3000
-              run: k6 run --summary-export=k6-auth-flood-summary.json tests/load/authFlood.load.js
-            # The drain claim needs no HTTP service — it calls FetchQueueDao.leaseNext() against Postgres
-            # directly (k6 cannot speak SQL). Split into TWO steps because they answer two different questions
-            # and must be attributable separately in the run log.
-            #
-            # ⚠️ BOTH CARRY `if: !cancelled()`, and that is NOT a softening — each still fails the job on a
-            # breach (no `continue-on-error`, no `|| true`). It exists because the default implicit `success()`
-            # made these steps hostage to the k6 steps ABOVE them, which measure a completely different thing.
-            # Observed on run 31451273786: the SC-007 `narrow` search shape crossed its budget (258.74ms vs
-            # 200ms) and BOTH drain steps were `skipped` — so the FR-046 ceiling probe, the one measurement
-            # this branch exists to confirm, produced no number at all and the run reported only the search
-            # failure. A pipeline that silently stops measuring the thing under investigation because
-            # something unrelated failed first is the same "absence of work behind a status" class this repo
-            # keeps paying for. `!cancelled()` (not `always()`) so a cancelled run still stops promptly.
-            #
-            # (1) The CONTRACT gate. SC-003 promises 202 -> RESOLVED within 60s p95 "when the fetch_queue
-            #     pending-row depth is under 100 rows", so depth 100 is where the promise actually binds. This
-            #     step is the regression bar for SC-003 and passes today (measured ~7ms p95 vs a 60ms budget).
-            - name: Drain-claim SC-003 contract gate (depth 100, DSN-11)
-              if: ${{ !cancelled() }}
-              working-directory: packages/services/food-service
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load
-                  FOOD_DRAIN_DEPTHS: '100'
-              run: npx tsx tests/load/drainDemotion.perf.ts
-            # (2) The FR-046 CEILING probe — the measurement T-195's acceptance explicitly requires ("at the
-            #     FR-046 10,000-row ceiling"). There is deliberately NO `continue-on-error` and no `|| true`: a
-            #     step that reported success for an over-budget drain claim is exactly the class of silent-green
-            #     failure this repo has already paid for.
-            #
-            #     HISTORY — this step has been red twice, for two different reasons, and both are recorded
-            #     because the second was hidden by a stale note about the first.
-            #
-            #     (a) Pre-T-197: FR-043's demotion was a correlated `COUNT(*)` in the LEADING position of the
-            #         ORDER BY, so `LIMIT 1` could not avoid it and `idx_fetch_queue_priority` was unusable.
-            #         ~0.5s per claim at depth 1,000, ~7.5-11s at the ceiling. T-197's rewrite
-            #         (`over_demand AS MATERIALIZED`, fairness moved into a WHERE filter) fixed that and took
-            #         the ceiling to tens of milliseconds — but this comment was not updated, so it kept
-            #         describing a query that no longer existed and was wrong by ~100x.
-            #
-            #     (b) T-197 left ONE case still linear in depth, and CI caught it (run 31323016643, budget
-            #         p95 <= 60ms):
-            #           depth  1,000 mixed        3.98ms  PASS      depth  1,000 adversarial  10.76ms  PASS
-            #           depth 10,000 mixed       16.73ms  PASS      depth 10,000 adversarial  85.52ms  BREACH
-            #         One series, breaching by 1.43x. In `adversarial` every row is demoted, so the promoted
-            #         branch had to examine all 10,000 eligible rows before it could conclude the tier was
-            #         empty — a QUERY-SHAPE cost, not a missing index. T-197 had recorded the probe as PASSING
-            #         on a LOCAL 28.66ms and explicitly declined to materialize a per-requester count; CI
-            #         hardware is ~2.4-3x slower, which is the whole gap between 28.66ms and 85.52ms. The
-            #         depth-100 contract gate above kept ~12x headroom throughout, so SC-003 itself was never
-            #         breached — this was FR-046 ceiling headroom.
-            #
-            #     T-201 RESOLVED (b) BY THE QUERY CHANGE, not by widening anything. `leaseNext` now derives
-            #     `over_demand` from a `demand` CTE (so the threshold is still stated exactly once) and gates
-            #     the promoted branch on a `promoted_ready` probe that answers "is any requester under the
-            #     threshold AND holding eligible work" from the AGGREGATE — bounded by the distinct-requester
-            #     count, not by queue depth — so an empty promoted tier leaves the branch `never executed`.
-            #     Locally, through the real DAO: adversarial @10,000 41.70ms -> 7.20ms, @1,000 6.97ms ->
-            #     4.03ms, mixed unchanged. Equivalence is proven by
-            #     `drainClaimRankingDifferential.integration.test.ts` (drain order vs FR-043's literal
-            #     ranking over 12 randomised queues) and the plan shape is asserted by
-            #     `drainClaimScaling.integration.test.ts`.
-            #
-            #     CONFIRMED HERE (run 31451860784), before -> after, budget p95 <= 60ms:
-            #       depth    100 mixed  4.78 ->  4.87ms      depth    100 adversarial   2.64 ->  2.65ms
-            #       depth  1,000 mixed  3.98 ->  5.46ms      depth  1,000 adversarial  10.76 ->  3.91ms
-            #       depth 10,000 mixed 16.73 -> 16.59ms      depth 10,000 adversarial  85.52 -> 10.81ms
-            #     The breaching series is 7.9x faster and now sits 5.6x inside the budget. Worth noting the
-            #     local prediction was 7.20ms against this 10.81ms: the ~3x hardware factor applies to the
-            #     remaining per-claim aggregate as well, which is exactly why THIS STEP, not a dev machine,
-            #     is the arbiter of the absolute numbers.
-            #
-            #     (c) 2026-08-12 (run 31608073724): `mixed` @10,000 reported 90.23ms p95 — and the query was
-            #         NOT the cause. Its MEDIAN was 12.23ms, the second-fastest ever measured for that series
-            #         and 22% faster than the 15.69ms of the confirming run above; the plan, its `never
-            #         executed` branch and its buffer counts were all unchanged. Cause: the probe sampled
-            #         n=30, where its nearest-rank "p95" IS the second-largest sample (and "p99" IS the max —
-            #         hence `p99 == max` in every row it ever printed), combined with 30-170ms host stalls on
-            #         the runner. Same run: `adversarial` @1,000 p50 3.55ms / p95 29.37ms. Run 31537195430:
-            #         `mixed` @100 p50 2.31ms / p95 56.51ms, i.e. 94% of the budget at the depth where SC-003
-            #         binds and where the statement does ~2ms of work. T-203 raised the sample default to 300
-            #         (p95 is now the 16th-largest observation) and corrected the reporting, changing NO SQL,
-            #         NO budget and NO fixture. The stall SOURCE on GitHub's runners is not diagnosed.
-            #         The owner then granted a ±15% variance allowance on perf metrics (ruling 2026-08-12), so
-            #         the ENFORCED ceiling is 60ms + 15% = 69ms, printed on every series. ⛔ That allowance is
-            #         NOT what fixed this case and must not be read as the safety net: 90.23ms is 50% over the
-            #         budget, not 15%. The n=300 estimator is the fix; the allowance is a margin on top of it.
-            #
-            #     WHEN IT BREACHES, DIAGNOSE BEFORE CHANGING ANYTHING — the step's own failure output leads
-            #     with the host-stall signature for this reason. Compare MEDIANS against the table in
-            #     tests/load/README.md "Finding 2" FIRST: a median in family with earlier runs means the
-            #     query is fine and the tail is the runner. If the median moved, the fix is the query — NOT
-            #     raising FOOD_DRAIN_CLAIM_P95_MS, NOT adding `continue-on-error`, and NOT deleting this step.
-            #     Owner decisions in tasks.md T-197 (gate stays at every depth) and T-203.
-            - name: Drain-claim FR-046 ceiling probe (depths 1000+10000, DSN-11)
-              if: ${{ !cancelled() }}
-              working-directory: packages/services/food-service
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load
-                  FOOD_DRAIN_DEPTHS: '1000,10000'
-              run: npx tsx tests/load/drainDemotion.perf.ts
-            - name: Upload k6 summaries
-              if: always()
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-              with:
-                  name: food-k6-summaries-${{ inputs.stage }}
-                  path: packages/services/food-service/k6-*-summary.json
-                  retention-days: 7
-                  if-no-files-found: warn
-            - name: Food-service logs on failure
-              if: failure()
-              run: docker logs food-load 2>&1 | tail -150 || true
-
-    load-test-identity:
-        name: Load test (identity — k6, isolated substrate) · heavy tier
-        runs-on: ubuntu-latest
-        needs: [install]
-        # ⛔ k6-target: isolated substrate — and this one CANNOT be re-pointed even in principle. There is
-        # no per-PR identity deploy: `sandbox-deploy.yml` deploys food and recipe only, and identity is the
-        # ONE shared `identity.sandbox.{apex}` every preview signs in against (ADR-0001), so load against it
-        # is load against every other open PR's sign-in. Its own docblock below also forbids the only way a
-        # deployed run could authenticate ("Do NOT 'improve' it by provisioning real Clerk users") — the
-        # shared Clerk dev instance is a single per-IP rate limit that has already turned CI red.
-        # The NFR-011a / SC-005 / SC-006 / SC-007 performance gate for `@kitchensink/identity-service` — the
-        # third k6 job, gated behind the SAME `run_load_test` input as recipe and food so the whole tier moves
-        # together (nightly / manual / `heavy-e2e` PR label / a PR touching food's measured query paths) and
-        # never fires on an ordinary PR push.
-        #
-        # WHY THIS EXISTS AT ALL. The four scripts under `packages/services/identity/tests/load/` were written,
-        # reviewed and merged — and no job ran them, so identity was the one deployable HTTP service in this
-        # repo whose §7.1-mandated k6 tier had never executed. That is not a cosmetic gap: identity has the
-        # widest blast radius here (it is the ONE identity provider every preview and both stages sign in
-        # against), and its budgets were previously "asserted" only by `tests/perf/latencyPerf.test.ts`, a
-        # unit-tier vitest file that compares constants to themselves under no load. Proof the gap was real and
-        # not theoretical: `tests/load/lib/common.js` documents an `open()` path bug found by READING rather
-        # than running, explicitly "latent … because no CI job runs the identity tier yet".
-        # `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` now fails if any committed `.load.js`
-        # is invoked by no workflow step, so this cannot silently recur for the next service.
-        #
-        # ⚠️ IT CONTACTS NO CLERK INSTANCE, AND THAT IS DELIBERATE — it is also why this job cannot collide
-        # with `e2e-web`. Identity verifies Clerk session tokens NETWORKLESSLY against a pinned PEM
-        # (`CLERK_JWT_KEY`) with `azp` enforcement, so `prepareClerkTokens.ts` mints the pools against a
-        # THROWAWAY keypair and the container is booted trusting its public half. The real verifier, the real
-        # `azp` boundary and the real read-through provisioning all run, with zero requests to Clerk. The
-        # shared sandbox Clerk dev instance is a single per-IP rate limit — two concurrent suites against it
-        # have already turned CI red for reasons unrelated to the code under test (measured on one commit:
-        # 84 failures versus 89 green) — so this job takes no Clerk secret, needs no AWS credentials, and has
-        # no `load-secrets` step. Do NOT "improve" it by provisioning real Clerk users.
-        #
-        # SIMPLER than the recipe job by design, like food's: none of these four scenarios touches S3 or SQS,
-        # and the rename path's handle-sync publisher no-ops when `HANDLE_SYNC_TOPIC_ARN` is unset
-        # (`users.module.ts`), so this needs only a migrated Postgres — no LocalStack.
-        if: ${{ inputs.run_load_test }}
-        services:
-            postgres:
-                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: identity_load
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U postgres"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-        steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-              with:
-                  # No job here performs a git push/fetch/remote operation (verified), so the
-                  # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
-                  persist-credentials: false
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-              with:
-                  node-version: 24
-            - name: Restore dependencies
-              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-              with:
-                  path: |
-                      node_modules
-                      packages/*/node_modules
-                      packages/*/*/node_modules
-                      packages/*/*/*/node_modules
-                      packages/*/*/*/*/node_modules
-                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
-            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
-            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
-            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
-            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
-            # exactly what made it look like flake instead of a missing fallback.
-            #
-            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
-            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
-            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
-            # eviction rate, which is the number worth watching.
-            - name: Install dependencies if the cache missed
-              run: |
-                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
-                      exit 0
-                  fi
-                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
-                  npm ci
-            - name: Install k6
-              run: |
-                  sudo gpg -k
-                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
-                      | sudo tee /etc/apt/sources.list.d/k6.list
-                  sudo apt-get update
-                  sudo apt-get install -y k6
-            # Build the service AND its shared deps (turbo `^build`) so the Dockerfile can COPY their dist +
-            # prod.package.json, then build the PROVEN image — a plain `node dist/src/main.js` boot cannot
-            # resolve the workspace `@kitchensink/*` bare specifiers (identity's Dockerfile copies FOUR shared
-            # dists: identity-utils, clerk-verify, identity-db, identity-core). Mirrors the recipe/food jobs
-            # AND the identity image build in `prod-deploy.yml` / `sandbox-identity-deploy.yml`, which is the
-            # authoritative recipe for this image.
-            - name: Build identity-service (+ shared deps)
-              run: npx turbo run build --filter=@kitchensink/identity-service
-            # Rewrite the identity package.json exports/main to ./dist — the image COPYs prod.package.json
-            # over the committed package.json (which exports ./src). Same step both identity deploy workflows
-            # run before their `docker buildx build`.
-            - name: Prepare identity-service prod manifest
-              run: npm run docker:prepare --workspace=packages/services/identity
-            - name: Build identity-service image
-              run: docker build -f packages/services/identity/Dockerfile -t identity-load:ci .
-            # Mint the RS256 Clerk pools + a THROWAWAY keypair. FIRST, and for two independent reasons:
-            #   • the boot below is given the public half as CLERK_JWT_KEY, so a pool minted afterwards would
-            #     verify against a key the service does not hold and every request would be a 401; and
-            #   • `prepare-db` REFUSES to run without a readable pool whose warm size matches what it seeds
-            #     (a surplus token names an unseeded `sub`, which the hot-path scenario would silently
-            #     read-through-PROVISION and then report first-sight write latency as the steady-state read).
-            # `clerk-tokens.json` and `clerk-public-key.pem` are gitignored live credential material, so this
-            # job MUST mint them and can never assume a checkout provides them. Neither file is ever uploaded:
-            # the artifact step below is scoped to `k6-*-summary.json` at the PACKAGE root, and
-            # `k6LoadTierWiring.test.ts` fails if any upload path could capture the pool.
-            - name: Mint the identity Clerk session-token pool
-              working-directory: packages/services/identity
-              run: npm run test:load:tokens
-            # Apply the ordered `src/database/migrations/*.sql` and seed the three fixture sets the scenarios
-            # need: the warm principals (so the hot path measures a steady-state read, not provisioning), the
-            # admin principal, and 20,000 filler `users` rows — the `ilike '%needle%'` admin scan has no index
-            # to use, so that population is what makes `adminUserSearch.load.js` able to FAIL. It also
-            # ANALYZEs, so the measured plan is the one a real table would get. DROPs the `public` schema of
-            # this runner-local throwaway database by design.
-            - name: Prepare identity load database (migrate + seed)
-              working-directory: packages/services/identity
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/identity_load
-              run: npm run test:load:db
-            # PORT=3001 — identity's OWN default (src/config/env.schema.ts) and the host:port the k6 scripts
-            # default to, unlike the recipe/food jobs' 3000.
-            #
-            # STAGE=loadtest is a DEPLOYED stage as far as the env schema is concerned, which is the point: it
-            # makes CLERK_JWT_KEY + exactly one `azp` mode REQUIRED, so the container fails to boot rather than
-            # quietly skipping verification. CLERK_AUTHORIZED_PARTIES is the exact-match list mode the minted
-            # `azp` claims — the production posture (ADR-0001), not the preview pattern.
-            #
-            # DELETION_QUEUE_URL is schema-required but never reached: `DELETE /api/v1/users/me` is
-            # deliberately excluded from this tier (once per user lifetime, destructive, and it tombstones the
-            # very principal presenting the token), so a syntactically valid URL satisfies boot with no SQS
-            # traffic. HANDLE_SYNC_TOPIC_ARN is left UNSET so the rename path's publisher is the no-op.
-            #
-            # ⚠️ IDENTITY_DEV_AUTH_USER_ID is deliberately NOT set. That non-production bypass short-circuits
-            # `AuthMiddleware` entirely — no token verification and no read-through provisioning — i.e. it
-            # removes the two things this tier exists to measure. (The recipe jobs legitimately use their
-            # equivalent, because recipe's load is about recipe routes, not about auth.) The mistake would not
-            # be silent: under the bypass `authRejection.load.js`'s invalid credentials answer 200 and its
-            # SC-006 check collapses.
-            - name: Boot identity-service (Docker)
-              run: |
-                  docker run -d --name identity-load --network host \
-                      -e NODE_ENV=development \
-                      -e STAGE=loadtest \
-                      -e PORT=3001 \
-                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/identity_load \
-                      -e DELETION_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000000000000/identity-load-deletion \
-                      -e CLERK_JWT_KEY="$(cat packages/services/identity/tests/load/clerk-public-key.pem)" \
-                      -e CLERK_AUTHORIZED_PARTIES=https://identity-load.test \
-                      identity-load:ci
-                  for i in $(seq 1 40); do
-                      if curl -sf http://localhost:3001/health > /dev/null; then echo "service up"; break; fi
-                      sleep 2
-                  done
-                  curl -sf http://localhost:3001/health || { echo "service did not boot"; docker logs identity-load; exit 1; }
-            # ── The four scenarios, in the ONE order that is valid ───────────────────────────────────────
-            # ⚠️ SCRIPT ORDER IS LOAD-BEARING and is not a stylistic choice. It mirrors the package's own
-            # `test:load` script (the authoritative ordering), and
-            # `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` fails if the two ever disagree:
-            #
-            #   1. `provisioning-and-rename` is the only WRITE-heavy script (it inserts thousands of users).
-            #      Run earlier, it leaves Postgres autovacuuming and checkpointing DURING the read-sensitive
-            #      scripts. Measured (tests/load/README.md): with the rejection script running immediately
-            #      after it, `validUnderStorm` p95 was 722ms against a 500ms budget and rejection p95 263ms;
-            #      on a settled database the same script measured 5.4ms and 1.5ms. That ~130x artefact is a
-            #      red run that looks like a service defect and is not one.
-            #   2. Its cold tokens are SINGLE-USE — only "cold" against a database that has never seen their
-            #      `sub` — so running it last means the single `prepare-db` above covers the whole suite.
-            #
-            # Each script is its own step so the run graph attributes a failure to a scenario rather than to
-            # one opaque "run k6" block, and each exports a summary: the p99 the plan's NFR-011a target is
-            # stated in is enforced as a threshold, and a threshold whose VALUE you cannot read turns a
-            # failure into a guess. A breach exits k6 non-zero and fails the step — no `continue-on-error`,
-            # no `|| true`.
-            - name: Run k6 session hot-path load script (NFR-011a profile p95/p99, readiness under load)
-              working-directory: packages/services/identity
-              env:
-                  IDENTITY_API_BASE_URL: http://localhost:3001
-              run: k6 run --summary-export=k6-hotpath-summary.json tests/load/sessionHotPath.load.js
-            - name: Run k6 auth-rejection load script (SC-006, and the no-starvation guard)
-              working-directory: packages/services/identity
-              env:
-                  IDENTITY_API_BASE_URL: http://localhost:3001
-              run: k6 run --summary-export=k6-rejection-summary.json tests/load/authRejection.load.js
-            - name: Run k6 admin-user-search load script (ilike scan vs the indexed probe)
-              working-directory: packages/services/identity
-              env:
-                  IDENTITY_API_BASE_URL: http://localhost:3001
-              run: k6 run --summary-export=k6-admin-search-summary.json tests/load/adminUserSearch.load.js
-            # LAST, for the two reasons in the block above. Not reorderable.
-            - name: Run k6 provisioning + rename load script (first-sight write path — runs LAST)
-              working-directory: packages/services/identity
-              env:
-                  IDENTITY_API_BASE_URL: http://localhost:3001
-              run: k6 run --summary-export=k6-provisioning-summary.json tests/load/provisioningAndRename.load.js
-            # PACKAGE ROOT only. `--summary-export` writes here (k6 runs with this working directory), which is
-            # deliberately NOT `tests/load/` — that directory holds `clerk-tokens.json`, thousands of live
-            # bearer JWTs, and this repo is PUBLIC. Widening this path, or pointing it at a directory, is the
-            # exfiltration this tier's guard test exists to prevent.
-            - name: Upload k6 summaries
-              if: always()
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-              with:
-                  name: identity-k6-summaries-${{ inputs.stage }}
-                  path: packages/services/identity/k6-*-summary.json
-                  retention-days: 7
-                  if-no-files-found: warn
-            # A k6 threshold breach reports only latency/status aggregates; the service-side exception behind a
-            # 500 (a pool exhaustion, a failed transaction, a rejected token) is only in the container log.
-            # No `|| true`: GitHub runs `run:` under `bash -e` without `pipefail`, so the pipeline's status is
-            # `tail`'s and a missing container cannot mask the real failure that triggered this step.
-            - name: Identity-service logs on failure
-              if: failure()
-              run: docker logs identity-load 2>&1 | tail -150

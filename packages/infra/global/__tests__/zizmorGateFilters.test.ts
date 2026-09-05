@@ -251,7 +251,6 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     // back `failed_retryable` behind a `202` and `recipes/parse-ingredients` failed on `2 of 2 lines read`.
     // It is the SAME tag-tracked image, at the SAME pin, that this file's `load-test` job already declares
     // one job below: no new image, no new reason, one more site.
-    '_ci-heavy.yml:unpinned-images': 4,
 };
 
 describe('the zizmor gate cannot be weakened by a filter', () => {

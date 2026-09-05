@@ -1,5 +1,27 @@
 # recipe-service load / performance tests (k6)
 
+> ## ⛔ CI NO LONGER RUNS THESE (owner ruling, 2026-09-05)
+>
+> Verbatim: _"K6 should also be hitting sandbox or production, depending on the flow, as I already stated
+> earlier. It follows the same pattern as the end to end tests"_ — i.e. k6 measures a DEPLOYED environment
+> and SKIPS when this PR's sandbox is not running.
+>
+> The job that ran the scripts below (`load-test` in `.github/workflows/_ci-heavy.yml`) booted its own
+> substrate on the runner, and every assertion here IS that substrate — a seeded corpus in a runner-local Postgres, an SQS queue nothing drains so its DEPTH is the fan-out evidence, a LocalStack S3 snapshot, a throwaway EdDSA keypair the deployed service does not trust, a local food stub whose chunk counters are the proof, and an UNREACHABLE food origin whose unreachability is the assertion. A deployed origin cannot
+> present any of it, so the job was DELETED rather than re-pointed, along with the container, the
+> migrations, the seeding and the fixtures it needed.
+>
+> **What CI runs instead:** one job, `load-test-deployed`, running
+> `packages/tools/loadtest/deployedOrigin.load.js` against this stage's deployed recipe, food and identity
+> origins. It gates on the two facts a slow, shared machine cannot cause — no 5xx, and a protected route
+> never answering 2xx unauthenticated — and REPORTS latency without a threshold, because every budget in
+> the table below was calibrated on a dedicated runner container and would redden on a neighbour's traffic
+> on a 0.5-vCPU `FARGATE_SPOT` preview sharing a `db.t4g.micro`.
+>
+> **These scripts are still committed, still correct, and still runnable by hand** — see the run
+> instructions below. What is gone is the automatic gate: nothing now fails a PR when one of the budgets
+> in this table regresses. That is a real, accepted loss of coverage, not an oversight.
+
 These are **k6** scripts — the required performance gate for `@kitchensink/recipe-service` (per
 `docs/CODING_STANDARDS.md §7.1`). They are a separate gate from the vitest unit/integration/e2e
 pyramid: they are ES-module JavaScript run by the **k6 binary**, not by node or vitest, and they are
@@ -145,9 +167,13 @@ SC-009's headline is _p95 ≤ 500ms at 10k concurrent_. A single k6 runner canno
 full 10k validation is a distributed / **k6 Cloud** run supplying a high `RECIPE_LOAD_PEAK_VUS`. The
 thresholds are identical regardless of the peak, so the pass/fail bar does not change with scale.
 
-## CI
+## CI (DELETED)
 
-The `load-test` job in `.github/workflows/_ci-heavy.yml` installs k6 and runs the scripts against a booted
+> ⛔ **HISTORICAL — this job was DELETED on 2026-09-05** (owner ruling; see the banner at the top of
+> this file). The description below is kept as the record of what it did, so a future decision to
+> restore it as a manual-dispatch tier does not have to be reconstructed from a diff.
+
+The (now deleted) `load-test` job in `.github/workflows/_ci-heavy.yml` installs k6 and runs the scripts against a booted
 service. It is gated (off by default via the `run_load_test` workflow input) so the heavy load run never
 fires on ordinary PR / push pipelines — a caller opts in by passing `run_load_test: true`.
 

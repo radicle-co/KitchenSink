@@ -522,8 +522,6 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'suppressed-exit _ci-heavy.yml::e2e-mobile-maestro::Free disk space for the emulator system image ×1',
     // Failure-path diagnostics: `docker logs | grep` exits non-zero when it matches nothing, and a
     // no-diagnostics run must not mask the real failure that triggered it.
-    'suppressed-exit _ci-heavy.yml::load-test::Recipe-service logs on failure ×1',
-    'suppressed-exit _ci-heavy.yml::load-test-food::Food-service logs on failure ×1',
     // Same failure-path diagnostic, for the identity boot check (ADR-0028). The log is dumped so a boot
     // failure is readable in the job that found it; if the BUILD step failed the file was never created,
     // and a missing diagnostic must not add a second red X on top of the real one.
@@ -1280,7 +1278,10 @@ describe('invariant 6 — every `pg_isready` healthcheck names the role it probe
         // with them (14 → 9 measured). The floor tracks what the tree HAS; it exists to catch a discovery
         // that silently stops matching, not to assert a fleet size. Set below the current count so a
         // legitimate future deletion does not red, but high enough that a broken parser still does.
-        expect(found.length).toBeGreaterThanOrEqual(8);
+        // ⚠️ 8 → 4 on 2026-09-05: the three isolated-substrate k6 jobs were deleted with the e2e
+        // ruling, taking two more Postgres containers with them. The floor tracks what the tree
+        // HAS — it exists to catch a parser that stops matching, not to assert a fleet size.
+        expect(found.length).toBeGreaterThanOrEqual(4);
     });
 });
 

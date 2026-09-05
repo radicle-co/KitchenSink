@@ -57,15 +57,16 @@ const WORKFLOW_DIR = join(repoRoot, '.github', 'workflows');
  * The k6 jobs that deliberately measure a runner-local substrate, each with the reason re-pointing them
  * would DESTROY the assertion rather than relocate it. Pinned in the safe polarity — see the docblock.
  */
-const ISOLATED_SUBSTRATE_JOBS: Readonly<Record<string, string>> = {
-    'load-test': 'seeded corpus + LocalStack S3/SQS depth + a food stub whose counters ARE the fan-out proof',
-    'load-test-food': 'seeded 50,000-row fixture + throwaway EdDSA/RS256 keypairs + a direct-SQL drain probe',
-    'load-test-identity':
-        'throwaway RS256 keypair, deliberately contacts NO Clerk instance (its own docblock forbids it)',
-};
+const ISOLATED_SUBSTRATE_JOBS: Readonly<Record<string, string>> = Object.freeze({
+    // ⛔ EMPTY BY OWNER RULING (2026-09-05): "K6 should also be hitting sandbox or production …
+    // It follows the same pattern as the end to end tests". The three isolated-substrate jobs were
+    // deleted, not re-pointed — what remained of them once the substrate went was one script against
+    // one origin, which is data rather than three jobs. Kept as an empty map rather than removed so
+    // the guard below still REFUSES a newly-added local-substrate k6 job.
+});
 
 /** The job that carries the owner ruling: k6 against this PR's deployed preview. */
-const SANDBOX_JOB = 'load-test-sandbox';
+const SANDBOX_JOB = 'load-test-deployed';
 
 /** Host shapes that mean "a runner-local container", not a deployed environment. */
 const LOOPBACK = /(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/;

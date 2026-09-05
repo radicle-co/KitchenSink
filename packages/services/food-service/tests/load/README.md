@@ -1,5 +1,27 @@
 # food-service load / performance tests (k6 + one SQL probe)
 
+> ## ⛔ CI NO LONGER RUNS THESE (owner ruling, 2026-09-05)
+>
+> Verbatim: _"K6 should also be hitting sandbox or production, depending on the flow, as I already stated
+> earlier. It follows the same pattern as the end to end tests"_ — i.e. k6 measures a DEPLOYED environment
+> and SKIPS when this PR's sandbox is not running.
+>
+> The job that ran the scripts below (`load-test-food` in `.github/workflows/_ci-heavy.yml`) booted its own
+> substrate on the runner, and every assertion here IS that substrate — a seeded 50,000-row local store, a 180,000-row drain fixture reached over a direct `DATABASE_URL` (the drain probe is not k6 at all — it calls `FetchQueueDao.leaseNext()` in SQL), and throwaway EdDSA/RS256 keypairs the deployed service does not trust. A deployed origin cannot
+> present any of it, so the job was DELETED rather than re-pointed, along with the container, the
+> migrations, the seeding and the fixtures it needed.
+>
+> **What CI runs instead:** one job, `load-test-deployed`, running
+> `packages/tools/loadtest/deployedOrigin.load.js` against this stage's deployed recipe, food and identity
+> origins. It gates on the two facts a slow, shared machine cannot cause — no 5xx, and a protected route
+> never answering 2xx unauthenticated — and REPORTS latency without a threshold, because every budget in
+> the table below was calibrated on a dedicated runner container and would redden on a neighbour's traffic
+> on a 0.5-vCPU `FARGATE_SPOT` preview sharing a `db.t4g.micro`.
+>
+> **These scripts are still committed, still correct, and still runnable by hand** — see the run
+> instructions below. What is gone is the automatic gate: nothing now fails a PR when one of the budgets
+> in this table regresses. That is a real, accepted loss of coverage, not an oversight.
+
 These are the **k6** scripts and the one Postgres probe that make up the required performance gate for
 `@kitchensink/food-service` (per `docs/CODING_STANDARDS.md §7.1`, which mandates unit **AND** integration
 **AND** e2e **AND** k6 for a deployable HTTP service). The k6 scripts are ES-module JavaScript run by the
@@ -583,9 +605,13 @@ an owner call, and they must move together.
 gate is honest about the query, not about the plan production will get once the store is populated from the
 USDA pipeline.
 
-## CI
+## CI (DELETED)
 
-Wired into the existing `load-test-food` job in `.github/workflows/_ci-heavy.yml`, gated behind the same
+> ⛔ **HISTORICAL — this job was DELETED on 2026-09-05** (owner ruling; see the banner at the top of
+> this file). The description below is kept as the record of what it did, so a future decision to
+> restore it as a manual-dispatch tier does not have to be reconstructed from a diff.
+
+Wired into the (now deleted) `load-test-food` job in `.github/workflows/_ci-heavy.yml`, gated behind the same
 `run_load_test` input as the recipe and food erasure runs, so it never fires on an ordinary PR pipeline
 (nightly / manual / the `heavy-e2e` PR label). The job mints BOTH token pools itself — they are gitignored,
 so it can never assume they exist — boots one container trusting both public keys, then runs erasure → seed

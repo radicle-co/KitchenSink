@@ -1,10 +1,18 @@
 /**
- * The DEPLOYED-origin k6 script — the per-PR sandbox tier (owner ruling 2026-09-04: "k6 should test the
- * sandbox for the PR").
+ * The DEPLOYED-origin k6 script — and, since 2026-09-05, the ONLY k6 script CI runs (owner rulings: "k6
+ * should test the sandbox for the PR", then "K6 should also be hitting sandbox or production, depending on
+ * the flow … It follows the same pattern as the end to end tests").
  *
- * It measures what the three isolated-substrate k6 jobs in `_ci-heavy.yml` structurally CANNOT see: the
- * real deployed path — DNS, the shared ALB, its listener rule, a 0.5-vCPU FARGATE_SPOT task with
- * `desiredCount=1`, and the service's own auth middleware — for THIS PR's preview.
+ * It measures the real deployed path — DNS, the shared ALB, its listener rule, a 0.5-vCPU FARGATE_SPOT task
+ * with `desiredCount=1`, and the service's own auth middleware — for THIS PR's preview. `_ci-heavy.yml`'s
+ * one k6 job (`load-test-deployed`) runs it once per service, against every origin its `/health` probe
+ * finds serving; an absent preview SKIPS that leg rather than failing it.
+ *
+ * ⚠️ The three runner-local k6 jobs that used to sit beside it are DELETED. What they asserted WAS their
+ * substrate (a seeded corpus, an SQS queue nothing drains so its depth is the fan-out evidence, throwaway
+ * signing keypairs the deployed service does not trust, a food stub whose chunk counters are the proof), so
+ * a deployed origin could not carry those assertions. Their scripts remain committed under
+ * `packages/services/<svc>/tests/load/` for local runs — see each package's `tests/load/README.md`.
  *
  * ## ⛔ What is GATED and what is only REPORTED, and why the split is not negotiable
  *
@@ -27,11 +35,13 @@
  *
  * ## ⛔ The rate limiter is RESPECTED, not raised
  *
- * `ThrottlerGuard` buckets by client IP and one k6 runner is one IP, so every VU shares one counter
- * (`packages/services/recipe-service/tests/load/README.md`). The isolated jobs get around that by owning
- * the container and cranking `RATE_LIMIT_*` — which that same README warns makes the result stop proving
- * anything about the production limits. A deployed preview is not ours to reconfigure per run, and cranking
- * it there would be worse: the limiter would then be untested on the only substrate that runs the real one.
+ * `UserThrottlerGuard` keys per authenticated user and falls back to the caller's address when there is
+ * none, and one k6 runner is one address, so every VU shares one counter
+ * (`packages/services/recipe-service/tests/load/README.md`). The deleted runner-local jobs got around that
+ * by owning the container and cranking `RATE_LIMIT_*` — which that same README warns makes the result stop
+ * proving anything about the production limits. A deployed preview is not ours to reconfigure per run, and
+ * cranking it there would be worse: the limiter would then be untested on the only substrate that runs the
+ * real one.
  *
  * So the shape stays UNDER the limit instead. The two scenarios run SEQUENTIALLY at
  * `TARGET_ARRIVAL_RATE` (default 1/s, one request per iteration), i.e. ~60 requests/minute against a
@@ -45,8 +55,8 @@
  * every percentile, and the percentiles are read as an order of magnitude, not a budget.
  *
  * Run:
- *   k6 run --env TARGET_BASE_URL=https://recipe-pr-73.commise.app \
- *          --env TARGET_SERVICE=recipe --env PROTECTED_PATH=/api/v1/recipes deployedOrigin.load.js
+ *   k6 run --env TARGET_BASE_URL=https://recipe-pr-73.commise.app --env TARGET_SERVICE=recipe \
+ *          --env TARGET_STAGE=pr-73 --env PROTECTED_PATH=/api/v1/recipes deployedOrigin.load.js
  */
 import http from 'k6/http';
 import { check } from 'k6';
@@ -55,6 +65,10 @@ import { Counter, Rate, Trend } from 'k6/metrics';
 // ── Config ──────────────────────────────────────────────────────────────────────────────────────────
 const BASE_URL = (__ENV.TARGET_BASE_URL || '').replace(/\/$/, '');
 const SERVICE = __ENV.TARGET_SERVICE || 'service';
+// The stage the origin belongs to, used ONLY to label the report's substrate. It is not optional in
+// spirit: a prod number quoted under the preview's "half a vCPU of Spot" caveat would be read as an
+// understatement of production, and a preview number quoted without it as a statement about production.
+const STAGE = __ENV.TARGET_STAGE || '';
 const PROTECTED_PATH = __ENV.PROTECTED_PATH || '';
 const HEALTH_PATH = __ENV.HEALTH_PATH || '/health';
 
@@ -170,8 +184,8 @@ export function probeHealth() {
 
 /**
  * The auth-boundary series. A protected route with NO `Authorization` header must be refused — and the
- * refusal has to come from the deployed service, which is why it is measured here and not on the isolated
- * substrate, where the recipe container runs under the dev-auth bypass and refuses nothing.
+ * refusal has to come from the deployed service. This is the one place it is exercised at all: the deleted
+ * runner-local recipe job booted its container under the dev-auth bypass, which refuses nothing.
  */
 export function probeAuthBoundary() {
     const response = http.get(`${BASE_URL}${PROTECTED_PATH}`, {
@@ -189,6 +203,25 @@ export function probeAuthBoundary() {
     check(response, {
         'a protected route refuses an unauthenticated caller': (r) => r.status === 401 || r.status === 403,
     });
+}
+
+/**
+ * The one sentence that says WHAT MACHINE produced the numbers below it.
+ *
+ * A figure from half a reclaimable vCPU sharing a `db.t4g.micro` with every other open PR must never be
+ * quoted as this service's latency, and a production figure must never carry that excuse. The only
+ * reliable place to state which one it is, is beside the number.
+ */
+function substrateNote() {
+    if (STAGE === 'prod') {
+        return '**Measured against PRODUCTION.** Latency below is REPORTED, not gated — see the script docblock.';
+    }
+
+    return (
+        `**Measured on the \`${STAGE || 'non-prod'}\` deployed substrate** (0.5 vCPU \`FARGATE_SPOT\`, ` +
+        '`desiredCount=1`, a shared `db.t4g.micro` and a shared ALB). Latency below is REPORTED, not ' +
+        'gated — see the script docblock.'
+    );
 }
 
 /** One row of the reported (never gated) latency table. */
@@ -220,8 +253,7 @@ export function handleSummary(data) {
     const report = [
         `### k6 — deployed origin: \`${SERVICE}\` @ ${BASE_URL}`,
         '',
-        '**Measured on the per-PR sandbox substrate** (0.5 vCPU `FARGATE_SPOT`, `desiredCount=1`, a shared',
-        '`db.t4g.micro` and a shared ALB). Latency below is REPORTED, not gated — see the script docblock.',
+        substrateNote(),
         '',
         '| series | min | med | avg | p90 | p95 | n |',
         '| --- | --- | --- | --- | --- | --- | --- |',

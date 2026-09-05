@@ -12,6 +12,11 @@ export default defineConfig({
         globals: true,
         setupFiles: [],
         include: ['tests/**/*.test.ts'],
+        // §7 "Integration and E2E MUST NOT run in the default `test` task". `tests/e2e/**` is owned by
+        // `vitest.e2e.config.ts` and was being collected here too — harmless only for as long as that suite
+        // asserted against an in-file copy of the logic and needed no environment. It drives the real
+        // `useAuth` hook now (jsdom), so the default node-env run failed it on `document is not defined`.
+        exclude: ['node_modules', 'dist', 'tests/e2e/**'],
 
         // `src/config/env.ts` validates the app's endpoints at MODULE LOAD and has no defaults, so any
         // screen test that reaches a service client would otherwise die with a configuration error.

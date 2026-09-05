@@ -2540,13 +2540,13 @@ jobs:
                   esac
 
     e2e-mobile:
-        name: Hermetic (mobile — Vitest; in-file auth-state logic, no app boot)
-        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
-        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
-        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
-        # actionlint's if-cond check rejects constant expressions.
-        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
+        name: Hermetic (mobile — Vitest; the real useAuth hook over a mocked Clerk)
+        # ⛔ RE-ENABLED 2026-09-05, AND THE DISABLE REASON WAS NEVER TRUE OF THIS JOB. It read: "this job
+        # reaches REMOTE services (sandbox Clerk / stage secrets / upstream APIs)". It does not, and did not
+        # then: the suite mocks `@clerk/expo` outright, references no secret, and boots nothing. Measured
+        # before removing the gate — `grep -c 'process.env|CLERK|SECRET|AWS_'` is 0, and the suite passes
+        # 15/15 with AWS and Clerk credentials unset in the environment. So a hermetic contract tier was
+        # being withheld from every PR for a property it does not have.
         timeout-minutes: 30
         runs-on: ubuntu-latest
         needs: build
@@ -2585,15 +2585,11 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
-            - name: Load ${{ inputs.stage }} secrets
-              id: secrets
-              continue-on-error: true
-              uses: ./.github/actions/load-secrets
-              with:
-                  stage: ${{ inputs.stage }}
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            - name: Run mobile e2e tests
-              if: steps.secrets.outcome == 'success'
+            # ⛔ THE SECRETS LOAD IS GONE, AND ITS REMOVAL CLOSES A FALSE-GREEN PATH. It was
+            # `continue-on-error: true` and this step was gated `if: steps.secrets.outcome == 'success'`, so
+            # a secrets failure skipped the tests and the JOB STILL REPORTED GREEN having run none — the
+            # same false status `CODING_STANDARDS` §7.1a exists to prevent, and worse than a red job because
+            # nobody investigates a pass. The suite needs no secret, so the honest fix is to stop asking for
+            # one rather than to harden the gate around it.
+            - name: Run mobile hermetic tests
               run: npm run test:e2e --workspace=@commise/mobile

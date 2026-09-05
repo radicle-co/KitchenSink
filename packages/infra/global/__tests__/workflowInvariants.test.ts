@@ -507,7 +507,6 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Load ${{ inputs.stage }} Clerk secrets ×1',
     'continue-on-error _ci.yml::build::Load sandbox (dev-instance) Clerk secrets for the web build ×1',
     'continue-on-error _ci.yml::e2e-backend::Load ${{ inputs.stage }} secrets ×1',
-    'continue-on-error _ci.yml::e2e-mobile::Load ${{ inputs.stage }} secrets ×1',
     'continue-on-error _ci.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for localhost web E2E ×1',
     // Same fork-PR degradation, one job downstream: `e2e-web` is a 4-way shard matrix whose Playwright steps
     // skip when the Clerk secrets are withheld, so it uploads no blob. `download-artifact` FAILS on a pattern

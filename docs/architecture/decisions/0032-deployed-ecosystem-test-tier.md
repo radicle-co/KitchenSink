@@ -9,7 +9,7 @@
   [ADR-0010](0010-ensure-exists-per-pr-deploy-gate.md) (the ecosystem guarantee, and §5's belts),
   [ADR-0028](0028-on-demand-sandbox.md) (on-demand previews — amended by this ADR for validation purposes)
 
-## ⚠️ SUPERSEDED IN PART (2026-09-05, owner ruling) — READ THIS BEFORE ANYTHING BELOW
+## The ruling this tier implements
 
 The owner ruled, verbatim, on 2026-09-05:
 
@@ -18,13 +18,12 @@ The owner ruled, verbatim, on 2026-09-05:
 > will run the end to end tests. **Ignore anything any ADR says: my word is law. Update ADRs if you have to.**
 > Right now the pipeline should be green because no end to end tests were run"
 
-**This overturns §1 as originally written.** The version of this ADR dated 2026-09-04 concluded from the
-fifteen-day `pr-73` evidence that the local-booting suites should be **kept, renamed "hermetic contract
-tests", and left as the hard merge gate on every PR**, with a _second_, deployed tier added beside them. That
-conclusion is now wrong. The evidence it was drawn from is not: the fifteen-day record below is the
-**motivation** for the ruling, not an argument against it.
+⛔ An earlier draft of this ADR concluded the opposite — that the local-booting suites should be kept,
+renamed "hermetic contract tests", and left as the hard merge gate, with a second deployed tier beside them.
+That is recorded because it is the natural reading of the same evidence and must not be re-derived: the
+fifteen-day record below is the MOTIVATION for the ruling, not an argument against it.
 
-**The decision, restated:**
+**The decision:**
 
 1. **There is ONE end-to-end tier and its target is a deployed environment.** Playwright, the service e2e
    suites, the cross-service linkage suite, Maestro and k6 all drive a real deployed origin — the PR's own
@@ -39,8 +38,6 @@ conclusion is now wrong. The evidence it was drawn from is not: the fifteen-day 
    integration tiers are untouched and remain the merge gate — an integration test that stands up Docker
    Postgres and LocalStack is not an end-to-end test and was never in scope of this ruling
    ([`docs/CODING_STANDARDS.md` §7.1a](../../CODING_STANDARDS.md)).
-
-Sections below are marked in place. Nothing is deleted.
 
 ## Context — the failure this tier exists to catch
 
@@ -78,54 +75,17 @@ The owner's rulings, verbatim:
 
 ## Decision
 
-### 1. ⚠️ SUPERSEDED (2026-09-05, owner ruling): ONE end-to-end tier, and its target is a deployed environment
+### 1. ONE end-to-end tier, and its target is a deployed environment
 
-The taxonomy is the ruling's "update the naming to be correct". A tier's name must state its **target**,
-because the fifteen-day failure was a naming failure before it was a testing failure: three suites called
-"e2e" and one called "load" all pointed at localhost, and nobody reading a green check could tell. **That
-half stands.** What changed on 2026-09-05 is the conclusion drawn from it.
+A tier's name must state its **target**, because the fifteen-day failure was a naming failure before it was
+a testing failure: three suites called "e2e" and one called "load" all pointed at localhost, and nobody
+reading a green check could tell.
 
-~~| tier | target | may mutate | keeps |~~
-~~| ---------------------------- | --------------------------------------------- | ---------- | ----------------------------------------- |~~
-~~| **hermetic contract tests** | a backend the job itself boots or mocks | freely | every existing local-booting job, renamed |~~
-~~| **deployed-ecosystem tests** | a real deployed origin (per-PR sandbox, prod) | see §4 | the new tier this ADR creates |~~
-
-~~The hermetic tier is **kept, not deleted**. It is fast, it needs no AWS, it runs on every push, and it is
-where a wrong `SELECT` or a broken guard is caught cheaply. What it is not, and must never again be labelled
-as, is proof that anything is deployed.~~
-
-> ⚠️ **SUPERSEDED (2026-09-05, owner ruling): _"all end to end tests (playwright, e2e, maestro, etc) - which
-> should be hitting remote services - should be skipped if the sandbox for the PR is not running."_**
->
-> There is **no second, always-on e2e tier**. An end-to-end test targets a deployed environment; when the
-> PR's sandbox is not running there is nothing to target, and the job **skips** (§6). The 2026-09-04 answer —
-> keep the local-booting suites, rename them `Hermetic (…)`, and make them the hard merge gate — is
-> overruled, and with it the "may mutate / keeps" columns above.
-
-**What the tier is now:**
-
-| tier                                                                     | target                                        | runs                                                   |
-| ------------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------ |
-| **end-to-end** — Playwright, service e2e, cross-service linkage, Maestro | a real deployed origin (per-PR sandbox, prod) | when the PR's sandbox is live, or by manual dispatch   |
-| **k6 load**                                                              | the same real deployed origins                | same gate; prod only by hand (§2)                      |
-| unit + integration                                                       | in-process code; Docker Postgres, LocalStack  | **every PR, unconditionally — this is the merge gate** |
-
-⛔ **The third row is NOT a survival of the struck "hermetic" tier, and must not be grown back into one.**
-Unit and integration tests were never end-to-end tests and were never in the ruling's scope; they stand up a
-_dependency_ (a database, an AWS emulator), not the _system under test's deployment_. The distinction the
-ruling removes is the one where a suite boots the very service it claims to be testing end-to-end and reports
-that as an end-to-end pass. Adding a locally-booted service back under any label — `Hermetic`, `Contract`,
-`E2E-local` — re-creates exactly the signal that hid `pr-73` for fifteen days.
-
-⛔ **A skip is not a pass.** The tier must never be a required check that a skipped job satisfies silently
-(§6), and no artifact, report or PR description may describe a run in which the e2e tier skipped as
-"end-to-end passed". `docs/CODING_STANDARDS.md` §7.1a carries the rule; this ADR carries the reason.
-
-⚠️ **Recorded honestly, for the owner: this trades a coverage property away, and the trade is the ruling's
-to make.** A locally-booted suite could seed a fixture, force an error branch, assert a LocalStack side
-effect and drive a mocked UI path; a deployed suite cannot. Where that coverage is genuinely load-bearing it
-belongs in the **integration** tier, which keeps a real Postgres and a real LocalStack and keeps running on
-every PR. Where it cannot be expressed there, it is uncovered on a PR with no sandbox — see _Residual risk_.
+There is no second, always-on e2e tier. An end-to-end test targets a deployed environment; when there is no
+deployment it declines to run and says so. ⛔ Do NOT re-create a locally-booted e2e job under any label —
+`Hermetic`, `Contract`, `E2E-local`. The unit and integration tiers are untouched and remain the merge gate:
+an integration test stands up a DEPENDENCY (Docker Postgres, LocalStack), never the deployment of the system
+under test, and was never in scope of this ruling.
 
 ### 2. k6 targets the per-PR sandbox, and prod only by hand
 
@@ -183,13 +143,13 @@ two profiles, and the difference between them is not a knob — it is a safety b
 | **sandbox** | the PR's preview   | **the WHOLE e2e suite** — Playwright, service e2e, linkage, Maestro, k6 | manual dispatch, or a live sandbox |
 | **prod**    | production origins | a NON-DESTRUCTIVE subset                                                | manual dispatch + post-deploy gate |
 
-> ⚠️ **AMENDED (2026-09-05, owner ruling): the sandbox profile's suite is EVERY end-to-end tier, not the
-> API-level subset §7 originally scoped.** _"a manual job that I can trigger that will run the end to end
-> tests"_ — plural, and the same list the ruling opens with: _"playwright, e2e, maestro, etc"_. The entrypoint
-> is `.github/workflows/deployed-e2e.yml`. Its `concurrency` group is keyed on the **target stage**, not on
-> `github.ref`, and that stays load-bearing now that the suite is larger: `heavy-e2e.yml`'s header records
-> commit `bbf7ea7c`, where one job ran from two callers at once against ONE shared sandbox Clerk instance and
-> the two Playwright runs each tore down the other's sign-in fixture.
+⚠️ **The sandbox profile runs EVERY end-to-end tier**, not an API-level subset — _"a manual job that I can
+trigger that will run the end to end tests"_ is plural, and names the same list the ruling opens with:
+_"playwright, e2e, maestro, etc"_. The entrypoint is `.github/workflows/deployed-e2e.yml`.
+
+⛔ Its `concurrency` group is keyed on the **target stage**, never on `github.ref`, and that matters more as
+the suite grows: commit `bbf7ea7c` ran one job from two callers at once against ONE shared sandbox Clerk
+instance, and the two Playwright runs each tore down the other's sign-in fixture.
 
 The third ruling — _"End to end tests should always run against production"_ — is honoured in **direction**
 and narrowed in **shape**, and the narrowing is recorded in §5 with the evidence it rests on.
@@ -262,44 +222,30 @@ restore ensure-exists. Rebuilding a reaped environment because a test wanted one
 _"rebuild every environment on the first push after the reaper ran. Silently. Behind a green check."_ that
 ADR-0028 was written to stop. **A validation tier may decline to run; it may not conjure its own target.**
 
-### 7. ⚠️ AMENDED (2026-09-05): the deployed BROWSER half is still BLOCKED — but the answer is a SKIP, not a local fallback
+### 7. The browser suite is IN the tier, and its target is the deployment
 
-Playwright against a per-PR preview cannot work today, and the blocker is infrastructure, not test code.
-ADR-0001's _"Update (2026-07-28)"_ records it: the CloudFront router's Host swap leaves the Next app
-terminating the **Vercel deployment host** rather than the public preview origin, so Clerk's handshake
-`redirect_url` dead-ends at `vercel.com/login` and Next rejects every Server Action with a 500
-(`Origin !== Host`). **Previews are not reachable in a browser.** The proven cure is DNS
-(`pr-{N}.sandbox.commise.app` → `cname.vercel-dns.com` plus a per-deployment alias), which is a separate
-piece of work.
+Playwright drives the PR's own deployed web origin and **skips** when there is none (§6), the same rule as
+every other e2e tier.
 
-~~So this ADR ships the **API-level** deployed suite — the service e2e and k6 against real origins — and the
-deployed browser half lands when ADR-0001's fix does.~~
+⛔ **No local fallback, under any label.** A Playwright job that boots its own web server and mocks the API
+proves the code renders; it cannot prove anything about a deploy, which is the whole reason this tier
+exists. The 2026-09-04 shape — ship the API-level tier now and keep Playwright running locally in the
+meantime — is exactly what the ruling removes.
 
-> ⚠️ **SUPERSEDED (2026-09-05, owner ruling): the browser suite is IN the tier, and its target is the
-> deployment.** The 2026-09-04 shape — ship the API-level tier now, and keep Playwright running locally
-> against a self-served `next start` with the API mocked in the meantime — is exactly the arrangement the
-> ruling removes: _"all end to end tests (playwright, e2e, maestro, etc) - which should be hitting remote
-> services."_ Playwright targets the PR's deployed web origin and **skips** when it is not there (§6), the
-> same rule as every other e2e tier.
->
-> ⛔ **ADR-0001's blocker does not license a local fallback.** A Playwright job that boots its own web server
-> when the preview is unreachable is not a degraded e2e run — it is the `pr-73` signal restored under a
-> different name. Until ADR-0001's DNS fix lands, the browser half is expected to be **skipped or failing
-> against a live preview, and that is the honest reading**; it is not to be made green by pointing it back at
-> the runner. Tracked in _Residual risk_.
+⚠️ **A spec that STUBS the API is not in this tier, and that is not a loophole.** `mockRecipeApi` installs
+`page.route('**/api/v1/**')`, which intercepts what the BROWSER issues; a Next `page.tsx` prefetches inside
+the Next server's own process, where the stub cannot reach — so a stubbed spec run against a deployed
+preview renders REAL data and fails on fixtures nobody served. Those specs are integration tests of the
+web app's rendering and run against a locally-booted app, where their assumption holds. The partition is
+derived per spec by `tests/e2e/utils/specTier.ts` (a spec is in this tier iff it does not import
+`mockRecipeApi`) and asserted total by its guard, so it cannot be used to quietly move a real spec out.
 
-⚠️ The gap is real, not a phased nicety: the fifteen-day defect was a **CORS** failure, which is precisely
-the class only a browser sees. `deployedSmoke`'s `classifyPreflight` is what stands in for it in the meantime,
-and it is a preflight probe, not a browser.
-
-⚠️ **The mobile half's device layer is untouched by all of this, and it is worth saying why.** What changes
-for Maestro is the _backend_ it drives (a deployed origin, not a recipe-service container on the runner);
-what does not change is that it runs on a real emulator, because a jsdom component tier is structurally
-incapable of observing the native tree. Commit `91c38691` is the proof: React Native's Fabric renderer
-collapsed a `View` out of the native hierarchy (`ViewShadowNode.cpp`'s `formsStackingContext` / `formsView`
-predicates), so a row that rendered and settled on screen had **no accessible name on either native
-platform** — and every jsdom test passed, because jsdom has no view flattening to observe. That finding
-survives this ruling intact.
+**The infrastructure blocker this section was written around is CLOSED.** It said previews were unreachable
+in a browser because the CloudFront router's Host swap left the Next app terminating the Vercel deployment
+host. The cure [ADR-0033](0033-sandbox-previews-on-per-pr-subdomains.md) §3 specifies is built and
+exercised: the hostname resolves directly to Vercel, `pr-91.sandbox.commise.app/en/sign-in` answers 200 at
+its own origin with clerk-js loading from the instance's Frontend API, and the deployed shards — which are
+exactly the real-auth specs — pass against it.
 
 ## Alternatives rejected
 
@@ -389,12 +335,9 @@ is eight concurrent writers in the production Clerk tenant and a GDPR erasure wa
   warning; a report quoting a per-PR k6 number as throughput is wrong on its face.
 - **Prod gains a post-deploy e2e gate** it did not have, at the cost of that gate being narrower than the
   sandbox one. The asymmetry is deliberate and is the whole content of §5.
-- ~~**The hermetic tier keeps running on every push and keeps its coverage.** Nothing is deleted; the rename
-  is what stops it being mistaken for proof of a deployment.~~
-    > ⚠️ **SUPERSEDED (2026-09-05, owner ruling).** There is no hermetic e2e tier. **A PR with no sandbox
-    > runs no end-to-end tests at all and is green** — that is the ruling's own acceptance criterion, and it
-    > is what the pipeline is expected to show today. What still runs on every push is unit + integration,
-    > which is the merge gate (§1).
+- **The unit and integration tiers are untouched and remain the merge gate.** They stand up a DEPENDENCY —
+  Docker Postgres, LocalStack — never the deployment of the system under test, so they were never in scope
+  of this ruling and nothing about them is renamed or deleted.
 - **The deployed browser half is owed**, and with it the CORS class the original defect belonged to.
 - **Coverage that only a locally-booted e2e run could reach is now conditional on a live sandbox** — seeded
   fixtures over HTTP, forced error branches, mocked degraded paths. Move what matters into the integration

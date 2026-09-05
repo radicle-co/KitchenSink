@@ -1,6 +1,6 @@
 # 0032 — A test that boots its own backend is not an end-to-end test: the deployed-ecosystem tier
 
-- **Status**: Accepted — **§§1, 4 and 7 REWRITTEN by owner ruling 2026-09-05**; §§2, 3, 5 and 6 stand unchanged
+- **Status:** Accepted
 - **Date**: 2026-09-04 (rewritten 2026-09-05)
 - **Deciders**: owner, platform
 - **Relates to**: [ADR-0001](0001-sandbox-front-end-addressing.md) (preview reachability — the browser half is

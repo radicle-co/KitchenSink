@@ -1,6 +1,7 @@
 # 0001 — Sandbox front-end addressing: path-based PR routing, not per-PR subdomains
 
-- **Status:** Superseded by [0033](0033-sandbox-previews-on-per-pr-subdomains.md)
+- **Status:** Superseded by 0033
+- **Superseded by:** [0033](0033-sandbox-previews-on-per-pr-subdomains.md)
 - **Date:** 2026-06-14
 - **Area:** sandbox deploy topology · web/mobile serving · Clerk session-token auth
 - **Related:** service-side Clerk session-token verification (PR #39), `.github/workflows/sandbox-deploy.yml`, `packages/services/identity/src/auth/clerkAuth.service.ts`

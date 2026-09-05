@@ -127,7 +127,9 @@ priorities are NOT quoted here on purpose: they come from the single allocator
 fixed-width bands, and an earlier copy of those numbers in this ADR went stale in both directions at once.
 Read the allocator.
 
-## Cost
+## Consequences
+
+### Cost
 
 Per open PR, the delta is the food service that previously did not exist on a recipe-only PR: **1 API task +
 1 worker task** on Fargate Spot. ⚠️ The per-task sizes and rates below stand, but the DENOMINATOR does
@@ -198,7 +200,7 @@ The only thing that changes is how _often_ that path is exercised. The `pr-{N}` 
    Closing that would need an unauthenticated recipe endpoint that reports its dependency's state, which does
    not exist today.
 
-## Update (2026-09-02) — the gate closes the deploy GRAPH, and prod gets it first
+## Amendment — the gate closes the deploy GRAPH, and prod gets it first
 
 This ADR's four conditions all ask one question: **should THIS leg run?** They cannot ask the other question a
 per-leg gate owes — **is the leg this one DEPENDS ON running too** — and that gap was live in production.

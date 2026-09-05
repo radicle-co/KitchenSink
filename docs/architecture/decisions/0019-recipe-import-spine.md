@@ -154,7 +154,7 @@ itself.
   whose authoritative record already lives in the recipe service — two places to reconcile, for no gain.
 - **Accumulate events instead of superseding.** Rejected: unbounded for a 1,000-recipe import, and it
   pushes reconciliation into every client.
-- **Status only in messages, no database placeholder.** Rejected: a client connecting mid-import, or after
+- **Import status lives only in messages, with no database placeholder.** Rejected: a client connecting mid-import, or after
   a dropped connection, could not render correct state; and a recipe would hold a dangling food reference.
 
 ## Consequences

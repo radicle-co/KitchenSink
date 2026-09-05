@@ -214,10 +214,10 @@ prediction coming true in a document nobody treats as authoritative.
   health value, and the unknown-key choice is treated as a data-minimisation control. Physical isolation is
   the flip condition, not the launch posture.
 
-**Known-incomplete work (as of 2026-08-12).**
+**Known-incomplete work.**
 
 - **None of these four features is implemented.** This ADR decides where they land, not that they have landed.
-  ⚠️ **Re-verified 2026-09-04: still true, in full.** `packages/schemas/recipe/openapi.yaml` publishes no
+  ⚠`packages/schemas/recipe/openapi.yaml` publishes no
   `/api/v1/meal-plans/*`, `/api/v1/grocery-lists/*` or `/api/v1/nutrition-plans/*` path; `recipe-service/src/`
   has no `meal-plans`, `grocery-lists` or `nutrition-plans` module; identity publishes no `/api/v1/billing/*`
   path and `stripe_webhook_events` exists only in 010's spec (`packages/shared/identity-db/src/schema/` holds

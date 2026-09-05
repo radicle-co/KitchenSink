@@ -76,11 +76,16 @@ These look like bugs to "fix" and are not. Before proposing a change that revert
 ADR under `docs/architecture/decisions/` and confirm you are not reintroducing the failure it prevents.
 `CLAUDE.md` holds the authoritative long-form reasoning; the lines below are the index.
 
-- **ADR-0001 — sandbox previews are per-PR SUBDOMAINS; the path form 404s BY DESIGN.** A preview lives
+- **ADR-0033 — sandbox previews are per-PR SUBDOMAINS; the path form 404s BY DESIGN.** A preview lives
   at `https://pr-{N}.sandbox.commise.app/`, at root, with no `basePath`. The older
   `sandbox.commise.app/pr-{N}` form returns 404 on purpose, as does the apex root — do not "fix" that
   404 by restoring path routing. `azp` enforcement is our own anchored-regex guard (`CLERK_AZP_PATTERN`),
-  which is what makes bounded per-PR origins safe; keep it anchored and never disable it on sandbox.
+  which is what makes bounded per-PR origins safe; keep it anchored and never disable it on sandbox —
+  the sandbox Clerk instance reflects ANY origin, so that regex is the only trust boundary there. The
+  hostname must resolve DIRECTLY to Vercel; putting CloudFront back in front makes registering the alias
+  impossible, because Vercel refuses the cert until the name resolves to it and refuses the alias until
+  the cert exists. See `docs/architecture/decisions/0033-sandbox-previews-on-per-pr-subdomains.md`;
+  ADR-0001 is superseded by it and kept only as the record of the path-routed posture.
 - **ADR-0002 — per-stage VPC CIDRs; prod stays 10.0.0.0/16, sandbox 10.1.0.0/16.** Prod's explicit value
   equals the historical CDK default on purpose so it produces no diff. Changing the prod CIDR, or a
   construct ID feeding the VPC, replaces the prod VPC **and its RDS** with no snapshot.

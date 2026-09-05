@@ -6,6 +6,19 @@
   `docs/plans/2026-09-01-001-feat-analytics-events-plan.md` (five-persona review + staff-architect
   blueprint). Greenlit by the U15 report's "Owner rulings" §2.
 
+## Context
+
+The product had no record of what people actually do. U15-style questions — which ingredient searches
+succeed, which recipes get saved, which get viewed — could only be answered by guessing, and feature 015's
+recognition half is unbuildable without save/view history, because no cook/save telemetry exists anywhere in
+the recipe service.
+
+Two constraints shaped the answer. The owner ruled "plain Postgres for now", so no third-party vendor sits
+between the product and its own numbers (the market scan lives in the origin doc: PostHog Cloud EU won the
+paper comparison if a vendor projection is ever wanted, and it would be a disposable fan-out, never the
+system of record). And the events are user-keyed, so they land inside the erasure story rather than beside
+it.
+
 ## Decision
 
 The product records what people do — ingredient searches and their outcomes, recipe saves, recipe

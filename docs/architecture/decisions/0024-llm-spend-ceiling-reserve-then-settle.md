@@ -157,7 +157,7 @@ RETURNING reserved_micros;
 --   $headroom = CEILING_MICROS - $worst
 ```
 
-⛔ **Corrected 2026-08-22 — the earlier form of this statement had a hole, and it was found by U11's
+⛔ **Corrected — the earlier form of this statement had a hole, and it was found by U11's
 integration tier, not by review.** It read `INSERT … VALUES … ON CONFLICT DO UPDATE … WHERE`, and that
 `WHERE` guards **only the UPDATE branch**. On the FIRST reservation of a period there is no conflicting row,
 so the INSERT proceeded **unguarded** — admitting a single worst-case charge that may exceed the entire
@@ -420,14 +420,14 @@ under credentials that BYPASS this role, and it keeps its own `INVOCATION_IDS` m
 conflation survived a full measurement pass. That second map stays, deliberately: the runner is an operator
 script that already sits outside this ceiling by design.
 
-### 4c. The ceiling is ONE global pool, and spend is ATTRIBUTED rather than PARTITIONED — added 2026-08-25 ⚠️ consumer list DEPRECATED 2026-08-29
+### 4c. The ceiling is ONE global pool, and spend is ATTRIBUTED rather than PARTITIONED
 
 Owner ruling, 2026-08-24 (KTD-17): the **$100/month is a single pool**, first come first served, shared by the
 verification gate, the ingredient parse leg and 017's capture tiers. It is not sub-divided per consumer — the
 same reasoning that rejected the daily sub-ceiling in §3: a second cap denies legitimate work and never
 enforces the figure it sits under.
 
-⛔ **DEPRECATED 2026-08-29 — THE CONSUMER LIST ABOVE IS WRONG. Two of its three members do not exist.**
+⛔ **DEPRECATED — THE CONSUMER LIST ABOVE IS WRONG. Two of its three members do not exist.**
 
 Owner directive, 2026-08-29. `recipe-workers/src/parsing/llmParse.ts` — "the ingredient parse leg" — was
 **DELETED** — the file only. ⚠️ `src/parsing/` still exists and still holds the GATED verification path

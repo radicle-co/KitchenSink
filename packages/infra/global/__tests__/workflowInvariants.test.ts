@@ -506,8 +506,7 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // dependent steps skip on `steps.secrets.outcome`, instead of reporting a red check nobody can fix.
     'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Load ${{ inputs.stage }} Clerk secrets ×1',
     'continue-on-error _ci.yml::build::Load sandbox (dev-instance) Clerk secrets for the web build ×1',
-    'continue-on-error _ci.yml::e2e-backend::Load ${{ inputs.stage }} secrets ×1',
-    'continue-on-error _ci.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for localhost web E2E ×1',
+    'continue-on-error _ci.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for the preview web E2E ×1',
     // Same fork-PR degradation, one job downstream: `e2e-web` is a 4-way shard matrix whose Playwright steps
     // skip when the Clerk secrets are withheld, so it uploads no blob. `download-artifact` FAILS on a pattern
     // that matches nothing, which would turn that designed skip into an unfixable red on exactly the PRs that
@@ -523,14 +522,11 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'suppressed-exit _ci-heavy.yml::e2e-mobile-maestro::Free disk space for the emulator system image ×1',
     // Failure-path diagnostics: `docker logs | grep` exits non-zero when it matches nothing, and a
     // no-diagnostics run must not mask the real failure that triggered it.
-    'suppressed-exit _ci-heavy.yml::e2e-mobile-maestro::Recipe-service error logs on failure ×1',
-    'suppressed-exit _ci-heavy.yml::e2e-mobile-maestro::Recipe-service logs on failure ×1',
     'suppressed-exit _ci-heavy.yml::load-test::Recipe-service logs on failure ×1',
     'suppressed-exit _ci-heavy.yml::load-test-food::Food-service logs on failure ×1',
     // Same failure-path diagnostic, for the identity boot check (ADR-0028). The log is dumped so a boot
     // failure is readable in the job that found it; if the BUILD step failed the file was never created,
     // and a missing diagnostic must not add a second red X on top of the real one.
-    'suppressed-exit _ci.yml::e2e-identity-boot::Identity boot log ×1',
     // One cache entry failing to DELETE must not abort the sweep: entries legitimately vanish between the
     // list and the delete (a concurrent run, or GitHub's own LRU eviction — the very pressure this job
     // relieves), and aborting there would leave the prune half-done with the largest entries untouched. The
@@ -1279,7 +1275,12 @@ describe('invariant 6 — every `pg_isready` healthcheck names the role it probe
             .filter((name) => name.endsWith('.yml'))
             .flatMap((file) => [...readFileSync(join(WORKFLOW_DIR, file), 'utf8').matchAll(PG_ISREADY)]);
 
-        expect(found.length).toBeGreaterThanOrEqual(14);
+        // ⚠️ 14 → 8 on 2026-09-05. The owner ruled that e2e targets a DEPLOYED sandbox, so the local-boot
+        // Postgres/LocalStack service containers those jobs stood up were deleted — and their healthchecks
+        // with them (14 → 9 measured). The floor tracks what the tree HAS; it exists to catch a discovery
+        // that silently stops matching, not to assert a fleet size. Set below the current count so a
+        // legitimate future deletion does not red, but high enough that a broken parser still does.
+        expect(found.length).toBeGreaterThanOrEqual(8);
     });
 });
 

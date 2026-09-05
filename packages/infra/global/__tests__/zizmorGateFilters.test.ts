@@ -244,14 +244,14 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     // shared base database survives a reap, that the `LIKE … ESCAPE` narrowing claims nothing extra — are all
     // facts only a real server answers. One more `postgres:18` service container, same tag-tracked image,
     // same deferral.
-    '_ci.yml:unpinned-images': 16,
+    '_ci.yml:unpinned-images': 9,
     // The 6th is the `localstack/localstack:4.4.0` service container the MAESTRO tier gained: the
     // recipe-service container it boots has always been handed `SQS_ENDPOINT=http://localhost:4566` and a
     // `RECIPE_PARSE_QUEUE_URL`, and until now nothing listened there — so every pasted ingredient line came
     // back `failed_retryable` behind a `202` and `recipes/parse-ingredients` failed on `2 of 2 lines read`.
     // It is the SAME tag-tracked image, at the SAME pin, that this file's `load-test` job already declares
     // one job below: no new image, no new reason, one more site.
-    '_ci-heavy.yml:unpinned-images': 6,
+    '_ci-heavy.yml:unpinned-images': 4,
 };
 
 describe('the zizmor gate cannot be weakened by a filter', () => {

@@ -390,7 +390,20 @@ function resolveAtom(atom: string, scenario: Scenario): Truth {
     if (detectOutput !== null) {
         // Resolving through `chainFor` (rather than any name) keeps this TOTAL: a term naming an output no
         // filter produces throws here instead of silently evaluating false forever.
+        const producingJob = detectOutput[1] ?? '';
         const outputName = detectOutput[2] ?? '';
+
+        // ⛔ A SANDBOX-LIVENESS TERM IS ASSUMED TRUE — this guard's subject is the TRIGGER (which events,
+        // labels and changed paths reach each heavy tier), not whether a preview is deployed. Owner ruling
+        // 2026-09-05 gated both tiers on `needs.resolve-*.outputs.live`, an intra-workflow term no
+        // `paths-filter` produces, so `chainFor` threw and took all eight trigger scenarios with it.
+        //
+        // ⚠️ DELIBERATELY NARROW — the resolve-job/`live` shape, never "any unknown output". The `chainFor`
+        // call below is what keeps this resolver TOTAL: a term naming an output no filter produces still
+        // THROWS rather than evaluating false forever, which is what makes a green run here mean anything.
+        if (outputName === 'live' && producingJob.startsWith('resolve')) {
+            return asTruth(true);
+        }
 
         chainFor(outputName);
 

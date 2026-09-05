@@ -29,6 +29,14 @@ name: CI — heavy tiers (reusable)
 # latency regression such as a dropped index is invisible to every deterministic tier). The caller owns that
 # decision and its rationale; nothing in this file needs to know which clause let the run through.
 #
+# ## The Maestro tier drives a DEPLOYED sandbox, or it SKIPS
+#
+# Owner ruling 2026-09-05: every end-to-end tier hits remote services, and is SKIPPED when the PR's sandbox
+# is not running. So `e2e-mobile-maestro` no longer boots its own recipe-service, Postgres, LocalStack, queue
+# consumer and profile stub on the runner — it points the APK at this stage's deployed origins, and
+# `resolve-mobile-target` decides (through `deploy-gate.sh`, the repo's one liveness authority) whether there
+# is anything to point it at. No sandbox means a SKIPPED job, never a red one.
+#
 # ## Why `install` is duplicated from `_ci.yml`
 #
 # The heavy jobs restore the dependency cache `install` saves. A reusable workflow cannot `needs:` a job
@@ -144,83 +152,300 @@ jobs:
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
-    e2e-mobile-maestro:
-        name: Hermetic (mobile — Maestro on an emulator; recipe-service booted on the runner) · heavy tier
+    # ── The deployed target the mobile tier drives, and whether there IS one ──────────────────────────────
+    #
+    # Owner ruling, 2026-09-05, verbatim:
+    #
+    #   > "all end to end tests (playwright, e2e, maestro, etc) - which should be hitting remote services -
+    #      should be skipped if the sandbox for the PR is not running. There should also be a manual job that
+    #      I can trigger that will run the end to end tests. Ignore anything any ADR says: my word is law."
+    #
+    # So the Maestro tier no longer stands its own backend up on the runner: it drives the DEPLOYED `pr-{N}`
+    # preview, and when that preview does not exist the tier SKIPS. Both facts have to be settled BEFORE the
+    # emulator job starts — a job can only be skipped on something decided outside it — which is the whole
+    # reason this job exists rather than a first step inside the tier.
+    #
+    # ⛔ THIS IS NOT A SECOND LIVENESS MECHANISM. `deployed-e2e.yml` already answers "is there a preview to
+    # talk to" by consuming `deploy-gate.sh evaluate`, and this is the SAME shape, deliberately: `live &&
+    # !deploy`, per service. The pairing is the part that is easy to get wrong — the gate reports `live=true`
+    # for an environment it is ABOUT TO CREATE (an absent stack under intent), which is true for the deploy
+    # job that follows it in `sandbox-deploy.yml` and false for this workflow, which deploys nothing. The one
+    # state this tier can run in is the gate's own `deploy=false` arm: "unchanged and already deployed and
+    # serving (all stacks usable, origin 200)".
+    #
+    # `intent=true` is passed unconditionally for the same reason `deployed-e2e.yml` records: intent is the
+    # gate's on-demand-sandbox term, and passing `false` would collapse every answer to `live=false` and make
+    # this tier permanently silent. It cannot cause a deploy — there is no deploy step anywhere in this
+    # workflow — and a torn-down sandbox still resolves to SKIP, because its absent stacks produce
+    # `deploy=true`. `changed`/`forced` are `false` because this run has no diff to react to and is not a
+    # deploy button.
+    #
+    # ⛔ ABSENCE SKIPS, IT NEVER FAILS (`deployGateStepGuards.test.ts`: "red-over-nothing is the mirror of
+    # green-over-nothing"). A `pr-{N}` sandbox is legitimately absent — reaped by the nightly sweep, torn
+    # down on close, or never deployed because `deploy-gate.sh` decided nothing changed.
+    resolve-mobile-target:
+        # ⛔ A CONSTANT, and it deliberately does NOT claim the e2e tier — the tier is the job below.
+        # (workflowInvariants invariant 8: branch protection matches a required check by its RENDERED name,
+        # and a skipped job renders the raw `${{ … }}` verbatim.)
+        name: Resolve the mobile tier's deployed sandbox
         runs-on: ubuntu-latest
         needs: [install]
-        # Cross-platform mandate: the Vitest mobile e2e (above) covers logic; Maestro drives the real UI
-        # flows in packages/apps/commise/mobile/.maestro on an Android emulator. SELF-CONTAINED: it boots
-        # the real recipe-service (the proven Docker image, dev-auth bypass) against a Postgres service on
-        # the runner, provisions the shared Clerk sign-in test user, builds the Expo debug APK pointed at
-        # the runner service via the emulator host alias (10.0.2.2), boots the emulator, installs the APK,
-        # and runs the flows. The app still does REAL Clerk sign-in (sandbox dev instance); the service
-        # ignores its token under the dev bypass, so no native-token verification is needed here.
-        # Opt-out gate, not an opt-in one: this file's callers want the heavy tiers by default, and a
-        # caller that wants ONLY k6 (recipe-loadtest.yml) passes `run_mobile_maestro: false`.
+        # The same opt-out gate the tier itself carries, so a k6-only caller (`recipe-loadtest.yml`, which
+        # passes `run_mobile_maestro: false`) pays nothing for this job either.
         if: ${{ inputs.run_mobile_maestro }}
-        services:
-            postgres:
-                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: recipe_maestro
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U postgres"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-            # ⛔ THE BROKER THE SERVICE WAS ALREADY BEING TOLD IT HAD. The boot step below has passed
-            # `SQS_ENDPOINT=http://localhost:4566` and `RECIPE_PARSE_QUEUE_URL=.../recipe-parse-line` since
-            # U9 shipped, and until now NOTHING listened on 4566 in this job. That is not a latent
-            # misconfiguration, it is the direct cause of a red tier: `recipes/parse-ingredients` failed on
-            # `Assert that "2 of 2 lines read" is visible` in runs 33924615847 and its successor, and the
-            # container's own log names the reason —
+        env:
+            # ⛔ THE STAGE IS DECIDED HERE, AT JOB LEVEL, and the step below only READS it — the same
+            # construction, for the same reason, as `deployed-e2e.yml`'s resolve job.
+            # `stackProbeCoverage.test.ts` resolves the stage inside a probed stack name from `env:` at file
+            # and job level ONLY, so a stage computed in the step would make every stack this job probes "a
+            # name whose stage this guard cannot resolve" — a probe set nothing can check for completeness.
             #
-            #     WARN [ParseJobsService] parse-job 50b1621d-…: enqueue failed, marking 2 line(s)
-            #     failed_retryable — … AggregateError [ECONNREFUSED]
-            #
-            # ⚠️ NOTE WHAT THAT IS AND IS NOT. `ParseJobsService.enqueueOrMark` converts the send failure
-            # into a `202` whose job is `partial` and whose every line is `failed_retryable` — so the API
-            # answered, the review screen rendered, and only the COUNT was wrong (`failed_retryable` is not
-            # settled, per `parse/model.ts`). The lines were never `pending`, because no message was ever
-            # enqueued; a reader chasing "the queue filled and nothing drained it" is one layer too far in.
-            #
-            # Mirrors `load-test`'s LocalStack below, `SQS_ENDPOINT_STRATEGY` included, so the two jobs
-            # stand the same broker up the same way. Community tier, no auth token.
-            localstack:
-                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    SERVICES: s3,sqs
-                    SQS_ENDPOINT_STRATEGY: path
-                ports:
-                    - 4566:4566
-                options: >-
-                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
-                    --health-interval 5s
-                    --health-timeout 5s
-                    --health-retries 20
+            # A PR run measures its OWN preview (`pr-{N}`); a caller with no PR in context (a nightly
+            # `ci-full.yml`) falls back to the stage it named, where nothing is deployed and the gate below
+            # therefore skips.
+            STAGE: >-
+                ${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number)
+                || inputs.stage }}
+            DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+        outputs:
+            stage: ${{ steps.target.outputs.stage }}
+            recipe_origin: ${{ steps.target.outputs.recipe_origin }}
+            identity_origin: ${{ steps.target.outputs.identity_origin }}
+            live: ${{ steps.live.outputs.live }}
         steps:
-            # ⛔ SANDBOX-ONLY, and refused LOUDLY rather than skipped. This job USES `inputs.stage` for a
-            # write: the `load-secrets` + `ensure-signin-user.mjs` steps below provision the shared Clerk
-            # sign-in test user into THAT stage's tenant — while everything it then measures is
-            # stage-independent (the recipe service it drives is the runner-local container under the
-            # dev-auth bypass). On `prod` that is a mutation of the production Clerk instance in exchange for
-            # a result that says nothing about production, and `ci-full.yml`'s dispatcher offers `prod` as a
-            # stage. A job-level `if:` would SKIP silently — a green heavy run whose mobile tier ran nothing,
-            # the outcome this repo's guards exist to make impossible — so this fails the job with the reason
-            # instead, FIRST, before any stage secret is loaded. `maestroStageGuard.test.ts` executes this
-            # body under both stages and pins its position.
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No step here performs a git push/fetch/remote operation, so the checkout token is pure
+                  # attack surface left in the workspace (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL — see the identical note on the jobs below.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            # `printPublicOrigin.mjs` imports `@kitchensink/infra-alb`, which exports `./dist`. `^...` asks
+            # turbo for the dependency CLOSURE rather than naming packages, so the next dist-exporting
+            # dependency needs no edit here — the lesson `sandbox-deploy.yml` paid for twice.
+            - name: Build the workspace packages the origin resolver imports
+              run: npx turbo run build --filter='@kitchensink/loadtest^...'
+            # ⛔ NO HOST LITERAL. The recipe origin comes from `publicServiceOriginForStage` through
+            # `printPublicOrigin.mjs` (ADR-0003 / ADR-0006: prod is the bare label `recipe.{apex}`, every
+            # other stage the DASH form `recipe-{stage}.{apex}`, because a 3-label `recipe.pr-7.{apex}`
+            # matches no wildcard on the shared ALB certificate and fails the TLS handshake before any
+            # listener rule is consulted). A literal rots without saying so — `food-loadtest.yml` shipped
+            # `food-pr-59` as a dispatch DEFAULT for months after PR 59 closed, and a stale literal answers
+            # `000`, which reads as an outage rather than as a stale default.
+            #
+            # ⚠️ IDENTITY IS THE ONE ORIGIN THAT DOES NOT COME THROUGH THAT DOOR, and that is a fact about
+            # the deployed topology rather than a shortcut. `IdentityServiceStack` spells its own host as
+            # `isProd ? 'identity' : `identity.${stage}`` — the DOT form, terminated by the `*.sandbox`
+            # wildcard — while `publicServiceOriginForStage` would answer the dash form `identity-sandbox`,
+            # a name nothing serves. There is also no per-PR identity deploy: `sandbox-deploy.yml` deploys
+            # food and recipe only, and `identity.sandbox.{apex}` is the ONE identity service every preview
+            # signs in against (ADR-0001), which is why it is resolved from `inputs.stage` (the Clerk tenant
+            # this tier provisions into) and not from the per-PR `STAGE`. `DOMAIN_NAME` is a repo variable,
+            # so no host is typed into this file either way. The prod arm is unreachable here — the refusal
+            # above has already skipped anything but `sandbox`.
+            - name: Resolve the stage this tier would drive, and its origins
+              id: target
+              env:
+                  CLERK_STAGE: ${{ inputs.stage }}
+              run: |
+                  set -euo pipefail
+                  # ⛔ SANDBOX-ONLY, RECONCILED WITH THE SKIP RATHER THAN DELETED. This tier provisions the
+                  # shared Clerk sign-in test user into `inputs.stage`'s own tenant, and `ci-full.yml`'s
+                  # dispatcher offers `prod` as a stage. (The provisioning step is named in the tier below,
+                  # never here: `maestroStageGuard.test.ts` DISCOVERS the provisioning job by that step's
+                  # command, so quoting it in this comment made THIS job the guard's subject.) Under the 2026-09-05 ruling the
+                  # answer to "there is no sandbox for this tier" is a SKIP, so the decision lives here,
+                  # before the tier starts, and reports itself. The tier ALSO keeps its own refusal step —
+                  # see the note on it: this gate is another job's output, and a `needs:`/`if:` mistake must
+                  # not be the only thing between a prod dispatch and a write to the production Clerk tenant.
+                  if [ "${CLERK_STAGE}" != 'sandbox' ]; then
+                      echo "::notice::the mobile Maestro tier is sandbox-only — it provisions a Clerk sign-in test user in the stage's own tenant, and '${CLERK_STAGE}' is not sandbox. SKIPPING the tier (this is not a failure; dispatch it with stage=sandbox)."
+                      echo 'eligible=false' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo "::notice::the DOMAIN_NAME repository variable is empty — every origin would resolve to a bare label, so there is nothing this tier can be pointed at. SKIPPING."
+                      echo 'eligible=false' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+
+                  recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${STAGE}" "${DOMAIN_NAME}")
+                  food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${STAGE}" "${DOMAIN_NAME}")
+                  identity="https://identity.${CLERK_STAGE}.${DOMAIN_NAME}"
+
+                  {
+                      echo 'eligible=true'
+                      echo "stage=${STAGE}"
+                      echo "recipe_origin=${recipe}"
+                      echo "food_origin=${food}"
+                      echo "identity_origin=${identity}"
+                  } >>"$GITHUB_OUTPUT"
+                  echo "stage=${STAGE} recipe=${recipe} food=${food} identity=${identity}"
+            # ⛔ THE SKIP, and it consumes the answer the repo ALREADY publishes rather than re-deriving it.
+            # Re-implementing "is anything deployed" as a `curl` loop here would be a SECOND, drifting
+            # definition of a question one script already answers against both CloudFormation and the origin.
+            #
+            # ⚠️ BOTH SERVICES, not just recipe. The app talks to recipe, but recipe's own ingredient surface
+            # dials this stage's food origin (ADR-0010's smoke asserts exactly that ecosystem), so a
+            # half-deployed preview would drive flows whose behaviour is decided by which half is up. A
+            # partial preview is an absence, and an absence skips.
+            #
+            # ⚠️ NO CREDENTIALS IS AN ABSENCE TOO, not a red. Both AWS secrets are `required: false` on this
+            # reusable workflow (a fork or Dependabot PR is given neither), and a stack probe without
+            # credentials cannot distinguish "torn down" from "not allowed to look". Saying so and skipping
+            # is honest; failing the tier on a PR that cannot supply a credential is the unfixable red this
+            # file's `continue-on-error` secret load already exists to avoid one job over.
+            #
+            # `GITHUB_OUTPUT=` is cleared per call so the two evaluations cannot overwrite each other's
+            # `deploy=`/`live=` keys; ONE combined `live=` is written at the end.
+            - name: Is anything deployed at this stage? (deploy-gate liveness)
+              id: live
+              if: steps.target.outputs.eligible == 'true'
+              env:
+                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  RECIPE_ORIGIN: ${{ steps.target.outputs.recipe_origin }}
+                  FOOD_ORIGIN: ${{ steps.target.outputs.food_origin }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${AWS_ACCESS_KEY_ID}" ]; then
+                      echo "::notice::this run holds no AWS credentials (they are withheld from fork and Dependabot PRs), so whether ${STAGE} is deployed cannot be established — SKIPPING the mobile tier rather than driving an unknown target"
+                      echo 'live=false' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+
+                  # Run the gate with its GITHUB_OUTPUT suppressed and capture the verdict, so both services
+                  # can be asked without the second answer clobbering the first.
+                  ask() {
+                      local service="$1" health="$2"
+                      shift 2
+                      GITHUB_OUTPUT='' bash .github/scripts/deploy-gate.sh evaluate \
+                          true "${service}" false false "${health}" "${DEFAULT_AWS_REGION}" "$@"
+                  }
+
+                  field() {
+                      printf '%s\n' "$1" | sed -n "s/^${2}=//p" | tail -1
+                  }
+
+                  recipe_verdict=$(ask recipe "${RECIPE_ORIGIN}/health" \
+                      "kitchensink-ingredient-parser-${STAGE}" \
+                      "kitchensink-recipe-workers-${STAGE}" \
+                      "kitchensink-recipe-service-${STAGE}")
+                  echo "${recipe_verdict}"
+
+                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" "kitchensink-food-service-${STAGE}")
+                  echo "${food_verdict}"
+
+                  live='false'
+                  if [ "$(field "${recipe_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${recipe_verdict}" deploy)" = 'false' ] &&
+                      [ "$(field "${food_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${food_verdict}" deploy)" = 'false' ]; then
+                      live='true'
+                  fi
+
+                  echo "live=${live}" >>"$GITHUB_OUTPUT"
+                  if [ "${live}" = 'true' ]; then
+                      echo "::notice::${STAGE} is deployed and serving — running the mobile Maestro tier against it"
+                  else
+                      echo "::notice::nothing is deployed and serving at ${STAGE} — SKIPPING the mobile Maestro tier (this is not a failure; deploy the stage, or press Run workflow on Sandbox Deploy, and try again)"
+                  fi
+
+    e2e-mobile-maestro:
+        # ⛔ A CONSTANT — the target is reported in the log, never in the check name a branch-protection rule
+        # matches on (workflowInvariants invariant 8: a job that does not RUN never evaluates its name, so an
+        # interpolated one publishes the raw `${{ … }}` verbatim on exactly the runs a human is scanning).
+        name: E2E (mobile — Maestro on an emulator, against the deployed sandbox)
+        runs-on: ubuntu-latest
+        needs: [install, resolve-mobile-target]
+        # Cross-platform mandate: the Vitest mobile e2e covers logic; Maestro drives the real UI flows in
+        # packages/apps/commise/mobile/.maestro on an Android emulator.
+        #
+        # ⛔ IT DRIVES THE DEPLOYED PREVIEW, NOT A RUNNER-LOCAL STACK (owner ruling 2026-09-05). Until then
+        # this job was SELF-CONTAINED: it booted the recipe-service Docker image against its own Postgres and
+        # LocalStack, created the service's five queues, installed the CRF engine, ran the parse-line worker
+        # in-process, served a fixed identity profile on :4000, and pointed the APK at the emulator host alias
+        # `10.0.2.2`. Every one of those is gone. What it measured was a stack this runner configured, so a
+        # green run said nothing about the system a reviewer opens — the naming defect invariant 7 exists to
+        # catch, one file over, and the reason the ruling is worded "should be hitting remote services".
+        #
+        # ⚠️ WHAT THAT COSTS IS REAL AND IS RECORDED, not hidden: the local stack was the only place the
+        # parse path had ever been PROVEN to drain end to end on a device (the LocalStack broker, the created
+        # queue, the CRF engine and `src/local/main.ts` — see `maestroParseQueueConsumer.test.ts` for the
+        # four-legged shape and the two 50-minute reds that bought it). A deployed preview runs the REAL
+        # Lambda consumer, so the path is exercised rather than simulated; but the runner-side preflight that
+        # proved it in seconds, before paying for the emulator, no longer exists.
+        #
+        # The tier SKIPS when this PR has no live sandbox — see `resolve-mobile-target` above. Opt-out gate,
+        # not an opt-in one: this file's callers want the heavy tiers by default, and a caller that wants ONLY
+        # k6 (recipe-loadtest.yml) passes `run_mobile_maestro: false`.
+        if: ${{ inputs.run_mobile_maestro && needs.resolve-mobile-target.outputs.live == 'true' }}
+        steps:
+            # ⛔ SANDBOX-ONLY, and refused LOUDLY here even though the gate above already skips a non-sandbox
+            # stage. This job USES `inputs.stage` for a WRITE: the `load-secrets` + `ensure-signin-user.mjs`
+            # steps below provision the shared Clerk sign-in test user into THAT stage's tenant, and
+            # `ci-full.yml`'s dispatcher offers `prod` as a stage. The gate is ANOTHER JOB'S OUTPUT — a
+            # `needs:`/`if:` edit, or a caller that reaches this job some other way, would make it the only
+            # thing standing between a prod dispatch and a mutation of the production Clerk instance. So the
+            # skip is the normal path and this is the last one: it fails the job with the reason, FIRST,
+            # before any stage secret is loaded. `maestroStageGuard.test.ts` executes this body under both
+            # stages and pins its position.
             - name: Refuse any stage but sandbox (this tier writes to the stage's Clerk tenant)
               env:
                   STAGE: ${{ inputs.stage }}
               run: |
                   if [ "${STAGE}" != 'sandbox' ]; then
-                      echo "::error::the Maestro tier is sandbox-only — it provisions a Clerk sign-in test user in the '${STAGE}' tenant and tests nothing that is prod-shaped. Dispatch it with stage=sandbox, or with run_mobile_maestro=false."
+                      echo "::error::the Maestro tier is sandbox-only — it provisions a Clerk sign-in test user in the '${STAGE}' tenant. Dispatch it with stage=sandbox, or with run_mobile_maestro=false."
                       exit 1
                   fi
+            # ⛔ BEFORE ANYTHING IS FETCHED, AND BEFORE THE CLERK SECRETS: every origin this job bakes into
+            # an APK arrives from ANOTHER job's output, and the whole purpose of the APK is to send requests
+            # to them. An origin outside our own apex is either a resolver handed the wrong domain (an empty
+            # or re-pointed `DOMAIN_NAME` repo variable resolves to `https://recipe-pr-91.` — a name, and a
+            # request, that is not ours) or a `needs` plumbing mistake. This one FAILS rather than skipping:
+            # a target the job cannot vouch for is a defect, not an absence. Copied in shape from
+            # `deployed-e2e.yml`, which makes the same check for the same reason.
+            - name: Confirm every resolved target is under this repository's own domain
+              env:
+                  RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  IDENTITY_ORIGIN: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo "::error::the DOMAIN_NAME repository variable is empty — every resolved origin would be a bare label"
+                      exit 1
+                  fi
+                  for origin in "${RECIPE_ORIGIN}" "${IDENTITY_ORIGIN}"; do
+                      case "${origin}" in
+                          "https://${DOMAIN_NAME}" | "https://"*".${DOMAIN_NAME}")
+                              echo "target ${origin}"
+                              ;;
+                          *)
+                              echo "::error::resolved target '${origin}' is not under ${DOMAIN_NAME} — refusing to drive it"
+                              exit 1
+                              ;;
+                      esac
+                  done
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   # No job here performs a git push/fetch/remote operation (verified), so the
@@ -341,237 +566,42 @@ jobs:
               with:
                   distribution: temurin
                   java-version: '17'
-            # Build the recipe service (+ shared deps) and the PROVEN Docker image — the reliable boot (a
-            # plain `node` boot can't resolve the workspace bare specifiers outside the image).
-            # Build the recipe-service image AND the mobile app's dependency closure: the release JS bundle
-            # (built at APK-build time) imports `@commise/ui/tokens/*`, which resolves to that package's
-            # built `dist` — so its dist (and any other dist-exporting workspace dep) must exist first.
-            - name: Build recipe-service image + mobile deps
+            # The mobile app's dependency closure only: the release JS bundle (built at APK-build time)
+            # imports `@commise/ui/tokens/*`, which resolves to that package's built `dist`, so its dist (and
+            # any other dist-exporting workspace dep) must exist first. The recipe-service image this step
+            # used to build alongside it is gone with the runner-local stack.
+            - name: Build the mobile app's workspace dependencies
               if: steps.secrets.outcome == 'success'
-              run: |
-                  npx turbo run build --filter=@kitchensink/recipe-service --filter=@commise/mobile^...
-                  docker build -f packages/services/recipe-service/Dockerfile -t recipe-maestro:ci .
-            # Migrations + seed the catalog ingredients the create flows attach by id (T043b).
-            # Migrations + catalog ingredients (prepare-db), THEN the recipe seed (the 5 fixture recipes +
-            # a collection the flows reference, e.g. "Mediterranean Grilled Lamb"). The flows expect the
-            # signer to be the seed's FREE owner, so the dev-bypass user below is that owner's ULID.
-            - name: Prepare recipe database (migrate + seed)
-              if: steps.secrets.outcome == 'success'
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_maestro
-              run: |
-                  node packages/services/recipe-service/tests/load/prepare-db.mjs
-                  npm run seed --workspace=@kitchensink/recipe-service
-            # The buckets and queues the boot step below names. LocalStack starts with an EMPTY account, so
-            # a running broker is not the same as an addressable queue — without this the enqueue fails with
-            # `NonExistentQueue` instead of `ECONNREFUSED`, which is the same red for a new reason.
-            #
-            # ⚠️ ALL FIVE, not just the parse queue. The service is booted holding all five names; leaving
-            # four of them dangling would put four expected errors in a log this job greps on failure, which
-            # is where a real one hides. Only `recipe-parse-line` is DRAINED (by the worker below) — the
-            # other two accumulate messages nobody reads, which is exactly their state today and harms
-            # nothing: both producers already swallow a send failure, so neither flow's behaviour moves.
-            - name: Bootstrap LocalStack (S3 buckets + the service's SQS queues)
-              if: steps.secrets.outcome == 'success'
-              env:
-                  AWS_ACCESS_KEY_ID: test
-                  AWS_SECRET_ACCESS_KEY: test
-                  AWS_DEFAULT_REGION: us-east-1
-              run: |
-                  set -euo pipefail
-                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-photos
-                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-versions
-                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name erasure
-                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-verification
-                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-parse-line
-                  # Addressable at the exact URL BOTH sides are pointed at — the producer (the container's
-                  # `RECIPE_PARSE_QUEUE_URL`) and the consumer (the worker step's). Asserted by round-trip
-                  # rather than by reading `get-queue-url`'s answer back: LocalStack echoes a URL in its own
-                  # spelling (`…/queue/us-east-1/000000000000/…`) while still ACCEPTING the path form, so a
-                  # string comparison against its echo would fail on a queue that works perfectly. What has
-                  # to be true is that a send and a receive both land, and that is what this measures.
-                  PARSE_QUEUE_URL=http://localhost:4566/000000000000/recipe-parse-line
-                  aws --endpoint-url=http://localhost:4566 sqs send-message \
-                      --queue-url "${PARSE_QUEUE_URL}" --message-body '{"probe":true}' > /dev/null
-                  RECEIVED=$(aws --endpoint-url=http://localhost:4566 sqs receive-message \
-                      --queue-url "${PARSE_QUEUE_URL}" --wait-time-seconds 5 \
-                      --query 'Messages[0].Body' --output text)
-                  if [ "${RECEIVED}" != '{"probe":true}' ]; then
-                      echo "::error::the parse-line queue is not addressable at ${PARSE_QUEUE_URL} (round-trip returned '${RECEIVED}'). The recipe-service container and the parse-line worker are both pointed at that URL, so nothing would drain and recipes/parse-ingredients would fail on '2 of 2 lines read'." >&2
-                      exit 1
-                  fi
-                  aws --endpoint-url=http://localhost:4566 sqs purge-queue --queue-url "${PARSE_QUEUE_URL}"
-            # ⛔ THE PARSE-LINE WORKER RUNS THE DEPLOYED `handler.py`, SO THIS RUNNER NEEDS THE ENGINE.
-            #
-            # `src/local/localCrfEngine.ts` puts `packages/services/ingredient-parser/src/handler.py` behind
-            # the `LambdaClient` seam as a subprocess (ADR-0025). Without the engine the CRF leg throws, and
-            # `handlers/parseLine.ts` treats everything an ENGINE throws as TRANSIENT and re-throws BEFORE
-            # any landing — deliberately, per ADR-0026's 2026-08-31 update — so the message redelivers and
-            # the line stays `pending` forever. An absent engine is a queue that drains nothing.
-            #
-            # ⛔ NOT `bundle:lambda` / `infra/bin/buildAsset.ts`: that installs arm64 / CPython 3.13 wheels
-            # into a `--target` directory for the Lambda, which this x86-64 runner's interpreter cannot load.
-            # These two steps are copied from `_ci.yml`'s `integration-recipe-workers` — the fourth instance
-            # of one established pattern, not a second way to install the engine. The pin is DERIVED from
-            # `requirements.txt`, never restated (ADR-0025 calls it load-bearing three times over).
-            #
-            # ⚠️ Placed BEFORE the ~12-minute APK build on purpose: a broken install then costs ~9s and
-            # fails at minute 7, not minute 20.
-            - name: Install the CRF ingredient parser (the parse-line worker runs the real handler.py)
-              if: steps.secrets.outcome == 'success'
-              run: python3 -m pip install --user --requirement packages/services/ingredient-parser/requirements.txt
-            # The engine is loaded by a SUBPROCESS the worker spawns, whose failure this job would otherwise
-            # see only as a Maestro timeout 20 minutes later. `import ingredient_parser` rather than only the
-            # metadata version, because that is the exact statement `handler.py` makes — and it is the one
-            # that loads `python-crfsuite` and the CRF model, which metadata alone never touches.
-            - name: Assert the CRF engine is importable — the parse worker must not silently stall
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  set -uo pipefail
-                  if ! version=$(python3 -c "import ingredient_parser, importlib.metadata as m; print(m.version('ingredient-parser-nlp'))" 2>&1); then
-                      echo "::error::the CRF engine is not importable on this runner (${version}). The parse-line worker spawns handler.py per line; without the engine every line's CRF leg throws, parseLine.ts re-throws it as transient, nothing lands, and recipes/parse-ingredients fails on '2 of 2 lines read' 20 minutes from now with no explanation. Fix the install step above; do not let this job pass without the engine." >&2
-                      exit 1
-                  fi
-                  echo "CRF engine importable: ingredient-parser-nlp ${version}"
-            # Boot the service with the dev-auth bypass + raised rate limits (the flows all run as one dev
-            # user = the seed's FREE owner, so they see the seeded recipes). Bound to the runner's
-            # localhost:3000; the emulator reaches it at http://10.0.2.2:3000.
-            - name: Boot recipe-service (Docker, dev-bypass)
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  docker run -d --name recipe-maestro --network host \
-                      -e NODE_ENV=development \
-                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro \
-                      -e PORT=3000 \
-                      -e CLERK_JWT_KEY=maestro-placeholder-key \
-                      -e CLERK_AUTHORIZED_PARTIES=http://localhost:3000 \
-                      -e S3_ENDPOINT=http://localhost:4566 -e S3_FORCE_PATH_STYLE=true \
-                      -e S3_BUCKET_PHOTOS=commise-photos -e S3_BUCKET_VERSIONS=commise-versions \
-                      -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
-                      -e SQS_ENDPOINT=http://localhost:4566 \
-                      -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
-                      -e INGREDIENT_VERIFICATION_QUEUE_URL=http://localhost:4566/000000000000/recipe-verification \
-                      -e RECIPE_PARSE_QUEUE_URL=http://localhost:4566/000000000000/recipe-parse-line \
-                      -e FOOD_SERVICE_URL=http://localhost:3002 \
-                      -e RECIPE_DEV_AUTH_USER_ID=01J0K6000000000000000000K6 \
-                      -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
-                      -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
-                      recipe-maestro:ci
-                  for i in $(seq 1 40); do
-                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
-                      sleep 2
-                  done
-                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-maestro; exit 1; }
-            # ⛔ THE CONSUMER. `RecipeWorkersStack` attaches the parse queue to a Lambda with an
-            # `SqsEventSource`; nothing in this job deploys a Lambda, so the producer's messages had no
-            # reader even once the queue existed. `src/local/main.ts` is the piece written for exactly this
-            # gap — it drains the queue in-process, running the SHIPPED `processParseLine` over the real
-            # CRF handler and an OFFLINE LLM substitute (`localBedrockTransport.ts`; no model is called, and
-            # parse QUALITY is therefore not what this tier observes — the POLL ADVANCING is).
-            #
-            # ⚠️ `npm run dev` is `tsx --env-file=.env.development …`, and that committed file names a
-            # DIFFERENT database and a DIFFERENT queue (`kitchensink-recipe-parse-dev`, the one `local:up`
-            # creates). Node resolves a conflict in the ENVIRONMENT's favour — measured on Node 24.20.0 —
-            # so the values below win. That is a precedence rule, not a guarantee, which is why the next
-            # lines read the queue URL back out of the worker's own startup log instead of trusting it: if
-            # the worker ever polled the file's queue, SQS would report an empty queue rather than an error
-            # and this job would look healthy while every line stayed `pending`.
-            - name: Start the parse-line worker (nothing else drains the queue)
-              if: steps.secrets.outcome == 'success'
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_maestro
-                  RECIPE_PARSE_QUEUE_URL: http://localhost:4566/000000000000/recipe-parse-line
-                  SQS_ENDPOINT: http://localhost:4566
-                  STAGE: dev
-                  AWS_REGION: us-east-1
-              run: |
-                  set -uo pipefail
-                  npm run dev --workspace=@kitchensink/recipe-workers > /tmp/parse-worker.log 2>&1 &
-                  echo "PARSE_WORKER_PID=$!" >> "$GITHUB_ENV"
-                  for i in $(seq 1 30); do
-                      if grep -q 'local parse worker draining the parse queue' /tmp/parse-worker.log; then break; fi
-                      sleep 1
-                  done
-                  if ! grep -q "\"queueUrl\":\"${RECIPE_PARSE_QUEUE_URL}\"" /tmp/parse-worker.log; then
-                      echo "::error::the parse-line worker is not draining ${RECIPE_PARSE_QUEUE_URL}. A worker on the wrong queue polls successfully forever and reports nothing, so this is checked rather than assumed. Worker log follows." >&2
-                      cat /tmp/parse-worker.log
-                      exit 1
-                  fi
-                  echo "parse-line worker draining ${RECIPE_PARSE_QUEUE_URL}"
-            # ⛔ PROVE THE BACKEND HALF BEFORE PAYING FOR THE EMULATOR. `recipes/parse-ingredients` asserts
-            # `2 of 2 lines read`, which is `settled === total` over the job the API reports — so the same
-            # claim can be made here against the same service, in seconds, ~20 minutes before the device can
-            # make it. When this step is red the Maestro failure is NOT an app defect, and saying so here is
-            # the difference between a diagnosable red and an opaque 60-second timeout.
-            #
-            # ⛔ NOT the flow's own two lines. `reseed.mjs` truncates the recipe tables but NOT
-            # `ingredient_parse_cache`, so probing `2 cups flour` / `1 tsp salt` would leave warm cache rows
-            # that answer the device flow without either engine running — the probe would retire the legs it
-            # exists to prove. Different lines keep the flow's own CRF + LLM crossing genuine.
-            #
-            # ⚠️ The `202` body is checked for `running`, not merely for a `2xx`: an unreachable or absent
-            # queue also answers `202`, with `partial` and every line `failed_retryable`. Accepting the
-            # status code alone is precisely the blindness that let this ship.
-            - name: Prove a parse job settles (the backend half of recipes/parse-ingredients)
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  set -uo pipefail
-                  CREATED=$(curl -sS -X POST http://localhost:3000/api/v1/recipe-parse-jobs \
-                      -H 'content-type: application/json' \
-                      -d '{"text":"1 cup sugar\n2 tbsp butter"}')
-                  JOB_ID=$(CREATED="${CREATED}" node -e '
-                      const body = JSON.parse(process.env.CREATED);
-                      if (body.status !== "running") {
-                          console.error(`::error::the parse job was accepted as "${body.status}", not "running" — the enqueue failed and every line is already failed_retryable. Check the LocalStack bootstrap and the container SQS_ENDPOINT/RECIPE_PARSE_QUEUE_URL. Body: ${process.env.CREATED}`);
-                          process.exit(1);
-                      }
-                      console.log(body.id);
-                  ') || exit 1
-                  echo "parse job ${JOB_ID} accepted as running"
-                  for i in $(seq 1 30); do
-                      POLLED=$(curl -sS "http://localhost:3000/api/v1/recipe-parse-jobs/${JOB_ID}")
-                      STATUS=$(POLLED="${POLLED}" node -e 'process.stdout.write(JSON.parse(process.env.POLLED).status)')
-                      if [ "${STATUS}" != 'running' ]; then break; fi
-                      sleep 2
-                  done
-                  POLLED="${POLLED}" node -e '
-                      const body = JSON.parse(process.env.POLLED);
-                      const settled = body.lines.filter((line) => line.status === "parsed" || line.status === "unparseable").length;
-                      if (body.status !== "complete" || settled !== body.lines.length) {
-                          console.error(`::error::the parse job never settled — status "${body.status}", ${settled} of ${body.lines.length} lines read. This is the exact assertion recipes/parse-ingredients makes on device ("N of M lines read"), so that flow WILL fail; the cause is on the runner (queue, worker or CRF engine), not in the app. Body: ${process.env.POLLED}`);
-                          process.exit(1);
-                      }
-                      console.log(`parse path proven: ${settled} of ${body.lines.length} lines read, job ${body.status}.`);
-                  ' || { echo "--- parse-line worker log ---"; tail -60 /tmp/parse-worker.log; exit 1; }
+              run: npx turbo run build --filter=@commise/mobile^...
             # Build a standalone RELEASE APK (JS bundle EMBEDDED). A debug APK loads its JS from a Metro
             # bundler at runtime — absent in CI, so the app renders nothing. The release build bundles the
-            # JS in-APK (with EXPO_PUBLIC_* inlined at build time → the emulator host alias for the
-            # runner-local service), so it runs Metro-free. Expo prebuild signs `release` with the debug
-            # keystore by default, so the APK installs without any keystore setup. Minification is disabled
-            # to avoid proguard stripping something the E2E needs.
+            # JS in-APK (with EXPO_PUBLIC_* inlined at build time → the DEPLOYED origins resolved above), so
+            # it runs Metro-free. Expo prebuild signs `release` with the debug keystore by default, so the
+            # APK installs without any keystore setup. Minification is disabled to avoid proguard stripping
+            # something the E2E needs.
+            #
+            # ⚠️ THE CLEARTEXT-HTTP MANIFEST PATCH IS GONE WITH THE LOCAL STACK. It existed so a release APK
+            # could reach `http://10.0.2.2:3000`; both endpoints are now `https://` under our own apex, which
+            # a release build allows by default. Do not restore it — re-enabling cleartext to reach a runner
+            # service is precisely the shape this conversion removed.
             - name: Build Android release APK
               if: steps.secrets.outcome == 'success'
               working-directory: packages/apps/commise/mobile
               env:
-                  # 10.0.2.2 is the Android emulator's host loopback. Both endpoints are REQUIRED —
-                  # `mobile/src/config/env.ts` declares them with no default, so the APK build fails
-                  # outright if either is absent (that is the point: `localhost` on a phone is the phone).
-                  EXPO_PUBLIC_RECIPE_API_URL: http://10.0.2.2:3000
+                  # Both endpoints are REQUIRED — `mobile/src/config/env.ts` declares them with no default,
+                  # so the APK build fails outright if either is absent. They come from
+                  # `resolve-mobile-target`, which resolved them through the origin authority.
+                  EXPO_PUBLIC_RECIPE_API_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   # The app fetches the viewer PROFILE (viewerId → client-side ownership, tier) from the
-                  # identity service; this job runs a stub for it on :4000 (see the stub step below).
-                  EXPO_PUBLIC_IDENTITY_API_URL: http://10.0.2.2:4000
+                  # identity service — the ONE shared `identity.{stage}` deploy every preview signs in
+                  # against, which is also the tenant the Clerk test user above is provisioned into.
+                  EXPO_PUBLIC_IDENTITY_API_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   # The release build runs the @sentry/react-native gradle hook, which uploads source maps
                   # via sentry-cli; there is no Sentry auth token in E2E, so disable the upload.
                   SENTRY_DISABLE_AUTO_UPLOAD: 'true'
               run: |
                   npx expo prebuild --platform android --no-install
-                  # Allow cleartext HTTP so the release APK can reach the runner-local recipe service at
-                  # http://10.0.2.2:3000 (release blocks cleartext by default; debug allows it). This patch
-                  # lives only in the CI working copy — it is NOT committed, so prod builds from app.json
-                  # stay cleartext-free. (Clerk sign-in itself is HTTPS and unaffected.)
-                  sed -i 's/<application /<application android:usesCleartextTraffic="true" /' \
-                      android/app/src/main/AndroidManifest.xml
                   cd android
                   # ⛔ CONFIGURE FIRST, AND RETRY — the Android SDK components this build needs are
                   # downloaded by Gradle during CONFIGURATION, not during compilation, and that download is
@@ -613,19 +643,6 @@ jobs:
                   done
                   ./gradlew :app:assembleRelease --no-daemon \
                       -PenableProguardInReleaseBuilds=false -PenableShrinkResourcesInReleaseBuilds=false
-            # The app's client-side ownership (Edit/Delete/clone) + tier come from the identity service's
-            # profile endpoint, which this recipe-only job does not run — serve a fixed FREE profile whose
-            # user.id equals the seed owner + dev-bypass user (01J0K6…) so ownership/tier resolve. Runs in
-            # the background; the emulator reaches it at http://10.0.2.2:4000.
-            - name: Start profile stub
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  PORT=4000 node packages/apps/commise/mobile/tests/e2e/profile-stub-server.mjs > /tmp/profile-stub.log 2>&1 &
-                  for i in $(seq 1 15); do
-                      if curl -sf http://localhost:4000/api/v1/users/me > /dev/null; then echo "stub up"; break; fi
-                      sleep 1
-                  done
-                  curl -sf http://localhost:4000/api/v1/users/me || { echo "stub failed to start"; cat /tmp/profile-stub.log; exit 1; }
             # Hardware-accelerate the emulator (KVM). Without this the emulator falls back to slow software
             # rendering (a ~7min boot + ~4min APK install), which starves the Maestro Android driver and
             # times it out ("driver did not start up in time"). GitHub's Linux runners expose /dev/kvm but
@@ -637,12 +654,12 @@ jobs:
                       | sudo tee /etc/udev/rules.d/99-kvm4all.rules
                   sudo udevadm control --reload-rules
                   sudo udevadm trigger --name-match=kvm
-            # The emulator-runner installs a ~3 GB x86_64 system image; once the recipe-service Docker image,
-            # mobile deps, and release APK are on disk the runner's ~14 GB budget is nearly spent, and the
-            # install can abort with "No space left on device" (the emulator then never boots). The APK is
-            # already built by this point, so reclaim the large toolchains this job never uses — but NOT
-            # Docker (the recipe-service container is live) nor the Android platform-tools/emulator/system
-            # images. This makes the emulator boot robust to runner-to-runner free-space variance.
+            # The emulator-runner installs a ~3 GB x86_64 system image; once the mobile deps and the release
+            # APK are on disk the runner's ~14 GB budget is nearly spent, and the install can abort with "No
+            # space left on device" (the emulator then never boots). The APK is already built by this point,
+            # so reclaim the large toolchains this job never uses — but NOT the Android
+            # platform-tools/emulator/system images. This makes the emulator boot robust to runner-to-runner
+            # free-space variance.
             - name: Free disk space for the emulator system image
               if: steps.secrets.outcome == 'success'
               run: |
@@ -651,24 +668,8 @@ jobs:
                       /usr/local/share/powershell /opt/hostedtoolcache/CodeQL \
                       /usr/local/lib/android/sdk/ndk || true
                   df -h /
-            # ⛔ THE WORKER HAS TO SURVIVE THE ~12 MINUTES OF GRADLE BETWEEN ITS START AND THIS POINT. It
-            # holds a pg pool and spawns a Python child per line, and if it died — OOM during the APK build,
-            # an unhandled pool error — the queue would still ACCEPT every message and `recipes/parse-
-            # ingredients` would fail on the same assertion for a completely different reason. A dead
-            # background process is silent by nature; this is the only thing that makes it loud.
-            - name: Assert the parse-line worker is still alive
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  set -uo pipefail
-                  if [ -z "${PARSE_WORKER_PID:-}" ] || ! kill -0 "${PARSE_WORKER_PID}" 2>/dev/null; then
-                      echo "::error::the parse-line worker (pid ${PARSE_WORKER_PID:-unset}) died between its start and the emulator. Nothing will drain the parse queue, so recipes/parse-ingredients would fail on '2 of 2 lines read' for a runner fault rather than an app defect. Worker log follows." >&2
-                      cat /tmp/parse-worker.log
-                      exit 1
-                  fi
-                  echo "parse-line worker alive (pid ${PARSE_WORKER_PID})"
             # Boot the emulator, install the APK, and run the flows. Install + test run INSIDE the
-            # emulator-runner `script` (the emulator is only up there). `adb reverse` also maps the
-            # emulator's own localhost:3000 to the runner, a belt-and-suspenders alongside 10.0.2.2.
+            # emulator-runner `script` (the emulator is only up there).
             # A generous MAESTRO_DRIVER_STARTUP_TIMEOUT absorbs first-run driver-install latency.
             - name: Run Maestro flows on emulator
               if: steps.secrets.outcome == 'success'
@@ -707,53 +708,23 @@ jobs:
                   path: ~/.maestro/tests
                   retention-days: 7
                   if-no-files-found: ignore
-            - name: Recipe-service error logs on failure
+            # The runner-local container's log used to be the first thing to read on a red flow; there is no
+            # container now, and the deployed services' logs live in CloudWatch. What this runner CAN still
+            # say is whether the two origins it drove were answering when the flows failed — which separates
+            # "the preview went away mid-run" (Spot reclamation, a nightly shutdown) from an app defect.
+            # `deploy_gate_probe` is SOURCED rather than re-written so "did the origin answer" keeps one
+            # definition in this repository.
+            - name: The deployed targets, on failure
               if: failure()
-              run: |
-                  echo "--- recipe-service: NestJS error/exception lines ---"
-                  docker logs recipe-maestro 2>&1 | grep -iE "error|exception|warn|400|422|500|Bad Request|Unprocessable|validation|ingredient|POST /api/v1/recipes" | tail -80 || true
-            - name: Recipe-service logs on failure
-              if: failure() && steps.secrets.outcome == 'success'
-              run: docker logs recipe-maestro 2>&1 | tail -100 || true
-            # The worker's own view of the same failure: `message left for redelivery` names a CRF or
-            # database fault the recipe-service log cannot see, because the worker is a separate process the
-            # service never talks to.
-            #
-            # ⚠️ NO `|| true` HERE, and the absent-file case is BRANCHED rather than suppressed (invariant 4
-            # of `workflowInvariants.test.ts`): the log is missing precisely when the job died before the
-            # worker started, and "the worker never started" is the most useful sentence this step can
-            # print, not something to swallow.
-            - name: Parse-line worker log on failure
-              if: failure() && steps.secrets.outcome == 'success'
+              env:
+                  RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  IDENTITY_ORIGIN: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
               run: |
                   set -uo pipefail
-                  if [ -f /tmp/parse-worker.log ]; then
-                      tail -120 /tmp/parse-worker.log
-                  else
-                      echo "no parse-line worker log on disk — the job failed before the worker was started"
-                  fi
-            # ⚠️ `always()`: the runner reclaims the job's processes either way, so this is not cleanup for
-            # its own sake — `SIGTERM` is what makes the worker print its `local parse worker stopped`
-            # summary, and that summary carries the processed/failed counts. Worth reading on a GREEN run
-            # too: "0 processed" alongside passing flows would mean the parse assertions were satisfied by
-            # something other than a parse.
-            - name: Stop the parse-line worker (and report what it drained)
-              if: always() && steps.secrets.outcome == 'success'
-              run: |
-                  set -uo pipefail
-                  if [ -n "${PARSE_WORKER_PID:-}" ] && kill -0 "${PARSE_WORKER_PID}" 2>/dev/null; then
-                      # Branched, never `|| true` (invariant 4): the process CAN exit between the liveness
-                      # test and the signal, and that race deserves a line rather than a swallowed status.
-                      if ! kill -TERM "${PARSE_WORKER_PID}" 2>/dev/null; then
-                          echo "the parse-line worker exited between the liveness check and the signal"
-                      fi
-                      for i in $(seq 1 10); do
-                          if ! kill -0 "${PARSE_WORKER_PID}" 2>/dev/null; then break; fi
-                          sleep 1
-                      done
-                  fi
-                  grep -h 'local parse worker stopped' /tmp/parse-worker.log \
-                      || echo "::warning::the parse-line worker printed no stop summary — it was already gone, or it never started"
+                  # shellcheck source=.github/scripts/deploy-gate.sh
+                  source .github/scripts/deploy-gate.sh
+                  echo "recipe   ${RECIPE_ORIGIN}/health → $(deploy_gate_probe "${RECIPE_ORIGIN}/health")"
+                  echo "identity ${IDENTITY_ORIGIN}/health → $(deploy_gate_probe "${IDENTITY_ORIGIN}/health")"
 
     load-test:
         name: Load test (recipe — k6, isolated substrate) · heavy tier

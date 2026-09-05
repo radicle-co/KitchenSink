@@ -21,20 +21,35 @@ name: CI (reusable)
 # Hardening path (requires repo/IAM setup, see docs/CI_ARCHITECTURE.md): move AWS auth to OIDC with
 # two stage-scoped roles and adopt GitHub Environments so prod secrets are unreachable from PR runs.
 #
-# ⛔ JOB NAMING — `Hermetic (…)` vs `E2E (…)`; the distinction is load-bearing, not cosmetic.
+# ⛔ JOB NAMING AND TIERS — `Integration (…)` / `Hermetic (…)` boot locally; `E2E (…)` drives the DEPLOYED
+# per-PR sandbox and SKIPS when there is not one.
 #
-# Every test job in this file BOOTS ITS OWN TARGET on the runner: Postgres and LocalStack service
-# containers, a `next start` on `localhost:3000`, one or two Nest apps started beside the suite. That is
-# the HERMETIC CONTRACT tier — it proves the code honours its contracts against real backing stores, on
-# every PR, as a hard merge gate (docs/CODING_STANDARDS.md §7.1). It is NOT an end-to-end test of the
-# deployed system, and until 2026-09-04 eight jobs here said it was. The worst read
-# `E2E (recipe ↔ food LIVE — both services, one real Clerk token)` while pointing at
-# `LINKAGE_FOOD_URL=http://localhost:3002`; nothing about it was live. An owner reading a green checks
-# list learned "the deployed system works" from suites that had never reached a deployed system.
+# An `Integration (…)` or `Hermetic (…)` job BOOTS ITS OWN TARGET on the runner: Postgres and LocalStack
+# service containers, one or two Nest apps started beside the suite, an in-process Nest app over mocked
+# `pg`/SQS. That tier proves the code honours its contracts against real backing stores, on every PR, as a
+# hard merge gate (docs/CODING_STANDARDS.md §7.1). It is NOT an end-to-end test of the deployed system.
 #
-# So: `Hermetic (subject — what this job stands up)` here, and the name `E2E` is RESERVED for a job whose
-# target is a real deployed environment. The rule is asserted — a job whose displayed name says E2E while
-# provisioning service containers, naming a `localhost` target, or naming no remote target at all fails
+# `E2E (…)` is RESERVED for a job whose target is a REAL DEPLOYED environment — this pull request's
+# `pr-{N}` sandbox. Owner ruling, 2026-09-04, verbatim:
+#
+#   > "all end to end tests (playwright, e2e, maestro, etc) - which should be hitting remote services -
+#      should be skipped if the sandbox for the PR is not running. There should also be a manual job that I
+#      can trigger that will run the end to end tests. … Right now the pipeline should be green because no
+#      end to end tests were run"
+#
+# So every `E2E (…)` job below has NO service containers, NO local boot, NO migrations and NO seeding. Each
+# resolves its target from `publicServiceOriginForStage` (never a host typed into YAML) and carries a
+# job-level `if: needs.resolve-sandbox.outputs.live == 'true'`, so GitHub renders it **skipped** when this PR
+# has no deployed sandbox: visually distinct from green, zero runner minutes, and never a red check for
+# "there was nothing to talk to". ⛔ Do NOT make those gates skip-tolerant (`always()` / `!cancelled()`) —
+# that runs the suite against thin air and turns "nothing to do" back into red.
+#
+# The MANUAL door of the ruling is `deployed-e2e.yml`, which owns the on-demand and production runs; nothing
+# here may ever point a suite at production, which is why `resolve-sandbox` resolves an EMPTY stage (and so
+# `live=false`) on any run without a pull request.
+#
+# The naming rule is asserted — a job whose displayed name says E2E while provisioning service containers,
+# naming a `localhost` target, or naming no remote target at all fails
 # `packages/infra/global/__tests__/workflowInvariants.test.ts` (invariant 7).
 #
 # ⚠️ The JOB KEYS still read `e2e-*` and must stay that way: `GITHUB_JOB` is folded into the run-scoped
@@ -72,6 +87,10 @@ permissions:
 
 env:
     DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    # The apex, so no `E2E (…)` job below ever types a host into YAML. `food-loadtest.yml` shipped
+    # `https://food-pr-59.commise.app` as a dispatch DEFAULT for months after PR 59 closed, and a stale
+    # literal answers `000` — which reads as an outage rather than as a stale default.
+    DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
 
 jobs:
     install:
@@ -109,6 +128,189 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+
+    # ── Is there a deployed per-PR sandbox for the `E2E (…)` tier to drive? ───────────────────────────────
+    #
+    # ⛔ ONE definition of "is anything deployed", computed ONCE and consumed by every `E2E (…)` job below
+    # through a job-level `if:`. The shape is `deployed-e2e.yml`'s own `resolve` job, deliberately: that
+    # workflow already answers this question against both CloudFormation and the live origin, and a second
+    # mechanism here would be a second, drifting definition of it.
+    #
+    # ⚠️ `live` ALONE is not the condition, and the difference matters. `deploy-gate.sh` reports `live=true`
+    # for an environment it is ABOUT TO CREATE (an absent stack under intent) — true for the deploy job that
+    # follows it, false for a tier that deploys nothing. The state this tier can run in is the gate's own
+    # `deploy=false` arm ("unchanged and already deployed and serving"), so the condition is `live && !deploy`,
+    # per service. `intent=true` is passed unconditionally BECAUSE of that pairing: passing `false` collapses
+    # every answer to `live=false` and makes the tier permanently silent, while passing `true` cannot cause a
+    # deploy — there is no deploy step anywhere in this workflow.
+    #
+    # ⛔ Absence SKIPS, it never fails — `deployGateStepGuards.test.ts` records why: "red-over-nothing is the
+    # mirror of green-over-nothing", and `Sandbox Deploy` was permanently red on PR #91 for exactly this. So
+    # this job itself must stay GREEN when there is nothing deployed; it publishes `live=false` and the tier
+    # skips.
+    #
+    # ⚠️ NO `aws-actions/configure-aws-credentials` and NO `load-secrets` here, on purpose. Both FAIL when the
+    # credentials are withheld — which GitHub does by design for fork PRs and Dependabot — and a red
+    # `resolve-sandbox` would red the whole pipeline for a PR nobody can fix. Handing the keys to the AWS CLI
+    # through `env:` degrades correctly instead: `describe-stacks` fails, `deploy_gate_stack_status` answers
+    # ABSENT, the gate answers `deploy=true`, and the tier SKIPS.
+    resolve-sandbox:
+        name: Resolve the PR sandbox
+        timeout-minutes: 15
+        runs-on: ubuntu-latest
+        # ⛔ THE STAGE IS DECIDED HERE, AT JOB LEVEL, and the step below only validates it. Computed in a step
+        # and read back as a step output it is invisible to static analysis: `stackProbeCoverage.test.ts` reads
+        # `env:` at file and job level only, so every stack the liveness step probes would come back "whose
+        # stage this guard cannot resolve, so nothing here can say whether the set is complete".
+        #
+        # EMPTY on any run without a pull request — i.e. `ci-main.yml`, the prod caller — which resolves to
+        # `live=false` and skips the whole tier. Nothing automatic in this repository may point a suite at
+        # production; that is `deployed-e2e.yml`'s manual door, and only by hand.
+        env:
+            STAGE: ${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || '' }}
+            # The BASE stage ('sandbox' | 'prod'), which is a different question from the per-PR stage above:
+            # the identity service is GLOBAL infra (ADR-0005) with one deploy per base stage, so a `pr-{N}`
+            # preview signs in against the SHARED identity service, not one of its own.
+            BASE_STAGE: ${{ inputs.stage }}
+        outputs:
+            stage: ${{ steps.target.outputs.stage }}
+            live: ${{ steps.live.outputs.live }}
+            identity_origin: ${{ steps.target.outputs.identity_origin }}
+            recipe_origin: ${{ steps.target.outputs.recipe_origin }}
+            food_origin: ${{ steps.target.outputs.food_origin }}
+            web_origin: ${{ steps.target.outputs.web_origin }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            # This job has no `needs:`, so it cannot restore the cache `install` saves — it is deliberately
+            # off the critical path of every other job, since eight Playwright shards wait on its answer.
+            - run: npm ci
+            # `printPublicOrigin.mjs` imports `@kitchensink/infra-alb`, which exports `./dist` (the compiled
+            # CDK apps run under plain `node`, whose type-stripping resolves a `.js` specifier inside a `.ts`
+            # file literally rather than through `extensionAlias`). `^...` asks turbo for the dependency
+            # CLOSURE rather than naming packages, so the next dist-exporting dependency needs no edit here —
+            # the lesson `sandbox-deploy.yml` paid for twice with `infra-security` and then `infra-alb`.
+            - name: Build the workspace packages the origin resolver imports
+              run: npx turbo run build --filter='@kitchensink/loadtest^...'
+            # ⛔ NO HOST LITERAL. Every service origin comes from `publicServiceOriginForStage` (ADR-0003 /
+            # ADR-0006: prod is the bare label `recipe.{apex}`, every other stage the DASH form
+            # `recipe-{stage}.{apex}`, because a 3-label `recipe.pr-7.{apex}` matches no wildcard on the shared
+            # ALB certificate and fails the TLS handshake before any listener rule is consulted).
+            #
+            # ⚠️ Identity and the web preview are NOT that shape and must not be forced into it. The identity
+            # service is global infra whose record is `identity.{stage}.{apex}` (`IdentityServiceStack`), and a
+            # preview's browser origin is the per-PR SUBDOMAIN `pr-{N}.sandbox.{apex}` (ADR-0001, cutover
+            # executed 2026-07-13 — the older `sandbox.{apex}/pr-{N}` path form 404s BY DESIGN). Both are
+            # composed from the `DOMAIN_NAME` repository variable, so no host is typed into this file.
+            - name: Resolve this PR's sandbox stage and service origins
+              id: target
+              run: |
+                  set -euo pipefail
+                  stage="${STAGE:-}"
+
+                  if [ -z "${stage}" ] || [ -z "${DOMAIN_NAME:-}" ]; then
+                      echo "::notice::no per-PR sandbox target for this run (stage='${stage}') — the E2E tier will be SKIPPED, which is not a failure"
+                      {
+                          echo 'stage='
+                          echo 'identity_origin='
+                          echo 'recipe_origin='
+                          echo 'food_origin='
+                          echo 'web_origin='
+                      } >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+
+                  case "${stage}" in
+                      pr-[0-9]*) ;;
+                      *)
+                          echo "::error::refusing an unrecognised stage '${stage}' — expected 'pr-{N}'"
+                          exit 1
+                          ;;
+                  esac
+
+                  recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
+                  food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")
+                  web="https://${stage}.sandbox.${DOMAIN_NAME}"
+
+                  if [ "${BASE_STAGE}" = 'prod' ]; then
+                      identity="https://identity.${DOMAIN_NAME}"
+                  else
+                      identity="https://identity.${BASE_STAGE}.${DOMAIN_NAME}"
+                  fi
+
+                  {
+                      echo "stage=${stage}"
+                      echo "identity_origin=${identity}"
+                      echo "recipe_origin=${recipe}"
+                      echo "food_origin=${food}"
+                      echo "web_origin=${web}"
+                  } >>"$GITHUB_OUTPUT"
+                  echo "stage=${stage} identity=${identity} recipe=${recipe} food=${food} web=${web}"
+            # ⛔ THE SKIP, and it consumes the answer the repository ALREADY publishes rather than re-deriving
+            # it. Re-implementing "is anything deployed" as a `curl` loop here would be a SECOND definition of
+            # a question `deploy-gate.sh` already answers against both CloudFormation and the origin.
+            #
+            # `GITHUB_OUTPUT=` is cleared per call so the two evaluations cannot overwrite each other's
+            # `deploy=`/`live=` keys; ONE combined `live=` is written at the end. `changed`/`forced` are
+            # `false`: this run has no diff to react to and is not a deploy button.
+            - name: Is anything deployed at this stage? (deploy-gate liveness)
+              id: live
+              env:
+                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+                  RECIPE_ORIGIN: ${{ steps.target.outputs.recipe_origin }}
+                  FOOD_ORIGIN: ${{ steps.target.outputs.food_origin }}
+              run: |
+                  set -euo pipefail
+
+                  if [ -z "${STAGE:-}" ] || [ -z "${RECIPE_ORIGIN}" ] || [ -z "${FOOD_ORIGIN}" ]; then
+                      echo 'live=false' >>"$GITHUB_OUTPUT"
+                      echo '::notice::no sandbox target resolved — SKIPPING the E2E tier'
+                      exit 0
+                  fi
+
+                  # Run the gate with its GITHUB_OUTPUT suppressed and capture the verdict, so both services
+                  # can be asked without the second answer clobbering the first.
+                  ask() {
+                      local service="$1" health="$2"
+                      shift 2
+                      GITHUB_OUTPUT='' bash .github/scripts/deploy-gate.sh evaluate \
+                          true "${service}" false false "${health}" "${DEFAULT_AWS_REGION}" "$@"
+                  }
+
+                  field() {
+                      printf '%s\n' "$1" | sed -n "s/^${2}=//p" | tail -1
+                  }
+
+                  recipe_verdict=$(ask recipe "${RECIPE_ORIGIN}/health" \
+                      "kitchensink-ingredient-parser-${STAGE}" \
+                      "kitchensink-recipe-workers-${STAGE}" \
+                      "kitchensink-recipe-service-${STAGE}")
+                  echo "${recipe_verdict}"
+
+                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" "kitchensink-food-service-${STAGE}")
+                  echo "${food_verdict}"
+
+                  live='false'
+                  if [ "$(field "${recipe_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${recipe_verdict}" deploy)" = 'false' ] &&
+                      [ "$(field "${food_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${food_verdict}" deploy)" = 'false' ]; then
+                      live='true'
+                  fi
+
+                  echo "live=${live}" >>"$GITHUB_OUTPUT"
+                  if [ "${live}" = 'true' ]; then
+                      echo "::notice::${STAGE} is deployed and serving — running the E2E tier against it"
+                  else
+                      echo "::notice::nothing is deployed and serving at ${STAGE} — SKIPPING the E2E tier (this is not a failure; deploy the stage, or press Run workflow on Sandbox Deploy, and try again)"
+                  fi
 
     build-ui:
         name: Build @commise/ui
@@ -612,47 +814,58 @@ jobs:
     # Needs NO LocalStack and NO Clerk secrets — verified by running it with DATABASE_URL as the only env
     # var. Its own database, deliberately separate from identity's: both tiers DROP the `public` schema in
     # global-setup, so sharing one would have them racing each other's resets.
-    # ⛔ THE ONLY PLACE IDENTITY IS PROVED TO BOOT. Added 2026-08-27 with ADR-0028, which stopped per-PR
-    # previews from deploying on every push — so "did the service start?" is no longer answered downstream by
-    # a sandbox deploy that may never happen. food and recipe were already covered by
-    # `e2e-cross-service-linkage`, which boots both; identity was covered by NOTHING, and its unit and
-    # integration suites cannot see this class of failure because they never construct the Nest application.
+
+    # ⛔ THE DEPLOYED IDENTITY SERVICE — not a boot on the runner. Until 2026-09-04 this job compiled identity
+    # and started it beside a Postgres service container: that proves the code CAN boot and proves nothing at
+    # all about the thing users reach. Owner ruling 2026-09-04 — an end-to-end test drives the deployed
+    # system, or it is skipped.
     #
-    # What this catches that a green integration suite does not: a module that fails to resolve at
-    # bootstrap, a missing provider, a config schema that rejects a real environment, a decorator-metadata
-    # regression, a port that never binds. Every one of those passes `test` and `test:integration` and then
-    # crash-loops in ECS.
+    # ⚠️ The identity service is GLOBAL infra (ADR-0005): ONE deploy per BASE stage, shared by every `pr-{N}`
+    # preview, so this drives `identity.{base stage}.{apex}` rather than a per-PR host. It is still gated on
+    # the per-PR sandbox's liveness — a pull request with nothing deployed has no end-to-end tier at all, and
+    # a shared-service check that ran anyway would be the one E2E job that is green on a PR with no sandbox.
     #
-    # ## Why `npx tsx dist/src/main.js` and not `node dist/src/main.js`
-    #
-    # ⚠️ NOT a shortcut — the same reasoning as `e2e-cross-service-linkage`, and do not "fix" it to plain
-    # `node`. The service is COMPILED first, because that is what emits the `design:paramtypes` metadata
-    # Nest's constructor injection needs; running the TypeScript sources directly boots an app whose
-    # controllers silently have no dependencies. But the compiled output still imports workspace packages
-    # that export `./src/*.ts`, and plain `node`'s type stripping resolves a `.js` specifier inside a `.ts`
-    # file literally (ADR-0013). tsx supplies the resolver; the code executed is the compiled artifact.
-    #
-    # Residual gap, stated rather than hidden: this boots the compiled service, NOT the Docker image.
+    # `deployedSmoke.ts` is this repository's ONE authority on "is this deployment good", so this COMPOSES it
+    # rather than standing a second one beside it. Two of its five classifiers apply here: health, and the
+    # CORS preflight — the check `/health` structurally cannot make, because a preflight is credential-less by
+    # spec, so a service whose auth runs ahead of CORS answers 401 and is unreachable from every browser while
+    # staying 200 to curl (a stale pre-CORS recipe build served pr-73 for fifteen days behind exactly that
+    # green). The image-currency and dependency-wiring classifiers are deliberately NOT invoked: both compare
+    # against what a DEPLOY just produced, and this workflow deploys nothing.
     e2e-identity-boot:
-        name: Hermetic (identity — self-booted service + Postgres)
-        timeout-minutes: 20
+        name: E2E (identity — the deployed identity service)
+        timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [install]
-        services:
-            postgres:
-                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: identity_boot
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U postgres"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
+        needs: [install, resolve-sandbox]
+        if: needs.resolve-sandbox.outputs.live == 'true'
+        env:
+            IDENTITY_ORIGIN: ${{ needs.resolve-sandbox.outputs.identity_origin }}
+            WEB_ORIGIN: ${{ needs.resolve-sandbox.outputs.web_origin }}
         steps:
+            # ⛔ FIRST, and before anything is fetched: every URL this job probes arrives from ANOTHER job's
+            # output, and this job's whole purpose is to send requests to them. An origin outside our own apex
+            # is either a resolver handed the wrong domain (an empty or re-pointed `DOMAIN_NAME` repository
+            # variable resolves to `https://identity.sandbox.` — a name, and a request, that is not ours) or a
+            # `needs` plumbing mistake. It fails LOUDLY rather than skipping: a target this job cannot vouch
+            # for is a defect, not an absence.
+            - name: Confirm every resolved target is under this repository's own domain
+              env:
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo '::error::the DOMAIN_NAME repository variable is empty — every resolved origin would be a bare label'
+                      exit 1
+                  fi
+                  for origin in "${IDENTITY_ORIGIN}" "${WEB_ORIGIN}"; do
+                      case "${origin}" in
+                          "https://${DOMAIN_NAME}" | "https://"*".${DOMAIN_NAME}") echo "target ${origin}" ;;
+                          *)
+                              echo "::error::resolved target '${origin}' is not under ${DOMAIN_NAME} — refusing to drive it"
+                              exit 1
+                              ;;
+                      esac
+                  done
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
@@ -676,56 +889,11 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
-            - name: Build identity-service and everything it imports
-              run: npx turbo run build --filter='@kitchensink/identity-service...'
-            # No AWS and no Clerk instance. `DELETION_QUEUE_URL` and `CLERK_AUTHORIZED_PARTIES` are REQUIRED by
-            # the config schema and are satisfied with syntactically valid placeholders: this asserts the app
-            # stands up and serves, not that it can reach SQS. `/health` is the one route `AuthMiddleware`
-            # does not protect, which is exactly why it is the probe.
-            - name: Boot identity-service and prove it serves
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/identity_boot
-                  DELETION_QUEUE_URL: https://sqs.us-east-1.amazonaws.com/000000000000/identity-boot-unused
-                  CLERK_AUTHORIZED_PARTIES: http://localhost:3001
-                  NODE_ENV: development
-                  STAGE: dev
-                  PORT: 3001
+            - name: Smoke test — the deployed identity service is live and browser-reachable
               run: |
-                  set -euo pipefail
-                  cd packages/services/identity
-                  setsid nohup npx tsx dist/src/main.js > "${RUNNER_TEMP}/identity-service.log" 2>&1 < /dev/null &
-                  cd - > /dev/null
-                  ready=0
-                  for _attempt in $(seq 1 60); do
-                      if curl -sf http://localhost:3001/health > /dev/null; then ready=1; break; fi
-                      sleep 2
-                  done
-                  if [ "$ready" != '1' ]; then
-                      echo '::error::identity-service never answered http://localhost:3001/health'
-                      cat "${RUNNER_TEMP}/identity-service.log"
-                      exit 1
-                  fi
-                  echo 'identity-service is serving.'
-            # A 200 on /health proves the process is up; it does not prove the app wired itself correctly,
-            # because a half-built Nest app can still answer a route with no dependencies. A protected route
-            # must answer 401 — reached the router, reached AuthMiddleware, rejected an unauthenticated
-            # caller — and NOT 404 (route never registered) or 500 (provider missing).
-            - name: A protected route must reject, not 404 or 500
-              run: |
-                  set -euo pipefail
-                  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://localhost:3001/api/v1/users/me)
-                  echo "GET /api/v1/users/me -> ${code}"
-                  case "$code" in
-                      401 | 403) echo 'Auth middleware is wired.' ;;
-                      *)
-                          echo "::error::expected 401/403 from an unauthenticated protected route, got ${code}"
-                          cat "${RUNNER_TEMP}/identity-service.log"
-                          exit 1
-                          ;;
-                  esac
-            - name: Identity boot log
-              if: ${{ !cancelled() }}
-              run: cat "${RUNNER_TEMP}/identity-service.log" || true
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "${IDENTITY_ORIGIN}" \
+                    --web-origin "${WEB_ORIGIN}"
 
     integration-identity-webhooks:
         name: Integration (identity-webhooks — Postgres)
@@ -1272,53 +1440,54 @@ jobs:
             - name: Run ingredient-parser integration tests
               run: npm run test:integration --workspace=@kitchensink/ingredient-parser
 
+    # ⛔ THE DEPLOYED FOOD SERVICE. This job used to boot food beside a Postgres + LocalStack pair on the
+    # runner and call that an E2E test; it proved the code boots and nothing about the deployment. Owner
+    # ruling 2026-09-04 — an end-to-end test drives the deployed system, or it is skipped.
+    #
+    # NO `--web-origin`, and that is DERIVED rather than an oversight: `food-service/src/main.ts` has no
+    # `app.enableCors(…)` because nothing outside the cluster calls it (its only consumer is the recipe
+    # service, server-to-server), so sending it a preflight would assert a browser path that does not exist.
+    # `prodDeploySmokeDepth.test.ts` reads each service's `main.ts` and requires the flag exactly when CORS is
+    # enabled, so if food ever becomes browser-facing the build says so.
+    #
+    # ⛔ Which is why the authorization-boundary probe below carries food's second assertion instead. It is
+    # ADR-0010's rule, restated at the one service it is about: `GET /api/v1/foods/search` requires a
+    # Clerk-verified token, so **`401`/`403` (and `429`) are the PASS** — a status only DNS, the shared ALB's
+    # host rule and food's own auth layer together can produce. A `2xx` to an unauthenticated probe is an
+    # authorization hole; the shared ALB's default `404` for an unmatched host (ADR-0003) means the listener
+    # rule is missing; a transport failure fails the step by curl's own exit status.
+    #
+    # ⚠️ What the conversion COST, recorded rather than hidden: `packages/services/food-service`'s in-process
+    # e2e suite is no longer invoked anywhere in this file. It boots a Nest app against a real database and
+    # cannot be pointed at a deployed origin; re-homing it belongs with whoever owns the `Integration (…)`
+    # tier.
     e2e-food:
-        name: Hermetic (food — self-booted service + Postgres + LocalStack)
-        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
-        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
-        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
-        # actionlint's if-cond check rejects constant expressions.
-        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
-        timeout-minutes: 25
+        name: E2E (food — the deployed food service)
+        timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [install]
-        # Two service containers mirror infra/localstack/docker-compose.yml: a plain Postgres (the DB,
-        # NOT LocalStack RDS) and a LocalStack container for the AWS services food-service will use from
-        # Phase 3 (EventBridge=`events`, SQS, Secrets Manager). The CURRENT E2E only boots the Nest app
-        # and exercises /health + the migrated Postgres, so it does NOT yet call LocalStack; the
-        # container is provisioned now so the Phase 3 AWS-service flows plug straight in.
-        services:
-            postgres:
-                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: food_e2e
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U postgres"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-            localstack:
-                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    # Community tier — no auth token. Every service food-service uses (EventBridge=`events`,
-                    # SQS, SNS, Secrets Manager, SSM, IAM, STS, CloudWatch Logs) is free/Community; the
-                    # Pro-only services (RDS, ECS) are deliberately avoided (Docker Postgres for the DB,
-                    # the Nest app boots as a process). Add LOCALSTACK_AUTH_TOKEN only if a Pro feature is
-                    # ever adopted.
-                    SERVICES: secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm
-                ports:
-                    - 4566:4566
-                options: >-
-                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
-                    --health-interval 5s
-                    --health-timeout 5s
-                    --health-retries 20
+        needs: [install, resolve-sandbox]
+        if: needs.resolve-sandbox.outputs.live == 'true'
+        env:
+            FOOD_ORIGIN: ${{ needs.resolve-sandbox.outputs.food_origin }}
         steps:
+            # ⛔ FIRST, before anything is fetched — see the sibling note on `e2e-identity-boot`. A target this
+            # job cannot vouch for is a defect, not an absence, so it fails loudly rather than skipping.
+            - name: Confirm every resolved target is under this repository's own domain
+              env:
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo '::error::the DOMAIN_NAME repository variable is empty — every resolved origin would be a bare label'
+                      exit 1
+                  fi
+                  case "${FOOD_ORIGIN}" in
+                      "https://${DOMAIN_NAME}" | "https://"*".${DOMAIN_NAME}") echo "target ${FOOD_ORIGIN}" ;;
+                      *)
+                          echo "::error::resolved target '${FOOD_ORIGIN}' is not under ${DOMAIN_NAME} — refusing to drive it"
+                          exit 1
+                          ;;
+                  esac
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
@@ -1335,17 +1504,6 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
-            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
-            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
-            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
-            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
-            # exactly what made it look like flake instead of a missing fallback.
-            #
-            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
-            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
-            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
-            # eviction rate, which is the number worth watching.
             - name: Install dependencies if the cache missed
               run: |
                   if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
@@ -1353,51 +1511,71 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
-            # Boots the real food-service Nest app against the Postgres service, applies the
-            # kitchensink_food migration, and asserts GET /health + DB reachability end to end.
-            - name: Run food E2E tests
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_e2e
-                  USDA_API_KEY: e2e-dummy-key
-              run: npm run test:e2e --workspace=packages/services/food-service
+            - name: Smoke test — the deployed food service is live
+              run: |
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "${FOOD_ORIGIN}"
+            - name: The deployed catalog must reject an unauthenticated caller
+              run: |
+                  set -euo pipefail
+                  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${FOOD_ORIGIN}/api/v1/foods/search?q=smoke")
+                  echo "GET ${FOOD_ORIGIN}/api/v1/foods/search -> ${code}"
+                  case "${code}" in
+                      401 | 403 | 429) echo 'the deployed catalog is routed and its auth layer is wired.' ;;
+                      2*)
+                          echo "::error::the deployed catalog answered ${code} to an UNAUTHENTICATED caller — the auth layer is not in front of it"
+                          exit 1
+                          ;;
+                      404)
+                          echo "::error::got 404 — the shared ALB has no listener rule for this host, or food is not deployed at this stage (ADR-0003)"
+                          exit 1
+                          ;;
+                      *)
+                          echo "::error::expected 401/403 from the unauthenticated catalog search, got ${code}"
+                          exit 1
+                          ;;
+                  esac
 
-    # recipe-service's ENTIRE e2e tier was dark until 2026-08-07: 14 spec files / 54 tests existed and NO
-    # workflow invoked them. `test:e2e` was wired for food-service, identity, identity-webhooks, web and
-    # mobile — never recipe-service. Among the unrun specs: `erasureLock.e2e.test.ts` (GDPR C-007),
-    # `throttle.e2e.test.ts`, `recipeInputValidation.e2e.test.ts`. A regression in any of those reached
-    # production behind green checks. Measured green in 15s before wiring, so this is not papering over a
-    # broken tier. Same services and env block as `integration-recipe` — the environment it was verified in.
+    # ⛔ THE DEPLOYED RECIPE SERVICE. Same conversion as `e2e-food` above and for the same ruling: this job
+    # used to stand recipe up on the runner against a Postgres + LocalStack pair.
+    #
+    # ⚠️ What that conversion COST is recorded rather than hidden: `packages/services/recipe-service`'s
+    # in-process e2e suite — 20 spec files including `erasureLock.e2e.test.ts` (GDPR C-007),
+    # `throttle.e2e.test.ts` and `recipeInputValidation.e2e.test.ts` — is no longer invoked anywhere in this
+    # file. Those specs boot a Nest app in-process against a real database; they cannot be pointed at a
+    # deployed origin, and re-homing them belongs with whoever owns the `Integration (…)` tier.
+    #
+    # `--web-origin` IS passed here, and is required: `recipe-service/src/main.ts` calls `app.enableCors(…)`
+    # and the web app calls it cross-origin, so the credential-less CORS preflight is the check that says a
+    # BROWSER can reach this deployment — the one `/health` cannot make.
     e2e-recipe:
-        name: Hermetic (recipe — self-booted service + Postgres + LocalStack)
-        timeout-minutes: 25
+        name: E2E (recipe — the deployed recipe service)
+        timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [install]
-        services:
-            postgres:
-                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: recipe_e2e
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U postgres"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-            localstack:
-                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    SERVICES: s3,sqs,sns,events,secretsmanager,sts,iam,logs,cloudwatch,ssm
-                ports:
-                    - 4566:4566
-                options: >-
-                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
-                    --health-interval 5s
-                    --health-timeout 5s
-                    --health-retries 20
+        needs: [install, resolve-sandbox]
+        if: needs.resolve-sandbox.outputs.live == 'true'
+        env:
+            RECIPE_ORIGIN: ${{ needs.resolve-sandbox.outputs.recipe_origin }}
+            WEB_ORIGIN: ${{ needs.resolve-sandbox.outputs.web_origin }}
         steps:
+            - name: Confirm every resolved target is under this repository's own domain
+              env:
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo '::error::the DOMAIN_NAME repository variable is empty — every resolved origin would be a bare label'
+                      exit 1
+                  fi
+                  for origin in "${RECIPE_ORIGIN}" "${WEB_ORIGIN}"; do
+                      case "${origin}" in
+                          "https://${DOMAIN_NAME}" | "https://"*".${DOMAIN_NAME}") echo "target ${origin}" ;;
+                          *)
+                              echo "::error::resolved target '${origin}' is not under ${DOMAIN_NAME} — refusing to drive it"
+                              exit 1
+                              ;;
+                      esac
+                  done
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
@@ -1414,17 +1592,6 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
-            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
-            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
-            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
-            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
-            # exactly what made it look like flake instead of a missing fallback.
-            #
-            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
-            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
-            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
-            # eviction rate, which is the number worth watching.
             - name: Install dependencies if the cache missed
               run: |
                   if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
@@ -1432,115 +1599,71 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
-            # Own database (recipe_e2e), separate from integration's recipe_test: both tiers reset the
-            # schema in setup, so sharing one would have them racing. The S3_* pair is required, not
-            # optional — recipe-service reads S3 config via its own env keys and LocalStack needs
-            # path-style addressing or the photo/version clients emit unresolvable virtual-host URLs.
-            - name: Run recipe E2E tests
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_e2e
-                  AWS_ENDPOINT_URL: http://localhost:4566
-                  AWS_ACCESS_KEY_ID: test
-                  AWS_SECRET_ACCESS_KEY: test
-                  AWS_REGION: us-east-1
-                  S3_ENDPOINT: http://localhost:4566
-                  S3_FORCE_PATH_STYLE: 'true'
-                  S3_BUCKET_PHOTOS: commise-photos
-                  S3_BUCKET_VERSIONS: commise-versions
-                  CLOUDFRONT_URL: http://localhost:4566/commise-photos
-              run: npm run test:e2e --workspace=@kitchensink/recipe-service
+            - name: Smoke test — the deployed recipe service is live and browser-reachable
+              run: |
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "${RECIPE_ORIGIN}" \
+                    --web-origin "${WEB_ORIGIN}"
 
     # ────────────────────────────────────────────────────────────────────────────────────────────────
-    # ⛔ THE PROOF THAT DID NOT EXIST — recipe-service and food-service, LIVE, actually linked.
+    # ⛔ recipe ↔ food, ON THE DEPLOYED STAGE. Recipe detail nutrition comes FROM the food service, and until
+    # this suite existed no CI job anywhere ran the two together — every recipe tier points
+    # `FOOD_SERVICE_URL` at a port nothing listens on ON PURPOSE, so the whole suite proved only that recipe
+    # degrades gracefully when food is absent. Those degraded-path specs are correct and are DELIBERATELY
+    # UNCHANGED; this job is additional.
     #
-    # Until this job, NO CI job anywhere ran the two services together. Every recipe tier above points
-    # `FOOD_SERVICE_URL` at a port nothing listens on ON PURPOSE — `recipe-service/tests/e2e/harness.ts`
-    # says so ("Nothing listens here, which is what makes the F2 specs below a real absent-dependency
-    # proof") — and `heavy-e2e.yml` records that the food service "is never booted". Those degraded-path
-    # specs are correct and are DELIBERATELY UNCHANGED; this job is additional, never a replacement.
+    # It used to prove that against two services booted on THIS RUNNER, which is a proof about the code and
+    # not about the deployment. Owner ruling 2026-09-04 moves it onto the deployed stage: both origins are
+    # this PR's own `pr-{N}` services, resolved by `resolve-sandbox`, and the job SKIPS when there is no
+    # sandbox.
     #
-    # What that left uncovered is the success path. Recipe detail nutrition comes FROM the food service,
-    # so every nutrition figure a user has ever seen was produced by a path no test had exercised
-    # successfully: the whole suite proved only that recipe degrades gracefully when food is absent.
+    # ⛔⛔ OPEN BLOCKER, STATED RATHER THAN HIDDEN — this job cannot PASS against a live sandbox yet, and the
+    # blocker is a CREDENTIAL, not a trigger. `mintLinkageCredentials.ts` mints a THROWAWAY RSA keypair and
+    # both services used to be booted against it; a DEPLOYED stage verifies that stage's own Clerk instance
+    # and has never heard of this key, so every authenticated call in the suite will answer 401. Closing it
+    # needs a deployed-stage credential — a real Clerk user + session token for the stage's instance — which
+    # is exactly the thing `deployed-e2e.yml`'s header records as not yet wired, and which re-opens the
+    # shared-dev-instance fixture collision that made `bbf7ea7c` fail. ⛔ Do NOT "fix" this by pointing the
+    # job back at services booted on the runner, and do NOT make it skip-tolerant so it goes quiet: a tier
+    # that passes when its dependencies are absent is the exact failure this suite was written to remove.
     #
-    # ## Why a real Clerk token rather than recipe's dev-auth bypass
-    #
-    # Recipe calls food AS THE CALLER — it forwards the caller's own verified bearer and there is
-    # deliberately no service credential (`recipe-service/src/auth/CallerToken.ts`). Under the dev bypass
-    # there is no bearer to forward, so `FoodCatalogGateway` degrades to `catalogAvailability:
-    # 'unavailable'` WITHOUT ISSUING A REQUEST — a job written that way would report success with a live
-    # food service sitting untouched beside it. So one throwaway RSA keypair is minted per run and BOTH
-    # services are booted against the same `CLERK_JWT_KEY` and `azp`, exactly as a real stage configures
-    # them from the same SSM parameters.
-    #
-    # ## Why `npx tsx dist/src/main.js` and not `node dist/src/main.js`
-    #
-    # ⚠️ NOT a shortcut, and do not "fix" it to plain `node`. The services are COMPILED first (that is
-    # what emits the `design:paramtypes` metadata Nest's constructor injection needs — esbuild/tsx cannot
-    # emit it, and running the TypeScript sources directly boots an app whose controllers silently have
-    # no dependencies and 500 on every route). But the compiled service still imports workspace packages
-    # that export `./src/*.ts`, and plain `node`'s type stripping resolves a `.js` specifier inside a
-    # `.ts` file LITERALLY (ADR-0013) — `ERR_MODULE_NOT_FOUND … /packages/schemas/food/src/schemas.js`.
-    # tsx supplies the resolver; the service code being executed is the compiled artifact either way.
-    #
-    # Residual gap, stated rather than hidden: this boots the compiled service, NOT the Docker image, so
-    # it does not exercise `prod.package.json` or the container entrypoint. That remains the sandbox
-    # deploy smoke's job (`recipe-service/infra/smoke/deployedSmoke.ts`).
+    # ⚠️ `RECIPE_DEV_AUTH_USER_ID` is deliberately NEVER set: under recipe's dev bypass there is no bearer to
+    # forward, so `FoodCatalogGateway` degrades to `catalogAvailability: 'unavailable'` WITHOUT ISSUING A
+    # REQUEST — a job written that way would report success with a live food service sitting untouched.
     e2e-cross-service-linkage:
-        name: Hermetic (recipe ↔ food — both services booted on the runner, one minted Clerk token)
-        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
-        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
-        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
-        # actionlint's if-cond check rejects constant expressions.
-        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
-        timeout-minutes: 30
+        name: E2E (recipe ↔ food — the deployed services, actually linked)
+        timeout-minutes: 20
         runs-on: ubuntu-latest
-        needs: [install]
-        services:
-            # ONE Postgres, TWO logical databases — the same shape production uses (ADR-0006), and the
-            # thing a two-service job most needs to get right: each service owns its own schema.
-            # `food_perf` is named for the food seeder's disposable-database allowlist
-            # (`tests/load/perfFixture.ts`), which refuses to write anywhere else.
-            postgres:
-                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: food_perf
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U postgres"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-            localstack:
-                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
-                env:
-                    # Only what recipe-service needs to BOOT: the photo/version buckets and the erasure
-                    # queue. Food needs nothing from LocalStack on the read paths this job exercises.
-                    SERVICES: s3,sqs
-                ports:
-                    - 4566:4566
-                options: >-
-                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
-                    --health-interval 5s
-                    --health-timeout 5s
-                    --health-retries 20
+        needs: [install, resolve-sandbox]
+        if: needs.resolve-sandbox.outputs.live == 'true'
         env:
-            PGHOST: localhost
-            PGPORT: '5432'
-            PGUSER: postgres
-            PGPASSWORD: postgres
-            FOOD_DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_perf
-            RECIPE_DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_link
-            # Food keeps its schema default (3002); recipe keeps its own (3000). The `azp` below is the
-            # recipe origin because that is what a browser session token carries in a local stage.
-            LINKAGE_FOOD_URL: http://localhost:3002
-            LINKAGE_RECIPE_URL: http://localhost:3000
-            LINKAGE_AZP: http://localhost:3000
+            # REQUIRED with no default, and the suite THROWS rather than skipping when one is absent: by the
+            # time it runs, `resolve-sandbox` has already reported the stage serving, so absence is a
+            # regression and not an excuse to pass quietly.
+            LINKAGE_RECIPE_URL: ${{ needs.resolve-sandbox.outputs.recipe_origin }}
+            LINKAGE_FOOD_URL: ${{ needs.resolve-sandbox.outputs.food_origin }}
+            # The `azp` a browser session token carries on this stage — the per-PR preview subdomain
+            # (ADR-0001), which is what `CLERK_AZP_PATTERN` on the deployed services is anchored against.
+            LINKAGE_AZP: ${{ needs.resolve-sandbox.outputs.web_origin }}
         steps:
+            - name: Confirm every resolved target is under this repository's own domain
+              env:
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo '::error::the DOMAIN_NAME repository variable is empty — every resolved origin would be a bare label'
+                      exit 1
+                  fi
+                  for origin in "${LINKAGE_RECIPE_URL}" "${LINKAGE_FOOD_URL}" "${LINKAGE_AZP}"; do
+                      case "${origin}" in
+                          "https://${DOMAIN_NAME}" | "https://"*".${DOMAIN_NAME}") echo "target ${origin}" ;;
+                          *)
+                              echo "::error::resolved target '${origin}' is not under ${DOMAIN_NAME} — refusing to drive it"
+                              exit 1
+                              ;;
+                      esac
+                  done
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
@@ -1564,139 +1687,24 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
-            - name: Create recipe-service's database beside food-service's
-              run: psql -v ON_ERROR_STOP=1 -d postgres -c 'CREATE DATABASE recipe_link'
-            # The services' OWN ordered migration SQL, applied the same way `_ci-heavy.yml::load-test-food`
-            # applies them. Not a hand-written schema: a drift between these files and the running service
-            # must surface here as a failure, which it cannot do if the job invents its own DDL.
-            - name: Apply food-service migrations
-              run: |
-                  set -euo pipefail
-                  for file in packages/services/food-service/src/db/migrations/*.sql; do
-                      echo "applying ${file}"
-                      psql -v ON_ERROR_STOP=1 -q -d food_perf -f "${file}"
-                  done
-            - name: Apply recipe-service migrations
-              run: |
-                  set -euo pipefail
-                  for file in packages/services/recipe-service/src/database/migrations/*.sql; do
-                      echo "applying ${file}"
-                      psql -v ON_ERROR_STOP=1 -q -d recipe_link -f "${file}"
-                  done
-            - name: Provision the LocalStack buckets and queue recipe-service boots against
-              env:
-                  AWS_ACCESS_KEY_ID: test
-                  AWS_SECRET_ACCESS_KEY: test
-                  AWS_REGION: us-east-1
-              run: |
-                  set -euo pipefail
-                  aws --endpoint-url http://localhost:4566 s3api create-bucket --bucket commise-photos
-                  aws --endpoint-url http://localhost:4566 s3api create-bucket --bucket commise-versions
-                  aws --endpoint-url http://localhost:4566 sqs create-queue --queue-name account-erasure
-                  # U11's verification queue — see the sibling comment in _ci-heavy.yml.
-                  aws --endpoint-url http://localhost:4566 sqs create-queue --queue-name recipe-verification
-            # The food catalog, from the repo's OWN seeder — the one the k6 tier already uses. It writes
-            # RESOLVED foods with full golden records (20 per-100 g nutrients + 3 portions + provenance),
-            # which is exactly what the linkage proof consumes. Sized down from its 50,000-row default:
-            # the seeder refuses a population too small to make its search probes selective, so 1,200 is
-            # the floor that keeps its own self-checks meaningful, and every row is a read target so any
-            # search hit carries nutrition.
-            - name: Seed the food catalog
-              env:
-                  DATABASE_URL: ${{ env.FOOD_DATABASE_URL }}
-                  FOOD_PERF_RESOLVED_FOODS: '1200'
-                  FOOD_PERF_READ_TARGETS: '1200'
-                  FOOD_PERF_PENDING_FOODS: '5'
-                  FOOD_PERF_NOT_FOUND_FOODS: '5'
-                  FOOD_PERF_SEARCH_PROBES: '4'
-              run: npx tsx packages/services/food-service/tests/load/preparePerfFixture.ts
-            - name: Mint the ONE Clerk credential both services will trust
-              # `$RUNNER_TEMP`, not `${{ runner.temp }}` — an expression is substituted into the script
-              # TEXT before bash parses it, which zizmor's template-injection audit correctly rejects.
-              #
-              # ⛔ `LINKAGE_CREDENTIALS` is exported HERE rather than in this job's `env:` block, and that is
-              # not a style choice. The `runner` context does not exist until a runner has been assigned, so
-              # referencing it at job level does not warn and does not skip the job — GitHub refuses to LOAD
-              # the workflow, and the run reports "a workflow file issue" with ZERO jobs. This branch ran
-              # that way for three days and fifteen units, publishing no checks at all. Exporting it from the
-              # step that creates the directory also keeps ONE definition of the path.
-              # `packages/infra/global/__tests__/workflowContextAvailability.test.ts` fails if it comes back.
+            # `$RUNNER_TEMP`, not `${{ runner.temp }}` — an expression is substituted into the script TEXT
+            # before bash parses it, which zizmor's template-injection audit correctly rejects.
+            #
+            # ⛔ `LINKAGE_CREDENTIALS` is exported HERE rather than in this job's `env:` block, and that is not
+            # a style choice. The `runner` context does not exist until a runner has been assigned, so
+            # referencing it at job level does not warn and does not skip the job — GitHub refuses to LOAD the
+            # workflow, and the run reports "a workflow file issue" with ZERO jobs. This branch ran that way
+            # for three days and fifteen units, publishing no checks at all.
+            # `packages/infra/global/__tests__/workflowContextAvailability.test.ts` fails if it comes back.
+            #
+            # ⚠️ This is the OPEN BLOCKER named in the job header: the key minted here is not the key the
+            # deployed stage verifies.
+            - name: Mint the Clerk credential the suite signs its bearer with
               run: |
                   npx tsx packages/tools/cross-service-e2e/scripts/mintLinkageCredentials.ts "${RUNNER_TEMP}/linkage"
                   echo "LINKAGE_CREDENTIALS=${RUNNER_TEMP}/linkage/linkage-credentials.json" >> "$GITHUB_ENV"
-            - name: Build both services
-              run: npx turbo run build --filter=@kitchensink/food-service --filter=@kitchensink/recipe-service
-            - name: Boot food-service
-              env:
-                  DATABASE_URL: ${{ env.FOOD_DATABASE_URL }}
-              run: |
-                  set -euo pipefail
-                  CLERK_JWT_KEY="$(jq -r .publicKeyPem "$LINKAGE_CREDENTIALS")"
-                  export CLERK_JWT_KEY
-                  export NODE_ENV=development STAGE=dev PORT=3002 USDA_API_KEY=linkage-unused-key
-                  export CLERK_AUTHORIZED_PARTIES="$LINKAGE_AZP"
-                  cd packages/services/food-service
-                  setsid nohup npx tsx dist/src/main.js > "${RUNNER_TEMP}/food-service.log" 2>&1 < /dev/null &
-                  cd - > /dev/null
-                  ready=0
-                  for _attempt in $(seq 1 60); do
-                      if curl -sf "${LINKAGE_FOOD_URL}/health" > /dev/null; then ready=1; break; fi
-                      sleep 2
-                  done
-                  if [ "$ready" != '1' ]; then
-                      echo "::error::food-service never answered ${LINKAGE_FOOD_URL}/health"
-                      cat "${RUNNER_TEMP}/food-service.log"
-                      exit 1
-                  fi
-                  echo "food-service is serving."
-            - name: Boot recipe-service, pointed at the LIVE food origin
-              env:
-                  DATABASE_URL: ${{ env.RECIPE_DATABASE_URL }}
-              run: |
-                  set -euo pipefail
-                  CLERK_JWT_KEY="$(jq -r .publicKeyPem "$LINKAGE_CREDENTIALS")"
-                  export CLERK_JWT_KEY
-                  export NODE_ENV=development PORT=3000
-                  export CLERK_AUTHORIZED_PARTIES="$LINKAGE_AZP"
-                  # ⛔ The whole point of the job: a REAL origin here, where every other tier deliberately
-                  # names a dead port. And RECIPE_DEV_AUTH_USER_ID is deliberately NOT set — the bypass
-                  # would leave no bearer to forward and silently degrade the catalog to 'unavailable'.
-                  export FOOD_SERVICE_URL="$LINKAGE_FOOD_URL"
-                  export S3_ENDPOINT=http://localhost:4566 S3_FORCE_PATH_STYLE=true
-                  export S3_BUCKET_PHOTOS=commise-photos S3_BUCKET_VERSIONS=commise-versions
-                  export CLOUDFRONT_URL=http://localhost:4566/commise-photos
-                  export SQS_ENDPOINT=http://localhost:4566
-                  export ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/account-erasure
-                  # REQUIRED since U11's producer landed — the service refuses to boot without a
-                  # verification queue, deliberately (an optional URL is how the gate shipped inert).
-                  # The queue need not EXIST for this job: an enqueue failure is logged and swallowed,
-                  # because a lost verification request degrades to the pre-gate behaviour.
-                  export INGREDIENT_VERIFICATION_QUEUE_URL=http://localhost:4566/000000000000/recipe-verification
-                  export RECIPE_PARSE_QUEUE_URL=http://localhost:4566/000000000000/recipe-parse-line
-                  export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
-                  cd packages/services/recipe-service
-                  setsid nohup npx tsx dist/src/main.js > "${RUNNER_TEMP}/recipe-service.log" 2>&1 < /dev/null &
-                  cd - > /dev/null
-                  ready=0
-                  for _attempt in $(seq 1 60); do
-                      if curl -sf "${LINKAGE_RECIPE_URL}/health" > /dev/null; then ready=1; break; fi
-                      sleep 2
-                  done
-                  if [ "$ready" != '1' ]; then
-                      echo "::error::recipe-service never answered ${LINKAGE_RECIPE_URL}/health"
-                      cat "${RUNNER_TEMP}/recipe-service.log"
-                      exit 1
-                  fi
-                  echo "recipe-service is serving."
-            - name: Prove recipe ↔ food linkage against both live services
+            - name: Prove recipe ↔ food linkage against the deployed services
               run: npm run test:e2e --workspace=@kitchensink/cross-service-e2e
-            - name: Service logs on failure
-              if: failure()
-              run: |
-                  echo '── food-service ──'
-                  tail -n 200 "${RUNNER_TEMP}/food-service.log"
-                  echo '── recipe-service ──'
-                  tail -n 200 "${RUNNER_TEMP}/recipe-service.log"
 
     # ⛔ ITS OWN JOB, and its own vitest config, because these specs are not unit tests by any measure: they
     # run `turbo run build`, `npm run bundle:lambda`, esbuild, two `cdk synth`s in child processes, and shell
@@ -1948,77 +1956,107 @@ jobs:
                   # on the first real run of this artifact.
                   include-hidden-files: true
 
+    # ⛔ THE DEPLOYED IDENTITY API SURFACE — the authorization boundary and the routing contract of the thing
+    # that is actually running, which every other tier in this file is structurally blind to.
+    #
+    # Until 2026-09-04 this job ran identity's and identity-webhooks' in-process e2e suites: a Nest app booted
+    # inside vitest over a mocked `pg` and a mocked SQS client. That reaches nothing, so it can never see an
+    # unverified or missing `CLERK_JWT_KEY`, an `IDENTITY_DEV_AUTH_USER_ID` that survived into a stage, a
+    # listener rule that was never added, or a deployed build that stopped serving a path. Owner ruling
+    # 2026-09-04 — an end-to-end test drives the deployed system, or it is skipped.
+    #
+    # The two assertions are the ones those suites existed for, moved onto the deployment:
+    #
+    #   1. a protected route REJECTS an unauthenticated caller — 401/403 means the request reached the
+    #      router AND `AuthMiddleware` and was refused; 404 means the route was never registered on this
+    #      build (or the shared ALB has no rule for this host, ADR-0003) and 500 means a provider is missing.
+    #   2. the DEPRECATED bare-`v1` alias still answers. Every endpoint is canonically `/api/{version}/`
+    #      (ADR-0011) and ALSO answers the bare `/{version}/` path it shipped on, and that alias's consumers
+    #      CANNOT be fixed by redeploying this repository: the Clerk dashboard holds the webhook URL, and
+    #      shipped mobile builds plus cached web bundles have their endpoints inlined from build-time
+    #      `NEXT_PUBLIC_*` values. If it silently stopped resolving, those clients would 404 with nothing in
+    #      this repository failing.
+    #
+    # ⚠️ Residual, stated rather than hidden: identity-WEBHOOKS has no deployed assertion here. Its public
+    # face is an API Gateway custom domain (`registration.identity[.sandbox].{apex}`), a fourth host shape
+    # this file has no resolver for, and its one route is a Svix-signed POST. Its in-process e2e suite is no
+    # longer invoked anywhere in this file — re-homing it belongs with whoever owns the `Integration (…)`
+    # tier.
     e2e-backend:
-        # Static name (not a matrix) so a skipped run still shows a clean title instead of a raw
-        # `${{ matrix.* }}` template. Both backend workspaces run sequentially in one job.
-        name: Hermetic (identity + identity-webhooks — in-process app, mocked pg/SQS)
-        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
-        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
-        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
-        # actionlint's if-cond check rejects constant expressions.
-        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
-        timeout-minutes: 25
+        # Static name (not a matrix) so a skipped run shows a clean title instead of a raw `${{ matrix.* }}`
+        # template — and, per invariant 8, because branch protection matches a required check by its RENDERED
+        # name.
+        name: E2E (identity — the deployed API surface rejects unauthenticated callers)
+        timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: build
+        needs: [resolve-sandbox]
+        if: needs.resolve-sandbox.outputs.live == 'true'
+        env:
+            IDENTITY_ORIGIN: ${{ needs.resolve-sandbox.outputs.identity_origin }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-              with:
-                  persist-credentials: false
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-              with:
-                  node-version: 24
-            - name: Restore dependencies
-              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-              with:
-                  path: |
-                      node_modules
-                      packages/*/node_modules
-                      packages/*/*/node_modules
-                      packages/*/*/*/node_modules
-                      packages/*/*/*/*/node_modules
-                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
-            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
-            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
-            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
-            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
-            # exactly what made it look like flake instead of a missing fallback.
-            #
-            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
-            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
-            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
-            # eviction rate, which is the number worth watching.
-            - name: Install dependencies if the cache missed
+            # ⛔ FIRST, before anything is fetched — see the sibling note on `e2e-identity-boot`.
+            - name: Confirm every resolved target is under this repository's own domain
+              env:
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
               run: |
-                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
-                      exit 0
+                  set -euo pipefail
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo '::error::the DOMAIN_NAME repository variable is empty — every resolved origin would be a bare label'
+                      exit 1
                   fi
-                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
-                  npm ci
-            - name: Load ${{ inputs.stage }} secrets
-              id: secrets
-              continue-on-error: true
-              uses: ./.github/actions/load-secrets
-              with:
-                  stage: ${{ inputs.stage }}
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            - name: Run e2e tests
-              if: steps.secrets.outcome == 'success'
+                  case "${IDENTITY_ORIGIN}" in
+                      "https://${DOMAIN_NAME}" | "https://"*".${DOMAIN_NAME}") echo "target ${IDENTITY_ORIGIN}" ;;
+                      *)
+                          echo "::error::resolved target '${IDENTITY_ORIGIN}' is not under ${DOMAIN_NAME} — refusing to drive it"
+                          exit 1
+                          ;;
+                  esac
+            # No checkout, no dependencies: two HTTP requests against a deployed origin need neither, and the
+            # ~90 s of `npm ci` they would cost buys nothing.
+            - name: A protected route must reject, not 404 or 500
               run: |
-                  npm run test:e2e --workspace=@kitchensink/identity-service
-                  npm run test:e2e --workspace=@kitchensink/identity-webhooks
+                  set -euo pipefail
+                  for path in /api/v1/users/me /v1/users/me; do
+                      code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${IDENTITY_ORIGIN}${path}")
+                      echo "GET ${IDENTITY_ORIGIN}${path} -> ${code}"
+                      case "${code}" in
+                          401 | 403) ;;
+                          2*)
+                              echo "::error::${path} answered ${code} to an UNAUTHENTICATED caller — AuthMiddleware is not in front of it"
+                              exit 1
+                              ;;
+                          404)
+                              echo "::error::${path} answered 404 — the route is not registered on the deployed build, or the shared ALB has no rule for this host (ADR-0003). The bare-v1 alias has consumers this repository cannot redeploy."
+                              exit 1
+                              ;;
+                          *)
+                              echo "::error::expected 401/403 from ${path}, got ${code}"
+                              exit 1
+                              ;;
+                      esac
+                  done
+                  echo 'the deployed identity API rejects unauthenticated callers on both path spellings.'
 
+    # ⛔ PLAYWRIGHT AGAINST THE DEPLOYED PREVIEW. This job used to serve a `next start` on `localhost:3000`
+    # from an artifact the `build` job produced and call that an E2E test. Owner ruling 2026-09-04 — an
+    # end-to-end test drives the deployed system, or it is skipped — so it now drives this PR's own preview
+    # origin, `pr-{N}.sandbox.{apex}` (ADR-0001; the older `sandbox.{apex}/pr-{N}` path form 404s BY DESIGN),
+    # and SKIPS when there is no sandbox.
+    #
+    # ⛔⛔ OPEN BLOCKER, STATED RATHER THAN HIDDEN — like `e2e-cross-service-linkage`, this cannot PASS
+    # against a live preview yet, and the blocker is INFRA rather than workflow. ADR-0001's
+    # "Update (2026-07-28)": a preview is UNREACHABLE in a browser. The sandbox router's Host swap leaves the
+    # Next app terminating the Vercel deployment host, so Clerk's handshake `redirect_url` dead-ends at
+    # `vercel.com/login` and Next rejects every Server Action with a 500 (`Origin !== Host`). The proven cure
+    # resolves `pr-{N}.sandbox.{apex}` DIRECTLY to Vercel (Route 53 CNAME + Vercel domain + a per-deployment
+    # alias), which `scripts/createPreviewDomain.ts` now does — so this is expected to clear as that lands,
+    # and until it does the tier is skipped on every PR with no sandbox anyway.
+    #
+    # ⚠️ `PLAYWRIGHT_BASE_URL` is what switches the suite over: `playwright.config.ts` reads it as `baseURL`
+    # AND omits its `webServer` entirely when it is set, so nothing is compiled or served on this runner.
     e2e-web:
-        name: Hermetic (web — Playwright over a self-served next start; API mocked) ${{ matrix.shard }}/${{ strategy.job-total }}
-        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
-        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
-        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
-        # actionlint's if-cond check rejects constant expressions.
-        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
+        name: E2E (web — Playwright against the deployed preview) ${{ matrix.shard }}/${{ strategy.job-total }}
+        if: needs.resolve-sandbox.outputs.live == 'true'
         # 30 + the sandbox wake's own 15-minute bound (see the wake step below). A run that lands in ADR-0007's
         # 00:00–09:00 ET window legitimately waits minutes for a stopped `db.t4g.micro` to reach `available`,
         # and a JOB timeout is precisely the misleading failure that step exists to prevent: it would kill the
@@ -2027,7 +2065,10 @@ jobs:
         # let that bound be the one that fires.
         timeout-minutes: 45
         runs-on: ubuntu-latest
-        needs: build
+        # `build-ui` rather than `build`: the `.next` artifact is gone with the local server, but
+        # `mockupFidelity.spec.ts` still imports `@commise/ui/tokens/gradients`, whose exports map resolves to
+        # `./dist/…`, so the shard holding that spec fails to COLLECT without the UI dist.
+        needs: [build-ui, resolve-sandbox]
         # SHARDED, 4 ways. This job WAS the entire critical path of a PR run: measured on the green run
         # 31514368684 it started at +4.0m and ran 15.5m, ending at 19.5m, while every other job in the
         # pipeline finished by ~+6m (next slowest: `Test`, 4.8m). Wall clock was 19.4m for 42.1m of summed
@@ -2075,44 +2116,17 @@ jobs:
         permissions:
             contents: read
             id-token: write # the secretless Argos OIDC exchange — see the note above
-        # Base tier. Gating this is what stops a labelled PR from running TWO concurrent Playwright suites
-        # on the same commit (ci-pr.yml + heavy-e2e.yml) against the shared sandbox Clerk instance.
-        # Pin BOTH API origins the web app resolves from env. `src/config/env.ts` declares them with NO
-        # default and validates at load, so an unset variable is a loud build failure rather than a silent
-        # localhost fallback — which means CI must state them. Locally the same two values come from the
-        # COMMITTED `.env.development`, which Next loads only for `next dev`; the Playwright webServer runs
-        # `npm run dev` there, so a developer machine and CI resolve identical origins.
+        # ⛔ THE DEPLOYED PREVIEW, and nothing on this runner. `playwright.config.ts` reads
+        # `PLAYWRIGHT_BASE_URL` as `baseURL` and — critically — declares NO `webServer` when it is set, so
+        # there is no `next start`, no `.next` artifact to download and no port to bind.
         #
-        # ⚠️ THESE ARE ALSO BAKED, not merely read at runtime. `NEXT_PUBLIC_*` is inlined by the bundler, so
-        # the values that reach the BROWSER are the ones the `build` job stated when it compiled the artifact
-        # this job serves. They are restated here because the Next SERVER process still reads them, and the two
-        # statements must agree — `webE2eProductionBuild.test.ts` fails if they diverge.
-        #
-        # These localhost values are the CORRECT ones for this suite, not a placeholder: every spec mocks the
-        # API with the ORIGIN-AGNOSTIC glob `page.route('**/api/v1/**')` (tests/e2e/utils/recipeApi.ts, plus the
-        # two narrower `**/api/v1/...` routes in accountDangerZone/ingredientCatalogPick), and no spec ever builds
-        # a URL out of these vars — so the browser-side origin only has to be a valid absolute URL. Port 3000
-        # is the Playwright web server itself and nothing listens on 4000, which means the SERVER-side SSR
-        # prefetch (which `page.route` cannot intercept) fails and each page degrades to its client fetch —
-        # exactly the behavior `tests/e2e/ssrPrefetch.spec.ts` asserts. Pointing these at a live backend would
-        # make the suite non-hermetic, not more correct (that path is the opt-in `recipeLive.spec.ts`, gated on
-        # E2E_LIVE_BACKEND=1, which stays skipped here).
+        # ⚠️ `NEXT_PUBLIC_RECIPE_API_URL` / `NEXT_PUBLIC_IDENTITY_API_URL` are deliberately GONE rather than
+        # re-pointed. They were the SERVER-side statement for the Next process this job used to run; the
+        # preview's own Vercel deployment states its own, and a value here would be read by nothing while
+        # reading as configuration. The specs themselves never build a URL out of them — every one mocks the
+        # API with the origin-agnostic glob `page.route('**/api/v1/**')` (tests/e2e/utils/recipeApi.ts).
         env:
-            NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
-            NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
-            # ⛔ SERVE THE BUILD, DO NOT COMPILE DURING THE TESTS. `playwright.config.ts` reads this and runs
-            # `next start` instead of `next dev` (tests/e2e/utils/webServerMode.ts owns the resolution and its
-            # reasoning). It is stated EXPLICITLY rather than left to the `CI` default so that the run graph
-            # shows which server this job drives — the difference is not cosmetic.
-            #
-            # With `next dev`, Next compiles a route the first time it is REQUESTED, and that compilation
-            # lands inside the assertion that triggered it: specs that only click a link and read a heading
-            # measured 18.3s / 14.4s / 10.6s, i.e. AT their budgets, and on 6e40d66a all three attempts of
-            # `recipeSourceTabs.spec.ts` failed with `toHaveURL(/\/discover/)` still reading `/en/recipes`
-            # fourteen times — a correct link that had not finished navigating in 5s. Retries hid most of it,
-            # which is exactly why it survived. Reproduced on one machine: `dev` 56.4s with that spec rescued
-            # by a retry, `start` 27.0s with nothing flaky.
-            E2E_WEB_SERVER: start
+            PLAYWRIGHT_BASE_URL: ${{ needs.resolve-sandbox.outputs.web_origin }}
             # ⚠️ THE CLERK SAFETY INTERLOCK FOR SHARDING. Read before touching the matrix.
             #
             # Each shard is a SEPARATE Playwright process, so each runs `globalSetup` AND `globalTeardown`.
@@ -2151,6 +2165,27 @@ jobs:
             # Do NOT delete this, do NOT raise `workers` above 1, and do NOT let two shards share a key.
             COMMISE_E2E_SHARD: ${{ matrix.shard }}
         steps:
+            # ⛔ FIRST, and before anything is fetched: this origin arrives from ANOTHER job's output and this
+            # job's whole purpose is to drive a browser at it. An origin outside our own apex is either a
+            # resolver handed the wrong domain (an empty `DOMAIN_NAME` repository variable resolves to
+            # `https://pr-91.sandbox.` — a name, and a request, that is not ours) or a `needs` plumbing
+            # mistake. It fails LOUDLY rather than skipping: a target this job cannot vouch for is a defect.
+            - name: Confirm the resolved preview origin is under this repository's own domain
+              env:
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${DOMAIN_NAME}" ]; then
+                      echo '::error::the DOMAIN_NAME repository variable is empty — the resolved origin would be a bare label'
+                      exit 1
+                  fi
+                  case "${PLAYWRIGHT_BASE_URL}" in
+                      "https://${DOMAIN_NAME}" | "https://"*".${DOMAIN_NAME}") echo "target ${PLAYWRIGHT_BASE_URL}" ;;
+                      *)
+                          echo "::error::resolved target '${PLAYWRIGHT_BASE_URL}' is not under ${DOMAIN_NAME} — refusing to drive it"
+                          exit 1
+                          ;;
+                  esac
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false
@@ -2199,15 +2234,18 @@ jobs:
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
             - name: Ensure @commise/ui is built (fallback if the per-SHA cache restore missed)
               run: '[ -n "$(ls -A packages/apps/commise/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/ui'
-            # The web E2E runs ClerkJS in a browser against the Playwright dev server on
-            # http://localhost:3000. Clerk *production* instances (pk_live) are domain-locked and
-            # refuse to initialize on any origin other than their production domain — ClerkJS aborts
-            # with "Production Keys are only allowed for domain <domain>", so <SignIn> never mounts and
-            # the sign-in page renders without the auth form (only the Next.js <title> survives). A
-            # *development* instance (pk_test) permits localhost, so the web E2E must always use the
-            # sandbox (dev) Clerk keys regardless of the pipeline stage. (Backend/mobile E2E don't run
-            # ClerkJS in a localhost browser, so they keep using the stage's own secrets.)
-            - name: Load sandbox (dev-instance) Clerk secrets for localhost web E2E
+            # The suite drives ClerkJS in a browser against the PREVIEW origin, `pr-{N}.sandbox.{apex}`, and
+            # that origin is served by the SANDBOX Clerk instance. Clerk *production* instances (pk_live) are
+            # domain-locked and refuse to initialize on any origin other than their production domain —
+            # ClerkJS aborts with "Production Keys are only allowed for domain <domain>", so <SignIn> never
+            # mounts and the sign-in page renders without the auth form (only the Next.js <title> survives).
+            # So these are always the sandbox (dev-instance) keys regardless of the pipeline stage — which is
+            # also why the wake below is always about the SANDBOX database.
+            #
+            # These are the BACKEND keys the fixture provisioning uses (`globalSetup` calls Clerk's Backend
+            # API to create the run-scoped user); the publishable key the BROWSER runs on is the one the
+            # preview's own Vercel build inlined.
+            - name: Load sandbox (dev-instance) Clerk secrets for the preview web E2E
               id: secrets
               continue-on-error: true
               uses: ./.github/actions/load-secrets
@@ -2248,21 +2286,6 @@ jobs:
             - name: Wake the shared sandbox (ADR-0007 stops the RDS + NAT this suite's Clerk fixture needs)
               if: steps.secrets.outcome == 'success'
               run: bash .github/scripts/sandbox-wake.sh ensure "${DEFAULT_AWS_REGION}"
-            # THE PRODUCTION BUILD THIS SHARD SERVES. `playwright.config.ts` runs `next start` under CI
-            # (`E2E_WEB_SERVER` in this job's `env:` above), and `next start` SERVES a build — it does not make
-            # one. The `build` job made it once, with the sandbox Clerk key and these same localhost origins,
-            # and all eight shards restore that one artifact rather than each paying a `next build`.
-            #
-            # No fallback build here, on purpose. A shard that reached this point without an artifact has a
-            # broken pipeline (the upload is in its `needs` closure), and `next start` says so immediately and
-            # loudly; rebuilding would paper over it at ~8x the cost. `if-no-files-found: error` on the upload
-            # side is the other half of that.
-            - name: Download the web production build
-              if: steps.secrets.outcome == 'success'
-              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-              with:
-                  name: web-next-build-${{ inputs.stage }}
-                  path: packages/apps/commise/web/.next
             # Cache the Playwright browser binaries (~/.cache/ms-playwright) keyed on the lockfile so
             # the Chromium download only happens when the Playwright version changes.
             - name: Cache Playwright browsers
@@ -2397,14 +2420,16 @@ jobs:
     # red shard, so the final step compares `needs.e2e-web.result` and exits non-zero. That comparison IS the
     # gate: without it this job would report success over a broken suite.
     e2e-web-report:
-        name: Hermetic (web — Playwright over a self-served next start) · merged report
+        name: E2E (web — Playwright against the deployed preview) · merged report
         timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: e2e-web
-        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): the shard job it reports on reaches the
-        # sandbox Clerk instance, which is unavailable right now. Restore `${{ !cancelled() }}` alone once
-        # the sandbox remote services are reachable again (or set REMOTE_E2E_ENABLED=true).
-        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' && !cancelled() }}
+        needs: [resolve-sandbox, e2e-web]
+        # ⛔ `!cancelled()` makes this run when a SHARD failed — which is exactly when the merged report
+        # matters most — but it must NOT make it run when there is no sandbox: `!cancelled()` alone is true
+        # for a SKIPPED dependency, so this job would go green with nothing to merge and publish an empty
+        # report as the tier's single signal. The liveness term is what keeps "nothing deployed" a SKIP here
+        # too, in step with the shards it reports on.
+        if: ${{ needs.resolve-sandbox.outputs.live == 'true' && !cancelled() }}
         permissions:
             # Checkout only — this job merges blob artifacts and uploads to Argos; it writes nothing to the repo.
             contents: read
@@ -2414,6 +2439,26 @@ jobs:
             # line, not the lines above it, which is why the block comment alone left this flagged.
             id-token: write # the secretless Argos OIDC exchange — see the note above
         steps:
+            # ⛔ THE REPORT MUST SAY WHAT IT REPORTS ON. A merged Playwright report is read days later, out of
+            # the run that produced it, and "the web suite passed" is a different claim from "the web suite
+            # passed against pr-91's preview". Naming the origin here is also what makes this job legible to
+            # `workflowInvariants` invariant 7: a job whose displayed name says E2E must name a deployed
+            # target, and this one merges artifacts rather than issuing requests.
+            - name: Record which deployed origin this report describes
+              env:
+                  WEB_ORIGIN: ${{ needs.resolve-sandbox.outputs.web_origin }}
+                  STAGE: ${{ needs.resolve-sandbox.outputs.stage }}
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  case "${WEB_ORIGIN}" in
+                      "https://"*".${DOMAIN_NAME}") ;;
+                      *)
+                          echo "::error::the shards' target '${WEB_ORIGIN}' is not under ${DOMAIN_NAME} — this report would misname what it describes"
+                          exit 1
+                          ;;
+                  esac
+                  echo "Playwright, against the deployed preview \`${WEB_ORIGIN}\` (stage \`${STAGE}\`)." >> "$GITHUB_STEP_SUMMARY"
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   persist-credentials: false

@@ -15,51 +15,88 @@ name: Deployed E2E
 # suites — against ONE shared sandbox Clerk instance — each tore down the other's sign-in fixture (ci-pr's
 # run passed 78/1 while the identical job here failed). Three things keep that from recurring:
 #
-#   1. this file is the ONLY workflow that runs the deployed tier
+#   1. this file is the ONLY workflow that runs the deployed API tier
 #      (`packages/infra/global/__tests__/deployedE2eEntrypoint.test.ts` analyzer 1 fails on a second caller);
 #   2. `concurrency` below is keyed on the TARGET STAGE, not on `github.ref`, so two dispatches at different
 #      refs against ONE stage queue instead of overlapping — a ref-keyed group would let both through, which
-#      is precisely the shape that failed; and
-#   3. every spec this tier runs today is UNAUTHENTICATED, so it creates no Clerk fixture for a sibling run
+#      is precisely the shape that failed;
+#   3. every spec that tier runs today is UNAUTHENTICATED, so it creates no Clerk fixture for a sibling run
 #      to destroy. That is a property of the current suite, not a licence: the day an authenticated tier is
-#      added here, (1) and (2) are what carry it.
+#      added here, (1) and (2) are what carry it; and
+#   4. the tiers this file does NOT define — Maestro and deployed k6 — are reached by CALLING the workflow
+#      that owns them rather than by restating their steps, and that call is gated on `workflow_dispatch`.
+#      `heavy-e2e.yml` reaches those same tiers on `pull_request` (label + changed paths), so the two
+#      callers cannot both fire on one event. Copying their steps here instead would have created exactly
+#      the second definition (1) forbids, one tier over. The `heavy-tiers` job records what this does and
+#      does not cover.
 #
 # ## What runs, against what
 #
-# | target  | reached by | suite |
-# |---|---|---|
-# | `pr-{N}` sandbox | the `deployed-e2e` PR label, or a manual dispatch | the whole deployed tier below |
-# | `prod` | a MANUAL dispatch, and nothing else | the same tier — every spec in it is non-destructive |
+# | tier | where it is DEFINED | `pr-{N}` sandbox | `prod` |
+# |---|---|---|---|
+# | deployed API + authorization boundary | the `deployed-e2e` job below | label or dispatch | dispatch only |
+# | mobile Maestro | `_ci-heavy.yml` (CALLED, not copied) | dispatch only | refused — it writes a Clerk user into the tenant it targets |
+# | k6 against deployed origins | `_ci-heavy.yml` (CALLED, not copied) | dispatch only | dispatch only |
 #
-# The prod half is the same job body on purpose, and that is only sound because the tier is non-destructive
-# BY CONSTRUCTION: unauthenticated `GET`s and CORS preflights, no writes, no Clerk user creation, no
-# erasure route. ⛔ The FULL web suite must NEVER be pointed at prod — it calls Clerk `createUser` from four
-# concurrent shards racing a unique username, 39 of its 46 specs write real data (recipes, collections,
-# ratings, photos), and `accountDangerZone.spec.ts` drives the GDPR erasure flow. Real users' data and the
-# production Clerk tenant are not a test fixture.
+# A DISPATCH with the defaults is therefore the owner's one button: every deployed tier this repository can
+# actually run, against one chosen stage, skipping cleanly when that stage is not serving. The PR-LABEL path
+# deliberately runs only the first row — see the `heavy-tiers` job for why a second caller of a tier on one
+# commit is the specific failure this file exists to prevent.
+#
+# The prod half of row 1 is the same job body on purpose, and that is only sound because the tier is
+# non-destructive BY CONSTRUCTION: unauthenticated `GET`s and CORS preflights, no writes, no Clerk user
+# creation, no erasure route. ⛔ The FULL web suite must NEVER be pointed at prod — it calls Clerk
+# `createUser` from concurrent shards racing a unique username, most of its 46 specs write real data
+# (recipes, collections, ratings, photos), and `accountDangerZone.spec.ts` drives the GDPR erasure flow.
+# Real users' data and the production Clerk tenant are not a test fixture (ADR-0032 §5).
 #
 # ## ⛔ What is deliberately NOT here — read before adding it
 #
-# **The deployed BROWSER (Playwright) half is not wired, and cannot pass today.** ADR-0001's
-# "Update (2026-07-28)": a preview is UNREACHABLE in a browser. The sandbox router's Host swap leaves the
-# Next app terminating the Vercel deployment host, so Clerk's handshake `redirect_url` dead-ends at
-# `vercel.com/login` and Next rejects every Server Action with a 500 (`Origin !== Host`). That is an INFRA
-# fix — resolving `pr-{N}.sandbox.<domain>` directly to Vercel (Route 53 CNAME + Vercel domain + a
-# per-deployment alias), which retires the router/KVS/bypass token for previews — not a workflow fix. Do NOT
-# add a job here that cannot pass; add it the day that ADR's update says previews are browser-reachable.
+# ADR-0032 §1 (as rewritten by the 2026-09-05 ruling) names five tiers that should drive a deployed origin:
+# Playwright, the service e2e suites, the cross-service linkage suite, Maestro and k6. Three of them are
+# wired above. The other two are NOT wired because **no deployed-target form of them exists in code yet** —
+# and the missing piece in each case is in the test package, not in this file. Adding a job here that runs
+# the existing suite against a deployed origin does not create that form; it creates a RED check with a
+# green-looking name, which is the one outcome every guard in this repository is written to prevent.
 #
-# **A deployed AUTHENTICATED read is not wired either, and the blocker is a credential, not a trigger.** A
+# **1. The web Playwright suite — blocked TWICE, and the second blocker is the one that matters.**
+#
+#   * ADR-0001's "Update (2026-07-28)": a preview is UNREACHABLE in a browser. The sandbox router's Host
+#     swap leaves the Next app terminating the Vercel deployment host, so Clerk's handshake `redirect_url`
+#     dead-ends at `vercel.com/login` and Next rejects every Server Action with a 500 (`Origin !== Host`).
+#     That is an INFRA fix (Route 53 `CNAME` straight to Vercel + a per-deployment alias), not a workflow
+#     fix.
+#   * ⛔ AND — the blocker that would survive the DNS fix — **the suite is mocked BY CONSTRUCTION.** Every
+#     spec intercepts the backend with the origin-agnostic glob `page.route('**/api/v1/**')`
+#     (`tests/e2e/utils/recipeApi.ts`), and `ssrPrefetch.spec.ts` ASSERTS the degraded client-fetch path that
+#     only appears because nothing answers the SSR prefetch. Point that at a live backend and specs do not
+#     start proving more — `ssrPrefetch` inverts and the rest keep testing their mocks. The one live-backend
+#     spec, `recipeLive.spec.ts` (`E2E_LIVE_BACKEND=1`), asserts SEEDED rows owned by the dev-bypass user and
+#     so cannot run against a preview either. A deployed browser tier needs specs authored for a deployed
+#     target; that is work in `packages/apps/commise/web`, and it lands there, not here.
+#
+# **2. The service e2e and cross-service linkage suites — they have no remote-target mode at all.**
+# `packages/services/{recipe,food}-service`'s `test:e2e` boots the Nest app in-process against a runner
+# Postgres, and the linkage suite boots BOTH services and mints a THROWAWAY keypair the deployed services do
+# not trust. Neither reads a base URL. The deployed FORM of what they assert is the tier that already runs
+# above (`@kitchensink/cross-service-e2e`'s `test:deployed`, whose suite lives in `tests/deployed/`); growing
+# them a remote mode means a config + credential change in those packages.
+#
+# **A deployed AUTHENTICATED read is still not wired, and the blocker is a credential, not a trigger.** A
 # deployed stage verifies that stage's own Clerk instance; the linkage tier's `mintLinkageCredentials.ts`
-# mints a THROWAWAY keypair the deployed services do not trust, and `recipe-service` serves no
-# unauthenticated route at all (`app.module.ts` applies `AuthMiddleware.forRoutes('*')`, excluding only the
-# health probes and the service-principal erasure route). So today's deployed tier proves the authorization
-# boundary and the transport, and cannot prove a read path. Closing it needs a deployed-stage credential —
-# a real Clerk user + session token for the stage's instance — and that is exactly what re-opens the
-# shared-dev-instance fixture collision above, so it belongs behind (1) and (2), here, and nowhere else.
+# mints a keypair the deployed services do not trust, and `recipe-service` serves no unauthenticated route at
+# all (`app.module.ts` applies `AuthMiddleware.forRoutes('*')`, excluding only the health probes and the
+# service-principal erasure route). So today's deployed tier proves the authorization boundary and the
+# transport, and cannot prove a read path. Closing it needs a real Clerk user + session token for the
+# stage's instance — which is exactly what re-opens the shared-tenant fixture collision above, so it belongs
+# behind (1) and (2), here, and nowhere else.
+#
 
 on:
-    # The manual door — this is the "single e2e job I can run" of the ruling. It is also the ONLY way to
-    # reach production: nothing automatic may point a suite at prod.
+    # The manual door — this is the "single e2e job I can run" of the ruling, and with its default inputs it
+    # runs EVERY deployed tier this repository has (see the table above, and the ⛔ section for the two that
+    # do not exist yet). It is also the ONLY way to reach production: nothing automatic may point a suite at
+    # prod, and it is the only door the heavy tiers open at all.
     #
     # ⚠️ `workflow_dispatch` is resolved from the DEFAULT BRANCH only, so this door does not open until the
     # file reaches `main`. The label below is what makes the tier runnable before then — the same reasoning
@@ -77,6 +114,18 @@ on:
                 description: 'Sandbox stage to drive, e.g. pr-91 (ignored when target is prod)'
                 type: string
                 required: false
+            # The two tiers this button reaches by CALLING the workflow that already owns them, rather than
+            # by restating their steps. Both default to ON, because the ruling's button is "run the end to
+            # end tests", not "run some of them" — the toggles exist to iterate on ONE tier without paying
+            # for the other (the same surface, and the same default, `heavy-e2e.yml` offers).
+            run_mobile_maestro:
+                description: Run the mobile Maestro tier (Android emulator + release APK). Sandbox only.
+                type: boolean
+                default: true
+            run_load_test:
+                description: Run the k6 tier against deployed origins.
+                type: boolean
+                default: true
     pull_request:
         branches: [main]
         # `labeled` is what makes the opt-in usable: adding `deployed-e2e` to an open PR starts a run without
@@ -124,6 +173,7 @@ jobs:
             recipe_origin: ${{ steps.target.outputs.recipe_origin }}
             food_origin: ${{ steps.target.outputs.food_origin }}
             web_origin: ${{ steps.target.outputs.web_origin }}
+            heavy_stage: ${{ steps.target.outputs.heavy_stage }}
             live: ${{ steps.live.outputs.live }}
         if: >-
             github.event_name != 'pull_request' ||
@@ -207,13 +257,30 @@ jobs:
                       web="https://${stage}.sandbox.${DOMAIN_NAME}"
                   fi
 
+                  # ⛔ THE TENANT STAGE, WHICH IS NOT THE TARGET STAGE, AND THE TWO MUST NOT BE CONFLATED.
+                  # `_ci-heavy.yml`'s `stage` input is the SECRETS/Clerk-tenant name it hands to
+                  # `.github/actions/load-secrets` and to `ensure-signin-user.mjs` — there is no
+                  # `pr-{N}` Clerk tenant and no `pr-{N}` secret path, so passing `pr-91` there would
+                  # fail the secret load AND trip that file's own loud "refuse any stage but sandbox"
+                  # Maestro guard. Every per-PR preview signs in against the ONE shared sandbox dev
+                  # instance (ADR-0005's note on `identity.sandbox.<domain>`), so `pr-{N}` maps to
+                  # `sandbox` here. `stage` above stays the ORIGIN stage and is what this file's own
+                  # tier drives; they are published as two outputs precisely so a reader cannot use
+                  # one where the other belongs.
+                  if [ "${stage}" = 'prod' ]; then
+                      heavy='prod'
+                  else
+                      heavy='sandbox'
+                  fi
+
                   {
                       echo "stage=${stage}"
                       echo "recipe_origin=${recipe}"
                       echo "food_origin=${food}"
                       echo "web_origin=${web}"
+                      echo "heavy_stage=${heavy}"
                   } >>"$GITHUB_OUTPUT"
-                  echo "stage=${stage} recipe=${recipe} food=${food} web=${web}"
+                  echo "stage=${stage} recipe=${recipe} food=${food} web=${web} heavy_stage=${heavy}"
             # ⛔ THE SKIP, and it consumes the answer the repo ALREADY publishes rather than re-deriving it.
             #
             # `deploy-gate.sh` has emitted `live` since 2026-09-02 — "is there a preview to talk to at all,
@@ -394,3 +461,81 @@ jobs:
                   DEPLOYED_RECIPE_URL: ${{ needs.resolve.outputs.recipe_origin }}
                   DEPLOYED_FOOD_URL: ${{ needs.resolve.outputs.food_origin }}
               run: npm run test:deployed --workspace=@kitchensink/cross-service-e2e
+
+    # ── The tiers this button REACHES BY CALLING the workflow that already owns them ────────────────────
+    #
+    # ⛔ CALL, NEVER COPY. `_ci-heavy.yml` owns the Maestro tier (emulator + Gradle APK + a Clerk fixture in
+    # the stage's tenant) and the deployed-origin k6 tier, in ~600 lines apiece. Restating either here would
+    # be a SECOND definition of a tier — the shape that produced the failure this whole file exists to
+    # prevent, one layer up: two definitions of "the e2e suite" drift, and the one a reader checks is not
+    # the one that ran. It is already a multi-caller workflow by design (`heavy-e2e.yml`, `ci-full.yml`,
+    # `recipe-loadtest.yml`), so a fourth caller is within its contract rather than a new hazard — and every
+    # improvement made to those tiers in that file arrives here with no edit, including the conversion of
+    # the Maestro tier from its own runner-booted backend to a deployed origin.
+    #
+    # ## Why WORKFLOW_DISPATCH ONLY, and why that is the collision defence rather than a limitation
+    #
+    # `heavy-e2e.yml`'s header records commit `bbf7ea7c`: `e2e-web` ran from TWO callers on ONE commit and
+    # the two Playwright suites tore down each other's Clerk sign-in fixture. The general shape is "two
+    # callers of one tier, on one commit, against one shared tenant" — so this job must never be able to run
+    # alongside the caller that already reaches these tiers on a `pull_request`. It cannot: `heavy-e2e.yml`
+    # enters on the `heavy-e2e` LABEL and on changed paths, both `pull_request` events, and this job is
+    # gated on `workflow_dispatch`. The label path of THIS file therefore runs exactly what it ran before —
+    # the API-level tier above and nothing else.
+    #
+    # ⚠️ What that does NOT cover, stated rather than hidden: a human pressing this button while
+    # `heavy-e2e.yml`'s nightly run is in flight. Two Maestro runs then share the FIXED sign-in fixture
+    # (`MAESTRO_SHARED_FIXTURE_EMAIL` — deliberately not run-scoped, because an on-device flow cannot derive
+    # an address), and the defence there is the provisioner's own idempotence + concurrency safety, not this
+    # gate. The `concurrency:` group at the top of this file keys on the resolved TARGET STAGE rather than
+    # on `github.ref`, so two dispatches at different refs against ONE stage queue instead of overlapping;
+    # it cannot serialise against a DIFFERENT workflow's group, and no `concurrency:` key can.
+    #
+    # ## What each tier does when this fires
+    #
+    # | tier | sandbox target | prod target |
+    # |---|---|---|
+    # | Maestro (`E2E (mobile — …against the deployed sandbox)`) | runs, against deployed origins, behind its OWN liveness probe | NOT RUN — the tier WRITES a sign-in user into the Clerk tenant it is pointed at and measures nothing prod-shaped (ADR-0032 §5); `_ci-heavy.yml` fails the job on any stage but sandbox, and this passes `false` rather than triggering that failure |
+    # | k6 (`Load test (k6 — deployed origins)`) | runs against the deployed origins its own liveness probe finds serving | runs — the one k6 target that is manual-only, and this is the manual door |
+    #
+    # ## ⚠️ ONE GAP, and it is in the CALLED file rather than this one
+    #
+    # `_ci-heavy.yml` derives the stage BOTH tiers point at as `github.event.pull_request.number` first and
+    # its `stage` input second — while that same `stage` input is ALSO the Clerk-tenant / secrets name, which
+    # must be `sandbox` (there is no `pr-{N}` tenant, and the Maestro job refuses any other value outright).
+    # On a `workflow_dispatch` there is no PR number, so both tiers resolve the SHARED `sandbox` origins even
+    # when this file was dispatched with `stage: pr-91`. They then SKIP cleanly on their own probes rather
+    # than measuring the wrong thing, so the failure mode is under-coverage, never a false green.
+    #
+    # ⛔ Do NOT "fix" this by passing `pr-91` as `stage`: that is the tenant name, and it would fail the
+    # secret load and trip the Maestro refusal. The fix is the split this file ALREADY publishes as two
+    # separate outputs — a TARGET-stage input on `_ci-heavy.yml` distinct from its tenant `stage` — and it
+    # belongs in that file, wired here by adding one `with:` line.
+    heavy-tiers:
+        # ⛔ A CONSTANT, and deliberately WITHOUT the word "E2E" in it — `workflowInvariants` invariant 8
+        # (branch protection matches a rendered name; a skipped job renders an unresolved `${{ … }}`
+        # verbatim) and invariant 7 (a name claiming the e2e tier must be a job that NAMES a deployed
+        # target, which a `uses:` job structurally cannot: it declares no env, no steps and no services).
+        # The tiers' own names, inside the called workflow, are where each states its target.
+        name: Deployed heavy tiers (Maestro + k6)
+        needs: resolve
+        if: >-
+            needs.resolve.outputs.live == 'true' &&
+            github.event_name == 'workflow_dispatch' &&
+            (inputs.run_mobile_maestro || inputs.run_load_test)
+        uses: ./.github/workflows/_ci-heavy.yml
+        with:
+            # The TENANT stage (`sandbox` | `prod`), never the origin stage — see the note where it is
+            # resolved. `pr-91` here would fail the secret load and trip the Maestro stage guard.
+            stage: ${{ needs.resolve.outputs.heavy_stage }}
+            # Both operands are booleans, so `&&` yields a boolean rather than a string — required, because
+            # these are `type: boolean` inputs on the called workflow.
+            run_mobile_maestro: ${{ inputs.run_mobile_maestro && needs.resolve.outputs.heavy_stage != 'prod' }}
+            run_load_test: ${{ inputs.run_load_test }}
+            load_test_target: ${{ needs.resolve.outputs.heavy_stage }}
+        # Declared EXPLICITLY rather than `secrets: inherit`, which hands the called workflow every secret
+        # in the repository (zizmor `secrets-inherit`). These two are the complete set `_ci-heavy.yml`
+        # declares, and both are optional there so a fork PR still degrades rather than failing.
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

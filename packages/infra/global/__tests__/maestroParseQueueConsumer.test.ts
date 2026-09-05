@@ -2,6 +2,23 @@
 /**
  * Repo-wide guard: a job that PRODUCES parse-line messages must also stand up something that CONSUMES them.
  *
+ * ⛔ PARTLY REWRITTEN 2026-09-05 for the owner's ruling of the same day — *an end-to-end test drives the
+ * deployed system, or it is skipped*. `e2e-mobile-maestro` no longer boots recipe-service on the runner: it
+ * drives a deployed `pr-{N}` stage, whose queue is drained by `RecipeWorkersStack`'s real Lambda. So the
+ * Maestro job enqueues nothing HERE and is owed no consumer HERE, and the two cases that named it by hand
+ * are gone. What replaced them, and where their coverage went:
+ *
+ * | Retired case | Where its property lives now |
+ * |---|---|
+ * | `the producer and the consumer name the SAME queue, byte for byte` | {@link auditParsePath}'s `consumer-on-a-different-queue` finding, applied to EVERY job by the census case, and mutation-proved by the `drifted` fixture below. The property was never really about the Maestro job — it is about any producer/consumer pair — and pinning it to one job name is what made it die with that job. |
+ * | `the consumer is started BEFORE the flows that depend on it` | the `consumer-after-the-flows` finding, likewise applied to every job, and now carrying its OWN fixture (it previously had none, and leaned on the real file — so with the real file's consumer gone it would have been an assertion over nothing). |
+ *
+ * ⚠️ NEITHER retirement weakens the guard, and this is the part to check rather than take on faith: the
+ * invariant that matters — *a future job that enqueues parse-line messages without draining them is caught*
+ * — is asserted by the census case over EVERY job in the file, not by either retired case. `load-test` is
+ * still a live producer, so that case still has a real subject. A THIRD case now pins the mobile tier's
+ * silence directly: it must not re-acquire a local parse path, because its target is a deployment.
+ *
  * ## The defect this pins
  *
  * `_ci-heavy.yml`'s Maestro job has booted the recipe-service with
@@ -278,18 +295,35 @@ describe('a CI job that enqueues parse-line messages can drain them', () => {
         ).toEqual([]);
     });
 
-    it('⛔ the producer and the consumer name the SAME queue, byte for byte', () => {
+    /**
+     * NEW 2026-09-05, and it is what the two retired real-file cases were replaced BY rather than merely
+     * replaced with — see the table in this file's header.
+     *
+     * The mobile tier's target is now a DEPLOYED `pr-{N}` stage, whose parse queue is drained by
+     * `RecipeWorkersStack`'s Lambda. Re-acquiring any limb of the local parse path here would be worse than
+     * the defect this file was written about: a broker on the runner, a queue created in an empty LocalStack
+     * account and a worker polling it would all come up green while the phone talks to the DEPLOYED service
+     * and its own queue — a complete, healthy-looking parse path that no assertion in this run ever touches.
+     *
+     * ⛔ It is asserted through {@link producedQueueUrl} and the service block rather than by scanning for a
+     * job name inside step bodies, so a renamed step or a moved boot command cannot slip past it.
+     */
+    it('⛔ the mobile tier enqueues nothing on this runner — the deployed stage owns its own queue', () => {
         const maestro = doc.jobs['e2e-mobile-maestro'] as WorkflowJob | undefined;
-        const consumer = (maestro?.steps ?? []).find((step) => (step.run ?? '').includes(CONSUMER_WORKSPACE));
 
-        expect(consumer, 'the Maestro job must start the parse-line worker').toBeDefined();
-        expect(consumer?.env?.['RECIPE_PARSE_QUEUE_URL']).toBe(producedQueueUrl(maestro?.steps ?? []));
-    });
-
-    it('⛔ the consumer is started BEFORE the flows that depend on it', () => {
-        const maestro = doc.jobs['e2e-mobile-maestro'] as WorkflowJob | undefined;
-
-        expect(auditParsePath(maestro ?? {})).not.toContain('consumer-after-the-flows');
+        expect(maestro, '_ci-heavy.yml has no `e2e-mobile-maestro` job — this case lost its subject').toBeDefined();
+        expect(
+            producedQueueUrl(maestro?.steps ?? []),
+            'the Maestro job hands a RECIPE_PARSE_QUEUE_URL to something on this runner again — its target ' +
+                'is a deployed stage, so a local parse path would run in parallel with the real one and be ' +
+                'observed by nothing',
+        ).toBeUndefined();
+        expect(
+            (maestro?.steps ?? []).some((step) => (step.run ?? '').includes(CONSUMER_WORKSPACE)),
+            'the Maestro job starts a local parse-line worker, which would drain a queue the deployed ' +
+                'service never writes to',
+        ).toBe(false);
+        expect(Object.keys(maestro?.services ?? {}), 'the Maestro job stands up service containers again').toEqual([]);
     });
 
     // ── Mutation evidence: the audit detects the absence of each leg ─────────────────────────────────────
@@ -360,6 +394,29 @@ describe('a CI job that enqueues parse-line messages can drain them', () => {
         };
 
         expect(auditParsePath(drifted)).toContain('consumer-on-a-different-queue');
+    });
+
+    /**
+     * MOVED HERE 2026-09-05 from the real-file case `the consumer is started BEFORE the flows that depend on
+     * it`, which is retired: with the Maestro job no longer producing OR consuming, that case asserted the
+     * absence of a finding on a job the audit already returns `[]` for — an assertion over nothing.
+     *
+     * The ordering finding had never carried a fixture of its own, so this is where it gains one and the
+     * census case is what re-applies it to any future job. A worker started AFTER the flows drains a queue
+     * nobody is watching any more: the flows have already read `0 of 2 lines`, failed, and gone.
+     */
+    it('catches a consumer started AFTER the flows that depend on it', () => {
+        const steps = CONSUMER_BUT_NO_ENGINE.steps ?? [];
+        const late: WorkflowJob = {
+            services: BROKER_ONLY.services,
+            steps: [
+                ...steps.filter((step) => step.uses !== undefined),
+                ...steps.filter((step) => step.uses === undefined),
+            ],
+        };
+
+        expect(auditParsePath(late)).toContain('consumer-after-the-flows');
+        expect(auditParsePath(CONSUMER_BUT_NO_ENGINE)).not.toContain('consumer-after-the-flows');
     });
 
     it('says nothing about a job that enqueues no parse-line messages', () => {

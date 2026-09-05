@@ -48,6 +48,11 @@ new REQUIRED first parameter; absence of a stack no longer deploys on its own.
 > What changes is what an absent stack means to the deployed-ecosystem test tier: not "reaped, carry on"
 > but "there is nothing to validate" — so that tier SKIPS, and a skip is not a pass. Two questions, two
 > answers, both correct.
+>
+> ⚠️ REAFFIRMED and WIDENED (2026-09-05, owner ruling): _"all end to end tests (playwright, e2e, maestro,
+> etc) … should be skipped if the sandbox for the PR is not running."_ The same two-questions reading holds;
+> what grew is the set of jobs on the validation side — it is now **every** e2e tier, because there is no
+> longer a locally-booted e2e tier to fall back to (ADR-0032 §1, superseded 2026-09-05).
 
 ~~**5. ADR-0007's 09:00 start schedule is deleted.** The 00:00 stop survives.~~
 
@@ -163,6 +168,14 @@ discovery step deliberately omits `set -e` so one stack's hiccup cannot cancel t
     > k6 and the deployed e2e suite SKIP rather than run against a locally booted stand-in
     > ([ADR-0032](0032-deployed-ecosystem-test-tier.md) §§1, 6). So "deploys nothing and says so" is
     > completed by "validates nothing and says so"; neither is a green check for work that did not happen.
+    >
+    > ⚠️ WIDENED (2026-09-05, owner ruling): the second half is now **every** end-to-end tier, not just the
+    > API-level pair this bullet named — _"all end to end tests (playwright, e2e, maestro, etc) … should be
+    > skipped if the sandbox for the PR is not running."_ A PR with no live sandbox therefore runs **no
+    > end-to-end test of any kind** and is green on that basis, which is the ruled outcome. ⚠️ The `§§1, 6`
+    > citation above should now be read as **§6 alone**: ADR-0032 §1's two-tier split (a local-booting
+    > "hermetic" tier kept beside the deployed one) was superseded by the same ruling. The skip rule is
+    > unchanged and its reach is larger.
 
 - Expected saving **$30–45/month**, on top of the $101 already recovered from Container Insights.
 - **A sandbox can expire mid-session.** Press the button again — it re-stamps the expiry and redeploys,

@@ -24,7 +24,7 @@ import pg from 'pg';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { BACKEND_TERMINATED, isBackendTermination, poolForDroppableDatabase } from './utils/droppableDatabasePool.js';
+import { BACKEND_TERMINATED, isBackendTermination, poolForDroppableDatabase } from '@kitchensink/service-test-harness';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 const TEST_DATABASE = 'kitchensink_recipes_droppool';

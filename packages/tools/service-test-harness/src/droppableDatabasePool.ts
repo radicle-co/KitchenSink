@@ -1,9 +1,21 @@
 /**
- * A connection pool for a database this suite is going to DROP.
+ * A connection pool for a database the suite is going to DROP.
  *
- * See `../droppableDatabasePool.integration.test.ts` for the failing run and the reasoning; the short form
- * is that `pool.end()` resolves before the backend is gone, so `DROP DATABASE … WITH (FORCE)` can terminate
- * a socket that is still closing and `pg` surfaces that as an unhandled pool-level error.
+ * `pool.end()` resolves once every client has been ASKED to close, not once every backend is gone, so a
+ * following `DROP DATABASE … WITH (FORCE)` can terminate a socket that is still closing. Postgres answers
+ * that client `57P01`, `pg` re-raises it as a POOL-level `error` event, and an unhandled one fails the
+ * whole vitest run — every test green, the job red.
+ *
+ * ⛔ REORDERING DOES NOT FIX IT, which is why this exists at all. `migrationRunner.integration.test.ts`
+ * already awaited `pool.end()` BEFORE the drop and still failed: `end()` makes no promise about the
+ * backend, so no ordering closes a window the client cannot observe the end of. The only sound rule is
+ * that a caller which drops a database must tolerate the termination it asked for.
+ *
+ * ⛔ SHARED, because the hazard is not one service's. It was measured in recipe-service
+ * (`kitchensink_recipes_migrunner`, run 34007471001) and food-service's
+ * `tests/migrate.integration.test.ts` opens `perPrPool` on a database its own `beforeEach` and `afterAll`
+ * drop with FORCE — the same shape, one `beforeEach` away from firing on every test. Two copies of "which
+ * pg error a teardown is allowed to absorb" is the drift DRY governs.
  */
 import pg from 'pg';
 

@@ -43,7 +43,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { poolForDroppableDatabase } from './utils/droppableDatabasePool.js';
+import { poolForDroppableDatabase } from '@kitchensink/service-test-harness';
 import pg from 'pg';
 
 import {

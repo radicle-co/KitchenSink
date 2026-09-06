@@ -25,6 +25,7 @@ import {
 } from '../src/lambdas/migrate/handler.js';
 import { DATABASE_URL } from './support/db.js';
 import { ensureSeededBaseDatabase } from './support/maintenanceDb.js';
+import { poolForDroppableDatabase } from '@kitchensink/service-test-harness';
 
 const sourceMigrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
 
@@ -152,7 +153,11 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('exists');
 
             // Migrate INTO the freshly cloned per-PR database (a separate connection).
-            const perPrPool = new pg.Pool({ connectionString: perPrConnectionString() });
+            // ⚠️ Not a bare `new pg.Pool`. Three lines down this database is dropped WITH (FORCE), and
+            // `pool.end()` resolves before the backend is actually gone — so the drop can terminate a
+            // socket that is still closing and `pg` raises it as an unhandled pool-level error, failing a
+            // run whose tests all passed. Measured in recipe-service; the same shape lives here.
+            const perPrPool = poolForDroppableDatabase(perPrConnectionString());
 
             try {
                 const result = await runMigrations({ pool: perPrPool, migrationsDir: sourceMigrationsDir });

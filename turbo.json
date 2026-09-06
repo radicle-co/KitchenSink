@@ -150,6 +150,24 @@
             "outputs": [],
             "cache": false
         },
+        // ⛔ THE SUBPATH-EXPORT GUARD MUST NOT CACHE ON ITS OWN PACKAGE ALONE — the same defect and the
+        // same reasoning as `@kitchensink/infra-global#test` above, and this one was not latent.
+        //
+        // `subpathExports.test.js` reads the `exports` map of EVERY workspace `package.json` and asserts the
+        // allow-list in `index.js` names each declared subpath, so the rule cannot report a published entry
+        // point as reaching into internals. Its real inputs therefore live in other packages — which turbo
+        // does not hash into a task's `inputs`, per the measurement recorded above.
+        //
+        // ⚠️ MEASURED, not theorised: three declared subpaths (`e2e-fixtures/session`, `loadtest/pool`,
+        // `loadtest/load-tier`) were missing from the allow-list while `ci / Test (services)` reported PASS,
+        // because nothing those exports live in is an input to this package's task. The failure reproduced
+        // instantly on a cold local run. An always-run task is honest; it costs well under a second for 52
+        // tests, which is cheaper than one false green.
+        "@kitchensink/eslint#test": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
+        },
         // ⛔ THE DOCUMENTATION STALENESS GUARD MUST NOT CACHE ON ITS OWN PACKAGE ALONE — the same defect,
         // and the same reasoning, as `@kitchensink/infra-global#test` above.
         //

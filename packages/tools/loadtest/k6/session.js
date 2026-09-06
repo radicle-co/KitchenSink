@@ -50,6 +50,7 @@ export function loadSessionHandles(envName) {
         throw new Error(
             `session.js: cannot read the sign-in handles at '${path}' (${error}). They are generated, ` +
                 'gitignored credential material — run `npm run provision:pool --workspace=packages/tools/loadtest`.',
+            { cause: error },
         );
     }
 

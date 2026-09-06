@@ -266,6 +266,15 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/users',
         '@kitchensink/*/users/*',
         '!@kitchensink/*/users/handle-sync-publisher',
+        // The k6 harness publishes its pure helpers as subpaths so the load tier and its
+        // guards can import them without reaching into `src/`; `e2e-fixtures` does the same
+        // for the Clerk session handle. All three are DECLARED exports, and their absence
+        // here was invisible for the reason `db` above was: turbo hashes this package's test
+        // task over this package's own files, while the test reads every OTHER workspace's
+        // `package.json` — so a new export elsewhere never invalidated the cached pass.
+        '!@kitchensink/*/session',
+        '!@kitchensink/*/pool',
+        '!@kitchensink/*/load-tier',
         // The four shared TOOLING packages, allowed per-package rather than
         // per-name: each declares a wildcard `"./*"` export, so subpath import IS
         // their entire API (`@kitchensink/eslint/nativeA11y`,
@@ -499,10 +508,11 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
              * tiers the first time those files were linted, and every one was this. Turning `no-undef` off for the
              * directory instead would also stop it catching a genuine typo, which is the only reason to run it.
              *
-             * Scoped by the `tests/load/` path because that is where `docs/CODING_STANDARDS.md` §7 puts the k6
-             * tier, and it is the only place these globals are legitimate.
+             * Scoped by PATH because that is where the k6 tier lives: `docs/CODING_STANDARDS.md` §7 puts each
+             * service's scripts under `tests/load/`, and the shared harness's own k6 modules sit in
+             * `packages/tools/loadtest/k6/`. Those are the only places these globals are legitimate.
              */
-            files: ['**/tests/load/**/*.js'],
+            files: ['**/tests/load/**/*.js', '**/k6/**/*.js'],
             languageOptions: {
                 globals: {
                     __ENV: 'readonly',
@@ -510,6 +520,27 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                     __VU: 'readonly',
                     open: 'readonly',
                 },
+            },
+            rules: {
+                /**
+                 * ⛔ A MODULE-SCOPE USE-BEFORE-DECLARE IS FATAL HERE, AND ONLY HERE IS IT INVISIBLE.
+                 *
+                 * These files are executed by the k6 binary and by nothing else: no typecheck reads them, no
+                 * unit tier imports them, and the only thing that runs them is a deployed load run costing
+                 * ~20 minutes of sandbox. So a temporal-dead-zone reference — a `const` read above its own
+                 * declaration — surfaces as `ReferenceError: Cannot access a variable before initialization`
+                 * at INIT, killing every scenario in the tier, and it surfaces there first.
+                 *
+                 * ⚠️ MEASURED: moving one `export const` below its readers took all eight recipe scenarios
+                 * down on both profiles, and lint, typecheck and a source-reading guard were all green over
+                 * it. This rule reports it in milliseconds.
+                 *
+                 * `functions: false` because function declarations ARE hoisted and calling one above its
+                 * definition is both legal and idiomatic; `classes: false` for the same reason the repo does
+                 * not otherwise forbid it. Only `variables` is a real runtime hazard, and the k6 tier is
+                 * clean under it today.
+                 */
+                'no-use-before-define': ['error', { variables: true, functions: false, classes: false }],
             },
         },
         {

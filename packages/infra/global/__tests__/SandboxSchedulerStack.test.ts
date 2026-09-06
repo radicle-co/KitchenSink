@@ -39,6 +39,82 @@ const schedulerTemplate = (): Template =>
     Template.fromStack(new SandboxSchedulerStack(new App(), 'SandboxScheduler-sandbox', { env, stage: 'sandbox' }));
 
 describe('SandboxSchedulerStack (ADR-0007)', () => {
+    describe('⛔ the UpdateService blast radius', () => {
+        // ⛔ THIS IS THE BOUNDARY BETWEEN "scale a preview down" AND "scale production down", so it is
+        // asserted against the SYNTHESIZED policy rather than the source that produced it.
+        //
+        // The resource scope was `service/*sandbox*/*` alone. A per-PR preview's services live under a
+        // cluster named `kitchensink-{svc}-pr-{N}-…`, which that pattern cannot reach — so the scheduler
+        // could SELECT a per-PR service (once the selector was fixed) and then be DENIED by IAM. The two
+        // halves only work together, which is why they land together.
+
+        /** Whether an IAM resource pattern (`*` = any run of characters) matches `arn`. Pure. */
+        const iamMatches = (pattern: string, arn: string): boolean =>
+            new RegExp(
+                `^${pattern
+                    .split('*')
+                    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'))
+                    .join('.*')}$`,
+                'u',
+            ).test(arn);
+
+        /** The resource patterns the synthesized policy grants `ecs:UpdateService` on. */
+        function updateServiceResources(): readonly string[] {
+            const policies = schedulerTemplate().findResources('AWS::IAM::Policy');
+            const statements = Object.values(policies).flatMap(
+                (policy) => policy['Properties']?.['PolicyDocument']?.['Statement'] ?? [],
+            );
+            const statement = statements.find((entry: { Action?: unknown }) => {
+                const action = entry.Action;
+
+                return (
+                    action === 'ecs:UpdateService' || (Array.isArray(action) && action.includes('ecs:UpdateService'))
+                );
+            });
+
+            if (!statement) {
+                throw new Error('no statement grants ecs:UpdateService — this guard has gone blind');
+            }
+
+            const resources = (statement as { Resource?: unknown }).Resource;
+
+            return (Array.isArray(resources) ? resources : [resources]).map(String);
+        }
+
+        const PROD_SERVICE = `arn:aws:ecs:${env.region}:${env.account}:service/kitchensink-food-service-prod-FoodServiceCluster442EDB29-xRt2eYoDUrGB/food-api`;
+        const PER_PR_SERVICE = `arn:aws:ecs:${env.region}:${env.account}:service/kitchensink-food-service-pr-91-FoodServiceCluster442EDB29-QR9FHWWoNVeo/food-api`;
+        const SHARED_SERVICE = `arn:aws:ecs:${env.region}:${env.account}:service/kitchensink-identity-service-sandbox-IdentityServiceCluster3A4949E2-jZsH9vmz0eP6/identity`;
+
+        it('⛔ grants NOTHING on a production service', () => {
+            // The real prod cluster name, verbatim from the live account. `*-pr-*` needs the literal
+            // `-pr-`; `-prod-` supplies `-pro`, so prod is excluded by the PATTERN and not by convention.
+            const patterns = updateServiceResources();
+
+            expect(patterns.some((pattern) => iamMatches(pattern, PROD_SERVICE))).toBe(false);
+        });
+
+        it('⛔ grants on a per-PR preview service — the gap that made the selector inert', () => {
+            expect(updateServiceResources().some((pattern) => iamMatches(pattern, PER_PR_SERVICE))).toBe(true);
+        });
+
+        it('still grants on the shared sandbox tier', () => {
+            expect(updateServiceResources().some((pattern) => iamMatches(pattern, SHARED_SERVICE))).toBe(true);
+        });
+
+        it('⛔ can read cluster TAGS, without which every per-PR cluster reads as untagged', () => {
+            // `DescribeClusters` with `include: ['TAGS']` is how the selector learns `Environment=pr-{N}`.
+            // Absent the permission the call throws and the scheduler sees no per-PR cluster at all —
+            // failing exactly the way the name-match already did, but less visibly.
+            schedulerTemplate().hasResourceProperties('AWS::IAM::Policy', {
+                PolicyDocument: Match.objectLike({
+                    Statement: Match.arrayWith([
+                        Match.objectLike({ Action: Match.arrayWith(['ecs:DescribeClusters']) }),
+                    ]),
+                }),
+            });
+        });
+    });
+
     it('provisions the scheduler Lambda on the repo-wide runtime pin, arm64', () => {
         // The handler depends on whether the esbuild bundle is present at synth: a bare synth uses the
         // self-consistent inline placeholder (`index.handler`), a bundled deploy swaps in the asset and

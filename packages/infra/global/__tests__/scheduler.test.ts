@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
     isSandboxClusterArn,
+    isScheduledCluster,
     isSandboxRdsInstance,
     priorCountParamName,
     runSchedulerAction,
@@ -46,7 +47,7 @@ function makeClients(state: FakeState): SchedulerClients {
             },
         },
         ecs: {
-            listClusterArns: async () => state.clusters,
+            listClusters: async () => state.clusters.map((arn) => ({ arn })),
             listServices: async (clusterArn) => state.services.filter((s) => s.clusterArn === clusterArn),
             updateDesiredCount: async (_clusterArn, serviceArn, desiredCount) => {
                 state.calls.ecsUpdate.push({ service: serviceArn, desiredCount });
@@ -72,6 +73,7 @@ function makeClients(state: FakeState): SchedulerClients {
 
 const SANDBOX_CLUSTER = 'arn:aws:ecs:us-east-1:111:cluster/kitchensink-food-service-sandbox-Cluster';
 const PROD_CLUSTER = 'arn:aws:ecs:us-east-1:111:cluster/kitchensink-food-service-prod-Cluster';
+const PER_PR_CLUSTER = 'arn:aws:ecs:us-east-1:111:cluster/kitchensink-food-service-pr-91-Cluster';
 const SANDBOX_SERVICE = `arn:aws:ecs:us-east-1:111:service/${SANDBOX_CLUSTER.split('/').pop()}/food-api`;
 
 describe('resource selectors (sandbox-only)', () => {
@@ -97,6 +99,46 @@ describe('resource selectors (sandbox-only)', () => {
     it('matches only sandbox cluster ARNs', () => {
         expect(isSandboxClusterArn(SANDBOX_CLUSTER)).toBe(true);
         expect(isSandboxClusterArn(PROD_CLUSTER)).toBe(false);
+    });
+
+    describe('isScheduledCluster — which clusters the nightly window may touch', () => {
+        // ⛔ THE GAP THIS CLOSES, measured on 2026-09-06. The selector matched a cluster only by the
+        // substring `sandbox` in its NAME. A per-PR preview is stage-named `pr-{N}`, never `sandbox`, so
+        // `kitchensink-food-service-pr-91-…` was invisible to it while
+        // `kitchensink-identity-service-sandbox-…` went to zero on time. The per-PR services then kept
+        // serving after their platform slept — and at 04:06:59 the shared RDS stopped underneath them,
+        // so `e2e-seed reset` took a 500 from `recipe-pr-91` at 04:08:44 and the whole heavy tier reddened.
+        // Cost was only half of it; the other half was serving errors for nine hours a night.
+        //
+        // ⛔ SELECTED BY TAG, NEVER BY NAME. `ecs-quiesce.sh` states the rule for per-PR ECS discovery:
+        // the cluster NAME "is deliberately NOT used for matching… loosening that rule is exactly what
+        // ADR-0005 forbids". `Environment=pr-{N}` is the same authority that licenses
+        // `teardown-sandbox-pr.sh` to delete whole stacks, so this widens nothing.
+        it('selects a sandbox cluster by name, as before', () => {
+            expect(isScheduledCluster({ arn: SANDBOX_CLUSTER })).toBe(true);
+        });
+
+        it('⛔ selects a per-PR cluster by its Environment TAG, which the name match could never see', () => {
+            expect(isScheduledCluster({ arn: PER_PR_CLUSTER, environmentTag: 'pr-91' })).toBe(true);
+        });
+
+        it('⛔ NEVER selects production — by name or by tag', () => {
+            // The scheduler scales services to ZERO. A false positive here is a production outage, so both
+            // doors are pinned: prod's name carries no `sandbox`, and its Environment tag is `global` —
+            // the SAME tag the shared sandbox identity cluster carries, which is why the tag alone can
+            // never be the selector.
+            expect(isScheduledCluster({ arn: PROD_CLUSTER, environmentTag: 'global' })).toBe(false);
+            expect(isScheduledCluster({ arn: PROD_CLUSTER })).toBe(false);
+            expect(isScheduledCluster({ arn: PROD_CLUSTER, environmentTag: 'pr-91' })).toBe(false);
+        });
+
+        it('⚠️ refuses an Environment tag that merely starts with `pr`', () => {
+            // `prod`, `preview`, `pr-` with nothing after it. The token must be `pr-` plus digits and
+            // nothing else — the delimiter-aware discipline `pr-scope.sh` already enforces for teardown.
+            for (const tag of ['prod', 'preview', 'pr-', 'pr-91x', 'xpr-91', 'PR-91', '']) {
+                expect(isScheduledCluster({ arn: PER_PR_CLUSTER, environmentTag: tag }), tag).toBe(false);
+            }
+        });
     });
 
     it('selects only the sandbox NAT instance (source/dest check disabled + sandbox Name tag)', () => {

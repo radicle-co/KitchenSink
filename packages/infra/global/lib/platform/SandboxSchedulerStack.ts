@@ -107,6 +107,7 @@ export class SandboxSchedulerStack extends Stack {
                 actions: [
                     'rds:DescribeDBInstances',
                     'ecs:ListClusters',
+                    'ecs:DescribeClusters',
                     'ecs:ListServices',
                     'ecs:DescribeServices',
                     'ec2:DescribeInstances',
@@ -127,7 +128,20 @@ export class SandboxSchedulerStack extends Stack {
             new iam.PolicyStatement({
                 sid: 'SandboxSchedulerEcs',
                 actions: ['ecs:UpdateService'],
-                resources: [`arn:aws:ecs:${this.region}:${this.account}:service/*sandbox*/*`],
+                // ⛔ TWO PATTERNS, AND PROD MATCHES NEITHER. The shared tier's services live under a
+                // cluster named `*sandbox*`; a per-PR preview's live under `*-pr-{N}-*`, which the first
+                // pattern cannot reach — so before this the scheduler could SELECT a per-PR service and
+                // then be denied by IAM, which is why the selector fix alone would have been inert.
+                //
+                // ⚠️ `*-pr-*` requires the literal `-pr-`. Production clusters are named `…-prod-…`,
+                // which contains `-pro`, never `-pr-`, so prod is excluded by the pattern itself and not
+                // merely by convention. `schedulerScope.test.ts` asserts that in both directions against
+                // the SYNTHESIZED policy, because this is the boundary between "scale a preview down" and
+                // "scale production down".
+                resources: [
+                    `arn:aws:ecs:${this.region}:${this.account}:service/*sandbox*/*`,
+                    `arn:aws:ecs:${this.region}:${this.account}:service/*-pr-*/*`,
+                ],
             }),
         );
 

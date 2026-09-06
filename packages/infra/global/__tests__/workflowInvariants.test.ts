@@ -510,10 +510,10 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // still run, so a fork PR measures the deployed origins and reports the scenarios as skipped — which is
     // the honest outcome, rather than a red nobody with fork permissions can fix.
     "continue-on-error _ci-heavy.yml::load-test-deployed::Load the stage's Clerk secrets ×1",
-    // ⛔ A POOL FAILURE MUST SKIP THE SCENARIOS, NOT REDDEN THEM. Every scenario needs a real bearer, so
-    // without one they would fail on the credential rather than on the service — a red that says nothing
-    // about the code under test. The skip is REPORTED by the `::notice::` step that reads this outcome, so
-    // it is a stated absence rather than a silent one.
+    // The scenario steps gate on `steps.pool.outcome`, so the pool must not cancel the job mid-run — but
+    // the failure is NOT swallowed: the step immediately after reads this same outcome and FAILS the job
+    // when the sandbox was live. Run 34017385400 is why that step exists: a `422` from Clerk skipped every
+    // scenario and the job still reported green.
     'continue-on-error _ci-heavy.yml::load-test-deployed::Provision the k6 credential pool and seed the world ×1',
     // Reclamation of a run-scoped world and its Clerk identities. It must not turn a green measurement red:
     // what it leaks is a fixture the daily sweep collects, and the run's actual verdict is already decided.

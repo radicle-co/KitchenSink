@@ -31,7 +31,7 @@ import { join } from 'node:path';
 import { assertTestAddress } from '@kitchensink/e2e-fixtures';
 import { describe, expect, it } from 'vitest';
 
-import { POOL_NAMES, partitionHandles, poolEmail } from '@kitchensink/loadtest';
+import { POOL_NAMES, partitionHandles, poolEmail, poolUsername } from '@kitchensink/loadtest';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const LOADTEST = 'packages/tools/loadtest';
@@ -71,6 +71,36 @@ describe('the k6 pool roster', () => {
     it('⚠️ refuses a domain sweep.mjs does not cover, rather than silently littering', () => {
         // The mutation this kills: widening EMAIL_DOMAIN to a host the sweeper's pattern excludes.
         expect(sweepPattern().test(poolEmail('alfa', 'example.org'))).toBe(false);
+    });
+});
+
+describe('the pool username', () => {
+    // ⛔ MEASURED FAILURE, run 34017385400 (2026-09-06). The first live provision died on
+    // `422 form_identifier_exists / param_name: username`: the address moved to a `+clerk_test`
+    // subaddress while the username stayed `test_${name}`, so the OLD pool users — same username, plain
+    // address — still held it. Find-by-email missed; create-by-username collided. Username is unique in
+    // Clerk, so the two identifiers must be derived from the SAME input or they drift apart exactly here.
+    it('⛔ is derived from the same address the email is, so the two cannot disagree', () => {
+        for (const name of POOL_NAMES) {
+            const email = poolEmail(name, 'radcile.com');
+            const local = email.slice(0, email.indexOf('@')).replace(/[^a-z0-9]+/gu, '_');
+
+            expect(poolUsername(name), `${name}'s username is not derived from its address`).toBe(local);
+        }
+    });
+
+    it('⛔ never collides with the PREVIOUS pool namespace, which still exists on the shared instance', () => {
+        // The old provisioner minted `test_alfa`; those users are still there until `npm run sweep`
+        // reclaims them. A new username equal to an old one is the 422 above, on every future cold run.
+        for (const name of POOL_NAMES) {
+            expect(poolUsername(name)).not.toBe(`test_${name}`);
+        }
+    });
+
+    it("⚠️ stays inside Clerk's username charset — letters, digits and underscore only", () => {
+        for (const name of POOL_NAMES) {
+            expect(poolUsername(name)).toMatch(/^[a-z0-9_]+$/u);
+        }
     });
 });
 

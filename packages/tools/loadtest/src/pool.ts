@@ -83,3 +83,22 @@ export function partitionHandles<T>(
 
     return { reuse: names.filter(held), establish: names.filter((name) => !held(name)) };
 }
+
+/**
+ * The Clerk username for a pool member, DERIVED from the same address {@link poolEmail} produces.
+ *
+ * ⛔ MEASURED, run 34017385400 (2026-09-06). The first live provision died on
+ * `422 form_identifier_exists / param_name: username`. The address had moved to a `+clerk_test`
+ * subaddress while the username stayed `test_${name}` — and the PREVIOUS pool's users, minted at the plain
+ * address, still hold that username on the shared instance. Find-by-email missed them; create-by-username
+ * collided with them. Username is unique in Clerk, so deriving both identifiers from one input is what
+ * stops them drifting apart; hard-coding a second pattern is what let them.
+ *
+ * @param name - A roster name.
+ * @returns The username: the address's local part, with every non-alphanumeric run collapsed to `_`.
+ */
+export function poolUsername(name: string): string {
+    const email = poolEmail(name, 'example.invalid');
+
+    return email.slice(0, email.indexOf('@')).replace(/[^a-z0-9]+/gu, '_');
+}

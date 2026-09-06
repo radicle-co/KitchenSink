@@ -1152,13 +1152,23 @@ jobs:
                   mkdir -p "${OUT_DIR}"
                   npm run provision:pool --workspace=packages/tools/loadtest
                   npx tsx packages/tools/e2e-seed/src/provision.ts >"${OUT_DIR}/fixture.env"
-            # ⚠️ A POOL FAILURE SKIPS THE SCENARIOS, it does not redden them. Every scenario below needs a
-            # real bearer, so without one they would fail on the credential rather than on the service —
-            # a red that says nothing about the code. The step above is `continue-on-error` for exactly
-            # that reason, and this gate reports the skip.
-            - name: Report a pool that could not be provisioned
+            # ⛔ A POOL FAILURE ON A LIVE SANDBOX IS RED, and this step is the thing that reddens it.
+            #
+            # ⚠️ IT USED TO BE A `::notice::`, and run 34017385400 showed why that was wrong: the pool died
+            # on a Clerk `422 form_identifier_exists`, every scenario skipped, and the JOB REPORTED GREEN.
+            # Green and green-having-run-nothing are the same colour — the exact failure this file's own
+            # header describes paying for three times.
+            #
+            # The `continue-on-error` above stays, because the scenario steps still need to gate on
+            # `steps.pool.outcome` rather than being cancelled mid-job; what changes is that reaching this
+            # step is now fatal. It can ONLY be reached when the sandbox is live AND the secrets loaded AND
+            # the pool still failed — a skipped pool step has outcome `skipped`, not `failure` — so a fork
+            # PR with no secrets and a PR with no sandbox both still skip silently, as they should.
+            - name: Fail when the pool could not be provisioned against a live sandbox
               if: ${{ steps.live.outputs.recipe == 'true' && steps.pool.outcome == 'failure' }}
-              run: echo "::notice::the k6 credential pool could not be provisioned — the service scenarios are SKIPPED (not failed)"
+              run: |
+                  echo "::error::the k6 credential pool could not be provisioned against a LIVE sandbox — the service scenarios measured nothing, so this run proves nothing about them"
+                  exit 1
             - name: Run the recipe service scenarios
               if: ${{ steps.live.outputs.recipe == 'true' && steps.pool.outcome == 'success' }}
               env:

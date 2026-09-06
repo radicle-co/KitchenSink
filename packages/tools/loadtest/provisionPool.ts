@@ -47,7 +47,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { assertAzp, establishSession, remintFromSession } from '@kitchensink/e2e-fixtures';
 import type { SessionHandle } from '@kitchensink/e2e-fixtures';
 
-import { POOL_NAMES, partitionHandles, poolEmail } from './src/pool.js';
+import { POOL_NAMES, partitionHandles, poolEmail, poolUsername } from './src/pool.js';
 import { buildFoodTokenPool, buildIdentityTokenPool } from './src/tokenPool.js';
 
 const BACKEND_API = 'https://api.clerk.com/v1';
@@ -136,7 +136,8 @@ async function findOrCreateUser(name: string): Promise<{ readonly id: string; re
         method: 'POST',
         body: JSON.stringify({
             email_address: [email],
-            username: `test_${name}`,
+            // Derived from the same address, never a second hard-coded pattern — see `poolUsername`.
+            username: poolUsername(name),
             first_name: 'Load',
             last_name: name,
         }),

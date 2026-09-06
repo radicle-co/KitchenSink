@@ -11,6 +11,43 @@ export const BASE_URL = (__ENV['RECIPE_API_BASE_URL'] || 'http://localhost:3000'
 // run MUST supply this; without it the service answers 401 and the failure-rate threshold trips.
 export const TOKEN = __ENV['RECIPE_LOAD_TEST_TOKEN'] || '';
 
+// --- Token pool ---------------------------------------------------------------------------------
+// A DEPLOYED run authenticates as many DISTINCT users, not one. `UserThrottlerGuard` keys per
+// authenticated user, so pointing every VU at a single bearer throttles the run against itself and
+// measures the 429 path — which is what the deleted runner-local jobs raised `RATE_LIMIT_*` to avoid, and
+// a deployed preview is not ours to reconfigure.
+//
+// ⚠️ The file is the pool `provisionPool.ts` writes: a bare array of JWTs. Absent (a local hand run), the
+// single `RECIPE_LOAD_TEST_TOKEN` is used exactly as before, so nothing about the substrate profile moves.
+const TOKENS_FILE = __ENV['RECIPE_TOKENS_FILE'] || '';
+
+export const TOKEN_POOL = (() => {
+    if (!TOKENS_FILE) {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(open(TOKENS_FILE));
+
+        return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry === 'string' && entry) : [];
+    } catch (error) {
+        throw new Error(
+            `common.js: cannot read the token pool at '${TOKENS_FILE}' (${error}). It is generated, ` +
+                'gitignored credential material — run `npm run provision:pool --workspace=packages/tools/loadtest`.',
+            { cause: error },
+        );
+    }
+})();
+
+/**
+ * The bearer this VU should present: its own pool member when a pool was supplied, else the single token.
+ *
+ * Spreading VUs across users is what keeps the per-USER rate limiter out of the measurement.
+ */
+export function vuToken() {
+    return TOKEN_POOL.length > 0 ? TOKEN_POOL[(__VU - 1 + TOKEN_POOL.length) % TOKEN_POOL.length] : TOKEN;
+}
+
 // --- Performance targets (SC-009 / FR-007b-i) ---------------------------------------------------
 // p95 <= 500ms for recipe read/list/create and for save even while the S3 archive is queued.
 export const SC009_P95_MS = Number(__ENV['RECIPE_SAVE_P95_MS'] || 500);
@@ -220,8 +257,10 @@ export function loadNutritionFixture() {
 export function authHeaders(extra) {
     const headers = { Accept: 'application/json' };
 
-    if (TOKEN) {
-        headers['Authorization'] = `Bearer ${TOKEN}`;
+    const bearer = vuToken();
+
+    if (bearer) {
+        headers['Authorization'] = `Bearer ${bearer}`;
     }
 
     return Object.assign(headers, extra || {});

@@ -1174,7 +1174,10 @@ jobs:
               env:
                   LOAD_PROFILE: deployed
                   RECIPE_API_BASE_URL: ${{ steps.target.outputs.recipe }}
-                  RECIPE_LOAD_TEST_TOKEN_FILE: ${{ runner.temp }}/k6-pool/tokens.json
+                  # ⛔ THE NAME THE SCRIPTS ACTUALLY READ. This was `RECIPE_LOAD_TEST_TOKEN_FILE`, invented
+                  # here and read by nothing, so `TOKEN` stayed empty and 4051 requests measured the 401
+                  # path across eight scenarios. `k6ScenarioEnvContract.test.ts` now asserts both sides.
+                  RECIPE_TOKENS_FILE: ${{ runner.temp }}/k6-pool/tokens.json
               run: |
                   set -uo pipefail
                   rc=0

@@ -156,3 +156,64 @@ describe('freshBearer', () => {
         expect(() => refresher([HANDLE], 'fallback')).toThrow(/could not re-mint/u);
     });
 });
+
+describe('loadSessionHandles', () => {
+    /**
+     * @param env - The `__ENV` map the k6 runtime would expose.
+     * @param files - Path-to-contents for the `open()` the k6 runtime would provide.
+     * @returns The module's `loadSessionHandles`, bound to that fake runtime.
+     */
+    async function loadReader(env: Record<string, string>, files: Record<string, string>) {
+        vi.resetModules();
+        vi.stubGlobal('__ENV', env);
+        vi.stubGlobal('open', (path: string) => {
+            const contents = files[path];
+
+            if (contents === undefined) {
+                throw new Error(`stat ${path}: no such file or directory`);
+            }
+
+            return contents;
+        });
+
+        // Types are INFERRED from the JavaScript (`allowJs`, no `checkJs`), so no suppression is needed.
+        const module = await import('../k6/session.js');
+
+        return module.loadSessionHandles as (envName: string) => readonly object[];
+    }
+
+    const HANDLES = { alfa: { sessionId: 's1' }, bravo: { sessionId: 's2' }, admin: { sessionId: 'sa' } };
+
+    it('returns the roster in order, without the admin principal', async () => {
+        // `admin` is a different principal with different scopes; rotating VUs onto it would quietly
+        // measure an admin's authorization path instead of a cook's.
+        const read = await loadReader({ H: '/p/handles.json' }, { '/p/handles.json': JSON.stringify(HANDLES) });
+
+        expect(read('H')).toEqual([{ sessionId: 's1' }, { sessionId: 's2' }]);
+    });
+
+    it('returns nothing when no path was supplied, so a substrate run is unchanged', async () => {
+        const read = await loadReader({}, {});
+
+        expect(read('H')).toEqual([]);
+    });
+
+    it('throws when a path WAS supplied but yields no usable handle', async () => {
+        // ⛔ THE REMAINING DOOR TO THE ORIGINAL DEFECT. An empty pool file is NOT a substrate run: the
+        // caller asked for re-minting and cannot have it, so `freshBearer` would fall back to the static
+        // bearers — which on a deployed leg are the expired ones, and every request 401s while the run
+        // reports the service as broken. Silence here is exactly what cost run 34041143051.
+        const read = await loadReader(
+            { H: '/p/h.json' },
+            { '/p/h.json': JSON.stringify({ admin: { sessionId: 'sa' } }) },
+        );
+
+        expect(() => read('H')).toThrow(/no usable sign-in handle/u);
+    });
+
+    it('names the step to run when the file is absent', async () => {
+        const read = await loadReader({ H: '/p/missing.json' }, {});
+
+        expect(() => read('H')).toThrow(/provision:pool/u);
+    });
+});

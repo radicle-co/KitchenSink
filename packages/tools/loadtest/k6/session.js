@@ -23,7 +23,18 @@
 // here — which is precisely the confusion this module exists to end.
 import http from 'k6/http';
 
-/** Refresh this many seconds after minting — a quarter of the lifetime is left as headroom. */
+/**
+ * Refresh this many seconds after minting — a quarter of the ~60s lifetime left as headroom.
+ *
+ * ⚠️ LOOSER THAN `journey.js`'s `REFRESH_AFTER_S = 20`, and deliberately so — the two are bounded by
+ * different things, which is worth stating because the mismatch otherwise reads as one of them being
+ * wrong. That harness fetches its bearer ONCE per iteration, so its threshold must cover the whole
+ * iteration (its invariant #1: "< TTL - max-iteration-duration", and its iterations poll for up to
+ * `POLL_TIMEOUT_S`). The service tiers call `authHeaders()`/`jsonHeaders()` at EVERY request site —
+ * `pullFromSource` does it eight times — and each call re-checks the age here, so the exposure window is
+ * one mint plus one request, not one mint plus one iteration. 15 seconds of remaining life covers that
+ * with room for a slow response from a loaded preview.
+ */
 const REFRESH_AFTER_SECONDS = 45;
 
 /**
@@ -57,10 +68,24 @@ export function loadSessionHandles(envName) {
     // `admin` is a different principal with different scopes; a scenario that wanted it would ask for it by
     // name, and rotating VUs onto it would quietly measure an admin's authorization path.
     const stored = JSON.parse(raw);
-
-    return Object.keys(stored)
+    const handles = Object.keys(stored)
         .filter((name) => name !== 'admin')
         .map((name) => stored[name]);
+
+    if (handles.length === 0) {
+        // ⛔ AN EMPTY POOL FILE IS NOT A SUBSTRATE RUN. The caller named a handles path, so it wants
+        // re-minting; returning `[]` here would send `freshBearer` down its fallback and present the STATIC
+        // bearers, which on a deployed leg are the expired ones — every request 401s and the run reports
+        // the service as broken. That silence is the whole defect this module exists to end, reached
+        // through a different door, so it fails loudly instead.
+        throw new Error(
+            `session.js: '${path}' holds no usable sign-in handle (only 'admin', or nothing at all). ` +
+                'Re-run `npm run provision:pool --workspace=packages/tools/loadtest` — a deployed leg ' +
+                'cannot authenticate without one.',
+        );
+    }
+
+    return handles;
 }
 
 // Per-VU state. k6 gives every VU its own JS runtime, so these are genuinely per-VU rather than shared —

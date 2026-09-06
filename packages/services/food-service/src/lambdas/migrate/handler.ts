@@ -12,7 +12,6 @@
  *
  * @implements ARCH-001
  */
-import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,29 +19,17 @@ import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 
+import { applyMigrations } from '@kitchensink/db-schema-guard';
+import type { MigrateResult } from '@kitchensink/db-schema-guard';
+
 import { FOOD_DB_USERNAME, foodPoolConfig } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
 import { FoodDatabaseCloneError, type FoodDatabaseCloneFailure } from './migrate.errors.js';
 
 const { Pool } = pg;
 
-/** A discovered migration: its tracking `name` (filename without `.sql`) and the `.sql` filename. */
-export interface DiscoveredMigration {
-    /** The `schema_migrations` tracking key (filename without the `.sql` suffix). */
-    readonly name: string;
-    /** The `.sql` filename within the migrations directory. */
-    readonly file: string;
-}
-
-/** The structured result of a migration run (returned to the deploy-time `lambda invoke`). */
-export interface MigrateResult {
-    /** Migrations applied this run, in order. */
-    readonly applied: string[];
-    /** Migrations skipped because already recorded, in order. */
-    readonly skipped: string[];
-    /** Post-run validation counts. */
-    readonly validated: { readonly migrations: number; readonly tables: number };
-}
+export { discoverMigrations } from '@kitchensink/db-schema-guard';
+export type { DiscoveredMigration, MigrateResult } from '@kitchensink/db-schema-guard';
 
 /** Options for {@link runMigrations} — the injectable core (a pool + a migrations directory). */
 export interface RunMigrationsOptions {
@@ -50,6 +37,8 @@ export interface RunMigrationsOptions {
     readonly pool: pg.Pool;
     /** The directory holding the ordered `.sql` migrations. */
     readonly migrationsDir: string;
+    /** The manifest digest the caller expects this runner to hold, when it stated one. */
+    readonly expectManifestSha?: string | undefined;
 }
 
 /**
@@ -60,25 +49,8 @@ export interface RunMigrationsOptions {
 const bundledMigrationsDir = (): string => join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations');
 
 /**
- * Discover the ordered `.sql` migrations in a directory — sorted by filename so the numeric prefix
- * (`0000`, `0001`, …) drives a deterministic order. NO hardcoded list: drop a `.sql` file in and it is
- * picked up automatically.
- *
- * @param migrationsDir - The directory to scan.
- * @returns The discovered migrations in apply order.
- * @sideEffect Reads the migrations directory.
- */
-export function discoverMigrations(migrationsDir: string): DiscoveredMigration[] {
-    return readdirSync(migrationsDir)
-        .filter((file) => file.endsWith('.sql'))
-        .sort()
-        .map((file) => ({ name: file.replace(/\.sql$/, ''), file }));
-}
-
-/**
  * The tables every successful migration run must produce — derived from the Drizzle schema (every
- * exported `pgTable`), never hardcoded, so the post-migration validation tracks the schema as it
- * evolves.
+ * exported `pgTable`), never hardcoded, so the post-migration validation tracks the schema as it evolves.
  *
  * @returns The expected table names.
  */
@@ -89,133 +61,27 @@ function expectedTables(): string[] {
 }
 
 /**
- * The session advisory-lock key this database's migration runs serialize on.
+ * Apply the food migrations idempotently against a pool, then validate the result.
  *
- * ⛔ WHY THIS EXISTS. Idempotency comes from `schema_migrations`, and that ledger is CHECKED-then-APPLIED,
- * which is not atomic: two runners starting together both read "unapplied" and both execute the file. The
- * loser then fails on a `CREATE TABLE`/`CREATE TYPE` the winner just committed, and — because the runner's
- * throw is a Lambda `FunctionError` the ADR-0022 Trigger rethrows — that failure is a RED DEPLOY, not a
- * retry. ADR-0022 recorded it as an accepted residual risk on the grounds that "nothing in the pipelines
- * runs two concurrently"; the owner's rule that migrations run on EVERY deploy makes concurrent invocations
- * likelier, and the race reproduces on the first attempt (demonstrated in recipe-service's
- * `__tests__/integration/database/migrationRunner.integration.test.ts`).
+ * ⛔ The engine is `@kitchensink/db-schema-guard`'s, not a copy. This loop — the advisory lock, the ledger,
+ * the rollback, the post-run validation — used to exist three times over, once per service, and the three
+ * copies had already drifted in their accounts of why. What is genuinely this service's is bound here:
+ * which SQL, and which tables the drizzle schema says must exist afterwards.
  *
- * ⚠️ It changes deploy behaviour: a second runner now WAITS instead of racing.
- *
- * Advisory locks are scoped to the DATABASE, so this constant only has to agree with other runners of the
- * FOOD schema — and under ADR-0006 each per-PR logical database has its own lock namespace for free. It
- * deliberately does not have to match identity's or recipe's.
- *
- * The value is an arbitrary fixed 64-bit constant; the digits carry no meaning beyond being stable.
- */
-const MIGRATION_ADVISORY_LOCK_KEY = '7412200228220022';
-
-/**
- * How long a runner waits for the lock before failing with a Postgres lock error.
- *
- * Sized under the runner's own Lambda timeout on purpose: without it, a runner blocked behind a stuck peer
- * would be killed by Lambda with no diagnostic at all.
- */
-const MIGRATION_LOCK_TIMEOUT_MS = 240_000;
-
-/**
- * Apply the ordered migrations idempotently against a pool, then validate the result. The testable
- * core of {@link handler} (the handler only builds the pool from the DB env + an RDS IAM token).
- *
- * Serialized on {@link MIGRATION_ADVISORY_LOCK_KEY} for the whole apply loop, so the ledger's
- * check-then-apply cannot interleave with another runner's.
- *
- * @param options - The connected pool + the migrations directory.
- * @returns The applied/skipped lists + validation counts.
- * @throws {Error} when the migration lock cannot be acquired, a migration's SQL fails, a discovered
- *   migration is not recorded, or an expected table is missing after the run.
+ * @param options - The connected pool, the migrations directory, and the caller's manifest expectation.
+ * @returns The applied/skipped lists, the validation counts, and the manifest that ran.
+ * @throws {Error} when the expectation names a different migration set, the lock cannot be acquired, a
+ *   migration's SQL fails, a discovered migration is not recorded, or an expected table is missing.
  * @sideEffect Connects to PostgreSQL, takes a session advisory lock, and executes DDL.
  */
 export async function runMigrations(options: RunMigrationsOptions): Promise<MigrateResult> {
-    const { pool, migrationsDir } = options;
-    const migrations = discoverMigrations(migrationsDir);
-    const applied: string[] = [];
-    const skipped: string[] = [];
-    const client = await pool.connect();
-    let holdsLock = false;
-
-    try {
-        // ⛔ BEFORE the ledger is even created, so two runners cannot both create it and both read it empty.
-        // `lock_timeout` is RESET immediately after: it is a session setting and this client goes back to a
-        // pool, so leaving it set would silently shorten every later statement's lock wait.
-        await client.query(`SET lock_timeout = ${MIGRATION_LOCK_TIMEOUT_MS}`);
-
-        try {
-            await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_ADVISORY_LOCK_KEY]);
-            holdsLock = true;
-        } finally {
-            await client.query('RESET lock_timeout');
-        }
-
-        await client.query(
-            'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
-        );
-
-        for (const migration of migrations) {
-            const existing = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [migration.name]);
-
-            if ((existing.rowCount ?? 0) > 0) {
-                skipped.push(migration.name);
-                continue;
-            }
-
-            const sql = readFileSync(join(migrationsDir, migration.file), 'utf8');
-            await client.query('BEGIN');
-
-            try {
-                await client.query(sql);
-                await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migration.name]);
-                await client.query('COMMIT');
-                applied.push(migration.name);
-            } catch (err) {
-                await client.query('ROLLBACK');
-                throw new Error(`Migration ${migration.name} failed`, { cause: err });
-            }
-        }
-
-        // Post-migration validation. Throwing surfaces as a Lambda FunctionError → the deploy's migration
-        // step fails, so a partially-applied or drifted schema never passes silently. Both sides are
-        // derived (migration files + drizzle schema), so nothing here is hardcoded.
-        const recorded = await client.query<{ name: string }>('SELECT name FROM schema_migrations');
-        const recordedNames = new Set(recorded.rows.map((row) => row.name));
-        const missingMigrations = migrations
-            .map((migration) => migration.name)
-            .filter((name) => !recordedNames.has(name));
-
-        if (missingMigrations.length > 0) {
-            throw new Error(
-                `Post-migration validation failed — migrations not recorded: ${missingMigrations.join(', ')}`,
-            );
-        }
-
-        const tables = expectedTables();
-        const present = await client.query<{ table_name: string }>(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])",
-            [tables],
-        );
-        const presentTables = new Set(present.rows.map((row) => row.table_name));
-        const missingTables = tables.filter((table) => !presentTables.has(table));
-
-        if (missingTables.length > 0) {
-            throw new Error(`Post-migration validation failed — tables missing: ${missingTables.join(', ')}`);
-        }
-
-        return { applied, skipped, validated: { migrations: migrations.length, tables: tables.length } };
-    } finally {
-        // ⛔ Released EXPLICITLY, not left to the connection dying. A session advisory lock outlives the
-        // statement that took it, and `client.release()` returns the session to the pool still holding it —
-        // which would deadlock the very next runner on a pool that outlives one call.
-        if (holdsLock) {
-            await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_ADVISORY_LOCK_KEY]);
-        }
-
-        client.release();
-    }
+    return applyMigrations({
+        pool: options.pool,
+        migrationsDir: options.migrationsDir,
+        label: 'food',
+        expectedTables: expectedTables(),
+        expectManifestSha: options.expectManifestSha,
+    });
 }
 
 /** The single shared base logical database (ADR-0006) — the migration runner never CREATEs this one. */
@@ -407,9 +273,18 @@ function requireEnv(name: string): string {
 }
 
 /** The event the migration runner accepts. Absent/`migrate` → apply migrations; `drop` → PR-close teardown. */
+/**
+ * The event these runners accept.
+ *
+ * ⛔ `expectManifestSha` is an ASSERTION, not an action. It states which migration set the caller believes
+ * this runner holds; a runner holding a different one refuses rather than reporting a clean run over the
+ * wrong SQL. `action` remains the only thing that selects behaviour.
+ */
 export interface MigrateEvent {
     /** `migrate` (default) applies migrations; `drop` drops the per-PR database (ADR-0006 cleanup). */
     readonly action?: 'migrate' | 'drop';
+    /** The manifest digest the caller expects this runner to hold, when it stated one. */
+    readonly expectManifestSha?: string;
 }
 
 /**
@@ -418,7 +293,7 @@ export interface MigrateEvent {
  * database first if it is absent (ADR-0006). With `action: 'drop'` it drops the per-PR database (never
  * the base) for PR-close cleanup.
  *
- * @param event - Optional `{ action }` (defaults to `migrate`).
+ * @param event - Optional `{ action, expectManifestSha }` (the action defaults to `migrate`).
  * @returns The migrate result, or the drop result when `action` is `drop`.
  * @sideEffect Connects to PostgreSQL (RDS IAM auth) and executes DDL.
  */
@@ -472,7 +347,11 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
     });
 
     try {
-        return await runMigrations({ pool, migrationsDir: bundledMigrationsDir() });
+        return await runMigrations({
+            pool,
+            migrationsDir: bundledMigrationsDir(),
+            expectManifestSha: event.expectManifestSha,
+        });
     } finally {
         await pool.end();
     }

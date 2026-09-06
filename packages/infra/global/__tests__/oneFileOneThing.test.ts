@@ -136,6 +136,12 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
                 classes: 2,
                 components: 0,
             },
+            // Added 2026-09-06 with `@kitchensink/db-schema-guard`. Same ruling: the unit is "the refusals a
+            // schema guard can raise", and all three are one boundary — a runner holding the wrong migration
+            // set, a consumer whose database is behind its own release, and a migration set that is empty and
+            // so proves nothing. Callers discriminate across the set in one `catch`, and the file holds the
+            // taxonomy and nothing else.
+            { file: 'packages/shared/db-schema-guard/src/errors.ts', classes: 3, components: 0 },
             { file: 'packages/services/food-service/src/sources/foodSource.errors.ts', classes: 4, components: 0 },
         ],
     },

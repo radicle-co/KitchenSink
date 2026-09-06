@@ -599,7 +599,8 @@ jobs:
             - name: Run identity DB migrations (always — ADR-0022 §4 safety net)
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-identity-service-${STAGE}" IdentityMigrationFunctionName identity
+                    "kitchensink-identity-service-${STAGE}" IdentityMigrationFunctionName identity \
+                    packages/services/identity/src/database/migrations
 
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'
@@ -766,7 +767,8 @@ jobs:
             - name: Run food DB migrations (always — ADR-0022 §4 safety net)
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-food-service-${STAGE}" FoodMigrationFunctionName food
+                    "kitchensink-food-service-${STAGE}" FoodMigrationFunctionName food \
+                    packages/services/food-service/src/db/migrations
 
             # Recipe: WORKERS BEFORE SERVICE. recipe-workers owns the account-erasure queue and publishes
             # its URL/ARN to SSM (/kitchensink/{stage}/recipe/account-erasure-queue-*), which the service
@@ -993,7 +995,8 @@ jobs:
             - name: Run recipe-workers DB migrations (always — ADR-0022 §4 safety net)
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-recipe-workers-${STAGE}" RecipeWorkersMigrationFunctionName recipe-workers
+                    "kitchensink-recipe-workers-${STAGE}" RecipeWorkersMigrationFunctionName recipe-workers \
+                    packages/services/recipe-service/src/database/migrations
 
             - name: CDK Deploy (recipe service)
               if: steps.flags.outputs.deploy_recipe == 'true'
@@ -1031,7 +1034,8 @@ jobs:
             - name: Run recipe DB migrations (always — ADR-0022 §4 safety net)
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-recipe-service-${STAGE}" RecipeMigrationFunctionName recipe
+                    "kitchensink-recipe-service-${STAGE}" RecipeMigrationFunctionName recipe \
+                    packages/services/recipe-service/src/database/migrations
 
             # Health alone would not have caught the sandbox outage: the service was healthy to curl while
             # every BROWSER was blocked, because a CORS preflight carries no credentials and the auth layer

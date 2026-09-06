@@ -41,7 +41,7 @@
 #
 # ## Usage
 #
-#     run-migrations.sh run      <region> <stackName> <outputKey> <label>
+#     run-migrations.sh run      <region> <stackName> <outputKey> <label> <migrationsDir>
 #     run-migrations.sh classify <functionError> <payload>
 #     run-migrations.sh manifest <migrationsDir>
 #
@@ -155,9 +155,15 @@ run_migrations_manifest() {
     printf '%s\n' "$rendered" | sha256sum | cut -d' ' -f1
 }
 
-# run_migrations_run <region> <stackName> <outputKey> <label>
+# run_migrations_run <region> <stackName> <outputKey> <label> <migrationsDir>
 #
 # Resolve the runner from the stack's own output, invoke it, and classify the answer.
+#
+# ⛔ `migrationsDir` is REQUIRED, and the digest it yields is sent with the invoke. Without it the runner
+# cannot distinguish "nothing was pending" from "this bundle has never heard of the new migrations", which
+# is what a PREVIOUS release's runner reports — exit 0, nothing applied, a green deploy onto an unmigrated
+# schema. An OPTIONAL expectation would be one a caller forgets, and a forgotten one is indistinguishable
+# from the behaviour it replaces, so it is an argument rather than a flag.
 #
 # ⚠️ An ABSENT STACK is a stated SKIP, not a failure: there is no database of ours behind a stack that does
 # not exist, and a service's absence is ADR-0010's concern (and `deployVerificationCoverage.test.ts`'s), not
@@ -166,13 +172,20 @@ run_migrations_manifest() {
 #
 # @sideEffect Calls CloudFormation and Lambda, and writes a temp file.
 run_migrations_run() {
-    local region="${1-}" stack="${2-}" output_key="${3-}" label="${4-}"
+    local region="${1-}" stack="${2-}" output_key="${3-}" label="${4-}" migrations_dir="${5-}"
 
-    if [ "$#" -lt 4 ] || [ -z "$region" ] || [ -z "$stack" ] || [ -z "$output_key" ] || [ -z "$label" ]; then
-        echo "usage: run-migrations.sh run <region> <stackName> <outputKey> <label>" >&2
+    if [ "$#" -lt 5 ] || [ -z "$region" ] || [ -z "$stack" ] || [ -z "$output_key" ] || [ -z "$label" ] ||
+        [ -z "$migrations_dir" ]; then
+        echo "usage: run-migrations.sh run <region> <stackName> <outputKey> <label> <migrationsDir>" >&2
 
         return 2
     fi
+
+    # ⛔ Computed BEFORE the stack is even looked up, so a bad migrations path fails on EVERY run rather than
+    # only on the stages that happen to have a stack. A check that is skipped precisely where it is needed is
+    # the defect this script's own header records about its old path-diff gate.
+    local expect_manifest
+    expect_manifest=$(run_migrations_manifest "$migrations_dir") || return 1
 
     local outputs
     outputs=$(aws cloudformation describe-stacks --region "$region" --stack-name "$stack" \
@@ -191,12 +204,13 @@ run_migrations_run() {
         return 1
     fi
 
-    echo "[${label}] invoking migration runner ${fn}"
+    echo "[${label}] invoking migration runner ${fn}, expecting migration manifest ${expect_manifest}"
 
     local payload_file function_error payload verdict reason
     payload_file=$(mktemp)
     function_error=$(aws lambda invoke --region "$region" --function-name "$fn" \
-        --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out \
+        --payload "{\"action\":\"migrate\",\"expectManifestSha\":\"${expect_manifest}\"}" \
+        --cli-binary-format raw-in-base64-out \
         --query 'FunctionError' --output text "$payload_file" 2>/dev/null) || function_error='InvokeFailed'
     payload=$(cat "$payload_file" 2>/dev/null)
     rm -f "$payload_file"

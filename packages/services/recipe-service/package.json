@@ -59,6 +59,7 @@
     },
     "devDependencies": {
         "@kitchensink/contract-gen": "*",
+        "@kitchensink/db-schema-guard": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/infra-alb": "*",
         "@kitchensink/infra-security": "*",

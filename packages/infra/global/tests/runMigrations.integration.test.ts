@@ -20,12 +20,14 @@
  * | the stack is absent | fail on it → every prod deploy reds until every feature service has shipped once |
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { readMigrationManifest } from '@kitchensink/db-schema-guard';
 
 const SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/run-migrations.sh', import.meta.url));
 
@@ -75,6 +77,7 @@ case "\${service} \${operation}" in
     cat "$file"
     ;;
   'lambda invoke')
+    printf '%s' "$(arg --payload "$@")" > "\${AWS_STUB_DIR}/sent-payload"
     printf '%s' "\${STUB_INVOKE_PAYLOAD-}" > "$(outfile "$@" | tail -1)"
     echo "\${STUB_FUNCTION_ERROR:-None}"
     ;;
@@ -132,11 +135,17 @@ function run(args: readonly string[], environment: Readonly<Record<string, strin
 const STACK = 'kitchensink-food-service-prod';
 const OUTPUT = 'FoodMigrationFunctionName';
 
+/**
+ * The real food migrations directory — the fifth argument `run` now requires, and the source of the
+ * manifest digest it sends with the invoke.
+ */
+const MIGRATIONS_DIR = fileURLToPath(new URL('../../../services/food-service/src/db/migrations', import.meta.url));
+
 describe('run — the safety net resolves, invokes, and reads the answer', () => {
     it('invokes the runner named by the stack’s own output and passes on a clean run', () => {
         givenStack(STACK, [{ OutputKey: OUTPUT, OutputValue: 'kitchensink-food-migrate-prod' }]);
 
-        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food'], {
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', MIGRATIONS_DIR], {
             STUB_INVOKE_PAYLOAD: '{"applied":[],"pending":[]}',
         });
 
@@ -149,7 +158,7 @@ describe('run — the safety net resolves, invokes, and reads the answer', () =>
         // looked. The deploy then continued onto a schema that had not moved.
         givenStack(STACK, [{ OutputKey: OUTPUT, OutputValue: 'fn' }]);
 
-        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food'], {
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', MIGRATIONS_DIR], {
             STUB_FUNCTION_ERROR: 'Unhandled',
             STUB_INVOKE_PAYLOAD: '{"errorType":"Error","errorMessage":"connect ETIMEDOUT"}',
         });
@@ -162,7 +171,7 @@ describe('run — the safety net resolves, invokes, and reads the answer', () =>
     it('⛔ FAILS when the runner reports the fault in its PAYLOAD with FunctionError unset', () => {
         givenStack(STACK, [{ OutputKey: OUTPUT, OutputValue: 'fn' }]);
 
-        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food'], {
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', MIGRATIONS_DIR], {
             STUB_INVOKE_PAYLOAD: '{"errorType":"MigrationError","errorMessage":"relation does not exist"}',
         });
 
@@ -176,7 +185,7 @@ describe('run — the safety net resolves, invokes, and reads the answer', () =>
         // "there is nothing here to migrate".
         givenStack(STACK, [{ OutputKey: 'SomethingElse', OutputValue: 'x' }]);
 
-        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food']);
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', MIGRATIONS_DIR]);
 
         expect(result.status).toBe(1);
         expect(result.stdout).toMatch(/publishes no 'FoodMigrationFunctionName' output/);
@@ -187,7 +196,7 @@ describe('run — the safety net resolves, invokes, and reads the answer', () =>
         // Prod's recipe stack has never been deployed. Failing here would red every prod deploy until every
         // feature service has shipped once — and a service's absence is the deploy gate's concern, not this
         // script's. The skip is announced so it can never read as a successful migration.
-        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food']);
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', MIGRATIONS_DIR]);
 
         expect(result.status).toBe(0);
         expect(result.stdout).toMatch(/::notice::/);
@@ -199,9 +208,65 @@ describe('run — the safety net resolves, invokes, and reads the answer', () =>
 
         // An empty payload with no FunctionError is "the CLI wrote nothing" — a transport failure dressed as
         // a success, which must not read as a clean migration.
-        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food'], { STUB_INVOKE_PAYLOAD: '' });
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', MIGRATIONS_DIR], { STUB_INVOKE_PAYLOAD: '' });
 
         expect(result.status).toBe(1);
         expect(result.stdout).toMatch(/no payload/i);
+    });
+});
+
+describe('run — the migration manifest travels with the invoke', () => {
+    it('sends the digest of the working tree, so a runner holding a different set can refuse', () => {
+        // ⛔ This is the whole fix for ADR-0022's silent no-op. Without an expectation in the payload, a
+        // PREVIOUS release's runner answers `applied: []` — "I have never heard of these migrations" —
+        // which is byte-identical to "everything was already applied", and the deploy goes green onto an
+        // unmigrated schema.
+        givenStack(STACK, [{ OutputKey: OUTPUT, OutputValue: 'kitchensink-food-migrate-prod' }]);
+
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', MIGRATIONS_DIR], {
+            STUB_INVOKE_PAYLOAD: '{"applied":[]}',
+        });
+
+        expect(result.status, result.stdout + result.stderr).toBe(0);
+
+        const sent = JSON.parse(readFileSync(join(fixtures, 'sent-payload'), 'utf8')) as {
+            action: string;
+            expectManifestSha: string;
+        };
+
+        expect(sent.action).toBe('migrate');
+        expect(sent.expectManifestSha).toBe(readMigrationManifest(MIGRATIONS_DIR).sha);
+    });
+
+    it('reports the expectation in the log, so the deploy record names the set it required', () => {
+        givenStack(STACK, [{ OutputKey: OUTPUT, OutputValue: 'kitchensink-food-migrate-prod' }]);
+
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', MIGRATIONS_DIR], {
+            STUB_INVOKE_PAYLOAD: '{"applied":[]}',
+        });
+
+        expect(result.stdout).toContain(readMigrationManifest(MIGRATIONS_DIR).sha);
+    });
+
+    it('is MISUSE, never a skip, to omit the migrations directory', () => {
+        // ⛔ An optional expectation is one a caller forgets, and a forgotten one behaves exactly like the
+        // bug it replaces. Omitting it has to be louder than getting it wrong, not quieter.
+        givenStack(STACK, [{ OutputKey: OUTPUT, OutputValue: 'kitchensink-food-migrate-prod' }]);
+
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food']);
+
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain('<migrationsDir>');
+    });
+
+    it('FAILS — never invokes — when the migrations directory does not exist', () => {
+        // Computed before the stack is looked up, so a bad path fails on every run rather than only on the
+        // stages that happen to have a stack.
+        givenStack(STACK, [{ OutputKey: OUTPUT, OutputValue: 'kitchensink-food-migrate-prod' }]);
+
+        const result = run(['run', 'us-east-1', STACK, OUTPUT, 'food', join(workdir, 'nope')]);
+
+        expect(result.status).toBe(1);
+        expect(existsSync(join(fixtures, 'sent-payload'))).toBe(false);
     });
 });

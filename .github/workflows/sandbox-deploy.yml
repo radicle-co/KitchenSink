@@ -733,7 +733,8 @@ jobs:
               if: steps.gate.outputs.deploy == 'true'
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-food-service-${STAGE}" FoodMigrationFunctionName food
+                    "kitchensink-food-service-${STAGE}" FoodMigrationFunctionName food \
+                    packages/services/food-service/src/db/migrations
             # Pass 2 — scale the API + worker up now that the image is in ECR and the per-PR DB exists, so
             # tasks boot healthy.
             #
@@ -1275,7 +1276,8 @@ jobs:
               if: steps.gate.outputs.deploy == 'true'
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-recipe-workers-${STAGE}" RecipeWorkersMigrationFunctionName recipe-workers
+                    "kitchensink-recipe-workers-${STAGE}" RecipeWorkersMigrationFunctionName recipe-workers \
+                    packages/services/recipe-service/src/database/migrations
             # Pass 2 — the service, which can only synth once the SSM parameters above exist.
             - name: CDK Deploy — recipe service
               if: steps.gate.outputs.deploy == 'true'
@@ -1315,7 +1317,8 @@ jobs:
               if: steps.gate.outputs.deploy == 'true'
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-recipe-service-${STAGE}" RecipeMigrationFunctionName recipe
+                    "kitchensink-recipe-service-${STAGE}" RecipeMigrationFunctionName recipe \
+                    packages/services/recipe-service/src/database/migrations
             # Read what the RUNNING task is actually configured with, so the smoke step can prove the
             # deployment took effect rather than trusting that `cdk deploy` said "success". Two facts come
             # from the live task definition: the image TAG (currency) and FOOD_SERVICE_URL (cross-service

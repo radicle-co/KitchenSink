@@ -21,13 +21,20 @@
  * `__tests__/integration/database/migrationRunner.integration.test.ts`, which fails with
  * `Key (extname)=(pgcrypto) already exists` without the lock.
  *
- * ## Why a repo-wide gate for a three-line change
+ * ## Why a repo-wide gate, now that there is only ONE apply loop
  *
- * There are THREE runners — identity, food-service, recipe-service — deliberately kept as parallel copies
- * (ADR-0022 rejected a shared `@kitchensink/infra-migrations` package on cost). A copy is exactly what
- * silently loses a property: one of the three gets "simplified", its integration suite still passes because
- * nothing in it runs two runners at once, and that database is back to racing. So the property is asserted
- * where all three are visible at once.
+ * There used to be THREE — identity, food-service, recipe-service — deliberately kept as parallel copies
+ * (ADR-0022 rejected a shared migrations package on cost). That was the shape in which one copy quietly
+ * loses a property the other two keep, and its own suite stays green because nothing in it runs two runners
+ * at once. The three are now one engine, `@kitchensink/db-schema-guard`'s `applyMigrations`, so the risk
+ * moved rather than vanished, and this guard moved with it. It asserts BOTH halves:
+ *
+ *  1. **The engine still serializes** — it acquires, bounds and releases the lock. One implementation is
+ *     easier to keep right, not automatically right, and the property is invisible to any unit test that
+ *     does not run two runners at once.
+ *  2. **Every runner still routes through it** — a fourth service that hand-rolls its own apply loop
+ *     reintroduces the whole failure class, and would otherwise be invisible here precisely BECAUSE the
+ *     engine it declined to use is correct.
  *
  * ⛔ The RELEASE half is not decoration. A session advisory lock outlives the statement that took it, and
  * `client.release()` hands the session back to the pool still holding it — so a runner that acquires and
@@ -59,6 +66,12 @@ const RELEASES = /pg_advisory_unlock\s*\(/u;
  * it the deploy fails saying it could not take the migration lock, which names the actual problem.
  */
 const BOUNDS_THE_WAIT = /lock_timeout/u;
+
+/** The one apply engine every runner delegates to. */
+const ENGINE = 'packages/shared/db-schema-guard/src/applyMigrations.ts';
+
+/** How a runner reaches that engine. */
+const DELEGATES = /from '@kitchensink\/db-schema-guard'/u;
 
 /** One discovered migration runner. */
 interface Runner {
@@ -111,7 +124,7 @@ export function unlockedRunners(found: readonly Runner[]): readonly string[] {
     });
 }
 
-describe('every migration runner serializes its apply loop (ADR-0022, residual risk closed)', () => {
+describe('the migration apply loop serializes (ADR-0022, residual risk closed)', () => {
     it('discovers all three runners', () => {
         // ⛔ The ANCHOR. The assertion below is a flatMap over this list; a path that stopped matching would
         // make it an assertion over nothing, which is how a guard like this goes green having read no code.
@@ -122,12 +135,38 @@ describe('every migration runner serializes its apply loop (ADR-0022, residual r
         ]);
     });
 
-    it('⛔ every one of them acquires, bounds and releases the lock', () => {
+    it('⛔ the ONE engine acquires, bounds and releases the lock', () => {
+        const engine = [{ file: ENGINE, contents: readFileSync(path.join(repoRoot, ENGINE), 'utf8') }];
+
         expect(
-            unlockedRunners(runners()),
-            'three parallel copies is exactly the shape in which one quietly loses a property the other ' +
-                'two keep — and its own suite stays green, because nothing in it runs two runners at once',
+            unlockedRunners(engine),
+            'one implementation is easier to keep right than three, not automatically right — and no unit ' +
+                'test of it runs two runners at once, so nothing else would notice the property going',
         ).toStrictEqual([]);
+    });
+
+    it('⛔ every runner ROUTES THROUGH that engine rather than hand-rolling a loop', () => {
+        // A fourth service that writes its own apply loop reintroduces the entire failure class, and is
+        // invisible to the assertion above precisely BECAUSE the engine it declined to use is correct.
+        const detached = runners()
+            .filter(({ contents }) => !DELEGATES.test(contents))
+            .map(({ file }) => file);
+
+        expect(
+            detached,
+            'these runners do not delegate to @kitchensink/db-schema-guard, so whatever apply loop they ' +
+                'carry is unguarded by the assertion above',
+        ).toStrictEqual([]);
+    });
+
+    it('⛔ no runner carries a SECOND copy of the lock, which would mean a second apply loop', () => {
+        // Delegating and ALSO taking the lock locally is the shape of a half-finished extraction: the engine
+        // is imported, an older loop is still there, and which one runs depends on a call site nobody reads.
+        const doubled = runners()
+            .filter(({ contents }) => ACQUIRES.test(contents))
+            .map(({ file }) => file);
+
+        expect(doubled, 'these runners still take an advisory lock of their own').toStrictEqual([]);
     });
 });
 

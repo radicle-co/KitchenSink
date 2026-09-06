@@ -34,6 +34,11 @@ export { digestManifest, formatManifest, isManifestSha, sha256Hex } from './mani
 export type { ManifestEntry } from './manifest.js';
 
 export { readMigrationManifest } from './manifestFile.js';
+
+export { applyMigrations, discoverMigrations } from './applyMigrations.js';
+export type { ApplyMigrationsOptions, DiscoveredMigration, MigrateResult } from './applyMigrations.js';
+
+export type { MigrationClient, MigrationPool, MigrationQueryResult } from './port.js';
 export type { MigrationManifest } from './manifestFile.js';
 
 export { assertManifestMatches, assertSchemaCurrent, missingMigrations } from './assertions.js';

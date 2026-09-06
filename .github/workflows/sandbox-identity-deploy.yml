@@ -381,7 +381,8 @@ jobs:
             - name: Run identity DB migrations (always — ADR-0022 §4 safety net)
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-identity-service-${STAGE}" IdentityMigrationFunctionName identity
+                    "kitchensink-identity-service-${STAGE}" IdentityMigrationFunctionName identity \
+                    packages/services/identity/src/database/migrations
 
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'

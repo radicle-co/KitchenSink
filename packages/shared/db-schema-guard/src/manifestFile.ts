@@ -21,6 +21,14 @@ export interface MigrationManifest {
     readonly text: string;
     /** The digest of {@link MigrationManifest.text}. */
     readonly sha: string;
+    /**
+     * Each migration's SQL, keyed by filename.
+     *
+     * ⛔ Read ONCE, alongside the bytes that were digested, and applied from here — never re-read from disk
+     * at apply time. The manifest's whole claim is that what ran is what was digested, and two reads of the
+     * same path are two chances for that to stop being true.
+     */
+    readonly bodies: ReadonlyMap<string, string>;
 }
 
 /**
@@ -44,8 +52,15 @@ export function readMigrationManifest(migrationsDir: string): MigrationManifest 
         throw new EmptyMigrationSetError(migrationsDir);
     }
 
-    const entries = migrations.map((name) => ({ name, sha256: sha256Hex(readFileSync(join(migrationsDir, name))) }));
+    const bodies = new Map<string, string>();
+    const entries = migrations.map((name) => {
+        const bytes = readFileSync(join(migrationsDir, name));
+
+        bodies.set(name, bytes.toString('utf8'));
+
+        return { name, sha256: sha256Hex(bytes) };
+    });
     const text = formatManifest(entries);
 
-    return { migrations, entries, text, sha: digestManifest(text) };
+    return { migrations, entries, text, sha: digestManifest(text), bodies };
 }

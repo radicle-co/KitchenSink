@@ -48,7 +48,7 @@ async function loadHarness(): Promise<Harness> {
 
     // A k6 ES module — plain JavaScript, whose types TypeScript infers from the source. The alias in
     // `vitest.config.ts` supplies `k6/http`, which has no npm package to resolve.
-    const module = await import('../../../tools/loadtest/k6/session.js');
+    const module = await import('../k6/session.js');
     const stub = await import('./support/k6HttpStub.js');
 
     stub.reset();

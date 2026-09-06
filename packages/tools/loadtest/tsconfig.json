@@ -3,8 +3,9 @@
     "extends": "@kitchensink/typescript/base.json",
     "compilerOptions": {
         "noEmit": true,
-        "rootDir": "."
+        "rootDir": ".",
+        "allowJs": true
     },
-    "include": ["src/**/*.ts", "provisionPool.ts", "printLoadTier.ts"],
+    "include": ["src/**/*.ts", "provisionPool.ts", "printLoadTier.ts", "vitest.config.ts", "__tests__/**/*.ts"],
     "exclude": ["node_modules"]
 }

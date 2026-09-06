@@ -11,10 +11,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    CATALOG_PROBE_QUERY,
     CATALOG_SEED_NAMES,
     classifyCatalog,
     findCatalogShortfalls,
+    findProbeShortfall,
+    MIN_PROBE_RESULTS,
     MIN_RESOLVED_FOODS,
+    pickCandidate,
     seedFoodCatalog,
     sharedHeadTermCount,
     type CatalogEntry,
@@ -159,5 +163,104 @@ describe('seedFoodCatalog', () => {
         await expect(seedFoodCatalog(['chicken breast'], d)).rejects.toThrow(
             /still PENDING after 1000ms \(chicken breast\)[\s\S]*USDA_API_KEY/,
         );
+    });
+});
+
+describe('findProbeShortfall', () => {
+    it('passes when the probe returns enough rows', () => {
+        expect(findProbeShortfall(CATALOG_PROBE_QUERY, MIN_PROBE_RESULTS)).toEqual([]);
+    });
+
+    it('fails on exactly one row — the suite asserts strictly MORE than one', () => {
+        // The off-by-one that matters: a catalog holding a single `chicken breast` row satisfies every
+        // count-based check and still fails the suite on its first assertion.
+        expect(findProbeShortfall(CATALOG_PROBE_QUERY, 1)).toHaveLength(1);
+        expect(findProbeShortfall(CATALOG_PROBE_QUERY, 0)[0]).toContain('returned 0 row(s)');
+    });
+
+    it('names the query, so the fix is obvious from the log alone', () => {
+        expect(findProbeShortfall('chicken breast', 1)[0]).toContain('"chicken breast"');
+    });
+});
+
+describe('the probe query is the one the suite issues', () => {
+    it('is a name the seed actually asks for', () => {
+        // ⛔ If these two drift, the seed proves a query nobody runs and the suite runs a query nobody
+        // seeded — which is the shape of the original failure, one layer up.
+        expect(CATALOG_SEED_NAMES).toContain(CATALOG_PROBE_QUERY);
+    });
+});
+
+describe('pickCandidate', () => {
+    it('takes the service"s own first entry', () => {
+        expect(
+            pickCandidate([
+                { candidateId: 'c1', name: 'a' },
+                { candidateId: 'c2', name: 'b' },
+            ]),
+        ).toBe('c1');
+    });
+
+    it('answers undefined for an empty set rather than throwing', () => {
+        expect(pickCandidate([])).toBeUndefined();
+    });
+});
+
+describe('seedFoodCatalog — the disambiguation half', () => {
+    it('walks the flow for an UNRESOLVED food and reports it RESOLVED', async () => {
+        // ⛔ The step without which the seed produced 3 of 10 rows on a live preview. `UNRESOLVED` is the
+        // food service working as designed, not a failure — it defers to the disambiguation a user sees.
+        const resolve = vi.fn().mockResolvedValue(undefined);
+        const outcome = await seedFoodCatalog(['butter'], {
+            ...deps({ batch: vi.fn().mockResolvedValue([item('b', 'UNRESOLVED')]) }),
+            candidates: vi.fn().mockResolvedValue([{ candidateId: 'c1', name: 'Butter, salted' }]),
+            resolve,
+        });
+
+        expect(resolve).toHaveBeenCalledWith('b', 'c1');
+        expect(outcome.resolved).toEqual([{ name: 'butter', id: 'b', status: 'RESOLVED' }]);
+    });
+
+    it('never touches a food that is already RESOLVED', async () => {
+        const candidates = vi.fn();
+        await seedFoodCatalog(['milk'], {
+            ...deps({ batch: vi.fn().mockResolvedValue([item('m', 'RESOLVED')]) }),
+            candidates,
+            resolve: vi.fn(),
+        });
+
+        expect(candidates).not.toHaveBeenCalled();
+    });
+
+    it('leaves a food with NO candidates unresolved, and says so, rather than failing the run', async () => {
+        const outcome = await seedFoodCatalog(['unobtainium'], {
+            ...deps({ batch: vi.fn().mockResolvedValue([item('u', 'UNRESOLVED')]) }),
+            candidates: vi.fn().mockResolvedValue([]),
+            resolve: vi.fn(),
+        });
+
+        expect(outcome.rejected).toEqual([{ name: 'unobtainium', id: 'u', status: 'UNRESOLVED' }]);
+    });
+
+    it('survives a refused PATCH and keeps going with the rest', async () => {
+        const outcome = await seedFoodCatalog(['butter', 'milk'], {
+            ...deps({ batch: vi.fn().mockResolvedValue([item('b', 'UNRESOLVED'), item('m', 'UNRESOLVED')]) }),
+            candidates: vi.fn().mockResolvedValue([{ candidateId: 'c1', name: 'x' }]),
+            resolve: vi.fn().mockRejectedValueOnce(new Error('409 conflict')).mockResolvedValue(undefined),
+        });
+
+        expect(outcome.resolved.map((e) => e.name)).toEqual(['milk']);
+        expect(outcome.rejected.map((e) => e.name)).toEqual(['butter']);
+    });
+
+    it('is a no-op when the caller supplies no disambiguation seam', async () => {
+        const outcome = await seedFoodCatalog(
+            ['butter'],
+            deps({
+                batch: vi.fn().mockResolvedValue([item('b', 'UNRESOLVED')]),
+            }),
+        );
+
+        expect(outcome.rejected.map((e) => e.status)).toEqual(['UNRESOLVED']);
     });
 });

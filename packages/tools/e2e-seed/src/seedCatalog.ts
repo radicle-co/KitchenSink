@@ -17,7 +17,14 @@ import { establishSession, remintFromSession, resolveRunKey } from '@kitchensink
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 
 import { readSeedEnvironment } from './env.js';
-import { CATALOG_SEED_NAMES, findCatalogShortfalls, seedFoodCatalog, type CatalogItem } from './foodCatalog.js';
+import {
+    CATALOG_PROBE_QUERY,
+    CATALOG_SEED_NAMES,
+    findCatalogShortfalls,
+    findProbeShortfall,
+    seedFoodCatalog,
+    type CatalogItem,
+} from './foodCatalog.js';
 import { deriveFixtureManifest } from './fixtureManifest.js';
 import { memoizingTokenSource } from './tokenSource.js';
 
@@ -56,6 +63,14 @@ const outcome = await seedFoodCatalog(CATALOG_SEED_NAMES, {
     now: Date.now,
     sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     log: (message) => console.error(message),
+    // The disambiguation half. `UNRESOLVED` is the food service working as designed — USDA returned
+    // several rows and it declines to guess — and on a live preview SEVEN of ten ordinary names came back
+    // that way, `butter` among them. Walking the flow a user's client would walk is what makes the seed
+    // produce a catalog rather than three rows.
+    candidates: async (id) => (await client.getCandidates(id)).candidates,
+    resolve: async (id, candidateId) => {
+        await client.resolve(id, [candidateId]);
+    },
 });
 
 // ⚠️ REPORTED, ALWAYS — including on the happy path. A name USDA cannot disambiguate is a fact worth
@@ -65,7 +80,14 @@ for (const entry of outcome.rejected) {
     console.error(`e2e-seed seed-catalog: "${entry.name}" settled as ${entry.status} — not searchable`);
 }
 
-const shortfalls = findCatalogShortfalls(outcome);
+// ⛔ ASK THE SERVICE, do not infer. The two pure checks below reason about the names we asked for; this
+// one issues the search the linkage suite itself issues, which is the only thing that can tell us whether
+// food's `plainto_tsquery` AND-ing actually matches the rows USDA returned.
+const probe = await client.search(CATALOG_PROBE_QUERY);
+const shortfalls = [
+    ...findCatalogShortfalls(outcome),
+    ...findProbeShortfall(CATALOG_PROBE_QUERY, probe.results.length),
+];
 
 if (shortfalls.length > 0) {
     // ⛔ The postcondition, not the source's answers. A suite run against a catalog that quietly came up

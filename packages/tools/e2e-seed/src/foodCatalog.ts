@@ -49,13 +49,22 @@ export interface CatalogItem {
  * the k6 food scenarios read the same rows.
  */
 export const CATALOG_SEED_NAMES: readonly string[] = [
+    // ⛔ THREE BREAST VARIANTS, not four different cuts, and the difference is load-bearing. Food's search
+    // runs `plainto_tsquery`, which ANDs its lexemes: a query of `chicken breast` becomes
+    // `'chicken' & 'breast'`, so `Chicken, broilers or fryers, THIGH…` does not match on the full-text
+    // branch however much it shares a first word. Only rows whose USDA name carries BOTH lexemes reliably
+    // come back, so the probe needs siblings of ITSELF rather than of its head term.
     'chicken breast',
+    'chicken breast roasted',
+    'chicken breast grilled',
+    // Kept for head-term diversity, and because a cut that is not the probe is what proves the search is
+    // discriminating rather than returning everything.
     'chicken thigh',
-    'chicken drumstick',
-    'chicken wing',
     'butter',
     'olive oil',
-    'egg',
+    // ⚠️ `egg` alone came back UNRESOLVED from a live run — USDA offered candidates the service could not
+    // pick between. Specific enough to settle, and the rejection path is exercised whether or not it does.
+    'whole egg',
     'milk',
     'wheat flour',
     'granulated sugar',
@@ -112,6 +121,31 @@ export function classifyCatalog(items: readonly CatalogItem[]): CatalogProgress 
     return { resolved, pending, failed };
 }
 
+/** One candidate the service offered for an ambiguous name. */
+export interface CatalogCandidate {
+    readonly candidateId: string;
+    readonly name: string;
+}
+
+/**
+ * Which candidate to pick for an ambiguous food. Pure.
+ *
+ * ⛔ THE SERVICE'S OWN FIRST, never a choice of ours. `UNRESOLVED` is not a failure — it is the food
+ * service working as designed: USDA returned several rows and the service declines to guess, deferring to
+ * the disambiguation flow a user would see. Measured on a live preview, SEVEN of ten ordinary names came
+ * back that way, `butter` and `wheat flour` among them, so a seed that waits for auto-resolution seeds
+ * almost nothing.
+ *
+ * Taking the first entry the service returns is not inventing data: every candidate is a real USDA food
+ * from that food's own set, and the pick is validated against it server-side. It is not necessarily the
+ * BEST one — `candidateViewSchema` publishes no rank — and for a fixture whose purpose is "a searchable
+ * row carrying macros" that distinction does not matter. It would matter for a nutrition ASSERTION about
+ * a specific food, and no suite makes one.
+ */
+export function pickCandidate(candidates: readonly CatalogCandidate[]): string | undefined {
+    return candidates[0]?.candidateId;
+}
+
 /**
  * The floor a seeded catalog must clear to be worth running a suite against.
  *
@@ -139,6 +173,39 @@ export function sharedHeadTermCount(entries: readonly CatalogEntry[]): number {
     }
 
     return Math.max(0, ...byHead.values());
+}
+
+/**
+ * The query a seeded catalog must be able to answer with MORE THAN ONE row.
+ *
+ * ⛔ It is the literal string `recipeFoodLinkage.e2e.test.ts` searches for, and the coupling is deliberate.
+ * "Usable" is not an abstract property — it is precisely "the search the suite will issue returns enough
+ * rows", and food's search ANDs its lexemes (`plainto_tsquery`) with a trigram branch beside it, so
+ * whether four `chicken …` names all match `chicken breast` is a question about the data USDA returned
+ * rather than about the names we asked for. Guessing costs a ten-minute round trip; asking costs one HTTP
+ * call at the end of the seed.
+ */
+export const CATALOG_PROBE_QUERY = 'chicken breast';
+
+/** How many rows that probe must return — the suite asserts strictly more than one. */
+export const MIN_PROBE_RESULTS = 2;
+
+/**
+ * Why the seeded catalog cannot answer the probe, if it cannot. Empty means it can. Pure.
+ *
+ * Separate from {@link findCatalogShortfalls} because it needs an answer from the SERVICE, and keeping the
+ * judgement pure is what lets the caller decide when to pay for that call.
+ */
+export function findProbeShortfall(query: string, resultCount: number): readonly string[] {
+    if (resultCount >= MIN_PROBE_RESULTS) {
+        return [];
+    }
+
+    return [
+        `searching the seeded catalog for "${query}" returned ${resultCount} row(s); the linkage suite ` +
+            `requires more than one. Food's search ANDs its lexemes, so names that merely share a first ` +
+            `word may not match — seed more variants of the probe itself.`,
+    ];
 }
 
 /**
@@ -178,6 +245,9 @@ export interface CatalogSeedDeps {
     readonly deadlineMs?: number;
     readonly pollMs?: number;
     readonly log?: (message: string) => void;
+    /** The disambiguation half — omit to skip it (the unit tests that are not about it do). */
+    readonly candidates?: (id: string) => Promise<readonly CatalogCandidate[]>;
+    readonly resolve?: (id: string, candidateId: string) => Promise<void>;
 }
 
 /**
@@ -248,9 +318,59 @@ export async function seedFoodCatalog(names: readonly string[], deps: CatalogSee
     }
 
     const entries = [...settled].map(([id, status]) => ({ id, status, name: nameOf.get(id) ?? id }));
+    const disambiguated = await disambiguate(entries, deps, log);
 
     return {
-        resolved: entries.filter((entry) => entry.status === 'RESOLVED'),
-        rejected: entries.filter((entry) => entry.status !== 'RESOLVED'),
+        resolved: disambiguated.filter((entry) => entry.status === 'RESOLVED'),
+        rejected: disambiguated.filter((entry) => entry.status !== 'RESOLVED'),
     };
+}
+
+/**
+ * Walk the disambiguation flow for every `UNRESOLVED` food, exactly as a user's client would.
+ *
+ * ⛔ This is the step that makes the seed work at all. Without it a live preview resolved 3 of 10 names.
+ *
+ * Failures here are per-food and non-fatal: a food with an empty candidate set, or a `PATCH` the service
+ * refuses, leaves that name unresolved and reported. Whether what remains is enough is the postcondition's
+ * question, not this function's.
+ *
+ * @sideEffect One candidates read and one resolve write per ambiguous food.
+ */
+async function disambiguate(
+    entries: readonly CatalogEntry[],
+    deps: CatalogSeedDeps,
+    log: (message: string) => void,
+): Promise<readonly CatalogEntry[]> {
+    if (deps.candidates === undefined || deps.resolve === undefined) {
+        return entries;
+    }
+
+    const settled: CatalogEntry[] = [];
+
+    for (const entry of entries) {
+        if (entry.status !== 'UNRESOLVED') {
+            settled.push(entry);
+            continue;
+        }
+
+        try {
+            const pick = pickCandidate(await deps.candidates(entry.id));
+
+            if (pick === undefined) {
+                log(`catalog seed: "${entry.name}" is UNRESOLVED and offered no candidates`);
+                settled.push(entry);
+                continue;
+            }
+
+            await deps.resolve(entry.id, pick);
+            log(`catalog seed: "${entry.name}" disambiguated to candidate ${pick}`);
+            settled.push({ ...entry, status: 'RESOLVED' });
+        } catch (error) {
+            log(`catalog seed: could not disambiguate "${entry.name}": ${String(error)}`);
+            settled.push(entry);
+        }
+    }
+
+    return settled;
 }

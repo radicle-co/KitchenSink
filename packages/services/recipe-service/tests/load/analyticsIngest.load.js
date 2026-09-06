@@ -1,6 +1,7 @@
 // U4 — analytics ingest scenario (analytics plan U4 / origin R13, SC4's load half).
 //
-// @loadTier deployed-capable — every input is minted per iteration; its only substrate need was the raised per-user rate cap, which a pool removes
+// @loadTier deployed-capable — every input is minted per iteration; its only substrate need was the raised per-user
+//   rate cap, which a pool removes
 //
 // Drives POST /ingest/v1/events under ramping concurrency. This route earns a scenario because its load
 // properties are exactly what the design promises and only concurrency can test:

@@ -1,7 +1,14 @@
 // Local-store read THROUGHPUT scenario — SC-005 ("the read API MUST sustain a high local-store serve
-//
-// @loadTier substrate-bound — same 175,000-row fixture, and its thresholds measure the MACHINE's ability to absorb 100 requests a second
 // throughput ... comfortably exceeding 5,000 served reads per hour").
+//
+// @loadTier substrate-bound — same 175,000-row fixture, and its thresholds measure the MACHINE's ability to absorb
+//   100 requests a second
+// ⚠️ WEAK BUDGET, and the owner was told on 2026-09-06. `SUSTAIN_FRACTION` thresholds the MACHINE's ability to absorb
+// the offered rate, so the number belongs to whatever box happened to run it. It is kept rather than deleted because
+// the accepted-loss list in `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` IS the record that these gates
+// no longer run — deleting the script would remove the record, not the gap. Treat a green run as an ALGORITHMIC
+// regression check (a dropped index shows as a large multiple on any substrate), never as evidence of production
+// capacity.
 //
 // Deliberately a SEPARATE script from `localStoreRead.load.js`, and deliberately a different executor.
 //

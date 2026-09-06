@@ -1,6 +1,7 @@
 // U9 — parse-job create scenario (plan U9, origin D9/R13).
 //
-// @loadTier deployed-capable — paste text is generated rather than opened; it enqueues to the stage's own SQS and CRF Lambda
+// @loadTier deployed-capable — paste text is generated rather than opened; it enqueues to the stage's own SQS and CRF
+//   Lambda
 //
 // Drives POST /api/v1/recipe-parse-jobs under ramping concurrency. This route earns its own scenario
 // because its cost under load is a FAN-OUT property no other endpoint has: one synchronous request writes

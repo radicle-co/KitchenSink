@@ -1,6 +1,7 @@
 // Service-principal account-erasure load scenario (CR-002 / U4a — the internal machine-auth route).
 //
-// @loadTier substrate-bound — the service MUST be booted trusting a throwaway EdDSA public key; a deployed stage trusts the real signer
+// @loadTier substrate-bound — the service MUST be booted trusting a throwaway EdDSA public key; a deployed stage
+//   trusts the real signer
 //
 // Exercises `POST /api/v1/internal/account/erasure`, guarded NOT by Clerk but by a single-target EdDSA service
 // token (`ServiceErasureGuard`). Two ramping-vus scenarios run together:

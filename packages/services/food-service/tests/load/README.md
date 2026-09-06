@@ -35,6 +35,18 @@ this `tests/load/` directory (vitest's `include` matches only `*.test.ts`).
 
 ## Scripts
 
+> ### ⚠️ Four of these budgets are WEAK, and the owner was told (2026-09-06)
+>
+> `localStoreRead`, `localStoreThroughput`, `search` and `nutritionBatch` measure a store that
+> `preparePerfFixture.ts` seeds — and in the first two cases the fixture SETS the very figure the threshold
+> then checks (the 90% local-serve share; the offered arrival rate). Their numbers describe a seeded corpus
+> on whichever box ran them, never production capacity.
+>
+> They are kept rather than deleted **because the accepted-loss list in
+> `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` IS the record that these gates no longer run** —
+> deleting the scripts would remove the record, not the gap. Read a green run as an algorithmic regression
+> check (a dropped index shows as a large multiple on any substrate), never as evidence of capacity.
+
 | Script                         | Requirement     | Asserts (via `options.thresholds`)                                                                       |
 | ------------------------------ | --------------- | -------------------------------------------------------------------------------------------------------- |
 | `localStoreRead.load.js`       | SC-001 + SC-004 | `GET /foods/{id}` for a `RESOLVED` food p95 ≤ 50ms; local-store serve rate > 80% over a mixed id set     |

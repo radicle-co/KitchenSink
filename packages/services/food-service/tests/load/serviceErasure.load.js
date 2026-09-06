@@ -1,6 +1,7 @@
 // Service-principal account-erasure load scenario (CR-002 / U4b — food's internal machine-auth route).
 //
-// @loadTier substrate-bound — the service MUST be booted trusting a throwaway EdDSA public key it cannot hold deployed
+// @loadTier substrate-bound — the service MUST be booted trusting a throwaway EdDSA public key it cannot hold
+//   deployed
 //
 // The food mirror of recipe-service's `serviceErasure.load.js`. Exercises `POST /api/v1/internal/account/erasure`,
 // guarded NOT by Clerk but by a single-target EdDSA service token pinning the FOOD audience

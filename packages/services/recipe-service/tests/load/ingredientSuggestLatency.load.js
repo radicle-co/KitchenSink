@@ -1,6 +1,7 @@
 // Blended-ingredient-typeahead latency scenario (search Stage 2).
 //
-// @loadTier deployed-capable — it accepts ok/unavailable/disabled alike — the budget is a degradation bound, not a demand that the catalog be down
+// @loadTier deployed-capable — it accepts ok/unavailable/disabled alike — the budget is a degradation bound, not a
+//   demand that the catalog be down
 //
 // Drives GET /api/v1/ingredients/suggest under ramping concurrency. This route is the one place in the recipe
 // service where a CROSS-SERVICE HTTP call sits on a PER-KEYSTROKE path, so it is also the one place where the

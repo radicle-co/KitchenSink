@@ -1,6 +1,7 @@
 // U14 — ingredient-correction write scenario (plan U14 / R19, R20).
 //
-// @loadTier deployed-capable — phrases are literals and food ids are opaque; its subject is a row lock, which only a real database has
+// @loadTier deployed-capable — phrases are literals and food ids are opaque; its subject is a row lock, which only a
+//   real database has
 //
 // Drives POST /api/v1/ingredients/corrections under ramping concurrency. This route earns its own scenario
 // rather than a case inside `sc009ReadWrite.load.js` because the property under load is not a query cost —

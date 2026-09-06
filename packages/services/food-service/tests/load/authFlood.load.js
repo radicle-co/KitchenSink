@@ -1,6 +1,7 @@
 // The auth-rejection path under a SOURCE-KEY-ROTATING flood — FR-052/SC-009/SC-011, and finding 02.F-F1.
 //
-// @loadTier deployed-capable — MORE meaningful deployed: its premise is that the shared ALB APPENDS to X-Forwarded-For, which a runner-local container cannot do
+// @loadTier deployed-capable — MORE meaningful deployed: its premise is that the shared ALB APPENDS to X-Forwarded-
+//   For, which a runner-local container cannot do
 //
 // WHY THIS NEEDS A TIMED TIER AND NOT ANOTHER UNIT TEST. `AuthLoadShedder` defends a networkless verifier
 // by counting `401`s per source and shedding a source that crosses the cap before any signature work runs.

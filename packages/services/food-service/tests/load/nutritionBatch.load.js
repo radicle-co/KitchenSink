@@ -1,6 +1,12 @@
 // The batch nutrition endpoint under load — plan U8, and the per-request id cap as a DoS bound.
 //
-// @loadTier substrate-bound — same fixture; the over-cap scenario needs 101 DISTINCT resolved ids, more than a seeded preview catalog holds
+// @loadTier substrate-bound — same fixture; the over-cap scenario needs 101 DISTINCT resolved ids, more than a seeded
+//   preview catalog holds
+// ⚠️ WEAK BUDGET, and the owner was told on 2026-09-06. The cap behaviour it proves is real, but the latency figure
+// is against a fixture-sized store rather than a production one. It is kept rather than deleted because the accepted-
+// loss list in `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` IS the record that these gates no longer
+// run — deleting the script would remove the record, not the gap. Treat a green run as an ALGORITHMIC regression
+// check (a dropped index shows as a large multiple on any substrate), never as evidence of production capacity.
 //
 // WHY THIS NEEDS A TIMED TIER AND NOT ANOTHER e2e. `GET /api/v1/foods/nutrition?ids=…` is the one route
 // whose cost is chosen by the CALLER: `FoodsService.getNutritionBatch` fans out over `ids.length`

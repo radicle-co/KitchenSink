@@ -1,6 +1,13 @@
 // Local-store golden-record read scenario — SC-001 (read latency) and SC-004 (local-store serve rate).
 //
-// @loadTier substrate-bound — its fixture writes ~175,000 rows straight to DATABASE_URL and SETS the resolved share the threshold then measures
+// @loadTier substrate-bound — its fixture writes ~175,000 rows straight to DATABASE_URL and SETS the resolved share
+//   the threshold then measures
+// ⚠️ WEAK BUDGET, and the owner was told on 2026-09-06. Its 90% local-serve figure is SET by
+// `preparePerfFixture.ts`'s id mix, so the threshold measures the fixture's shape as much as the service's. It is
+// kept rather than deleted because the accepted-loss list in
+// `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` IS the record that these gates no longer run — deleting
+// the script would remove the record, not the gap. Treat a green run as an ALGORITHMIC regression check (a dropped
+// index shows as a large multiple on any substrate), never as evidence of production capacity.
 //
 // Exercises `GET /api/v1/foods/{id}` against a store seeded by `preparePerfFixture.ts`, behind the REAL
 // `FoodAuthGuard` (a networkless RS256 Clerk verification against a throwaway key). NO source call is made

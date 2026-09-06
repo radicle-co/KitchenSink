@@ -1,7 +1,14 @@
 // Local search scenario — SC-007 ("Food search queries against a local store of up to 50,000 foods MUST
-//
-// @loadTier substrate-bound — it asserts hit counts per shape, and the alias and barcode shapes need seeded rows a USDA-synced preview has not got
 // return results (canonical ids) within 200ms at p95").
+//
+// @loadTier substrate-bound — it asserts hit counts per shape, and the alias and barcode shapes need seeded rows a
+//   USDA-synced preview has not got
+// ⚠️ WEAK BUDGET, and the owner was told on 2026-09-06. Its budget is stated 'at 50,000 foods' and the fixture
+// supplies exactly that corpus, so the figure describes a seeded store rather than a real one. It is kept rather than
+// deleted because the accepted-loss list in `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` IS the record
+// that these gates no longer run — deleting the script would remove the record, not the gap. Treat a green run as an
+// ALGORITHMIC regression check (a dropped index shows as a large multiple on any substrate), never as evidence of
+// production capacity.
 //
 // Exercises `GET /api/v1/foods/search?query=` against the 50,000-food population `preparePerfFixture.ts`
 // seeds. Search is LOCAL-ONLY by requirement (FR-009) — `FoodsService.search` never reaches an adapter — so

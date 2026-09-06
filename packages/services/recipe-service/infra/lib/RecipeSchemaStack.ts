@@ -136,12 +136,16 @@ export class RecipeSchemaStack extends Stack {
         // treats a stack that EXISTS but publishes no such output as a FAILURE — that is a runner which
         // lost its `CfnOutput`, which is precisely how a migration path becomes unreachable while every
         // check stays green.
-        // ⚠️ NO `exportName`, and that is deliberate. Both readers — `run-migrations.sh run` and
-        // `teardown-sandbox-pr.sh` §1, which discovers per-PR database drop doors by the shape
-        // `^[A-Za-z]+MigrationFunctionName$` — read `describe-stacks --query 'Stacks[0].Outputs'`, which
-        // needs no export. An export would let something `Fn.importValue` it and reintroduce the
-        // "cannot delete export … as it is in use" deadlock, on the one stack a per-PR teardown must be
-        // able to delete.
+        // ⚠️ NO `exportName`, and that is deliberate. Its reader is `run-migrations.sh run`, which resolves
+        // the function through `describe-stacks --query 'Stacks[0].Outputs'` and needs no export. An export
+        // would let something `Fn.importValue` it and reintroduce the "cannot delete export … as it is in
+        // use" deadlock, on a stack a per-PR teardown must always be able to delete.
+        //
+        // ⛔ It is NOT a per-PR database drop door. `teardown-sandbox-pr.sh` §1 used to discover doors on
+        // each stack by this output's shape and invoke them with `{"action":"drop"}`; that was repointed to
+        // `PerPrDatabaseReaperFunction` in `DataStack` (ADR-0031) precisely because a door inside the stack
+        // whose database it drops is unreachable once that stack is deleted or stuck. Reclamation is the
+        // reaper's; this output's only job is to make the schema reachable for MIGRATION.
         new CfnOutput(this, 'RecipeMigrationFunctionName', { value: migrationFn.functionName });
     }
 }

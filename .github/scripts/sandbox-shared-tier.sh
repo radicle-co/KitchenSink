@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Delete the SHARED sandbox tier's two reclaimable stacks — the on-demand half of ADR-0028.
+# Delete the SHARED sandbox tier's reclaimable stacks — the on-demand half of ADR-0028.
 #
 # ⚠️  READ THIS BEFORE EDITING. Every other teardown in this repository is safe because it only ever matches
 # `pr-{N}` (ADR-0005, `pr-scope.sh`). This script is the single exception: it deletes stacks whose names end
@@ -20,6 +20,13 @@
 # exactly ONE importer left now that the per-PR stacks are reaped: `kitchensink-identity-service-sandbox`
 # (it imports SharedAlbHttpsListenerArn, SharedAlbDnsName and SharedAlbCanonicalHostedZoneId to attach its
 # host rule and its A-record). So the identity service comes out first, or neither comes out at all.
+#
+# ⚠️ `kitchensink-identity-schema-sandbox` joins the list as the OWNER'S RULING (2026-09-06), not because
+# anything forces it: it holds one Lambda, imports only the persistent network/data exports, publishes no
+# export anybody imports, and costs nothing while idle — so it blocks no deletion and reclaiming it saves
+# no money. It comes out WITH the tier for uniformity with the per-PR schema stacks, which are reaped by
+# tag like every other `pr-{N}` resource. Its place in the order is free for the same reason: nothing
+# imports it, so it cannot deadlock in either position.
 #
 # ⛔ What is NOT in the list, and must never be added:
 #   - `kitchensink-data-sandbox`     — the RDS instance and every per-PR logical database (ADR-0006). The
@@ -46,6 +53,7 @@ set -uo pipefail
 # script. Adding a name here is a decision about destroying shared infrastructure, not a refactor.
 SHARED_TIER_DELETE_ORDER=(
     'kitchensink-identity-service-sandbox'
+    'kitchensink-identity-schema-sandbox'
     'kitchensink-alb-sandbox'
 )
 

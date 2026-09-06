@@ -827,15 +827,15 @@ describe('the schema deploys and migrates AHEAD of the service, in its own stack
      * `kitchensink-recipe-schema-{stage}` now holds the one runner, deployed and invoked by its own pipeline
      * step ahead of BOTH apps. That is strictly more coverage than two in-stack barriers gave.
      */
-    it('the schema stack ships exactly one Lambda — the runner — and publishes it as a drop door', () => {
+    it('the schema stack ships exactly one Lambda — the runner — and publishes its name', () => {
         const template = synthSchemaTemplate('test', 'test');
         const outputs = template.findOutputs('*') as Record<string, { Value?: { Ref?: string }; Export?: unknown }>;
         const doors = Object.keys(outputs).filter((key) => /^[A-Za-z]+MigrationFunctionName$/.test(key));
 
         expect(doors).toStrictEqual(['RecipeMigrationFunctionName']);
-        // ⚠️ An OUTPUT, not an EXPORT: `teardown-sandbox-pr.sh` reads `describe-stacks --query
+        // ⚠️ An OUTPUT, not an EXPORT: `run-migrations.sh run` reads `describe-stacks --query
         // 'Stacks[0].Outputs'`, and an export would let something `Fn.importValue` it and block the deletion
-        // of the one stack a per-PR teardown must always be able to delete.
+        // of a stack a per-PR teardown must always be able to delete.
         expect(outputs['RecipeMigrationFunctionName']?.Export).toBeUndefined();
         expect(Object.keys(template.findResources('AWS::Lambda::Function'))).toStrictEqual([
             outputs['RecipeMigrationFunctionName']?.Value?.Ref,

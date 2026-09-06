@@ -803,23 +803,16 @@ describe('RecipeWorkersStack — account erasure', () => {
         });
     });
 
-    it('publishes NO drop door — the one that matters now belongs to the schema stack', () => {
-        // ⛔ THE DOOR TO A PREVIEW'S LOGICAL DATABASE, and where it went. `teardown-sandbox-pr.sh` §1
-        // discovers per-PR database drop doors BY SHAPE — any stack output whose key matches
-        // `^[A-Za-z]+MigrationFunctionName$` — across the stacks a PR actually has.
+    it('publishes NO migration-runner output — one runner per database means one output', () => {
+        // This stack used to publish one, and it began life as a per-PR database drop door:
+        // `teardown-sandbox-pr.sh` §1 discovered doors across a PR's own stacks by the shape
+        // `^[A-Za-z]+MigrationFunctionName$`. That mechanism was repointed to `PerPrDatabaseReaperFunction`
+        // in `DataStack` (ADR-0031), because a door inside the stack whose database it drops is unreachable
+        // exactly when it is needed — a deleted or stuck stack publishes no outputs at all.
         //
-        // This stack used to publish one because it shipped a migration runner whose trigger called
-        // `ensureDatabaseExists`, so a workers deploy CREATED `kitchensink_recipes_pr_{N}` whether or not
-        // `RecipeServiceStack` ever landed — and it often did not (`deploy-recipe` deploys workers first,
-        // with two hard-failing steps before the service's own `cdk deploy`; ADR-0007 × ADR-0022 wedged
-        // `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED` against the nightly-stopped RDS).
-        // In every such state the only stack the PR had was this one, and without a door the database
-        // leaked silently.
-        //
-        // ⚠️ The guarantee is STRONGER now, not weaker, which is why this assertion inverted rather than
-        // moved. `kitchensink-recipe-schema-{stage}` is deployed FIRST and holds nothing but the runner, so
-        // the door exists whenever the database it creates does — there is no partial state in which the
-        // database was created and the door was not. Discovery is unchanged; the shape match finds it there.
+        // What remains of the output is its MIGRATION role: `run-migrations.sh run` resolves the runner
+        // through it. One runner per database means one output, and it belongs to
+        // `kitchensink-recipe-schema-{stage}`.
         const outputs = template.toJSON().Outputs ?? {};
         const doors = Object.keys(outputs).filter((key) => /^[A-Za-z]+MigrationFunctionName$/.test(key));
 
@@ -1116,10 +1109,10 @@ describe('RecipeWorkersStack — the schema barrier lives in its own stack now',
         expect(runners).toStrictEqual([]);
     });
 
-    it('⛔ publishes no migration-function output — the drop door has ONE home', () => {
-        // `teardown-sandbox-pr.sh` discovers per-PR database doors by SHAPE across a PR's stacks. Two doors
-        // for one database was tolerable; the one that matters is the schema stack's, which is deployed
-        // FIRST and holds nothing but the runner, so it exists whenever the database it creates does.
+    it('⛔ publishes no migration-function output — one runner per database means one output', () => {
+        // The reader is `run-migrations.sh run`, which resolves the runner from the stack's outputs. Two
+        // outputs meant two runners for one database; the one that remains belongs to the schema stack,
+        // which is deployed first and holds nothing but the runner.
         const outputs = synth().findOutputs('*') as Record<string, unknown>;
 
         expect(Object.keys(outputs).filter((name) => name.endsWith('MigrationFunctionName'))).toStrictEqual([]);

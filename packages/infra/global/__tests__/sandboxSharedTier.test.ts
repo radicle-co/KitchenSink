@@ -6,8 +6,9 @@
  *
  * Every other teardown in this repository is safe because of `pr-scope.sh`: it only ever matches `pr-{N}`,
  * and `prScope.test.ts` proves the shared `*-sandbox` names can never be claimed. This script is the single
- * deliberate exception — it deletes `kitchensink-identity-service-sandbox` and `kitchensink-alb-sandbox`,
- * two of the very names that suite forbids everywhere else.
+ * deliberate exception — it deletes `kitchensink-identity-service-sandbox`,
+ * `kitchensink-identity-schema-sandbox` and `kitchensink-alb-sandbox`, three of the very names that suite
+ * forbids everywhere else.
  *
  * So nothing about the shape of a name makes an operation here safe, and the allowlist IS the boundary.
  * These assertions fire the predicate at the four shared-tier stacks that must never be in it — the RDS
@@ -38,8 +39,17 @@ import { describe, expect, it } from 'vitest';
 
 const SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/sandbox-shared-tier.sh', import.meta.url));
 
-/** The two stacks the on-demand tier is allowed to destroy and rebuild, in DELETE order. */
-const RECLAIMABLE = ['kitchensink-identity-service-sandbox', 'kitchensink-alb-sandbox'];
+/** The stacks the on-demand tier is allowed to destroy and rebuild, in DELETE order. */
+const RECLAIMABLE = [
+    'kitchensink-identity-service-sandbox',
+    // ⚠️ The schema stack is here by the owner's ruling, not because anything forces it: it holds one
+    // Lambda, publishes no export anybody imports, and costs nothing idle — so it blocks no deletion and
+    // reclaiming it saves no money. Its POSITION is therefore free, which is exactly why it is pinned: a
+    // future reader who assumes every entry is load-bearing would be wrong about this one and right about
+    // the other two.
+    'kitchensink-identity-schema-sandbox',
+    'kitchensink-alb-sandbox',
+];
 
 /**
  * Every shared name this script must refuse, with the reason refusing it matters.

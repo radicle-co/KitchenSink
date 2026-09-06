@@ -1,6 +1,6 @@
 # 0022 — The schema migration runs INSIDE the deploy, ordered by a Trigger in every stack that touches the database
 
-- **Status**: Accepted
+- **Status**: Superseded by 0035
 - **Date**: 2026-08-19
 - **Drivers**: The same defect rediscovered THREE times, each time from scratch, each time costing an
   incident or a silently-degraded preview:

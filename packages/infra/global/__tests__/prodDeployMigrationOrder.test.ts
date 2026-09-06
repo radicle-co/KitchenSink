@@ -111,6 +111,23 @@ function migrationSteps(steps: readonly IndexedStep[]): readonly IndexedStep[] {
 }
 
 /**
+ * The migrate steps that apply ONE service's database, as command positions in execution order.
+ *
+ * Resolved through the stack each step itself names, so it cannot drift from the step and needs no table.
+ * A job migrates several databases in sequence, and ordering a consumer behind the wrong one is an
+ * assertion that passes for a reason unrelated to the schema that consumer reads.
+ *
+ * @param steps - The job's steps.
+ * @param owner - The service package whose database is being ordered against.
+ * @returns The positions of that database's migrate steps.
+ */
+function migrationStepsFor(steps: readonly IndexedStep[], owner: string): readonly CommandPosition[] {
+    return migrationSteps(steps)
+        .filter((step) => stackTokens(step).some((token) => ownerPackage(token) === owner))
+        .map((step) => ({ step: step.index, offset: 0 }));
+}
+
+/**
  * The CloudFormation stack a migration step resolves its function name from, reduced to the service token
  * in `kitchensink-{token}-${STAGE}`.
  *
@@ -883,14 +900,19 @@ describe('every stack that reads a service database deploys AFTER that schema is
         ]);
     });
 
-    it('⛔ deploys every PEER that reads the database after the migrate step, with no exemption', () => {
+    it('⛔ deploys every PEER that reads the database after THAT DATABASE\u2019s migrate step', () => {
         const violations = sharedDatabaseDeploys().flatMap((pair) => {
-            const migrate = migrationSteps(pair.job.steps)
-                .map((step) => ({ step: step.index, offset: 0 }))
-                .find((position) => position !== undefined);
+            // ⛔ THE PAIR'S OWN MIGRATE STEP, resolved through the stack the step itself names — never
+            // simply the first migrate step in the job. `prod-deploy.yml` runs identity's, then food's,
+            // then recipe's, so taking the first would order recipe-workers behind IDENTITY's schema and
+            // pass for a reason that has nothing to do with the database it reads.
+            const migrate = migrationStepsFor(pair.job.steps, pair.owner)[0];
 
             if (migrate === undefined) {
-                return [`${pair.job.workflow} (${pair.job.id}): no migrate step to order ${pair.peer} behind`];
+                return [
+                    `${pair.job.workflow} (${pair.job.id}): no migrate step for ${pair.owner}'s database to ` +
+                        `order ${pair.peer} behind`,
+                ];
             }
 
             const early = pair.peerDeploys.filter((position) => runsBefore(position, migrate) < 0);

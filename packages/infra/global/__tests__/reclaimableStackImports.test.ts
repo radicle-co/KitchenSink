@@ -55,7 +55,15 @@ import { parse, referenceText, repoRoot, trackedFiles, visit } from './serviceSo
  * Kept in step with `.github/scripts/sandbox-shared-tier.sh`'s allowlist by the last assertion below, so
  * the two cannot drift.
  */
-const RECLAIMABLE_EXPORT_PREFIXES = ['kitchensink-identity-service-', 'kitchensink-alb-'];
+const RECLAIMABLE_EXPORT_PREFIXES = [
+    'kitchensink-identity-service-',
+    // ⚠️ The identity SCHEMA stack publishes no `exportName` at all — its one output is a plain output, so
+    // nothing CAN import it and this prefix guards a set that is empty by construction. It is listed
+    // because the last assertion below holds the two files in step, and because "it exports nothing today"
+    // is a property that could change in one line.
+    'kitchensink-identity-schema-',
+    'kitchensink-alb-',
+];
 
 /** Infra directories whose stacks are never deleted by the sandbox reclaim. */
 const PERSISTENT_INFRA_DIRS = ['packages/services/identity-webhooks/infra/lib', 'packages/infra/global/lib'];

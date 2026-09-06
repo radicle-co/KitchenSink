@@ -553,11 +553,10 @@ describe('In-VPC migration-runner Lambda (T-191) — in its own schema stack', (
     });
 
     it('publishes the migration function name for the deploy-time lambda invoke', () => {
-        // ⚠️ AN OUTPUT, NOT AN EXPORT — the assertion moved with the stack. Both readers
-        // (`run-migrations.sh run`, and `teardown-sandbox-pr.sh`'s drop-door discovery) read
-        // `describe-stacks --query 'Stacks[0].Outputs'`, which needs no export; an export would let
-        // something `Fn.importValue` it and block the deletion of the one stack a per-PR teardown must
-        // always be able to delete.
+        // ⚠️ AN OUTPUT, NOT AN EXPORT — the assertion moved with the stack. Its reader,
+        // `run-migrations.sh run`, resolves the runner through `describe-stacks --query
+        // 'Stacks[0].Outputs'` and needs no export; an export would let something `Fn.importValue` it and
+        // block the deletion of a stack a per-PR teardown must always be able to delete.
         const outputs = schemaTemplate.findOutputs('*') as Record<string, { Export?: unknown }>;
         const doors = Object.keys(outputs).filter((key) => /^[A-Za-z]+MigrationFunctionName$/.test(key));
 

@@ -1768,20 +1768,18 @@ export class RecipeWorkersStack extends Stack {
         new CfnOutput(this, 'ErasureSweeperName', { value: erasureSweeperFn.functionName });
         new CfnOutput(this, 'ErasureOrphanSweeperName', { value: orphanSweeperFn.functionName });
 
-        // ⛔ THE DROP DOOR FOR THIS STAGE'S LOGICAL DATABASE USED TO BE PUBLISHED HERE, and the reason it
-        // is gone is the same reason it existed.
+        // ⛔ A MIGRATION-RUNNER OUTPUT USED TO BE PUBLISHED HERE, and it is gone with the runner it named.
         //
-        // `teardown-sandbox-pr.sh` §1 discovers per-PR database doors BY SHAPE
-        // (`^[A-Za-z]+MigrationFunctionName$`) across the stacks the PR actually has, and invokes each with
-        // `{"action":"drop"}`. This stack published one because `RecipeServiceStack`'s was not reliably
-        // present: the service deploys SECOND, behind two hard-failing steps, and a PR wedged in
-        // `UPDATE_ROLLBACK_FAILED` (ADR-0007 × ADR-0022, on `kitchensink-recipe-service-pr-91`) carried a
-        // database this stack's runner had already CREATED and no door to drop it with — leaking silently on
-        // every reap, because the database is not the stack's resource.
+        // It began as a per-PR database drop door: `teardown-sandbox-pr.sh` §1 discovered doors across a
+        // PR's own stacks by the shape `^[A-Za-z]+MigrationFunctionName$`, and this stack published one
+        // because `RecipeServiceStack`'s was not reliably present — the service deploys SECOND, behind two
+        // hard-failing steps, and a PR wedged in `UPDATE_ROLLBACK_FAILED` carried a database this stack's
+        // runner had already CREATED and no door to drop it with.
         //
-        // `kitchensink-recipe-schema-{stage}` now publishes the only door, and it is a STRONGER guarantee
-        // than either of the two it replaces: that stack is deployed FIRST and holds nothing but the runner,
-        // so the door exists whenever the database it creates does. Discovery is unchanged — the shape match
-        // finds it in whichever of the PR's stacks carries it.
+        // That whole mechanism was repointed to `PerPrDatabaseReaperFunction` in `DataStack` (ADR-0031),
+        // for the general form of the same problem: a door inside the stack whose database it drops is
+        // unreachable exactly when it is needed. Reclamation is the reaper's, and the one remaining
+        // migration output — `kitchensink-recipe-schema-{stage}`'s — exists to make the schema reachable for
+        // MIGRATION, not for teardown.
     }
 }

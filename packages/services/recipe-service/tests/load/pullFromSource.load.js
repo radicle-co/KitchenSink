@@ -26,13 +26,14 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Trend } from 'k6/metrics';
+import { Counter, Trend } from 'k6/metrics';
 
 import {
     BASE_URL,
     authHeaders,
     jsonHeaders,
     makeRecipePayload,
+    resolveSeedIngredients,
     rampStages,
     PEAK_VUS,
     SC009_P95_MS,
@@ -42,6 +43,16 @@ import {
 
 const previewTrend = new Trend('pull_preview_duration', true);
 const commitTrend = new Trend('pull_commit_duration', true);
+/**
+ * Commits the per-USER write limiter refused.
+ *
+ * ⛔ COUNTED AND SURFACED, NEVER THRESHOLDED — the posture `deployedOrigin.load.js` sets out. This is a
+ * LOAD scenario, not a gentle probe: `commitPath` issues three writes per iteration against a
+ * `RATE_LIMIT_WRITE` of 30/min/user, so on a deployed stage it is SUPPOSED to reach the limiter.
+ * Deliberately pacing under the limit would mean never loading the write path this scenario exists to
+ * load. A 429 is the service working; what would be a defect is a 5xx, which still fails.
+ */
+const commitThrottled = new Counter('pull_commit_throttled_429');
 
 // Commits do more work per iteration (create a recipe + add it to the source, THEN commit) than a bare
 // preview read, so — mirroring sc009-read-write's read/write split — they ramp to half the peak.
@@ -76,26 +87,60 @@ export const options = {
     },
 };
 
-// Seed one SOURCE collection (public, so any caller can clone it) with a starting recipe, then CLONE it —
-// the clone starts in sync (FR-011 `clone_seed`). Every commit iteration adds a fresh recipe to the
-// source afterwards, so there is always a genuine pending pull for both scenarios to exercise.
+// ⛔ THE FIXTURE IS PER-VU, AND OWNERSHIP IS WHY.
+//
+// `setup()` runs at `__VU === 0`, so `vuToken()` resolves it to ONE pool identity while the VUs run as
+// DIFFERENT ones — and every write on this path is owner-scoped. Measured against a live stage:
+//
+//   * `POST /collections/{id}/pull-from-source/preview` by a non-owner -> 403 NOT_OWNER
+//   * `POST /collections/{id}/recipes`                  by a non-owner -> 403
+//   * cloning a PUBLIC collection                        by anyone     -> 201, and the caller owns the clone
+//
+// So a single setup-owned source+clone is usable by exactly one VU: with the 10-identity pool, nine of
+// ten VUs 403'd and the scenario reported `http_req_failed 83.43%` (run 34045472743). That is not a
+// service defect and never was — it is the distinct-user pool meeting a fixture owned by one user. Before
+// the pool every VU shared one token, so setup and the VUs were the same person and this could not arise.
+//
+// Each VU therefore builds its OWN source + clone, once, and measures against that. The scenario's
+// subject is unchanged — a clone with genuinely pending content, previewed and committed under load — and
+// the per-identity spread that keeps the per-USER rate limiter out of the measurement is preserved.
 export function setup() {
-    const seedRecipe = http.post(
+    return { ingredients: resolveSeedIngredients() };
+}
+
+// This VU's own source + clone, built on first use. Module scope is per-VU in k6, so each VU gets one.
+let fixture = null;
+
+/**
+ * This VU's own source collection and its clone, created once.
+ *
+ * ⚠️ Tagged `seed*` so the build cost lands OUTSIDE the `previewPull` / `commitPull` trends the
+ * thresholds gate. It is one extra iteration's work per VU, not per iteration.
+ *
+ * @param data - The setup payload, for the resolved catalog ids.
+ * @returns `{ sourceId, cloneId }`, or nulls when the fixture could not be built.
+ */
+function vuFixture(data) {
+    if (fixture !== null) {
+        return fixture;
+    }
+
+    const recipe = http.post(
         `${BASE_URL}/api/v1/recipes`,
-        JSON.stringify({ ...makeRecipePayload('pull-seed'), visibility: 'public' }),
+        JSON.stringify({ ...makeRecipePayload(`pull-seed-${__VU}`, data.ingredients), visibility: 'public' }),
         { headers: jsonHeaders(), tags: { operation: 'seedRecipe' } },
     );
-    const seedRecipeId = seedRecipe.status === 201 ? seedRecipe.json('id') : null;
+    const recipeId = recipe.status === 201 ? recipe.json('id') : null;
 
     const source = http.post(
         `${BASE_URL}/api/v1/collections`,
-        JSON.stringify({ name: 'Pull load source', visibility: 'public' }),
+        JSON.stringify({ name: `Pull load source ${__VU}`, visibility: 'public' }),
         { headers: jsonHeaders(), tags: { operation: 'seedSourceCollection' } },
     );
     const sourceId = source.status === 201 ? source.json('id') : null;
 
-    if (sourceId && seedRecipeId) {
-        http.post(`${BASE_URL}/api/v1/collections/${sourceId}/recipes`, JSON.stringify({ recipeId: seedRecipeId }), {
+    if (sourceId && recipeId) {
+        http.post(`${BASE_URL}/api/v1/collections/${sourceId}/recipes`, JSON.stringify({ recipeId }), {
             headers: jsonHeaders(),
             tags: { operation: 'seedSourceMembership' },
         });
@@ -104,6 +149,8 @@ export function setup() {
     let cloneId = null;
 
     if (sourceId) {
+        // The clone starts in sync (FR-011 `clone_seed`); `commitPath` then adds to the source, so there
+        // is always a genuine pending pull.
         const clone = http.post(`${BASE_URL}/api/v1/collections/${sourceId}/clone`, null, {
             headers: authHeaders(),
             tags: { operation: 'seedClone' },
@@ -111,11 +158,13 @@ export function setup() {
         cloneId = clone.status === 201 ? clone.json('id') : null;
     }
 
-    return { sourceId, cloneId };
+    fixture = { sourceId, cloneId };
+
+    return fixture;
 }
 
 export function previewPath(data) {
-    const cloneId = data && data.cloneId;
+    const { cloneId } = vuFixture(data);
 
     if (!cloneId) {
         sleep(PACE_SECONDS);
@@ -133,8 +182,7 @@ export function previewPath(data) {
 }
 
 export function commitPath(data) {
-    const sourceId = data && data.sourceId;
-    const cloneId = data && data.cloneId;
+    const { sourceId, cloneId } = vuFixture(data);
 
     if (!sourceId || !cloneId) {
         sleep(PACE_SECONDS);
@@ -146,7 +194,7 @@ export function commitPath(data) {
     // does not have yet.
     const recipe = http.post(
         `${BASE_URL}/api/v1/recipes`,
-        JSON.stringify({ ...makeRecipePayload(`pull-${__VU}-${__ITER}`), visibility: 'public' }),
+        JSON.stringify({ ...makeRecipePayload(`pull-${__VU}-${__ITER}`, data.ingredients), visibility: 'public' }),
         { headers: jsonHeaders(), tags: { operation: 'createPendingRecipe' } },
     );
     const recipeId = recipe.status === 201 ? recipe.json('id') : null;
@@ -164,7 +212,17 @@ export function commitPath(data) {
         headers: jsonHeaders(),
         tags: { operation: 'commitPull' },
     });
-    commitTrend.add(commit.timings.duration);
-    check(commit, { 'commitPull 200': (r) => r.status === 200 });
+
+    // ⛔ THE TREND RECORDS ONLY THE ACCEPTED COMMIT. A 429 is refused in microseconds without touching the
+    // database, so folding it into the latency series DEFLATES p95 — the failure `journey.js` invariant #2
+    // was written against ("recording a fast rejection would make a failing service look healthy"). The
+    // throttles are not lost; they are counted beside the percentile.
+    if (commit.status === 429) {
+        commitThrottled.add(1);
+    } else {
+        commitTrend.add(commit.timings.duration);
+    }
+
+    check(commit, { 'commitPull accepted or throttled': (r) => r.status === 200 || r.status === 429 });
     sleep(PACE_SECONDS);
 }

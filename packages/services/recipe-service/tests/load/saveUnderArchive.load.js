@@ -21,6 +21,7 @@ import {
     BASE_URL,
     jsonHeaders,
     makeRecipePayload,
+    resolveSeedIngredients,
     rampStages,
     PEAK_VUS,
     SC009_P95_MS,
@@ -54,11 +55,24 @@ export const options = {
     },
 };
 
-export function savePath() {
+/**
+ * Resolve the catalog ids every payload in this run references.
+ *
+ * ⚠️ ADDED with the ingredient-resolution fix: this scenario previously needed no `setup()` because its
+ * payload carried hardcoded ids, which is precisely why it answered `createRecipe 201` 0 times out of 265
+ * against a deployed stage (run 34045472743). See `resolveSeedIngredients`.
+ *
+ * @returns The ids the VUs build payloads from.
+ */
+export function setup() {
+    return { ingredients: resolveSeedIngredients() };
+}
+
+export function savePath(data) {
     // 1) Create the recipe (version 1).
     const createRes = http.post(
         `${BASE_URL}/api/v1/recipes`,
-        JSON.stringify(makeRecipePayload(`arch-${__VU}-${__ITER}`)),
+        JSON.stringify(makeRecipePayload(`arch-${__VU}-${__ITER}`, data.ingredients)),
         {
             headers: jsonHeaders(),
             tags: { operation: 'createRecipe' },

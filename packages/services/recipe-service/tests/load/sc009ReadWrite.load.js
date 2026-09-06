@@ -21,6 +21,7 @@ import {
     authHeaders,
     jsonHeaders,
     makeRecipePayload,
+    resolveSeedIngredients,
     rampStages,
     PEAK_VUS,
     SC009_P95_MS,
@@ -67,7 +68,8 @@ export const options = {
 
 // Seed one recipe once so the get-by-id path has a stable target id.
 export function setup() {
-    const res = http.post(`${BASE_URL}/api/v1/recipes`, JSON.stringify(makeRecipePayload('seed')), {
+    const ingredients = resolveSeedIngredients();
+    const res = http.post(`${BASE_URL}/api/v1/recipes`, JSON.stringify(makeRecipePayload('seed', ingredients)), {
         headers: jsonHeaders(),
         tags: { operation: 'seedRecipe' },
     });
@@ -81,7 +83,7 @@ export function setup() {
         }
     }
 
-    return { seedId };
+    return { seedId, ingredients };
 }
 
 export function readPath(data) {
@@ -106,11 +108,15 @@ export function readPath(data) {
     sleep(PACE_SECONDS);
 }
 
-export function writePath() {
-    const res = http.post(`${BASE_URL}/api/v1/recipes`, JSON.stringify(makeRecipePayload(`${__VU}-${__ITER}`)), {
-        headers: jsonHeaders(),
-        tags: { operation: 'createRecipe' },
-    });
+export function writePath(data) {
+    const res = http.post(
+        `${BASE_URL}/api/v1/recipes`,
+        JSON.stringify(makeRecipePayload(`${__VU}-${__ITER}`, data.ingredients)),
+        {
+            headers: jsonHeaders(),
+            tags: { operation: 'createRecipe' },
+        },
+    );
     createTrend.add(res.timings.duration);
     check(res, { 'createRecipe 201': (r) => r.status === 201 });
     sleep(PACE_SECONDS);

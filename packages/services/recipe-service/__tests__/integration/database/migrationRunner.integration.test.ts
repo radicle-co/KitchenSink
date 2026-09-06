@@ -42,6 +42,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
+import { poolForDroppableDatabase } from './utils/droppableDatabasePool.js';
 import pg from 'pg';
 
 import {
@@ -142,7 +144,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe migration runner (ADR-0022, ADR-0006)',
         maintenancePool = new pg.Pool({ connectionString: urlFor('postgres') });
         await dropDatabase({ maintenancePool, databaseName: TEST_DATABASE });
         await ensureDatabaseExists({ maintenancePool, databaseName: TEST_DATABASE });
-        pool = new pg.Pool({ connectionString: urlFor(TEST_DATABASE) });
+        pool = poolForDroppableDatabase(urlFor(TEST_DATABASE));
     });
 
     afterAll(async () => {
@@ -249,7 +251,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe migration runner (ADR-0022, ADR-0006)',
         // Without a lock the loser of the race re-executes a `CREATE TABLE` the winner just committed and
         // fails the deploy. With one, the second runner waits and then skips everything — which is exactly
         // "does not execute or change the database if that migration has been applied".
-        const other = new pg.Pool({ connectionString: urlFor(TEST_DATABASE) });
+        const other = poolForDroppableDatabase(urlFor(TEST_DATABASE));
 
         try {
             const [a, b] = await Promise.all([

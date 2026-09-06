@@ -34,7 +34,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SC009_P95_MS } from './lib/common.js';
+import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SC009_P95_MS, whenSubstrate } from './lib/common.js';
 
 const correctionTrend = new Trend('ingredient_correction_duration', true);
 
@@ -74,9 +74,10 @@ export const options = {
         },
     },
     thresholds: {
-        'http_req_duration{operation:recordIngredientCorrection}': [`p(95)<${CORRECTION_P95_MS}`],
         // ⛔ The load-bearing threshold: a lost write race must be a 200 `recorded: false`, never a 5xx.
         http_req_failed: ['rate<0.01'],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({ 'http_req_duration{operation:recordIngredientCorrection}': [`p(95)<${CORRECTION_P95_MS}`] }),
     },
 };
 

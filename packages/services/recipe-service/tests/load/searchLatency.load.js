@@ -15,7 +15,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SEARCH_P95_MS } from './lib/common.js';
+import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SEARCH_P95_MS, whenSubstrate } from './lib/common.js';
 
 const searchTrend = new Trend('recipe_search_duration', true);
 
@@ -33,9 +33,12 @@ export const options = {
         },
     },
     thresholds: {
-        // Search must return in < 2s.
-        'http_req_duration{operation:searchRecipes}': [`p(95)<${SEARCH_P95_MS}`],
         http_req_failed: ['rate<0.01'],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({
+            // Search must return in < 2s.
+            'http_req_duration{operation:searchRecipes}': [`p(95)<${SEARCH_P95_MS}`],
+        }),
     },
 };
 

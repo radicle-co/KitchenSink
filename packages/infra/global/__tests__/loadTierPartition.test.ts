@@ -28,7 +28,13 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { allLoadScripts, deployedCapableScripts, substrateBoundScripts, tierOf } from '@kitchensink/loadtest';
+import {
+    allLoadScripts,
+    deployedCapableScripts,
+    orderedByDeclaration,
+    substrateBoundScripts,
+    tierOf,
+} from '@kitchensink/loadtest';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const read = (file: string): string => readFileSync(join(REPO_ROOT, file), 'utf8');
@@ -39,6 +45,33 @@ function committedScripts(): readonly string[] {
         .split('\n')
         .filter((line) => line.length > 0);
 }
+
+describe('the declared run order', () => {
+    // ⛔ ORDER IS MEASURED, NOT STYLISTIC. `k6LoadTierWiring.test.ts` requires CI to run a service's
+    // scenarios as a SUBSEQUENCE of the order its `package.json` declares, because identity's ordering was
+    // established by measurement: with the write-heavy scenario first, its read-sensitive sibling reported
+    // p95 722ms against a 500ms budget versus 5.4ms on a settled database — a ~130x artefact that reads as
+    // a service defect and is not one. `git ls-files` order is alphabetical and would violate it.
+    it("⛔ orders a tier by each package's declared test:load chain, not alphabetically", () => {
+        const recipe = orderedByDeclaration(deployedCapableScripts()).filter((s) => s.includes('recipe-service'));
+
+        expect(recipe[0], 'the read-sensitive scenario must come first').toContain('searchLatency');
+        expect(recipe.at(-1), 'the write-heavy scenario must come last').toContain('analyticsIngest');
+    });
+
+    it('⛔ is TOTAL — ordering drops nothing and invents nothing', () => {
+        const all = allLoadScripts();
+
+        expect([...orderedByDeclaration(all)].sort()).toStrictEqual([...all].sort());
+    });
+
+    it('⚠️ keeps a scenario a package does not declare, rather than silently dropping it', () => {
+        // A scenario absent from `test:load` is a gap to report, never a reason to stop running it.
+        const undeclared = 'packages/services/recipe-service/tests/load/notDeclared.load.js';
+
+        expect(orderedByDeclaration([...allLoadScripts(), undeclared])).toContain(undeclared);
+    });
+});
 
 describe('the load-tier partition', () => {
     it('discovers the scripts from git, so a new one cannot arrive unclassified', () => {

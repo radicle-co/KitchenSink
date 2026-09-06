@@ -505,6 +505,19 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // Clerk/AWS secrets are withheld from Dependabot and fork PRs by design; the soft failure lets the
     // dependent steps skip on `steps.secrets.outcome`, instead of reporting a red check nobody can fix.
     'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Load ${{ inputs.stage }} Clerk secrets ×1',
+    // Same reason one job over: without the stage's Clerk keys the k6 SCENARIOS cannot mint a pool, so the
+    // dependent steps skip on `steps.k6secrets.outcome`. The generic origin probes are unauthenticated and
+    // still run, so a fork PR measures the deployed origins and reports the scenarios as skipped — which is
+    // the honest outcome, rather than a red nobody with fork permissions can fix.
+    "continue-on-error _ci-heavy.yml::load-test-deployed::Load the stage's Clerk secrets ×1",
+    // ⛔ A POOL FAILURE MUST SKIP THE SCENARIOS, NOT REDDEN THEM. Every scenario needs a real bearer, so
+    // without one they would fail on the credential rather than on the service — a red that says nothing
+    // about the code under test. The skip is REPORTED by the `::notice::` step that reads this outcome, so
+    // it is a stated absence rather than a silent one.
+    'continue-on-error _ci-heavy.yml::load-test-deployed::Provision the k6 credential pool and seed the world ×1',
+    // Reclamation of a run-scoped world and its Clerk identities. It must not turn a green measurement red:
+    // what it leaks is a fixture the daily sweep collects, and the run's actual verdict is already decided.
+    "continue-on-error _ci-heavy.yml::load-test-deployed::Reclaim the run's seeded world and identities ×1",
     'continue-on-error _ci.yml::build::Load sandbox (dev-instance) Clerk secrets for the web build ×1',
     'continue-on-error _ci.yml::e2e-cross-service-linkage::Load sandbox (dev-instance) Clerk secrets for the linkage suite ×1',
     'continue-on-error _ci.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for the preview web E2E ×1',

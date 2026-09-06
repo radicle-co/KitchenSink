@@ -3,7 +3,7 @@
  *
  * Closes the parallel-agent seam where the recipes vertical persisted only `recipes` + `recipe_steps` +
  * the denormalized `ingredient_names_text` and emitted an EMPTY `ingredients` array. These tests pin the
- * reconciled behavior of {@link RecipesService} over a fake {@link RecipesDal} and a fake
+ * reconciled behavior of {@link RecipesService} over a fake `RecipesDal` and a fake
  * {@link IngredientsDal}:
  *
  *  - **create** resolves each DTO line against the ingredients catalog (`IngredientsDal.findById`),

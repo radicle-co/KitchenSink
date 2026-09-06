@@ -17,7 +17,15 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
 
-import { BASE_URL, jsonHeaders, makeRecipePayload, rampStages, PEAK_VUS, SC009_P95_MS } from './lib/common.js';
+import {
+    BASE_URL,
+    jsonHeaders,
+    makeRecipePayload,
+    rampStages,
+    PEAK_VUS,
+    SC009_P95_MS,
+    whenSubstrate,
+} from './lib/common.js';
 
 // Combined create+update save latency — the metric FR-007b-i is stated against.
 const saveTrend = new Trend('recipe_save_duration', true);
@@ -34,11 +42,14 @@ export const options = {
         },
     },
     thresholds: {
-        // FR-007b-i: save p95 <= 500ms while the S3 version archive is queued.
-        recipe_save_duration: [`p(95)<${SC009_P95_MS}`],
-        'http_req_duration{operation:createRecipe}': [`p(95)<${SC009_P95_MS}`],
-        'http_req_duration{operation:updateRecipe}': [`p(95)<${SC009_P95_MS}`],
         http_req_failed: ['rate<0.01'],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({
+            // FR-007b-i: save p95 <= 500ms while the S3 version archive is queued.
+            recipe_save_duration: [`p(95)<${SC009_P95_MS}`],
+            'http_req_duration{operation:createRecipe}': [`p(95)<${SC009_P95_MS}`],
+            'http_req_duration{operation:updateRecipe}': [`p(95)<${SC009_P95_MS}`],
+        }),
     },
 };
 

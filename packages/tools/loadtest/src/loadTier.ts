@@ -119,3 +119,62 @@ export function deployedCapableScripts(): readonly string[] {
 export function substrateBoundScripts(): readonly string[] {
     return scriptsInTier('substrate-bound');
 }
+
+/**
+ * The order a service's `package.json` declares for its k6 scenarios, as repo-relative paths.
+ *
+ * @param packageDir - The service package directory, repo-relative.
+ * @returns The declared scenario paths, in chain order; empty when the package declares no chain.
+ * @sideEffect Reads the package manifest.
+ */
+function declaredOrder(packageDir: string): readonly string[] {
+    let manifest: { readonly scripts?: Record<string, string> };
+
+    try {
+        manifest = JSON.parse(readFileSync(join(REPO_ROOT, packageDir, 'package.json'), 'utf8')) as typeof manifest;
+    } catch {
+        return [];
+    }
+
+    const chain = manifest.scripts?.['test:load'] ?? '';
+
+    return [...chain.matchAll(/k6 run (\S+\.load\.js)/gu)].map((match) => `${packageDir}/${match[1] ?? ''}`);
+}
+
+/**
+ * Sort `scripts` into the order their own packages declare.
+ *
+ * ⛔ ORDER IS MEASURED, NOT STYLISTIC, which is why this exists rather than letting `git ls-files`'
+ * alphabetical order stand. Identity's chain was established by measurement: running the write-heavy
+ * scenario first left its read-sensitive sibling reporting p95 722ms against a 500ms budget, versus 5.4ms
+ * on a settled database — a ~130x artefact that reads as a service defect and is not one.
+ * `k6LoadTierWiring.test.ts` enforces the same order on CI as a subsequence.
+ *
+ * ⚠️ A scenario its package does not declare is KEPT, at the end. Undeclared is a gap to report, never a
+ * reason to stop running it — silently dropping one would be the exact "gate that cannot fail" this
+ * module exists to prevent.
+ *
+ * @param scripts - Scenario paths, in any order.
+ * @returns The same set, ordered by declaration then by path.
+ * @sideEffect Reads package manifests.
+ */
+export function orderedByDeclaration(scripts: readonly string[]): readonly string[] {
+    const packageDirs = [...new Set(scripts.map((script) => script.replace(/\/tests\/load\/.*$/u, '')))];
+    const rank = new Map<string, number>();
+
+    for (const dir of packageDirs) {
+        declaredOrder(dir).forEach((script, index) => rank.set(script, index));
+    }
+
+    const groupOf = (script: string): string => script.replace(/\/tests\/load\/.*$/u, '');
+
+    return [...scripts].sort((a, b) => {
+        if (groupOf(a) !== groupOf(b)) {
+            return groupOf(a).localeCompare(groupOf(b));
+        }
+
+        const [ra, rb] = [rank.get(a) ?? Number.MAX_SAFE_INTEGER, rank.get(b) ?? Number.MAX_SAFE_INTEGER];
+
+        return ra === rb ? a.localeCompare(b) : ra - rb;
+    });
+}

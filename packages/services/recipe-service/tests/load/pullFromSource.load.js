@@ -36,6 +36,7 @@ import {
     rampStages,
     PEAK_VUS,
     SC009_P95_MS,
+    whenSubstrate,
 } from './lib/common.js';
 
 const previewTrend = new Trend('pull_preview_duration', true);
@@ -63,11 +64,14 @@ export const options = {
         },
     },
     thresholds: {
-        // Preview is read-only (a diff over two membership id sets, in a read-only transaction).
-        'http_req_duration{operation:previewPull}': [`p(95)<${SC009_P95_MS}`],
-        // Commit applies the diff — the same write budget save-under-archive holds recipe saves to.
-        'http_req_duration{operation:commitPull}': [`p(95)<${SC009_P95_MS}`],
         http_req_failed: [{ threshold: 'rate<0.01', abortOnFail: true, delayAbortEval: '30s' }],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({
+            // Preview is read-only (a diff over two membership id sets, in a read-only transaction).
+            'http_req_duration{operation:previewPull}': [`p(95)<${SC009_P95_MS}`],
+            // Commit applies the diff — the same write budget save-under-archive holds recipe saves to.
+            'http_req_duration{operation:commitPull}': [`p(95)<${SC009_P95_MS}`],
+        }),
     },
 };
 

@@ -45,6 +45,7 @@ import {
     forIteration,
     loadTokens,
     rampStages,
+    whenSubstrate,
 } from './lib/common.js';
 
 // ⛔ `() => loadTokens().users`, NOT `loadTokens`. `loadTokens()` returns the whole pool OBJECT
@@ -88,10 +89,6 @@ export const options = {
         },
     },
     thresholds: {
-        // A rejection does signature work and NO database work, so it must beat the warm read.
-        'http_req_duration{operation:floodRejected}': [`p(95)<${READ_P95_MS}`],
-        // The starvation guard: real users keep the SAME budget they get without a flood.
-        'http_req_duration{operation:servedUnderFlood}': [`p(95)<${READ_P95_MS}`],
         // `http_req_failed` counts the flood's 401s as failures by design, so it is scoped to the served
         // scenario ONLY — an untagged global threshold here would be permanently red and meaningless.
         'http_req_failed{op:served}': ['rate<0.01'],
@@ -99,7 +96,14 @@ export const options = {
         // fail-open; a real bypass, or a shedder answering 5xx, moves this far below the bar.
         'checks{op:flood}': ['rate>0.99'],
         'checks{op:served}': ['rate>0.99'],
-        dropped_iterations: ['count<1'],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({
+            dropped_iterations: ['count<1'],
+            // A rejection does signature work and NO database work, so it must beat the warm read.
+            'http_req_duration{operation:floodRejected}': [`p(95)<${READ_P95_MS}`],
+            // The starvation guard: real users keep the SAME budget they get without a flood.
+            'http_req_duration{operation:servedUnderFlood}': [`p(95)<${READ_P95_MS}`],
+        }),
     },
 };
 

@@ -40,6 +40,7 @@ import {
     rampStages,
     totalRampDuration,
     warmTokenForIteration,
+    whenSubstrate,
 } from './lib/common.js';
 
 // One copy across all VUs.
@@ -76,18 +77,21 @@ export const options = {
         },
     },
     thresholds: {
-        // The plan's profile target (NFR-011a): <= 1s P99, with the SC-009 read budget as the p95.
-        'http_req_duration{operation:getUserMe}': [`p(95)<${ME_P95_MS}`, `p(99)<${ME_P99_MS}`],
-        // Readiness must stay fast WHILE the above saturates the service.
-        'http_req_duration{operation:readiness}': [`p(95)<${READY_P95_MS}`],
         // Scoped per scenario: an untagged global rate would let a healthy majority mask the other's failure.
         'http_req_failed{op:session}': [{ threshold: 'rate<0.01', abortOnFail: true, delayAbortEval: '30s' }],
         'http_req_failed{op:ready}': ['rate<0.01'],
         // The probe answering 503 under load is the drain-healthy-tasks failure — never acceptable.
         'checks{op:ready}': ['rate>0.99'],
         'checks{op:session}': ['rate>0.99'],
-        // Silent VU starvation would otherwise shrink the sample until the percentiles are meaningless.
-        dropped_iterations: ['count<1'],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({
+            // Silent VU starvation would otherwise shrink the sample until the percentiles are meaningless.
+            dropped_iterations: ['count<1'],
+            // The plan's profile target (NFR-011a): <= 1s P99, with the SC-009 read budget as the p95.
+            'http_req_duration{operation:getUserMe}': [`p(95)<${ME_P95_MS}`, `p(99)<${ME_P99_MS}`],
+            // Readiness must stay fast WHILE the above saturates the service.
+            'http_req_duration{operation:readiness}': [`p(95)<${READY_P95_MS}`],
+        }),
     },
 };
 

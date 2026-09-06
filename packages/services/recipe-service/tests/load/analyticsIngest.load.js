@@ -32,7 +32,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SC009_P95_MS } from './lib/common.js';
+import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SC009_P95_MS, whenSubstrate } from './lib/common.js';
 
 const ingestTrend = new Trend('analytics_ingest_duration', true);
 
@@ -48,10 +48,11 @@ export const options = {
         },
     },
     thresholds: {
-        analytics_ingest_duration: [`p(95)<${INGEST_P95_MS}`],
         // A SHED batch still answers 202 (`landed: 0`) — the isolation contract — so this threshold is
         // exactly "the door stayed up under load", with no shed/cap carve-out to blunt it.
         http_req_failed: ['rate<0.01'],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({ analytics_ingest_duration: [`p(95)<${INGEST_P95_MS}`] }),
     },
 };
 

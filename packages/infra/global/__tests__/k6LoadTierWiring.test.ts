@@ -88,6 +88,8 @@ import { minimatch } from 'minimatch';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
+import { scriptsInTier, type LoadTier } from '@kitchensink/loadtest';
+
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const WORKFLOW_DIR = join(REPO_ROOT, '.github', 'workflows');
 const SERVICES_DIR = join(REPO_ROOT, 'packages', 'services');
@@ -224,21 +226,51 @@ const LOAD_SCRIPT_ARGUMENT = /\S*\.load\.js\b/g;
 /** Every load script a workflow step invokes, resolved to a repo-relative path. */
 function invokedLoadScripts(workflows: readonly Workflow[]): ReadonlyMap<string, readonly string[]> {
     const invoked = new Map<string, string[]>();
+    const record = (path: string, site: string): void => {
+        const sites = invoked.get(path) ?? [];
+
+        sites.push(site);
+        invoked.set(path, sites);
+    };
 
     for (const { file, job, step, workingDirectory } of locatedSteps(workflows)) {
-        for (const invocation of joinContinuations(step.run ?? '').match(K6_INVOCATION) ?? []) {
-            for (const argument of invocation.match(LOAD_SCRIPT_ARGUMENT) ?? []) {
-                const path = repoRelative(workingDirectory, argument);
-                const sites = invoked.get(path) ?? [];
+        const run = joinContinuations(step.run ?? '');
+        const site = `${file}::${job}::${stepLabel(step)}`;
 
-                sites.push(`${file}::${job}::${stepLabel(step)}`);
-                invoked.set(path, sites);
+        for (const invocation of run.match(K6_INVOCATION) ?? []) {
+            for (const argument of invocation.match(LOAD_SCRIPT_ARGUMENT) ?? []) {
+                record(repoRelative(workingDirectory, argument), site);
+            }
+        }
+
+        // ⛔ THE DERIVED FORM COUNTS TOO, and a guard that only understood the literal one would be worse
+        // than useless here: a step that loops over `printLoadTier.ts` genuinely runs those scenarios,
+        // but matches no `k6 run <path>` literal — so every one of them would be reported unwired, the
+        // accepted-loss list below would still contain them, and this analyzer would PASS while claiming
+        // the exact opposite of the truth. The list is derived precisely so a YAML enumeration cannot go
+        // stale; the check has to follow it there.
+        for (const call of run.match(TIER_INVOCATION) ?? []) {
+            // ⚠️ `[\w-]+`, not `\S+`: the call sits inside a `< <(… )` process substitution, so `\S+` swallows
+            // the closing paren and the filter matches no path — a guard that silently checks nothing.
+            const [, tier, filter] = /printLoadTier\.ts\s+([\w-]+)(?:\s+([\w/-]+))?/u.exec(call) ?? [];
+
+            if (tier === undefined) {
+                continue;
+            }
+
+            for (const script of scriptsInTier(tier as LoadTier)) {
+                if (filter === undefined || script.includes(filter)) {
+                    record(script, site);
+                }
             }
         }
     }
 
     return invoked;
 }
+
+/** A step that runs a whole tier through the derived list rather than naming scripts one by one. */
+const TIER_INVOCATION = /printLoadTier\.ts\s+[\w-]+(?:\s+[\w/-]+)?/gu;
 
 /** Committed load scripts that no workflow step runs. A script nothing executes cannot fail. */
 function findUnwiredLoadScripts(scripts: readonly string[], workflows: readonly Workflow[]): readonly string[] {
@@ -716,27 +748,24 @@ describe('every committed k6 load script is invoked by a workflow step', () => {
      * ⛔ THIS LIST MAY ONLY SHRINK. It is not a place to park a newly-unwired script — a NEW k6 script that
      * no job runs is the original defect (identity's four sat unexecuted after review) and must still go
      * red. The set equality below is what enforces that in both directions.
+     *
+     * ⚠️ IT SHRANK, from twenty-one to ten (owner ruling 2026-09-06: "they should run if there is a
+     * sandbox active, skip if there isn't"). The eleven that left are the `@loadTier deployed-capable`
+     * set, now driven against the live origins by `load-test-deployed`. The ten that remain are
+     * `substrate-bound`: their assertion IS the runner-local substrate — a service booted trusting a
+     * throwaway EdDSA key, a fixture writing ~175,000 rows straight to `DATABASE_URL`, a `recipe_versions`
+     * row deliberately absent so the read must fall through to S3 — and no pool or seed makes them
+     * runnable against a deployment. Each says why in its own header.
      */
     const UNWIRED_BY_OWNER_RULING: readonly string[] = [
-        'packages/services/food-service/tests/load/authFlood.load.js',
         'packages/services/food-service/tests/load/localStoreRead.load.js',
         'packages/services/food-service/tests/load/localStoreThroughput.load.js',
         'packages/services/food-service/tests/load/nutritionBatch.load.js',
         'packages/services/food-service/tests/load/search.load.js',
         'packages/services/food-service/tests/load/serviceErasure.load.js',
         'packages/services/identity/tests/load/adminUserSearch.load.js',
-        'packages/services/identity/tests/load/authRejection.load.js',
         'packages/services/identity/tests/load/provisioningAndRename.load.js',
-        'packages/services/identity/tests/load/sessionHotPath.load.js',
-        'packages/services/recipe-service/tests/load/analyticsIngest.load.js',
-        'packages/services/recipe-service/tests/load/ingredientCorrection.load.js',
-        'packages/services/recipe-service/tests/load/ingredientSuggestLatency.load.js',
         'packages/services/recipe-service/tests/load/nutritionBatch.load.js',
-        'packages/services/recipe-service/tests/load/parseJobCreate.load.js',
-        'packages/services/recipe-service/tests/load/pullFromSource.load.js',
-        'packages/services/recipe-service/tests/load/saveUnderArchive.load.js',
-        'packages/services/recipe-service/tests/load/sc009ReadWrite.load.js',
-        'packages/services/recipe-service/tests/load/searchLatency.load.js',
         'packages/services/recipe-service/tests/load/serviceErasure.load.js',
         'packages/services/recipe-service/tests/load/versionArchiveRead.load.js',
     ];

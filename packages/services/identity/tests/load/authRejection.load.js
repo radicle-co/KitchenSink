@@ -41,6 +41,7 @@ import {
     authHeaders,
     rampStages,
     warmTokenForIteration,
+    whenSubstrate,
 } from './lib/common.js';
 
 const warmTokens = new SharedArray('warm-tokens', () => TOKENS.warm);
@@ -81,10 +82,6 @@ export const options = {
         },
     },
     thresholds: {
-        // A 401 does signature work and NO database work, so it must beat the warm read comfortably.
-        'http_req_duration{operation:rejected}': [`p(95)<${REJECT_P95_MS}`],
-        // The starvation guard: real users keep the SAME budget they get without a storm.
-        'http_req_duration{operation:validUnderStorm}': [`p(95)<${ME_P95_MS}`],
         // `http_req_failed` counts the storm's 401s as failures by design, so it is scoped to `op:valid`
         // ONLY — an untagged global threshold here would be permanently red and therefore meaningless.
         'http_req_failed{op:valid}': ['rate<0.01'],
@@ -93,7 +90,14 @@ export const options = {
         // fail-open moves this far below the bar.
         'checks{op:storm}': ['rate>0.99'],
         'checks{op:valid}': ['rate>0.99'],
-        dropped_iterations: ['count<1'],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({
+            dropped_iterations: ['count<1'],
+            // A 401 does signature work and NO database work, so it must beat the warm read comfortably.
+            'http_req_duration{operation:rejected}': [`p(95)<${REJECT_P95_MS}`],
+            // The starvation guard: real users keep the SAME budget they get without a storm.
+            'http_req_duration{operation:validUnderStorm}': [`p(95)<${ME_P95_MS}`],
+        }),
     },
 };
 

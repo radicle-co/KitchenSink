@@ -278,3 +278,29 @@ export function makeRecipePayload(label) {
         dietaryFlags: ['vegetarian'],
     };
 }
+
+/**
+ * Which profile this run measures — `substrate` (the calibrated runner-local machine) or `deployed`.
+ *
+ * ⛔ THE ONLY THING IT CHANGES IS WHICH THRESHOLDS ARE IN FORCE. Every latency budget in this suite was
+ * calibrated against a dedicated container with its own Postgres and no rate limiter. A per-PR preview is
+ * half a reclaimable vCPU on a database shared with every other open PR, so carrying those numbers across
+ * yields a gate that reddens on the NEIGHBOURS' traffic — and the predictable next step is somebody
+ * switching it off, which costs more than never having had it.
+ */
+export const LOAD_PROFILE = __ENV['LOAD_PROFILE'] || 'substrate';
+
+/**
+ * The given thresholds, in force ONLY on the substrate profile.
+ *
+ * ⛔ NOT an env-tunable budget set to a huge number on the deployed profile. That leaves a threshold that
+ * LOOKS gated and can never fire — the coverage theatre `docs/CODING_STANDARDS.md` §7.1 forbids. The
+ * de-gated metrics still appear in `summaryTrendStats`, so the numbers are produced and the trend is
+ * readable; what is removed is the false claim that they are being enforced.
+ *
+ * @param thresholds - The latency thresholds to gate on a calibrated machine.
+ * @returns The thresholds on `substrate`, an empty object on any other profile.
+ */
+export function whenSubstrate(thresholds) {
+    return LOAD_PROFILE === 'substrate' ? thresholds : {};
+}

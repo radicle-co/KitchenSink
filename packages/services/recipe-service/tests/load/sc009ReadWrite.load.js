@@ -24,6 +24,7 @@ import {
     rampStages,
     PEAK_VUS,
     SC009_P95_MS,
+    whenSubstrate,
 } from './lib/common.js';
 
 const listTrend = new Trend('recipe_list_duration', true);
@@ -51,12 +52,15 @@ export const options = {
         },
     },
     thresholds: {
-        // SC-009: p95 <= 500ms on recipe read/list/create.
-        'http_req_duration{operation:listRecipes}': [`p(95)<${SC009_P95_MS}`],
-        'http_req_duration{operation:getRecipe}': [`p(95)<${SC009_P95_MS}`],
-        'http_req_duration{operation:createRecipe}': [`p(95)<${SC009_P95_MS}`],
         // Abort early if the service is broadly erroring rather than burning the whole run.
         http_req_failed: [{ threshold: 'rate<0.01', abortOnFail: true, delayAbortEval: '30s' }],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({
+            // SC-009: p95 <= 500ms on recipe read/list/create.
+            'http_req_duration{operation:listRecipes}': [`p(95)<${SC009_P95_MS}`],
+            'http_req_duration{operation:getRecipe}': [`p(95)<${SC009_P95_MS}`],
+            'http_req_duration{operation:createRecipe}': [`p(95)<${SC009_P95_MS}`],
+        }),
     },
 };
 

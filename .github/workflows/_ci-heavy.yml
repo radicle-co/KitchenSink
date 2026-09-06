@@ -891,8 +891,9 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         # A hung origin that answers the health probe and then stalls every request would otherwise burn a
-        # runner for six hours. Three legs of ~3 minutes plus setup is well inside this.
-        timeout-minutes: 30
+        # runner for six hours. Three probe legs of ~3 minutes plus up to twelve service scenarios and
+        # their pool/seed setup fits inside this; a scenario that hangs is bounded by it rather than by k6.
+        timeout-minutes: 75
         if: ${{ inputs.run_load_test }}
         env:
             DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
@@ -986,6 +987,11 @@ jobs:
 
                   recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
                   food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")
+                  if [ "${stage}" = 'prod' ]; then
+                      web_origin="https://${DOMAIN_NAME}"
+                  else
+                      web_origin="https://${stage}.sandbox.${DOMAIN_NAME}"
+                  fi
 
                   # The identity DEPLOYMENT the target signs in against — never `pr-{N}`, because none
                   # exists. Published as its own output so the identity leg's report cannot label a shared
@@ -1004,6 +1010,10 @@ jobs:
                       echo "food=${food}"
                       echo "identity=${identity}"
                       echo "identity_stage=${identity_stage}"
+                      # ⛔ The WEB origin, not a service origin. It is what Clerk stamps as `azp` on a
+                      # Frontend-API sign-in, and what `CLERK_AZP_PATTERN` on the deployed services is
+                      # anchored against (ADR-0033) — so a pool minted against anything else answers 401.
+                      echo "web_origin=${web_origin}"
                   } >>"$GITHUB_OUTPUT"
                   echo "k6 will measure stage ${stage} — recipe ${recipe}, food ${food}, identity ${identity} (identity stage ${identity_stage})"
             # ⛔ ABSENCE IS A SKIP. Reuses `deploy-gate.sh`'s OWN retry-aware probe rather than a second
@@ -1087,6 +1097,130 @@ jobs:
                   # which is why this leg costs the shared service almost nothing.
                   PROTECTED_PATH: /api/v1/users/me
               run: k6 run deployedOrigin.load.js
+            # ── THE SERVICE SCENARIOS ────────────────────────────────────────────────────────────────
+            #
+            # The three legs above run ONE generic probe per origin. These run the services' OWN k6
+            # scenarios — the ones whose budgets encode spec acceptance criteria — against the same live
+            # origins, restoring the coverage the 2026-09-05 job deletion gave up (owner ruling
+            # 2026-09-06: "they should run if there is a sandbox active, skip if there isn't").
+            #
+            # ⛔ IN THIS JOB, NOT A NEW ONE. A second job would need its own copy of the prod refusal, the
+            # origin resolution and the skip semantics — the "a copy of a list cannot detect that the list
+            # is incomplete" shape this file's header says the repo has already paid for three times.
+            #
+            # ⛔ THE SCENARIO LIST IS DERIVED, never written here. `printLoadTier.ts` prints the
+            # `@loadTier deployed-capable` set in each package's DECLARED `test:load` order, so a new
+            # scenario is picked up the day it lands and the measured ordering is preserved. Ten of the
+            # twenty-two are `substrate-bound` and cannot run against a deployed origin at all — their
+            # assertion IS the runner-local substrate — and each says why in its own header.
+            #
+            # ⚠️ LATENCY IS REPORTED, NOT GATED, via `LOAD_PROFILE=deployed`. Every budget here was
+            # calibrated on a dedicated container; on a half-vCPU FARGATE_SPOT preview sharing a
+            # db.t4g.micro they would redden on a neighbour's traffic, and the predictable next step is
+            # somebody switching the whole thing off. What still gates is what a slow machine cannot
+            # cause: status codes, envelope shapes, and `http_req_failed`.
+            # The pool signs in through Clerk's Frontend API, so it needs the stage's own keys. Loaded the
+            # same way the Maestro tier loads them, and `continue-on-error` for the same reason: a missing
+            # secret must SKIP the scenarios, not redden a run that measured the origins fine.
+            - name: Load the stage's Clerk secrets
+              id: k6secrets
+              continue-on-error: true
+              # Gated on the probe's own output like every step after it: with nothing serving there is
+              # nothing to load a credential FOR, and reaching for a secret would be the one action in this
+              # job that happens whether or not the tier has a target.
+              if: ${{ steps.live.outputs.recipe == 'true' && env.LOAD_TEST_TARGET != 'prod' }}
+              uses: ./.github/actions/load-secrets
+              with:
+                  stage: sandbox
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+            - name: Provision the k6 credential pool and seed the world
+              id: pool
+              if: ${{ steps.live.outputs.recipe == 'true' && steps.k6secrets.outcome == 'success' }}
+              continue-on-error: true
+              env:
+                  CLERK_SECRET_KEY: ${{ env.CLERK_SECRET_KEY }}
+                  CLERK_PUBLISHABLE_KEY: ${{ env.CLERK_PUBLISHABLE_KEY }}
+                  POOL_ORIGIN: ${{ steps.target.outputs.web_origin }}
+                  FOOD_BASE_URL: ${{ steps.target.outputs.food }}
+                  E2E_SEED_RECIPE_URL: ${{ steps.target.outputs.recipe }}
+                  E2E_SEED_WEB_ORIGIN: ${{ steps.target.outputs.web_origin }}
+                  OUT_DIR: ${{ runner.temp }}/k6-pool
+              run: |
+                  set -euo pipefail
+                  mkdir -p "${OUT_DIR}"
+                  npm run provision:pool --workspace=packages/tools/loadtest
+                  npx tsx packages/tools/e2e-seed/src/provision.ts >"${OUT_DIR}/fixture.env"
+            # ⚠️ A POOL FAILURE SKIPS THE SCENARIOS, it does not redden them. Every scenario below needs a
+            # real bearer, so without one they would fail on the credential rather than on the service —
+            # a red that says nothing about the code. The step above is `continue-on-error` for exactly
+            # that reason, and this gate reports the skip.
+            - name: Report a pool that could not be provisioned
+              if: ${{ steps.live.outputs.recipe == 'true' && steps.pool.outcome == 'failure' }}
+              run: echo "::notice::the k6 credential pool could not be provisioned — the service scenarios are SKIPPED (not failed)"
+            - name: Run the recipe service scenarios
+              if: ${{ steps.live.outputs.recipe == 'true' && steps.pool.outcome == 'success' }}
+              env:
+                  LOAD_PROFILE: deployed
+                  RECIPE_API_BASE_URL: ${{ steps.target.outputs.recipe }}
+                  POOL_FILE: ${{ runner.temp }}/k6-pool/pool.json
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  while read -r script; do
+                      [ -z "$script" ] && continue
+                      echo "::group::k6 ${script}"
+                      k6 run "$script" || rc=1
+                      echo "::endgroup::"
+                  done < <(npx tsx packages/tools/loadtest/printLoadTier.ts deployed-capable recipe-service)
+                  exit "$rc"
+            - name: Run the food service scenarios
+              if: ${{ steps.live.outputs.food == 'true' && steps.pool.outcome == 'success' }}
+              env:
+                  LOAD_PROFILE: deployed
+                  FOOD_API_BASE_URL: ${{ steps.target.outputs.food }}
+                  POOL_FILE: ${{ runner.temp }}/k6-pool/pool.json
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  while read -r script; do
+                      [ -z "$script" ] && continue
+                      echo "::group::k6 ${script}"
+                      k6 run "$script" || rc=1
+                      echo "::endgroup::"
+                  done < <(npx tsx packages/tools/loadtest/printLoadTier.ts deployed-capable food-service)
+                  exit "$rc"
+            # ⚠️ DISPATCH-ONLY, and that is a fact about the topology rather than caution. There is no
+            # `pr-{N}` identity: every preview signs in against the ONE shared `identity.sandbox.{apex}`
+            # (ADR-0001). The probe leg above costs that service ~180 unauthenticated requests; these
+            # scenarios SATURATE it, which would degrade every other open preview's sign-in. So they run
+            # only when a human asks for them.
+            - name: Run the identity service scenarios (shared — manual dispatch only)
+              if: ${{ steps.live.outputs.identity == 'true' && steps.pool.outcome == 'success' && github.event_name == 'workflow_dispatch' }}
+              env:
+                  LOAD_PROFILE: deployed
+                  IDENTITY_API_BASE_URL: ${{ steps.target.outputs.identity }}
+                  POOL_FILE: ${{ runner.temp }}/k6-pool/pool.json
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  while read -r script; do
+                      [ -z "$script" ] && continue
+                      echo "::group::k6 ${script}"
+                      k6 run "$script" || rc=1
+                      echo "::endgroup::"
+                  done < <(npx tsx packages/tools/loadtest/printLoadTier.ts deployed-capable identity)
+                  exit "$rc"
+            - name: Reclaim the run's seeded world and identities
+              if: ${{ always() && steps.pool.outcome == 'success' }}
+              continue-on-error: true
+              env:
+                  CLERK_SECRET_KEY: ${{ env.CLERK_SECRET_KEY }}
+                  CLERK_PUBLISHABLE_KEY: ${{ env.CLERK_PUBLISHABLE_KEY }}
+                  E2E_SEED_RECIPE_URL: ${{ steps.target.outputs.recipe }}
+                  E2E_SEED_WEB_ORIGIN: ${{ steps.target.outputs.web_origin }}
+              run: npx tsx packages/tools/e2e-seed/src/teardown.ts
             - name: Publish the deployed-origin reports to the job summary
               if: ${{ always() && steps.live.outputs.recipe != '' }}
               working-directory: packages/tools/loadtest

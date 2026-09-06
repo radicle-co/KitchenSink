@@ -28,7 +28,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, jsonHeaders, rampStages, PEAK_VUS, SC009_P95_MS } from './lib/common.js';
+import { BASE_URL, jsonHeaders, rampStages, PEAK_VUS, SC009_P95_MS, whenSubstrate } from './lib/common.js';
 
 const createTrend = new Trend('parse_job_create_duration', true);
 
@@ -80,10 +80,13 @@ export const options = {
         },
     },
     thresholds: {
-        'http_req_duration{scenario:typicalPaste}': [`p(95)<${TYPICAL_P95_MS}`],
-        'http_req_duration{scenario:maxPaste}': [`p(95)<${MAX_PASTE_P95_MS}`],
         // ⛔ The load-bearing threshold: an SQS failure under pressure is a 202 with retryable lines, never a 5xx.
         http_req_failed: ['rate<0.01'],
+        // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
+        ...whenSubstrate({
+            'http_req_duration{scenario:typicalPaste}': [`p(95)<${TYPICAL_P95_MS}`],
+            'http_req_duration{scenario:maxPaste}': [`p(95)<${MAX_PASTE_P95_MS}`],
+        }),
     },
 };
 

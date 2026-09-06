@@ -22,7 +22,7 @@ import {
     type RecipeStepRow,
     type RecipeVersionRow,
 } from '../../database/schema/index.js';
-import { type Writer } from '../../database/unitOfWork.js';
+import { type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import type {
     RecipeDifficulty,
     RecipeMealType,
@@ -208,12 +208,33 @@ export class RecipesDal {
     public constructor(private readonly db: RecipeDrizzle) {}
 
     /**
+     * Run `fn` as one Postgres Unit-of-Work over this DAL's client (S-R1).
+     *
+     * The seam that lets `RecipesService` commit a recipe and its `recipe_versions` row together — the
+     * same shape `CollectionsDal.transaction` already exposes for a clone plus its membership rows.
+     *
+     * ⛔ A collaborator enlisted in the returned handle must NEVER call `this.db.transaction` itself.
+     * Drizzle's `db.transaction` on a pool-backed client takes a SECOND CONNECTION rather than opening a
+     * savepoint, so it cannot see the outer transaction's uncommitted rows and does not roll back with
+     * it — and against this service's pool (no `max`, so 10; no `connectionTimeoutMillis`, so waiters
+     * block forever) that shape deadlocks permanently at ten concurrent saves. Real nesting is
+     * `tx.transaction`.
+     *
+     * @sideEffect Opens a transaction; every write `fn` performs commits or rolls back together.
+     */
+    public async transaction<T>(fn: (tx: RecipeTx) => Promise<T>): Promise<T> {
+        return this.db.transaction(fn);
+    }
+
+    /**
      * Insert a golden recipe row and its ordered steps in one transaction.
      *
+     * @param input - The recipe to insert.
+     * @param enlistIn - An open transaction to join; omitted, this opens its own.
      * @sideEffect Inserts one `recipes` row and 0..n `recipe_steps` rows.
      */
-    public async create(input: CreateRecipeInput): Promise<RecipeAggregate> {
-        return this.db.transaction(async (tx) => {
+    public async create(input: CreateRecipeInput, enlistIn?: RecipeTx): Promise<RecipeAggregate> {
+        const run = async (tx: RecipeTx): Promise<RecipeAggregate> => {
             const [recipe] = await tx
                 .insert(recipes)
                 .values({
@@ -254,7 +275,9 @@ export class RecipesDal {
             const ingredients = await this.linkDal.replaceForRecipe(tx, recipe.id, input.ingredients);
 
             return { recipe, steps, ingredients };
-        });
+        };
+
+        return enlistIn ? run(enlistIn) : this.db.transaction(run);
     }
 
     /**
@@ -490,8 +513,12 @@ export class RecipesDal {
      * @returns The updated aggregate, or `undefined` when no active recipe has that id.
      * @sideEffect Updates the `recipes` row and (optionally) rewrites `recipe_steps`.
      */
-    public async update(id: string, input: UpdateRecipeInput): Promise<RecipeAggregate | undefined> {
-        return this.db.transaction(async (tx) => {
+    public async update(
+        id: string,
+        input: UpdateRecipeInput,
+        enlistIn?: RecipeTx,
+    ): Promise<RecipeAggregate | undefined> {
+        const run = async (tx: RecipeTx): Promise<RecipeAggregate | undefined> => {
             const [recipe] = await tx
                 .update(recipes)
                 .set({
@@ -546,7 +573,9 @@ export class RecipesDal {
                     : await this.linkDal.loadByRecipeIds(tx, [id]);
 
             return { recipe, steps, ingredients };
-        });
+        };
+
+        return enlistIn ? run(enlistIn) : this.db.transaction(run);
     }
 
     /**

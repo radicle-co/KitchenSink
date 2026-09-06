@@ -20,6 +20,8 @@ import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
+import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -71,6 +73,7 @@ function service(existing: RecipeAggregate): { svc: RecipesService; update: Retu
         update,
         softDelete: vi.fn(),
         setVisibility: vi.fn(),
+        transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
     const ingredientsDal = {
         findById: vi.fn(),

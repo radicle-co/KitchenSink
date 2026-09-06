@@ -24,7 +24,7 @@ import { RecipesService } from '../recipes.service.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photosDal.fixture.js';
 import { fakeRatingsDal } from '../__fixtures__/ratingsDal.fixture.js';
-import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
+import type { RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
 import { makeRecipeIngredientRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
@@ -34,6 +34,7 @@ import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
+import { fakeRecipesDal, FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -70,17 +71,6 @@ function aggregateWithOnion(): RecipeAggregate {
             }),
         ],
     };
-}
-
-function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
-    return {
-        create: vi.fn(),
-        findById: vi.fn(),
-        findAll: vi.fn(),
-        update: vi.fn(),
-        softDelete: vi.fn(),
-        ...overrides,
-    } as unknown as RecipesDal;
 }
 
 function fakeIngredientsDal(overrides: Partial<IngredientsDal> = {}): IngredientsDal {
@@ -150,6 +140,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
                     }),
                 ],
             }),
+            FAKE_TX,
         );
         // The response is composed from the persisted junction (no longer an empty array).
         expect(response.ingredients).toEqual([
@@ -195,7 +186,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
         };
         await service.create(OWNER_PRINCIPAL, poisoned);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ ingredientNamesText: 'Onion' }));
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ ingredientNamesText: 'Onion' }), FAKE_TX);
     });
 
     it('rejects an unresolved ingredientId with UNKNOWN_INGREDIENT (not a raw FK error)', async () => {
@@ -288,6 +279,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
         expect(dal.update).toHaveBeenCalledWith(
             'r-1',
             expect.objectContaining({ ingredients: [expect.objectContaining({ ingredientId: ONION_ID })] }),
+            FAKE_TX,
         );
     });
 

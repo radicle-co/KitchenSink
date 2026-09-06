@@ -96,6 +96,7 @@ import { canonicalIngredientName } from '../ingredients/domain/ingredientName.js
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
 import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeIngredientRow, RecipePhotoRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
+import type { RecipeTx } from '../database/unitOfWork.js';
 import type { Principal } from '../auth/principal.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import { FoodNutritionGateway } from '../ingredients/foodNutrition.gateway.js';
@@ -673,6 +674,19 @@ function detectSubstantiveEdit(existing: RecipeAggregate, dto: UpdateRecipeDto):
     return false;
 }
 
+/**
+ * What a write states about the version it records.
+ *
+ * Replaces `recordSnapshot?: boolean`. A boolean could only say "do not record one", which is an opt-out
+ * of an invariant; a directive says what the version MEANS, and every write has one.
+ */
+export interface SnapshotDirective {
+    /** The change summary stored on the version row. Defaults to `'Updated'`. */
+    readonly changeSummary?: string;
+    /** The version this write was restored FROM, when it was a restore. */
+    readonly baseVersion?: number;
+}
+
 @Injectable()
 export class RecipesService {
     public constructor(
@@ -1149,21 +1163,35 @@ export class RecipesService {
     }
 
     /**
-     * Record an immutable version snapshot of a just-written recipe aggregate (FR-007b). Best-effort:
-     * the recipe has already committed, so a snapshot/retention failure must NOT fail the user's save —
-     * it is logged and swallowed (the reconciliation/worker path backstops a missed row). This is the
-     * ONE place create/update/clone converge to populate version history.
+     * Record an immutable version snapshot of a just-written recipe aggregate (FR-007b), in the SAME
+     * transaction as the recipe write. This is the ONE place create/update/clone/restore converge to
+     * populate version history.
      *
-     * @sideEffect Inserts a `recipe_versions` row and runs retention (archive + prune) via VersionsService.
+     * ⛔ NO try/catch, and the throw IS the mechanism (owner ruling 2026-09-06). This used to swallow, on
+     * the reasoning that "the recipe has already committed, so a snapshot failure must NOT fail the
+     * user's save" — which was true, and was the problem: a recipe saved with a silent hole in its
+     * history, reported to the client as 201. The stated backstop ("the reconciliation/worker path
+     * backstops a missed row") did not exist: `archiveSweeper.ts` selects FROM the outbox, so it can only
+     * re-drive a row that is already there, and nothing anywhere reconstructs a missing version row.
+     *
+     * ⚠️ Un-swallowing ALONE would have made it worse. The recipe is written before this runs, so a bare
+     * throw returns 5xx over a COMMITTED recipe — the same lie in the other direction. Atomicity is what
+     * makes the reported outcome true, which is why the transaction is a required parameter and comes
+     * first: a call site that forgot it does not typecheck.
+     *
+     * @param tx - The open transaction carrying the recipe write.
+     * @sideEffect Inserts a `recipe_versions` row and records retention overflow, inside `tx`.
      */
-    private async recordSnapshot(
+    private async recordSnapshotIn(
+        tx: RecipeTx,
         aggregate: RecipeAggregate,
         ownerId: string,
         changeSummary: string,
         editorHandle?: string,
+        baseVersion?: number,
     ): Promise<void> {
-        try {
-            await this.versions.createSnapshot({
+        await this.versions.createSnapshot(
+            {
                 recipeId: aggregate.recipe.id,
                 versionNumber: aggregate.recipe.currentVersion,
                 snapshot: aggregateToSnapshot(aggregate),
@@ -1171,12 +1199,11 @@ export class RecipesService {
                 changeSummary,
                 // Editor handle (W8-a.2) — the version editor's denormalized display name; omitted → NULL.
                 ...(editorHandle !== undefined ? { editorHandle } : {}),
-            });
-        } catch (error) {
-            // The recipe is saved; a version-history hiccup is non-fatal to the write. Surface it for
-            // observability (logs route to Sentry) without propagating.
-            console.error(`Failed to record version snapshot for recipe ${aggregate.recipe.id}:`, error);
-        }
+                // The version this write was restored FROM, when it was a restore. Absent otherwise.
+                ...(baseVersion !== undefined ? { baseVersion } : {}),
+            },
+            tx,
+        );
     }
 
     /**
@@ -1231,43 +1258,53 @@ export class RecipesService {
         // ONE shared rule. The handle-sync consumer keeps every owned recipe/version current thereafter.
         const authorHandle = deriveDisplayName(principal) || undefined;
 
-        const aggregate = await this.dal.create({
-            ownerId: principal.userId,
-            title: dto.title,
-            description: dto.description,
-            cuisine: dto.cuisine,
-            visibility: requested,
-            servings: dto.servings,
-            prepTimeMinutes: dto.prepTimeMinutes,
-            cookTimeMinutes: dto.cookTimeMinutes,
-            totalTimeMinutes: dto.totalTimeMinutes,
-            // Author-stated difficulty (FR-001b) — persisted only when the author stated one; omitted
-            // otherwise so the row stays "not stated" (NULL). Never defaulted.
-            ...(dto.difficulty !== undefined ? { difficulty: dto.difficulty } : {}),
-            // Meal type (plan U34) — same rule as difficulty directly above: persisted only when the author
-            // stated one, omitted otherwise so the column stays NULL rather than acquiring a guessed value.
-            ...(dto.mealType !== undefined ? { mealType: dto.mealType } : {}),
-            // Publication status (W8-a.3) — omitted → DB default 'published'; Save-Draft sends 'draft'.
-            ...(dto.status !== undefined ? { status: dto.status } : {}),
-            tags: dto.tags ?? [],
-            dietaryFlags: dto.dietaryFlags ?? [],
-            // Provenance as the policy RESOLVED it, never as the body stated it. `sourceType` is always
-            // written (the resolved value equals the column default for an undeclared create, so the row is
-            // unchanged); the two nullable text columns are written as the policy's `null`, which is what
-            // "no external source" means — never `''`, which would render as an empty credit line.
-            sourceType: provenance.sourceType,
-            sourceUrl: provenance.sourceUrl,
-            sourceAttribution: provenance.sourceAttribution,
-            ingredientNamesText: buildIngredientNamesText(ingredients),
-            // Denormalized headline per-serving calories (W8-a.1) — recomputed from the resolved lines so the
-            // list/search/collection-embed cards render calories without an N+1. Absent → column stays NULL.
-            // Denormalized author handle (W8-a.2) — absent → column stays NULL until the fan-out fills it.
-            ...(authorHandle !== undefined ? { authorHandle } : {}),
-            ingredients,
-            steps: dto.steps.map(toStepInput),
-        });
+        // ⛔ ONE TRANSACTION: the recipe and its version row commit together or not at all (owner ruling
+        // 2026-09-06). Everything above stays OUTSIDE — reads, policy and pure derivation — and so does
+        // everything below, because a Postgres transaction must never be held across a network call.
+        const aggregate = await this.dal.transaction(async (tx) => {
+            const created = await this.dal.create(
+                {
+                    ownerId: principal.userId,
+                    title: dto.title,
+                    description: dto.description,
+                    cuisine: dto.cuisine,
+                    visibility: requested,
+                    servings: dto.servings,
+                    prepTimeMinutes: dto.prepTimeMinutes,
+                    cookTimeMinutes: dto.cookTimeMinutes,
+                    totalTimeMinutes: dto.totalTimeMinutes,
+                    // Author-stated difficulty (FR-001b) — persisted only when the author stated one; omitted
+                    // otherwise so the row stays "not stated" (NULL). Never defaulted.
+                    ...(dto.difficulty !== undefined ? { difficulty: dto.difficulty } : {}),
+                    // Meal type (plan U34) — same rule as difficulty directly above: persisted only when the author
+                    // stated one, omitted otherwise so the column stays NULL rather than acquiring a guessed value.
+                    ...(dto.mealType !== undefined ? { mealType: dto.mealType } : {}),
+                    // Publication status (W8-a.3) — omitted → DB default 'published'; Save-Draft sends 'draft'.
+                    ...(dto.status !== undefined ? { status: dto.status } : {}),
+                    tags: dto.tags ?? [],
+                    dietaryFlags: dto.dietaryFlags ?? [],
+                    // Provenance as the policy RESOLVED it, never as the body stated it. `sourceType` is always
+                    // written (the resolved value equals the column default for an undeclared create, so the row is
+                    // unchanged); the two nullable text columns are written as the policy's `null`, which is what
+                    // "no external source" means — never `''`, which would render as an empty credit line.
+                    sourceType: provenance.sourceType,
+                    sourceUrl: provenance.sourceUrl,
+                    sourceAttribution: provenance.sourceAttribution,
+                    ingredientNamesText: buildIngredientNamesText(ingredients),
+                    // Denormalized headline per-serving calories (W8-a.1) — recomputed from the resolved lines so the
+                    // list/search/collection-embed cards render calories without an N+1. Absent → column stays NULL.
+                    // Denormalized author handle (W8-a.2) — absent → column stays NULL until the fan-out fills it.
+                    ...(authorHandle !== undefined ? { authorHandle } : {}),
+                    ingredients,
+                    steps: dto.steps.map(toStepInput),
+                },
+                tx,
+            );
 
-        await this.recordSnapshot(aggregate, principal.userId, 'Created', authorHandle);
+            await this.recordSnapshotIn(tx, created, principal.userId, 'Created', authorHandle);
+
+            return created;
+        });
 
         // Ask the verification gate about the transcribed lines (plan U11 / ADR-0024). A create has nothing
         // already on record, so `previous` is empty. Never throws — see `requestVerification`.
@@ -1638,7 +1675,9 @@ export class RecipesService {
 
     /**
      * Update a recipe the caller owns, enforcing optimistic concurrency (T033), and record a version
-     * snapshot of the result. `options.recordSnapshot = false` suppresses the snapshot for the RESTORE
+     * snapshot of the result. `options.snapshot` states WHAT that version records; it can no longer be
+     * suppressed. The old `recordSnapshot: false` was the one path that committed a recipe write with no
+     * version row — an opt-out of a system invariant, granted to the RESTORE
      * path (which records its own snapshot with restore-specific provenance) so a restore writes exactly
      * one version, not two at the same number. `options.changeSummary` labels the recorded version.
      */
@@ -1646,7 +1685,7 @@ export class RecipesService {
         principal: Principal,
         id: string,
         dto: UpdateRecipeDto,
-        options: { recordSnapshot?: boolean; changeSummary?: string } = {},
+        options: { readonly snapshot?: SnapshotDirective } = {},
     ): Promise<RecipeResponse> {
         const ownerId = principal.userId;
         const existing = await this.dal.findById(id);
@@ -1699,38 +1738,70 @@ export class RecipesService {
             }
         }
 
-        const updated = await this.dal.update(id, {
-            // The version predicate makes the write an atomic compare-and-swap (closes the lost-update
-            // race the read-then-check above cannot). The pre-check stays for the fast, clear-error path.
-            expectedVersion: dto.expectedVersion,
-            title: dto.title,
-            description: dto.description,
-            cuisine: dto.cuisine,
-            servings: dto.servings,
-            prepTimeMinutes: dto.prepTimeMinutes,
-            cookTimeMinutes: dto.cookTimeMinutes,
-            totalTimeMinutes: dto.totalTimeMinutes,
-            // Three-state difficulty (FR-001b) passed straight through: `undefined` leaves it unchanged, a
-            // value sets it, explicit `null` clears it. The DAL is what distinguishes the three — the DTO
-            // preserved absent-vs-null, and forwarding the raw value keeps that distinction intact.
-            difficulty: dto.difficulty,
-            // Three-state meal type (plan U34) passed straight through, exactly as difficulty is: `undefined`
-            // leaves it unchanged, a value sets it, an explicit `null` clears it back to "not stated".
-            mealType: dto.mealType,
-            // Publication status (W8-a.3) — passed straight through: absent leaves it unchanged, a value
-            // sets it (Publish / re-draft). The DAL keys off `!== undefined`.
-            status: dto.status,
-            tags: dto.tags,
-            dietaryFlags: dto.dietaryFlags,
-            // Rebuild the search text from the RESOLVED catalog lines (not dto.ingredients) so the index
-            // tracks the persisted junction names — only when the patch actually replaces ingredients.
-            ...(ingredients !== undefined
-                ? { ingredientNamesText: buildIngredientNamesText(ingredients), ingredients }
-                : {}),
-            // Denormalized lead calories (W8-a.1): written (value or `null`-to-clear) only when an input
-            // changed; omitted otherwise so an unrelated patch leaves the stored figure untouched.
-            ...(dto.steps !== undefined ? { steps: dto.steps.map(toStepInput) } : {}),
-            ...(newlySubstantive ? { hasSubstantiveEdit: true } : {}),
+        // ⛔ ONE TRANSACTION, and the CAS miss must LEAVE it before it is diagnosed. `raiseVersionConflict`
+        // calls `dal.readConflict`, which opens its own transaction AND issues
+        // `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ` — a second pooled connection, and a statement
+        // Postgres rejects once one has already run. So the callback returns `undefined` and the 409 is
+        // raised outside; nothing was written, so committing an empty transaction is correct and cheaper
+        // than forcing a rollback.
+        const updated = await this.dal.transaction(async (tx) => {
+            const result = await this.dal.update(
+                id,
+                {
+                    // The version predicate makes the write an atomic compare-and-swap (closes the lost-update
+                    // race the read-then-check above cannot). The pre-check stays for the fast, clear-error path.
+                    expectedVersion: dto.expectedVersion,
+                    title: dto.title,
+                    description: dto.description,
+                    cuisine: dto.cuisine,
+                    servings: dto.servings,
+                    prepTimeMinutes: dto.prepTimeMinutes,
+                    cookTimeMinutes: dto.cookTimeMinutes,
+                    totalTimeMinutes: dto.totalTimeMinutes,
+                    // Three-state difficulty (FR-001b) passed straight through: `undefined` leaves it unchanged, a
+                    // value sets it, explicit `null` clears it. The DAL is what distinguishes the three — the DTO
+                    // preserved absent-vs-null, and forwarding the raw value keeps that distinction intact.
+                    difficulty: dto.difficulty,
+                    // Three-state meal type (plan U34) passed straight through, exactly as difficulty is: `undefined`
+                    // leaves it unchanged, a value sets it, an explicit `null` clears it back to "not stated".
+                    mealType: dto.mealType,
+                    // Publication status (W8-a.3) — passed straight through: absent leaves it unchanged, a value
+                    // sets it (Publish / re-draft). The DAL keys off `!== undefined`.
+                    status: dto.status,
+                    tags: dto.tags,
+                    dietaryFlags: dto.dietaryFlags,
+                    // Rebuild the search text from the RESOLVED catalog lines (not dto.ingredients) so the index
+                    // tracks the persisted junction names — only when the patch actually replaces ingredients.
+                    ...(ingredients !== undefined
+                        ? { ingredientNamesText: buildIngredientNamesText(ingredients), ingredients }
+                        : {}),
+                    // Denormalized lead calories (W8-a.1): written (value or `null`-to-clear) only when an input
+                    // changed; omitted otherwise so an unrelated patch leaves the stored figure untouched.
+                    ...(dto.steps !== undefined ? { steps: dto.steps.map(toStepInput) } : {}),
+                    ...(newlySubstantive ? { hasSubstantiveEdit: true } : {}),
+                },
+                tx,
+            );
+
+            if (!result) {
+                return undefined;
+            }
+
+            // Editor handle (W8-a.2) — the version's "by @handle" attribution. Derived from the editor's
+            // token claims via the ONE shared rule create uses; `author_handles` is deliberately NOT the
+            // source here (it is seeded only by rename events, so it is NULL for any un-renamed user).
+            const editorHandle = deriveDisplayName(principal) || undefined;
+
+            await this.recordSnapshotIn(
+                tx,
+                result,
+                ownerId,
+                options.snapshot?.changeSummary ?? 'Updated',
+                editorHandle,
+                options.snapshot?.baseVersion,
+            );
+
+            return result;
         });
 
         if (!updated) {
@@ -1738,14 +1809,6 @@ export class RecipesService {
             // version between our read and our write (the lost-update race). Raise the enriched 409 (or a
             // 404 if the row is genuinely gone). `return` narrows `updated` to defined below.
             return this.raiseVersionConflict(id, dto.expectedVersion);
-        }
-
-        if (options.recordSnapshot !== false) {
-            // Editor handle (W8-a.2) — the version's "by @handle" attribution. Derived from the editor's
-            // token claims via the ONE shared rule create uses; `author_handles` is deliberately NOT the
-            // source here (it is seeded only by rename events, so it is NULL for any un-renamed user).
-            const editorHandle = deriveDisplayName(principal) || undefined;
-            await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated', editorHandle);
         }
 
         if (resolved !== undefined) {
@@ -1812,32 +1875,41 @@ export class RecipesService {
         // the response for the one-time banner. The food's OWN author cloning keeps their binding.
         const { lines: clonedLines, unboundCount } = await this.unbindPrivateFoodLines(source.ingredients, ownerId);
 
-        const created = await this.dal.create({
-            ownerId,
-            title: source.recipe.title,
-            ...(source.recipe.description !== null ? { description: source.recipe.description } : {}),
-            ...(source.recipe.cuisine !== null ? { cuisine: source.recipe.cuisine } : {}),
-            visibility: defaultCloneVisibility(sourceType),
-            servings: source.recipe.servings,
-            prepTimeMinutes: source.recipe.prepTimeMinutes,
-            cookTimeMinutes: source.recipe.cookTimeMinutes,
-            totalTimeMinutes: source.recipe.totalTimeMinutes,
-            tags: source.recipe.tags,
-            dietaryFlags: source.recipe.dietaryFlags,
-            sourceType,
-            sourceUrl: source.recipe.sourceUrl,
-            sourceAttribution: attribution,
-            clonedFromId: source.recipe.id,
-            hasSubstantiveEdit: false,
-            ingredientNamesText: source.recipe.ingredientNamesText,
-            ingredients: clonedLines,
-            steps: source.steps.map(toStepInputFromRow),
-        });
-
-        // Editor handle (W8-a.2): the CLONER (not the source author) is the editor of the clone's first
-        // version — derived from the caller's claims via the ONE shared rule, matching create/update.
+        // Editor handle (W8-a.2) — derived from the cloner's token claims via the ONE shared rule. Pure,
+        // so it is computed OUTSIDE the transaction with every other derivation.
         const editorHandle = deriveDisplayName(principal) || undefined;
-        await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`, editorHandle);
+
+        // ⛔ ONE TRANSACTION, exactly as `create` — the clone and its first version row commit together.
+        const created = await this.dal.transaction(async (tx) => {
+            const cloned = await this.dal.create(
+                {
+                    ownerId,
+                    title: source.recipe.title,
+                    ...(source.recipe.description !== null ? { description: source.recipe.description } : {}),
+                    ...(source.recipe.cuisine !== null ? { cuisine: source.recipe.cuisine } : {}),
+                    visibility: defaultCloneVisibility(sourceType),
+                    servings: source.recipe.servings,
+                    prepTimeMinutes: source.recipe.prepTimeMinutes,
+                    cookTimeMinutes: source.recipe.cookTimeMinutes,
+                    totalTimeMinutes: source.recipe.totalTimeMinutes,
+                    tags: source.recipe.tags,
+                    dietaryFlags: source.recipe.dietaryFlags,
+                    sourceType,
+                    sourceUrl: source.recipe.sourceUrl,
+                    sourceAttribution: attribution,
+                    clonedFromId: source.recipe.id,
+                    hasSubstantiveEdit: false,
+                    ingredientNamesText: source.recipe.ingredientNamesText,
+                    ingredients: clonedLines,
+                    steps: source.steps.map(toStepInputFromRow),
+                },
+                tx,
+            );
+
+            await this.recordSnapshotIn(tx, cloned, ownerId, `Cloned from ${source.recipe.id}`, editorHandle);
+
+            return cloned;
+        });
 
         // A fresh clone starts with no photos (not copied from the source); nutrition is computed from its lines.
         const detail = await this.toDetailResponse(created, [], { caller, viewerId: ownerId });

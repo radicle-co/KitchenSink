@@ -17,6 +17,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
 import { recipeVersions, type RecipeVersionRow } from '../../database/schema/index.js';
 
 /**
@@ -47,13 +48,21 @@ export class VersionsDal {
     public constructor(private readonly db: RecipeDrizzle) {}
 
     /**
-     * Insert one immutable `recipe_versions` row.
+     * Insert one immutable `recipe_versions` row, in the caller's transaction.
      *
+     * ⛔ THE TRANSACTION IS REQUIRED, and not defaulted to the injected client. A recipe save and its
+     * version row commit together or not at all (owner ruling 2026-09-06), so a version written outside
+     * a transaction is the exact defect this parameter exists to prevent — and a default would be a
+     * POSITION, silently asserted for every caller that had not thought about it. Required makes it a
+     * compile error instead of a convention.
+     *
+     * @param input - The snapshot to record.
+     * @param tx - The open transaction that also carries the recipe write.
      * @returns The inserted row.
      * @sideEffect Inserts one `recipe_versions` row.
      */
-    public async createSnapshot(input: CreateSnapshotInput): Promise<RecipeVersionRow> {
-        const [row] = await this.db
+    public async createSnapshot(input: CreateSnapshotInput, tx: RecipeTx): Promise<RecipeVersionRow> {
+        const [row] = await tx
             .insert(recipeVersions)
             .values({
                 recipeId: input.recipeId,
@@ -120,9 +129,10 @@ export class VersionsDal {
      */
     public async findVersionsBeyondRetention(
         recipeId: string,
+        tx: RecipeTx,
         keep: number = VERSION_RETENTION_LIMIT,
     ): Promise<RecipeVersionRow[]> {
-        return this.db
+        return tx
             .select()
             .from(recipeVersions)
             .where(eq(recipeVersions.recipeId, recipeId))

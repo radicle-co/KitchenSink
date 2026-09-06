@@ -24,6 +24,8 @@ import type { Principal } from '../../auth/principal.js';
 import { makeVersionRow } from '../../__fixtures__/index.js';
 import { RecipeErrorCode, type RecipeSnapshot } from '@kitchensink/recipe-core';
 import type { RecipeVersionRow } from '../../database/schema/index.js';
+import { FAKE_TX } from '../../recipes/__fixtures__/recipesDal.fixture.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
 
 const SNAPSHOT: RecipeSnapshot = {
     version: 1,
@@ -42,11 +44,11 @@ const SNAPSHOT: RecipeSnapshot = {
  * drifts from the contract at compile time rather than silently.
  */
 interface FakePendingArchives {
-    enqueue: Mock<(input: EnqueueArchiveInput) => Promise<unknown>>;
+    enqueueMany: Mock<(inputs: readonly EnqueueArchiveInput[], tx: RecipeTx) => Promise<unknown>>;
 }
 
 function fakePendingArchives(): FakePendingArchives {
-    return { enqueue: vi.fn().mockResolvedValue({ id: 'pa-1' }) };
+    return { enqueueMany: vi.fn().mockResolvedValue([{ id: 'pa-1' }]) };
 }
 
 function fakeDal(overrides: Partial<VersionsDal> = {}): VersionsDal {
@@ -84,16 +86,20 @@ describe('VersionsService.createSnapshot', () => {
         const dal = fakeDal({ createSnapshot: vi.fn().mockResolvedValue(row) });
         const service = makeService(dal, pending);
 
-        const result = await service.createSnapshot({
-            recipeId: 'r-1',
-            versionNumber: 4,
-            snapshot: SNAPSHOT,
-            createdBy: 'owner-1',
-            baseVersion: 3,
-        });
+        const result = await service.createSnapshot(
+            {
+                recipeId: 'r-1',
+                versionNumber: 4,
+                snapshot: SNAPSHOT,
+                createdBy: 'owner-1',
+                baseVersion: 3,
+            },
+            FAKE_TX,
+        );
 
         expect(dal.createSnapshot).toHaveBeenCalledWith(
             expect.objectContaining({ recipeId: 'r-1', versionNumber: 4, createdBy: 'owner-1', baseVersion: 3 }),
+            FAKE_TX,
         );
         expect(result).toMatchObject({ id: 'v-1', recipeId: 'r-1', versionNumber: 4, baseVersion: 3 });
         expect(typeof result.createdAt).toBe('string');
@@ -105,15 +111,21 @@ describe('VersionsService.createSnapshot', () => {
             findVersionsBeyondRetention: vi.fn().mockResolvedValue([]),
         });
 
-        await makeService(dal, pending).createSnapshot({
-            recipeId: 'r-1',
-            versionNumber: 1,
-            snapshot: SNAPSHOT,
-            createdBy: 'owner-1',
-        });
+        await makeService(dal, pending).createSnapshot(
+            {
+                recipeId: 'r-1',
+                versionNumber: 1,
+                snapshot: SNAPSHOT,
+                createdBy: 'owner-1',
+            },
+            FAKE_TX,
+        );
 
-        expect(dal.findVersionsBeyondRetention).toHaveBeenCalledWith('r-1');
-        expect(pending.enqueue).not.toHaveBeenCalled();
+        expect(dal.findVersionsBeyondRetention).toHaveBeenCalledWith('r-1', FAKE_TX);
+        // ⚠️ CALLED, with an EMPTY list — not "not called". The batched write owns the empty case (it
+        // issues no statement), so the service asks unconditionally and the DAL decides. Asserting
+        // "not called" here would pin a decision that no longer lives in this class.
+        expect(pending.enqueueMany).toHaveBeenCalledWith([], FAKE_TX);
         expect(dal.deleteById).not.toHaveBeenCalled();
     });
 
@@ -127,18 +139,28 @@ describe('VersionsService.createSnapshot', () => {
             findVersionsBeyondRetention: vi.fn().mockResolvedValue(overflow),
         });
 
-        await makeService(dal, pending).createSnapshot({
-            recipeId: 'r-1',
-            versionNumber: 12,
-            snapshot: SNAPSHOT,
-            createdBy: 'owner-1',
-        });
+        await makeService(dal, pending).createSnapshot(
+            {
+                recipeId: 'r-1',
+                versionNumber: 12,
+                snapshot: SNAPSHOT,
+                createdBy: 'owner-1',
+            },
+            FAKE_TX,
+        );
 
         // The row carries versionNumber because that is what the archive object is KEYED by (ARCH-BE-3)
         // — the worker builds `recipeVersionArchiveKey` from it without re-reading the version row.
-        expect(pending.enqueue).toHaveBeenCalledTimes(2);
-        expect(pending.enqueue).toHaveBeenCalledWith({ recipeVersionId: 'old-2', recipeId: 'r-1', versionNumber: 2 });
-        expect(pending.enqueue).toHaveBeenCalledWith({ recipeVersionId: 'old-1', recipeId: 'r-1', versionNumber: 1 });
+        // ONE call carrying every over-retention version, in the same transaction as the version row —
+        // the Outbox contract: the record of the debt commits with the row that incurs it.
+        expect(pending.enqueueMany).toHaveBeenCalledTimes(1);
+        expect(pending.enqueueMany).toHaveBeenCalledWith(
+            [
+                { recipeVersionId: 'old-2', recipeId: 'r-1', versionNumber: 2 },
+                { recipeVersionId: 'old-1', recipeId: 'r-1', versionNumber: 1 },
+            ],
+            FAKE_TX,
+        );
     });
 
     it('NEVER prunes the version row itself — the payload must outlive the save (FR-007b-i)', async () => {
@@ -150,12 +172,15 @@ describe('VersionsService.createSnapshot', () => {
             deleteById: vi.fn(),
         });
 
-        await makeService(dal, pending).createSnapshot({
-            recipeId: 'r-1',
-            versionNumber: 12,
-            snapshot: SNAPSHOT,
-            createdBy: 'owner-1',
-        });
+        await makeService(dal, pending).createSnapshot(
+            {
+                recipeId: 'r-1',
+                versionNumber: 12,
+                snapshot: SNAPSHOT,
+                createdBy: 'owner-1',
+            },
+            FAKE_TX,
+        );
 
         // THE load-bearing assertion of the cutover. The outbox row is ON DELETE CASCADE on the version
         // row, so pruning here would delete the record of the debt AND the snapshot the retry replays —
@@ -163,7 +188,19 @@ describe('VersionsService.createSnapshot', () => {
         expect(dal.deleteById).not.toHaveBeenCalled();
     });
 
-    it('still returns a successful save when the outbox write fails (FR-007b-i)', async () => {
+    it('⛔ FAILS the save when the outbox write fails — the debt commits with the row that incurs it', async () => {
+        // ⚠️ REWRITTEN (owner ruling 2026-09-06). This asserted the opposite: that an outbox failure was
+        // swallowed so the save still succeeded, on FR-007b-i's "a save MUST succeed independently of the
+        // S3 version-archive write". That requirement binds the S3 WRITE, and still does — the outbox row
+        // is Postgres, and it is now written in the save's own transaction.
+        //
+        // The swallow's stated safety net was that "the next save re-enqueues, idempotently". True only
+        // IF THERE IS A NEXT SAVE: a recipe whose owner never edits again never re-derived its overflow,
+        // so that version was never archived, with no alert and no DLQ. `archiveSweeper` selects FROM the
+        // outbox, so it can only re-drive a row that already exists.
+        //
+        // ⛔ And the catch could not have survived anyway: Postgres aborts a transaction on any statement
+        // error, so swallowing inside one would silently discard the whole save.
         const dal = fakeDal({
             createSnapshot: vi
                 .fn()
@@ -172,19 +209,14 @@ describe('VersionsService.createSnapshot', () => {
                 .fn()
                 .mockResolvedValue([makeVersionRow({ id: 'old-1', recipeId: 'r-1', versionNumber: 1 })]),
         });
-        const failing: FakePendingArchives = { enqueue: vi.fn().mockRejectedValue(new Error('db down')) };
+        const failing: FakePendingArchives = { enqueueMany: vi.fn().mockRejectedValue(new Error('db down')) };
 
-        // "A user-facing recipe save MUST succeed independently of the S3 version-archive write." The
-        // save has already committed; an outbox failure is recoverable (the next save re-enqueues,
-        // idempotently), so it must never surface to the user.
-        const result = await makeService(dal, failing).createSnapshot({
-            recipeId: 'r-1',
-            versionNumber: 12,
-            snapshot: SNAPSHOT,
-            createdBy: 'owner-1',
-        });
-
-        expect(result.id).toBe('v-new');
+        await expect(
+            makeService(dal, failing).createSnapshot(
+                { recipeId: 'r-1', versionNumber: 12, snapshot: SNAPSHOT, createdBy: 'owner-1' },
+                FAKE_TX,
+            ),
+        ).rejects.toThrow('db down');
     });
 });
 
@@ -264,12 +296,14 @@ describe('VersionsService.restore', () => {
                     }),
                 ],
             }),
-            // The update must OPT OUT of auto-snapshotting so the restore records exactly one version
-            // (its own, below) rather than two at the same number.
-            { recordSnapshot: false },
+            // ⚠️ The restore now STATES what its version records instead of suppressing it. There is one
+            // writer, so "two versions at the same number" is unreachable rather than avoided by a flag.
+            { snapshot: { changeSummary: 'Restored from version 3', baseVersion: 3 } },
         );
-        // Exactly one snapshot: the restore's own (the update was told not to record).
-        expect(dal.createSnapshot).toHaveBeenCalledOnce();
+        // ⛔ ZERO, not one. The restore no longer writes its own version — `RecipesService.update` records
+        // it inside the same transaction as the content write, from the directive above. Asserting the
+        // absence is what stops the old second writer being reintroduced.
+        expect(dal.createSnapshot).not.toHaveBeenCalled();
         // The response is the { recipe, restoredFromVersion, currentVersion } envelope, not the version row.
         expect(result).toEqual({ recipe: RESTORED_RECIPE, restoredFromVersion: 3, currentVersion: 6 });
     });
@@ -280,17 +314,23 @@ describe('VersionsService.restore', () => {
             findByRecipeAndVersion: vi.fn().mockResolvedValue(target),
             createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
         });
+        const recipes = fakeRecipes();
         const service = new VersionsService(
             dal,
-            fakeRecipes(),
+            recipes,
             fakePendingArchives() as unknown as PendingArchivesDal,
             noArchive(),
         );
 
-        // The RESTORER is the editor of the restore's new version — their handle, not the original author's.
-        await service.restore({ ...PRINCIPAL, firstName: 'Amy', lastName: 'Pond' }, RECIPE_ID, 3);
+        // ⚠️ REWRITTEN. The restorer is still the editor of the new version, but the handle is derived by
+        // `RecipesService.update` from the same principal — one rule for all four write paths — so this
+        // asserts the principal is FORWARDED rather than that this class derived a handle itself.
+        const restorer = { ...PRINCIPAL, firstName: 'Amy', lastName: 'Pond' };
 
-        expect(dal.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Amy Pond' }));
+        await service.restore(restorer, RECIPE_ID, 3);
+
+        expect(recipes.update).toHaveBeenCalledWith(restorer, RECIPE_ID, expect.anything(), expect.anything());
+        expect(dal.createSnapshot).not.toHaveBeenCalled();
     });
 
     it('rejects a non-owner with NOT_OWNER and never mutates the recipe', async () => {
@@ -333,39 +373,6 @@ describe('VersionsService.restore', () => {
             findByRecipeAndVersion: vi.fn().mockResolvedValue(target),
             createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
         });
-        const service = new VersionsService(
-            dal,
-            fakeRecipes(),
-            fakePendingArchives() as unknown as PendingArchivesDal,
-            noArchive(),
-        );
-
-        await service.restore(PRINCIPAL, RECIPE_ID, 3);
-
-        // History reconciles: when createSnapshot succeeds, a version row IS written carrying restore
-        // provenance — this must not regress once the write is made best-effort below.
-        expect(dal.createSnapshot).toHaveBeenCalledWith(
-            expect.objectContaining({
-                recipeId: RECIPE_ID,
-                versionNumber: 6,
-                baseVersion: 3,
-                changeSummary: 'Restored from version 3',
-            }),
-        );
-    });
-
-    it('does NOT fail the restore when the snapshot write throws (best-effort, logged not fatal)', async () => {
-        // S-R2: `restore` already committed the recipe update (via `recipes.update`) BEFORE this snapshot
-        // write runs. Unlike create/update/clone's `RecipesService.recordSnapshot`, restore's own
-        // `createSnapshot` call used to be un-swallowed — a snapshot failure here escaped as a 500 even
-        // though the restore had already taken effect. This pins the fix: same best-effort convention,
-        // logged and swallowed, restore still resolves its success result.
-        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-        const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
-        const dal = fakeDal({
-            findByRecipeAndVersion: vi.fn().mockResolvedValue(target),
-            createSnapshot: vi.fn().mockRejectedValue(new Error('snapshot boom')),
-        });
         const recipes = fakeRecipes();
         const service = new VersionsService(
             dal,
@@ -374,15 +381,45 @@ describe('VersionsService.restore', () => {
             noArchive(),
         );
 
-        const result = await service.restore(PRINCIPAL, RECIPE_ID, 3);
+        await service.restore(PRINCIPAL, RECIPE_ID, 3);
 
-        // The recipe update already committed — that is the caller-visible effect, and restore must
-        // still report success even though its own version-history write failed.
-        expect(result).toEqual({ recipe: RESTORED_RECIPE, restoredFromVersion: 3, currentVersion: 6 });
-        expect(recipes.update).toHaveBeenCalledOnce();
-        expect(consoleError).toHaveBeenCalled();
+        // ⚠️ REWRITTEN. The restore's provenance now travels as a DIRECTIVE into the update that records
+        // it, rather than as a second snapshot write this class performs afterwards. The provenance
+        // itself is unchanged and still asserted — it is where it is written that moved.
+        expect(recipes.update).toHaveBeenCalledWith(PRINCIPAL, RECIPE_ID, expect.anything(), {
+            snapshot: { changeSummary: 'Restored from version 3', baseVersion: 3 },
+        });
+        expect(dal.createSnapshot).not.toHaveBeenCalled();
+    });
 
-        consoleError.mockRestore();
+    it('⛔ FAILS the restore when its version row cannot be written', async () => {
+        // ⚠️ REWRITTEN (owner ruling 2026-09-06). This asserted that a restore returned 200 even when its
+        // snapshot write threw, because `recipes.update` had already committed the content. That is
+        // exactly the defect: a restore reported as done, with no record that it happened.
+        //
+        // The restore no longer writes its own version at all — it states a `SnapshotDirective` and
+        // `RecipesService.update` records it inside the same transaction as the content write. So the
+        // failure now propagates from `update`, and the content does not commit either.
+        const recipes = fakeRecipes();
+
+        recipes.update = vi.fn().mockRejectedValue(new Error('version row refused'));
+
+        const dal = fakeDal({
+            findByRecipeAndVersion: vi
+                .fn()
+                .mockResolvedValue(
+                    makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT }),
+                ),
+        });
+
+        const service = new VersionsService(
+            dal,
+            recipes,
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        );
+
+        await expect(service.restore(PRINCIPAL, RECIPE_ID, 3)).rejects.toThrow('version row refused');
     });
 });
 

@@ -23,20 +23,35 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { PendingArchivesDal } from '../pendingArchives.dal.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
+import type { RecipeTx } from '../../../database/unitOfWork.js';
 import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
 
 type FakeControl = FakeDrizzle<RecipeDrizzle>;
 
 const createFakeDb = (): FakeControl => makeFakeDrizzle<RecipeDrizzle>();
 
-function payloadOf(control: FakeControl, method: 'values'): Record<string, unknown> {
-    return control.calls.find((call) => call.method === method)?.args[0] as Record<string, unknown>;
+/** The rows handed to `.values(...)` — always an ARRAY now that the write is batched. */
+function rowsOf(control: FakeControl): readonly Record<string, unknown>[] {
+    return control.calls.find((call) => call.method === 'values')?.args[0] as readonly Record<string, unknown>[];
 }
 
 const VERSION_ID = '00000000-0000-4000-8000-0000000000v1';
 const RECIPE_ID = '00000000-0000-4000-8000-0000000000r1';
 
-describe('PendingArchivesDal.enqueue', () => {
+/**
+ * ⚠️ REWRITTEN for `enqueueMany` (owner ruling 2026-09-06). These tests previously drove `enqueue`, one
+ * row per call, over the DAL's injected client. Two things changed and both are behavioural:
+ *
+ *   - the write is BATCHED, because `enforceRetention` re-derives every over-retention version on every
+ *     save, so a backlog meant N round-trips — and those now happen while the save holds the `recipes`
+ *     row lock; and
+ *   - the writer is a REQUIRED parameter, because the outbox row records a debt the `recipe_versions`
+ *     row incurs and must commit with it. That is the Outbox contract, and it was breached: the version
+ *     committed, then a separate statement recorded the debt.
+ *
+ * The idempotency and schema-default assertions carry over unchanged — those properties did not move.
+ */
+describe('PendingArchivesDal.enqueueMany', () => {
     let control: FakeControl;
     let dal: PendingArchivesDal;
 
@@ -45,21 +60,68 @@ describe('PendingArchivesDal.enqueue', () => {
         dal = new PendingArchivesDal(control.db);
     });
 
-    it('records the version as owing S3 a write, addressable by BOTH its id and its number', async () => {
+    /** The DAL's own client, cast to a tx handle — for the cases not about which writer is used. */
+    const asTx = (fake: FakeControl): RecipeTx => fake.db as unknown as RecipeTx;
+
+    it('records each version as owing S3 a write, addressable by BOTH its id and its number', async () => {
         control.enqueue([{ id: 'pa-1' }]);
 
-        await dal.enqueue({ recipeVersionId: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 11 });
+        await dal.enqueueMany([{ recipeVersionId: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 11 }], asTx(control));
 
-        const values = payloadOf(control, 'values');
         // versionNumber is carried on the row (not just derivable) because it is what the archive
         // object is KEYED by (ARCH-BE-3) — the worker needs it to build the key.
-        expect(values).toMatchObject({ recipeVersionId: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 11 });
+        expect(rowsOf(control)[0]).toMatchObject({
+            recipeVersionId: VERSION_ID,
+            recipeId: RECIPE_ID,
+            versionNumber: 11,
+        });
+    });
+
+    it('⛔ writes a backlog in ONE statement, not one per version', async () => {
+        control.enqueue([{ id: 'pa-1' }, { id: 'pa-2' }, { id: 'pa-3' }]);
+
+        await dal.enqueueMany(
+            [11, 12, 13].map((versionNumber) => ({
+                recipeVersionId: `${VERSION_ID}${versionNumber}`,
+                recipeId: RECIPE_ID,
+                versionNumber,
+            })),
+            asTx(control),
+        );
+
+        expect(control.calls.filter((call) => call.method === 'insert')).toHaveLength(1);
+        expect(rowsOf(control)).toHaveLength(3);
+    });
+
+    it('⛔ issues NO statement for an empty overflow — drizzle throws on `.values([])`', async () => {
+        // Not an edge case: `enforceRetention` calls this on EVERY save, and the overflow is empty for
+        // every recipe with ten versions or fewer. Without the guard the COMMON path is the broken one.
+        await expect(dal.enqueueMany([], asTx(control))).resolves.toStrictEqual([]);
+        expect(control.calls.filter((call) => call.method === 'insert')).toHaveLength(0);
+    });
+
+    it('⛔ writes through the SUPPLIED transaction, never the injected client', async () => {
+        // ⚠️ TWO DISTINCT FAKES, deliberately. With one shared fake this assertion cannot fail — a DAL
+        // that ignored the parameter and used `this.db` would record the call in the same place and look
+        // identical. The defect this test exists for is invisible to a single-fake harness.
+        const injected = createFakeDb();
+        const tx = createFakeDb();
+
+        tx.enqueue([{ id: 'pa-1' }]);
+
+        await new PendingArchivesDal(injected.db).enqueueMany(
+            [{ recipeVersionId: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 11 }],
+            asTx(tx),
+        );
+
+        expect(tx.calls.filter((call) => call.method === 'insert')).toHaveLength(1);
+        expect(injected.calls, 'the injected client was used instead of the caller’s transaction').toStrictEqual([]);
     });
 
     it('is idempotent — a replayed retention pass cannot fan out duplicate archive work', async () => {
         control.enqueue([]);
 
-        await dal.enqueue({ recipeVersionId: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 11 });
+        await dal.enqueueMany([{ recipeVersionId: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 11 }], asTx(control));
 
         // UNIQUE(recipe_version_id) + ON CONFLICT DO NOTHING: enqueueing the same version twice leaves
         // exactly one row, so retention is safe to re-run and a duplicate SQS delivery is harmless.
@@ -69,13 +131,12 @@ describe('PendingArchivesDal.enqueue', () => {
     it('leaves status/attempts to the schema defaults (pending, 0) rather than restating them', async () => {
         control.enqueue([{ id: 'pa-1' }]);
 
-        await dal.enqueue({ recipeVersionId: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 11 });
+        await dal.enqueueMany([{ recipeVersionId: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 11 }], asTx(control));
 
-        const values = payloadOf(control, 'values');
         // One authoritative definition of the initial state — the migration's DEFAULTs. Restating them
         // here would be a second place to drift.
-        expect(values['status']).toBeUndefined();
-        expect(values['attempts']).toBeUndefined();
+        expect(rowsOf(control)[0]?.['status']).toBeUndefined();
+        expect(rowsOf(control)[0]?.['attempts']).toBeUndefined();
     });
 });
 

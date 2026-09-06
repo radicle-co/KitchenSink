@@ -15,6 +15,7 @@ import type { RecipeDrizzle } from '../../../database/client.js';
 import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
 import { makeVersionRow } from '../../../__fixtures__/index.js';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
+import type { RecipeTx } from '../../../database/unitOfWork.js';
 
 /** A chainable, thenable query stub: builder methods return `this`; awaiting shifts one queued result. */
 type FakeControl = FakeDrizzle<RecipeDrizzle>;
@@ -46,14 +47,17 @@ describe('VersionsDal.createSnapshot', () => {
         const row = makeVersionRow({ id: 'v-1', recipeId: 'r-1', versionNumber: 3 });
         control.enqueue([row]);
 
-        const result = await dal.createSnapshot({
-            recipeId: 'r-1',
-            versionNumber: 3,
-            snapshot: SNAPSHOT,
-            createdBy: 'owner-1',
-            baseVersion: 2,
-            changeSummary: 'Edited title',
-        });
+        const result = await dal.createSnapshot(
+            {
+                recipeId: 'r-1',
+                versionNumber: 3,
+                snapshot: SNAPSHOT,
+                createdBy: 'owner-1',
+                baseVersion: 2,
+                changeSummary: 'Edited title',
+            },
+            control.db as unknown as RecipeTx,
+        );
 
         expect(result).toEqual(row);
 
@@ -71,7 +75,10 @@ describe('VersionsDal.createSnapshot', () => {
     it('defaults optional baseVersion / changeSummary / s3Key to null', async () => {
         control.enqueue([makeVersionRow()]);
 
-        await dal.createSnapshot({ recipeId: 'r-1', versionNumber: 1, snapshot: SNAPSHOT, createdBy: 'owner-1' });
+        await dal.createSnapshot(
+            { recipeId: 'r-1', versionNumber: 1, snapshot: SNAPSHOT, createdBy: 'owner-1' },
+            control.db as unknown as RecipeTx,
+        );
 
         const insertPayload = control.calls.find((call) => call.method === 'values')?.args[0] as Record<
             string,
@@ -86,7 +93,10 @@ describe('VersionsDal.createSnapshot', () => {
         control.enqueue([]);
 
         await expect(
-            dal.createSnapshot({ recipeId: 'r-1', versionNumber: 1, snapshot: SNAPSHOT, createdBy: 'owner-1' }),
+            dal.createSnapshot(
+                { recipeId: 'r-1', versionNumber: 1, snapshot: SNAPSHOT, createdBy: 'owner-1' },
+                control.db as unknown as RecipeTx,
+            ),
         ).rejects.toThrow();
     });
 });
@@ -135,7 +145,7 @@ describe('VersionsDal.findVersionsBeyondRetention', () => {
         const overflow = [makeVersionRow({ versionNumber: 2 }), makeVersionRow({ versionNumber: 1 })];
         control.enqueue(overflow);
 
-        const result = await dal.findVersionsBeyondRetention('r-1');
+        const result = await dal.findVersionsBeyondRetention('r-1', control.db as unknown as RecipeTx);
 
         expect(result).toEqual(overflow);
         expect(VERSION_RETENTION_LIMIT).toBe(10);
@@ -150,7 +160,7 @@ describe('VersionsDal.findVersionsBeyondRetention', () => {
         const dal = new VersionsDal(control.db);
         control.enqueue([]);
 
-        await dal.findVersionsBeyondRetention('r-1', 3);
+        await dal.findVersionsBeyondRetention('r-1', control.db as unknown as RecipeTx, 3);
 
         const offsetCall = control.calls.find((call) => call.method === 'offset');
         expect(offsetCall?.args[0]).toBe(3);

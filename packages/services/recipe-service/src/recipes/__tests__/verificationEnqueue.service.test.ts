@@ -47,6 +47,8 @@ import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtu
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
+import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
 
 /** A `FoodNutritionGateway` double: this suite is not about nutrition, so it degrades honestly. */
 const nutritionGatewayDouble = { lookup: async () => ({ byFoodId: new Map(), degraded: true }) } as never;
@@ -96,6 +98,7 @@ function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
         update: vi.fn(),
         softDelete: vi.fn(),
         ...overrides,
+        transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 }
 

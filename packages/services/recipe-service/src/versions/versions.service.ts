@@ -16,11 +16,11 @@
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2).
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { deriveDisplayName } from '@kitchensink/identity-core';
 import { recipeVersionArchiveKey } from '@kitchensink/recipe-core';
 import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { VersionsDal, type CreateSnapshotInput } from './dal/versions.dal.js';
+import type { RecipeTx } from '../database/unitOfWork.js';
 import { PendingArchivesDal } from './dal/pendingArchives.dal.js';
 import { VERSION_ARCHIVE_READER, type VersionArchiveReader } from './versionArchive.storage.js';
 import { upgradeStoredSnapshot } from './snapshotUpgrade.js';
@@ -113,10 +113,10 @@ export class VersionsService {
      * @returns The newly written version (wire contract).
      * @sideEffect Inserts a `recipe_versions` row and `recipe_version_pending_archives` rows.
      */
-    public async createSnapshot(input: CreateSnapshotInput): Promise<RecipeVersion> {
-        const row = await this.dal.createSnapshot(input);
+    public async createSnapshot(input: CreateSnapshotInput, tx: RecipeTx): Promise<RecipeVersion> {
+        const row = await this.dal.createSnapshot(input, tx);
 
-        await this.enforceRetention(input.recipeId);
+        await this.enforceRetention(input.recipeId, tx);
 
         return toRecipeVersion(row);
     }
@@ -194,9 +194,15 @@ export class VersionsService {
             snapshot = archived.snapshot;
         }
 
-        // recordSnapshot:false — the restore records its OWN version below (with baseVersion + a restore
-        // summary), so the update must not also auto-snapshot, or the restore would write two versions at
-        // the same number.
+        // ⛔ ONE update call, carrying what the restore's version row must say. The restore used to pass
+        // `recordSnapshot: false` and then write its own version afterwards, best-effort — the single path
+        // that could commit a recipe write with no version row, and the one where reconstructing history is
+        // the entire point. `RecipesService.update` now records it inside the same transaction as the write.
+        //
+        // ⚠️ The stored snapshot is built from the POST-UPDATE aggregate, like create/update/clone, not
+        // copied from the archived one (owner ruling 2026-09-06). The rebuilt body below carries no tags,
+        // cuisine, difficulty, mealType or status, so copying the archive verbatim made the version row
+        // assert fields the live recipe does not have. One snapshot rule now serves all four write paths.
         const updated = await this.recipes.update(
             principal,
             recipeId,
@@ -233,35 +239,8 @@ export class VersionsService {
                     ...(step.timerSeconds !== undefined ? { timerSeconds: step.timerSeconds } : {}),
                 })),
             },
-            { recordSnapshot: false },
+            { snapshot: { changeSummary: `Restored from version ${versionNumber}`, baseVersion: versionNumber } },
         );
-
-        // Editor handle (W8-a.2): the RESTORER is the editor of this new version — derived from their
-        // claims via the ONE shared rule (matching create/update/clone); omitted → NULL when not derivable.
-        const editorHandle = deriveDisplayName(principal) || undefined;
-
-        // Record the restore as its own immutable version (with restore provenance) — this also drives
-        // retention. The RESPONSE is the restored recipe + version metadata, not this snapshot row.
-        //
-        // Best-effort (the SAME convention as `RecipesService.recordSnapshot`): the `recipes.update` call
-        // above has ALREADY committed the recipe content, so a snapshot-write failure here must not
-        // surface as a 500 on an otherwise-successful restore — it is logged and swallowed, not rethrown.
-        // The reconciliation/worker path backstops a missed row, same as create/update/clone.
-        try {
-            await this.createSnapshot({
-                recipeId,
-                versionNumber: updated.currentVersion,
-                snapshot: { ...snapshot, version: updated.currentVersion },
-                createdBy: ownerId,
-                baseVersion: versionNumber,
-                changeSummary: `Restored from version ${versionNumber}`,
-                ...(editorHandle !== undefined ? { editorHandle } : {}),
-            });
-        } catch (error) {
-            // The recipe is saved; a version-history hiccup is non-fatal to the restore. Surface it for
-            // observability (logs route to Sentry) without propagating.
-            console.error(`Failed to record version snapshot for recipe ${recipeId}:`, error);
-        }
 
         return {
             recipe: updated,
@@ -287,26 +266,36 @@ export class VersionsService {
      *    holds the snapshot the retry replays. Its outbox row is `ON DELETE CASCADE` on that row, so
      *    pruning early would delete the record of the debt *and* the payload in one step. The worker
      *    prunes after the write lands — archive-before-delete, preserved across the async boundary.
-     *  - **An outbox failure never fails the save.** The save is already committed; losing an archive
-     *    *attempt* is recoverable, failing the user's write is not.
+     *  - **An outbox failure now FAILS THE SAVE** (owner ruling 2026-09-06). It used to be swallowed on
+     *    the argument that "the save is already committed; losing an archive *attempt* is recoverable" —
+     *    but the save is no longer already committed, and the attempt was not recoverable: the old
+     *    comment claimed the next save re-enqueues idempotently, which is true only IF THERE IS A NEXT
+     *    SAVE. A recipe whose owner never edits again never re-derived its overflow, so that version was
+     *    never archived, with no alert and no DLQ. `archiveSweeper.ts` cannot help — it selects FROM this
+     *    table, so it can only re-drive a row that exists.
      *
+     * ⛔ AND THE CATCH COULD NOT HAVE STAYED ANYWAY. Postgres puts a transaction into the aborted state
+     * on any statement error: every later statement fails and the COMMIT degrades to a ROLLBACK. A
+     * `try/catch` here would read exactly like the old code, pass every mocked unit test, and silently
+     * discard the user's entire save. Swallowing inside a transaction requires a SAVEPOINT
+     * (`tx.transaction`), which is deliberately NOT used — no failure mode reaching this insert alone
+     * could be constructed (`ON CONFLICT DO NOTHING` against an FK target inserted in the same
+     * transaction; a racing inserter blocks then no-ops at READ COMMITTED).
+     *
+     * @param recipeId - The recipe whose overflow to record.
+     * @param tx - The open transaction carrying the recipe write and its version row.
      * @sideEffect Inserts `recipe_version_pending_archives` rows.
      */
-    private async enforceRetention(recipeId: string): Promise<void> {
-        const overflow = await this.dal.findVersionsBeyondRetention(recipeId);
+    private async enforceRetention(recipeId: string, tx: RecipeTx): Promise<void> {
+        const overflow = await this.dal.findVersionsBeyondRetention(recipeId, tx);
 
-        for (const version of overflow) {
-            try {
-                await this.pendingArchives.enqueue({
-                    recipeVersionId: version.id,
-                    recipeId: version.recipeId,
-                    versionNumber: version.versionNumber,
-                });
-            } catch {
-                // Swallowed by design (FR-007b-i). `findVersionsBeyondRetention` re-derives the overflow
-                // from scratch on every save and `enqueue` is idempotent, so the next save of this recipe
-                // re-enqueues it. Nothing is lost; only the archive is delayed.
-            }
-        }
+        await this.pendingArchives.enqueueMany(
+            overflow.map((version) => ({
+                recipeVersionId: version.id,
+                recipeId: version.recipeId,
+                versionNumber: version.versionNumber,
+            })),
+            tx,
+        );
     }
 }

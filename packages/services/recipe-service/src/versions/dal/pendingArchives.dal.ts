@@ -25,6 +25,7 @@ import { sql } from 'drizzle-orm';
 
 import { DrizzleProvider } from '../../database/database.module.js';
 import type { RecipeDrizzle } from '../../database/client.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
 import { recipeVersionPendingArchives, type RecipeVersionPendingArchiveRow } from '../../database/schema/index.js';
 
 /** Everything needed to record that a version owes S3 an archive write. */
@@ -47,28 +48,48 @@ export class PendingArchivesDal {
     public constructor(@Inject(DrizzleProvider) private readonly db: RecipeDrizzle) {}
 
     /**
-     * Record that a version owes S3 an archive write. Idempotent.
+     * Record that every given version owes S3 an archive write, in ONE statement. Idempotent.
      *
      * `UNIQUE(recipe_version_id)` + `ON CONFLICT DO NOTHING` means enqueueing the same version twice
      * leaves exactly one row, so a re-run retention pass (or a replayed save) cannot fan out duplicate
      * archive work. `status`, `attempts`, and `next_attempt_at` are deliberately left to the migration's
      * DEFAULTs so the initial state has one authoritative definition.
      *
-     * @returns The inserted row, or `undefined` when one already existed (the idempotent no-op).
+     * ⛔ THE WRITER IS A REQUIRED PARAMETER, not an optional one defaulting to the injected client. This
+     * row is the record of a debt the `recipe_versions` row incurs, and the Outbox pattern's contract is
+     * that the intent record commits with the state change it describes. Making the transaction handle
+     * required turns "an outbox row written outside its save's transaction" into a compile error rather
+     * than a convention — a default here would be a POSITION, silently asserted for every caller that had
+     * not thought about it.
+     *
+     * ⚠️ An empty input issues NO statement, because drizzle throws on `.values([])` — and `enforceRetention`
+     * calls this on EVERY save, where the overflow is empty for every recipe with ten versions or fewer.
+     * The guard covers the common path, not an edge case.
+     *
+     * @param inputs - The versions that owe an archive write; empty is a legitimate no-op.
+     * @param tx - The open transaction this write must join.
+     * @returns The rows actually inserted (conflicts contribute nothing).
      * @sideEffect Inserts into `recipe_version_pending_archives`.
      */
-    public async enqueue(input: EnqueueArchiveInput): Promise<RecipeVersionPendingArchiveRow | undefined> {
-        const [row] = await this.db
+    public async enqueueMany(
+        inputs: readonly EnqueueArchiveInput[],
+        tx: RecipeTx,
+    ): Promise<RecipeVersionPendingArchiveRow[]> {
+        if (inputs.length === 0) {
+            return [];
+        }
+
+        return tx
             .insert(recipeVersionPendingArchives)
-            .values({
-                recipeVersionId: input.recipeVersionId,
-                recipeId: input.recipeId,
-                versionNumber: input.versionNumber,
-            })
+            .values(
+                inputs.map((input) => ({
+                    recipeVersionId: input.recipeVersionId,
+                    recipeId: input.recipeId,
+                    versionNumber: input.versionNumber,
+                })),
+            )
             .onConflictDoNothing()
             .returning();
-
-        return row;
     }
 
     /**

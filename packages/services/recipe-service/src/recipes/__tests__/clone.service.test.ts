@@ -24,6 +24,8 @@ import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtu
 import type { Principal } from '../../auth/principal.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
+import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -101,6 +103,7 @@ function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create
         update: vi.fn(),
         softDelete: vi.fn(),
         setVisibility: vi.fn(),
+        transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 
     return { dal, create };
@@ -172,6 +175,7 @@ describe('RecipesService.clone', () => {
                 hasSubstantiveEdit: false,
                 title: 'Original Dish',
             }),
+            FAKE_TX,
         );
         // Content is carried over: the source's single step + ingredient line.
         const input = create.mock.calls[0]?.[0] as { steps: unknown[]; ingredients: { ingredientId: string }[] };
@@ -197,6 +201,7 @@ describe('RecipesService.clone', () => {
                 sourceUrl: 'https://example.com/x',
                 sourceAttribution: 'Chef A',
             }),
+            FAKE_TX,
         );
     });
 
@@ -246,7 +251,10 @@ describe('RecipesService.clone', () => {
         // The CLONER (not the source author) is the editor of the clone's first version.
         await svc.clone({ ...CLONER_PRINCIPAL, firstName: 'Rose', lastName: 'Tyler' }, 'src-1');
 
-        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Rose Tyler' }));
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ editorHandle: 'Rose Tyler' }),
+            FAKE_TX,
+        );
     });
 });
 

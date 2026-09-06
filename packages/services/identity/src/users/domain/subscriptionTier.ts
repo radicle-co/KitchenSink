@@ -17,6 +17,13 @@
  * read on a hot authorization path, and 005's dependency graph already recorded that read as an
  * unrepresentable defect rather than a design.
  *
+ * ⚠️ NOTHING ENFORCES PREMIUM ANYWHERE YET, and reading this module is the likeliest way to conclude
+ * otherwise. This answers what a viewer's tier IS; it is not a gate. `RequirePremium` / `PlanGuard`
+ * (GR-012 AC-012-a, ADR-0017) is entirely unbuilt, so no endpoint refuses a free-tier caller on tier
+ * grounds — the one place tier actually changes an outcome today is `visibilityPolicy.ts`'s
+ * `user_created` + private branch, which 015 is scoped to rewrite. A future gate belongs in a policy
+ * module beside the three siblings ADR-0023 ruled on, never in a route Guard.
+ *
  * ⚠️ This does NOT decide how a tier is SOLD. When billing arrives it writes the grant into Clerk's
  * `public_metadata`, exactly as an admin scope is granted today, and every consumer here is already correct.
  * The column is left in place, unread, for that decision to settle rather than being dropped by a change

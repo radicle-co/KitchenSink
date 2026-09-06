@@ -339,6 +339,47 @@ jobs:
               id: identity-vpc
               run: echo "vpc_id=$(bash .github/scripts/cfn-export.sh 'kitchensink-network-sandbox:VpcId')" >> "$GITHUB_OUTPUT"
 
+            # ⛔ THE SCHEMA, DEPLOYED AND MIGRATED AHEAD OF THE SERVICE — and both steps are UNGATED.
+            #
+            # ADR-0022 put the apply INSIDE the service deploy, because CloudFormation's `DependsOn` cannot
+            # leave a stack and the only seam where the new SQL existed and the new tasks were not yet
+            # serving was between the runner's code update and the service's rollout. That coupling made the
+            # schema a hostage of the application's release: it could not be applied without deploying the
+            # application. The runner now owns `kitchensink-identity-schema-${STAGE}`, which holds nothing
+            # that reads the schema, so this step plus the invoke below ARE the barrier.
+            #
+            # ⛔ UNGATED, for the same reason the invoke is. A gate on a path diff skips precisely the case
+            # the step exists for — a stage whose schema is behind for a reason no code change explains —
+            # and `run-migrations.sh` records that this exact mistake made PRODUCTION the weaker stage. A
+            # `cdk deploy` of an unchanged stack is a no-op; the minute it costs is what makes the invoke
+            # below provably hit THIS release's bundle rather than whatever was deployed last.
+            - name: CDK Deploy (identity schema — before anything reads it)
+              env:
+                  IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+              run: |
+                  npx cdk deploy "kitchensink-identity-schema-${STAGE}" \
+                    --app "node packages/services/identity/infra/dist/bin/app.js" \
+                    --exclusively --require-approval never
+
+            # The apply itself, against the runner the step above just deployed. The invoke carries the
+            # manifest digest of the working tree, so a runner holding a different migration set REFUSES
+            # rather than answering `applied: []` — which is what a previous release's bundle returns, and
+            # is byte-identical to "everything was already applied".
+            #
+            # ⚠️ Safe to run every time because of a property of the runner, not optimism:
+            # `schema_migrations` is keyed by FILENAME (`name TEXT PRIMARY KEY`, no checksum) and the runner
+            # skips on a name match, so a run against an up-to-date database applies nothing.
+            #
+            # `run-migrations.sh` is the ONE definition of "did the runner succeed" — `aws lambda invoke`
+            # exits 0 when the FUNCTION threw, and this repo had four call sites with four different amounts
+            # of rigour about that.
+            - name: Run identity DB migrations (before the service that reads them)
+              run: |
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-identity-schema-${STAGE}" IdentityMigrationFunctionName identity \
+                    packages/services/identity/src/database/migrations
+
             # The CDK app reads these from `process.env`, so declaring them in `env:` delivers them exactly
             # as the old command-prefix assignments did — without building the command line out of
             # expression text. `STAGE` comes from the workflow-level `env:` (see above).
@@ -361,28 +402,6 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "node packages/services/identity/infra/dist/bin/app.js"
-
-            # The SAFETY NET, not the mechanism: the schema is applied INSIDE the deploy above by an
-            # `aws-cdk-lib/triggers` Trigger the ECS service depends on. Kept because it is idempotent and
-            # catches a stage whose schema is behind for a reason no code change explains. ⛔ Must stay
-            # AFTER the deploy that ships its bundle — hoisting it invokes the previous deploy's Lambda
-            # with the previous migration set, which exits 0 having applied nothing.
-            #
-            # ⛔ UNGATED, matching prod: `if: run_migrations == 'true'` is a path diff, and it skips this net
-            # in exactly the case ADR-0022 §4 keeps it for. Safe because `schema_migrations` is keyed by
-            # FILENAME with no checksum and the runner skips on a name match, so a run against an up-to-date
-            # database applies nothing. The invoke goes through the ONE definition of "did the runner
-            # succeed" — `aws lambda invoke` exits 0 when the FUNCTION threw.
-            #
-            # ⚠️ Unlike the per-PR legs in `sandbox-deploy.yml`, this job has no ADR-0007 wake step to be
-            # ordered behind. That is correct here: the SHARED sandbox identity tier is what the nightly
-            # stop/start schedule brings back at 09:00 ET, and this workflow runs on `pull_request`, not on
-            # the schedule.
-            - name: Run identity DB migrations (always — ADR-0022 §4 safety net)
-              run: |
-                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-identity-service-${STAGE}" IdentityMigrationFunctionName identity \
-                    packages/services/identity/src/database/migrations
 
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'

@@ -9,18 +9,13 @@ import {
     aws_ecs as ecs,
     aws_elasticloadbalancingv2 as elbv2,
     aws_iam as iam,
-    aws_lambda as lambda,
     aws_logs as logs,
     aws_rds as rds,
     aws_route53 as route53,
     aws_route53_targets as route53_targets,
     aws_s3 as s3,
     aws_ssm as ssm,
-    triggers,
 } from 'aws-cdk-lib';
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
 import {
@@ -33,7 +28,6 @@ import {
 } from '@kitchensink/infra-alb';
 import {
     AcceptedNagFindings,
-    NODE_LAMBDA_RUNTIME,
     acceptNagFindings,
     clerkAuthEnvironment,
     CONTAINER_INSIGHTS_TIER,
@@ -421,97 +415,25 @@ export class RecipeServiceStack extends Stack {
             circuitBreaker: { rollback: true },
         });
 
-        // ── In-VPC migration-runner Lambda (mirrors food FU-MIGRATE) ────────────────────────────
-        // The RDS is PRIVATE_ISOLATED, so the deploy pipeline invokes this VPC-attached Lambda to apply the
-        // ordered SQL against kitchensink_recipes. Asset bundled by esbuild.mjs to dist-lambda/; a bare
-        // `cdk synth` (no bundle) falls back to an inline placeholder so synth never fails.
-        const here = dirname(fileURLToPath(import.meta.url));
-        const lambdaAssetDir =
-            [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
-                existsSync(candidate),
-            ) ?? resolve(here, '../../dist-lambda');
-        const hasLambdaAsset = existsSync(lambdaAssetDir);
-        const migrationFn = new lambda.Function(this, 'RecipeMigrationFunction', {
-            runtime: NODE_LAMBDA_RUNTIME,
-            architecture: lambda.Architecture.ARM_64,
-            handler: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler',
-            // ⛔ The placeholder THROWS. It used to resolve `{ ok: false, reason: "asset-not-built" }`, which
-            // is a SUCCESSFUL invocation — so an unbundled deploy reported a clean migration run having
-            // applied nothing. That is the same silent no-op the in-deploy trigger below exists to remove,
-            // arriving by a different road; failing the invocation fails the trigger, and so the deploy.
-            code: hasLambdaAsset
-                ? lambda.Code.fromAsset(lambdaAssetDir)
-                : lambda.Code.fromInline(
-                      'exports.handler = async () => { throw new Error("recipe migration bundle missing: run `npm run bundle:lambda --workspace=packages/services/recipe-service` before deploying"); };',
-                  ),
-            timeout: Duration.seconds(300),
-            memorySize: 512,
-            environment: {
-                STAGE: stage,
-                DB_HOST: database.dbInstanceEndpointAddress,
-                DB_PORT: Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`),
-                DB_NAME: recipeDatabaseName,
-                DB_USERNAME: 'recipe_app',
-            },
-            vpc,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-            securityGroups: [serviceSecurityGroup],
-        });
-        database.grantConnect(migrationFn, 'recipe_app');
-
-        // ── Schema BEFORE traffic: run the migration inside the deploy ───────────────────────────
+        // ⛔ THE MIGRATION RUNNER AND ITS TRIGGER USED TO SIT HERE, and their absence is the decision.
         //
-        // The mechanism and its trap are food's, verbatim — see `FoodServiceStack.ts` for the full
-        // reasoning. In short: `cdk deploy` returns only once ECS has stabilised, so deploy-then-migrate
-        // serves the new image against the old schema for the whole stabilisation window; and the
-        // instinctive repair (hoist the pipeline's migrate step) invokes the PREVIOUS deploy's bundle,
-        // which carries the PREVIOUS migration set and applies nothing while exiting 0. Only a trigger
-        // between the Lambda's code update and this service's rollout orders the two.
+        // ADR-0022 put the schema apply inside this deploy because CloudFormation's `DependsOn` cannot leave
+        // a stack. For recipe that cost TWO runners for ONE database: this one, and a SECOND copy of the
+        // same bundle in `RecipeWorkersStack` — a different CDK app, deployed first — purely so its eight
+        // DB-touching Lambdas could be ordered behind something. Neither barrier could ever reach the other
+        // stack's consumers.
         //
-        // ⚠️ RECIPE IS WHERE THIS INVERTS AN EXPLICIT PRIOR DECISION, so it is recorded here and not only
-        // in a PR description. `0019_drop_duplicated_nutrition.sql` is CONTRACTING — it drops seven columns
-        // — and its header states, correctly for the order in force at the time, "Production deploys CODE
-        // BEFORE MIGRATING". That is no longer true. From here the rule is EXPAND-FIRST: a migration must be
-        // safe to apply while the PREVIOUS release is still serving, so a destructive one ships in a LATER
-        // release than the code that stopped reading the column — never the same one. 0019 is already
-        // applied in production, so nothing about it changes; what changes is the discipline for the next
-        // one. That comment in 0019 is now stale and should be corrected in a follow-up.
+        // The runner now lives in `kitchensink-recipe-schema-{stage}` (`RecipeSchemaStack`), deployed and
+        // invoked by its own pipeline step ahead of BOTH. That is strictly more coverage than two in-stack
+        // barriers gave, because one runner ahead of everything orders every consumer regardless of which
+        // app or stack it lives in.
         //
-        // `executeAfter(migrationFn)` keeps the trigger behind the runner's own `rds-db:connect` grant (it
-        // lives on the function's role, inside its construct subtree); `timeout` is the trigger's SOCKET
-        // timeout, which defaults to two minutes while the runner is allowed five.
-        //
-        // ⚠️ THIS TRIGGER COVERS THIS STACK ONLY, and that is a statement about CloudFormation, not a gap.
-        // `executeBefore` compiles to `DependsOn`, which cannot leave a stack — and the recipe WORKERS are
-        // six DB-touching Lambdas in a separate CDK app, applied by a separate `cdk deploy` that runs BEFORE
-        // this one (it must: it publishes the account-erasure SSM parameters resolved above, and a queue's
-        // consumer has to upgrade before its producer). They were therefore updated ahead of the schema on
-        // every release, and on a first-ever pr-{N} deploy they addressed a database the migration had not
-        // created yet.
-        //
-        // That is now closed the only way it can be — `RecipeWorkersStack` carries its OWN barrier, over its
-        // own runner, shipping this same bundle. So the rule for this repo is: a stack that touches a
-        // service's database orders its own resources behind that schema; the pipeline orders nothing.
-        // Both halves are pinned by `packages/infra/global/__tests__/prodDeployMigrationOrder.test.ts`.
-        // ⚠️ DELIBERATE — see docs/architecture/decisions/0022-in-stack-migration-trigger.md
-        // ⛔ DISCOVERED from the construct tree, never a list. This read used to be `[apiService]`, true
-        // only while the API task was the sole thing in this stack that touches the schema — and nothing
-        // said so. Read BEFORE the Trigger is constructed, so CDK's own custom-resource provider Lambda —
-        // created inside it, and no consumer of this schema — is not swept in.
-        const orderedBehindTheSchema = this.node
-            .findAll()
-            .filter(
-                (construct): construct is Construct =>
-                    construct instanceof lambda.Function || construct instanceof ecs.BaseService,
-            )
-            .filter((construct) => construct !== migrationFn);
-
-        new triggers.Trigger(this, 'RecipeSchemaMigrations', {
-            handler: migrationFn,
-            timeout: Duration.seconds(360),
-            executeAfter: [migrationFn],
-            executeBefore: orderedBehindTheSchema,
-        });
+        // ⚠️ EXPAND-FIRST STILL BINDS, and is now the whole of the contracting rule.
+        // `0019_drop_duplicated_nutrition.sql` drops seven columns and its header states, correctly for the
+        // order in force when it was written, "Production deploys CODE BEFORE MIGRATING". That has not been
+        // true since ADR-0022 and is not true now: a destructive migration ships in a LATER release than the
+        // code that stopped reading the column, never the same one. 0019 is already applied in production,
+        // so nothing about it changes; the discipline for the next one does.
 
         // ── Shared ALB host-rule + DNS (mirrors identity/food) ──────────────────────────────────
         const subdomain = recipeSubdomainForStage(stage);
@@ -641,10 +563,6 @@ export class RecipeServiceStack extends Stack {
         new CfnOutput(this, 'RecipeServiceUrl', {
             value: this.serviceUrl,
             exportName: `${this.stackName}:RecipeServiceUrl`,
-        });
-        new CfnOutput(this, 'RecipeMigrationFunctionName', {
-            value: migrationFn.functionName,
-            exportName: `${this.stackName}:RecipeMigrationFunctionName`,
         });
     }
 }

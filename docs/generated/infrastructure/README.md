@@ -204,6 +204,16 @@ Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aw
 
 Entrypoint: `packages/services/food-service/infra/bin/app.ts`
 
+### `kitchensink-food-schema-{stage}`
+
+Construct `FoodSchemaStack` — `packages/services/food-service/infra/lib/FoodSchemaStack.ts`
+
+| kind | logical id | handler / name template | only when |
+| --- | --- | --- | --- |
+| lambdaFunction | `FoodMigrationFunction` | `—` | — | handler is not a literal: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler'
+
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`.
+
 ### `kitchensink-food-service-{stage}`
 
 Construct `FoodServiceStack` — `packages/services/food-service/infra/lib/FoodServiceStack.ts`
@@ -217,12 +227,11 @@ Construct `FoodServiceStack` — `packages/services/food-service/infra/lib/FoodS
 | alarm | `FoodTombstoneAlarm` | `—` | — |
 | ecsService | `FoodApiService` | `—` | — |
 | ecsService | `FoodFetchWorkerService` | `—` | — |
-| lambdaFunction | `FoodMigrationFunction` | `—` | — | handler is not a literal: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler'
 | ssmParameter | `FoodMessageTableArnParameter` | `—` | `messageTable !== undefined` |
 | ssmParameter | `FoodMessageTableNameParameter` | `—` | `messageTable !== undefined` |
 | topic | `FoodAlarmTopic` | `—` | — |
 
-Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-cloudwatch.Dashboard`, `aws-cdk-lib/aws-cloudwatch.GraphWidget`, `aws-cdk-lib/aws-cloudwatch.MathExpression`, `aws-cdk-lib/aws-cloudwatch.Metric`, `aws-cdk-lib/aws-dynamodb.Table`, `aws-cdk-lib/aws-ecs.Cluster`, `aws-cdk-lib/aws-ecs.FargateTaskDefinition`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationTargetGroup`, `aws-cdk-lib/aws-events-targets.EcsTask`, `aws-cdk-lib/aws-events.EventBus`, `aws-cdk-lib/aws-events.Rule`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-route53-targets.LoadBalancerTarget`, `aws-cdk-lib/aws-route53.ARecord`, `aws-cdk-lib/triggers.Trigger`.
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-cloudwatch.Dashboard`, `aws-cdk-lib/aws-cloudwatch.GraphWidget`, `aws-cdk-lib/aws-cloudwatch.MathExpression`, `aws-cdk-lib/aws-cloudwatch.Metric`, `aws-cdk-lib/aws-dynamodb.Table`, `aws-cdk-lib/aws-ecs.Cluster`, `aws-cdk-lib/aws-ecs.FargateTaskDefinition`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationTargetGroup`, `aws-cdk-lib/aws-events-targets.EcsTask`, `aws-cdk-lib/aws-events.EventBus`, `aws-cdk-lib/aws-events.Rule`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-route53-targets.LoadBalancerTarget`, `aws-cdk-lib/aws-route53.ARecord`.
 
 ## @kitchensink/identity-webhooks
 
@@ -252,6 +261,16 @@ Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aw
 
 Entrypoint: `packages/services/identity/infra/bin/app.ts`
 
+### `kitchensink-identity-schema-{stage}`
+
+Construct `IdentitySchemaStack` — `packages/services/identity/infra/lib/IdentitySchemaStack.ts`
+
+| kind | logical id | handler / name template | only when |
+| --- | --- | --- | --- |
+| lambdaFunction | `IdentityMigrationFunction` | `—` | — | handler is not a literal: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler'
+
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`.
+
 ### `kitchensink-identity-service-{stage}`
 
 Construct `IdentityServiceStack` — `packages/services/identity/infra/lib/IdentityServiceStack.ts`
@@ -262,10 +281,9 @@ Construct `IdentityServiceStack` — `packages/services/identity/infra/lib/Ident
 | alarm | `IdentityServiceCrashLoopAlarm` | `—` | — |
 | alarm | `IdentityServiceHighCpuAlarm` | `—` | — |
 | ecsService | `IdentityService` | `—` | — |
-| lambdaFunction | `IdentityMigrationFunction` | `—` | — | handler is not a literal: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler'
 | topic | `IdentityAlarmTopic` | `—` | — |
 
-Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-ecs.Cluster`, `aws-cdk-lib/aws-ecs.FargateTaskDefinition`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationTargetGroup`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-route53-targets.LoadBalancerTarget`, `aws-cdk-lib/aws-route53.ARecord`, `aws-cdk-lib/triggers.Trigger`.
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-ecs.Cluster`, `aws-cdk-lib/aws-ecs.FargateTaskDefinition`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationTargetGroup`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-route53-targets.LoadBalancerTarget`, `aws-cdk-lib/aws-route53.ARecord`.
 
 ## @kitchensink/ingredient-parser
 
@@ -285,6 +303,16 @@ Not summarised here (out of this manifest's scope): `aws-cdk-lib/aws-iam.Role`, 
 
 Entrypoint: `packages/services/recipe-service/infra/bin/app.ts`
 
+### `kitchensink-recipe-schema-{stage}`
+
+Construct `RecipeSchemaStack` — `packages/services/recipe-service/infra/lib/RecipeSchemaStack.ts`
+
+| kind | logical id | handler / name template | only when |
+| --- | --- | --- | --- |
+| lambdaFunction | `RecipeMigrationFunction` | `—` | — | handler is not a literal: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler'
+
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`.
+
 ### `kitchensink-recipe-service-{stage}`
 
 Construct `RecipeServiceStack` — `packages/services/recipe-service/infra/lib/RecipeServiceStack.ts`
@@ -292,9 +320,8 @@ Construct `RecipeServiceStack` — `packages/services/recipe-service/infra/lib/R
 | kind | logical id | handler / name template | only when |
 | --- | --- | --- | --- |
 | ecsService | `RecipeApiService` | `—` | — |
-| lambdaFunction | `RecipeMigrationFunction` | `—` | — | handler is not a literal: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler'
 
-Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-ecs.Cluster`, `aws-cdk-lib/aws-ecs.FargateTaskDefinition`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationTargetGroup`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-route53-targets.LoadBalancerTarget`, `aws-cdk-lib/aws-route53.ARecord`, `aws-cdk-lib/triggers.Trigger`.
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-ecs.Cluster`, `aws-cdk-lib/aws-ecs.FargateTaskDefinition`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationTargetGroup`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-route53-targets.LoadBalancerTarget`, `aws-cdk-lib/aws-route53.ARecord`.
 
 ## @kitchensink/recipe-workers
 
@@ -332,7 +359,6 @@ Construct `RecipeWorkersStack` — `packages/services/recipe-workers/infra/lib/R
 | lambdaFunction | `HandleSyncWorkerFunction` | `handlers/handleSyncWorker.handler` | — |
 | lambdaFunction | `IngredientVerificationFunction` | `handlers/verifyLine.handler` | — |
 | lambdaFunction | `RecipeParseLineFunction` | `handlers/parseLine.handler` | — |
-| lambdaFunction | `RecipeSchemaMigrationRunner` | `—` | — | handler is not a literal: hasMigrationBundle ? 'lambdas/migrate/handler.handler' : 'index.handler'
 | lambdaFunction | `VersionArchiveWorkerFunction` | `handlers/versionArchiveWorker.handler` | — |
 | queue | `AccountErasureDlq` | `kitchensink-recipe-account-erasure-dlq-{stage}` | — |
 | queue | `AccountErasureQueue` | `kitchensink-recipe-account-erasure-{stage}` | — |
@@ -354,4 +380,4 @@ Construct `RecipeWorkersStack` — `packages/services/recipe-workers/infra/lib/R
 | ssmParameter | `VerificationModelParam` | `—` | — |
 | topic | `RecipeWorkersAlarmTopic` | `—` | — |
 
-Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-cloudwatch.Metric`, `aws-cdk-lib/aws-events-targets.LambdaFunction`, `aws-cdk-lib/aws-events.Rule`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-lambda-event-sources.SqsEventSource`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-sns-subscriptions.SqsSubscription`, `aws-cdk-lib/triggers.Trigger`.
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-cloudwatch.Metric`, `aws-cdk-lib/aws-events-targets.LambdaFunction`, `aws-cdk-lib/aws-events.Rule`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-lambda-event-sources.SqsEventSource`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-sns-subscriptions.SqsSubscription`.

@@ -60,22 +60,14 @@ const requireEnv = (key: string): string => {
 
 const env = account ? { account, region } : { region };
 
-/**
- * The recipe-service Lambda bundle, which carries the schema-migration runner and this release's ordered
- * `*.sql`. Resolved HERE, at the composition root, because this is the layer that already knows the repo
- * layout — the stack takes it as a prop so the cross-package dependency is declared rather than hidden, and
- * so a synth test can drive the not-built branch deterministically.
- *
- * ⛔ It must be BUILT before this app is deployed (`npm run bundle:lambda --workspace=…/recipe-service`).
- * Both pipelines already do that ahead of the workers deploy, and the ordering is pinned by
- * `packages/infra/global/__tests__/prodDeployMigrationOrder.test.ts`. When it is absent the stack
- * synthesizes a THROWING placeholder, so the failure is a failed deploy rather than a migration that
- * silently applied nothing.
- */
-const migrationBundlePath = join(__dirname, '../../../recipe-service/dist-lambda');
+// ⛔ THIS APP NO LONGER REACHES INTO recipe-service's `dist-lambda/`. It used to resolve that bundle here
+// and pass it in, because this stack shipped a SECOND copy of the migration runner purely so a
+// `triggers.Trigger` could order its eight DB-touching Lambdas behind a schema apply — `DependsOn` cannot
+// leave a stack, so there was no other way. The schema now belongs to `kitchensink-recipe-schema-{stage}`,
+// deployed and migrated by its own pipeline step ahead of this app and ahead of the service, so one runner
+// orders every consumer and this cross-package dependency is gone.
 
 new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
-    migrationBundlePath,
     // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.
     alertEmail: process.env['COST_ALERT_EMAIL'],
     env,

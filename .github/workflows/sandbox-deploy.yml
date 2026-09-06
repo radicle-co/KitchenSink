@@ -644,6 +644,7 @@ jobs:
                   .github/scripts/deploy-gate.sh evaluate "$INTENT" food "$CHANGED" "$FORCED" \
                     "$HEALTH_URL" \
                     "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-food-schema-${STAGE}" \
                     "kitchensink-food-service-${STAGE}"
             # ⛔ ADR-0007 × ADR-0022 — the composition that wedges stacks. The SHARED sandbox RDS instance
             # is STOPPED nightly 00:00–09:00 ET, and the schema migration now runs INSIDE the deploy as an
@@ -694,56 +695,62 @@ jobs:
                   IMAGE_TAG: sandbox-${{ github.sha }}
               run: |
                   docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
-            # Pass 1 — provision the stack (incl. the migration Lambda) with the services scaled to ZERO.
-            # A per-PR preview's isolated DB (kitchensink_food_pr_{N}) does not exist until the migration
-            # step below runs, so booting tasks now would crash-loop on connect and trip the ECS
-            # deployment circuit breaker. Zero desired tasks also means CloudFormation never has to roll
-            # back a failed service — which is what previously wedged the Fargate-Spot capacity-provider
-            # association in ROLLBACK_FAILED.
-            # `STAGE` and `FOOD_VPC_ID` are already exported by the job-level `env:` block, so the old
-            # command-prefix assignments were re-deriving in-scope variables by text substitution. The two
-            # scale counts are literals and the image tag is declared here; the values reaching `cdk` are
-            # unchanged.
-            - name: CDK Deploy — pass 1 (scale 0, provision infra + migration Lambda)
+            # ⛔ THE SCHEMA FIRST, IN ITS OWN STACK — and this replaces the TWO-PASS DANCE that used to
+            # live here.
+            #
+            # The old shape was: deploy everything with the services scaled to ZERO (so tasks could not
+            # crash-loop against a per-PR database that does not exist yet), invoke the migration runner
+            # that deploy had just shipped, then deploy AGAIN to scale up. Two full `cdk deploy` runs, and
+            # the reason for both was that the runner shared a stack with the services it had to precede.
+            #
+            # It does not any more. `kitchensink-food-schema-${STAGE}` holds the runner and nothing that
+            # reads the schema, so the database is created and migrated before the service stack is
+            # deployed at all — and the service deploys once, with its tasks already able to boot healthy.
+            # The scale-0 pass also existed to keep CloudFormation from rolling back a failed service and
+            # wedging the Fargate-Spot capacity-provider association in ROLLBACK_FAILED; a first deploy that
+            # meets a migrated database has nothing to fail on.
+            - name: CDK Deploy — food schema (before anything reads it)
               if: steps.gate.outputs.deploy == 'true'
               env:
                   FOOD_IMAGE_TAG: sandbox-${{ github.sha }}
-                  FOOD_DESIRED_COUNT: '0'
-                  FOOD_WORKER_DESIRED_COUNT: '0'
               run: |
-                  npx cdk deploy \
+                  npx cdk deploy "kitchensink-food-schema-${STAGE}" \
                     --app "node packages/services/food-service/infra/dist/bin/app.js" \
-                    --all --require-approval never
+                    --exclusively --require-approval never
             # Apply migrations into the per-PR DB. The runner CREATEs kitchensink_food_pr_{N} if absent
             # (ADR-0006) before migrating, so a fresh preview self-provisions its isolated database.
+            #
+            # The invoke carries the manifest digest of the working tree, so a runner holding a different
+            # migration set REFUSES rather than answering `applied: []` — which is what a previous release's
+            # bundle returns, and is byte-identical to "everything was already applied".
+            #
             # ⛔ THIS STEP INSPECTED NOTHING. `aws lambda invoke` exits 0 when the FUNCTION threw — the
             # failure is in the response, not in the status — so a migration runner that could not reach the
-            # database left this step GREEN and pass 2 below then scaled tasks up against a schema that had
-            # not moved (on a first-ever `pr-{N}` deploy, against a database that did not exist: ADR-0006
-            # has this run CREATE it). Its recipe sibling grepped the payload for `errorType` and the
-            # identity legs read `FunctionError`; three call sites, three amounts of rigour. All of them now
-            # go through `.github/scripts/run-migrations.sh`, which is the one definition.
+            # database left this step GREEN and the scale-up below then started tasks against a schema that
+            # had not moved. Its recipe sibling grepped the payload for `errorType` and the identity legs
+            # read `FunctionError`; three call sites, three amounts of rigour. All of them now go through
+            # `.github/scripts/run-migrations.sh`, which is the one definition.
             #
-            # ⚠️ It KEEPS its ensure-exists guard, unlike prod's now-ungated nets, and the asymmetry is the
+            # ⚠️ It KEEPS its ensure-exists guard, unlike prod's ungated nets, and the asymmetry is the
             # point: `steps.gate.outputs.deploy` is TRUE whenever the stack is absent or the origin is not
-            # serving (ADR-0010), so it cannot skip the case ADR-0022 §4 keeps the net for — and it keeps
-            # this invoke ordered behind the "Wake the shared sandbox database" step, without which a run
-            # inside ADR-0007's nightly 00:00–09:00 ET window reds on a stopped instance.
+            # serving (ADR-0010), so it cannot skip the case the net exists for — and it keeps this invoke
+            # ordered behind the "Wake the shared sandbox database" step, without which a run inside
+            # ADR-0007's nightly 00:00–09:00 ET window reds on a stopped instance.
             - name: Run food migrations (creates the per-PR DB if absent)
               if: steps.gate.outputs.deploy == 'true'
               run: |
                   bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-food-service-${STAGE}" FoodMigrationFunctionName food \
+                    "kitchensink-food-schema-${STAGE}" FoodMigrationFunctionName food \
                     packages/services/food-service/src/db/migrations
-            # Pass 2 — scale the API + worker up now that the image is in ECR and the per-PR DB exists, so
-            # tasks boot healthy.
+            # ONE deploy, with the services already scaled up — the database they read exists and is current
+            # by the time this runs.
             #
             # ONE API task, not the stack default of two (ADR-0010 / ADR-0008). Every PR now carries a food
             # service 24/7 (per-PR clusters are NOT in the sandbox nightly-shutdown selector — see ADR-0010's
             # residual note), so the second task is pure carry cost for a preview with no availability
             # requirement: 0.5 vCPU + 1 GB on Fargate Spot ≈ $5.50/mo each. Prod is untouched — it deploys
             # from prod-deploy.yml and keeps the two-task default.
-            - name: CDK Deploy — pass 2 (scale services up)
+            - name: CDK Deploy — food service
               if: steps.gate.outputs.deploy == 'true'
               env:
                   FOOD_IMAGE_TAG: sandbox-${{ github.sha }}
@@ -958,6 +965,7 @@ jobs:
                     "${RECIPE_ORIGIN}/health" \
                     "${DEFAULT_AWS_REGION}" \
                     "kitchensink-ingredient-parser-${STAGE}" \
+                    "kitchensink-recipe-schema-${STAGE}" \
                     "kitchensink-recipe-workers-${STAGE}" \
                     "kitchensink-recipe-service-${STAGE}"
             # ⛔ ADR-0007 × ADR-0022 — the composition that wedges stacks. The SHARED sandbox RDS instance
@@ -1077,11 +1085,18 @@ jobs:
                   # a PR, so `Sandbox Deploy` was permanently red for "there is nothing to do" (observed on
                   # every commit of PR #91, whose stacks were reaped 2026-08-27). The `if:` above restores
                   # the intended reading: this check speaks only when a deploy is actually happening.
-                  if ! aws cloudformation describe-stacks --region "${DEFAULT_AWS_REGION}" \
-                      --stack-name "kitchensink-food-service-${STAGE}" >/dev/null 2>&1; then
-                    echo "::error::No food service is deployed at stage ${STAGE}, so ${food_url} cannot resolve and this preview's ingredient catalog would be dead. On a pull_request the deploy-food job should have created kitchensink-food-service-${STAGE} — check that job. On a workflow_dispatch, dispatch service=food at this stage first."
-                    exit 1
-                  fi
+                  # ⚠️ BOTH food stacks, not just the service. `kitchensink-food-schema-${STAGE}` owns the
+                  # migration runner, and on a per-PR stage that runner is what CREATES and migrates
+                  # `kitchensink_food_pr_{N}` (ADR-0006). A service stack standing over a database that was
+                  # never created answers `/health` perfectly — it does not touch the database — while every
+                  # ingredient query 500s, which is the same "healthy and dead" shape #124 was about.
+                  for stack in "kitchensink-food-schema-${STAGE}" "kitchensink-food-service-${STAGE}"; do
+                    if ! aws cloudformation describe-stacks --region "${DEFAULT_AWS_REGION}" \
+                        --stack-name "${stack}" >/dev/null 2>&1; then
+                      echo "::error::${stack} is not deployed at stage ${STAGE}, so ${food_url} cannot serve a catalog and this preview's ingredient typeahead would be dead. On a pull_request the deploy-food job should have created it — check that job. On a workflow_dispatch, dispatch service=food at this stage first."
+                      exit 1
+                    fi
+                  done
             - name: Login to Amazon ECR
               id: login-ecr
               if: steps.gate.outputs.deploy == 'true'
@@ -1186,6 +1201,46 @@ jobs:
             - name: Build the workspace packages the recipe-workers app imports
               if: steps.gate.outputs.deploy == 'true'
               run: npx turbo run build --filter='@kitchensink/recipe-workers^...'
+            # ⛔ THE SCHEMA FIRST — ahead of the workers AND the service, which is coverage neither of the
+            # two in-deploy triggers it replaces could give.
+            #
+            # ADR-0022 put the apply inside each deploy, and for recipe that meant TWO runners for ONE
+            # database: one in `RecipeServiceStack` and a second copy of the same bundle in
+            # `RecipeWorkersStack` — a different CDK app, deployed first — because `DependsOn` cannot leave a
+            # stack. Each barrier could only ever reach its own stack's consumers, and the workers' eight
+            # DB-touching Lambdas were the reason the second one had to exist at all.
+            #
+            # `kitchensink-recipe-schema-${STAGE}` holds the one runner and nothing that reads the schema.
+            # Deployed and invoked here, it precedes every consumer in both apps. It is also what CREATES
+            # `kitchensink_recipes_pr_{N}` (ADR-0006), so a fresh preview self-provisions its isolated
+            # database before any stack that would query it exists.
+            - name: CDK Deploy — recipe schema (before anything reads it)
+              if: steps.gate.outputs.deploy == 'true'
+              env:
+                  RECIPE_VPC_ID: ${{ steps.infra.outputs.vpc_id }}
+                  RECIPE_IMAGE_TAG: ${{ env.IMAGE_TAG }}
+                  RECIPE_FOOD_SERVICE_URL: ${{ steps.food.outputs.url }}
+              run: |
+                  npx cdk deploy "kitchensink-recipe-schema-${STAGE}" \
+                    --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
+                    --exclusively --require-approval never
+            # Apply migrations into the per-PR logical DB, creating `kitchensink_recipes_pr_{N}` if absent
+            # (ADR-0006). Omitting this is NOT a silent no-op: the tasks boot fine and `/health` answers 200
+            # (it does not touch the DB), so the service looks healthy while every actual query 500s — which
+            # is exactly what the first run of this job produced.
+            #
+            # The invoke carries the manifest digest of the working tree, so a runner holding a different
+            # migration set REFUSES rather than answering `applied: []` — which is what a previous release's
+            # bundle returns, and is byte-identical to "everything was already applied".
+            #
+            # Guard on `deploy` kept, for the reason on the food leg above: ensure-exists cannot skip the
+            # case the net exists for, and the ADR-0007 nightly-wake step must stay ahead of any invoke.
+            - name: Run recipe migrations (creates the per-PR DB if absent)
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-recipe-schema-${STAGE}" RecipeMigrationFunctionName recipe \
+                    packages/services/recipe-service/src/database/migrations
             - name: CDK Deploy — recipe workers (publishes the erasure-queue SSM params)
               if: steps.gate.outputs.deploy == 'true'
               env:
@@ -1249,36 +1304,7 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh drift "${DEFAULT_AWS_REGION}" "${STAGE}" \
                     "npx tsx packages/services/recipe-workers/infra/bin/app.ts" --warn-only
-            # ⛔ THE WORKERS' OWN ADR-0022 §4 SAFETY NET — not a duplicate of the recipe-service net below.
-            #
-            # `RecipeSchemaMigrationRunner` in `RecipeWorkersStack` addresses the SAME database with the SAME
-            # bundle as the service's runner, so when both stacks exist this applies nothing and costs one
-            # Lambda invocation (`schema_migrations` is keyed by filename and the runner skips on a name
-            # match). What it covers is the window BETWEEN the two `cdk deploy`s: workers deploy first, the
-            # workers Trigger has by then CREATED and migrated the database, and two hard-failing steps plus
-            # the service deploy's own failure modes stand in front of the service net — one of which wedged
-            # `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED`. In that state the database
-            # exists and the only net that could reach it is this one.
-            #
-            # Position is load-bearing for the reason `run-migrations.sh` states at length: it must sit AFTER
-            # the `cdk deploy` that ships the runner's bundle, never before, or it invokes the previous
-            # release's runner carrying the previous migration set and exits 0 having applied nothing.
-            #
-            # `packages/infra/global/__tests__/migrationSafetyNetCoverage.test.ts` asserts that every runner
-            # output a pipeline can reach has a net — discovered from the `CfnOutput`, which is the same
-            # shape `teardown-sandbox-pr.sh` uses to find per-PR drop doors, so the two consumers of that
-            # convention cannot drift apart again.
-            #
-            # Guarded on `deploy`, matching the food and recipe-service nets in this file: ensure-exists
-            # already forces a deploy when the stack is absent or the origin is not serving, and the
-            # ADR-0007 nightly-wake step must stay ahead of any invoke.
-            - name: Run recipe-workers migrations (ADR-0022 §4 safety net)
-              if: steps.gate.outputs.deploy == 'true'
-              run: |
-                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-recipe-workers-${STAGE}" RecipeWorkersMigrationFunctionName recipe-workers \
-                    packages/services/recipe-service/src/database/migrations
-            # Pass 2 — the service, which can only synth once the SSM parameters above exist.
+            # The service, which can only synth once the SSM parameters the workers publish exist.
             - name: CDK Deploy — recipe service
               if: steps.gate.outputs.deploy == 'true'
               env:
@@ -1303,22 +1329,6 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "node packages/services/recipe-service/infra/dist/bin/app.js"
-            # Apply migrations into the per-PR logical DB, creating `kitchensink_recipes_pr_{N}` if absent
-            # (ADR-0006), so a fresh preview self-provisions its isolated database. Omitting this is NOT a
-            # silent no-op: the tasks boot fine and `/health` answers 200 (it does not touch the DB), so the
-            # service looks healthy while every actual query 500s — which is exactly what the first run of
-            # this job produced.
-            # The payload inspection this leg already had, moved into the ONE definition — and widened with
-            # it: `run-migrations.sh` reads BOTH `FunctionError` and the payload's `errorType`, because a
-            # handled throw can report the fault in one with the other unset. Guard on `deploy` kept, for
-            # the reason on the food leg's copy above (ensure-exists cannot skip the ADR-0022 §4 case, and
-            # the ADR-0007 wake step must stay ahead of it).
-            - name: Run recipe migrations (creates the per-PR DB if absent)
-              if: steps.gate.outputs.deploy == 'true'
-              run: |
-                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-recipe-service-${STAGE}" RecipeMigrationFunctionName recipe \
-                    packages/services/recipe-service/src/database/migrations
             # Read what the RUNNING task is actually configured with, so the smoke step can prove the
             # deployment took effect rather than trusting that `cdk deploy` said "success". Two facts come
             # from the live task definition: the image TAG (currency) and FOOD_SERVICE_URL (cross-service

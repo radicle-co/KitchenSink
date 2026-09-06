@@ -14,6 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // DISCOVERED CDK app and observes the installed library actually honouring it.
 dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 
+import { RecipeSchemaStack } from '../lib/RecipeSchemaStack.js';
 import { RecipeServiceStack } from '../lib/RecipeServiceStack.js';
 
 const app = new App();
@@ -94,6 +95,19 @@ if (!foodServiceUrl) {
 }
 
 const env = account ? { account, region } : { region };
+
+// ⛔ The SCHEMA, deployed and migrated by its own pipeline step AHEAD of both the workers and the service.
+// It holds the migration runner and nothing that reads the schema. Recipe is where this earns the most: the
+// in-deploy Trigger it replaces required TWO runners for ONE database — one here and a second copy of this
+// same bundle in `RecipeWorkersStack`, a different CDK app — purely because `DependsOn` cannot leave a
+// stack. One runner ahead of both covers every consumer regardless of which app it lives in.
+new RecipeSchemaStack(app, `RecipeSchema-${stage}`, {
+    env,
+    stackName: `kitchensink-recipe-schema-${stage}`,
+    stage,
+    baseStage,
+    vpcId,
+});
 
 new RecipeServiceStack(app, `RecipeService-${stage}`, {
     env,

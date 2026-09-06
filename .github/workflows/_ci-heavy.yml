@@ -378,11 +378,14 @@ jobs:
 
                   recipe_verdict=$(ask recipe "${RECIPE_ORIGIN}/health" \
                       "kitchensink-ingredient-parser-${STAGE}" \
+                      "kitchensink-recipe-schema-${STAGE}" \
                       "kitchensink-recipe-workers-${STAGE}" \
                       "kitchensink-recipe-service-${STAGE}")
                   echo "${recipe_verdict}"
 
-                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" "kitchensink-food-service-${STAGE}")
+                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" \
+                      "kitchensink-food-schema-${STAGE}" \
+                      "kitchensink-food-service-${STAGE}")
                   echo "${food_verdict}"
 
                   live='false'

@@ -11,7 +11,6 @@ import {
     aws_ecs as ecs,
     aws_elasticloadbalancingv2 as elbv2,
     aws_iam as iam,
-    aws_lambda as lambda,
     aws_logs as logs,
     aws_rds as rds,
     aws_route53 as route53,
@@ -21,11 +20,7 @@ import {
     aws_sns as sns,
     aws_sqs as sqs,
     aws_ssm as ssm,
-    triggers,
 } from 'aws-cdk-lib';
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
 import {
@@ -38,7 +33,6 @@ import {
 import {
     AcceptedNagFindings,
     clerkAuthEnvironment,
-    NODE_LAMBDA_RUNTIME,
     acceptNagFindings,
     CONTAINER_INSIGHTS_TIER,
     subscribeAlarmEmail,
@@ -109,11 +103,6 @@ export class IdentityServiceStack extends Stack {
         // (PostgreSQL 5432 to the database SG, 443 out for Secrets Manager via the NAT). Both groups are
         // `allowAllOutbound: false`, so this is not interchangeable by inspection: swapping it would be a
         // reachability change, and the failure mode is a deploy that hangs on a connection timeout.
-        const lambdaSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
-            this,
-            'ImportedLambdaSg',
-            Fn.importValue(`kitchensink-network-${stage}:LambdaSecurityGroupId`),
-        );
 
         const dbCredentialsSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedDbSecret', {
             secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:DatabaseSecretArn`),
@@ -364,131 +353,25 @@ export class IdentityServiceStack extends Stack {
             },
         });
 
-        // ── In-VPC migration-runner Lambda ───────────────────────────────────────────────────────
-        // The RDS instance is private, so the deploy pipeline (outside the VPC) cannot apply the schema
-        // itself; a VPC-attached Lambda does it. This function was `MigrationFunction` in
-        // `kitchensink-identity-webhooks-{stage}` until it moved here — same handler, same SQL, same
-        // subnets and security group — because ONLY a runner in this stack can be ordered ahead of the ECS
-        // service below (see the trigger).
+        // ⛔ THE MIGRATION RUNNER AND ITS TRIGGER USED TO SIT HERE, and their absence is the decision.
         //
-        // A Lambda's public IP does NOT give it egress (ADR-0004), so this is one of the few workloads on
-        // the NAT instance; the ECS tasks above stay in public subnets and off it. That is unchanged by the
-        // move — the NAT's consumer set is the same functions it always was, one of them now declared here.
+        // ADR-0022 put the schema apply inside this deploy because CloudFormation's `DependsOn` cannot
+        // leave a stack, so the only seam in which the new SQL existed and the new tasks were not yet
+        // serving was between the runner's code update and this service's rollout. That made the schema a
+        // hostage of the service's release: it could not be applied without deploying the application, and
+        // a stage whose schema was behind for a reason no code change explained had no way to catch up.
         //
-        // Asset: esbuild bundles to the package-root `dist-lambda/` (`npm run bundle:lambda`, run by
-        // infra:synth/deploy). Synth must not fail when the asset is absent (a bare `cdk synth`), so fall
-        // back to an inline placeholder that THROWS. It used to be tempting to resolve something benign —
-        // but a successful invocation that applied nothing is the silent no-op this whole gate exists to
-        // remove, so an unbundled deploy must fail the trigger, and so the deploy. This module lives at
-        // `infra/lib/`, so the package root is two levels up from source (tsx) but three from the compiled
-        // `infra/dist/lib/` (how CI deploys via `node infra/dist/bin/app.js`) — probe both.
-        const here = dirname(fileURLToPath(import.meta.url));
-        const lambdaAssetDir =
-            [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
-                existsSync(candidate),
-            ) ?? resolve(here, '../../dist-lambda');
-        const hasLambdaAsset = existsSync(lambdaAssetDir);
-
-        // ONE figure, two consumers: the runner's own execution limit and — via `.plus()` below — the
-        // trigger's socket timeout. Written twice, the two drift, and the drift is only observable as a
-        // deploy that fails on a migration it had already applied.
-        const migrationRunnerTimeout = Duration.seconds(300);
-
-        const migrationFn = new lambda.Function(this, 'IdentityMigrationFunction', {
-            runtime: NODE_LAMBDA_RUNTIME,
-            architecture: lambda.Architecture.ARM_64,
-            handler: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler',
-            code: hasLambdaAsset
-                ? lambda.Code.fromAsset(lambdaAssetDir)
-                : lambda.Code.fromInline(
-                      'exports.handler = async () => { throw new Error("identity migration bundle missing: run `npm run bundle:lambda --workspace=packages/services/identity` before deploying"); };',
-                  ),
-            timeout: migrationRunnerTimeout,
-            memorySize: 512,
-            environment: {
-                STAGE: stage,
-                // The runner resolves host/port/database/credentials from this secret at RUNTIME. Not a
-                // deploy-time `{{resolve:secretsmanager:…}}` embed: RDS credentials can rotate, and an
-                // embedded copy would go stale silently — leaving the runner unable to connect on the one
-                // deploy that needed it.
-                DB_SECRET_ARN: dbCredentialsSecret.secretArn,
-            },
-            vpc,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-            securityGroups: [lambdaSecurityGroup],
-        });
-        dbCredentialsSecret.grantRead(migrationFn);
-
-        // ── Schema BEFORE traffic: run the migration inside the deploy ───────────────────────────
+        // The runner now lives in `kitchensink-identity-schema-{stage}` (`IdentitySchemaStack`) and is
+        // deployed + invoked by its own pipeline step ahead of this one. The ordering guarantee did not
+        // weaken, it changed hands: position in the pipeline, plus the manifest expectation the invoke
+        // carries — which is what makes "nothing was pending" provable rather than indistinguishable from
+        // "this runner has never heard of the new migrations".
         //
-        // ⛔ THE ORDER HERE IS THE POINT, AND ONE OF ITS TWO HALVES IS COUNTER-INTUITIVE.
-        //
-        // `cdk deploy` returns only once ECS has STABILISED, so the pipeline's "deploy, then invoke the
-        // migration runner" put the new image in front of live traffic for the whole stabilisation window
-        // with the old schema underneath it. Identity is the worst place in the system for that window:
-        // `AuthMiddleware` read-through-creates the user row on EVERY authenticated request, so a
-        // schema/code mismatch is not a degraded read — it is a failed sign-in, and prod is fronted by
-        // CloudFront.
-        //
-        // The instinctive repair — hoist the pipeline's migrate step above `cdk deploy` — is WORSE, and
-        // silently so. `esbuild.mjs` copies `src/database/migrations/*.sql` into `dist-lambda/migrations/`
-        // at BUILD time and that bundle ships WITH this stack, so invoking first invokes the PREVIOUS
-        // deploy's Lambda carrying the PREVIOUS migration set: exit 0, "nothing pending", nothing applied,
-        // and the new tasks still meet the missing column. The only point in time at which the NEW
-        // migrations exist but the NEW tasks are not yet serving is INSIDE this deploy, between the
-        // Lambda's code update and the service's rollout — exactly the seam `triggers.Trigger` occupies.
-        //
-        // ⛔ `triggers.Trigger`, NOT a hand-rolled `AwsCustomResource` calling `lambda:Invoke`. The
-        // triggers framework handler skips on `Delete` and THROWS on `FunctionError`; a raw `lambda:Invoke`
-        // returns HTTP 200 with `FunctionError` set in the response, which a custom resource reads as
-        // success — reintroducing the silent no-op by a different road.
-        //
-        // ⚠️ THIS FIXES EXPANDING MIGRATIONS AND CHANGES THE CONTRACT FOR CONTRACTING ONES. Every migration
-        // must now be safe to apply while the PREVIOUS release is still serving, so anything destructive
-        // (DROP COLUMN, DROP TABLE, a narrowing type change) ships in a LATER release than the code that
-        // stopped using it — the standard expand/contract split, never both halves in one deploy. That is
-        // strictly safer than the order it replaces: a rolling ECS deployment runs old and new tasks
-        // CONCURRENTLY, so same-release contraction was only ever safe by virtue of `cdk deploy` having
-        // already drained the old tasks, which is a property of the pipeline and not of the change.
-        //
-        // Three details are load-bearing and each has a failure mode if changed:
-        //   • `executeAfter(migrationFn)` — the runner's `secretsmanager:GetSecretValue` grant is attached
-        //     to its own role, inside the function's construct subtree, and the custom resource only
-        //     REFERENCES the version. Without this edge CloudFormation is free to invoke the trigger before
-        //     that policy exists, and the deploy dies on AccessDenied reading the credentials it needs.
-        //   • `timeout` — this is the trigger's SOCKET timeout, and it defaults to two minutes while the
-        //     runner is allowed five. Derived from the runner's own timeout, never a second literal: a
-        //     migration that outlives the socket fails a deploy whose schema was already applied.
-        //   • `executeOnHandlerChange` (left at its `true` default) — the trigger is keyed to the handler's
-        //     `currentVersion`, so it re-executes exactly when the bundled migration set changes. Turning
-        //     it off would apply nothing on the one deploy that introduces a migration.
-        //
-        // The pipeline's `Run identity DB migrations` step is deliberately KEPT as a safety net: it is
-        // idempotent, and it still catches a stage whose schema is behind for a reason no code change
-        // explains (a restore, a stage created later). `prodDeployMigrationOrder.test.ts` pins both.
-        //
-        // ⚠️ DELIBERATE — see docs/architecture/decisions/0022-in-stack-migration-trigger.md
-        // ⛔ DISCOVERED from the construct tree, never a list. This read used to be `[service]`, which was
-        // correct only for as long as the ECS service stayed the sole thing here that touches the schema —
-        // and nothing said so. A DB-touching Lambda added to this stack (a reconciler, a backfill) would
-        // have been updated AHEAD of the migration with every guard green, because the template gate that
-        // covers this barrier asserts over `AWS::ECS::Service` and cannot see a new function. Read BEFORE
-        // the Trigger is constructed, so CDK's own custom-resource provider Lambda — created inside it, and
-        // no consumer of this schema — is not swept in.
-        const orderedBehindTheSchema = this.node
-            .findAll()
-            .filter(
-                (construct): construct is Construct =>
-                    construct instanceof lambda.Function || construct instanceof ecs.BaseService,
-            )
-            .filter((construct) => construct !== migrationFn);
-
-        new triggers.Trigger(this, 'IdentitySchemaMigrations', {
-            handler: migrationFn,
-            timeout: migrationRunnerTimeout.plus(Duration.seconds(60)),
-            executeAfter: [migrationFn],
-            executeBefore: orderedBehindTheSchema,
-        });
+        // ⛔ Do NOT re-add a runner here to make the deploy self-contained. Two runners for one schema is
+        // what recipe had, and the second existed only to be ordered against constructs the first could not
+        // see. The EXPAND-FIRST discipline ADR-0022 introduced still binds and is now load-bearing on its
+        // own: every migration must be safe to apply while the previous release is still serving, so a
+        // contracting change ships a release LATER than the code that stopped reading the column.
 
         const scalableTarget = service.autoScaleTaskCount({
             minCapacity: 1,
@@ -723,14 +606,6 @@ export class IdentityServiceStack extends Stack {
         new CfnOutput(this, 'IdentityServiceLogGroupName', {
             value: retiredLogGroup.logGroupName,
             exportName: `${this.stackName}:IdentityServiceLogGroupName`,
-        });
-        // The safety-net invocation in `prod-deploy.yml` / `sandbox-identity-deploy.yml` resolves the runner
-        // through this output. It replaces `kitchensink-identity-webhooks-{stage}:MigrationFunctionName`,
-        // which is retired with the function it named. Both pipelines must be repointed in the SAME change
-        // that deletes that export, or the migrate step resolves a name that no longer exists.
-        new CfnOutput(this, 'IdentityMigrationFunctionName', {
-            value: migrationFn.functionName,
-            exportName: `${this.stackName}:IdentityMigrationFunctionName`,
         });
         new CfnOutput(this, 'IdentityServiceUrl', {
             value: this.serviceUrl,

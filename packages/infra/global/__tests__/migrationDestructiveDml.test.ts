@@ -173,7 +173,7 @@ describe('no migration carries an unqualified whole-table DELETE or UPDATE', () 
         // read the whole file until 2026-09-02, and when the two recorded statements were actually DELETED
         // it stayed GREEN, because the scrub note left behind quotes each removed statement in a COMMENT.
         // A gate that a file's own prose about a statement can satisfy is the exact trap
-        // `schemaMigrationBarrier.test.ts` records for text gates. Comments are stripped before matching, so
+        // `reclaimableStackImports.test.ts` records for text gates. Comments are stripped before matching, so
         // only a statement the runner would EXECUTE keeps an exception alive.
         const stale = [...UNQUALIFIED_BY_HISTORY.entries()]
             .filter(([file, exception]) => {

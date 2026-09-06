@@ -661,8 +661,12 @@ describe('deploy_gate_stacks_for — a probe never has to write down what an app
         expect(prod).not.toContain('kitchensink-sandbox-scheduler-prod');
     });
 
-    it('answers a single-stack service app with exactly that stack', () => {
+    it('answers a service app with every stack it declares, schema included', () => {
+        // ⚠️ TWO for identity, where it used to be one. The schema stack is a real declaration and a real
+        // deploy target: a probe that named only the service would read "nothing is missing" over a stage
+        // whose database was never migrated, which is the exact class this resolver exists to remove.
         expect(stacksFor('packages/services/identity/infra/bin/app.ts', 'sandbox', MANIFEST).stacks).toEqual([
+            'kitchensink-identity-schema-sandbox',
             'kitchensink-identity-service-sandbox',
         ]);
         expect(stacksFor('packages/services/identity-webhooks/infra/bin/app.ts', 'sandbox', MANIFEST).stacks).toEqual([

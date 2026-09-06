@@ -14,6 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // DISCOVERED CDK app and observes the installed library actually honouring it.
 dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 
+import { IdentitySchemaStack } from '../lib/IdentitySchemaStack.js';
 import { IdentityServiceStack } from '../lib/IdentityServiceStack.js';
 
 const app = new App();
@@ -44,6 +45,18 @@ if (!vpcId) {
 }
 
 const env = account ? { account, region } : { region };
+
+// ⛔ The SCHEMA, deployed and migrated by its own pipeline step AHEAD of the service. It holds the
+// migration runner and nothing that reads the schema, which is what makes "deploy this, migrate, then
+// deploy everything else" a real barrier rather than a convention. It takes no dependency on the service
+// stack and the service takes none on it: the ordering is the pipeline's, so a `cdk deploy --all` that
+// deploys them in either order is still correct — the migrate step is what sits between.
+new IdentitySchemaStack(app, `IdentitySchema-${stage}`, {
+    env,
+    stackName: `kitchensink-identity-schema-${stage}`,
+    stage,
+    vpcId,
+});
 
 new IdentityServiceStack(app, `IdentityService-${stage}`, {
     // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.

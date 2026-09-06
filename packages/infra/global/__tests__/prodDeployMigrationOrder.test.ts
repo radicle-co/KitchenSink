@@ -773,20 +773,6 @@ function servicesSharingDatabaseWith(serviceDir: string): readonly string[] {
 }
 
 /**
- * Whether a service's DB-addressing stack constructs an in-deploy migration barrier.
- *
- * The barrier must be declared in the SAME file that names the database — a `Trigger` somewhere else in the
- * package would satisfy a looser scan while ordering nothing that touches this schema.
- *
- * @param serviceDir - The directory name under `packages/services/`.
- * @returns `true` when at least one DB-addressing source constructs a `triggers.Trigger`.
- * @sideEffect Reads the infra sources.
- */
-function carriesMigrationBarrier(serviceDir: string): boolean {
-    return databaseAddressingSources(serviceDir).some((entry) => /new\s+triggers\.Trigger\s*\(/.test(entry.source));
-}
-
-/**
  * Every step in which a command matching `pattern` runs — one position per matching step, unlike
  * {@link commandPosition}, which stops at the first.
  *
@@ -856,11 +842,33 @@ function sharedDatabaseDeploys(): readonly SharedDatabaseDeploy[] {
     });
 }
 
-describe('a stack that shares a service database is ordered behind that schema, one way or the other', () => {
+describe('every stack that reads a service database deploys AFTER that schema is applied', () => {
+    /**
+     * ⛔ WHAT REPLACED WHAT.
+     *
+     * ADR-0022 ordered a database's consumers with an in-deploy `triggers.Trigger`, which compiles to
+     * `DependsOn` and therefore cannot leave its own stack. For a database read from two CDK apps — recipe,
+     * whose workers deploy FIRST because they publish the SSM parameters the service resolves — that forced
+     * a SECOND runner into the peer's stack purely so it had something to be ordered behind. This block used
+     * to assert exactly that: "a peer deployed before the migration must carry its own barrier".
+     *
+     * The schema is now applied by a stack of its own, deployed and invoked by its own pipeline step. So the
+     * rule became the simpler thing the Trigger form could not express: **every `cdk deploy` of a stack that
+     * reads a database runs AFTER that database's migrate step, in every workflow, in both apps.** No
+     * exemption for a peer, no second runner, and nothing that depends on which app a consumer lives in.
+     *
+     * ⚠️ The SCHEMA stack's own deploy is the exception, and it must run BEFORE — it is what ships the
+     * bundle the migrate step invokes. Discriminated by the stack name (`kitchensink-*-schema-`), which is
+     * what the pipeline actually types, rather than by the package, since both live in the same CDK app.
+     */
     it('discovers a shared-database pair at all, in every workflow that deploys one', () => {
-        // Anchors both assertions below, exactly as the first test in this file anchors its own: a discovery
-        // predicate that quietly stops matching turns them into assertions over an empty list, which is the
-        // one way a guard like this rots without anyone noticing.
+        // Anchors the assertions below, exactly as the first test in this file anchors its own: a discovery
+        // predicate that quietly stops matching turns them into assertions over an empty list.
+        //
+        // ⚠️ FOUR ENTRIES, DOWN FROM SIX. The two that went were the recipe pair read in the REVERSE
+        // direction — `recipe-workers+recipe-service` — which existed only because the workers stack owned a
+        // migration runner of its own. One runner per database is the change; losing those entries is what
+        // that looks like from here.
         const discovered = sharedDatabaseDeploys().map((pair) => `${pair.job.workflow}:${pair.owner}+${pair.peer}`);
 
         expect(
@@ -870,29 +878,29 @@ describe('a stack that shares a service database is ordered behind that schema, 
         ).toStrictEqual([
             '.github/workflows/prod-deploy.yml:identity+identity-webhooks',
             '.github/workflows/prod-deploy.yml:recipe-service+recipe-workers',
-            // ⚠️ The recipe pair is discovered in BOTH directions, and that is the correct reading rather
-            // than a duplicate: since `recipe-workers` gained its own ADR-0022 §4 safety net it is a
-            // migration OWNER too, whose peer (`recipe-service`) deploys LATER — which the next assertion
-            // exempts on exactly that ground. Losing these two entries would mean the workers net had been
-            // deleted, which is the state this file must not let pass quietly.
-            '.github/workflows/prod-deploy.yml:recipe-workers+recipe-service',
             '.github/workflows/sandbox-deploy.yml:recipe-service+recipe-workers',
-            '.github/workflows/sandbox-deploy.yml:recipe-workers+recipe-service',
             '.github/workflows/sandbox-identity-deploy.yml:identity+identity-webhooks',
         ]);
     });
 
-    it('⛔ requires a peer deployed BEFORE the migration to carry its own in-deploy barrier', () => {
+    it('⛔ deploys every PEER that reads the database after the migrate step, with no exemption', () => {
         const violations = sharedDatabaseDeploys().flatMap((pair) => {
-            const last = pair.peerDeploys[pair.peerDeploys.length - 1] as CommandPosition;
-            const deployedAfterTheMigration = runsBefore(pair.ownerDeploy, last) < 0;
+            const migrate = migrationSteps(pair.job.steps)
+                .map((step) => ({ step: step.index, offset: 0 }))
+                .find((position) => position !== undefined);
 
-            return deployedAfterTheMigration || carriesMigrationBarrier(pair.peer)
+            if (migrate === undefined) {
+                return [`${pair.job.workflow} (${pair.job.id}): no migrate step to order ${pair.peer} behind`];
+            }
+
+            const early = pair.peerDeploys.filter((position) => runsBefore(position, migrate) < 0);
+
+            return early.length === 0
                 ? []
                 : [
-                      `${pair.job.workflow} (${pair.job.id}): ${pair.peer} deploys at step ${last.step}, before ` +
-                          `${pair.owner}'s deploy at step ${pair.ownerDeploy.step} — the deploy that applies the ` +
-                          `schema — and its own stack declares no triggers.Trigger to order it`,
+                      `${pair.job.workflow} (${pair.job.id}): ${pair.peer} deploys at step ` +
+                          `${early.map((position) => position.step).join(', ')}, before the schema is applied at ` +
+                          `step ${migrate.step}`,
                   ];
         });
 
@@ -903,57 +911,87 @@ describe('a stack that shares a service database is ordered behind that schema, 
         ).toStrictEqual([]);
     });
 
-    it('builds the migration bundle before the PEER deploy that now ships it, not just before the owner', () => {
-        // A peer that carries its own barrier ships the OWNER's migration bundle — the SQL has one
-        // authority, and it is not the peer's package. So the bundle step, which the suite above only
-        // required to precede the OWNER's deploy, must now precede the peer's EARLIER one as well.
-        //
-        // The failure is loud rather than silent (an unbundled runner synthesizes a THROWING placeholder,
-        // so the trigger fails the deploy), which is precisely why it is worth pinning here: a loud failure
-        // in a pipeline is still a red prod deploy discovered at the worst moment.
-        const violations = sharedDatabaseDeploys()
-            .filter((pair) => carriesMigrationBarrier(pair.peer))
-            .flatMap((pair) => {
-                const scripts = bundlingScripts(pair.owner);
+    it('⛔ deploys the SCHEMA stack before the migrate step that invokes it, in every workflow', () => {
+        // The other half, and the one ADR-0022 said could not be got right by hoisting a pipeline step: the
+        // runner's SQL ships WITH its bundle, so invoking before the deploy that ships it runs the PREVIOUS
+        // release's migration set — exit 0, nothing applied. What makes hoisting safe now is that the deploy
+        // immediately above the invoke ships exactly that bundle, and that the invoke states which set it
+        // expects. Both halves have to hold; this asserts the first.
+        const violations = deployJobs().flatMap((job) => {
+            const schemaDeploys = commandPositions(job.steps, /cdk deploy/, ['-schema-']);
+            const migrates = migrationSteps(job.steps).map((step) => ({ step: step.index, offset: 0 }));
+
+            if (migrates.length === 0) {
+                return [];
+            }
+
+            if (schemaDeploys.length === 0) {
+                return [
+                    `${job.workflow} (${job.id}): invokes a migration runner but never deploys a schema stack, ` +
+                        'so the bundle it invokes is whatever the previous release left',
+                ];
+            }
+
+            const firstSchema = schemaDeploys[0] as CommandPosition;
+            const firstMigrate = migrates[0] as CommandPosition;
+
+            return runsBefore(firstSchema, firstMigrate) < 0
+                ? []
+                : [
+                      `${job.workflow} (${job.id}): the schema stack deploys at step ${firstSchema.step}, at or ` +
+                          `after the migrate step at ${firstMigrate.step}`,
+                  ];
+        });
+
+        expect(
+            violations,
+            'invoking a runner the current deploy did not ship runs the PREVIOUS migration set and exits 0 ' +
+                'having applied nothing — the silent no-op ADR-0022 was written about',
+        ).toStrictEqual([]);
+    });
+
+    it('builds the migration bundle before the SCHEMA deploy that ships it', () => {
+        // The bundle is copied into the asset at BUILD time, so an unbundled schema deploy synthesizes a
+        // THROWING placeholder. That failure is loud rather than silent, which is exactly why it is worth
+        // pinning: a loud failure in a pipeline is still a red deploy discovered at the worst moment.
+        const violations = deployJobs().flatMap((job) => {
+            const schemaDeploys = commandPositions(job.steps, /cdk deploy/, ['-schema-']);
+
+            return schemaDeploys.flatMap((deploy) => {
+                const owner = [...new Set(migrationSteps(job.steps).flatMap((step) => stackTokens(step)))]
+                    .map((token) => ownerPackage(token))
+                    .find((candidate): candidate is string => candidate !== undefined);
+
+                if (owner === undefined) {
+                    return [];
+                }
+
+                const scripts = bundlingScripts(owner);
+
+                if (scripts.length === 0) {
+                    return [`${job.workflow}: ${owner} has no esbuild script to build its runner`];
+                }
+
                 const invokesBundler = new RegExp(
                     `(?:npm|turbo) run (?:${scripts
                         .map((script) => script.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
                         .join('|')})(?![\\w:-])`,
                 );
-                const build = commandPosition(pair.job.steps, invokesBundler, [
-                    `${SERVICES_ROOT}/${pair.owner}`,
-                    manifest(pair.owner).name,
+                const build = commandPosition(job.steps, invokesBundler, [
+                    `${SERVICES_ROOT}/${owner}`,
+                    manifest(owner).name,
                 ]);
-                const first = pair.peerDeploys[0] as CommandPosition;
 
-                if (scripts.length === 0) {
-                    return [`${pair.job.workflow}: ${pair.owner} has no esbuild script to build its runner`];
-                }
-
-                return build !== undefined && runsBefore(build, first) < 0
+                return build !== undefined && runsBefore(build, deploy) < 0
                     ? []
                     : [
-                          `${pair.job.workflow} (${pair.job.id}): ${pair.peer} deploys at step ${first.step} but ` +
-                              `${pair.owner}'s Lambda bundle is built at ${JSON.stringify(build)}`,
+                          `${job.workflow} (${job.id}): the schema stack deploys at step ${deploy.step} but ` +
+                              `${owner}'s Lambda bundle is built at ${JSON.stringify(build)}`,
                       ];
             });
+        });
 
-        expect(violations, "the peer's barrier ships the owner's runner, so it needs that bundle too").toStrictEqual(
-            [],
-        );
-    });
-
-    it('keeps the migration-owning stack carrying a barrier too, so the rule is not satisfied by removing one', () => {
-        // The complement. Every pair above is exempted the moment the peer deploys later, so nothing here
-        // would notice `RecipeServiceStack`'s own trigger being deleted — and that trigger is what keeps the
-        // API tasks off an old schema. Asserted for the OWNER of each discovered pair, discovered the same way.
-        const missing = [...new Set(sharedDatabaseDeploys().map((pair) => pair.owner))]
-            .filter((owner) => !carriesMigrationBarrier(owner))
-            .sort();
-
-        expect(missing, 'these services own a migration runner but no longer order it against their own stack').toEqual(
-            [],
-        );
+        expect(violations, 'a schema stack deployed without its bundle ships a throwing placeholder').toStrictEqual([]);
     });
 });
 

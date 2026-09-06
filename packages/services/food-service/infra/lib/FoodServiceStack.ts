@@ -15,7 +15,6 @@ import {
     aws_events as events,
     aws_events_targets as targets,
     aws_iam as iam,
-    aws_lambda as lambda,
     aws_logs as logs,
     aws_rds as rds,
     aws_route53 as route53,
@@ -23,11 +22,7 @@ import {
     aws_secretsmanager as secretsmanager,
     aws_sns as sns,
     aws_ssm as ssm,
-    triggers,
 } from 'aws-cdk-lib';
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
 import {
@@ -47,7 +42,6 @@ import {
 import {
     AcceptedNagFindings,
     clerkAuthEnvironment,
-    NODE_LAMBDA_RUNTIME,
     acceptNagFindings,
     CONTAINER_INSIGHTS_TIER,
     subscribeAlarmEmail,
@@ -676,126 +670,23 @@ export class FoodServiceStack extends Stack {
             ]);
         }
 
-        // ── In-VPC migration-runner Lambda (T-191 / FU-MIGRATE) ─────────────────────────────────
-        // The RDS instance is PRIVATE_ISOLATED, so the deploy pipeline invokes this VPC-attached Lambda
-        // to apply the ordered SQL against kitchensink_food. It is the ONLY food workload on the NAT (a
-        // VPC Lambda's public IP does NOT give egress — ADR-0004 — and it must reach the private RDS).
-        // Asset: esbuild bundles to the package-root dist-lambda/ (npm run bundle:lambda, run by
-        // infra:synth/deploy). Synth must not fail when the asset is absent (e.g. a bare `cdk synth`), so
-        // fall back to an inline placeholder — the real deploy always builds it. This module lives at
-        // infra/lib/, so the package root is two levels up from source (tsx) but three from the compiled
-        // infra/dist/lib/ (how CI deploys via `node infra/dist/bin/app.js`) — probe both so the REAL
-        // handler ships either way. Getting it wrong is no longer SILENT (the placeholder below throws, and
-        // the trigger turns that into a failed deploy), but a failed deploy is still not the outcome wanted.
-        const here = dirname(fileURLToPath(import.meta.url));
-        const lambdaAssetDir =
-            [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
-                existsSync(candidate),
-            ) ?? resolve(here, '../../dist-lambda');
-        // ⛔ The placeholder THROWS. It used to resolve `{ ok: false, reason: "asset-not-built" }`, which is a
-        // successful invocation — and an unbundled deploy would therefore report a clean migration run having
-        // applied nothing at all. That is the same silent no-op the in-deploy trigger below exists to remove,
-        // arriving by a different road. Failing the invocation makes an unbundled deploy fail the trigger, and
-        // so the deploy, which is the only outcome that cannot be mistaken for "nothing was pending".
-        const hasLambdaAsset = existsSync(lambdaAssetDir);
-        const migrationCode = hasLambdaAsset
-            ? lambda.Code.fromAsset(lambdaAssetDir)
-            : lambda.Code.fromInline(
-                  'exports.handler = async () => { throw new Error("food migration bundle missing: run `npm run bundle:lambda --workspace=packages/services/food-service` before deploying"); };',
-              );
-
-        const migrationFn = new lambda.Function(this, 'FoodMigrationFunction', {
-            runtime: NODE_LAMBDA_RUNTIME,
-            architecture: lambda.Architecture.ARM_64,
-            handler: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler',
-            code: migrationCode,
-            timeout: Duration.seconds(300),
-            memorySize: 512,
-            environment: {
-                STAGE: stage,
-                FOOD_DB_ENDPOINT: database.dbInstanceEndpointAddress,
-                FOOD_DB_PORT: Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`),
-                // Per-PR isolation (ADR-0006): the runner creates this DB if absent then migrates into
-                // it. Base stages resolve to the imported `kitchensink_food`, so no template diff.
-                FOOD_DB_NAME: foodDatabaseName,
-            },
-            vpc,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-            securityGroups: [serviceSecurityGroup],
-        });
-        // `food_app` authenticates via RDS IAM — the migrate lambda mints a token per connection.
-        database.grantConnect(migrationFn, 'food_app');
-
-        // ── Schema BEFORE traffic: run the migration inside the deploy ───────────────────────────
+        // ⛔ THE MIGRATION RUNNER AND ITS TRIGGER USED TO SIT HERE, and their absence is the decision.
         //
-        // ⛔ THE ORDER HERE IS THE POINT, AND ONE OF ITS TWO HALVES IS COUNTER-INTUITIVE.
+        // ADR-0022 put the schema apply inside this deploy because CloudFormation's `DependsOn` cannot
+        // leave a stack, so the only seam in which the new SQL existed and the new tasks were not yet
+        // serving was between the runner's code update and the services' rollout. That made the schema a
+        // hostage of the application's release, and — because the runner also CREATES a per-PR logical
+        // database (ADR-0006) — it made database creation a hostage of it too.
         //
-        // `cdk deploy` returns only once ECS has STABILISED, so the pipeline's "deploy, then invoke the
-        // migration runner" put the new image in front of live traffic for the whole stabilisation window
-        // with the old schema underneath it. That became load-bearing when the read path came to depend on
-        // `food_nutrient_view` (migration 0006): the window is `relation … does not exist` on every
-        // nutrition read, and prod is fronted by CloudFront, which CACHES the 500s.
+        // The runner now lives in `kitchensink-food-schema-{stage}` (`FoodSchemaStack`) and is deployed +
+        // invoked by its own pipeline step ahead of this one. The ordering guarantee did not weaken, it
+        // changed hands: position in the pipeline, plus the manifest expectation the invoke carries, which
+        // is what makes "nothing was pending" provable rather than indistinguishable from "this runner has
+        // never heard of the new migrations".
         //
-        // The instinctive repair — hoist the pipeline's migrate step above `cdk deploy` — is WORSE, and
-        // silently so. `esbuild.mjs` copies `src/db/migrations/*.sql` into `dist-lambda/migrations/` at
-        // BUILD time and that bundle ships WITH this stack, so invoking first invokes the PREVIOUS deploy's
-        // Lambda carrying the PREVIOUS migration set: exit 0, "nothing pending", nothing applied, and the
-        // new tasks still meet the missing relation. The only point in time at which the NEW migrations
-        // exist but the NEW tasks are not yet serving is INSIDE this deploy, between the Lambda's code
-        // update and the service's rollout — which is exactly the seam `triggers.Trigger` occupies.
-        //
-        // ⚠️ THIS FIXES EXPANDING MIGRATIONS AND CHANGES THE CONTRACT FOR CONTRACTING ONES. Every migration
-        // must now be safe to apply while the PREVIOUS release is still serving, so anything destructive
-        // (DROP COLUMN, DROP TABLE, a narrowing type change) ships in a LATER release than the code that
-        // stopped using it — the standard expand/contract split, never both halves in one deploy. That is
-        // strictly safer than the order it replaces rather than a regression from it: a rolling ECS
-        // deployment runs old and new tasks CONCURRENTLY, so same-release contraction was only ever safe by
-        // virtue of `cdk deploy` having already drained the old tasks, which is a property of the pipeline
-        // and not of the change.
-        //
-        // Three details are load-bearing and each has a failure mode if changed:
-        //   • `executeAfter(migrationFn)` — the runner's `rds-db:connect` grant is attached to its own role,
-        //     inside the function's construct subtree. Without this edge CloudFormation is free to invoke
-        //     the trigger before that policy exists, and the first-ever deploy fails on an auth error.
-        //   • `timeout` — this is the trigger's SOCKET timeout, and it defaults to two minutes while the
-        //     runner is allowed five. A migration that outlives the socket fails a deploy whose schema was
-        //     already applied.
-        //   • `executeOnHandlerChange` (left at its `true` default) — the trigger is keyed to the handler's
-        //     `currentVersion`, so it re-executes exactly when the bundled migration set changes. Turning it
-        //     off would apply nothing on the one deploy that introduces a migration.
-        //
-        // The pipeline's `Run food DB migrations` step is deliberately KEPT as a safety net: it is
-        // idempotent, and it still catches a stage whose schema is behind for a reason no code change
-        // explains (a restore, a stage created later). `prodDeployMigrationOrder.test.ts` pins both.
-        // ⚠️ DELIBERATE — see docs/architecture/decisions/0022-in-stack-migration-trigger.md
-        // ⛔ DISCOVERED from the construct tree, never a list. This read used to be
-        // `[apiService, workerService]` — EVERY Fargate workload in this stack, which was true when it was
-        // written and stops being true the moment a third one lands. The comment it carried ("not just the
-        // API: the fetch worker queries the same schema") was the reason a human had to remember; the
-        // derivation is that reason made mechanical, and it now covers a DB-touching Lambda too, which the
-        // template gate over `AWS::ECS::Service` never could.
-        //
-        // Two things it still cannot reach, and neither is a gap this can close:
-        //   • the 6-hourly change-refresh RunTask is an EventBridge target, not a deployed service, so
-        //     CloudFormation has no ordering to give it — it retries on its own schedule;
-        //   • `DependsOn` cannot leave a stack, so nothing here orders another CDK app (ADR-0022).
-        //
-        // Read BEFORE the Trigger is constructed, so CDK's own custom-resource provider Lambda — created
-        // inside it, and no consumer of this schema — is not swept in.
-        const orderedBehindTheSchema = this.node
-            .findAll()
-            .filter(
-                (construct): construct is Construct =>
-                    construct instanceof lambda.Function || construct instanceof ecs.BaseService,
-            )
-            .filter((construct) => construct !== migrationFn);
-
-        new triggers.Trigger(this, 'FoodSchemaMigrations', {
-            handler: migrationFn,
-            timeout: Duration.seconds(360),
-            executeAfter: [migrationFn],
-            executeBefore: orderedBehindTheSchema,
-        });
+        // ⛔ Do NOT re-add a runner here. The EXPAND-FIRST discipline ADR-0022 introduced still binds and is
+        // now load-bearing on its own: every migration must be safe to apply while the previous release is
+        // still serving, so a contracting change ships a release LATER than the code that stopped using it.
 
         // ── Shared ALB host-rule + DNS (mirrors identity) ───────────────────────────────────────
         // This service does NOT create its own ALB. It imports the shared per-stage ALB's HTTPS
@@ -1117,10 +1008,6 @@ export class FoodServiceStack extends Stack {
             exportName: `${this.stackName}:FoodEventBusName`,
         });
         // Exported for the deploy-time `lambda invoke` migration step (mirrors identity-webhooks).
-        new CfnOutput(this, 'FoodMigrationFunctionName', {
-            value: migrationFn.functionName,
-            exportName: `${this.stackName}:FoodMigrationFunctionName`,
-        });
         // Task #152 — the post-deploy smoke's two inputs, mirroring the identity service stack's
         // `IdentityClusterArn`/`IdentityServiceArn`. `prod-deploy.yml` reads them to look up the RUNNING
         // API task definition and compare its image tag to the one the run just pushed; `/health` → 200

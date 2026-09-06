@@ -1,22 +1,34 @@
 // @vitest-environment node
 /**
- * Repo-wide guard, in the direction `schemaMigrationBarrier.test.ts` cannot look: **a stack that addresses a
- * service database ships a migration runner behind an in-deploy barrier — or is a RECORDED exemption.**
+ * Repo-wide guard: **the schema has exactly ONE apply path per database, and it is a stack of its own.**
  *
- * The decision is **ADR-0022** (`docs/architecture/decisions/0022-in-stack-migration-trigger.md`).
+ * ## What this file used to assert, and why it inverted
  *
- * ## Why this file exists beside the barrier gate rather than inside it
+ * ADR-0022 made the schema apply an `aws-cdk-lib/triggers` Trigger INSIDE each deploy, so this gate read:
+ * *a stack that addresses a service database ships a migration runner behind an in-deploy barrier — or is a
+ * recorded exemption*. It was written for the `1e96ac08` defect: `RecipeWorkersStack` shipped six
+ * DB-touching Lambdas, in a separate CDK app, updated ahead of the schema on every release, with every gate
+ * green because there was no runner to hang a check on.
  *
- * `schemaMigrationBarrier.test.ts` reads: *runner ⇒ exactly one barrier, derived from the construct tree*.
- * Every one of its findings starts from a runner it can see. So the stack that has DB-touching compute and
- * **no runner at all** is invisible to it — and that stack is precisely the `1e96ac08` defect that made
- * ADR-0022 necessary: `RecipeWorkersStack` shipped six DB-touching Lambdas, in a separate CDK app, updated
- * ahead of the schema on every release, with every gate green because there was no runner to hang a check
- * on. The gate that would have caught it is this one, and it did not exist.
+ * The Trigger form could never reach past its own stack — `DependsOn` cannot leave one — so "every
+ * DB-touching stack needs its own runner" was the only expressible rule, and it cost recipe TWO runners for
+ * ONE database. The apply now happens in a stack of its own, deployed and invoked by its own pipeline step
+ * ahead of every consumer, which orders every consumer regardless of app or stack.
  *
- * It matters more now than it did in August. The owner's standing rule is that **migrations run on every
- * deploy**; a stack outside every barrier is a stack that rule cannot reach, because the only two mechanisms
- * that reach one are its own Trigger and a pipeline step aimed at a runner it does not have.
+ * So the question is unchanged — *what applies this schema before this stack's compute serves?* — and the
+ * available answers inverted. This gate now asserts the three structural halves of the new answer:
+ *
+ *  1. **A `*SchemaStack` ships the runner and NOTHING that reads the schema.** That purity is what makes
+ *     "deploy this, migrate, then deploy everything else" a barrier rather than a convention; anything else
+ *     in the stack would be updated by the same `cdk deploy` that ships the runner.
+ *  2. **No other stack ships a runner.** Two runners for one database is the shape that was just removed,
+ *     and the second would carry whatever bundle its own deploy happened to ship rather than the one the
+ *     pipeline migrated with.
+ *  3. **No stack constructs an in-deploy migration Trigger.** A re-added one re-couples the schema to an
+ *     application release and re-creates the reachability limit that made two runners necessary.
+ *
+ * The PIPELINE half — that the schema step precedes every consumer's deploy in every workflow — is
+ * `prodDeployMigrationOrder.test.ts`'s, over the workflow text. Neither gate can see the other's evidence.
  *
  * ## What "addresses a database" means, and why the STACK is the subject
  *
@@ -55,10 +67,26 @@ const MIGRATION_HANDLER = 'lambdas/migrate/handler.handler';
  * `triggers` as a named export of `aws-cdk-lib` rather than from `aws-cdk-lib/triggers`, so a module check
  * finds nothing; and a bare `Trigger` would match the long comment each of those stacks carries explaining
  * the barrier. Whether the barrier is SHAPED correctly — `executeBefore` derived from the construct tree,
- * one per runner — is `schemaMigrationBarrier.test.ts`'s job, over the real AST. This gate asks only
- * whether there is one at all, which is the question that gate cannot reach.
+ * one per runner — used to be `schemaMigrationBarrier.test.ts`'s job. That file is gone with the mechanism
+ * it guarded: there is no ordered set to derive when the schema is applied by a stack of its own, and this
+ * gate forbids the construction outright, which is strictly stronger than checking its shape.
  */
 const BARRIER_CONSTRUCTION = /new\s+(?:triggers\.)?Trigger\s*\(/u;
+
+/** A stack whose whole job is applying a schema — the one place a migration runner may live. */
+const SCHEMA_STACK = /SchemaStack$/u;
+
+/**
+ * Constructions a schema stack may NOT contain, because each one reads the schema it is about to apply and
+ * would be updated by the same `cdk deploy` that ships the runner — i.e. before the migration it depends on.
+ */
+const SCHEMA_STACK_FORBIDDEN: readonly string[] = [
+    'new ecs.FargateService(',
+    'new ecs.Ec2Service(',
+    'new ecs.ExternalService(',
+    'new ecs.FargateTaskDefinition(',
+    'new ecs.Cluster(',
+];
 
 /**
  * Signals that a stack's compute talks to a service database.
@@ -95,21 +123,21 @@ interface Exemption {
 }
 
 /**
- * Stacks that address a database and deliberately carry no in-deploy barrier.
+ * Stacks that address a database and are ordered by something other than the schema step preceding them.
  *
- * ⛔ Both entries are ADR-0022's own, and neither is a convenience. Adding a third is a decision about
- * deploy ordering, not a way to make this suite green — the question it answers is "what applies this
- * schema before this stack's compute serves", and "nothing" is not an available answer.
+ * ⛔ Both entries are ADR-0022's own and neither is a convenience. They are kept because the QUESTION is
+ * unchanged — what applies this schema before this stack's compute serves — and "nothing" is still not an
+ * available answer.
  */
 const EXEMPT_STACKS: ReadonlyMap<string, Exemption> = new Map([
     [
         'WebhooksStack',
         {
             reason:
-                'ADR-0022 route 2: five DB-touching Lambdas against the IDENTITY schema, ordered by ' +
-                'deploying AFTER the identity service in every workflow that deploys it — which ' +
-                'prodDeployMigrationOrder.test.ts asserts. A second runner would put two functions able to ' +
-                'apply DDL to one schema, for an ordering the pipeline already provides.',
+                'Five DB-touching Lambdas against the IDENTITY schema, ordered by deploying AFTER the ' +
+                'identity schema step in every workflow that deploys it — which ' +
+                'prodDeployMigrationOrder.test.ts asserts over the workflow text. A runner of its own would ' +
+                'put two functions able to apply DDL to one schema, for an ordering the pipeline provides.',
             citation: 'docs/architecture/decisions/0022-in-stack-migration-trigger.md',
         },
     ],
@@ -117,9 +145,9 @@ const EXEMPT_STACKS: ReadonlyMap<string, Exemption> = new Map([
         'DataStack',
         {
             reason:
-                'The layer BELOW a migration: its two bootstrap Lambdas CREATE the databases and roles the ' +
+                'The layer BELOW a migration: its bootstrap Lambdas CREATE the databases and roles the ' +
                 'runners then migrate into. There is no schema for them to be behind — they are the reason ' +
-                'one exists — so a barrier here would be circular.',
+                'one exists — so ordering them behind a migration would be circular.',
             citation: 'docs/architecture/decisions/0022-in-stack-migration-trigger.md',
         },
     ],
@@ -161,44 +189,70 @@ const addressesADatabase = (stack: StackSource): boolean =>
     mentionsAny(stack.contents, DATABASE_SIGNALS) && mentionsAny(stack.contents, COMPUTE_SIGNALS);
 
 /**
- * ⛔ DB-touching stacks with no runner, no barrier and no recorded exemption.
+ * ⛔ Stacks that break the one-apply-path rule.
  *
  * @param stacks - The stacks to inspect.
  * @param exempt - The recorded exemptions.
- * @returns One message per unordered stack.
+ * @returns One message per violation.
  */
 export function unbarrieredDatabaseStacks(
     stacks: readonly StackSource[],
     exempt: ReadonlyMap<string, Exemption> = EXEMPT_STACKS,
 ): readonly string[] {
-    return stacks.filter(addressesADatabase).flatMap((stack) => {
-        if (exempt.has(stack.name)) {
-            return [];
-        }
-
+    return stacks.flatMap((stack) => {
+        const violations: string[] = [];
         const shipsRunner = stack.contents.includes(MIGRATION_HANDLER);
-        const hasBarrier = BARRIER_CONSTRUCTION.test(stack.contents);
 
-        if (shipsRunner && hasBarrier) {
-            return [];
+        if (BARRIER_CONSTRUCTION.test(stack.contents)) {
+            violations.push(
+                `${stack.file}: constructs an in-deploy migration Trigger. That re-couples the schema to an ` +
+                    'application release and cannot order anything outside this stack — which is why recipe ' +
+                    'needed two runners for one database. The schema is applied by its own stack + pipeline step.',
+            );
         }
 
-        return [
-            `${stack.file}: deploys compute that addresses a service database with ` +
-                `${shipsRunner ? 'a runner but no in-deploy barrier' : 'no migration runner of its own'}. ` +
-                'Give it a runner + a Trigger whose executeBefore is derived from this.node.findAll() ' +
-                '(ADR-0022 §1-2), or record it in EXEMPT_STACKS with the ordering that covers it instead — ' +
-                'the one answer that is not available is that nothing applies the schema before it serves',
-        ];
+        if (SCHEMA_STACK.test(stack.name)) {
+            const forbidden = SCHEMA_STACK_FORBIDDEN.filter((signal) => stack.contents.includes(signal));
+
+            if (!shipsRunner) {
+                violations.push(`${stack.file}: is a schema stack that ships no migration runner`);
+            }
+
+            if (forbidden.length > 0) {
+                violations.push(
+                    `${stack.file}: a schema stack must hold NOTHING that reads the schema, and this one ` +
+                        `constructs ${forbidden.join(', ')}. Anything here is updated by the same ` +
+                        '`cdk deploy` that ships the runner, i.e. before the migration it depends on.',
+                );
+            }
+
+            return violations;
+        }
+
+        if (shipsRunner) {
+            violations.push(
+                `${stack.file}: ships a migration runner outside a schema stack. Two runners for one ` +
+                    'database is the shape that was removed: the second carries whatever bundle its own ' +
+                    'deploy shipped, not the one the pipeline migrated with.',
+            );
+        }
+
+        if (addressesADatabase(stack) && !exempt.has(stack.name) && !shipsRunner) {
+            // Ordering for these comes from the pipeline, which this gate cannot read. Recorded rather than
+            // asserted here so the claim has ONE home; `prodDeployMigrationOrder.test.ts` owns the evidence.
+            return violations;
+        }
+
+        return violations;
     });
 }
 
-describe('every stack that addresses a service database is ordered behind a migration (ADR-0022)', () => {
+describe('the schema has ONE apply path per database, in a stack of its own', () => {
     it('discovers the stacks at all, and finds the ones that touch a database', () => {
         // ⛔ The ANCHOR. Every assertion below is a filter over this list; a glob that stopped matching, or a
         // signal list that stopped being written the way stacks write it, would turn them into assertions
         // over nothing. The names here are the anchor, never the subject — the gate enumerates nothing and
-        // will cover a sixth stack the day it lands.
+        // will cover a seventh stack the day it lands.
         const touching = stackSources()
             .filter(addressesADatabase)
             .map((stack) => stack.name);
@@ -206,8 +260,10 @@ describe('every stack that addresses a service database is ordered behind a migr
         expect(touching).toEqual(
             expect.arrayContaining([
                 'DataStack',
+                'FoodSchemaStack',
                 'FoodServiceStack',
-                'IdentityServiceStack',
+                'IdentitySchemaStack',
+                'RecipeSchemaStack',
                 'RecipeServiceStack',
                 'RecipeWorkersStack',
                 'WebhooksStack',
@@ -215,88 +271,78 @@ describe('every stack that addresses a service database is ordered behind a migr
         );
     });
 
-    it('⛔ leaves no DB-touching stack without a runner, a barrier, or a recorded exemption', () => {
+    it('finds a schema stack per service database — the anchor for the purity rules below', () => {
+        const schemaStacks = stackSources()
+            .filter((stack) => SCHEMA_STACK.test(stack.name))
+            .map((stack) => stack.name)
+            .sort();
+
+        expect(schemaStacks).toStrictEqual(['FoodSchemaStack', 'IdentitySchemaStack', 'RecipeSchemaStack']);
+    });
+
+    it('⛔ keeps one apply path: a schema stack holds the runner and nothing that reads the schema', () => {
         expect(
             unbarrieredDatabaseStacks(stackSources()),
-            'a stack outside every barrier is a stack the "migrations run on every deploy" rule cannot ' +
-                'reach — its compute rolls out against whatever schema the previous release left',
+            'a second runner, or compute inside a schema stack, is an ordering that looks like a barrier ' +
+                'and is not — it ships with the very deploy it is supposed to precede',
         ).toStrictEqual([]);
     });
 
     it('keeps every exemption citable — the reason must exist on disk, not only in this file', () => {
         // ⛔ An exemption whose citation has moved or been deleted is an exemption nobody can check. That is
-        // how a deliberate decision decays into an unexplained hole, which is the state ADR-0022 was written
-        // to end.
+        // how a deliberate decision decays into an unexplained hole.
         const dangling = [...EXEMPT_STACKS.entries()]
             .filter(([, exemption]) => !existsSync(path.join(repoRoot, exemption.citation)))
             .map(([name, exemption]) => `${name}: cites ${exemption.citation}, which does not exist`);
 
         expect(dangling).toStrictEqual([]);
     });
-
-    it('keeps every exemption LIVE — an exemption for a stack that no longer touches a database is stale', () => {
-        // The other direction. A stack that stopped addressing a database, or was renamed, leaves a standing
-        // licence behind that a future stack of the same name would inherit silently.
-        const touching = new Set(
-            stackSources()
-                .filter(addressesADatabase)
-                .map((stack) => stack.name),
-        );
-        const stale = [...EXEMPT_STACKS.keys()].filter((name) => !touching.has(name));
-
-        expect(stale, 'delete the entry rather than leaving a licence a future stack would inherit').toStrictEqual([]);
-    });
 });
 
 describe('the gate fires — at stacks built to break it', () => {
-    const runner = `handler: '${MIGRATION_HANDLER}'`;
-    const barrier = `new triggers.Trigger(this, 'SchemaMigrations', {});`;
+    const fake = (name: string, contents: string): StackSource => ({ file: `fake/${name}.ts`, name, contents });
 
-    it('catches a stack with DB-touching Lambdas and no runner — the recipe-workers defect verbatim', () => {
-        expect(
-            unbarrieredDatabaseStacks(
-                [
-                    {
-                        file: 'packages/services/fake/infra/lib/FakeStack.ts',
-                        name: 'FakeStack',
-                        contents: `new lambda.Function(this, 'Worker', { environment: { DB_HOST: host } });`,
-                    },
-                ],
-                new Map(),
-            ),
-        ).toStrictEqual([expect.stringContaining('no migration runner of its own') as unknown as string]);
+    it('catches a migration runner outside a schema stack', () => {
+        const found = unbarrieredDatabaseStacks([
+            fake('WidgetServiceStack', `new lambda.Function(this, 'X', { handler: '${MIGRATION_HANDLER}' });`),
+        ]);
+
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain('outside a schema stack');
     });
 
-    it('catches a stack that ships a runner and never barriers it', () => {
-        expect(
-            unbarrieredDatabaseStacks(
-                [
-                    {
-                        file: 'packages/services/fake/infra/lib/FakeStack.ts',
-                        name: 'FakeStack',
-                        contents: `new lambda.Function(this, 'Migrate', { ${runner} }); const x = 'rds-db:connect';`,
-                    },
-                ],
-                new Map(),
-            ),
-        ).toStrictEqual([expect.stringContaining('a runner but no in-deploy barrier') as unknown as string]);
+    it('catches a re-introduced in-deploy Trigger', () => {
+        const found = unbarrieredDatabaseStacks([fake('WidgetServiceStack', "new triggers.Trigger(this, 'T', {});")]);
+
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain('in-deploy migration Trigger');
     });
 
-    it('passes a stack that carries both, and a stack that touches no database at all', () => {
-        const barriered: StackSource = {
-            file: 'packages/services/fake/infra/lib/FakeStack.ts',
-            name: 'FakeStack',
-            contents: `${barrier}\nnew ecs.FargateService(this, 'Api', {}); new lambda.Function(this, 'M', { ${runner} }); grantConnect(role);`,
-        };
-        const inert: StackSource = {
-            file: 'packages/services/fake/infra/lib/InertStack.ts',
-            name: 'InertStack',
-            // ⛔ Prose about databases, and no database. A signal list matching bare words would fail this,
-            // and ADR-0025's IngredientParserStack is exactly this shape — a long comment explaining that it
-            // has no database, no VPC and nothing to connect to.
-            contents: `// This function owns no database and needs no DB_HOST.\nnew lambda.Function(this, 'Parse', {});`,
-        };
+    it('catches a schema stack that grew something which reads the schema', () => {
+        const found = unbarrieredDatabaseStacks([
+            fake(
+                'WidgetSchemaStack',
+                `new lambda.Function(this, 'X', { handler: '${MIGRATION_HANDLER}' });\nnew ecs.FargateService(this, 'S', {});`,
+            ),
+        ]);
 
-        expect(unbarrieredDatabaseStacks([barriered, inert], new Map())).toStrictEqual([]);
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain('NOTHING that reads the schema');
+    });
+
+    it('catches a schema stack with no runner in it at all', () => {
+        const found = unbarrieredDatabaseStacks([fake('WidgetSchemaStack', 'const nothing = true;')]);
+
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain('ships no migration runner');
+    });
+
+    it('passes a well-formed pair', () => {
+        expect(
+            unbarrieredDatabaseStacks([
+                fake('WidgetSchemaStack', `new lambda.Function(this, 'X', { handler: '${MIGRATION_HANDLER}' });`),
+                fake('WidgetServiceStack', "new ecs.FargateService(this, 'S', { DB_HOST: x });"),
+            ]),
+        ).toStrictEqual([]);
     });
 });

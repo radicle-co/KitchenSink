@@ -43,7 +43,7 @@ export const SERVICES_ROOT = 'packages/services';
  *
  * ⚠️ It is a string VALUE, which is what makes it a usable marker: a comment naming the handler, or a
  * docstring explaining the barrier, cannot satisfy a check that reads the AST for this literal. Two guards
- * ask "does this stack deploy a migration runner?" — `schemaMigrationBarrier.test.ts` (is it barriered?) and
+ * ask "does this stack deploy a migration runner?" — `dbTouchingStackBarrier.test.ts` (does the schema have one apply path?) and
  * `perPrDatabaseDropDoors.test.ts` (does it publish a drop door?) — so the answer is defined once here
  * rather than copied into each.
  */

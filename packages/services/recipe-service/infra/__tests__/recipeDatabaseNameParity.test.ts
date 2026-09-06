@@ -1,5 +1,6 @@
 /**
- * Cross-stack parity: the recipe API and the recipe WORKERS must talk to the same logical database (#119).
+ * Cross-stack parity: the recipe API, the recipe WORKERS and the recipe SCHEMA runner must all talk to the
+ * same logical database (#119).
  *
  * **Why this file exists at all.** Nothing in the repository tied the two resolutions together, so they
  * diverged silently and stayed diverged through a full deploy. Measured on the live `pr-73` preview: the
@@ -9,11 +10,17 @@
  * object deletion), so this was a cross-stage data-loss path that only a coincident RDS-IAM auth failure
  * (#121) prevented from firing.
  *
- * Both stacks now derive the name from ONE authority (`recipeDatabaseNameForStage` in
+ * All three stacks derive the name from ONE authority (`recipeDatabaseNameForStage` in
  * `@kitchensink/recipe-core`). Deriving from one function makes agreement *likely*; this test is what makes
- * it *checked* — it synthesizes BOTH CloudFormation templates for the same `(stage, baseStage)` and compares
+ * it *checked* — it synthesizes every CloudFormation template for the same `(stage, baseStage)` and compares
  * the values that actually reach the task definition and the Lambda configurations. A future edit that
- * re-hardcodes either side, or feeds one of them the wrong stage pair, fails here.
+ * re-hardcodes any side, or feeds one of them the wrong stage pair, fails here.
+ *
+ * ⚠️ THE THIRD PARTY IS NEW AND IS THE RISKIEST ONE. The migration runner used to live inside the service
+ * stack, where a shared local variable made agreement structural. It now owns `RecipeSchemaStack`, a
+ * separate template deployed by a separate pipeline step — and it is the party that CREATES the per-PR
+ * database (ADR-0006). A runner pointed at the base database while the API and workers read the preview's
+ * own would migrate the wrong schema and report success: #119's failure mode through a new door.
  *
  * Requires `packages/services/recipe-workers/dist` (the esbuild bundle the workers stack ships via
  * `Code.fromAsset`). Turbo's `test` task depends on `^build`, so the dependency edge on
@@ -26,6 +33,7 @@ import { describe, expect, it } from 'vitest';
 import { BASE_RECIPE_DATABASE_NAME, recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 import { RecipeWorkersStack } from '@kitchensink/recipe-workers/infra';
 
+import { RecipeSchemaStack } from '../lib/RecipeSchemaStack.js';
 import { RecipeServiceStack } from '../lib/RecipeServiceStack.js';
 
 /** Both stacks call `Vpc.fromLookup`; pre-seed the context so synth never reaches AWS. */
@@ -86,6 +94,19 @@ function serviceTemplate(stage: string, baseStage: string): Template {
             vpcId: 'vpc-12345678',
             cloudfrontUrl: 'https://cdn.example.com',
             foodServiceUrl: `https://food-${stage}.example.com`,
+        }),
+    );
+}
+
+function schemaTemplate(stage: string, baseStage: string): Template {
+    const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
+
+    return Template.fromStack(
+        new RecipeSchemaStack(app, `RecipeSchema-${stage}`, {
+            env: ENV,
+            stage,
+            baseStage,
+            vpcId: 'vpc-12345678',
         }),
     );
 }
@@ -165,9 +186,17 @@ describe('recipe database-name parity — API vs workers', () => {
         expect(apiName).toBe(expected);
         expect(apiName).toBe('kitchensink_recipes_pr_73');
 
-        // The in-VPC migration runner lives in the SERVICE stack and creates the database the workers then
-        // query, so it is part of the same agreement — not a third opinion.
-        expect(new Set(lambdaDatabaseNames(service, 'DB_NAME'))).toEqual(new Set([apiName]));
+        // ⛔ The in-VPC migration runner CREATES the database the API and the workers then query, so it is
+        // part of the same agreement — not a third opinion. It now lives in its OWN stack, a third template
+        // deployed by a third pipeline step, which is precisely why this assertion matters more than it did
+        // when a shared local variable made the agreement structural.
+        const schema = schemaTemplate('pr-73', 'sandbox');
+
+        expect(lambdaDatabaseNames(schema, 'DB_NAME')).toHaveLength(1);
+        expect(new Set(lambdaDatabaseNames(schema, 'DB_NAME'))).toEqual(new Set([apiName]));
+
+        // And the service stack itself carries no runner any more — a second one would be a fourth opinion.
+        expect(lambdaDatabaseNames(service, 'DB_NAME')).toStrictEqual([]);
     });
 
     it('agrees across independent preview stages, without cross-contamination', () => {
@@ -178,8 +207,10 @@ describe('recipe database-name parity — API vs workers', () => {
         for (const stage of ['pr-1', 'pr-15', 'pr-5999']) {
             const apiName = apiDatabaseName(serviceTemplate(stage, 'sandbox'));
             const workerNames = new Set(lambdaDatabaseNames(workersTemplate(stage, 'sandbox'), 'RECIPE_DB_NAME'));
+            const schemaNames = new Set(lambdaDatabaseNames(schemaTemplate(stage, 'sandbox'), 'DB_NAME'));
 
             expect(workerNames).toEqual(new Set([apiName]));
+            expect(schemaNames).toEqual(new Set([apiName]));
             // pr-1 must never resolve to pr-15's database (the delimiter-awareness that ADR-0005's cleanup
             // matcher also depends on).
             expect(apiName).toBe(`kitchensink_recipes_${stage.replace('-', '_')}`);
@@ -196,5 +227,9 @@ describe('recipe database-name parity — API vs workers', () => {
 
         expect(apiDatabaseName(service)).toEqual({ 'Fn::ImportValue': 'kitchensink-data-prod:RecipeDatabaseName' });
         expect(new Set(lambdaDatabaseNames(workers, 'RECIPE_DB_NAME'))).toEqual(new Set([BASE_RECIPE_DATABASE_NAME]));
+        // The schema stack imports the same export as the service, unresolved, for the same reason.
+        expect(new Set(lambdaDatabaseNames(schemaTemplate('prod', 'prod'), 'DB_NAME'))).toEqual(
+            new Set([{ 'Fn::ImportValue': 'kitchensink-data-prod:RecipeDatabaseName' }]),
+        );
     });
 });

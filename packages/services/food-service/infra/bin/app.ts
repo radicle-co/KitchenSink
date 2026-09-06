@@ -14,6 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // DISCOVERED CDK app and observes the installed library actually honouring it.
 dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
 
+import { FoodSchemaStack } from '../lib/FoodSchemaStack.js';
 import { FoodServiceStack } from '../lib/FoodServiceStack.js';
 import { synthEnv } from '../lib/synthEnv.js';
 
@@ -86,6 +87,19 @@ if (!vpcId) {
 }
 
 const env = account ? { account, region } : { region };
+
+// ⛔ The SCHEMA, deployed and migrated by its own pipeline step AHEAD of the service. It holds the
+// migration runner and nothing that reads the schema, which is what makes "deploy this, migrate, then
+// deploy everything else" a real barrier rather than a convention. On a first-ever `pr-{N}` deploy the
+// runner also CREATES the per-PR logical database (ADR-0006), so this step precedes every food resource
+// for that stage, not merely the ones that read a table.
+new FoodSchemaStack(app, `FoodSchema-${stage}`, {
+    env,
+    stackName: `kitchensink-food-schema-${stage}`,
+    stage,
+    baseStage,
+    vpcId,
+});
 
 new FoodServiceStack(app, `FoodService-${stage}`, {
     // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.

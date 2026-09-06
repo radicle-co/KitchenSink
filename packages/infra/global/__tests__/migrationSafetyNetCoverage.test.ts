@@ -1,30 +1,33 @@
 /**
- * ADR-0022 §4 keeps an idempotent `run-migrations.sh` invoke in every deploy pipeline as the SAFETY NET
- * behind the in-stack Trigger — the thing that catches "a stage whose schema is behind for a reason no code
- * change explains: a restore, a stage created later, a `deploy_webhooks`-only run".
+ * Every migration runner a pipeline can reach is actually INVOKED by every pipeline that can reach it.
  *
- * One runner had no net. `RecipeWorkersStack`'s `RecipeSchemaMigrationRunner` addresses the SAME database
- * with the SAME bundle as `RecipeServiceStack`'s, and `recipe-workers` deploys FIRST — so between the two
- * `cdk deploy`s (with two hard-failing steps and the service deploy's own failure modes in between, one of
- * which wedged `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED`) there is a real window in
- * which the workers' Trigger has created and migrated the database and the service's net is unreachable.
+ * ## What this guard was written for, and what changed under it
  *
- * ## Why the existing guard could not see it
+ * It was written when a runner had no invoke. `RecipeWorkersStack` shipped a SECOND copy of
+ * recipe-service's bundle — ADR-0022's only way to order that app's eight DB-touching Lambdas behind a
+ * schema, since `DependsOn` cannot leave a stack — and `prod-deploy.yml` mentioned its output only in a
+ * comment. Between the two `cdk deploy`s there was a real window in which that runner had created and
+ * migrated the database and no net could reach it.
+ *
+ * The schema now owns its own stack per database, deployed and invoked by its own pipeline step ahead of
+ * every consumer, so there is exactly ONE runner per database and the second copy is gone. The window this
+ * guard was written for cannot recur — but the class can, the moment a fourth service lands or someone
+ * re-adds an in-stack runner, so the guard stays and its anchor became stronger rather than weaker: not
+ * "at least four outputs" (a number that fell when the duplicate went), but ONE PER DATABASE FAMILY, which
+ * is the invariant that actually matters.
+ *
+ * ## Why the discovery axis is the `CfnOutput`
  *
  * `prodDeployMigrationOrder.test.ts` discovers runners from the SOURCE HANDLER — `src/**\/migrate/handler.ts`
- * — which is correct for the three services that author one. `recipe-workers` authors none: it deploys
- * recipe-service's bundle, deliberately, because "the runner has to be deployed WITH the SQL it applies".
- * So it is invisible to that predicate BY CONSTRUCTION, and adding it to a list there would be the copied
- * list this repository keeps paying for.
+ * — which is correct for the three services that author one and structurally blind to a stack that ships
+ * someone else's bundle. This file discovers on the axis that makes a runner REACHABLE at all: the
+ * `CfnOutput`. That is the same shape `.github/scripts/teardown-sandbox-pr.sh` §1 uses to find per-PR
+ * database drop doors (`^[A-Za-z]+MigrationFunctionName$`), so the two consumers of that convention agree —
+ * a runner published for teardown to reach is a runner the migrate step must reach too.
  *
- * This file discovers on a DIFFERENT axis — the `CfnOutput` that makes a runner reachable from a pipeline at
- * all. That is the same shape `.github/scripts/teardown-sandbox-pr.sh` §1 already uses to find per-PR
- * database drop doors (`^[A-Za-z]+MigrationFunctionName$`), so the two consumers of that convention now
- * agree: a runner published for teardown to reach is a runner the safety net must reach too.
- *
- * ⛔ A runner with NO output is out of scope here and stays that way — it is unreachable from a pipeline by
- * definition, and `WebhooksStack` deliberately publishes none (ADR-0022: its DB-touching Lambdas are ordered
- * by deploying AFTER the identity service). What this suite forbids is the state that actually occurred: an
+ * ⛔ A runner with NO output is out of scope and stays that way — it is unreachable from a pipeline by
+ * definition, and `WebhooksStack` deliberately publishes none (its DB-touching Lambdas are ordered by
+ * deploying AFTER the identity service). What this suite forbids is the state that actually occurred: an
  * output that exists, that teardown uses, and that no deploy workflow ever invokes.
  */
 
@@ -79,8 +82,20 @@ export function runnerOutputsInvokedBy(workflow: string): readonly string[] {
 describe('every migration runner a pipeline can reach has an ADR-0022 §4 safety net', () => {
     const outputs = publishedRunnerOutputs(readRepoFile, stackSources());
 
-    it('discovers the runners at all — a vacuous pass here would assert nothing below', () => {
-        expect(outputs.length).toBeGreaterThanOrEqual(4);
+    it('discovers ONE runner per database family — the anchor, and the invariant', () => {
+        // ⚠️ THREE, DOWN FROM FOUR, and the drop is the decision rather than a regression. The fourth was
+        // `RecipeWorkersMigrationFunctionName`: a second runner for the recipe database, existing only so a
+        // second in-stack Trigger could order that app's Lambdas. One schema stack per database replaced
+        // both, and a stack ahead of everything orders every consumer regardless of which app it is in.
+        //
+        // Asserted as a SET rather than a count, so a fourth service that lands tomorrow fails here loudly
+        // instead of quietly satisfying a `>=`, and a re-introduced duplicate is a name this list does not
+        // expect rather than a number that happens to be big enough.
+        expect([...outputs].sort()).toStrictEqual([
+            'FoodMigrationFunctionName',
+            'IdentityMigrationFunctionName',
+            'RecipeMigrationFunctionName',
+        ]);
     });
 
     it('agrees with the teardown script, which finds the same doors by the same shape', () => {

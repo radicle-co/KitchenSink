@@ -12,6 +12,7 @@ import {
 } from '@kitchensink/infra-alb';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
+import { RecipeSchemaStack } from '../lib/RecipeSchemaStack.js';
 import { recipeSubdomainForStage, RecipeServiceStack } from '../lib/RecipeServiceStack.js';
 
 /** Recipe's own per-PR band, read from the allocation authority rather than restated as a literal. */
@@ -78,6 +79,19 @@ const VPC_LOOKUP_CONTEXT = {
         ],
     },
 };
+
+/** The recipe SCHEMA stack — the runner alone, deployed and migrated ahead of everything that reads it. */
+function synthSchemaTemplate(stage: string, baseStage: string): Template {
+    const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
+    const stack = new RecipeSchemaStack(app, `RecipeSchema-${stage}`, {
+        env: { account: '123456789012', region: 'us-east-1' },
+        stage,
+        baseStage,
+        vpcId: 'vpc-12345678',
+    });
+
+    return Template.fromStack(stack);
+}
 
 function synthTemplate(stage: string, baseStage: string, foodServiceUrl?: string): Template {
     const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
@@ -168,9 +182,11 @@ describe('recipe database name (ADR-0006)', () => {
                 }),
             ]),
         });
-        // The migration runner must target the SAME database, or a preview's schema is applied to the wrong
-        // one — the failure mode ADR-0006 exists to prevent.
-        template.hasResourceProperties('AWS::Lambda::Function', {
+        // ⛔ The migration runner must target the SAME database, or a preview's schema is applied to the
+        // wrong one — the failure mode ADR-0006 exists to prevent. It now lives in a DIFFERENT stack, which
+        // is exactly the seam where the two names could drift, so this asserts across both templates. Both
+        // resolve it through `recipeDatabaseNameForStage`, never by re-spelling it.
+        synthSchemaTemplate('pr-73', 'sandbox').hasResourceProperties('AWS::Lambda::Function', {
             Environment: Match.objectLike({ Variables: Match.objectLike({ DB_NAME: expected }) }),
         });
     });
@@ -799,100 +815,84 @@ describe('the secret origin header condition (prod only, ADR-0020 / U17)', () =>
  * by virtue of `cdk deploy` having already drained the old tasks, which is a property of the pipeline, not
  * of the change.
  */
-describe('the in-deploy schema-migration gate (ECS must not serve before the schema exists)', () => {
-    /** Resource shape as `Template.findResources` returns it — `DependsOn` included, which is the point. */
-    interface SynthesizedResource {
-        readonly Properties?: Record<string, unknown>;
-        readonly DependsOn?: string | readonly string[];
-    }
-
+describe('the schema deploys and migrates AHEAD of the service, in its own stack', () => {
     /**
-     * The logical ID the stack's `*MigrationFunctionName` output points at — i.e. the function the
-     * production pipeline resolves and invokes. Everything below is anchored to THIS function so the
-     * in-deploy gate cannot silently drift onto a different one.
+     * ⛔ WHAT REPLACED WHAT, so nobody restores the old shape by reflex.
      *
-     * @param template - A synthesized template.
-     * @returns The migration function's logical ID.
+     * ADR-0022 put the schema apply inside THIS deploy, as an `aws-cdk-lib/triggers` Trigger every Fargate
+     * service took a `DependsOn` on. For recipe it cost TWO runners for ONE database: this one, and a second
+     * copy of the same bundle in `RecipeWorkersStack` — a different CDK app, deployed first — because
+     * `DependsOn` cannot leave a stack. Neither barrier could reach the other stack's consumers.
+     *
+     * `kitchensink-recipe-schema-{stage}` now holds the one runner, deployed and invoked by its own pipeline
+     * step ahead of BOTH apps. That is strictly more coverage than two in-stack barriers gave.
      */
-    function pipelineInvokedMigrationFunctionId(template: Template): string {
-        const outputs = template.findOutputs('*') as Record<string, { Value?: { Ref?: string } }>;
-        const entry = Object.entries(outputs).find(([name]) => name.endsWith('MigrationFunctionName'));
+    it('the schema stack ships exactly one Lambda — the runner — and publishes it as a drop door', () => {
+        const template = synthSchemaTemplate('test', 'test');
+        const outputs = template.findOutputs('*') as Record<string, { Value?: { Ref?: string }; Export?: unknown }>;
+        const doors = Object.keys(outputs).filter((key) => /^[A-Za-z]+MigrationFunctionName$/.test(key));
 
-        expect(entry, 'the stack must still export the migration function the pipeline invokes').toBeDefined();
-
-        const ref = entry?.[1].Value?.Ref;
-
-        expect(typeof ref, 'the migration-function output must be a Ref to a function in this stack').toBe('string');
-
-        return ref as string;
-    }
-
-    /** `DependsOn` is a string OR an array in CloudFormation; normalize before asserting membership. */
-    const dependsOn = (resource: SynthesizedResource): readonly string[] =>
-        typeof resource.DependsOn === 'string' ? [resource.DependsOn] : (resource.DependsOn ?? []);
-
-    it('runs the migration runner during the deploy, as a trigger on the function CI invokes', () => {
-        const template = synthTemplate('pr-7', 'sandbox');
-        const migrationFunctionId = pipelineInvokedMigrationFunctionId(template);
-        const versions = Object.entries(template.findResources('AWS::Lambda::Version')) as Array<
-            [string, { Properties: { FunctionName: { Ref?: string } } }]
-        >;
-
-        expect(versions).toHaveLength(1);
-        expect(versions[0]?.[1].Properties.FunctionName).toEqual({ Ref: migrationFunctionId });
-
-        const triggers = Object.entries(template.findResources('Custom::Trigger'));
-
-        expect(triggers, 'the stack must define exactly one in-deploy migration trigger').toHaveLength(1);
-        // Destructured rather than optional-chained through the cast: `(x?.y as T).z` short-circuits to
-        // `undefined` and THEN dereferences, so a missing trigger would throw a TypeError instead of
-        // failing the assertion above with its message. oxlint flags exactly that (no-unsafe-optional-chaining).
-        const trigger = triggers[0]?.[1] as SynthesizedResource | undefined;
-        const versionLogicalId = versions[0]?.[0];
-
-        expect(trigger, 'the trigger resource must be present to inspect').toBeDefined();
-        expect(versionLogicalId, 'the runner must publish a version for the trigger to key on').toBeDefined();
-        expect(JSON.stringify(trigger?.Properties?.['HandlerArn'])).toContain(versionLogicalId);
-
-        // `executeAfter(migrationFn)`, read back out of the template. The runner's `rds-db:connect` grant
-        // lands on its OWN role, inside the function's construct subtree, and the custom resource only
-        // *references* the version — so without this edge CloudFormation is free to invoke the trigger
-        // before that policy exists, and the first deploy of any new stage dies on an auth error.
-        const triggerDependsOn = dependsOn(triggers[0]?.[1] as SynthesizedResource);
-
-        expect(triggerDependsOn).toContain(migrationFunctionId);
-        expect(
-            triggerDependsOn.some((id) => /ServiceRoleDefaultPolicy/.test(id)),
-            'the trigger must wait for the runner role policy that carries its rds-db:connect grant',
-        ).toBe(true);
+        expect(doors).toStrictEqual(['RecipeMigrationFunctionName']);
+        // ⚠️ An OUTPUT, not an EXPORT: `teardown-sandbox-pr.sh` reads `describe-stacks --query
+        // 'Stacks[0].Outputs'`, and an export would let something `Fn.importValue` it and block the deletion
+        // of the one stack a per-PR teardown must always be able to delete.
+        expect(outputs['RecipeMigrationFunctionName']?.Export).toBeUndefined();
+        expect(Object.keys(template.findResources('AWS::Lambda::Function'))).toStrictEqual([
+            outputs['RecipeMigrationFunctionName']?.Value?.Ref,
+        ]);
     });
 
-    it('holds EVERY Fargate service in this stack behind that trigger', () => {
-        const template = synthTemplate('pr-7', 'sandbox');
-        const [triggerId] = Object.keys(template.findResources('Custom::Trigger'));
-        const services = Object.entries(template.findResources('AWS::ECS::Service')) as Array<
-            [string, SynthesizedResource]
-        >;
+    it('⛔ the schema stack holds NOTHING that reads the schema', () => {
+        // The stack's entire invariant. Anything here would be updated by the same `cdk deploy` that ships
+        // the runner — i.e. BEFORE the migration it depends on.
+        const template = synthSchemaTemplate('test', 'test');
 
-        expect(services.length, 'expected the recipe API service').toBeGreaterThanOrEqual(1);
+        expect(Object.keys(template.findResources('AWS::ECS::Service'))).toStrictEqual([]);
+        expect(Object.keys(template.findResources('AWS::ECS::TaskDefinition'))).toStrictEqual([]);
+    });
 
-        for (const [serviceId, service] of services) {
-            expect(dependsOn(service), `${serviceId} must not roll out before the migration trigger has run`).toContain(
-                triggerId,
+    it('gives the runner the whole apply loop to finish in', () => {
+        // The loop holds a session advisory lock for its duration; a runner killed mid-apply by the Lambda
+        // timeout leaves the deploy with no diagnostic about which migration was in flight.
+        const template = synthSchemaTemplate('test', 'test');
+        const [runner] = Object.values(template.findResources('AWS::Lambda::Function')) as Array<{
+            Properties: { Timeout: number };
+        }>;
+
+        expect(runner?.Properties.Timeout).toBeGreaterThanOrEqual(300);
+    });
+
+    it('⛔ SHIPS AN ASSET OR A THROWING PLACEHOLDER — never one that resolves', () => {
+        // The quietest failure available, and this repo has shipped it once already: a placeholder that
+        // RESOLVES is a SUCCESSFUL invocation, so the migrate step goes green and the schema was never
+        // touched. Written as a disjunction rather than gated on the bundle's presence, because whether
+        // `dist-lambda/` exists depends on whether the machine happened to have run `bundle:lambda` — CI
+        // has not, a developer's machine usually has, and a test that only means something in one of those
+        // two states is the "invisible if you built before" class this repo has been bitten by.
+        const [runner] = Object.values(
+            synthSchemaTemplate('test', 'test').findResources('AWS::Lambda::Function'),
+        ) as Array<{
+            Properties: { Code?: { ZipFile?: string; S3Bucket?: unknown } };
+        }>;
+        const code = runner?.Properties.Code;
+
+        expect(code, 'the runner must ship some code').toBeDefined();
+
+        if (code?.ZipFile === undefined) {
+            expect(code?.S3Bucket, 'a bundled runner ships an S3 asset').toBeDefined();
+        } else {
+            expect(code.ZipFile, 'an unbuilt bundle must synthesize a THROWING placeholder').toContain(
+                'throw new Error',
             );
         }
     });
 
-    it('gives the trigger longer to wait than the runner is allowed to take', () => {
-        const template = synthTemplate('pr-7', 'sandbox');
-        const migrationFunctionId = pipelineInvokedMigrationFunctionId(template);
-        const runner = template.findResources('AWS::Lambda::Function')[migrationFunctionId] as {
-            Properties: { Timeout: number };
-        };
-        const [trigger] = Object.values(template.findResources('Custom::Trigger')) as SynthesizedResource[];
+    it('⛔ the SERVICE stack carries no migration trigger and no runner output', () => {
+        const template = synthTemplate('test', 'test');
+        const outputs = template.findOutputs('*') as Record<string, unknown>;
 
-        expect(Number(trigger?.Properties?.['Timeout'])).toBeGreaterThanOrEqual(runner.Properties.Timeout * 1000);
-        expect(trigger?.Properties?.['ExecuteOnHandlerChange']).toBe(true);
+        expect(Object.keys(template.findResources('Custom::Trigger'))).toStrictEqual([]);
+        expect(Object.keys(outputs).filter((name) => /MigrationFunctionName$/.test(name))).toStrictEqual([]);
     });
 });
 

@@ -547,6 +547,47 @@ jobs:
                   bash .github/scripts/verify-deployment.sh preflight "${DEFAULT_AWS_REGION}" \
                     "kitchensink-identity-service-${STAGE}"
 
+            # ⛔ THE SCHEMA, DEPLOYED AND MIGRATED AHEAD OF THE SERVICE — and both steps are UNGATED.
+            #
+            # ADR-0022 put the apply INSIDE the service deploy, because CloudFormation's `DependsOn` cannot
+            # leave a stack and the only seam where the new SQL existed and the new tasks were not yet
+            # serving was between the runner's code update and the service's rollout. That coupling made the
+            # schema a hostage of the application's release: it could not be applied without deploying the
+            # application. The runner now owns `kitchensink-identity-schema-${STAGE}`, which holds nothing
+            # that reads the schema, so this step plus the invoke below ARE the barrier.
+            #
+            # ⛔ UNGATED, for the same reason the invoke is. A gate on a path diff skips precisely the case
+            # the step exists for — a stage whose schema is behind for a reason no code change explains —
+            # and `run-migrations.sh` records that this exact mistake made PRODUCTION the weaker stage. A
+            # `cdk deploy` of an unchanged stack is a no-op; the minute it costs is what makes the invoke
+            # below provably hit THIS release's bundle rather than whatever was deployed last.
+            - name: CDK Deploy (identity schema — before anything reads it)
+              env:
+                  IDENTITY_IMAGE_TAG: ${{ github.sha }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+              run: |
+                  npx cdk deploy "kitchensink-identity-schema-${STAGE}" \
+                    --app "node packages/services/identity/infra/dist/bin/app.js" \
+                    --exclusively --require-approval never
+
+            # The apply itself, against the runner the step above just deployed. The invoke carries the
+            # manifest digest of the working tree, so a runner holding a different migration set REFUSES
+            # rather than answering `applied: []` — which is what a previous release's bundle returns, and
+            # is byte-identical to "everything was already applied".
+            #
+            # ⚠️ Safe to run every time because of a property of the runner, not optimism:
+            # `schema_migrations` is keyed by FILENAME (`name TEXT PRIMARY KEY`, no checksum) and the runner
+            # skips on a name match, so a run against an up-to-date database applies nothing.
+            #
+            # `run-migrations.sh` is the ONE definition of "did the runner succeed" — `aws lambda invoke`
+            # exits 0 when the FUNCTION threw, and this repo had four call sites with four different amounts
+            # of rigour about that.
+            - name: Run identity DB migrations (before the service that reads them)
+              run: |
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-identity-schema-${STAGE}" IdentityMigrationFunctionName identity \
+                    packages/services/identity/src/database/migrations
+
             # The CDK app reads these from `process.env`, so declaring them in `env:` delivers them exactly
             # as the old command-prefix assignments did — without building the command line out of
             # expression text. `STAGE` comes from the workflow-level `env:` (see above).
@@ -560,8 +601,8 @@ jobs:
 
             # The identity stack's RESOURCE check. The two smokes further down assert the ORIGIN — live,
             # current, browser-reachable — and say nothing about its Lambdas, among them the migration runner
-            # whose asset the step above must have bundled: an unbundled deploy ships an inline placeholder
-            # that THROWS, and it throws inside the ADR-0022 Trigger rather than anywhere a smoke can see.
+            # whose asset the schema deploy above must have bundled: an unbundled deploy ships an inline
+            # placeholder that THROWS, somewhere no origin probe can see.
             - name: Verify the identity service deployment — every resource and handler
               if: steps.flags.outputs.deploy_service == 'true'
               env:
@@ -570,37 +611,6 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "node packages/services/identity/infra/dist/bin/app.js"
-
-            # The SAFETY NET, not the mechanism. The schema is applied INSIDE the deploy above, by an
-            # `aws-cdk-lib/triggers` Trigger the ECS service takes a `DependsOn` on — which is the only
-            # ordering that keeps the new tasks off an old schema, and the reason the runner moved out of
-            # `kitchensink-identity-webhooks-${STAGE}` (a different CDK app, deployed AFTER this one).
-            #
-            # This step is kept because it is idempotent and catches a stage whose schema is behind for a
-            # reason no code change explains: a restore, a stage created later, a `deploy_webhooks`-only run.
-            # ⛔ It must stay AFTER the deploy that ships its bundle. Hoisting it invokes the PREVIOUS
-            # deploy's Lambda with the PREVIOUS migration set — exit 0, nothing applied, nothing to see.
-            #
-            # ⛔ UNGATED, and that is the repair. It used to carry `if: run_migrations == 'true'`, a pure
-            # path diff — so in the ONE case ADR-0022 §4 keeps this net for ("a stage whose schema is behind
-            # for a reason NO CODE CHANGE EXPLAINS"), the flag was false: no `cdk deploy`, so the in-stack
-            # Trigger never fired, this invoke was skipped, and the deploy reported success against an
-            # unmigrated database. The net covered exactly the runs that did not need it. Sandbox never had
-            # the hole — ADR-0010's ensure-exists gate forces a deploy when the stack is absent or not
-            # serving — which made PRODUCTION the weaker stage.
-            #
-            # ⚠️ Safe because of a property of the runner, not optimism: `schema_migrations` is keyed by
-            # FILENAME (`name TEXT PRIMARY KEY`, no checksum) and the runner skips on a name match, so a run
-            # against an up-to-date database applies nothing. Only the GATE moved; the POSITION did not.
-            #
-            # The invoke goes through `.github/scripts/run-migrations.sh`, which is the ONE definition of
-            # "did the runner succeed" — `aws lambda invoke` exits 0 when the FUNCTION threw, and this repo
-            # had four call sites with four different amounts of rigour about that.
-            - name: Run identity DB migrations (always — ADR-0022 §4 safety net)
-              run: |
-                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-identity-service-${STAGE}" IdentityMigrationFunctionName identity \
-                    packages/services/identity/src/database/migrations
 
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'
@@ -738,6 +748,29 @@ jobs:
                   docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile \
                     -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
 
+            # ⛔ THE SCHEMA FIRST, IN ITS OWN STACK, AND UNGATED — the same argument as identity's above.
+            # `kitchensink-food-schema-${STAGE}` holds the runner and nothing that reads the schema, so this
+            # step plus the invoke below ARE the barrier the in-deploy Trigger used to be. A gate on a path
+            # diff would skip precisely the case the step exists for; an absent stack is a stated SKIP
+            # inside the script, so this cannot red a stage where food has never shipped.
+            - name: CDK Deploy (food schema — before anything reads it)
+              env:
+                  FOOD_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  FOOD_IMAGE_TAG: ${{ github.sha }}
+              run: |
+                  npx cdk deploy "kitchensink-food-schema-${STAGE}" \
+                    --app "node packages/services/food-service/infra/dist/bin/app.js" \
+                    --exclusively --require-approval never
+
+            # The apply itself, against the runner the step above just deployed — so the bundle it carries
+            # is THIS release's. The invoke sends the manifest digest of the working tree; a runner holding
+            # a different set refuses rather than reporting a clean run over the wrong SQL.
+            - name: Run food DB migrations (before the services that read them)
+              run: |
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-food-schema-${STAGE}" FoodMigrationFunctionName food \
+                    packages/services/food-service/src/db/migrations
+
             - name: CDK Deploy (food service)
               if: steps.flags.outputs.deploy_food == 'true'
               # Same values as the old command-prefix assignments, delivered through `env:` (the CDK app
@@ -749,8 +782,8 @@ jobs:
                   npx cdk deploy --app "node packages/services/food-service/infra/dist/bin/app.js" \
                     --all --require-approval never
 
-            # Resource-level, above the migration invoke on purpose: the runner this step verifies is the
-            # Lambda that step is about to call, so "the function exists and can load" belongs first.
+            # Resource-level. It synthesizes the whole app, so it covers the schema stack's runner as well
+            # as the services — "the function exists and can load" for the Lambda the migrate step called.
             - name: Verify the food service deployment — every resource, handler and reference
               if: steps.flags.outputs.deploy_food == 'true'
               env:
@@ -759,16 +792,6 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "node packages/services/food-service/infra/dist/bin/app.js"
-
-            # UNGATED for the reason spelled out on the identity migration step above: a path-diff gate skips
-            # this net in exactly the case ADR-0022 §4 keeps it for. An absent `kitchensink-food-service-prod`
-            # is a stated SKIP inside the script (there is no schema of ours behind a stack that does not
-            # exist), so this cannot red a stage where food has never shipped.
-            - name: Run food DB migrations (always — ADR-0022 §4 safety net)
-              run: |
-                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-food-service-${STAGE}" FoodMigrationFunctionName food \
-                    packages/services/food-service/src/db/migrations
 
             # Recipe: WORKERS BEFORE SERVICE. recipe-workers owns the account-erasure queue and publishes
             # its URL/ARN to SSM (/kitchensink/{stage}/recipe/account-erasure-queue-*), which the service
@@ -900,6 +923,41 @@ jobs:
             # `STAGE` and `DOMAIN_NAME` already come from the workflow-level `env:`, so only the step
             # outputs need declaring. Same values as the old command-prefix assignments — the CDK app reads
             # them from `process.env` either way.
+            # ⛔ THE SCHEMA FIRST — ahead of the workers AND the service, which is coverage neither of the
+            # two in-deploy triggers it replaces could give.
+            #
+            # ADR-0022 put the apply inside each deploy, and for recipe that meant TWO runners for ONE
+            # database: one in `RecipeServiceStack` and a second copy of the same bundle in
+            # `RecipeWorkersStack` — a different CDK app, deployed first — because `DependsOn` cannot leave a
+            # stack. Each barrier reached only its own stack's consumers.
+            #
+            # `kitchensink-recipe-schema-${STAGE}` holds the one runner and nothing that reads the schema.
+            # UNGATED, exactly like the identity and food schema steps: the one case a barrier exists for is
+            # a schema behind for a reason NO CODE CHANGE explains, which is precisely when the path-diff
+            # flag reads `false`. An absent stack is a stated SKIP inside the script, so this cannot red a
+            # stage where recipe has never shipped.
+            - name: CDK Deploy (recipe schema — before anything reads it)
+              env:
+                  RECIPE_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  RECIPE_IMAGE_TAG: ${{ github.sha }}
+                  RECIPE_FOOD_SERVICE_URL: ${{ steps.food.outputs.url }}
+              run: |
+                  npx cdk deploy "kitchensink-recipe-schema-${STAGE}" \
+                    --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
+                    --exclusively --require-approval never
+
+            # The apply itself, against the runner the step above just deployed. Omitting it is NOT a no-op:
+            # the tasks boot, `/health` answers 200 and the stack converges, because none of those touch the
+            # database — only real queries 500. That exact gap shipped to the sandbox preview.
+            #
+            # The invoke carries the manifest digest of the working tree, so a runner holding a different
+            # migration set refuses rather than reporting a clean run over the wrong SQL.
+            - name: Run recipe DB migrations (before the workers and the service that read them)
+              run: |
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-recipe-schema-${STAGE}" RecipeMigrationFunctionName recipe \
+                    packages/services/recipe-service/src/database/migrations
+
             - name: CDK Deploy (recipe workers — publishes the erasure-queue SSM params)
               if: steps.flags.outputs.deploy_recipe == 'true'
               env:
@@ -969,35 +1027,6 @@ jobs:
                   bash .github/scripts/verify-deployment.sh drift "${DEFAULT_AWS_REGION}" "${STAGE}" \
                     "node packages/services/recipe-workers/infra/dist/bin/app.js" --warn-only
 
-            # ⛔ THE WORKERS' OWN ADR-0022 §4 SAFETY NET — not a duplicate of the recipe-service net below.
-            #
-            # `RecipeSchemaMigrationRunner` in `RecipeWorkersStack` addresses the SAME database with the SAME
-            # bundle as the service's runner, so when both stacks exist this applies nothing and costs one
-            # Lambda invocation (`schema_migrations` is keyed by filename and the runner skips on a name
-            # match). What it covers is the window BETWEEN the two `cdk deploy`s: workers deploy first, the
-            # workers Trigger has by then CREATED and migrated the database, and two hard-failing steps plus
-            # the service deploy's own failure modes stand in front of the service net — one of which wedged
-            # `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED`. In that state the database
-            # exists and the only net that could reach it is this one.
-            #
-            # Position is load-bearing for the reason `run-migrations.sh` states at length: it must sit AFTER
-            # the `cdk deploy` that ships the runner's bundle, never before, or it invokes the previous
-            # release's runner carrying the previous migration set and exits 0 having applied nothing.
-            #
-            # `packages/infra/global/__tests__/migrationSafetyNetCoverage.test.ts` asserts that every runner
-            # output a pipeline can reach has a net — discovered from the `CfnOutput`, which is the same
-            # shape `teardown-sandbox-pr.sh` uses to find per-PR drop doors, so the two consumers of that
-            # convention cannot drift apart again.
-            #
-            # UNGATED, exactly like the identity, food and recipe-service nets in this file: the one case a
-            # net exists for is a schema behind for a reason NO CODE CHANGE explains, which is precisely
-            # when the path-diff flag reads `false`.
-            - name: Run recipe-workers DB migrations (always — ADR-0022 §4 safety net)
-              run: |
-                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-recipe-workers-${STAGE}" RecipeWorkersMigrationFunctionName recipe-workers \
-                    packages/services/recipe-service/src/database/migrations
-
             - name: CDK Deploy (recipe service)
               if: steps.flags.outputs.deploy_recipe == 'true'
               env:
@@ -1009,8 +1038,9 @@ jobs:
                     --all --require-approval never
 
             # Resource-level. The smoke below asserts the ORIGIN — live, current, browser-reachable, wired to
-            # food — and says nothing about the stack's Lambdas (the migration runner the next step invokes
-            # among them) or about the queue, topic and SSM references its task and handlers carry.
+            # food — and says nothing about the stack's Lambdas or about the queue, topic and SSM references
+            # its task and handlers carry. It synthesizes the whole app, so it also covers the schema stack's
+            # runner: the Lambda the migrate step above called.
             - name: Verify the recipe service deployment — every resource, handler and reference
               if: steps.flags.outputs.deploy_recipe == 'true'
               env:
@@ -1020,22 +1050,6 @@ jobs:
               run: |
                   bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "node packages/services/recipe-service/infra/dist/bin/app.js"
-
-            # Omitting this is NOT a no-op: the tasks boot, /health answers 200 and the stack converges,
-            # because none of those touch the database — only real queries 500. That exact gap shipped to
-            # the sandbox preview.
-            # UNGATED, same reasoning as the identity and food nets above. Prod's recipe stack has never been
-            # deployed, so this is also the step that exercises the script's stated-skip path today: an
-            # absent stack is a `::notice::`, never a silent pass and never a red.
-            #
-            # ⚠️ This is the SERVICE half. The workers half has its own net, invoked above immediately after
-            # the workers deploy — it must run there rather than here, because a net may only follow the
-            # `cdk deploy` that shipped the bundle it invokes.
-            - name: Run recipe DB migrations (always — ADR-0022 §4 safety net)
-              run: |
-                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
-                    "kitchensink-recipe-service-${STAGE}" RecipeMigrationFunctionName recipe \
-                    packages/services/recipe-service/src/database/migrations
 
             # Health alone would not have caught the sandbox outage: the service was healthy to curl while
             # every BROWSER was blocked, because a CORS preflight carries no credentials and the auth layer

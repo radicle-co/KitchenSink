@@ -20,7 +20,7 @@
  * one hole and leave the class open — the next model to lose its last consumer would be unvalidated again,
  * silently. The subjects are DISCOVERED from the barrel, so a table added tomorrow is covered the day it
  * lands and cannot opt out by not being mentioned. This is the same reasoning
- * `schemaMigrationBarrier.test.ts` records for `executeBefore`: a copy of a list cannot detect that the
+ * `natEgressConsumers.test.ts` records for its consumer table: a copy of a list cannot detect that the
  * list is incomplete.
  *
  * ## What each claim buys, and why the metadata comparison is not enough on its own

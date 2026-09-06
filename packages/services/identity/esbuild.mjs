@@ -65,14 +65,17 @@ const migrationsSrc = join(pkgRoot, 'src', 'database', 'migrations');
 rmSync('dist-lambda/migrations', { recursive: true, force: true });
 mkdirSync('dist-lambda/migrations', { recursive: true });
 const sqlFiles = readdirSync(migrationsSrc).filter((file) => file.endsWith('.sql'));
-for (const file of sqlFiles) {
-    copyFileSync(join(migrationsSrc, file), join('dist-lambda/migrations', file));
-}
 
 if (sqlFiles.length === 0) {
-    // A bundle with no SQL is a runner that reports a clean run having applied nothing — the exact silent
-    // no-op the in-deploy trigger exists to remove. Fail the BUILD instead of shipping it.
+    // ⛔ A bundle with no SQL is a runner that reports a clean run having applied nothing — the exact silent
+    // no-op ADR-0022 exists to remove, and `@kitchensink/db-schema-guard` refuses to digest for the same
+    // reason (`sha256('')` is a well-formed digest, so an empty bundle would AGREE with an empty tree).
+    // Fail the BUILD rather than ship it: this is the earliest point the mistake is visible.
     throw new Error(`No .sql migrations found in ${migrationsSrc} — refusing to ship an empty migration bundle`);
+}
+
+for (const file of sqlFiles) {
+    copyFileSync(join(migrationsSrc, file), join('dist-lambda/migrations', file));
 }
 
 console.log(

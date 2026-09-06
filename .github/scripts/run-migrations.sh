@@ -43,6 +43,7 @@
 #
 #     run-migrations.sh run      <region> <stackName> <outputKey> <label>
 #     run-migrations.sh classify <functionError> <payload>
+#     run-migrations.sh manifest <migrationsDir>
 #
 # Exit status: 0 = the schema is current (or there is no stack to migrate), 1 = the runner failed or could
 # not be found, 2 = misuse. A misuse NEVER exits 0.
@@ -97,6 +98,61 @@ run_migrations_classify() {
     fi
 
     run_migrations_emit ok "migrations ran clean. Payload: ${payload}"
+}
+
+# run_migrations_manifest <migrationsDir>
+#
+# The MIGRATION MANIFEST of a directory: one digest naming exactly which migration set it holds.
+#
+# ## Why this exists at all
+#
+# A runner reads its OWN bundled `.sql`, diffs it against `schema_migrations`, and returns `applied: []`
+# when there is nothing to do. When the runner is a PREVIOUS release's — which it is whenever it is invoked
+# before the deploy that ships it — its directory does not contain the new migrations, so `applied: []`
+# means "I have never heard of them" and is byte-identical to "everything is already applied". Passing this
+# digest to the runner makes it state which set it holds, so an empty `applied[]` from a runner that MATCHED
+# is finally a proof rather than a shrug.
+#
+# ## Why this is a SECOND implementation and not a call into the TypeScript one
+#
+# Deliberate. A single shared helper can be wrong identically on both sides and still agree; two independent
+# implementations cannot, because sha256 has exactly one right answer. The rendering is byte-for-byte GNU
+# `sha256sum`'s (`<64 hex><space><space><name><newline>`, ordered by name under C collation) precisely so
+# that both sides can produce it without coordinating, and
+# `packages/infra/global/__tests__/migrationManifestAgreement.test.ts` runs this function and
+# `@kitchensink/db-schema-guard` over the SAME directories and asserts they agree — on the rendered text,
+# not only the final digest, so a future disagreement names the line it happened on.
+#
+# ⛔ `LC_ALL=C` on the sort is load-bearing: collation is locale-dependent, and a runner whose locale
+# differs from CI's would digest the same files differently and report a healthy deploy as a stale runner.
+#
+# An EMPTY directory is a failure, never a digest: `sha256('')` is a well-formed digest, so an empty bundle
+# would agree with an empty tree and certify a runner carrying no migrations at all.
+run_migrations_manifest() {
+    local dir="${1-}"
+
+    if [ "$#" -lt 1 ] || [ -z "$dir" ]; then
+        echo "usage: run-migrations.sh manifest <migrationsDir>" >&2
+
+        return 2
+    fi
+
+    if [ ! -d "$dir" ]; then
+        echo "::error::migrations directory '${dir}' does not exist, so no migration set can be named" >&2
+
+        return 1
+    fi
+
+    local rendered
+    rendered=$(cd "$dir" && LC_ALL=C ls -1 -- *.sql 2>/dev/null | LC_ALL=C sort | tr '\n' '\0' | xargs -0 -r sha256sum)
+
+    if [ -z "$rendered" ]; then
+        echo "::error::no .sql migrations in '${dir}' — an empty migration set proves nothing" >&2
+
+        return 1
+    fi
+
+    printf '%s\n' "$rendered" | sha256sum | cut -d' ' -f1
 }
 
 # run_migrations_run <region> <stackName> <outputKey> <label>
@@ -173,8 +229,12 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             run_migrations_run "$@"
             ;;
+        manifest)
+            shift
+            run_migrations_manifest "$@"
+            ;;
         *)
-            echo "usage: run-migrations.sh run|classify …" >&2
+            echo "usage: run-migrations.sh run|classify|manifest …" >&2
             exit 2
             ;;
     esac

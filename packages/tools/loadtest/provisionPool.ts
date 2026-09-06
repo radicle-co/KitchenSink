@@ -48,6 +48,7 @@ import { assertAzp, establishSession, remintFromSession } from '@kitchensink/e2e
 import type { SessionHandle } from '@kitchensink/e2e-fixtures';
 
 import { POOL_NAMES, partitionHandles, poolEmail } from './src/pool.js';
+import { buildFoodTokenPool, buildIdentityTokenPool } from './src/tokenPool.js';
 
 const BACKEND_API = 'https://api.clerk.com/v1';
 
@@ -190,6 +191,47 @@ async function credentialFor(
     return { jwt: assertAzp(credential.token, origin).token, handle };
 }
 
+/**
+ * The four invalid credentials `authRejection` presents. Each must be REALLY invalid in its own way —
+ * the scenario's value is that every one of them still answers 401 while the service is saturated.
+ *
+ * ⚠️ `expired` is a genuine token, not a forged one. A payload edited to move `exp` into the past breaks
+ * the signature, so the service would reject it as a BAD SIGNATURE and the run would measure that path
+ * twice under two names. A real token lives about sixty seconds, and the scenarios run minutes after
+ * provisioning, so by the time it is presented it has genuinely expired.
+ *
+ * ⚠️ `wrongAzp` costs one extra throttled sign-in, because `azp` is stamped from the Origin at SIGN-IN;
+ * re-minting from an existing handle cannot change it.
+ *
+ * @sideEffect Performs one Frontend API sign-in against an unauthorized origin.
+ */
+async function mintRejections(): Promise<{
+    readonly badSignature: string;
+    readonly expired: string;
+    readonly wrongAzp: string;
+    readonly malformed: string;
+}> {
+    const [sample] = members;
+
+    if (!sample) {
+        throw new Error('mintRejections: the pool produced no member to derive rejection tokens from');
+    }
+
+    // A structurally valid token whose signature does not verify: keep the header and payload, replace the
+    // signature. Rotating one character would risk landing on the same byte.
+    const [header, payload] = sample.jwt.split('.');
+    const badSignature = `${header}.${payload}.aW52YWxpZC1zaWduYXR1cmU`;
+
+    const wrongOriginHandle = await establishSession({
+        email: poolEmail('alfa', emailDomain),
+        publishableKey,
+        origin: 'https://unauthorized.invalid',
+    });
+    const wrongAzp = (await remintFromSession(wrongOriginHandle)).token;
+
+    return { badSignature, expired: sample.jwt, wrongAzp, malformed: 'not-a-jwt' };
+}
+
 const names: readonly string[] = POOL_NAMES.slice(0, poolSize);
 const handlesPath = join(outDir, 'handles.json');
 const handles = readHandles(handlesPath);
@@ -261,6 +303,18 @@ for (let attempt = 0; attempt < 5; attempt += 1) {
     await delay(1_500);
 }
 
+// ⛔ THE SERVICE SCENARIOS OPEN THEIR OWN POOL FILES, in two different shapes, at INIT. Without them
+// food's `authFlood` and identity's `sessionHotPath`/`authRejection` never start — they die on a Go
+// `stat` error naming a path, which is exactly the regression
+// `identity/tests/load/lib/common.js` documents surviving review because no CI job ran the tier.
+// `k6TokenPoolShape.test.ts` derives the required keys from those scenarios' own source.
+const bearers = pool.map((member) => member.jwt);
+
+writeFileSync(join(outDir, 'food-tokens.json'), `${JSON.stringify(buildFoodTokenPool(bearers), null, 4)}\n`);
+writeFileSync(
+    join(outDir, 'identity-tokens.json'),
+    `${JSON.stringify(buildIdentityTokenPool(bearers, await mintRejections()), null, 4)}\n`,
+);
 writeFileSync(join(outDir, 'pool.json'), `${JSON.stringify(pool, null, 4)}\n`);
 writeFileSync(
     join(outDir, 'tokens.json'),

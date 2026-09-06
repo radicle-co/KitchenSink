@@ -6,3 +6,4 @@
  */
 export * from './pool.js';
 export * from './loadTier.js';
+export * from './tokenPool.js';

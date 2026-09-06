@@ -11,3 +11,5 @@ report.md
 k6-deployed-*-summary.json
 k6-deployed-*-report.md
 handles.json
+food-tokens.json
+identity-tokens.json

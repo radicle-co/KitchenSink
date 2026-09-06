@@ -226,6 +226,7 @@ const LOAD_SCRIPT_ARGUMENT = /\S*\.load\.js\b/g;
 /** Every load script a workflow step invokes, resolved to a repo-relative path. */
 function invokedLoadScripts(workflows: readonly Workflow[]): ReadonlyMap<string, readonly string[]> {
     const invoked = new Map<string, string[]>();
+
     const record = (path: string, site: string): void => {
         const sites = invoked.get(path) ?? [];
 

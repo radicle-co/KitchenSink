@@ -1164,7 +1164,7 @@ jobs:
               env:
                   LOAD_PROFILE: deployed
                   RECIPE_API_BASE_URL: ${{ steps.target.outputs.recipe }}
-                  POOL_FILE: ${{ runner.temp }}/k6-pool/pool.json
+                  RECIPE_LOAD_TEST_TOKEN_FILE: ${{ runner.temp }}/k6-pool/tokens.json
               run: |
                   set -uo pipefail
                   rc=0
@@ -1180,7 +1180,10 @@ jobs:
               env:
                   LOAD_PROFILE: deployed
                   FOOD_API_BASE_URL: ${{ steps.target.outputs.food }}
-                  POOL_FILE: ${{ runner.temp }}/k6-pool/pool.json
+                  # ⛔ `authFlood` OPENS this at init — without it the scenario never starts, it dies on a
+                  # Go `stat` error naming a path. Food's loader validates `{ users: [...] }`; identity's
+                  # reads a different shape, and both are produced by `provisionPool.ts`.
+                  FOOD_TOKENS_FILE: ${{ runner.temp }}/k6-pool/food-tokens.json
               run: |
                   set -uo pipefail
                   rc=0
@@ -1201,7 +1204,8 @@ jobs:
               env:
                   LOAD_PROFILE: deployed
                   IDENTITY_API_BASE_URL: ${{ steps.target.outputs.identity }}
-                  POOL_FILE: ${{ runner.temp }}/k6-pool/pool.json
+                  # Read at init by `sessionHotPath` and `authRejection` — see the food note above.
+                  IDENTITY_TOKENS_FILE: ${{ runner.temp }}/k6-pool/identity-tokens.json
               run: |
                   set -uo pipefail
                   rc=0

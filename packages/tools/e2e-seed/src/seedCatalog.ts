@@ -17,7 +17,7 @@ import { establishSession, remintFromSession, resolveRunKey } from '@kitchensink
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 
 import { readSeedEnvironment } from './env.js';
-import { CATALOG_SEED_NAMES, seedFoodCatalog, type CatalogItem } from './foodCatalog.js';
+import { CATALOG_SEED_NAMES, findCatalogShortfalls, seedFoodCatalog, type CatalogItem } from './foodCatalog.js';
 import { deriveFixtureManifest } from './fixtureManifest.js';
 import { memoizingTokenSource } from './tokenSource.js';
 
@@ -50,7 +50,7 @@ const client = new FoodServiceClient({
     token: memoizingTokenSource(session, { remint: remintFromSession }),
 });
 
-const resolved = await seedFoodCatalog(CATALOG_SEED_NAMES, {
+const outcome = await seedFoodCatalog(CATALOG_SEED_NAMES, {
     batch: async (names) => (await client.batch(names)).items as readonly CatalogItem[],
     status: async (id) => (await client.getStatus(id)) as CatalogItem,
     now: Date.now,
@@ -58,4 +58,26 @@ const resolved = await seedFoodCatalog(CATALOG_SEED_NAMES, {
     log: (message) => console.error(message),
 });
 
-console.error(`e2e-seed seed-catalog: ${resolved.length} foods RESOLVED in ${foodOrigin}'s catalog.`);
+// ⚠️ REPORTED, ALWAYS — including on the happy path. A name USDA cannot disambiguate is a fact worth
+// seeing in the log rather than a silent absence: it is how `egg` was found to come back `UNRESOLVED`,
+// and it is the first thing to read if the postcondition below ever starts failing.
+for (const entry of outcome.rejected) {
+    console.error(`e2e-seed seed-catalog: "${entry.name}" settled as ${entry.status} — not searchable`);
+}
+
+const shortfalls = findCatalogShortfalls(outcome);
+
+if (shortfalls.length > 0) {
+    // ⛔ The postcondition, not the source's answers. A suite run against a catalog that quietly came up
+    // short fails about search relevance instead of about the one fact that explains it.
+    for (const shortfall of shortfalls) {
+        console.error(`::error::e2e-seed seed-catalog: ${shortfall}`);
+    }
+
+    process.exit(1);
+}
+
+console.error(
+    `e2e-seed seed-catalog: ${outcome.resolved.length} foods RESOLVED in ${foodOrigin}'s catalog ` +
+        `(${outcome.rejected.length} not searchable).`,
+);

@@ -1,12 +1,32 @@
 /**
- * The catalog seed's two jobs: get every name to a settled state, and refuse loudly rather than let a
- * suite run against a half-filled catalog.
+ * The catalog seed's two jobs, and they are DIFFERENT questions asked of different things:
+ *
+ *   - get every name to a settled state, waiting only on what can still change;
+ *   - then decide whether what settled is enough for the suite that will run against it.
+ *
+ * ⚠️ The first live run collapsed those two. It treated `UNRESOLVED` as fatal, so `egg` — a name USDA
+ * offered candidates for and the service could not pick between — failed the whole seed, and the error
+ * named an opaque id rather than the fixture. Both are fixed here, and both are asserted.
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { CATALOG_SEED_NAMES, classifyCatalog, seedFoodCatalog, type CatalogItem } from '../src/foodCatalog.js';
+import {
+    CATALOG_SEED_NAMES,
+    classifyCatalog,
+    findCatalogShortfalls,
+    MIN_RESOLVED_FOODS,
+    seedFoodCatalog,
+    sharedHeadTermCount,
+    type CatalogEntry,
+    type CatalogItem,
+} from '../src/foodCatalog.js';
 
 const item = (id: string, status: CatalogItem['status']): CatalogItem => ({ id, status });
+const entry = (name: string, status: CatalogEntry['status'] = 'RESOLVED'): CatalogEntry => ({
+    name,
+    id: `id-${name}`,
+    status,
+});
 
 const deps = (over: Partial<Parameters<typeof seedFoodCatalog>[1]> = {}) => ({
     batch: vi.fn().mockResolvedValue([]),
@@ -19,22 +39,17 @@ const deps = (over: Partial<Parameters<typeof seedFoodCatalog>[1]> = {}) => ({
 });
 
 describe('CATALOG_SEED_NAMES', () => {
-    it('stays inside the endpoint"s 100-name cap', () => {
+    it('stays inside the endpoint"s 100-name cap and names nothing twice', () => {
         expect(CATALOG_SEED_NAMES.length).toBeLessThanOrEqual(100);
-    });
-
-    it('contains at least two names sharing a HEAD TERM', () => {
-        // The linkage suite re-searches on `name.split(',')[0]` and requires MORE THAN ONE result. A USDA
-        // merge-winner name is `Chicken, broilers or fryers, breast…`, so several chicken cuts is not
-        // padding — it is the only thing that makes that second assertion satisfiable.
-        const heads = CATALOG_SEED_NAMES.map((name) => name.split(' ')[0]);
-        const shared = heads.filter((head, index) => heads.indexOf(head) !== index);
-
-        expect(shared.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('names nothing twice', () => {
         expect(new Set(CATALOG_SEED_NAMES).size).toBe(CATALOG_SEED_NAMES.length);
+    });
+
+    it('carries enough names that the floor is reachable even with a few refusals', () => {
+        expect(CATALOG_SEED_NAMES.length).toBeGreaterThan(MIN_RESOLVED_FOODS);
+    });
+
+    it('contains at least two names sharing a head term', () => {
+        expect(sharedHeadTermCount(CATALOG_SEED_NAMES.map((name) => entry(name)))).toBeGreaterThanOrEqual(2);
     });
 });
 
@@ -47,18 +62,52 @@ describe('classifyCatalog', () => {
         });
     });
 
-    it('counts UNRESOLVED as FAILED, never as pending', () => {
-        // It means the source returned candidates nothing could pick between. Waiting for it would burn the
-        // whole deadline and then report a timeout instead of the name that was a bad choice.
-        expect(classifyCatalog([item('a', 'UNRESOLVED')])).toEqual({ resolved: [], pending: [], failed: ['a'] });
+    it('never waits on UNRESOLVED — no amount of polling changes it', () => {
+        expect(classifyCatalog([item('a', 'UNRESOLVED')]).pending).toEqual([]);
+    });
+});
+
+describe('sharedHeadTermCount', () => {
+    it('counts the largest group sharing a first word', () => {
+        expect(sharedHeadTermCount([entry('chicken breast'), entry('chicken thigh'), entry('butter')])).toBe(2);
+    });
+
+    it('is 0 for an empty catalog and 1 when nothing pairs', () => {
+        expect(sharedHeadTermCount([])).toBe(0);
+        expect(sharedHeadTermCount([entry('butter'), entry('milk')])).toBe(1);
+    });
+});
+
+describe('findCatalogShortfalls', () => {
+    const enough = Array.from({ length: MIN_RESOLVED_FOODS }, (_, index) => entry(`chicken cut${index}`));
+
+    it('passes a catalog that clears both bars', () => {
+        expect(findCatalogShortfalls({ resolved: enough, rejected: [] })).toEqual([]);
+    });
+
+    it('fails a catalog with too few searchable rows', () => {
+        expect(
+            findCatalogShortfalls({ resolved: enough.slice(1), rejected: [entry('egg', 'UNRESOLVED')] }),
+        ).toHaveLength(1);
+    });
+
+    it('fails a catalog where nothing shares a head term, however many rows it has', () => {
+        // The suite re-searches on a result's own head term and requires more than one hit. A catalog of
+        // twenty unrelated staples satisfies the count and still cannot answer that.
+        const unrelated = ['butter', 'milk', 'egg', 'flour', 'sugar', 'salt'].map((name) => entry(name));
+
+        expect(findCatalogShortfalls({ resolved: unrelated, rejected: [] })).toEqual([
+            expect.stringContaining('no two resolved foods share a head term'),
+        ]);
     });
 });
 
 describe('seedFoodCatalog', () => {
     it('returns immediately when every name was an inline hit', async () => {
         const d = deps({ batch: vi.fn().mockResolvedValue([item('a', 'RESOLVED'), item('b', 'RESOLVED')]) });
+        const outcome = await seedFoodCatalog(['alpha', 'beta'], d);
 
-        await expect(seedFoodCatalog(['a', 'b'], d)).resolves.toEqual(['a', 'b']);
+        expect(outcome.resolved.map((e) => e.name).sort()).toEqual(['alpha', 'beta']);
         expect(d.status).not.toHaveBeenCalled();
     });
 
@@ -66,26 +115,35 @@ describe('seedFoodCatalog', () => {
         const status = vi.fn().mockResolvedValueOnce(item('b', 'PENDING')).mockResolvedValue(item('b', 'RESOLVED'));
         const d = deps({ batch: vi.fn().mockResolvedValue([item('a', 'RESOLVED'), item('b', 'PENDING')]), status });
 
-        await expect(seedFoodCatalog(['a', 'b'], d)).resolves.toEqual(['a', 'b']);
+        await expect(seedFoodCatalog(['alpha', 'beta'], d)).resolves.toMatchObject({ rejected: [] });
         expect(status).toHaveBeenCalledTimes(2);
     });
 
-    it('REFUSES a name the source could not settle, naming it', async () => {
-        const d = deps({ batch: vi.fn().mockResolvedValue([item('a', 'NOT_FOUND')]) });
+    it('REPORTS an unresolvable name with its NAME, and does not fail', async () => {
+        // ⛔ The regression this file exists for. `egg` came back UNRESOLVED on the first live run, the
+        // seed threw, and the message named `food 01M1T9…7` — which said nothing about which of ten names
+        // to fix. Whether a name is ambiguous is a fact about USDA, not about this repository.
+        const d = deps({
+            batch: vi.fn().mockResolvedValue([item('a', 'RESOLVED'), item('b', 'UNRESOLVED')]),
+        });
+        const outcome = await seedFoodCatalog(['chicken breast', 'egg'], d);
 
-        await expect(seedFoodCatalog(['a'], d)).rejects.toThrow(/the source refused 1 of 1 names: a/);
+        expect(outcome.rejected).toEqual([{ name: 'egg', id: 'b', status: 'UNRESOLVED' }]);
+        expect(outcome.resolved.map((e) => e.name)).toEqual(['chicken breast']);
     });
 
-    it('REFUSES a name that settles UNRESOLVED mid-poll', async () => {
+    it('carries the NAME through a mid-poll rejection too', async () => {
         const d = deps({
-            batch: vi.fn().mockResolvedValue([item('a', 'PENDING')]),
-            status: vi.fn().mockResolvedValue(item('a', 'UNRESOLVED')),
+            batch: vi.fn().mockResolvedValue([item('b', 'PENDING')]),
+            status: vi.fn().mockResolvedValue(item('b', 'NOT_FOUND')),
         });
 
-        await expect(seedFoodCatalog(['a'], d)).rejects.toThrow(/settled as UNRESOLVED/);
+        await expect(seedFoodCatalog(['unobtainium'], d)).resolves.toMatchObject({
+            rejected: [{ name: 'unobtainium', status: 'NOT_FOUND' }],
+        });
     });
 
-    it('THROWS at the deadline, naming the causes worth checking first', async () => {
+    it('THROWS at the deadline, naming the STUCK NAMES and the causes worth checking first', async () => {
         let clock = 0;
         const d = deps({
             batch: vi.fn().mockResolvedValue([item('a', 'PENDING')]),
@@ -98,8 +156,8 @@ describe('seedFoodCatalog', () => {
             },
         });
 
-        // ⛔ Never resolves partially. A suite run against a half-filled catalog fails about search
-        // relevance rather than about the one fact that explains it.
-        await expect(seedFoodCatalog(['a'], d)).rejects.toThrow(/still PENDING after 1000ms[\s\S]*USDA_API_KEY/);
+        await expect(seedFoodCatalog(['chicken breast'], d)).rejects.toThrow(
+            /still PENDING after 1000ms \(chicken breast\)[\s\S]*USDA_API_KEY/,
+        );
     });
 });

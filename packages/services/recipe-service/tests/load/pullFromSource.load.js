@@ -37,6 +37,7 @@ import {
     PEAK_VUS,
     SC009_P95_MS,
     whenSubstrate,
+    PACE_SECONDS,
 } from './lib/common.js';
 
 const previewTrend = new Trend('pull_preview_duration', true);
@@ -117,7 +118,7 @@ export function previewPath(data) {
     const cloneId = data && data.cloneId;
 
     if (!cloneId) {
-        sleep(1);
+        sleep(PACE_SECONDS);
 
         return;
     }
@@ -128,7 +129,7 @@ export function previewPath(data) {
     });
     previewTrend.add(res.timings.duration);
     check(res, { 'previewPull 200': (r) => r.status === 200 });
-    sleep(1);
+    sleep(PACE_SECONDS);
 }
 
 export function commitPath(data) {
@@ -136,7 +137,7 @@ export function commitPath(data) {
     const cloneId = data && data.cloneId;
 
     if (!sourceId || !cloneId) {
-        sleep(1);
+        sleep(PACE_SECONDS);
 
         return;
     }
@@ -165,5 +166,5 @@ export function commitPath(data) {
     });
     commitTrend.add(commit.timings.duration);
     check(commit, { 'commitPull 200': (r) => r.status === 200 });
-    sleep(1);
+    sleep(PACE_SECONDS);
 }

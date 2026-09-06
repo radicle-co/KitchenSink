@@ -15,7 +15,15 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SEARCH_P95_MS, whenSubstrate } from './lib/common.js';
+import {
+    BASE_URL,
+    authHeaders,
+    rampStages,
+    PEAK_VUS,
+    SEARCH_P95_MS,
+    whenSubstrate,
+    PACE_SECONDS,
+} from './lib/common.js';
 
 const searchTrend = new Trend('recipe_search_duration', true);
 
@@ -65,5 +73,5 @@ export function searchPath() {
         'searchRecipes 200': (r) => r.status === 200,
         'searchRecipes < 2s': (r) => r.timings.duration < SEARCH_P95_MS,
     });
-    sleep(1);
+    sleep(PACE_SECONDS);
 }

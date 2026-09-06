@@ -28,7 +28,15 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, jsonHeaders, rampStages, PEAK_VUS, SC009_P95_MS, whenSubstrate } from './lib/common.js';
+import {
+    BASE_URL,
+    jsonHeaders,
+    rampStages,
+    PEAK_VUS,
+    SC009_P95_MS,
+    whenSubstrate,
+    PACE_SECONDS,
+} from './lib/common.js';
 
 const createTrend = new Trend('parse_job_create_duration', true);
 
@@ -123,7 +131,7 @@ function createJob(text) {
 
 export function typicalPaste() {
     createJob(typicalText(`${__VU}-${__ITER}`));
-    sleep(1);
+    sleep(PACE_SECONDS);
 }
 
 export function maxPaste() {

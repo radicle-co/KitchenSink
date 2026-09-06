@@ -25,6 +25,7 @@ import {
     PEAK_VUS,
     SC009_P95_MS,
     whenSubstrate,
+    PACE_SECONDS,
 } from './lib/common.js';
 
 const listTrend = new Trend('recipe_list_duration', true);
@@ -102,7 +103,7 @@ export function readPath(data) {
         check(get, { 'getRecipe 200': (r) => r.status === 200 });
     }
 
-    sleep(1);
+    sleep(PACE_SECONDS);
 }
 
 export function writePath() {
@@ -112,5 +113,5 @@ export function writePath() {
     });
     createTrend.add(res.timings.duration);
     check(res, { 'createRecipe 201': (r) => r.status === 201 });
-    sleep(1);
+    sleep(PACE_SECONDS);
 }

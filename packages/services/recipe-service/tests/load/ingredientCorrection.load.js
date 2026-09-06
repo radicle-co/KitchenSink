@@ -34,7 +34,15 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SC009_P95_MS, whenSubstrate } from './lib/common.js';
+import {
+    BASE_URL,
+    authHeaders,
+    rampStages,
+    PEAK_VUS,
+    SC009_P95_MS,
+    whenSubstrate,
+    PACE_SECONDS,
+} from './lib/common.js';
 
 const correctionTrend = new Trend('ingredient_correction_duration', true);
 
@@ -129,7 +137,7 @@ function correct(phrase, foodId) {
     });
 
     // A human cadence: a correction is a deliberate act, not a keystroke.
-    sleep(1);
+    sleep(PACE_SECONDS);
 }
 
 /** Maximum lock contention: every VU corrects the SAME phrase, which is the corroboration race. */

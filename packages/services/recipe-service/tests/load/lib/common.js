@@ -1,3 +1,4 @@
+import http from 'k6/http';
 // Shared configuration + payload helpers for the recipe-service k6 load suite.
 //
 // These modules are ES-module JavaScript executed by the **k6 binary** (`k6 run ...`) — they are NOT
@@ -38,6 +39,17 @@ export const TOKEN_POOL = (() => {
         );
     }
 })();
+
+/**
+ * Which profile this run measures — `substrate` (the calibrated runner-local machine) or `deployed`.
+ *
+ * ⛔ THE ONLY THING IT CHANGES IS WHICH THRESHOLDS ARE IN FORCE. Every latency budget in this suite was
+ * calibrated against a dedicated container with its own Postgres and no rate limiter. A per-PR preview is
+ * half a reclaimable vCPU on a database shared with every other open PR, so carrying those numbers across
+ * yields a gate that reddens on the NEIGHBOURS' traffic — and the predictable next step is somebody
+ * switching it off, which costs more than never having had it.
+ */
+export const LOAD_PROFILE = __ENV['LOAD_PROFILE'] || 'substrate';
 
 /**
  * The bearer this VU should present: its own pool member when a pool was supplied, else the single token.
@@ -168,10 +180,50 @@ export const HOLD = __ENV['RECIPE_LOAD_HOLD'] || '1m';
 export const RAMP_DOWN = __ENV['RECIPE_LOAD_RAMP_DOWN'] || '15s';
 
 // A ramping-vus stage set to the given peak. Shared by every scenario so load shape stays uniform.
+/**
+ * Seconds between iterations on the DEPLOYED profile.
+ *
+ * ⛔ THIS NUMBER IS THE RATE LIMIT, restated as a pace. With the peak pinned to the pool size (below),
+ * one VU backs exactly one pool user, so a VU issuing one request every `n` seconds offers `60 / n`
+ * requests per minute per user. At 3s that is 20/min against the service's tightest default limit of 30
+ * (`RATE_LIMIT_WRITE`) — a third of headroom, because a ramp concentrates requests and a token bucket
+ * refills on a schedule this run does not control.
+ *
+ * ⚠️ MEASURED, run 34041143051: at the substrate shape (50 VUs, `sleep(1)`, ten pool users) the offered
+ * rate was 300/min/user and `searchLatency` reported `http_req_failed 88.82%` — 429s, reported as service
+ * failures. `k6DeployedLoadShape.test.ts` reads the limits out of the service's own config schema so this
+ * cannot drift from them.
+ */
+export const DEPLOYED_PACE_SECONDS = 3;
+
+// ⛔ ON A DEPLOYED STAGE A 429 IS NOT A FAILURE OF THE SERVICE — it is the service's rate limiter working,
+// and this suite is a guest on a preview it may not reconfigure. The deleted runner-local jobs cranked
+// `RATE_LIMIT_*` because they owned the container, which `../README.md` warns makes the result stop
+// proving anything about the production limits.
+//
+// So the limiter's answer is EXPECTED here rather than counted against the service, exactly as
+// `deployedOrigin.load.js` already treats it ("A 429 is counted and surfaced, never thresholded"). What
+// still fails is what a limiter cannot cause: a 5xx, a transport error, a malformed envelope.
+//
+// ⚠️ MEASURED, run 34041143051: without this, `searchLatency` reported `http_req_failed 88.82%` — 3450 of
+// 3884 requests were the limiter answering correctly, reported as service failures.
+if (LOAD_PROFILE !== 'substrate') {
+    http.setResponseCallback(http.expectedStatuses({ min: 200, max: 399 }, 429));
+}
+
+/** Seconds between iterations for the profile in force. */
+export const PACE_SECONDS = LOAD_PROFILE === 'substrate' ? 1 : DEPLOYED_PACE_SECONDS;
+
 export function rampStages(peak) {
+    // ⛔ ON THE DEPLOYED PROFILE THE PEAK IS THE POOL SIZE, not the calibrated one. `UserThrottlerGuard`
+    // keys per USER, so N VUs over a P-member pool concentrate N/P VUs on each user; pinning peak to P
+    // makes that ratio exactly one and the pace above then IS the per-user rate. With no pool supplied
+    // (a local hand run) nothing changes.
+    const effective = LOAD_PROFILE === 'substrate' || TOKEN_POOL.length === 0 ? peak : TOKEN_POOL.length;
+
     return [
-        { duration: RAMP_UP, target: peak },
-        { duration: HOLD, target: peak },
+        { duration: RAMP_UP, target: effective },
+        { duration: HOLD, target: effective },
         { duration: RAMP_DOWN, target: 0 },
     ];
 }
@@ -317,17 +369,6 @@ export function makeRecipePayload(label) {
         dietaryFlags: ['vegetarian'],
     };
 }
-
-/**
- * Which profile this run measures — `substrate` (the calibrated runner-local machine) or `deployed`.
- *
- * ⛔ THE ONLY THING IT CHANGES IS WHICH THRESHOLDS ARE IN FORCE. Every latency budget in this suite was
- * calibrated against a dedicated container with its own Postgres and no rate limiter. A per-PR preview is
- * half a reclaimable vCPU on a database shared with every other open PR, so carrying those numbers across
- * yields a gate that reddens on the NEIGHBOURS' traffic — and the predictable next step is somebody
- * switching it off, which costs more than never having had it.
- */
-export const LOAD_PROFILE = __ENV['LOAD_PROFILE'] || 'substrate';
 
 /**
  * The given thresholds, in force ONLY on the substrate profile.

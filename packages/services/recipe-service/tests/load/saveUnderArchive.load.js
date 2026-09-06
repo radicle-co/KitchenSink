@@ -25,6 +25,7 @@ import {
     PEAK_VUS,
     SC009_P95_MS,
     whenSubstrate,
+    PACE_SECONDS,
 } from './lib/common.js';
 
 // Combined create+update save latency — the metric FR-007b-i is stated against.
@@ -67,7 +68,7 @@ export function savePath() {
     const created = check(createRes, { 'createRecipe 201': (r) => r.status === 201 });
 
     if (!created) {
-        sleep(1);
+        sleep(PACE_SECONDS);
 
         return;
     }
@@ -83,7 +84,7 @@ export function savePath() {
     }
 
     if (!id) {
-        sleep(1);
+        sleep(PACE_SECONDS);
 
         return;
     }
@@ -102,5 +103,5 @@ export function savePath() {
     saveTrend.add(updateRes.timings.duration);
     archiveUpdates.add(1);
     check(updateRes, { 'updateRecipe 200': (r) => r.status === 200 });
-    sleep(1);
+    sleep(PACE_SECONDS);
 }

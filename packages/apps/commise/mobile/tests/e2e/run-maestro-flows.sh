@@ -214,17 +214,26 @@ EMPTY_LIBRARY_FLOWS=" recipes/empty-library "
 # a `${E2E_…}` nothing supplies renders on screen as its own literal text and fails like an app defect.
 MAESTRO_FIXTURE_ENV_FILE="${MAESTRO_FIXTURE_ENV_FILE:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/e2e-seed/fixture.env}"
 
-# Print the manifest as `-e KEY=VALUE` arguments, in file order. Empty when no manifest exists, so the
-# `run-one` test seam works without one.
+# Load the manifest into MAESTRO_FIXTURE_ENV_ARGS as `-e KEY=VALUE` arguments, in file order. Leaves the
+# array EMPTY when no manifest exists, so the `run-one` test seam works without one.
 #
-# @sideEffect Reads the manifest file.
-maestro_fixture_env_args() {
+# ⛔ THIS POPULATES AN ARRAY AND MUST NOT GO BACK TO PRINTING. It printed the pairs and the call site
+# expanded the command substitution UNQUOTED, which word-splits on every space and not merely on newlines.
+# Every value here is a run-scoped recipe TITLE, so every one of them contains spaces:
+# `E2E_RECIPE_LAMB=Mediterranean Grilled Lamb pr-91` became four arguments, Maestro took the first stray
+# word as its positional, and run 34007779812 died on all thirty flows with
+# `Flow path does not exist: …/Mediterranean` — roughly two seconds each, before the app was ever driven.
+# A string cannot carry argument boundaries; only an array can.
+#
+# @sideEffect Reads the manifest file; assigns the global MAESTRO_FIXTURE_ENV_ARGS.
+maestro_load_fixture_env_args() {
+    MAESTRO_FIXTURE_ENV_ARGS=()
     [ -f "$MAESTRO_FIXTURE_ENV_FILE" ] || return 0
 
     local pair
     while IFS= read -r pair; do
         [ -n "$pair" ] || continue
-        printf -- '-e\n%s\n' "$pair"
+        MAESTRO_FIXTURE_ENV_ARGS+=(-e "$pair")
     done <"$MAESTRO_FIXTURE_ENV_FILE"
 }
 
@@ -490,8 +499,11 @@ maestro_run_flow_list() {
             echo "::endgroup::"
             continue
         fi
-        # shellcheck disable=SC2086
-        if ! maestro test $(maestro_fixture_env_args) --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+        maestro_load_fixture_env_args
+        # `${a[@]+"${a[@]}"}` rather than a bare `"${a[@]}"`: under `set -u` an EMPTY array is an unbound
+        # variable on bash 3.2 (still the system bash on macOS), and the `run-one` seam runs with no
+        # manifest. Every element stays individually quoted, so titles keep their spaces.
+        if ! maestro test ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
             echo "FLOW FAILED: ${f}"
             # Native/Hermes crashes (app -> launcher) leave NO Java/AndroidRuntime trace and release builds strip
             # the JS console, so a narrow filter shows nothing. Dump the full tail and grep every crash-carrying

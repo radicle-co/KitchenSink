@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 /**
  * The k6 credential pool's roster and the decisions about it that are PURE.
  *
@@ -101,4 +103,42 @@ export function poolUsername(name: string): string {
     const email = poolEmail(name, 'example.invalid');
 
     return email.slice(0, email.indexOf('@')).replace(/[^a-z0-9]+/gu, '_');
+}
+
+/** The Clerk Backend API body that creates one pool user. */
+export interface PoolUserPayload {
+    /** The single address, as the Backend API expects it. */
+    readonly email_address: readonly string[];
+    /** The derived username — unique in Clerk, so it must move with the address. */
+    readonly username: string;
+    /** Required by the instance at creation; never used to sign in. */
+    readonly password: string;
+    readonly first_name: string;
+    readonly last_name: string;
+}
+
+/**
+ * Build the create body for one pool user.
+ *
+ * ⛔ THE PASSWORD IS REQUIRED AND IS NEVER USED, and both halves are load-bearing. Measured, run
+ * 34038871033: omitting it answers `422 form_data_missing — ["password"] data doesn't match user
+ * requirements set for this instance`. Sign-in uses the email-code first factor, so nothing ever presents
+ * this value — which is exactly why it is easy to drop, and why the rewrite dropped it.
+ *
+ * ⚠️ RANDOM PER USER, never a committed pattern: a static one would let anyone with access to the shared
+ * sandbox Clerk instance sign in as every pool user.
+ *
+ * @param name - A roster name.
+ * @param domain - The mail domain `sweep.mjs` covers.
+ * @returns The create body.
+ * @sideEffect Draws random bytes, so two calls differ.
+ */
+export function poolUserPayload(name: string, domain: string): PoolUserPayload {
+    return {
+        email_address: [poolEmail(name, domain)],
+        username: poolUsername(name),
+        password: `Pp1!${randomBytes(24).toString('base64url')}`,
+        first_name: 'Load',
+        last_name: name,
+    };
 }

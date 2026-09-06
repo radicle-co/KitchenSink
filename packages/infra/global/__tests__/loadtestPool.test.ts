@@ -31,7 +31,7 @@ import { join } from 'node:path';
 import { assertTestAddress } from '@kitchensink/e2e-fixtures';
 import { describe, expect, it } from 'vitest';
 
-import { POOL_NAMES, partitionHandles, poolEmail, poolUsername } from '@kitchensink/loadtest';
+import { POOL_NAMES, partitionHandles, poolEmail, poolUserPayload, poolUsername } from '@kitchensink/loadtest';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const LOADTEST = 'packages/tools/loadtest';
@@ -101,6 +101,33 @@ describe('the pool username', () => {
         for (const name of POOL_NAMES) {
             expect(poolUsername(name)).toMatch(/^[a-z0-9_]+$/u);
         }
+    });
+});
+
+describe('the pool user create payload', () => {
+    // ⛔ MEASURED, run 34038871033 (2026-09-06): `422 form_data_missing — ["password"] data doesn't match
+    // user requirements set for this instance`. The rewrite dropped the password because the FAPI sign-in
+    // uses the email-code first factor and never needs one — but the INSTANCE requires a password at
+    // creation regardless. The two facts are independent, and only one of them is visible from the code.
+    it('⛔ carries a password, which the instance requires even though sign-in never uses it', () => {
+        expect(poolUserPayload('alfa', 'radcile.com').password).toBeTruthy();
+    });
+
+    it('⛔ makes it RANDOM per user, never a committed pattern', () => {
+        // A static pattern would let anyone with access to the shared sandbox Clerk instance sign in as
+        // every pool user. The old provisioner recorded this reasoning; it survives the rewrite.
+        const a = poolUserPayload('alfa', 'radcile.com').password;
+        const b = poolUserPayload('alfa', 'radcile.com').password;
+
+        expect(a).not.toBe(b);
+        expect(a.length).toBeGreaterThanOrEqual(16);
+    });
+
+    it('carries the derived address and username, so one input drives all three', () => {
+        const payload = poolUserPayload('bravo', 'radcile.com');
+
+        expect(payload.email_address).toStrictEqual([poolEmail('bravo', 'radcile.com')]);
+        expect(payload.username).toBe(poolUsername('bravo'));
     });
 });
 

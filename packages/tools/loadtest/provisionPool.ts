@@ -47,7 +47,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { assertAzp, establishSession, remintFromSession } from '@kitchensink/e2e-fixtures';
 import type { SessionHandle } from '@kitchensink/e2e-fixtures';
 
-import { POOL_NAMES, partitionHandles, poolEmail, poolUsername } from './src/pool.js';
+import { POOL_NAMES, partitionHandles, poolEmail, poolUserPayload } from './src/pool.js';
 import { buildFoodTokenPool, buildIdentityTokenPool } from './src/tokenPool.js';
 
 const BACKEND_API = 'https://api.clerk.com/v1';
@@ -134,13 +134,9 @@ async function findOrCreateUser(name: string): Promise<{ readonly id: string; re
 
     const created = await backend('/users', {
         method: 'POST',
-        body: JSON.stringify({
-            email_address: [email],
-            // Derived from the same address, never a second hard-coded pattern — see `poolUsername`.
-            username: poolUsername(name),
-            first_name: 'Load',
-            last_name: name,
-        }),
+        // The whole body is derived from the roster name — address, username and the instance-required
+        // password together, so none of the three can be dropped or drift from the others.
+        body: JSON.stringify(poolUserPayload(name, emailDomain)),
     });
     const body = (await created.json()) as { readonly id?: string };
 

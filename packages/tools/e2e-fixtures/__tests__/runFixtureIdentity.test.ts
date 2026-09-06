@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
 import {
+    AUXILIARY_ROLES,
+    auxiliaryFixtureEmail,
+    auxiliaryFixtureUsername,
     deriveRunKey,
     isRunScopedE2EEmail,
     isThisRunE2EEmail,
@@ -349,5 +352,91 @@ describe('planE2EUserCleanup', () => {
         );
 
         expect(plan).toEqual({ ownFixtureIds: ['own'], leakedIds: ['old'] });
+    });
+});
+
+/**
+ * The Maestro tier needs THREE identities per run, not one — a signer, a co-author whose public recipe the
+ * signer does not own (which is the entire premise of `discover-clone` and `rating`), and a subject the
+ * erasure flow really deletes.
+ *
+ * ⛔ They are derived THROUGH `signUpEmail`, not as a new address shape, and that is the whole safety
+ * argument. `planE2EUserCleanup`'s two predicates are what stop one run deleting another run's LIVE user;
+ * a fourth address shape would mean editing them, and every rule below exists to prove that editing them
+ * is unnecessary — the auxiliary identities are already own-matched, already leak-swept, and still cannot
+ * collide with the fixed Maestro fixture.
+ */
+describe('auxiliary run-scoped identities', () => {
+    const RUN = 'gh42-1-maestro';
+    const NOW = 1_800_000_000_000;
+    const candidate = (over: Partial<CleanupCandidate> & { id: string }): CleanupCandidate => ({
+        emails: [],
+        createdAtMs: NOW,
+        ...over,
+    });
+
+    it('covers exactly the roles the Maestro tier provisions', () => {
+        expect([...AUXILIARY_ROLES]).toEqual(['author', 'erasure']);
+    });
+
+    it.each([...AUXILIARY_ROLES])('derives a distinct, run-scoped %s address', (role) => {
+        const email = auxiliaryFixtureEmail(RUN, role);
+
+        expect(email).toContain('+clerk_test@');
+        expect(email).not.toBe(signInFixtureEmail(RUN));
+        expect(localPart(email).length).toBeLessThanOrEqual(MAX_LOCAL_PART);
+        expect(auxiliaryFixtureUsername(RUN, role).length).toBeLessThanOrEqual(MAX_LOCAL_PART);
+    });
+
+    it('gives the two roles different addresses and different usernames', () => {
+        expect(auxiliaryFixtureEmail(RUN, 'author')).not.toBe(auxiliaryFixtureEmail(RUN, 'erasure'));
+        expect(auxiliaryFixtureUsername(RUN, 'author')).not.toBe(auxiliaryFixtureUsername(RUN, 'erasure'));
+    });
+
+    it('is deterministic — the same run key derives the same identity in every process', () => {
+        expect(auxiliaryFixtureEmail(RUN, 'author')).toBe(auxiliaryFixtureEmail(RUN, 'author'));
+        expect(auxiliaryFixtureUsername(RUN, 'author')).toBe(auxiliaryFixtureUsername(RUN, 'author'));
+    });
+
+    it('produces a Clerk-legal username — underscores and alphanumerics only', () => {
+        for (const role of AUXILIARY_ROLES) {
+            expect(auxiliaryFixtureUsername(RUN, role)).toMatch(/^[a-z0-9_]+$/);
+        }
+    });
+
+    it('is claimed by THIS run, and by no other run', () => {
+        for (const role of AUXILIARY_ROLES) {
+            const email = auxiliaryFixtureEmail(RUN, role);
+
+            expect(isThisRunE2EEmail(email, RUN)).toBe(true);
+            expect(isThisRunE2EEmail(email, `${RUN}x`)).toBe(false);
+            expect(isThisRunE2EEmail(auxiliaryFixtureEmail(`${RUN}x`, role), RUN)).toBe(false);
+        }
+    });
+
+    it('is swept as a leak when a run crashes, exactly like the sign-in fixture', () => {
+        expect(AUXILIARY_ROLES.every((role) => isRunScopedE2EEmail(auxiliaryFixtureEmail(RUN, role)))).toBe(true);
+    });
+
+    it('NEVER matches the fixed Maestro fixture, whatever the run key', () => {
+        for (const role of AUXILIARY_ROLES) {
+            expect(auxiliaryFixtureEmail(RUN, role)).not.toBe(MAESTRO_SHARED_FIXTURE_EMAIL);
+            expect(isThisRunE2EEmail(MAESTRO_SHARED_FIXTURE_EMAIL, RUN)).toBe(false);
+        }
+    });
+
+    it('is deleted by teardown alongside the signer, with the cleanup predicates UNCHANGED', () => {
+        const plan = planE2EUserCleanup(
+            [
+                candidate({ id: 'signer', emails: [signInFixtureEmail(RUN)] }),
+                candidate({ id: 'author', emails: [auxiliaryFixtureEmail(RUN, 'author')] }),
+                candidate({ id: 'erasure', emails: [auxiliaryFixtureEmail(RUN, 'erasure')] }),
+                // A CONCURRENT run's fresh auxiliary user: the case the age gate must protect.
+                candidate({ id: 'other', emails: [auxiliaryFixtureEmail('gh99-1-x', 'author')] }),
+            ],
+            { runKey: RUN, nowMs: NOW, maxAgeMs: LEAKED_FIXTURE_MAX_AGE_MS },
+        );
+
+        expect(plan).toEqual({ ownFixtureIds: ['signer', 'author', 'erasure'], leakedIds: [] });
     });
 });

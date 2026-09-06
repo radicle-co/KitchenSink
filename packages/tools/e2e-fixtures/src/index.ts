@@ -13,3 +13,6 @@
  * sharing it properly.
  */
 export * from './runFixtureIdentity.js';
+export * from './clerkSession.js';
+export * from './externalId.js';
+export { mintSessionToken } from './mintSessionToken.js';

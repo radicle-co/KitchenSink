@@ -166,6 +166,48 @@ export function signUpEmail(runKey: string, unique: string): string {
     return `commise-e2e-signup-${runKey}-${slug(unique)}+clerk_test@example.com`;
 }
 
+/**
+ * The AUXILIARY identities a deployed run needs beyond its signer.
+ *
+ * A single identity cannot express the world the Maestro flows assert:
+ *
+ *   - `author` owns a PUBLIC recipe the signer does not own. That is not a convenience — it is the entire
+ *     premise of `recipes/discover-clone` (clone, then assert the owner-only `Edit recipe` appears on the
+ *     COPY) and of `recipes/rating`, whose docblock says it exists "so the own-recipe gate, Sc8, is NOT
+ *     engaged". No amount of seeding under one owner produces "a recipe you do not own".
+ *   - `erasure` exists to be DELETED. `account-erasure` used to be answered by a runner-local stub, because
+ *     a real call would have destroyed the shared fixture every later flow signs in as. Against a deployed
+ *     stage the erasure is real, so it needs a subject of its own — and that subject is why the flow may
+ *     safely run at all.
+ */
+export const AUXILIARY_ROLES = ['author', 'erasure'] as const;
+
+/** One of {@link AUXILIARY_ROLES}. */
+export type AuxiliaryRole = (typeof AUXILIARY_ROLES)[number];
+
+/**
+ * An auxiliary identity's address.
+ *
+ * ⛔ Derived THROUGH {@link signUpEmail} rather than as a new address shape, and that is the whole safety
+ * argument rather than a shortcut. {@link isThisRunE2EEmail} and {@link isRunScopedE2EEmail} are the two
+ * predicates that stop one run deleting another run's LIVE user; a fourth shape would mean editing them,
+ * and editing them is exactly the change nobody should have to review under time pressure. Reusing the
+ * sign-up shape means both auxiliary identities are own-matched and leak-swept with those predicates
+ * UNTOUCHED — asserted in `runFixtureIdentity.test.ts`, in both directions.
+ */
+export function auxiliaryFixtureEmail(runKey: string, role: AuxiliaryRole): string {
+    return signUpEmail(runKey, role);
+}
+
+/**
+ * An auxiliary identity's username — run-scoped for the same reason {@link signInFixtureUsername} is:
+ * Clerk enforces it unique per instance, and a shared literal is what made two concurrent `createUser`
+ * calls race.
+ */
+export function auxiliaryFixtureUsername(runKey: string, role: AuxiliaryRole): string {
+    return `commise_e2e_${role}_${runKey.replace(/-/g, '_')}`;
+}
+
 /** Shape of every run-scoped e2e address: `commise-e2e-{signin|signup}-<key>…+clerk_test@example.com`. */
 const RUN_SCOPED_EMAIL = /^commise-e2e-(?:signin|signup)-.+\+clerk_test@example\.com$/;
 

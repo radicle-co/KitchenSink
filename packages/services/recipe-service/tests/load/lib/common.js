@@ -1,4 +1,10 @@
 import http from 'k6/http';
+// ⛔ k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright (`GoError: the
+// moduleSpecifier "@kitchensink/loadtest/k6/session.js" couldn't be recognised as something k6
+// supports`), so the workspace name this rule asks for cannot be used here — verified against the
+// k6 binary, not assumed. The shared module is why the bearer survives a leg longer than a token.
+// eslint-disable-next-line import-x/no-relative-packages
+import { freshBearer, loadSessionHandles } from '../../../../../tools/loadtest/k6/session.js';
 // Shared configuration + payload helpers for the recipe-service k6 load suite.
 //
 // These modules are ES-module JavaScript executed by the **k6 binary** (`k6 run ...`) — they are NOT
@@ -52,12 +58,27 @@ export const TOKEN_POOL = (() => {
 export const LOAD_PROFILE = __ENV['LOAD_PROFILE'] || 'substrate';
 
 /**
- * The bearer this VU should present: its own pool member when a pool was supplied, else the single token.
+ * The sign-in handles, so a bearer can be re-minted mid-run.
  *
- * Spreading VUs across users is what keeps the per-USER rate limiter out of the measurement.
+ * ⚠️ Read at INIT — `open()` cannot be called from a VU. Absent (a hand run with a single token, or the
+ * substrate profile), `vuToken` falls back to the static pool exactly as before.
+ */
+const SESSION_HANDLES = loadSessionHandles('RECIPE_HANDLES_FILE');
+
+/**
+ * The bearer this VU should present, minted within the last 45 seconds.
+ *
+ * ⛔ IT IS RE-MINTED, NOT READ ONCE. A Clerk token lives 60 seconds and this scenario runs 105, so a bearer
+ * captured at init is expired for the last ~45s of every leg — see `loadtest/k6/session.js` for the run
+ * that measured it. `TOKEN_POOL` stays the fallback for a run given tokens but no handles.
+ *
+ * Spreading VUs across users is what keeps the per-USER rate limiter out of the measurement, and the
+ * refresher preserves that: a VU keeps ONE identity across re-mints.
  */
 export function vuToken() {
-    return TOKEN_POOL.length > 0 ? TOKEN_POOL[(__VU - 1 + TOKEN_POOL.length) % TOKEN_POOL.length] : TOKEN;
+    const fallback = TOKEN_POOL.length > 0 ? TOKEN_POOL[(__VU - 1 + TOKEN_POOL.length) % TOKEN_POOL.length] : TOKEN;
+
+    return freshBearer(SESSION_HANDLES, fallback);
 }
 
 // --- Performance targets (SC-009 / FR-007b-i) ---------------------------------------------------
@@ -205,8 +226,12 @@ export const DEPLOYED_PACE_SECONDS = 3;
 // `deployedOrigin.load.js` already treats it ("A 429 is counted and surfaced, never thresholded"). What
 // still fails is what a limiter cannot cause: a 5xx, a transport error, a malformed envelope.
 //
-// ⚠️ MEASURED, run 34041143051: without this, `searchLatency` reported `http_req_failed 88.82%` — 3450 of
-// 3884 requests were the limiter answering correctly, reported as service failures.
+// ⛔ THIS IS NOT WHAT CAUSED RUN 34041143051's 88.82% FAILURE RATE, and an earlier revision of this comment
+// claimed it was. That run's failures were EXPIRED TOKENS: the pool was minted once at 15:17:37 and the
+// legs ran until 15:29:29 against a 60-second bearer. The tell is the scenarios AFTER the first, which
+// returned `0 out of 12252` — a limiter admits its budget every minute forever and can never produce a
+// zero. The cure is the mid-run re-mint in `loadtest/k6/session.js`; this clause is retained on its own
+// merits, because a 429 genuinely is the service working, but it fixed nothing on its own.
 if (LOAD_PROFILE !== 'substrate') {
     http.setResponseCallback(http.expectedStatuses({ min: 200, max: 399 }, 429));
 }

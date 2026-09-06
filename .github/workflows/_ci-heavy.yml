@@ -1178,6 +1178,10 @@ jobs:
                   # here and read by nothing, so `TOKEN` stayed empty and 4051 requests measured the 401
                   # path across eight scenarios. `k6ScenarioEnvContract.test.ts` now asserts both sides.
                   RECIPE_TOKENS_FILE: ${{ runner.temp }}/k6-pool/tokens.json
+                  # ⛔ THE HANDLES, WITHOUT WHICH THE BEARERS ABOVE EXPIRE MID-RUN. A Clerk token lives
+                  # 60 seconds; a leg runs 105 and the legs run for ~20 minutes. `k6/session.js` re-mints
+                  # from these stored sessions, which is the endpoint that is NOT per-IP rate limited.
+                  RECIPE_HANDLES_FILE: ${{ runner.temp }}/k6-pool/handles.json
               run: |
                   set -uo pipefail
                   rc=0
@@ -1197,6 +1201,10 @@ jobs:
                   # Go `stat` error naming a path. Food's loader validates `{ users: [...] }`; identity's
                   # reads a different shape, and both are produced by `provisionPool.ts`.
                   FOOD_TOKENS_FILE: ${{ runner.temp }}/k6-pool/food-tokens.json
+                  # ⛔ THE HANDLES, WITHOUT WHICH THE BEARERS ABOVE EXPIRE MID-RUN. A Clerk token lives
+                  # 60 seconds; a leg runs 105 and the legs run for ~20 minutes. `k6/session.js` re-mints
+                  # from these stored sessions, which is the endpoint that is NOT per-IP rate limited.
+                  FOOD_HANDLES_FILE: ${{ runner.temp }}/k6-pool/handles.json
               run: |
                   set -uo pipefail
                   rc=0
@@ -1219,6 +1227,10 @@ jobs:
                   IDENTITY_API_BASE_URL: ${{ steps.target.outputs.identity }}
                   # Read at init by `sessionHotPath` and `authRejection` — see the food note above.
                   IDENTITY_TOKENS_FILE: ${{ runner.temp }}/k6-pool/identity-tokens.json
+                  # ⛔ THE HANDLES, WITHOUT WHICH THE BEARERS ABOVE EXPIRE MID-RUN. A Clerk token lives
+                  # 60 seconds; a leg runs 105 and the legs run for ~20 minutes. `k6/session.js` re-mints
+                  # from these stored sessions, which is the endpoint that is NOT per-IP rate limited.
+                  IDENTITY_HANDLES_FILE: ${{ runner.temp }}/k6-pool/handles.json
               run: |
                   set -uo pipefail
                   rc=0

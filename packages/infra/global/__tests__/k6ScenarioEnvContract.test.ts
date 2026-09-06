@@ -27,15 +27,27 @@ const read = (file: string): string => readFileSync(join(REPO_ROOT, file), 'utf8
 /** Names GitHub itself provides, or that the runner sets — never the scripts' to read. */
 const NOT_SCRIPT_INPUTS = new Set(['LOAD_PROFILE']);
 
-/** Every `__ENV['NAME']` the three service load libraries read. */
+/**
+ * Every env name the three service load libraries read.
+ *
+ * ⚠️ TWO SHAPES, because one of them is invisible to the obvious regex. Most names are read directly as
+ * `__ENV['NAME']`. The sign-in handles are read by the SHARED refresher as `__ENV[envName]` — a computed
+ * key, which no amount of scanning `session.js` can resolve to a literal — so for those the name is
+ * knowable only at the call site, `loadSessionHandles('NAME')`. Missing that shape is not cosmetic: the
+ * guard would report three genuinely-read names as unread and, taken at face value, invite deleting the
+ * very wiring that keeps a 105-second leg authenticated.
+ */
 function namesTheScriptsRead(): ReadonlySet<string> {
     const names = new Set<string>();
+    const patterns = [/__ENV\[['"]([A-Z0-9_]+)['"]\]/gu, /loadSessionHandles\(['"]([A-Z0-9_]+)['"]\)/gu];
 
     for (const service of ['recipe-service', 'food-service', 'identity']) {
         const source = read(`packages/services/${service}/tests/load/lib/common.js`);
 
-        for (const match of source.matchAll(/__ENV\[['"]([A-Z0-9_]+)['"]\]/gu)) {
-            names.add(match[1] ?? '');
+        for (const pattern of patterns) {
+            for (const match of source.matchAll(pattern)) {
+                names.add(match[1] ?? '');
+            }
         }
     }
 

@@ -8,6 +8,12 @@
 // Mirrors `packages/services/recipe-service/tests/load/lib/common.js` and food's equivalent.
 
 import exec from 'k6/execution';
+// ⛔ k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright (`GoError: the
+// moduleSpecifier "@kitchensink/loadtest/k6/session.js" couldn't be recognised as something k6
+// supports`), so the workspace name this rule asks for cannot be used here — verified against the
+// k6 binary, not assumed. The shared module is why the bearer survives a leg longer than a token.
+// eslint-disable-next-line import-x/no-relative-packages
+import { freshBearer, loadSessionHandles } from '../../../../../tools/loadtest/k6/session.js';
 
 // Base URL of the identity service under test (Nest app / shared ALB host). Defaults to the service's own
 // configured PORT default (3001, per src/config/env.schema.ts) rather than 3000, so a bare local run finds it.
@@ -208,22 +214,20 @@ export function jsonHeaders(token) {
 }
 
 /**
- * The warm token for the current iteration, rotated by `exec.scenario.iterationInTest`.
+ * The sign-in handles, so a bearer can be re-minted mid-run. Read at INIT — `open()` cannot be called
+ * from a VU. Absent, the selectors below fall back to the static pool exactly as before.
+ */
+const SESSION_HANDLES = loadSessionHandles('IDENTITY_HANDLES_FILE');
+
+/**
+ * The bearer for this iteration, minted within the last 45 seconds.
  *
- * WHY NOT `__VU`. The obvious form is VU-to-user affinity (`pool[(__VU - 1) % pool.length]`), and it is
- * WRONG here: `__VU` is the VU's id ACROSS THE WHOLE TEST, not within its scenario. A script with two
- * scenarios (every script in this suite has two) hands the second scenario a block of high ids — e.g.
- * 51..75 for a 25-VU scenario running beside a 50-VU one — so `% pool.length` silently maps two different
- * scenarios' VUs onto the SAME warm user. Two concurrent writers on one profile row then break
- * `patchUserMe`'s non-transactional read-after-write and produce inexplicable ~0.1% check failures.
- *
- * `iterationInTest` is unique and monotonic PER SCENARIO across all its VUs, so consecutive in-flight
- * iterations get consecutive users. Distinctness of concurrent iterations therefore holds as long as a
- * scenario's peak VU count is below the pool size — which `prepareDb.ts` asserts
- * (`IDENTITY_WARM_POOL_SIZE >= IDENTITY_LOAD_PEAK_VUS`) rather than leaving to chance.
+ * ⛔ RE-MINTED, NOT READ ONCE. A Clerk token lives 60 seconds and a leg runs 105, so a pool captured at
+ * init is expired for the tail of every run — see `loadtest/k6/session.js` for the run that measured it.
+ * `pool` remains the fallback for a run given tokens but no handles.
  */
 export function warmTokenForIteration(pool) {
-    return pool[exec.scenario.iterationInTest % pool.length];
+    return freshBearer(SESSION_HANDLES, pool[exec.scenario.iterationInTest % pool.length]);
 }
 
 /**

@@ -1,5 +1,7 @@
 import type { ThrottlerOptions } from '@nestjs/throttler';
 
+import { RATE_LIMIT_DEFAULTS } from './throttleDefaults.js';
+
 /**
  * Rate-limit window in milliseconds. `@nestjs/throttler` (v6, NestJS 11) expresses each limit's `ttl`
  * in milliseconds, so the per-minute windows below are `60 * 1000`.
@@ -51,30 +53,30 @@ export function throttleLimitFromEnv(envVar: string, fallback: number): number {
  * and the default any route inherits when it carries no category override. `RATE_LIMIT_READ` req/min
  * (default 120).
  */
-export const readLimit = throttleLimitFromEnv('RATE_LIMIT_READ', 120);
+export const readLimit = throttleLimitFromEnv('RATE_LIMIT_READ', RATE_LIMIT_DEFAULTS.RATE_LIMIT_READ);
 
 /** Mutating endpoints (create/update/delete/clone/visibility/restore/erasure). `RATE_LIMIT_WRITE` req/min (default 30). */
-export const writeLimit = throttleLimitFromEnv('RATE_LIMIT_WRITE', 30);
+export const writeLimit = throttleLimitFromEnv('RATE_LIMIT_WRITE', RATE_LIMIT_DEFAULTS.RATE_LIMIT_WRITE);
 
 /** Photo-upload endpoints (presign + finalize). `RATE_LIMIT_PHOTO_UPLOAD` req/min (default 10). */
-export const photoLimit = throttleLimitFromEnv('RATE_LIMIT_PHOTO_UPLOAD', 10);
+export const photoLimit = throttleLimitFromEnv('RATE_LIMIT_PHOTO_UPLOAD', RATE_LIMIT_DEFAULTS.RATE_LIMIT_PHOTO_UPLOAD);
 
 /** Full-text/autocomplete search endpoints. `RATE_LIMIT_SEARCH` req/min (default 60). */
-export const searchLimit = throttleLimitFromEnv('RATE_LIMIT_SEARCH', 60);
+export const searchLimit = throttleLimitFromEnv('RATE_LIMIT_SEARCH', RATE_LIMIT_DEFAULTS.RATE_LIMIT_SEARCH);
 
 /**
  * GDPR account-export endpoint (`GET /api/v1/account/export`). The tightest limit: the export assembles six
  * owner-scoped tables into one document, so it is the heaviest single read AND a data-egress surface,
  * while a genuine "download my data" request is rare. `RATE_LIMIT_EXPORT` req/min (default 10).
  */
-export const exportLimit = throttleLimitFromEnv('RATE_LIMIT_EXPORT', 10);
+export const exportLimit = throttleLimitFromEnv('RATE_LIMIT_EXPORT', RATE_LIMIT_DEFAULTS.RATE_LIMIT_EXPORT);
 
 /**
  * The analytics ingest door (`POST /ingest/v1/events`). Batched client emission settles per search
  * session, so a real user produces a handful per minute; the cap bounds a misbehaving or hostile
  * client's write pressure on the events store (R13). `RATE_LIMIT_ANALYTICS` req/min (default 60).
  */
-export const analyticsLimit = throttleLimitFromEnv('RATE_LIMIT_ANALYTICS', 60);
+export const analyticsLimit = throttleLimitFromEnv('RATE_LIMIT_ANALYTICS', RATE_LIMIT_DEFAULTS.RATE_LIMIT_ANALYTICS);
 
 /**
  * The `ThrottlerModule.forRoot(...)` registration: a single throttler whose limit is the generous read

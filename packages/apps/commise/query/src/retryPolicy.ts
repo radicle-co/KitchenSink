@@ -65,3 +65,71 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
 
     return RETRY_VETOES.every((isRetryable) => isRetryable(error));
 }
+
+/**
+ * The statuses that mean the server did NOT process the request, so re-issuing cannot duplicate its effect.
+ *
+ * `429` is our own `UserThrottlerGuard` refusing on rate; `503` is a service shedding load. Both are
+ * answered before any write happens, which is what makes them safe on a non-idempotent method.
+ */
+const NOT_PROCESSED_STATUSES: readonly number[] = [429, 503];
+
+/**
+ * Whether TanStack Query should attempt a failed MUTATION again.
+ *
+ * ⛔ DELIBERATELY NARROWER THAN {@link shouldRetryQuery}, and the difference is not caution for its own
+ * sake. A query is idempotent, so replaying it costs latency. A mutation is not: `POST /api/v1/recipes`
+ * assigns its id server-side and accepts no idempotency key, so a create replayed after a `502` or a
+ * dropped socket is a SECOND recipe — those failures can FOLLOW a commit, with only the response lost.
+ * TanStack's default of never retrying a mutation is the correct answer to that, and this predicate keeps
+ * it for every class except the one where the server has told us it did nothing.
+ *
+ * ⚠️ WHY IT EXISTS. That safe default meant a throttled write surfaced to the user as a failed action.
+ * Filling a recipe to `MAX_RECIPE_PHOTOS` issues two requests per photo, so a cook could reach the photo
+ * budget in a single sitting and see uploads fail rather than wait. The same distinction is already drawn
+ * in `packages/tools/cookbook-import/src/RecipeApiClient.ts`, whose transport retries `429`/`503` on every
+ * method for exactly this reason; this is that rule, in the app.
+ *
+ * Pure — a decision over a count and a value, no I/O and no clock.
+ *
+ * @param failureCount - How many attempts have already FAILED.
+ * @param error - The value the mutation rejected with.
+ * @returns `true` only for a bounded retry of a request the server refused without processing.
+ */
+export function shouldRetryMutation(failureCount: number, error: unknown): boolean {
+    if (failureCount >= MAX_QUERY_RETRIES) {
+        return false;
+    }
+
+    const status: unknown = (error as { readonly status?: unknown } | null)?.status;
+
+    return typeof status === 'number' && NOT_PROCESSED_STATUSES.includes(status);
+}
+
+/**
+ * How long to wait before re-issuing a refused request.
+ *
+ * ⛔ HONOURS THE SERVER'S OWN `Retry-After` WHEN IT IS KNOWN. A client that ignores it turns a queue into a
+ * stampede: every throttled caller returns at the same moment the window opens. When the error carries no
+ * hint, fall back to capped exponential backoff — TanStack's own default shape.
+ *
+ * ⚠️ TODAY ONLY `SourceBusyError` CARRIES `retryAfterSeconds`. Our own throttler's `429` surfaces without
+ * one, so it takes the backoff path. Teaching the client to parse the `Retry-After` header on a throttled
+ * response is a separate change in `@kitchensink/recipe-service-client`; this function is already shaped to
+ * use it the day it lands, and the backoff is a safe answer in the meantime.
+ *
+ * Pure — arithmetic over a count and a value.
+ *
+ * @param failureCount - How many attempts have already failed.
+ * @param error - The value the request rejected with.
+ * @returns Milliseconds to wait before the next attempt.
+ */
+export function retryAfterDelayMs(failureCount: number, error: unknown): number {
+    const hinted: unknown = (error as { readonly retryAfterSeconds?: unknown } | null)?.retryAfterSeconds;
+
+    if (typeof hinted === 'number' && Number.isFinite(hinted) && hinted > 0) {
+        return hinted * 1000;
+    }
+
+    return Math.min(1000 * 2 ** failureCount, 30_000);
+}

@@ -7,6 +7,7 @@ import {
     throttleLimitFromEnv,
     throttlerModuleOptions,
 } from '../throttle.config.js';
+import { RATE_LIMIT_DEFAULTS } from '../throttleDefaults.js';
 
 describe('throttleLimitFromEnv', () => {
     afterEach(() => {
@@ -49,7 +50,12 @@ describe('throttle configuration', () => {
     });
 
     it('makes the generous read limit the default throttler limit (the common-path / inherited cap)', () => {
-        expect(readLimit).toBe(120);
+        // ⚠️ Asserted against the shared default record, NOT a literal. This line read `toBe(120)` and went
+        // stale the moment the limits were re-derived from real flows — a hardcoded copy of a number whose
+        // owner is `throttleDefaults.ts`. What the test is FOR is that the registered throttler's limit is
+        // the READ budget (not the photo one, the original defect below); pinning the digits added nothing
+        // and broke on a change that was correct.
+        expect(readLimit).toBe(RATE_LIMIT_DEFAULTS.RATE_LIMIT_READ);
         expect(throttlerModuleOptions[0]).toEqual({
             name: DEFAULT_THROTTLER_NAME,
             ttl: THROTTLE_WINDOW_MS,

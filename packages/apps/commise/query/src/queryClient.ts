@@ -38,7 +38,7 @@
  */
 import { QueryClient } from '@tanstack/react-query';
 
-import { shouldRetryQuery } from './retryPolicy.js';
+import { retryAfterDelayMs, shouldRetryMutation, shouldRetryQuery } from './retryPolicy.js';
 
 /**
  * Build the app's `QueryClient`.
@@ -52,6 +52,14 @@ export function createAppQueryClient(): QueryClient {
         defaultOptions: {
             queries: {
                 retry: shouldRetryQuery,
+            },
+            // ⛔ MUTATIONS RETRY TOO, BUT ONLY WHERE REPLAY CANNOT DUPLICATE A WRITE. TanStack's default is
+            // never — correct for a `502` or a dropped socket, which can arrive AFTER the row was written —
+            // and `shouldRetryMutation` keeps that for every class except the ones the server refuses
+            // without processing. Without this a throttled write failed at the user rather than waiting.
+            mutations: {
+                retry: shouldRetryMutation,
+                retryDelay: retryAfterDelayMs,
             },
         },
     });

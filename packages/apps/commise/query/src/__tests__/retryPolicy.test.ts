@@ -14,7 +14,7 @@ import { NotFoundError as RecipeNotFoundError, UnexpectedResponseError } from '@
 import { NotFoundError as ProfileNotFoundError } from '@commise/features-account';
 import { describe, expect, it } from 'vitest';
 
-import { MAX_QUERY_RETRIES, shouldRetryQuery } from '../retryPolicy.js';
+import { MAX_QUERY_RETRIES, shouldRetryMutation, shouldRetryQuery } from '../retryPolicy.js';
 
 describe('shouldRetryQuery — a veto from any owner is a veto', () => {
     it('refuses to retry a RECIPE-service 404', () => {
@@ -83,5 +83,49 @@ describe('shouldRetryQuery — it abstains on errors no client owns', () => {
         ['an unrelated object carrying a 404-looking status', { status: 404 }],
     ])('retries %s', (_label, value) => {
         expect(shouldRetryQuery(0, value)).toBe(true);
+    });
+});
+
+describe('shouldRetryMutation — a write is retried ONLY when the server did not process it', () => {
+    /**
+     * ⛔ WHY THIS IS NOT `shouldRetryQuery`. A query is idempotent, so re-issuing it can only cost latency.
+     * A mutation is not: `POST /api/v1/recipes` assigns its id server-side and accepts no idempotency key,
+     * so a create re-issued after a 502 or a transport failure is a SECOND public recipe — the response
+     * was lost, not the write. TanStack's default (mutations never retry) is the safe answer to that, and
+     * it is why this predicate is separate rather than the query one reused.
+     *
+     * ⛔ AND WHY IT EXISTS AT ALL. That safe default meant a throttled write failed at the user. A 429 is
+     * the one class where the server is telling us it did NOT process the request, so re-issuing cannot
+     * duplicate anything — the same distinction `packages/tools/cookbook-import/src/RecipeApiClient.ts`
+     * already draws ("a 429 or 503 is the server saying it did NOT process the request, so both are
+     * retried on EVERY method").
+     */
+    it('retries a throttled write', () => {
+        expect(shouldRetryMutation(0, new UnexpectedResponseError(429, 'Too Many Requests'))).toBe(true);
+    });
+
+    it('retries a write shed under backpressure', () => {
+        expect(shouldRetryMutation(0, new UnexpectedResponseError(503, 'Service Unavailable'))).toBe(true);
+    });
+
+    it('REFUSES a write that may already have committed', () => {
+        // 502/504 arrive when the upstream answered or timed out AFTER writing. Retrying duplicates.
+        expect(shouldRetryMutation(0, new UnexpectedResponseError(502, 'Bad Gateway'))).toBe(false);
+        expect(shouldRetryMutation(0, new UnexpectedResponseError(504, 'Gateway Timeout'))).toBe(false);
+    });
+
+    it('REFUSES a write the server considered and rejected', () => {
+        expect(shouldRetryMutation(0, new UnexpectedResponseError(400, 'Bad Request'))).toBe(false);
+        expect(shouldRetryMutation(0, new UnexpectedResponseError(403, 'Forbidden'))).toBe(false);
+    });
+
+    it('REFUSES a transport failure, which may also have committed', () => {
+        expect(shouldRetryMutation(0, new TypeError('Failed to fetch'))).toBe(false);
+    });
+
+    it('stops at the cap instead of retrying a throttle forever', () => {
+        expect(shouldRetryMutation(MAX_QUERY_RETRIES, new UnexpectedResponseError(429, 'Too Many Requests'))).toBe(
+            false,
+        );
     });
 });

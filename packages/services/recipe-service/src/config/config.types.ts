@@ -9,6 +9,7 @@
 
 import { z } from 'zod';
 import { hasExactlyOneAzpMode } from '@kitchensink/clerk-verify';
+import { RATE_LIMIT_DEFAULTS } from '../common/throttle/throttleDefaults.js';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -358,16 +359,16 @@ export const rateLimitConfigSchema = z.object({
      * Home widget's reads. This is the default throttler's limit: any route without a category override
      * inherits it, so it is deliberately the most generous. Defaults to 120.
      */
-    RATE_LIMIT_READ: z.coerce.number().int().positive().default(120),
+    RATE_LIMIT_READ: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_READ),
 
     /** Write endpoint limit (req/min per user). Defaults to 30. */
-    RATE_LIMIT_WRITE: z.coerce.number().int().positive().default(30),
+    RATE_LIMIT_WRITE: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_WRITE),
 
     /** Photo upload limit (req/min per user). Defaults to 10. */
-    RATE_LIMIT_PHOTO_UPLOAD: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_PHOTO_UPLOAD: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_PHOTO_UPLOAD),
 
     /** Search endpoint limit (req/min per user). Defaults to 60. */
-    RATE_LIMIT_SEARCH: z.coerce.number().int().positive().default(60),
+    RATE_LIMIT_SEARCH: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_SEARCH),
 
     /**
      * GDPR account-export limit (req/min per user). Defaults to 10 — the tightest category. The export
@@ -375,10 +376,10 @@ export const rateLimitConfigSchema = z.object({
      * data-egress surface; a portability download is issued rarely, so a low cap curbs abuse/exfiltration
      * without impeding a genuine "download my data" request.
      */
-    RATE_LIMIT_EXPORT: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_EXPORT: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_EXPORT),
 
     /** Analytics ingest door requests/min per user (plan U4, R13). */
-    RATE_LIMIT_ANALYTICS: z.coerce.number().int().positive().default(60),
+    RATE_LIMIT_ANALYTICS: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_ANALYTICS),
 });
 
 /** Typed rate limiting configuration. */

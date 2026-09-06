@@ -24,12 +24,19 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const read = (file: string): string => readFileSync(join(REPO_ROOT, file), 'utf8');
 
-/** The per-user, per-minute limits the recipe service defaults to. */
+/**
+ * The per-user, per-minute limits the recipe service defaults to.
+ *
+ * ⚠️ READ FROM `throttleDefaults.ts`, WHICH OWNS THEM. This used to parse `.default(120)` literals out of
+ * `config.types.ts`, and it went blind the moment those literals became references to the shared record —
+ * it matched nothing and reported zero limits. The non-vacuity assertion below is what caught that, which
+ * is the whole reason it exists: a shape guard whose input silently becomes empty passes everything.
+ */
 function rateLimits(): Readonly<Record<string, number>> {
-    const source = read('packages/services/recipe-service/src/config/config.types.ts');
+    const source = read('packages/services/recipe-service/src/common/throttle/throttleDefaults.ts');
     const limits: Record<string, number> = {};
 
-    for (const m of source.matchAll(/RATE_LIMIT_(\w+):\s*z\.coerce\.number\(\)[^,]*?\.default\((\d+)\)/gu)) {
+    for (const m of source.matchAll(/RATE_LIMIT_(\w+):\s*(\d+),/gu)) {
         limits[m[1] ?? ''] = Number(m[2]);
     }
 

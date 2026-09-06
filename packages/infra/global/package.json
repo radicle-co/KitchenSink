@@ -27,6 +27,7 @@
         "@kitchensink/infra-alb": "*",
         "@kitchensink/infra-messaging": "*",
         "@kitchensink/infra-security": "*",
+        "@kitchensink/loadtest": "*",
         "@kitchensink/nest-error-envelope": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/schema-food": "*",

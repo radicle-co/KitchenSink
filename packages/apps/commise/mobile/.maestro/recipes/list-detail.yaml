@@ -46,10 +46,10 @@ appId: io.commise.mobile
 # guard therefore SKIPPED the entire detail leg — silently, and still green — whenever the row happened to
 # sit below the fold. `scrollUntilVisible` brings it into view and fails if the seed really is missing.
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 # RecipeDetailView's first section heading. This is CHROME: a static heading that renders whatever the recipe
 # contains, so on its own it proves the component mounted and NOT that this recipe's data arrived. The content
 # assertions below are the story.

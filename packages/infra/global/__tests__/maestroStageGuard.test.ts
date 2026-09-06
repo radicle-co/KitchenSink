@@ -5,7 +5,7 @@
  * ## The defect this pins
  *
  * `_ci-heavy.yml`'s `e2e-mobile-maestro` job is parameterised by `inputs.stage`, and it USES that stage for
- * a write: it loads the stage's Clerk keys and runs `ensure-signin-user.mjs`, which provisions the shared
+ * a write: it loads the stage's Clerk keys and runs `e2e-seed provision`, which provisions this run's
  * `+clerk_test` sign-in user into THAT tenant. Everything the job then measures is stage-independent — the
  * recipe service it drives is a runner-local Docker container under the dev-auth bypass. So on `prod` the
  * job mutates the production Clerk instance in exchange for a result that says nothing about production.
@@ -21,7 +21,7 @@
  *
  * ## How it is asserted
  *
- * The provisioning job is DISCOVERED (the job whose steps run `ensure-signin-user`). The refusal is the step
+ * The provisioning job is DISCOVERED (the job whose steps run `e2e-seed`'s provision). The refusal is the step
  * that binds `STAGE: ${{ inputs.stage }}` — the only spelling through which a step can read the reusable
  * workflow's input — and its decision is proved by BEHAVIOUR: that step's `run:` body, and only that body,
  * is executed under real `bash` with `STAGE=prod` (must exit non-zero, with a `::error::` annotation) and
@@ -65,7 +65,7 @@ interface WorkflowDocument {
 }
 
 /** The step that writes into the stage's Clerk tenant. */
-const PROVISIONS_TEST_USER = /ensure-signin-user/u;
+const PROVISIONS_TEST_USER = /e2e-seed\/src\/provision/u;
 
 /** The step that reads the stage's secrets — nothing privileged may run before the refusal. */
 const LOADS_STAGE_SECRETS = /load-secrets/u;

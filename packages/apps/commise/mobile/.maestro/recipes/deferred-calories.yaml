@@ -6,12 +6,17 @@ appId: io.commise.mobile
 #
 # ⛔ WHAT THIS FLOW CAN AND CANNOT ASSERT, and why (read before "strengthening" it).
 #
-# The emulator job boots recipe-service and DELIBERATELY NOT the food service: `_ci-heavy.yml` passes
-# `FOOD_SERVICE_URL=http://localhost:3002` with nothing listening there (the same deliberate degradation
-# `recipes/ingredient-catalog-blend.yaml` relies on). Per-serving calories are computed from FOOD's nutrient
-# data, so in THIS environment every recipe's answer is `unaccounted{food_unavailable}` — or the batch fails
-# outright — and both render as NO CHIP by design (the card's absent-value rule). A flow asserting "420 cal"
-# here would fail on every run, and pointing this job at a food service is a separate, larger change.
+# ⚠️ THE REASON CHANGED, THE ASSERTION DID NOT. This note used to say the job booted recipe-service and
+# deliberately not the food service, so every answer was `unaccounted{food_unavailable}` and no chip could
+# render. That premise died when the tier began driving a DEPLOYED `pr-{N}` stage, which DOES run a food
+# service (ADR-0010) — but the per-PR food catalog is seeded by nothing, so a freeform-created ingredient
+# still resolves to no nutrient data and still renders NO CHIP. The outcome is unchanged; the cause is now
+# an empty catalog rather than an absent service. A flow asserting a number would still fail on every run,
+# and giving this environment a catalog to answer from is a separate change.
+#
+# ⛔ `recipes/ingredient-catalog-blend.yaml` did NOT survive the same shift — its whole subject was the
+# degradation, so a stage that runs a food service cannot produce it. It is recorded in `KNOWN_UNRUN_FLOWS`
+# with that reason. This flow survives because its subject is the INVARIANT below, which holds either way.
 #
 # So what it proves is the INVARIANT the whole design exists for, which is also the only part that can fail
 # silently: the calorie placeholder DISAPPEARS. A skeleton that outlives its own request is a spinner
@@ -63,10 +68,10 @@ appId: io.commise.mobile
 # this, "no skeleton" would also pass on a screen that rendered no cards at all.)
 - assertVisible: 'Recipes'
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 - assertVisible: 'Ingredients'
 - tapOn: 'Back'
 - assertVisible: 'Recipes'

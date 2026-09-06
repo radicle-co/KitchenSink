@@ -269,6 +269,15 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // constructible from the app. A CI seeding step for the fixture recipe is owed before this promotes
     // into the plan; the surface's states are covered by ambiguityReviewSurface.native.test.tsx meanwhile.
     'recipes/ambiguity-review',
+    // Its whole subject is the F2 DEGRADED-catalog contract, and its premise was that this job boots
+    // recipe-service and deliberately NOT the food service. Driving a deployed `pr-{N}` stage removed that
+    // premise: a preview RUNS a food service (ADR-0010, ~$8.25/mo per open PR), so the blended typeahead
+    // does not degrade and the behaviour this flow exists to prove cannot occur here. Retiring it is a
+    // coverage decision recorded, not a flow quietly dropped — the degraded branch is still proven where it
+    // can be produced on purpose, by recipe-service's own integration tier, which points `FOOD_SERVICE_URL`
+    // at a port nothing listens on. Promoting it back needs an environment that can degrade the catalog
+    // deliberately, not merely a job that happens to lack one.
+    'recipes/ingredient-catalog-blend',
 ];
 
 // ---------------------------------------------------------------------------------------------------------
@@ -428,13 +437,15 @@ describe('the flow inventory — every committed flow is accounted for', () => {
         ).toEqual([]);
     });
 
-    it('closes the ingredient-catalog-blend gap specifically (it was committed and never executed)', () => {
-        // The regression guard for the defect that motivated the inventory: this flow sat in `.maestro` for
-        // months while `FLOWS` never named it, so the F2 degradation contract had NO on-device coverage and
-        // nothing said so. It asserts the path this job produces deterministically — the Maestro job boots
-        // recipe-service and NOT the food service, so the blended typeahead genuinely degrades every time.
-        expect(ALL_FLOWS).toContain('recipes/ingredient-catalog-blend');
-        expect(VERTICAL_OF.get('recipes/ingredient-catalog-blend')).toBe('recipes');
+    it('keeps ingredient-catalog-blend ACCOUNTED FOR, now that it cannot run here', () => {
+        // ⚠️ This assertion INVERTED, and the inversion is the point rather than a weakening. The flow sat
+        // in `.maestro` for months executed by nothing, which is what motivated the whole inventory — so
+        // the rule has always been "every committed flow is accounted for", never "this flow is planned".
+        // Its premise (no food service on this job) died when the tier moved to a deployed stage that runs
+        // one, so it is recorded as a gap with its reason instead of running against a world that cannot
+        // produce the degradation it asserts.
+        expect(ALL_FLOWS).not.toContain('recipes/ingredient-catalog-blend');
+        expect(KNOWN_UNRUN_FLOWS).toContain('recipes/ingredient-catalog-blend');
     });
 
     /**
@@ -529,8 +540,13 @@ describe('the plan — ordering invariants the flows depend on', () => {
         expect(SPINE).toEqual(['auth/login-flow']);
     });
 
-    it('runs recipes/delete last and account-danger-zone before it', () => {
-        expect(ALL_FLOWS.at(-1)).toBe('recipes/delete');
+    it('runs account-erasure last, after recipes/delete, with the cancel-only flow before both', () => {
+        // ⛔ `account-erasure` is last because it REALLY ERASES now. Against the runner-local stack its
+        // identity leg hit a stub that destroyed nothing; a deployed stage has no stub, and re-introducing
+        // one is the local stand-in the 2026-09-05 ruling removed. So it erases its own run-scoped subject
+        // for real, ends that Clerk session and leaves the app signed out — a state no flow may inherit.
+        expect(ALL_FLOWS.at(-1)).toBe('account-erasure');
+        expect(ALL_FLOWS.indexOf('recipes/delete')).toBeLessThan(ALL_FLOWS.indexOf('account-erasure'));
         expect(ALL_FLOWS.indexOf('account-danger-zone')).toBeLessThan(ALL_FLOWS.indexOf('recipes/delete'));
     });
 

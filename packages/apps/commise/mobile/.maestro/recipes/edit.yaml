@@ -23,10 +23,10 @@ appId: io.commise.mobile
 - assertVisible: 'Recipes'
 
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 # RecipeDetailScreen: the owner's edit entry point sits in the owner-action block at the foot of the detail,
 # which scrolls — reach it rather than asserting blind.
 - scrollUntilVisible:
@@ -41,7 +41,7 @@ appId: io.commise.mobile
 - assertVisible: 'Step 1 of 4'
 - tapOn: 'Title'
 - eraseText
-- inputText: 'Mediterranean Grilled Lamb (edited)'
+- inputText: '${E2E_RECIPE_LAMB} (edited)'
 # Clear the stated difficulty (FR-001b): choosing "Not stated" sends the three-state update's explicit clear
 # (null), not an omit. It sits further down Basic (w3/e5 added a taller cuisine picker above it), so scroll
 # defensively rather than assume it is already on screen.
@@ -138,5 +138,5 @@ appId: io.commise.mobile
 # Back on the detail with the new title (regex tolerates Maestro's occasional last-char input dup).
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .edited.*'
+          text: '${E2E_RECIPE_LAMB} .edited.*'
       timeout: 40000

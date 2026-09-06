@@ -18,15 +18,25 @@
 # asserted at the end is now evidence that BOTH calls succeeded — a failed account leg keeps the viewer
 # inside the dialog, which is what the final assertions detect.
 #
-# ## Why confirming here is safe, where it would not be against a live backend
+# ## ⛔ THIS FLOW REALLY ERASES, AND IT ERASES ITS OWN SUBJECT
 #
-#   - The RECIPE erasure hits the job's own dockerized recipe-service, whose database
-#     `run-maestro-flows.sh` truncates and re-seeds before EVERY flow. Nothing this flow destroys outlives it.
-#   - The IDENTITY erasure hits `tests/e2e/profile-stub-server.mjs`, which answers `202` and destroys
-#     nothing. The real call would delete the SHARED fixture user at Clerk, which every later flow signs in
-#     as — so it is stubbed, exactly as the web spec mocks the same endpoint for the same reason.
-#   - The Clerk SESSION really does end. That is recoverable: `auth/signin-home.yaml` is idempotent and every
-#     later flow composes it, so the next flow signs in again from the form this one lands on.
+# Against the runner-local stack the identity leg was answered by `tests/e2e/profile-stub-server.mjs`, which
+# destroyed nothing — because the real call would have deleted the SHARED fixture user every later flow
+# signed in as. Driving a DEPLOYED stage removed that stack, and stubbing a deployed service would put back
+# the local stand-in the 2026-09-05 ruling removed. So the erasure is real, end to end, through the same
+# path a viewer's would take: identity, the deletion queue, the worker, Clerk.
+#
+# What makes that safe is the SUBJECT, not the stub. `@kitchensink/e2e-seed` provisions a third run-scoped
+# identity that exists only to be erased, and this flow overrides the signer to be that identity. It owns no
+# recipes, no other flow signs in as it, and it is gone by design when the flow ends.
+#
+#   - `${E2E_ERASURE_EMAIL}` is this RUN's erasure subject. A concurrent run has its own; the run key is
+#     what separates them, and `planE2EUserCleanup`'s predicates already cover it.
+#   - The flow is LAST in `FLOW_PLAN` on purpose, after `recipes/delete`. Nothing composes it, and nothing
+#     after it needs a session — so the signed-out state it leaves is the end of the run rather than a
+#     precondition for the next flow.
+#   - Teardown tolerates the subject already being gone: `e2e-seed teardown` deletes what remains and treats
+#     a missing user as success, because this flow succeeding IS the user being missing.
 #
 # ## Selector notes
 #
@@ -48,8 +58,18 @@
 
 appId: io.commise.mobile
 ---
-# Sign in (idempotent) and land on the Home widget surface.
-- runFlow: auth/signin-home.yaml
+# Sign in as THIS RUN'S ERASURE SUBJECT — not the signer — and land on the Home widget surface.
+#
+# `clearState` is required: the signer's session is persisted in `expo-secure-store` by the flows before
+# this one, so without it `signin-home.yaml`'s guard finds no login form, skips the credentials entirely,
+# and this flow would erase the SIGNER. The `env:` override is Maestro's documented sub-flow parameter
+# shadowing — the child's value wins for the duration of the sub-flow.
+- launchApp:
+      clearState: true
+- runFlow:
+      file: auth/signin-home.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_ERASURE_EMAIL}
 
 # Cross into the profile surface, then into the account hub that owns the danger zone.
 - tapOn: 'Profile'

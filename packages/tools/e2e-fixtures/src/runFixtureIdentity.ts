@@ -26,12 +26,15 @@
 import { createHash } from 'node:crypto';
 
 /**
- * The FIXED, long-lived fixture the MOBILE Maestro flows sign in as
- * (`packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs`, typed as LITERAL TEXT by
- * `.maestro/auth/signin-home.yaml`). It is deliberately NOT run-scoped — an on-device flow cannot derive
- * an address — so the web suite must never delete it, and its provisioner is idempotent + concurrency-safe
- * instead. Every rule here is written so it CANNOT match: the run-scoped shapes all carry a `-` separator
- * after `signin`/`signup`, which this address does not have. Asserted in the unit tests.
+ * The FIXED fixture the mobile Maestro flows USED to sign in as, typed as LITERAL TEXT by
+ * `.maestro/auth/signin-home.yaml`.
+ *
+ * ⛔ It is RETIRED — the flows now interpolate `${E2E_SIGNIN_EMAIL}` from `@kitchensink/e2e-seed`'s per-run
+ * manifest, so mobile is run-scoped like the web suite and two concurrent runs can no longer address one
+ * user. The constant survives because the CLEANUP RULES still owe a proof about it: any such account left
+ * on the shared instance from before the cutover must never be deleted by a live run's sweep, and the two
+ * predicates below are written so it CANNOT match — every run-scoped shape carries a `-` after
+ * `signin`/`signup`, which this address does not. Asserted in the unit tests, in both directions.
  */
 export const MAESTRO_SHARED_FIXTURE_EMAIL = 'commise-e2e-signin+clerk_test@example.com';
 

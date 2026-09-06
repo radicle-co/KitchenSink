@@ -207,20 +207,21 @@ jobs:
             #   • `shared/clerk-verify|identity-core`   likewise COPY'd into the image.
             #
             # NOT included, and each for a MEASURED reason rather than an assumption:
-            #   - `food-service/**` — the food service is never booted and `FOOD_SERVICE_URL` deliberately
-            #     points at nothing, so the catalog flow
-            #     (`.maestro/recipes/ingredient-catalog-blend.yaml`) asserts the F2 DEGRADED path that absence
-            #     produces, deterministically, every run. No food-service change can alter that outcome, so
-            #     triggering the emulator on one would buy literally zero additional coverage. (Its
-            #     `clients/food-service` counterpart IS included, because that one is compiled into the image.)
-            #     ⚠️ This reasoning REPLACES an earlier note that said the exclusion held because that flow was
-            #     "NOT in the `FLOWS` list … so it does not run in CI at all". That was true and was a DEFECT:
-            #     a committed, reviewed flow that nothing executed. It now runs (in the `recipes` vertical),
-            #     and the exclusion above stands on the environment instead of on the flow being dead.
-            #   - `services/identity/**` — replaced at runtime by `tests/e2e/profile-stub-server.mjs`, so its
-            #     controllers/DAOs/middleware cannot change a flow's outcome. Only its `src/types/**` reach
-            #     mobile, and then only as erased `import type` — a typecheck concern the base tier already
-            #     covers on the same PR.
+            #   - `food-service/**` — no flow in the plan drives the catalog. `ingredient-catalog-blend`,
+            #     which did, is now in `KNOWN_UNRUN_FLOWS`: its subject is the F2 DEGRADED path, and a
+            #     deployed `pr-{N}` stage RUNS a food service (ADR-0010), so the degradation it asserts
+            #     cannot occur there. (Its `clients/food-service` counterpart IS included, because that one
+            #     is compiled into the app.) ⚠️ Twice now this exclusion has rested on a premise that later
+            #     changed — first "the flow never runs" (which was a defect, not a reason), then "no food
+            #     service is booted" (true of the runner-local stack, false of a deployed stage). It rests
+            #     now on the plan itself, which a guard asserts.
+            #   - `services/identity/**` — the flows drive the SHARED deployed identity service, not a
+            #     runner-local one, so a change here reaches the tier only through a deploy of that service.
+            #     ⚠️ It used to be replaced at runtime by a stub server; there is no stub now, and
+            #     `account-erasure` really erases through the deployed identity service. That widens what an
+            #     identity change could break here, and this exclusion is the weaker for it — it is kept
+            #     because the shared service is deployed by its own pipeline rather than by this job, so a
+            #     PR that only edits identity has not changed what this tier runs against.
             #   - `apps/commise/web/**`, `identity-webhooks/**`, `infra/**`, `docs/**`, `specs/**` — no build
             #     or runtime edge to the APK.
             #

@@ -91,22 +91,24 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     structurally absent here. The flow's original note assumed a recipe-service-LOCAL row would carry the
 #     control; it does not, because a correction binds a phrase to a food and a local user-entered row has
 #     none. Booting a food service would not change it: reproduced against a real one holding 1,200 foods.
-#   - `recipes/ingredient-catalog-blend` sits with the other CREATE-wizard flows: it publishes a recipe, so it
-#     belongs in the mutating cluster rather than among the read-only ones. It is the F2 (degraded-catalog)
-#     contract — this job boots recipe-service and deliberately NOT the food service, so the blended
-#     typeahead degrades deterministically here, which is the one Stage-2 behaviour this environment can
-#     prove for real. See the flow's own docblock.
+#   - `recipes/ingredient-catalog-blend` is NOT in this plan any more — see `KNOWN_UNRUN_FLOWS` in
+#     `packages/infra/global/__tests__/maestroFlowSelection.test.ts`. Its whole subject is the F2
+#     DEGRADED-catalog contract, and its premise was that this job booted recipe-service and deliberately
+#     not the food service. A `pr-{N}` preview runs a food service (ADR-0010), so the typeahead does not
+#     degrade and the behaviour the flow exists to prove cannot occur here. The degraded branch is still
+#     covered where it can be produced on purpose: recipe-service's own integration tier points
+#     `FOOD_SERVICE_URL` at a port nothing listens on.
 #   - `account-danger-zone` late but BEFORE `delete`: it walks Profile → Account settings and CANCELS both
 #     destructive actions (it deliberately never confirms), so it must not run against a state a later flow
 #     assumes, and it must not be stranded after the delete flow's mutations.
-#   - `account-erasure` immediately AFTER it, because it is the same surface's story with the cancel removed:
-#     it CONFIRMS the erasure and ends the Clerk session. Both of its effects are contained — the recipe
-#     erasure only reaches the database this loop truncates and re-seeds before every flow, the identity
-#     erasure is answered by `profile-stub-server.mjs` (the real call would delete the SHARED fixture user at
-#     Clerk), and the signed-out state it leaves is absorbed by `auth/signin-home.yaml`, which is idempotent
-#     and which every later flow composes. Ordering it before `delete` keeps the pair adjacent and keeps the
-#     "run me last" flow last.
-#   - `recipes/delete` last (its own "run me last" note).
+#   - `recipes/delete` next (its own "run me last" note — it is now last but one).
+#   - `account-erasure` LAST, and it moved when the tier began driving a DEPLOYED stage. It used to sit
+#     beside `account-danger-zone` because its identity leg was answered by a runner-local stub that
+#     destroyed nothing. There is no stub now: it really erases, through identity, the deletion queue, the
+#     worker and Clerk. What makes that safe is its SUBJECT — a third run-scoped identity `e2e-seed`
+#     provisions solely to be erased, which owns nothing and which no other flow signs in as. Nothing may
+#     follow it: it ends a Clerk session and leaves the app signed out, and the next flow would pay for
+#     that.
 #   - `recipes/speed-dial` (U34) sits immediately BEFORE `create`, as the first of the CREATE-wizard block:
 #     it is the shortest flow that enters the wizard, it mutates nothing (it dismisses the dial once and
 #     leaves the wizard via back without saving), and putting it first means a broken create DIAL fails on a
@@ -155,15 +157,14 @@ recipes:recipes/parse-ingredients
 recipes:recipes/quantity-range
 recipes:recipes/preparation-groups
 recipes:recipes/add-ingredient-loop
-recipes:recipes/ingredient-catalog-blend
 recipes:recipes/create-authored-food
 recipes:recipes/ingredient-usda-search
 recipes:recipes/pinned-action-bar
 recipes:recipes/photos
 recipes:recipes/accessibility
 auth:account-danger-zone
-auth:account-erasure
-recipes:recipes/delete"
+recipes:recipes/delete
+auth:account-erasure"
 
 # The vertical tokens a selector may name. `spine` is deliberately NOT among them: it is unconditional, so
 # accepting it as a key would let a caller believe it had selected something when it had selected nothing.
@@ -199,6 +200,33 @@ MAESTRO_DRIVER_PORT="${MAESTRO_DRIVER_PORT:-7001}"
 MAESTRO_DRIVER_PACKAGE="dev.mobile.maestro"
 
 EMPTY_LIBRARY_FLOWS=" recipes/empty-library "
+
+# Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
+#
+# The manifest is `KEY=VALUE` lines — the run's identities and its run-scoped recipe titles — and every
+# flow is run with each pair as a `maestro test -e` argument, which is how a YAML selector interpolates
+# `${E2E_RECIPE_LAMB}`. `$RUNNER_TEMP` on CI, the system temp dir locally; it survives between the
+# provision step and every per-flow reset, which are separate processes.
+#
+# ⛔ The key set is a CONTRACT across three languages and none can typecheck against the others, so it is
+# asserted from disk in both directions by
+# `packages/infra/global/__tests__/maestroFixtureVariables.test.ts`: a key no flow reads is dead weight, and
+# a `${E2E_…}` nothing supplies renders on screen as its own literal text and fails like an app defect.
+MAESTRO_FIXTURE_ENV_FILE="${MAESTRO_FIXTURE_ENV_FILE:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/e2e-seed/fixture.env}"
+
+# Print the manifest as `-e KEY=VALUE` arguments, in file order. Empty when no manifest exists, so the
+# `run-one` test seam works without one.
+#
+# @sideEffect Reads the manifest file.
+maestro_fixture_env_args() {
+    [ -f "$MAESTRO_FIXTURE_ENV_FILE" ] || return 0
+
+    local pair
+    while IFS= read -r pair; do
+        [ -n "$pair" ] || continue
+        printf -- '-e\n%s\n' "$pair"
+    done <"$MAESTRO_FIXTURE_ENV_FILE"
+}
 
 # maestro_select_flows <plan> [<name>=true|false …]
 #
@@ -381,11 +409,19 @@ maestro_run_flows() {
     # otherwise pops the nav stack / exits the app whenever no soft keyboard is open.
     adb shell settings put secure show_ime_with_hard_keyboard 0 || true
 
-    # Re-provision the shared sign-in user right before the flows: the parallel web-E2E job's globalTeardown
-    # (deleteAllE2EUsers) deletes it ~45min earlier, so the job's early provision step is stale by now.
-    node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
+    # ⛔ THE FIXTURE MANIFEST MUST ALREADY EXIST. `e2e-seed provision` runs as its OWN job step, before the
+    # emulator — it only talks to Clerk and the recipe service over HTTP, so it needs no device, and failing
+    # there reports "provisioning failed" instead of "the emulator script failed". It is deliberately once
+    # per run and never per flow: FAPI sign-in is per-IP rate limited, and thirty-five sign-ins from one
+    # runner trips a multi-minute cool-down in the middle of a fifty-minute job.
+    #
+    # Refused here rather than tolerated: with no manifest every `${E2E_…}` in every flow would render as
+    # its own literal text, and thirty-four flows would fail looking like app defects.
+    if [ ! -s "$MAESTRO_FIXTURE_ENV_FILE" ]; then
+        echo "::error::no fixture manifest at ${MAESTRO_FIXTURE_ENV_FILE} — \`e2e-seed provision\` must run first"
 
-    export DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro
+        return 1
+    fi
 
     # `MAESTRO_FLOW_SELECTOR` is `<name>=<bool>` pairs (see maestro_select_flows). Unset/empty is the
     # fail-safe full run, so `read -a` on an empty string yielding an empty array is a correct default. The
@@ -444,11 +480,18 @@ maestro_run_flow_list() {
             *" ${f} "*) reseed_mode=empty ;;
             *) reseed_mode=seeded ;;
         esac
-        if ! RESEED_MODE="$reseed_mode" node packages/apps/commise/mobile/tests/e2e/reseed.mjs; then
-            echo "reseed failed before ${f}"
+        # ⛔ A FAILED RESET SKIPS ITS FLOW, and that is the lesson of run 101351873536. Every reset there
+        # failed (`ECONNREFUSED 127.0.0.1:5432`) and every flow ran anyway, against whatever state happened
+        # to exist — turning ONE root cause into twenty-four reds that each read like an app defect. A flow
+        # driven against an unknown world proves nothing, so it must not be driven at all.
+        if ! npx tsx packages/tools/e2e-seed/src/reset.ts --mode "$reseed_mode"; then
+            echo "::error::e2e-seed reset failed before ${f} — the flow was NOT run"
             rc=1
+            echo "::endgroup::"
+            continue
         fi
-        if ! maestro test --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+        # shellcheck disable=SC2086
+        if ! maestro test $(maestro_fixture_env_args) --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
             echo "FLOW FAILED: ${f}"
             # Native/Hermes crashes (app -> launcher) leave NO Java/AndroidRuntime trace and release builds strip
             # the JS console, so a narrow filter shows nothing. Dump the full tail and grep every crash-carrying

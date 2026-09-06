@@ -24,10 +24,10 @@ appId: io.commise.mobile
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
 # The INNER conflict guard below stays conditional on purpose — a single-writer run has no conflict view.
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 # The edit entry point is in the owner-action block at the foot of the (scrolling) detail.
 - scrollUntilVisible:
       element: 'Edit recipe'
@@ -43,7 +43,7 @@ appId: io.commise.mobile
 - assertVisible: 'Step 1 of 4'
 - tapOn: 'Title'
 - eraseText
-- inputText: 'Mediterranean Grilled Lamb (my edit)'
+- inputText: '${E2E_RECIPE_LAMB} (my edit)'
 
 # The seeded recipe now arrives WITH five ingredient lines and four steps of its own
 # (`packages/services/recipe-service/src/database/seed.ts`), so Publish's ">= 1 of each" is already satisfied
@@ -175,5 +175,5 @@ appId: io.commise.mobile
 # Back on the detail with the user's title preserved by the merge (regex tolerates the last-char input dup).
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .my edit.*'
+          text: '${E2E_RECIPE_LAMB} .my edit.*'
       timeout: 40000

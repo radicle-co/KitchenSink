@@ -25,10 +25,10 @@ appId: io.commise.mobile
 - assertVisible: 'Recipes'
 
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN

@@ -41,8 +41,8 @@ appId: io.commise.mobile
 # The result set really narrowed to one row: the match is present and the count label now reads "1 recipe".
 # The non-match ("Lamb") is GONE from the DOM (assertNotVisible holds regardless of scroll position). The
 # count 3→1 is the falsifiable core — if the filter were a no-op the count would stay "3 recipes".
-- assertVisible: 'Asparagus with Green Sauce'
-- assertNotVisible: 'Mediterranean Grilled Lamb'
+- assertVisible: '${E2E_RECIPE_ASPARAGUS}'
+- assertNotVisible: '${E2E_RECIPE_LAMB}'
 - assertVisible:
       text: '^1 recipe$'
 
@@ -104,7 +104,7 @@ appId: io.commise.mobile
 - eraseText
 - inputText: 'Risotto'
 - extendedWaitUntil:
-      visible: 'Herb Risotto'
+      visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 
 # --- W4/S3 sort controls -------------------------------------------------------------------------------
@@ -114,7 +114,7 @@ appId: io.commise.mobile
 - assertVisible: 'Quickest'
 - tapOn: 'Quickest'
 - extendedWaitUntil:
-      visible: 'Herb Risotto'
+      visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 
 # --- FR-006 filter bar (now a "Filters" bottom sheet, U7) ----------------------------------------------
@@ -133,7 +133,7 @@ appId: io.commise.mobile
 - tapOn: 'Under 60 min'
 - tapOn: 'Done'
 - scrollUntilVisible:
-      element: 'Herb Risotto'
+      element: '${E2E_RECIPE_RISOTTO}'
       direction: DOWN
       timeout: 20000
 # Reopen the sheet and press the SAME (now-active) bound again to clear it (the round trip proves it toggles).
@@ -151,7 +151,7 @@ appId: io.commise.mobile
       text: 'Under 15 min'
       index: 1
 - tapOn: 'Done'
-- assertNotVisible: 'Herb Risotto'
+- assertNotVisible: '${E2E_RECIPE_RISOTTO}'
 # Pressing the SAME (now-active) cook bound again clears it, restoring Herb Risotto to the browse set.
 - tapOn: 'Filters'
 - tapOn:
@@ -159,7 +159,7 @@ appId: io.commise.mobile
       index: 1
 - tapOn: 'Done'
 - extendedWaitUntil:
-      visible: 'Herb Risotto'
+      visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 
 # --- FR-006 gap #3: ingredient filter typeahead -------------------------------------------------------
@@ -182,12 +182,12 @@ appId: io.commise.mobile
 # still waits for the row to EXIST, it just also brings it into view.
 - tapOn: 'Filters'
 - tapOn: 'Search ingredients'
-- inputText: 'Flour'
+- inputText: '${E2E_PROBE_INGREDIENT}'
 - scrollUntilVisible:
-      element: 'Filter by Flour'
+      element: 'Filter by ${E2E_PROBE_INGREDIENT}'
       direction: DOWN
       timeout: 40000
-- tapOn: 'Filter by Flour'
+- tapOn: 'Filter by ${E2E_PROBE_INGREDIENT}'
 - tapOn: 'Done'
 - extendedWaitUntil:
       visible: 'No matching recipes'
@@ -195,11 +195,11 @@ appId: io.commise.mobile
 
 # Reopen the sheet, confirm the chip, and remove it — clearing the filter restores the browse set.
 - tapOn: 'Filters'
-- assertVisible: 'Remove Flour'
-- tapOn: 'Remove Flour'
+- assertVisible: 'Remove ${E2E_PROBE_INGREDIENT}'
+- tapOn: 'Remove ${E2E_PROBE_INGREDIENT}'
 - tapOn: 'Done'
 - extendedWaitUntil:
-      visible: 'Herb Risotto'
+      visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 
 # --- Navigation: the third tab, and back to the first ---------------------------------------------------

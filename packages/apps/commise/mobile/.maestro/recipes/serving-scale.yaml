@@ -29,10 +29,10 @@ appId: io.commise.mobile
       timeout: 40000
 
 - scrollUntilVisible:
-      element: 'Asparagus with Green Sauce'
+      element: '${E2E_RECIPE_ASPARAGUS}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Asparagus with Green Sauce'
+- tapOn: '${E2E_RECIPE_ASPARAGUS}'
 - assertVisible: 'Ingredients'
 
 # Gap A, negative case: this seed recipe was user-created and has no source, so the provenance line must

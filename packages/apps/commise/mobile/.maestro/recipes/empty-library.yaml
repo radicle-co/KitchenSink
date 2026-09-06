@@ -9,7 +9,7 @@ appId: io.commise.mobile
 # claim to tolerate an empty library was never true, since every other assertion in it is populated-only.
 #
 # This flow runs against an EMPTY recipe database: the per-flow reset truncates for every flow, and for THIS
-# flow only it skips the re-seed (`RESEED_MODE=empty`, see tests/e2e/run-maestro-flows.sh and reseed.mjs).
+# flow only it plans no creates (`e2e-seed reset --mode empty`, see tests/e2e/run-maestro-flows.sh).
 # Every other flow keeps the seeded fixture unchanged. Read-only — it opens the create wizard but never
 # saves — and the next flow's reset re-seeds regardless, so it is order-independent.
 #

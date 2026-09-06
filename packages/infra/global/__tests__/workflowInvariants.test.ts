@@ -524,6 +524,13 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'continue-on-error _ci.yml::e2e-web-report::Download shard blob reports (deployed tier) ×1',
     'continue-on-error _ci.yml::e2e-web-report::Download shard blob reports (stubbed tier) ×1',
     'continue-on-error _ci.yml::e2e-web-report::Download shard visual + fidelity output (stubbed tier) ×1',
+    // Teardown reclaims the run's fixture data and Clerk identities and runs `if: always()`. It must never
+    // be the thing that fails a job: by the time it runs the flows have already reported their verdict, and
+    // a subject the erasure flow REALLY DELETED is a normal outcome here rather than an error. Not silent —
+    // every failure is printed with the identity it could not reclaim, and what it misses is collected by
+    // the next run's age-gated sweep, which is the mechanism that makes leaks self-healing rather than the
+    // exit status of this step.
+    "continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Reclaim the run's world and identities (e2e-seed teardown) ×1",
     // Source maps are an observability nicety: a Sentry upload outage must not block a production deploy.
     'continue-on-error prod-deploy.yml::deploy::Upload webhooks Lambda source maps to Sentry ×1',
     // Best-effort disk reclamation before the Android system image — the paths may not exist on every runner

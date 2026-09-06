@@ -24,9 +24,18 @@ appId: io.commise.mobile
 - tapOn: 'Discover'
 - assertVisible: 'Discover recipes'
 
+# ⛔ A HARD WAIT, not only the guard below. `when:` does not wait and does not fail: when the fixture was
+# missing it evaluated false, the whole body was SKIPPED, and the flow reported GREEN having asserted
+# nothing. That is exactly what happened in run 101351873536 — every reset had failed, the library was
+# empty, and this flow passed. The seeded world is now guaranteed by `e2e-seed`, so its absence is a
+# failure to report rather than a condition to tolerate. The guard is kept underneath it so the block's
+# structure is unchanged; by the time it runs it can only be true.
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_RISOTTO}'
+      timeout: 30000
 - runFlow:
       when:
-          visible: 'Herb Risotto'
+          visible: '${E2E_RECIPE_RISOTTO}'
       commands:
           # Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row
           # "Clone Herb Risotto" quick-clone button whose label also contains the title.
@@ -39,7 +48,7 @@ appId: io.commise.mobile
           # swipe-ups (swipe-up-from-centre being Android's Home gesture) backgrounded the app to the launcher.
           # Anchoring above the "New" heading selects the fully-visible Trending card.
           - tapOn:
-                text: '^Herb Risotto$'
+                text: '^${E2E_RECIPE_RISOTTO}$'
                 above: 'New'
 
           # The community aggregate (read-only social proof) and the rate call-to-action render. The presence

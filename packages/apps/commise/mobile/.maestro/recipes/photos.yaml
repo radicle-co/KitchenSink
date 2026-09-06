@@ -42,10 +42,10 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP if it were below the fold.
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 # RecipeDetailScreen: the owner's edit entry point sits in the owner-action block at the foot of the detail.
 - scrollUntilVisible:
       element: 'Edit recipe'

@@ -27,18 +27,27 @@ appId: io.commise.mobile
 # Drive the card → detail hop on the first seeded recipe. Guarded by `when: visible` so a viewer with an EMPTY
 # library (no seed, or a fresh test user) still passes the widget assertion above instead of failing the suite —
 # the same guard `recipes/list-detail.yaml` uses for exactly this reason.
+# ⛔ A HARD WAIT, not only the guard below. `when:` does not wait and does not fail: when the fixture was
+# missing it evaluated false, the whole body was SKIPPED, and the flow reported GREEN having asserted
+# nothing. That is exactly what happened in run 101351873536 — every reset had failed, the library was
+# empty, and this flow passed. The seeded world is now guaranteed by `e2e-seed`, so its absence is a
+# failure to report rather than a condition to tolerate. The guard is kept underneath it so the block's
+# structure is unchanged; by the time it runs it can only be true.
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_LAMB}'
+      timeout: 30000
 - runFlow:
       when:
-          visible: 'Mediterranean Grilled Lamb'
+          visible: '${E2E_RECIPE_LAMB}'
       commands:
           # The card is a single accessible button named by the recipe title (the shared `RecipeCard` root
           # wraps its content in ONE `PressScale` Pressable labelled with the title).
-          - tapOn: 'Mediterranean Grilled Lamb'
+          - tapOn: '${E2E_RECIPE_LAMB}'
 
           # The recipe DETAIL opened — assert the detail's own title heading plus a section only the detail
           # renders, so a card that merely highlighted (or a navigation that landed on the list) fails here.
           - extendedWaitUntil:
-                visible: 'Mediterranean Grilled Lamb'
+                visible: '${E2E_RECIPE_LAMB}'
                 timeout: 40000
           - assertVisible: 'Ingredients'
           # ⚠️ `Instructions` and `Nutrition (per serving)` were asserted BLIND here, and can no longer be: the

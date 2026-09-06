@@ -54,11 +54,20 @@ appId: io.commise.mobile
 # either way. Mobile mirror of the web Playwright add leg.
 - tapOn: 'Add a recipe'
 - assertVisible: 'Add recipes to Maestro test collection'
+# ⛔ A HARD WAIT, not only the guard below. `when:` does not wait and does not fail: when the fixture was
+# missing it evaluated false, the whole body was SKIPPED, and the flow reported GREEN having asserted
+# nothing. That is exactly what happened in run 101351873536 — every reset had failed, the library was
+# empty, and this flow passed. The seeded world is now guaranteed by `e2e-seed`, so its absence is a
+# failure to report rather than a condition to tolerate. The guard is kept underneath it so the block's
+# structure is unchanged; by the time it runs it can only be true.
+- extendedWaitUntil:
+      visible: 'Add ${E2E_RECIPE_LAMB}'
+      timeout: 30000
 - runFlow:
       when:
-          visible: 'Add Mediterranean Grilled Lamb'
+          visible: 'Add ${E2E_RECIPE_LAMB}'
       commands:
-          - tapOn: 'Add Mediterranean Grilled Lamb'
+          - tapOn: 'Add ${E2E_RECIPE_LAMB}'
           - assertVisible: 'In this collection'
 - tapOn: 'Done'
 - assertVisible: 'Rename'

@@ -220,6 +220,11 @@ jobs:
             stage: ${{ steps.target.outputs.stage }}
             recipe_origin: ${{ steps.target.outputs.recipe_origin }}
             identity_origin: ${{ steps.target.outputs.identity_origin }}
+            # The origin Clerk stamps as `azp`, which `CLERK_AZP_PATTERN` on the deployed services is
+            # anchored against (ADR-0033). The seeder signs in with it so the tokens it mints are the same
+            # shape a real browser session carries; a Backend-API token, which carries no `azp`, is refused
+            # by both services. Derived exactly as `_ci.yml`'s `resolve-sandbox` derives its own.
+            web_origin: ${{ steps.target.outputs.web_origin }}
             live: ${{ steps.live.outputs.live }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -300,6 +305,21 @@ jobs:
                   recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${STAGE}" "${DOMAIN_NAME}")
                   food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${STAGE}" "${DOMAIN_NAME}")
                   identity="https://identity.${CLERK_STAGE}.${DOMAIN_NAME}"
+                  # ⚠️ The PREVIEW subdomain form, per ADR-0033 — `pr-{N}.sandbox.<domain>` at ROOT. The
+                  # older path form (`sandbox.<domain>/pr-{N}`) 404s by design, and an `azp` carrying it
+                  # would be admitted only by the transition-mode allowance rather than the anchored
+                  # pattern. Same shape `_ci.yml`'s `resolve-sandbox` produces, deliberately.
+                  #
+                  # ⛔ The two stages are DIFFERENT names and must not be concatenated blindly: on a PR,
+                  # `STAGE` is `pr-{N}` and `CLERK_STAGE` is `sandbox`, so the host is `pr-{N}.sandbox.…`;
+                  # on a hand-dispatched run with no PR they are BOTH `sandbox`, and the naive form would
+                  # resolve `sandbox.sandbox.…` — a name that is not ours, which the target guard below
+                  # would then (correctly) refuse with a message about the domain rather than about this.
+                  if [ "${STAGE}" = "${CLERK_STAGE}" ]; then
+                      web="https://${CLERK_STAGE}.${DOMAIN_NAME}"
+                  else
+                      web="https://${STAGE}.${CLERK_STAGE}.${DOMAIN_NAME}"
+                  fi
 
                   {
                       echo 'eligible=true'
@@ -307,8 +327,9 @@ jobs:
                       echo "recipe_origin=${recipe}"
                       echo "food_origin=${food}"
                       echo "identity_origin=${identity}"
+                      echo "web_origin=${web}"
                   } >>"$GITHUB_OUTPUT"
-                  echo "stage=${STAGE} recipe=${recipe} food=${food} identity=${identity}"
+                  echo "stage=${STAGE} recipe=${recipe} food=${food} identity=${identity} web=${web}"
             # ⛔ THE SKIP, and it consumes the answer the repo ALREADY publishes rather than re-deriving it.
             # Re-implementing "is anything deployed" as a `curl` loop here would be a SECOND, drifting
             # definition of a question one script already answers against both CloudFormation and the origin.
@@ -501,11 +522,30 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            # Idempotently ensure the shared sign-in test user exists in the Clerk dev instance (the flow
-            # signs in with it; `+clerk_test` verifies with the fixed code 424242 — no real mailbox).
-            - name: Provision Clerk sign-in test user
+            # ⛔ PROVISION THIS RUN'S WORLD — three run-scoped Clerk identities, the sessions every per-flow
+            # reset re-mints from, and the co-authored public recipe — and write the fixture MANIFEST the
+            # flows are parameterised with.
+            #
+            # It replaces `ensure-signin-user.mjs`, which provisioned a FIXED address. That was the same
+            # bug the web suite had already fixed: a shared Clerk instance plus one address means two
+            # concurrent runs address one user, and whichever tears down first deletes the other's live
+            # fixture (`runFixtureIdentity.ts` records the incident). Mobile had the exposure and had simply
+            # never hit it, because this tier had never run.
+            #
+            # It is its OWN step, before the emulator, because it only speaks HTTP to Clerk and the recipe
+            # service: a failure here reports as provisioning rather than as an opaque emulator-script
+            # failure, and the manifest it writes to `$RUNNER_TEMP` is read by the emulator step on the
+            # same runner. `maestroStageGuard.test.ts` discovers this step and pins it AFTER the secret
+            # load, because it writes to the stage's Clerk tenant.
+            - name: Provision the run's Clerk identities and seed its world (e2e-seed provision)
               if: steps.secrets.outcome == 'success'
-              run: node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
+              env:
+                  CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
+                  E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
+              run: |
+                  mkdir -p "${RUNNER_TEMP}/e2e-seed"
+                  npx tsx packages/tools/e2e-seed/src/provision.ts > "${RUNNER_TEMP}/e2e-seed/fixture.env"
             # ── Maestro CLI: VERSION-PINNED and CHECKSUM-VERIFIED ──────────────────────────────────────
             # This step used to be `curl -Ls https://get.maestro.mobile.dev | bash`, which is wrong twice
             # over (code-quality backlog #139 — NOT a github.com issue number in this repo):
@@ -685,6 +725,12 @@ jobs:
               uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
               env:
                   MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+                  # The per-flow reset reconciles the signer's library to the manifest through the recipe
+                  # API, re-minting from the session `provision` established. Same three values that step
+                  # used, because it is the same seeder.
+                  CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
+                  E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   # Per-vertical FLOW SELECTION, passed as an ENVIRONMENT VARIABLE and never expanded into
                   # the `script:` body below. That is not style: a `${{ … }}` interpolated into a shell body
                   # is the zizmor `template-injection` class, and `script:` is a shell body. The script reads
@@ -709,6 +755,21 @@ jobs:
                   # The emulator-runner executes each `script` LINE as its own `sh -c`, so the per-flow loop
                   # (reseed → run one flow, in isolation) lives in a committed script invoked in one line.
                   script: bash packages/apps/commise/mobile/tests/e2e/run-maestro-flows.sh
+            # ⛔ `if: always()`, and it must never be the thing that fails the job. Data first, then the
+            # identities — deleting the Clerk user first would revoke the session the data deletion needs.
+            # A subject the erasure flow really deleted is a NORMAL outcome here, not an error.
+            #
+            # Leaked rows need no age-gated sweep of their own: they live in the per-PR logical database
+            # (ADR-0006) the reaper drops on PR close, they carry run-scoped titles no selector matches, and
+            # no flow asserts a feed cardinality. The Clerk identities ARE swept at 12h by the shared rule.
+            - name: Reclaim the run's world and identities (e2e-seed teardown)
+              if: always() && steps.secrets.outcome == 'success'
+              continue-on-error: true
+              env:
+                  CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
+                  E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
+              run: npx tsx packages/tools/e2e-seed/src/teardown.ts
             - name: Upload Maestro artifacts
               if: failure() && steps.secrets.outcome == 'success'
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

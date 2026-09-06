@@ -23,6 +23,7 @@
     "devDependencies": {
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
+        "@kitchensink/schema-recipe": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@types/node": "^24.13.3",

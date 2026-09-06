@@ -25,10 +25,10 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to it rather than a
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 
 # ── EDIT 1 (creates version 2) ── the seeded recipe now arrives WITH five ingredient lines and four steps of
 # its own (`packages/services/recipe-service/src/database/seed.ts`), so Publish's ">= 1 of each" is already
@@ -43,7 +43,7 @@ appId: io.commise.mobile
 - assertVisible: 'Step 1 of 4'
 - tapOn: 'Title'
 - eraseText
-- inputText: 'Mediterranean Grilled Lamb (v2)'
+- inputText: '${E2E_RECIPE_LAMB} (v2)'
 - scrollUntilVisible:
       element: 'Next: Ingredients'
       direction: DOWN
@@ -118,7 +118,7 @@ appId: io.commise.mobile
 - tapOn: 'Publish'
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .v2.*'
+          text: '${E2E_RECIPE_LAMB} .v2.*'
       timeout: 40000
 
 # ── EDIT 2 (creates version 3, the new current) ── the ingredient/step added in EDIT 1 already persist, so
@@ -134,7 +134,7 @@ appId: io.commise.mobile
 - assertVisible: 'Step 1 of 4'
 - tapOn: 'Title'
 - eraseText
-- inputText: 'Mediterranean Grilled Lamb (v3)'
+- inputText: '${E2E_RECIPE_LAMB} (v3)'
 - scrollUntilVisible:
       element: 'Next: Ingredients'
       direction: DOWN
@@ -154,7 +154,7 @@ appId: io.commise.mobile
 - tapOn: 'Publish'
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .v3.*'
+          text: '${E2E_RECIPE_LAMB} .v3.*'
       timeout: 40000
 
 # ── VERSION HISTORY ── the owner-action entry point sits behind the "More" overflow menu (C4 wireframe
@@ -192,7 +192,7 @@ appId: io.commise.mobile
 # ingredients/steps (only the title differs, by design above), so the tally is honestly all-zero.
 - tapOn: 'Preview version 2'
 - assertVisible:
-      text: 'Version 2 Preview: Mediterranean Grilled Lamb .v2.*'
+      text: 'Version 2 Preview: ${E2E_RECIPE_LAMB} .v2.*'
 - assertVisible: 'Changed from current: 0 ingredients, 0 steps'
 - tapOn: 'Keep current version'
 - assertNotVisible: 'Keep current version'

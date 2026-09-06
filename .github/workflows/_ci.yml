@@ -1430,6 +1430,14 @@ jobs:
             # if CI calls it by name (§7), which is why this step exists alongside the config and the script.
             - name: Run food-service-client integration tests
               run: npm run test:integration --workspace=@kitchensink/food-service-client
+            # The deployed-run seeder. Self-contained like the two client tiers above: a real in-process
+            # `node:http` server that validates every request with the SHIPPED `createRecipeRequestSchema`
+            # and answers shapes the SHIPPED client parses. That is the one thing a mocked test structurally
+            # cannot do here — `seed.ts` writes `unit: ''` because the DATABASE accepts it and the write
+            # schema REJECTS it, so a mock would take the empty string happily and the defect would surface
+            # as a `400` in the middle of a fifty-minute emulator job.
+            - name: Run e2e-seed integration tests
+              run: npm run test:integration --workspace=@kitchensink/e2e-seed
             # Pure text-normalization (MOD-019/020/021) — no Docker, no network. Its integration tier runs the
             # ASSEMBLED pipeline over a committed slice of real Project Gutenberg prose against a hand-checked
             # golden file, which is the only tier that can catch a stage regressing while every unit truth table

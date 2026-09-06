@@ -12,10 +12,10 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP if it were below the fold.
 - scrollUntilVisible:
-      element: 'Gourmet Garden Salad'
+      element: '${E2E_RECIPE_SALAD}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Gourmet Garden Salad'
+- tapOn: '${E2E_RECIPE_SALAD}'
 # RecipeDetailScreen: Edit + the "More" overflow trigger sit together at the foot of the scrolling detail
 # (C4 wireframe parity); the owner-only delete trigger lives behind "More".
 - scrollUntilVisible:
@@ -54,4 +54,4 @@ appId: io.commise.mobile
 # viewport (which is why this flow's sibling can assert three headings down a long detail without scrolling),
 # so this catches a tombstoned recipe that the list still projects. It is the WEAKER of the two assertions —
 # a list that failed to render at all would also satisfy it — which is exactly why the count above leads.
-- assertNotVisible: 'Gourmet Garden Salad'
+- assertNotVisible: '${E2E_RECIPE_SALAD}'

@@ -1,5 +1,7 @@
 // Local-store golden-record read scenario — SC-001 (read latency) and SC-004 (local-store serve rate).
 //
+// @loadTier substrate-bound — its fixture writes ~175,000 rows straight to DATABASE_URL and SETS the resolved share the threshold then measures
+//
 // Exercises `GET /api/v1/foods/{id}` against a store seeded by `preparePerfFixture.ts`, behind the REAL
 // `FoodAuthGuard` (a networkless RS256 Clerk verification against a throwaway key). NO source call is made
 // on this path by construction — `FoodsService.getFood` reads the golden record and nothing else — which is

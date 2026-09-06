@@ -1,4 +1,6 @@
 /**
+ * @loadTier deployed-capable — this IS the deployed probe — unauthenticated, and already the only k6 scenario CI runs
+ *
  * The DEPLOYED-origin k6 script — and, since 2026-09-05, the ONLY k6 script CI runs (owner rulings: "k6
  * should test the sandbox for the PR", then "K6 should also be hitting sandbox or production, depending on
  * the flow … It follows the same pattern as the end to end tests").

@@ -1,5 +1,7 @@
 // Version-archive-read load scenario (W8-a.7).
 //
+// @loadTier substrate-bound — its subject is a state no API can produce — the recipe_versions row DELIBERATELY absent while S3 holds the snapshot
+//
 // Load-tests the READ side of the transparent S3 version-archive fallback: `GET
 // /api/v1/recipes/{id}/versions/{n}` for a version evicted past the DB retention window, whose snapshot
 // exists ONLY in the S3 archive (never in `recipe_versions`). The endpoint reads it back from S3 and

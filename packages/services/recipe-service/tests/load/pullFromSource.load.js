@@ -1,5 +1,7 @@
 // Pull-from-source load scenario (W8-a.8 / FR-011).
 //
+// @loadTier deployed-capable — setup() builds its whole world over HTTP, so a deployed stage can present it
+//
 // Load-tests the collection pull-from-source pair: the READ-ONLY preview
 // (`POST …/pull-from-source/preview`, which computes the `{added,removed,unchanged}` diff and mutates
 // nothing) and the COMMIT (`POST …/pull-from-source`, which applies it). `setup()` seeds a SOURCE

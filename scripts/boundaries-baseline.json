@@ -22,16 +22,6 @@
         },
         {
             "package": "@commise/mobile",
-            "dependency": "@clerk/backend",
-            "rule": "undeclared-dependency"
-        },
-        {
-            "package": "@commise/mobile",
-            "dependency": "pg",
-            "rule": "undeclared-dependency"
-        },
-        {
-            "package": "@commise/mobile",
             "dependency": "typescript-eslint",
             "rule": "undeclared-dependency"
         },
@@ -112,24 +102,19 @@
             "package": "@kitchensink/infra-global",
             "dependency": "scripts/deploymentDrift.mjs",
             "rule": "imports-outside-package",
-            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions \u2014 the SAME shape as the four sibling entries already recorded here (contractDriftGate, contractGenerate, contractOwners, prepareProdManifest), not a new kind of debt. `packages/infra/global` is a CDK app that is never published or containerized and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur. Spawning the scripts instead would downgrade the manifest derivation and the drift comparison \u2014 both pure \u2014 to black-box subprocess tests, which is precisely how the prose deployment table it replaces went unchecked. Moving only these two into the package would put six scripts of one kind in two homes; the structural fix is the SAME one the sibling entries name \u2014 a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__."
+            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions — the SAME shape as the four sibling entries already recorded here (contractDriftGate, contractGenerate, contractOwners, prepareProdManifest), not a new kind of debt. `packages/infra/global` is a CDK app that is never published or containerized and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur. Spawning the scripts instead would downgrade the manifest derivation and the drift comparison — both pure — to black-box subprocess tests, which is precisely how the prose deployment table it replaces went unchecked. Moving only these two into the package would put six scripts of one kind in two homes; the structural fix is the SAME one the sibling entries name — a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__."
         },
         {
             "package": "@kitchensink/infra-global",
             "dependency": "scripts/infrastructureManifest.mjs",
             "rule": "imports-outside-package",
-            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions \u2014 the SAME shape as the four sibling entries already recorded here (contractDriftGate, contractGenerate, contractOwners, prepareProdManifest), not a new kind of debt. `packages/infra/global` is a CDK app that is never published or containerized and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur. Spawning the scripts instead would downgrade the manifest derivation and the drift comparison \u2014 both pure \u2014 to black-box subprocess tests, which is precisely how the prose deployment table it replaces went unchecked. Moving only these two into the package would put six scripts of one kind in two homes; the structural fix is the SAME one the sibling entries name \u2014 a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__."
+            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions — the SAME shape as the four sibling entries already recorded here (contractDriftGate, contractGenerate, contractOwners, prepareProdManifest), not a new kind of debt. `packages/infra/global` is a CDK app that is never published or containerized and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur. Spawning the scripts instead would downgrade the manifest derivation and the drift comparison — both pure — to black-box subprocess tests, which is precisely how the prose deployment table it replaces went unchecked. Moving only these two into the package would put six scripts of one kind in two homes; the structural fix is the SAME one the sibling entries name — a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__."
         },
         {
             "package": "@kitchensink/infra-global",
             "dependency": "scripts/prepareProdManifest.mjs",
             "rule": "imports-outside-package",
             "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions. Not debt: `packages/infra/global` is a CDK app that is never published or containerized, and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur here. Spawning the script instead would downgrade pure-function tests to black-box subprocess tests. The structural fix is a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__; that is a separate change, not a silencing."
-        },
-        {
-            "package": "@kitchensink/infra-global",
-            "dependency": "yaml",
-            "rule": "undeclared-dependency"
         },
         {
             "package": "@kitchensink/loadtest",

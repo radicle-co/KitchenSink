@@ -31,7 +31,8 @@
         "node": "24.x"
     },
     "exports": {
-        ".": "./src/pool.ts",
-        "./pool": "./src/pool.ts"
+        ".": "./src/index.ts",
+        "./pool": "./src/pool.ts",
+        "./load-tier": "./src/loadTier.ts"
     }
 }

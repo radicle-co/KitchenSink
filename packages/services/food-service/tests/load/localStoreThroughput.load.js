@@ -1,4 +1,6 @@
 // Local-store read THROUGHPUT scenario — SC-005 ("the read API MUST sustain a high local-store serve
+//
+// @loadTier substrate-bound — same 175,000-row fixture, and its thresholds measure the MACHINE's ability to absorb 100 requests a second
 // throughput ... comfortably exceeding 5,000 served reads per hour").
 //
 // Deliberately a SEPARATE script from `localStoreRead.load.js`, and deliberately a different executor.

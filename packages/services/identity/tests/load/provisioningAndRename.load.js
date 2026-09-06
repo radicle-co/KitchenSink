@@ -1,5 +1,7 @@
 // Identity's two authenticated WRITE paths, under load together.
 //
+// @loadTier substrate-bound — it needs 6,000 never-seen Clerk subs presentable exactly once, which only a runner holding the signing key can mint
+//
 //   `provision` — the first authenticated request for a NEVER-SEEN Clerk `sub`. `AuthMiddleware` runs
 //                 read-through `resolveOrCreateFromClaims`, which finds nothing and executes
 //                 `provisionCompleteUser`: a transaction inserting users + accounts + profiles, BEFORE the

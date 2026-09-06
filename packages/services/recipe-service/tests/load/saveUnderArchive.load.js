@@ -1,5 +1,7 @@
 // Save-under-archive load scenario (FR-007b-i).
 //
+// @loadTier deployed-capable — create plus PATCH only, and the S3 version archive is real on a deployed stage
+//
 // Each iteration creates a recipe (version 1) and then PATCHes it. Every update supersedes a prior
 // version, which the service enqueues to the S3 version-archive asynchronously. The requirement is
 // that the *save response* never blocks on that archive: recipe-save p95 must stay <= 500ms even

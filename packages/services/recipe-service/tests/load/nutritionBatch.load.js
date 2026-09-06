@@ -1,5 +1,7 @@
 // Deferred-nutrition batch load scenario (`POST /api/v1/recipes/nutrition-batch`).
 //
+// @loadTier substrate-bound — the fan-out evidence is a local stub's chunk counters, and it needs a 5,000-food fixture written straight to DATABASE_URL
+//
 // This endpoint is the one read whose cost is a FAN-OUT rather than a query: it resolves N recipes' lines in
 // one database round trip and then asks the food service for their DISTINCT foods, split at food's 100-id
 // cap and issued in bounded waves of six (`MAX_CONCURRENT_CHUNKS`, ADR-0021 §4):

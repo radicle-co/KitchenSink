@@ -1,5 +1,7 @@
 // The rejection path under load — SC-006, and the amplification surface that comes with a public ALB.
 //
+// @loadTier deployed-capable — every reject shape is obtainable against a real instance, and azp enforcement is stage CONFIG that only exists deployed
+//
 // WHY THIS MATTERS FOR PERFORMANCE, not just security. Identity is fronted by an internet-facing shared
 // ALB (ADR-0003) and deliberately has NO trusted-header shortcut (PR #39) and no rate limiter of its own —
 // so anyone can send it unlimited invalid bearers, and every one of them costs the service a token

@@ -1,5 +1,7 @@
 // The admin user-search list — the one identity query whose cost grows with the table.
 //
+// @loadTier substrate-bound — the 20,000-row table IS the fixture, and its prepare step DROPS the public schema — unthinkable against shared identity
+//
 // `GET /api/v1/admin/users` filters with `ilike '%needle%'` on `users.email` / `users.name`
 // (`admin.service.ts`). A btree index CANNOT serve a leading-wildcard match, so `users_email_idx` and
 // `users_name`'s index are both unusable and Postgres sequentially scans the table. Every other identity

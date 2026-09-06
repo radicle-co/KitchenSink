@@ -1,5 +1,7 @@
 // Search-latency load scenario.
 //
+// @loadTier deployed-capable — read-only with literal queries; it needs a seeded world but no local substrate
+//
 // Drives the full-text recipe search endpoint (GET /api/v1/search/recipes) under ramping concurrency with
 // a mix of queries, cuisines, and repeated dietary-flag filters, and asserts search p95 < 2s via
 // `options.thresholds`. A breach exits k6 non-zero and fails the run.

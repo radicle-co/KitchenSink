@@ -1,5 +1,7 @@
 // The authenticated session hot path, plus the readiness probe that runs beside it.
 //
+// @loadTier deployed-capable — needs only a valid bearer; the 503-under-load property it guards is about a real ALB draining real tasks
+//
 // WHY THIS IS THE FIRST SCENARIO. `GET /api/v1/users/me` is the platform's single hottest authenticated
 // route, and identity is the ONE identity provider every preview and both stages sign in against (the
 // shared persistent `identity.sandbox.commise.app`). Every authenticated request to this service — not

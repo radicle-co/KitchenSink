@@ -1,5 +1,7 @@
 // SC-009 read/write load scenario.
 //
+// @loadTier deployed-capable — self-seeding setup() over the API, and its recipes are public so a pooled reader can fetch them
+//
 // Ramps concurrent VUs against the core recipe read (list + get-by-id) and write (create) paths and
 // asserts, via `options.thresholds`, that http_req_duration p95 stays <= 500ms per operation. A
 // threshold breach exits k6 non-zero, failing the run (and any CI job invoking it).

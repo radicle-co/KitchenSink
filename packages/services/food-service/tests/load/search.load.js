@@ -1,4 +1,6 @@
 // Local search scenario — SC-007 ("Food search queries against a local store of up to 50,000 foods MUST
+//
+// @loadTier substrate-bound — it asserts hit counts per shape, and the alias and barcode shapes need seeded rows a USDA-synced preview has not got
 // return results (canonical ids) within 200ms at p95").
 //
 // Exercises `GET /api/v1/foods/search?query=` against the 50,000-food population `preparePerfFixture.ts`

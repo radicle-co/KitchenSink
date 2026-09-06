@@ -1,5 +1,7 @@
 // The batch nutrition endpoint under load — plan U8, and the per-request id cap as a DoS bound.
 //
+// @loadTier substrate-bound — same fixture; the over-cap scenario needs 101 DISTINCT resolved ids, more than a seeded preview catalog holds
+//
 // WHY THIS NEEDS A TIMED TIER AND NOT ANOTHER e2e. `GET /api/v1/foods/nutrition?ids=…` is the one route
 // whose cost is chosen by the CALLER: `FoodsService.getNutritionBatch` fans out over `ids.length`
 // concurrent `readGoldenRecord` calls, each of which is the six-round-trip SC-001 read. One request is

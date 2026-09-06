@@ -91,8 +91,14 @@ export function readPath(data) {
         headers: authHeaders(),
         tags: { operation: 'listRecipes' },
     });
-    listTrend.add(list.timings.duration);
-    check(list, { 'listRecipes 200': (r) => r.status === 200 });
+
+    // ⛔ ONLY THE ACCEPTED RESPONSE ENTERS THE LATENCY SERIES. A refusal — a 429 from the per-user
+    // limiter, a 4xx from validation — is answered in microseconds without touching the database, so
+    // folding it in DEFLATES p95 and makes a failing service look healthy. That is `journey.js`
+    // invariant #2, and `pullFromSource` already carries the same guard.
+    if (check(list, { 'listRecipes 200': (r) => r.status === 200 })) {
+        listTrend.add(list.timings.duration);
+    }
 
     const seedId = data && data.seedId;
 
@@ -101,8 +107,10 @@ export function readPath(data) {
             headers: authHeaders(),
             tags: { operation: 'getRecipe' },
         });
-        getTrend.add(get.timings.duration);
-        check(get, { 'getRecipe 200': (r) => r.status === 200 });
+
+        if (check(get, { 'getRecipe 200': (r) => r.status === 200 })) {
+            getTrend.add(get.timings.duration);
+        }
     }
 
     sleep(PACE_SECONDS);
@@ -117,7 +125,14 @@ export function writePath(data) {
             tags: { operation: 'createRecipe' },
         },
     );
-    createTrend.add(res.timings.duration);
-    check(res, { 'createRecipe 201': (r) => r.status === 201 });
+
+    // ⛔ ONLY THE ACCEPTED RESPONSE ENTERS THE LATENCY SERIES. A refusal — a 429 from the per-user
+    // limiter, a 4xx from validation — is answered in microseconds without touching the database, so
+    // folding it in DEFLATES p95 and makes a failing service look healthy. That is `journey.js`
+    // invariant #2, and `pullFromSource` already carries the same guard.
+    if (check(res, { 'createRecipe 201': (r) => r.status === 201 })) {
+        createTrend.add(res.timings.duration);
+    }
+
     sleep(PACE_SECONDS);
 }

@@ -78,8 +78,15 @@ export function savePath(data) {
             tags: { operation: 'createRecipe' },
         },
     );
-    saveTrend.add(createRes.timings.duration);
+    // ⛔ ONLY THE ACCEPTED RESPONSE ENTERS THE LATENCY SERIES. A refusal — a 429 from the per-user
+    // limiter, a 4xx from validation — is answered in microseconds without touching the database, so
+    // folding it in DEFLATES p95 and makes a failing service look healthy. That is `journey.js`
+    // invariant #2, and `pullFromSource` already carries the same guard.
     const created = check(createRes, { 'createRecipe 201': (r) => r.status === 201 });
+
+    if (created) {
+        saveTrend.add(createRes.timings.duration);
+    }
 
     if (!created) {
         sleep(PACE_SECONDS);
@@ -114,7 +121,12 @@ export function savePath(data) {
         headers: jsonHeaders(),
         tags: { operation: 'updateRecipe' },
     });
-    saveTrend.add(updateRes.timings.duration);
+    const updated = updateRes.status === 200;
+
+    if (updated) {
+        saveTrend.add(updateRes.timings.duration);
+    }
+
     archiveUpdates.add(1);
     check(updateRes, { 'updateRecipe 200': (r) => r.status === 200 });
     sleep(PACE_SECONDS);

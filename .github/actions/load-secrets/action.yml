@@ -59,6 +59,10 @@ runs:
               # Publishable key is public (shipped to clients); the rest are masked above.
               # Export every alias the apps + tests read so one secret serves all consumers.
               {
+                  # ⚠️ The UNPREFIXED alias was missing, and its absence was invisible: the only
+                  # consumer (`mintLinkageCredentials.ts`, which decodes the FAPI host from it) sat
+                  # behind a repository-variable gate, so the job that would have failed never ran.
+                  echo "CLERK_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"
                   echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"
                   echo "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"
                   echo "EXPO_PUBLIC_IDP_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"

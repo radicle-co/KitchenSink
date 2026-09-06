@@ -1691,16 +1691,25 @@ jobs:
     # token is admitted because it PROVES it is native, "not merely because it lacks an origin". Measured:
     # a Backend-API token gets 401 from BOTH services.
     #
-    # REMAINING — the per-PR food catalog is EMPTY, so the suite has nothing to link to. Under ADR-0006 each
-    # preview gets its own fresh logical database, and nothing seeds it: `/api/v1/foods/search?query=flour`
-    # answers `{"results":[]}` on a live, healthy `pr-91`. That is ADR-0006's own "open consequence" bullet
-    # showing up in a test. Closing it is a DESIGN CHOICE not yet made — seed a handful of rows through
-    # ADR-0029's authored-foods door (a production path, but the rows are private until promoted), drive a
-    # real USDA fetch and wait for it, or seed the per-PR database at deploy time.
+    # SOLVED — the catalog. Under ADR-0006 each preview gets its own fresh logical database and nothing seeded
+    # the food half, so `/api/v1/foods/search?query=flour` answered `{"results":[]}` on a live, healthy stage
+    # and the suite had nothing to link to. The seeding step below fills it through the PRODUCT'S OWN DOOR:
+    # `POST /api/v1/foods/batch`, which any authenticated caller may use and whose worker fetches from USDA
+    # exactly as it would for a real user (owner ruling — "send a list of foods through the API to get
+    # processed and synced from USDA").
     #
-    # ⚠️ The gate switches off the whole JOB, so the check is visibly ABSENT rather than falsely green. It
-    # must not become a skip-tolerant SUITE: the specs still fail loudly when food is unreachable, which is
-    # the property they were split from the degraded-path specs to have.
+    # ⛔ Not the bulk seed CLI, which needs a `DATABASE_URL` to the in-VPC RDS a runner cannot reach, and not
+    # ADR-0029's authored-foods door, whose rows are private to their author and therefore INVISIBLE to the
+    # caller-invariant `/nutrition?ids=` route this suite reads.
+    #
+    # ⚠️ The seeding step introduces a real third-party dependency (USDA) into this job. That is priced in:
+    # ten names, a preview's worker holding its own per-IP quota (ADR-0004 — Fargate egresses via its own
+    # public IP, not the NAT), and a bounded poll that fails LOUDLY rather than letting the suite run against
+    # a half-filled catalog. A suite that skipped there would fail about search relevance instead of about
+    # the one fact that explains it.
+    #
+    # ⚠️ It must not become a skip-tolerant SUITE: the specs still fail loudly when food is unreachable,
+    # which is the property they were split from the degraded-path specs to have.
     #
     # ⚠️ `RECIPE_DEV_AUTH_USER_ID` is deliberately NEVER set: under recipe's dev bypass there is no bearer to
     # forward, so `FoodCatalogGateway` degrades to `catalogAvailability: 'unavailable'` WITHOUT ISSUING A
@@ -1710,8 +1719,11 @@ jobs:
         timeout-minutes: 20
         runs-on: ubuntu-latest
         needs: [install, resolve-sandbox]
-        # Both halves are required: a live sandbox to drive, AND a catalog with rows in it. See above.
-        if: needs.resolve-sandbox.outputs.live == 'true' && vars.LINKAGE_E2E_ENABLED == 'true'
+        # ⚠️ The `vars.LINKAGE_E2E_ENABLED` half is GONE, because the reason for it is. It existed for one
+        # stated blocker — an empty per-PR food catalog — and the seeding step below closes it. A live
+        # sandbox is now the only precondition, so this check is present on every PR that raises one rather
+        # than absent behind a repository variable nobody would think to look at.
+        if: needs.resolve-sandbox.outputs.live == 'true'
         env:
             # REQUIRED with no default, and the suite THROWS rather than skipping when one is absent: by the
             # time it runs, `resolve-sandbox` has already reported the stage serving, so absence is a
@@ -1766,6 +1778,20 @@ jobs:
             # `$RUNNER_TEMP`, not `${{ runner.temp }}` — an expression is substituted into the script TEXT
             # before bash parses it, which zizmor's template-injection audit correctly rejects.
             #
+            # ⛔ THE SECRETS WERE NEVER LOADED, and nothing noticed because the job was gated off. Both the
+            # credential mint and the catalog seed read `CLERK_SECRET_KEY` / `CLERK_PUBLISHABLE_KEY`, and
+            # neither existed in this job's environment — so removing the gate without this step would have
+            # turned "absent check" into "check that always fails on its first step". A fork PR has no access
+            # to them, so the load is soft and every step below is gated on its outcome.
+            - name: Load sandbox (dev-instance) Clerk secrets for the linkage suite
+              id: secrets
+              continue-on-error: true
+              uses: ./.github/actions/load-secrets
+              with:
+                  stage: sandbox
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
             # ⛔ `LINKAGE_CREDENTIALS` is exported HERE rather than in this job's `env:` block, and that is not
             # a style choice. The `runner` context does not exist until a runner has been assigned, so
             # referencing it at job level does not warn and does not skip the job — GitHub refuses to LOAD the
@@ -1776,10 +1802,29 @@ jobs:
             # ⚠️ This is the OPEN BLOCKER named in the job header: the key minted here is not the key the
             # deployed stage verifies.
             - name: Mint the Clerk credential the suite signs its bearer with
+              if: steps.secrets.outcome == 'success'
               run: |
                   npx tsx packages/tools/cross-service-e2e/scripts/mintLinkageCredentials.ts "${RUNNER_TEMP}/linkage"
                   echo "LINKAGE_CREDENTIALS=${RUNNER_TEMP}/linkage/linkage-credentials.json" >> "$GITHUB_ENV"
+            # ⛔ BEFORE the suite, and it must SUCCEED. The batch endpoint dedups on the normalized name, so
+            # this is idempotent: against a catalog that is already filled it is a batch of inline hits and
+            # no waiting at all. Against an empty one it enqueues, and the poll waits for the food worker.
+            #
+            # ⚠️ It uses the SAME identity the suite signs its bearer with. The catalog is stage-wide and
+            # caller-invariant, so any authenticated caller may fill it — a second account would be a fourth
+            # Clerk user for a write attributed to nobody.
+            - name: Seed this stage's food catalog from USDA (e2e-seed seed-catalog)
+              if: steps.secrets.outcome == 'success'
+              env:
+                  E2E_SEED_RECIPE_URL: ${{ needs.resolve-sandbox.outputs.recipe_origin }}
+                  E2E_SEED_FOOD_URL: ${{ needs.resolve-sandbox.outputs.food_origin }}
+                  E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-sandbox.outputs.web_origin }}
+                  # The SAME address the mint step signs in as, so the catalog write and the suite's own
+                  # bearer belong to one identity rather than two accounts on a shared instance.
+                  E2E_SEED_CATALOG_EMAIL: ${{ env.LINKAGE_E2E_TEST_EMAIL || 'linkage-e2e+clerk_test@example.com' }}
+              run: npm run seed-catalog --workspace=@kitchensink/e2e-seed
             - name: Prove recipe ↔ food linkage against the deployed services
+              if: steps.secrets.outcome == 'success'
               run: npm run test:e2e --workspace=@kitchensink/cross-service-e2e
 
     # ⛔ ITS OWN JOB, and its own vitest config, because these specs are not unit tests by any measure: they

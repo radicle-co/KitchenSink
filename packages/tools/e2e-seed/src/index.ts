@@ -7,6 +7,7 @@
  * directly, without a shell round-trip.
  */
 export * from './fixtureManifest.js';
+export * from './foodCatalog.js';
 export * from './worldResetPlan.js';
 export * from './recipeWorld.js';
 export * from './tokenSource.js';

@@ -18,7 +18,8 @@
         "format:check": "prettier --check .",
         "provision": "tsx src/provision.ts",
         "reset": "tsx src/reset.ts",
-        "teardown": "tsx src/teardown.ts"
+        "teardown": "tsx src/teardown.ts",
+        "seed-catalog": "tsx src/seedCatalog.ts"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
@@ -38,6 +39,7 @@
     "dependencies": {
         "@clerk/backend": "^3.16.12",
         "@kitchensink/e2e-fixtures": "*",
+        "@kitchensink/food-service-client": "*",
         "@kitchensink/recipe-service-client": "*"
     }
 }

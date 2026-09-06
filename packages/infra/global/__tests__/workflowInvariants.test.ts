@@ -506,6 +506,7 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // dependent steps skip on `steps.secrets.outcome`, instead of reporting a red check nobody can fix.
     'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Load ${{ inputs.stage }} Clerk secrets ×1',
     'continue-on-error _ci.yml::build::Load sandbox (dev-instance) Clerk secrets for the web build ×1',
+    'continue-on-error _ci.yml::e2e-cross-service-linkage::Load sandbox (dev-instance) Clerk secrets for the linkage suite ×1',
     'continue-on-error _ci.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for the preview web E2E ×1',
     // Same reason as its `e2e-web` sibling directly above: the secrets action is allowed to fail so a fork
     // PR (which has no access to them) reports a clean skip rather than a red job, and EVERY step below it

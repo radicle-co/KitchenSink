@@ -1792,21 +1792,18 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            # ⛔ `LINKAGE_CREDENTIALS` is exported HERE rather than in this job's `env:` block, and that is not
-            # a style choice. The `runner` context does not exist until a runner has been assigned, so
-            # referencing it at job level does not warn and does not skip the job — GitHub refuses to LOAD the
-            # workflow, and the run reports "a workflow file issue" with ZERO jobs. This branch ran that way
-            # for three days and fifteen units, publishing no checks at all.
-            # `packages/infra/global/__tests__/workflowContextAvailability.test.ts` fails if it comes back.
+            # ⛔ BEFORE THE MINT, NOT AFTER IT — the ordering is the fix for a real failure, not tidiness.
+            # A Clerk session token lives about sixty seconds. The mint step writes ONE to a file and the
+            # suite reads it, so anything slow between the two spends that budget: this step took ~100s on
+            # its first successful run (it seeds ten foods and walks a disambiguation for each), and every
+            # assertion in the suite then failed `401 UNAUTHORIZED` against a token that had simply aged
+            # out. Seeding first leaves the mint adjacent to its only consumer.
             #
-            # ⚠️ This is the OPEN BLOCKER named in the job header: the key minted here is not the key the
-            # deployed stage verifies.
-            - name: Mint the Clerk credential the suite signs its bearer with
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  npx tsx packages/tools/cross-service-e2e/scripts/mintLinkageCredentials.ts "${RUNNER_TEMP}/linkage"
-                  echo "LINKAGE_CREDENTIALS=${RUNNER_TEMP}/linkage/linkage-credentials.json" >> "$GITHUB_ENV"
-            # ⛔ BEFORE the suite, and it must SUCCEED. The batch endpoint dedups on the normalized name, so
+            # ⚠️ It also removes a second hazard: this step and the mint sign in as the SAME address, and
+            # a Clerk instance that permits one session per client would have had the later sign-in end
+            # the earlier one's session. Adjacency makes both questions moot.
+            #
+            # It must SUCCEED. The batch endpoint dedups on the normalized name, so
             # this is idempotent: against a catalog that is already filled it is a batch of inline hits and
             # no waiting at all. Against an empty one it enqueues, and the poll waits for the food worker.
             #
@@ -1823,6 +1820,20 @@ jobs:
                   # bearer belong to one identity rather than two accounts on a shared instance.
                   E2E_SEED_CATALOG_EMAIL: ${{ env.LINKAGE_E2E_TEST_EMAIL || 'linkage-e2e+clerk_test@example.com' }}
               run: npm run seed-catalog --workspace=@kitchensink/e2e-seed
+            # ⛔ `LINKAGE_CREDENTIALS` is exported HERE rather than in this job's `env:` block, and that is not
+            # a style choice. The `runner` context does not exist until a runner has been assigned, so
+            # referencing it at job level does not warn and does not skip the job — GitHub refuses to LOAD the
+            # workflow, and the run reports "a workflow file issue" with ZERO jobs. This branch ran that way
+            # for three days and fifteen units, publishing no checks at all.
+            # `packages/infra/global/__tests__/workflowContextAvailability.test.ts` fails if it comes back.
+            #
+            # ⚠️ This is the OPEN BLOCKER named in the job header: the key minted here is not the key the
+            # deployed stage verifies.
+            - name: Mint the Clerk credential the suite signs its bearer with
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  npx tsx packages/tools/cross-service-e2e/scripts/mintLinkageCredentials.ts "${RUNNER_TEMP}/linkage"
+                  echo "LINKAGE_CREDENTIALS=${RUNNER_TEMP}/linkage/linkage-credentials.json" >> "$GITHUB_ENV"
             - name: Prove recipe ↔ food linkage against the deployed services
               if: steps.secrets.outcome == 'success'
               run: npm run test:e2e --workspace=@kitchensink/cross-service-e2e

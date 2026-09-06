@@ -175,6 +175,9 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/database',
         '!@kitchensink/*/database/*',
         '!@kitchensink/*/database-name',
+        // The per-PR seeding policy, a zero-import leaf beside `database-name` and subpath-only for the
+        // same reason: the recipe service's CDK app is deployed as compiled JS and cannot resolve a barrel.
+        '!@kitchensink/*/seed-on-deploy',
         // `recipe-core` publishes three modules as their own entry points,
         // deliberately kept OFF its barrel: `scaling` (display-only serving
         // scaling), `external-url` (the outbound-link trust boundary) and

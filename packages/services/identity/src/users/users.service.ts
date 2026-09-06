@@ -11,6 +11,7 @@ import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatarObjectStore
 import { users, accounts, profiles, lifecycleEvents } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';
 import { SqsService } from '../queue/sqs.service.js';
+import { subscriptionTierFor } from './domain/subscriptionTier.js';
 import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import type { VerifiedClerkClaims } from '../auth/clerkAuth.service.js';
 import { ResolveUserService } from './resolveUser.js';
@@ -182,7 +183,11 @@ export class UsersService {
             account: {
                 id: account.id,
                 userId: account.userId,
-                subscriptionTier: account.subscriptionTier,
+                // ⛔ DERIVED from the signed token, not read from `account.subscriptionTier`. See
+                // `domain/subscriptionTier.ts`: the column is written by nothing, while recipe-service
+                // decides the same question from `permissions` — so the apps could never offer the
+                // private-recipe option to anyone the service would have accepted the write from.
+                subscriptionTier: subscriptionTierFor(ctx.permissions),
                 createdAt: account.createdAt.toISOString(),
                 updatedAt: account.updatedAt.toISOString(),
             },
@@ -241,7 +246,7 @@ export class UsersService {
             account: {
                 id: updatedAccount?.id,
                 userId: updatedAccount?.userId,
-                subscriptionTier: updatedAccount?.subscriptionTier ?? 'free',
+                subscriptionTier: subscriptionTierFor(ctx.permissions),
                 createdAt: updatedAccount?.createdAt.toISOString(),
                 updatedAt: updatedAccount?.updatedAt.toISOString(),
             },

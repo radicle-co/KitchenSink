@@ -120,6 +120,40 @@ describe('the boot schema check can find its own migrations', () => {
         expect(missing).toStrictEqual([]);
     });
 
+    it('⛔ can be FLIPPED — every such service declares SCHEMA_CURRENCY_MODE on its task definition', () => {
+        // ⛔ A soak with no ending is just a permanently disabled check. The mode ships as `warn` and the
+        // flip to `enforce` has to be a DEPLOY-TIME setting: if the only way to arm it were editing three
+        // services' source, nobody would, and the guard would sit reporting into a log forever.
+        //
+        // Asserted on the STACK SOURCE, like everything else in this file, and on the shared resolver
+        // rather than on the literal: `schemaCurrencyEnvironment` normalises an unrecognised value to
+        // `warn` at synth using the SAME function the running service calls, so a deploy cannot set a value
+        // the runtime silently ignores.
+        const missing = bootGuardModules().flatMap((module) => {
+            const stacks = globSync(`${module.servicePackage}/infra/lib/*ServiceStack.ts`, {
+                cwd: REPO_ROOT,
+                ignore: '**/node_modules/**',
+            });
+
+            if (stacks.length === 0) {
+                return [`${module.servicePackage}: has a boot schema check but no service stack to configure it`];
+            }
+
+            return stacks
+                .filter(
+                    (stack) =>
+                        !readFileSync(path.join(REPO_ROOT, stack), 'utf8').includes('schemaCurrencyEnvironment('),
+                )
+                .map(
+                    (stack) =>
+                        `${stack}: its tasks run the boot schema check but the stack never sets ` +
+                        'SCHEMA_CURRENCY_MODE, so the mode can never be moved off `warn` without a code change',
+                );
+        });
+
+        expect(missing).toStrictEqual([]);
+    });
+
     it('runs the check BEFORE the server listens, in every service that has one', () => {
         // ⛔ Ordering is the point. Once the mode is `enforce`, a refusal must happen before the task can be
         // registered healthy and take traffic; after `listen` it would serve requests against a schema it

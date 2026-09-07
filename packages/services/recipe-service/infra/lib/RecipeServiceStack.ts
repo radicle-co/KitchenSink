@@ -31,6 +31,7 @@ import {
     acceptNagFindings,
     clerkAuthEnvironment,
     CONTAINER_INSIGHTS_TIER,
+    schemaCurrencyEnvironment,
 } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
@@ -213,6 +214,12 @@ export class RecipeServiceStack extends Stack {
             // gating to food's STAGE-based rule for cross-service consistency.)
             NODE_ENV: stage === 'prod' ? 'production' : 'staging',
             STAGE: stage,
+            // ⛔ The boot-time schema-currency check's mode (ADR-0035). Ships as `warn`, where it reports and
+            // lets the task serve; `enforce` refuses a boot against a database behind this release. The flip
+            // is a DEPLOY-TIME setting rather than a code change, so the soak has an ending somebody will
+            // actually reach for — and an unset or unrecognised value normalises to `warn` at synth, so a
+            // typo cannot arm a check that can crash-loop a service.
+            ...schemaCurrencyEnvironment(process.env),
             DB_HOST: database.dbInstanceEndpointAddress,
             DB_PORT: Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`),
             DB_NAME: recipeDatabaseName,

@@ -29,6 +29,7 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@kitchensink/db-schema-guard": "*",
         "cdk-nag": "^2.38.2"
     },
     "peerDependencies": {

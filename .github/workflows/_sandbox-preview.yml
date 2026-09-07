@@ -267,6 +267,12 @@ jobs:
             - name: CDK Deploy — food service
               if: steps.gate.outputs.deploy == 'true'
               env:
+                  # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
+                  # lets the task serve. Set the repo/environment variable to `enforce` once the reports read
+                  # clean and a task will refuse to boot against a database behind its release. Anything else
+                  # normalises to `warn` at synth, so a typo cannot arm a check that can crash-loop a service.
+                  # Deliberately a VARIABLE, not a code change: a soak nobody can end is a disabled check.
+                  SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   FOOD_IMAGE_TAG: sandbox-${{ github.sha }}
                   FOOD_DESIRED_COUNT: '1'
                   FOOD_WORKER_DESIRED_COUNT: '1'
@@ -828,6 +834,12 @@ jobs:
             - name: CDK Deploy — recipe service
               if: steps.gate.outputs.deploy == 'true'
               env:
+                  # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
+                  # lets the task serve. Set the repo/environment variable to `enforce` once the reports read
+                  # clean and a task will refuse to boot against a database behind its release. Anything else
+                  # normalises to `warn` at synth, so a typo cannot arm a check that can crash-loop a service.
+                  # Deliberately a VARIABLE, not a code change: a soak nobody can end is a disabled check.
+                  SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   RECIPE_VPC_ID: ${{ steps.infra.outputs.vpc_id }}
                   # `IMAGE_TAG` is the job-level env var; restated under the name the CDK app reads.
                   RECIPE_IMAGE_TAG: ${{ env.IMAGE_TAG }}

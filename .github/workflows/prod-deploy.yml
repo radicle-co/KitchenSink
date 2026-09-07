@@ -603,6 +603,12 @@ jobs:
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'
               env:
+                  # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
+                  # lets the task serve. Set the repo/environment variable to `enforce` once the reports read
+                  # clean and a task will refuse to boot against a database behind its release. Anything else
+                  # normalises to `warn` at synth, so a typo cannot arm a check that can crash-loop a service.
+                  # Deliberately a VARIABLE, not a code change: a soak nobody can end is a disabled check.
+                  SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   IDENTITY_IMAGE_TAG: ${{ github.sha }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: |
@@ -799,6 +805,12 @@ jobs:
               # Same values as the old command-prefix assignments, delivered through `env:` (the CDK app
               # reads them from `process.env`). `STAGE` comes from the workflow-level `env:`.
               env:
+                  # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
+                  # lets the task serve. Set the repo/environment variable to `enforce` once the reports read
+                  # clean and a task will refuse to boot against a database behind its release. Anything else
+                  # normalises to `warn` at synth, so a typo cannot arm a check that can crash-loop a service.
+                  # Deliberately a VARIABLE, not a code change: a soak nobody can end is a disabled check.
+                  SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   FOOD_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   FOOD_IMAGE_TAG: ${{ github.sha }}
               run: |
@@ -1067,6 +1079,12 @@ jobs:
             - name: CDK Deploy (recipe service)
               if: steps.flags.outputs.deploy_recipe == 'true'
               env:
+                  # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
+                  # lets the task serve. Set the repo/environment variable to `enforce` once the reports read
+                  # clean and a task will refuse to boot against a database behind its release. Anything else
+                  # normalises to `warn` at synth, so a typo cannot arm a check that can crash-loop a service.
+                  # Deliberately a VARIABLE, not a code change: a soak nobody can end is a disabled check.
+                  SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   RECIPE_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   RECIPE_IMAGE_TAG: ${{ github.sha }}
                   RECIPE_FOOD_SERVICE_URL: ${{ steps.food.outputs.url }}

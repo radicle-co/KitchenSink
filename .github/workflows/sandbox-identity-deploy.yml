@@ -395,6 +395,12 @@ jobs:
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'
               env:
+                  # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
+                  # lets the task serve. Set the repo/environment variable to `enforce` once the reports read
+                  # clean and a task will refuse to boot against a database behind its release. Anything else
+                  # normalises to `warn` at synth, so a typo cannot arm a check that can crash-loop a service.
+                  # Deliberately a VARIABLE, not a code change: a soak nobody can end is a disabled check.
+                  SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never

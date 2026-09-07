@@ -13,3 +13,4 @@ export {
     latestPythonRuntimeBelow,
     latestPythonRuntimeKnownToCdk,
 } from './pythonLambdaRuntime.js';
+export { schemaCurrencyEnvironment } from './schemaCurrency.js';

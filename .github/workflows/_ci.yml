@@ -908,8 +908,13 @@ jobs:
         outputs:
             branch: ${{ steps.verdict.outputs.branch }}
         steps:
-            - name: Checkout
-              uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # ⚠️ Every checkout in this workflow sets it. `actions/checkout` otherwise leaves the
+                  # workflow token in `.git/config`, where anything that later uploads the workspace carries
+                  # it out (zizmor `artipacked`). This job uploads nothing today, which is exactly the kind
+                  # of "true right now" that stops being true quietly.
+                  persist-credentials: false
             - name: Configure AWS credentials
               if: ${{ github.event_name == 'pull_request' }}
               uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1

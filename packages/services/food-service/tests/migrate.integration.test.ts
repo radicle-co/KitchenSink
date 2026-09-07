@@ -27,6 +27,11 @@ import { DATABASE_URL } from './support/db.js';
 import { ensureSeededBaseDatabase } from './support/maintenanceDb.js';
 import { poolForDroppableDatabase } from '@kitchensink/service-test-harness';
 
+// The digest of the very directory each call migrates. `expectManifestSha` is REQUIRED (ADR-0035), so
+// passing it here is not ceremony: it makes these tests exercise the contract the deployed runner enforces
+// rather than a laxer one that only exists in the test.
+import { readMigrationManifest } from '@kitchensink/db-schema-guard';
+
 const sourceMigrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
 
 /**
@@ -73,7 +78,11 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
     describe('runMigrations', () => {
         it('applies every discovered migration in order and validates the expected tables exist', async () => {
             const expected = expectedMigrationNames();
-            const result = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+            const result = await runMigrations({
+                pool,
+                migrationsDir: sourceMigrationsDir,
+                expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+            });
 
             expect(result.applied).toEqual(expected);
             expect(result.skipped).toEqual([]);
@@ -86,8 +95,16 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
         });
 
         it('is idempotent — a re-invocation skips already-recorded migrations and applies nothing', async () => {
-            await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
-            const second = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+            await runMigrations({
+                pool,
+                migrationsDir: sourceMigrationsDir,
+                expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+            });
+            const second = await runMigrations({
+                pool,
+                migrationsDir: sourceMigrationsDir,
+                expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+            });
 
             expect(second.applied).toEqual([]);
             expect(second.skipped).toEqual(expectedMigrationNames());
@@ -97,7 +114,9 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             const tempDir = mkdtempSync(join(tmpdir(), 'food-migrate-'));
             writeFileSync(join(tempDir, '0000_noop.sql'), 'SELECT 1;');
 
-            await expect(runMigrations({ pool, migrationsDir: tempDir })).rejects.toThrow(/tables missing/i);
+            await expect(
+                runMigrations({ pool, migrationsDir: tempDir, expectManifestSha: readMigrationManifest(tempDir).sha }),
+            ).rejects.toThrow(/tables missing/i);
         });
     });
 
@@ -160,7 +179,11 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             const perPrPool = poolForDroppableDatabase(perPrConnectionString());
 
             try {
-                const result = await runMigrations({ pool: perPrPool, migrationsDir: sourceMigrationsDir });
+                const result = await runMigrations({
+                    pool: perPrPool,
+                    migrationsDir: sourceMigrationsDir,
+                    expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+                });
 
                 // The runner discovers the full ordered set — every `.sql` in the directory, no exceptions
                 // — and finds every one of them already recorded, carried over by the clone.

@@ -21,6 +21,11 @@ import pg from 'pg';
 
 import { discoverMigrations, runMigrations } from '../src/lambdas/migrate/handler.js';
 
+// The digest of the very directory each call migrates. `expectManifestSha` is REQUIRED (ADR-0035), so
+// passing it here is not ceremony: it makes these tests exercise the contract the deployed runner enforces
+// rather than a laxer one that only exists in the test.
+import { readMigrationManifest } from '@kitchensink/db-schema-guard';
+
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
 /** The single source of truth for identity's schema — the directory esbuild copies into the bundle. */
@@ -65,7 +70,11 @@ describe.skipIf(!DATABASE_URL)('identity migration runner (integration)', () => 
 
     it('builds the whole declared schema from a blank database and records every migration', async () => {
         const expected = expectedMigrationNames();
-        const result = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+        const result = await runMigrations({
+            pool,
+            migrationsDir: sourceMigrationsDir,
+            expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+        });
 
         expect(result.applied).toEqual(expected);
         expect(result.skipped).toEqual([]);
@@ -89,8 +98,16 @@ describe.skipIf(!DATABASE_URL)('identity migration runner (integration)', () => 
     });
 
     it('is idempotent — a re-invocation skips everything and applies nothing', async () => {
-        await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
-        const second = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+        await runMigrations({
+            pool,
+            migrationsDir: sourceMigrationsDir,
+            expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+        });
+        const second = await runMigrations({
+            pool,
+            migrationsDir: sourceMigrationsDir,
+            expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+        });
 
         expect(second.applied).toEqual([]);
         expect(second.skipped).toEqual(expectedMigrationNames());
@@ -100,7 +117,9 @@ describe.skipIf(!DATABASE_URL)('identity migration runner (integration)', () => 
         const dir = mkdtempSync(join(tmpdir(), 'identity-migrate-'));
         writeFileSync(join(dir, '0000_noop.sql'), 'SELECT 1;');
 
-        await expect(runMigrations({ pool, migrationsDir: dir })).rejects.toThrow(/tables missing/i);
+        await expect(
+            runMigrations({ pool, migrationsDir: dir, expectManifestSha: readMigrationManifest(dir).sha }),
+        ).rejects.toThrow(/tables missing/i);
     });
 
     it('rolls a failing migration back and leaves it UNRECORDED, so the next run retries it', async () => {
@@ -108,7 +127,9 @@ describe.skipIf(!DATABASE_URL)('identity migration runner (integration)', () => 
         writeFileSync(join(dir, '0000_ok.sql'), 'CREATE TABLE probe (id INT PRIMARY KEY);');
         writeFileSync(join(dir, '0001_broken.sql'), 'CREATE TABLE broken (id INT); SELECT undefined_column;');
 
-        await expect(runMigrations({ pool, migrationsDir: dir })).rejects.toThrow(/0001_broken/);
+        await expect(
+            runMigrations({ pool, migrationsDir: dir, expectManifestSha: readMigrationManifest(dir).sha }),
+        ).rejects.toThrow(/0001_broken/);
 
         const recorded = await pool.query<{ name: string }>('SELECT name FROM schema_migrations ORDER BY name');
 

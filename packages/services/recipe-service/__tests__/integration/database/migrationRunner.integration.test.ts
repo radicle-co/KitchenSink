@@ -54,6 +54,11 @@ import {
     runMigrations,
 } from '../../../src/lambdas/migrate/handler.js';
 
+// The digest of the very directory each call migrates. `expectManifestSha` is REQUIRED (ADR-0035), so
+// passing it here is not ceremony: it makes these tests exercise the contract the deployed runner enforces
+// rather than a laxer one that only exists in the test.
+import { readMigrationManifest } from '@kitchensink/db-schema-guard';
+
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 const hasDatabaseUrl = Boolean(DATABASE_URL);
 
@@ -174,7 +179,11 @@ describe.skipIf(!hasDatabaseUrl)('recipe migration runner (ADR-0022, ADR-0006)',
         // executed against a real recipe database before this line. A table the barrel declares and no
         // migration creates makes `runMigrations` throw, which surfaces as a Lambda FunctionError and fails
         // the deploy rather than letting the new image meet a schema that is missing a relation.
-        const result = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+        const result = await runMigrations({
+            pool,
+            migrationsDir: sourceMigrationsDir,
+            expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+        });
 
         expect(result.applied).toStrictEqual([...expectedMigrationNames()]);
         expect(result.skipped).toStrictEqual([]);
@@ -188,10 +197,18 @@ describe.skipIf(!hasDatabaseUrl)('recipe migration runner (ADR-0022, ADR-0006)',
         // they fail differently: a runner that skipped correctly but a migration that had somehow been
         // applied twice would move the fingerprint, and a runner that re-executed while swallowing the
         // error would move `applied`.
-        await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+        await runMigrations({
+            pool,
+            migrationsDir: sourceMigrationsDir,
+            expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+        });
         const before = await schemaFingerprint(pool);
 
-        const second = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+        const second = await runMigrations({
+            pool,
+            migrationsDir: sourceMigrationsDir,
+            expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+        });
         const after = await schemaFingerprint(pool);
 
         expect(second.applied).toStrictEqual([]);
@@ -207,14 +224,22 @@ describe.skipIf(!hasDatabaseUrl)('recipe migration runner (ADR-0022, ADR-0006)',
         // Asserting it this way matters because the alternative reading ("the files must be idempotent") is
         // the one that leads someone to sprinkle `IF NOT EXISTS` over 68 files, which would UNMASK the
         // destructive DML that four of them carry below their first failing statement.
-        await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+        await runMigrations({
+            pool,
+            migrationsDir: sourceMigrationsDir,
+            expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+        });
         const [first] = expectedMigrationNames();
 
         await pool.query('DELETE FROM schema_migrations WHERE name = $1', [first]);
 
-        await expect(runMigrations({ pool, migrationsDir: sourceMigrationsDir })).rejects.toThrow(
-            new RegExp(`Migration ${first ?? ''} failed`, 'u'),
-        );
+        await expect(
+            runMigrations({
+                pool,
+                migrationsDir: sourceMigrationsDir,
+                expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+            }),
+        ).rejects.toThrow(new RegExp(`Migration ${first ?? ''} failed`, 'u'));
     });
 
     it('rolls a failing migration back and leaves it UNRECORDED, so a half-applied schema never reads as done', async () => {
@@ -229,7 +254,9 @@ describe.skipIf(!hasDatabaseUrl)('recipe migration runner (ADR-0022, ADR-0006)',
             'CREATE TABLE half_applied (id integer PRIMARY KEY); SELECT * FROM a_relation_that_does_not_exist;',
         );
 
-        await expect(runMigrations({ pool, migrationsDir: scratch })).rejects.toThrow(/0002_broken failed/u);
+        await expect(
+            runMigrations({ pool, migrationsDir: scratch, expectManifestSha: readMigrationManifest(scratch).sha }),
+        ).rejects.toThrow(/0002_broken failed/u);
 
         const recorded = await pool.query<{ name: string }>('SELECT name FROM schema_migrations ORDER BY name');
         const halfApplied = await pool.query<{ count: string }>(
@@ -255,8 +282,16 @@ describe.skipIf(!hasDatabaseUrl)('recipe migration runner (ADR-0022, ADR-0006)',
 
         try {
             const [a, b] = await Promise.all([
-                runMigrations({ pool, migrationsDir: sourceMigrationsDir }),
-                runMigrations({ pool: other, migrationsDir: sourceMigrationsDir }),
+                runMigrations({
+                    pool,
+                    migrationsDir: sourceMigrationsDir,
+                    expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+                }),
+                runMigrations({
+                    pool: other,
+                    migrationsDir: sourceMigrationsDir,
+                    expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+                }),
             ]);
             const names = [...expectedMigrationNames()];
 

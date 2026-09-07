@@ -561,7 +561,21 @@ jobs:
             # and `run-migrations.sh` records that this exact mistake made PRODUCTION the weaker stage. A
             # `cdk deploy` of an unchanged stack is a no-op; the minute it costs is what makes the invoke
             # below provably hit THIS release's bundle rather than whatever was deployed last.
+            # ⚠️ GATED ON THE SAME FLAG AS THE STEP THAT BUNDLES ITS ASSET, and the invoke below is NOT.
+            # The asymmetry is the whole correctness argument, so it is written here rather than inferred.
+            #
+            # This step's inputs — the compiled CDK app and `dist-lambda/` — are produced by steps carrying
+            # that flag. Ungated, it runs on a push that built neither: at best a `MODULE_NOT_FOUND`, at
+            # worst a SUCCESSFUL deploy of the throwing inline placeholder over a working runner, which
+            # persists until someone touches that service again.
+            #
+            # Gating costs nothing, because ADR-0035's property lives in the INVOKE, not here. The
+            # migrations sit under this service's own path, so either they changed and this flag is true and
+            # the deploy runs, or they did not and last release's runner still holds a set whose digest
+            # matches the working tree. A stale runner for any OTHER reason is caught by the invoke
+            # refusing, which is exactly what the manifest expectation was added for.
             - name: CDK Deploy (identity schema — before anything reads it)
+              if: steps.flags.outputs.deploy_service == 'true'
               env:
                   IDENTITY_IMAGE_TAG: ${{ github.sha }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
@@ -753,7 +767,21 @@ jobs:
             # step plus the invoke below ARE the barrier the in-deploy Trigger used to be. A gate on a path
             # diff would skip precisely the case the step exists for; an absent stack is a stated SKIP
             # inside the script, so this cannot red a stage where food has never shipped.
+            # ⚠️ GATED ON THE SAME FLAG AS THE STEP THAT BUNDLES ITS ASSET, and the invoke below is NOT.
+            # The asymmetry is the whole correctness argument, so it is written here rather than inferred.
+            #
+            # This step's inputs — the compiled CDK app and `dist-lambda/` — are produced by steps carrying
+            # that flag. Ungated, it runs on a push that built neither: at best a `MODULE_NOT_FOUND`, at
+            # worst a SUCCESSFUL deploy of the throwing inline placeholder over a working runner, which
+            # persists until someone touches that service again.
+            #
+            # Gating costs nothing, because ADR-0035's property lives in the INVOKE, not here. The
+            # migrations sit under this service's own path, so either they changed and this flag is true and
+            # the deploy runs, or they did not and last release's runner still holds a set whose digest
+            # matches the working tree. A stale runner for any OTHER reason is caught by the invoke
+            # refusing, which is exactly what the manifest expectation was added for.
             - name: CDK Deploy (food schema — before anything reads it)
+              if: steps.flags.outputs.deploy_food == 'true'
               env:
                   FOOD_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   FOOD_IMAGE_TAG: ${{ github.sha }}
@@ -936,7 +964,21 @@ jobs:
             # a schema behind for a reason NO CODE CHANGE explains, which is precisely when the path-diff
             # flag reads `false`. An absent stack is a stated SKIP inside the script, so this cannot red a
             # stage where recipe has never shipped.
+            # ⚠️ GATED ON THE SAME FLAG AS THE STEP THAT BUNDLES ITS ASSET, and the invoke below is NOT.
+            # The asymmetry is the whole correctness argument, so it is written here rather than inferred.
+            #
+            # This step's inputs — the compiled CDK app and `dist-lambda/` — are produced by steps carrying
+            # that flag. Ungated, it runs on a push that built neither: at best a `MODULE_NOT_FOUND`, at
+            # worst a SUCCESSFUL deploy of the throwing inline placeholder over a working runner, which
+            # persists until someone touches that service again.
+            #
+            # Gating costs nothing, because ADR-0035's property lives in the INVOKE, not here. The
+            # migrations sit under this service's own path, so either they changed and this flag is true and
+            # the deploy runs, or they did not and last release's runner still holds a set whose digest
+            # matches the working tree. A stale runner for any OTHER reason is caught by the invoke
+            # refusing, which is exactly what the manifest expectation was added for.
             - name: CDK Deploy (recipe schema — before anything reads it)
+              if: steps.flags.outputs.deploy_recipe == 'true'
               env:
                   RECIPE_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   RECIPE_IMAGE_TAG: ${{ github.sha }}

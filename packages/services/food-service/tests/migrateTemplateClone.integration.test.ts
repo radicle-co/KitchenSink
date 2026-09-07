@@ -25,6 +25,11 @@ import {
     makeMaintenancePool,
 } from './support/maintenanceDb.js';
 
+// The digest of the very directory each call migrates. `expectManifestSha` is REQUIRED (ADR-0035), so
+// passing it here is not ceremony: it makes these tests exercise the contract the deployed runner enforces
+// rather than a laxer one that only exists in the test.
+import { readMigrationManifest } from '@kitchensink/db-schema-guard';
+
 /** The per-PR database this suite owns; distinct from every other suite's so they cannot interfere. */
 const CLONE_TARGET = 'kitchensink_food_pr_u38';
 
@@ -83,7 +88,9 @@ describe.skipIf(!DATABASE_URL)('per-PR database warm start (U38)', () => {
     it('carries the base migration history, so the run that follows applies nothing and skips everything', async () => {
         await ensureDatabaseExists({ maintenancePool, databaseName: CLONE_TARGET });
 
-        const result = await inClone(CLONE_TARGET, (pool) => runMigrations({ pool, migrationsDir }));
+        const result = await inClone(CLONE_TARGET, (pool) =>
+            runMigrations({ pool, migrationsDir, expectManifestSha: readMigrationManifest(migrationsDir).sha }),
+        );
 
         expect(result.applied).toEqual([]);
         expect(result.skipped.length).toBeGreaterThan(0);

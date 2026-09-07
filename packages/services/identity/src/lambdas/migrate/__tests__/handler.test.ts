@@ -64,6 +64,16 @@ beforeEach(() => {
     process.env['STAGE'] = 'test';
 });
 
+/**
+ * A well-formed migrate event.
+ *
+ * ⛔ `expectManifestSha` is REQUIRED (ADR-0035), and the handler now parses the event BEFORE it reads the
+ * environment — so every case below that asserts the env/secret boundary has to get past the event first.
+ * That ordering is deliberate: a malformed invocation should be refused before this function reaches for a
+ * production credential.
+ */
+const MIGRATE_EVENT = { expectManifestSha: 'a'.repeat(64) } as const;
+
 describe('discoverMigrations', () => {
     it('returns every .sql in filename order, with the .sql suffix stripped for tracking', () => {
         const dir = mkdtempSync(join(tmpdir(), 'identity-migrate-'));
@@ -108,14 +118,14 @@ describe('handler — the env/secret boundary', () => {
     it('fails fast with no DB_SECRET_ARN, before it asks Secrets Manager for anything', async () => {
         delete process.env['DB_SECRET_ARN'];
 
-        await expect(handler()).rejects.toThrow(/DB_SECRET_ARN/);
+        await expect(handler(MIGRATE_EVENT)).rejects.toThrow(/DB_SECRET_ARN/);
         expect(send).not.toHaveBeenCalled();
     });
 
     it('asks for exactly the secret named in DB_SECRET_ARN', async () => {
         respondWithSecret({ ...validSecret, host: 'unreachable.invalid' });
         // The connection attempt that follows is expected to fail; the assertion is on the lookup.
-        await expect(handler()).rejects.toThrow();
+        await expect(handler(MIGRATE_EVENT)).rejects.toThrow();
 
         expect(GetSecretValueCommand).toHaveBeenCalledWith({
             SecretId: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:identity-db-AbCdEf',
@@ -125,20 +135,20 @@ describe('handler — the env/secret boundary', () => {
     it('rejects a secret with no SecretString (a binary secret is not a connection)', async () => {
         send.mockResolvedValueOnce({ SecretBinary: new Uint8Array([1, 2, 3]) });
 
-        await expect(handler()).rejects.toThrow(/SecretString/);
+        await expect(handler(MIGRATE_EVENT)).rejects.toThrow(/SecretString/);
     });
 
     it('rejects a secret whose payload is not JSON', async () => {
         send.mockResolvedValueOnce({ SecretString: 'not-json' });
 
-        await expect(handler()).rejects.toThrow(/JSON/i);
+        await expect(handler(MIGRATE_EVENT)).rejects.toThrow(/JSON/i);
     });
 
     it('rejects a secret carrying neither dbname nor database', async () => {
         const { dbname: _dbname, ...withoutDatabase } = validSecret;
         respondWithSecret(withoutDatabase);
 
-        await expect(handler()).rejects.toThrow(/dbname/i);
+        await expect(handler(MIGRATE_EVENT)).rejects.toThrow(/dbname/i);
     });
 
     it('accepts the `database` spelling as well as `dbname`', async () => {
@@ -146,25 +156,62 @@ describe('handler — the env/secret boundary', () => {
         respondWithSecret({ ...rest, database: 'kitchensink_identity', host: 'unreachable.invalid' });
 
         // Past the secret gate: the only remaining failure is the connection itself, never a shape error.
-        await expect(handler()).rejects.not.toThrow(/dbname|database/i);
+        await expect(handler(MIGRATE_EVENT)).rejects.not.toThrow(/dbname|database/i);
     });
 
     it('rejects a non-numeric port instead of connecting to NaN', async () => {
         respondWithSecret({ ...validSecret, port: 'five-four-three-two' });
 
-        await expect(handler()).rejects.toThrow(/port/i);
+        await expect(handler(MIGRATE_EVENT)).rejects.toThrow(/port/i);
     });
 
     it('rejects a port outside the TCP range', async () => {
         respondWithSecret({ ...validSecret, port: 70000 });
 
-        await expect(handler()).rejects.toThrow(/port/i);
+        await expect(handler(MIGRATE_EVENT)).rejects.toThrow(/port/i);
     });
 
     it('rejects a secret with no username or password rather than connecting anonymously', async () => {
         const { username: _username, ...withoutUsername } = validSecret;
         respondWithSecret(withoutUsername);
 
-        await expect(handler()).rejects.toThrow(/username/i);
+        await expect(handler(MIGRATE_EVENT)).rejects.toThrow(/username/i);
+    });
+});
+
+describe('handler — the migration-manifest expectation (ADR-0035)', () => {
+    /**
+     * ⛔ THE PROPERTY THE WHOLE DECISION RESTS ON. A runner that applies whatever SQL it happens to hold and
+     * reports `applied: []` is indistinguishable from one with nothing to do — the silent no-op ADR-0022
+     * recorded and ADR-0035 removes. It is removed only if the runner REFUSES an invocation that does not
+     * say which migration set it expects.
+     *
+     * These cases exist because the expectation was optional for one release, and while it was, the
+     * property was enforced by one argument check in one shell script rather than by this function.
+     */
+    it('⛔ refuses an invocation carrying no expectation at all', async () => {
+        await expect(handler({})).rejects.toThrow(/expectManifestSha/);
+    });
+
+    it('⛔ refuses an expectation that is not a sha256 digest', async () => {
+        await expect(handler({ expectManifestSha: 'not-a-digest' })).rejects.toThrow(/expectManifestSha/);
+        await expect(handler({ expectManifestSha: 'A'.repeat(64) })).rejects.toThrow(/expectManifestSha/);
+        await expect(handler({ expectManifestSha: 'a'.repeat(63) })).rejects.toThrow(/expectManifestSha/);
+    });
+
+    it('⛔ refuses a MISSPELLED key rather than reading it as absent', async () => {
+        // The failure this is really about: a payload the CLI mangled, or a caller that wrote
+        // `expectManifestSHA`. Under an optional field that yields `undefined` and a green "clean run".
+        await expect(handler({ expectManifestSHA: 'a'.repeat(64) })).rejects.toThrow(/expectManifestSha/);
+    });
+
+    it('⛔ refuses BEFORE reaching for the database credential', async () => {
+        // Ordering, not just outcome. A malformed invocation must be rejected before this function asks
+        // Secrets Manager for a production credential.
+        vi.mocked(GetSecretValueCommand).mockClear();
+
+        await expect(handler({})).rejects.toThrow();
+
+        expect(GetSecretValueCommand).not.toHaveBeenCalled();
     });
 });

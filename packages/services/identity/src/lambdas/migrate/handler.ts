@@ -54,8 +54,15 @@ export interface RunMigrationsOptions {
     readonly pool: pg.Pool;
     /** The directory holding the ordered `.sql` migrations. */
     readonly migrationsDir: string;
-    /** The manifest digest the caller expects this runner to hold, when it stated one. */
-    readonly expectManifestSha?: string | undefined;
+    /**
+     * The manifest digest the caller expects this runner to hold.
+     *
+     * ⛔ REQUIRED. ADR-0035 rejects the optional form by name — "an optional expectation is one a caller
+     * forgets, and a forgotten one is indistinguishable from the behaviour it replaces" — and while it was
+     * optional here, the property that decision rests on was enforced by one argument check in one shell
+     * script rather than by the runner.
+     */
+    readonly expectManifestSha: string;
 }
 
 /**
@@ -185,18 +192,28 @@ async function resolveDbCredentials(secretArn: string): Promise<z.infer<typeof D
 }
 
 /**
+ * A migration-manifest digest: 64 lowercase hex, anchored.
+ *
+ * ⛔ VALIDATED AT THE JSON BOUNDARY, not merely typed. A payload that spells the key differently, or one the
+ * CLI mangled, yields `undefined` — and an unchecked `undefined` is a runner reporting a clean run over
+ * whatever SQL it happens to hold, which is the exact state ADR-0035 exists to abolish.
+ */
+const MANIFEST_SHA = z.string().regex(/^[0-9a-f]{64}$/u, 'must be a 64-character lowercase hex sha256');
+
+/**
  * The event this runner accepts.
  *
- * ⛔ It still selects NO behaviour — this runner has exactly one action, and neither of its two callers
- * (the in-stack `triggers.Trigger`, which sends a custom-resource-shaped payload, and the pipeline's
- * safety-net `aws lambda invoke`) may pick a different one. `expectManifestSha` is an ASSERTION, not an
- * action: it states which migration set the caller believes this runner holds, and a runner holding a
- * different one refuses rather than reporting a clean run over the wrong SQL.
+ * ⛔ It selects NO behaviour — this runner has exactly one action, and its caller may not pick a different
+ * one. `expectManifestSha` is an ASSERTION, not an action: it states which migration set the caller
+ * believes this runner holds, and a runner holding a different one refuses rather than reporting a clean
+ * run over the wrong SQL. It is REQUIRED; see the field's note on `RunMigrationsOptions`.
  *
- * Unknown fields are ignored, because the triggers framework's payload carries several.
+ * ⚠️ There is now exactly ONE caller, `.github/scripts/run-migrations.sh`. It used to be two — the in-stack
+ * `triggers.Trigger` sent a custom-resource-shaped payload — and that second, vanished caller was the whole
+ * reason this schema tolerated unknown fields and an absent expectation.
  */
 const MigrateEventSchema = z.object({
-    expectManifestSha: z.string().optional(),
+    expectManifestSha: MANIFEST_SHA,
 });
 
 /**

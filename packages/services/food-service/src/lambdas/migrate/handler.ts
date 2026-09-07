@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
+import { z } from 'zod';
 
 import { applyMigrations } from '@kitchensink/db-schema-guard';
 import type { MigrateResult } from '@kitchensink/db-schema-guard';
@@ -37,8 +38,15 @@ export interface RunMigrationsOptions {
     readonly pool: pg.Pool;
     /** The directory holding the ordered `.sql` migrations. */
     readonly migrationsDir: string;
-    /** The manifest digest the caller expects this runner to hold, when it stated one. */
-    readonly expectManifestSha?: string | undefined;
+    /**
+     * The manifest digest the caller expects this runner to hold.
+     *
+     * ⛔ REQUIRED. ADR-0035 rejects the optional form by name — "an optional expectation is one a caller
+     * forgets, and a forgotten one is indistinguishable from the behaviour it replaces" — and while it was
+     * optional here, the property that decision rests on was enforced by one argument check in one shell
+     * script rather than by the runner.
+     */
+    readonly expectManifestSha: string;
 }
 
 /**
@@ -274,18 +282,33 @@ function requireEnv(name: string): string {
 
 /** The event the migration runner accepts. Absent/`migrate` → apply migrations; `drop` → PR-close teardown. */
 /**
- * The event these runners accept.
+ * A migration-manifest digest: 64 lowercase hex, anchored.
  *
- * ⛔ `expectManifestSha` is an ASSERTION, not an action. It states which migration set the caller believes
- * this runner holds; a runner holding a different one refuses rather than reporting a clean run over the
- * wrong SQL. `action` remains the only thing that selects behaviour.
+ * ⛔ VALIDATED AT THE JSON BOUNDARY, not merely typed. A payload that spells the key differently, or one
+ * the CLI mangled, yields `undefined` — and an unchecked `undefined` was a runner reporting a clean run
+ * over whatever SQL it happens to hold, which is the exact state ADR-0035 exists to abolish.
  */
-export interface MigrateEvent {
-    /** `migrate` (default) applies migrations; `drop` drops the per-PR database (ADR-0006 cleanup). */
-    readonly action?: 'migrate' | 'drop';
-    /** The manifest digest the caller expects this runner to hold, when it stated one. */
-    readonly expectManifestSha?: string;
-}
+const MANIFEST_SHA = z.string().regex(/^[0-9a-f]{64}$/u, 'must be a 64-character lowercase hex sha256');
+
+/**
+ * The event this runner accepts.
+ *
+ * ⛔ `expectManifestSha` is REQUIRED for a MIGRATE, and correctly absent for a DROP — a drop names a
+ * database, not a migration set, so there is nothing for it to expect. ADR-0035 rejects the optional form
+ * by name: "an optional expectation is one a caller forgets, and a forgotten one is indistinguishable from
+ * the behaviour it replaces".
+ *
+ * `action` is the only thing here that selects behaviour. The digest is an ASSERTION.
+ */
+const MigrateEventSchema = z
+    .object({
+        action: z.enum(['migrate', 'drop']).default('migrate'),
+        expectManifestSha: MANIFEST_SHA.optional(),
+    })
+    .refine((event) => event.action === 'drop' || event.expectManifestSha !== undefined, {
+        message: 'a migrate event must carry expectManifestSha — see ADR-0035',
+        path: ['expectManifestSha'],
+    });
 
 /**
  * Lambda entrypoint. With no action (or `migrate`) it builds the pool from the DB env (authenticating as
@@ -297,7 +320,16 @@ export interface MigrateEvent {
  * @returns The migrate result, or the drop result when `action` is `drop`.
  * @sideEffect Connects to PostgreSQL (RDS IAM auth) and executes DDL.
  */
-export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult | { dropped: DropDatabaseResult }> => {
+export const handler = async (event: unknown = {}): Promise<MigrateResult | { dropped: DropDatabaseResult }> => {
+    const parsed = MigrateEventSchema.safeParse(event ?? {});
+
+    if (!parsed.success) {
+        throw new Error(
+            `Food migration runner received a malformed event — ` +
+                parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`).join(', '),
+        );
+    }
+
     const host = requireEnv('FOOD_DB_ENDPOINT');
     const port = Number(requireEnv('FOOD_DB_PORT'));
     const databaseName = requireEnv('FOOD_DB_NAME');
@@ -327,7 +359,7 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
         }
     };
 
-    if (event.action === 'drop') {
+    if (parsed.data.action === 'drop') {
         const dropped = await withMaintenancePool((pool) => dropDatabase({ maintenancePool: pool, databaseName }));
 
         return { dropped };
@@ -350,7 +382,8 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
         return await runMigrations({
             pool,
             migrationsDir: bundledMigrationsDir(),
-            expectManifestSha: event.expectManifestSha,
+            // Non-null by construction: the schema's refine rejects a migrate event without it.
+            expectManifestSha: parsed.data.expectManifestSha as string,
         });
     } finally {
         await pool.end();

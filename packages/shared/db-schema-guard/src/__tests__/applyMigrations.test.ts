@@ -17,7 +17,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import type { MigrationClient, MigrationPool, MigrationQueryResult } from '../index.js';
+import type { ApplyMigrationsOptions, MigrationClient, MigrationPool, MigrationQueryResult } from '../index.js';
 import {
     EmptyMigrationSetError,
     SchemaManifestMismatchError,
@@ -117,9 +117,22 @@ class FakePool implements MigrationPool {
     }
 }
 
-/** The engine's standard arguments for a fixture directory. */
+/**
+ * The engine's standard arguments for a fixture directory.
+ *
+ * ⚠️ `expectManifestSha` defaults to the digest of the very directory under test, because the field is
+ * REQUIRED (ADR-0035) and every case here is about the apply loop rather than the expectation. The two
+ * cases that ARE about the expectation override it.
+ */
 function options(pool: FakePool, migrationsDir: string, overrides: Record<string, unknown> = {}) {
-    return { pool, migrationsDir, label: 'test', expectedTables: ['a', 'b'], ...overrides };
+    return {
+        pool,
+        migrationsDir,
+        label: 'test',
+        expectedTables: ['a', 'b'],
+        expectManifestSha: readMigrationManifest(migrationsDir).sha,
+        ...overrides,
+    };
 }
 
 describe('applyMigrations — the apply loop', () => {
@@ -290,23 +303,39 @@ describe('applyMigrations — the manifest expectation', () => {
     });
 
     it('refuses an empty migration directory before connecting', async () => {
+        // ⚠️ The expectation is supplied explicitly because the helper derives it from the directory, and an
+        // empty one has no digest to derive — which is itself the point: `readMigrationManifest` refuses
+        // BEFORE the expectation is even compared, so an empty bundle can never be certified by matching an
+        // expectation computed the same way.
         const pool = new FakePool();
+        const dir = makeMigrationsDir({ 'README.md': '# none\n' });
 
         await expect(
-            applyMigrations(options(pool, makeMigrationsDir({ 'README.md': '# none\n' }))),
+            applyMigrations({
+                pool,
+                migrationsDir: dir,
+                label: 'test',
+                expectedTables: ['a', 'b'],
+                expectManifestSha: 'a'.repeat(64),
+            }),
         ).rejects.toBeInstanceOf(EmptyMigrationSetError);
 
         expect(pool.connections).toBe(0);
     });
 
-    it('applies normally when no expectation is supplied', async () => {
-        // The in-stack Trigger sends a custom-resource payload carrying none. Until that mechanism is gone,
-        // an absent expectation must not be a failure — but it must also not be a silent one, which is what
-        // the returned `manifestSha` is for.
-        const pool = new FakePool();
-        const result = await applyMigrations(options(pool, makeMigrationsDir(TWO_MIGRATIONS)));
+    it('⛔ REQUIRES the expectation at the TYPE level — an omitted one cannot compile', () => {
+        // ADR-0035 rejects the optional form by name: "an optional expectation is one a caller forgets, and
+        // a forgotten one is indistinguishable from the behaviour it replaces". It WAS optional here for one
+        // release, because the in-stack `triggers.Trigger` sent a custom-resource payload carrying none —
+        // and while that stood, the property the whole decision rests on was enforced by one argument check
+        // in one shell script rather than by the runner.
+        //
+        // Asserted as a TYPE rather than a runtime case, because that is what the guarantee IS: a caller
+        // that omits it does not fail at run time, it fails to build. If the field goes back to optional,
+        // `ExpectationIsRequired` resolves to `false` and this line stops compiling.
+        type ExpectationIsRequired = undefined extends ApplyMigrationsOptions['expectManifestSha'] ? false : true;
+        const required: ExpectationIsRequired = true;
 
-        expect(result.applied).toStrictEqual(['0001_init', '0002_more']);
-        expect(result.manifestSha).toMatch(/^[0-9a-f]{64}$/u);
+        expect(required).toBe(true);
     });
 });

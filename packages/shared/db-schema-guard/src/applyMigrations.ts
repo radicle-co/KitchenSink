@@ -61,8 +61,17 @@ export interface ApplyMigrationsOptions {
     readonly label: string;
     /** The tables the schema must expose once every migration has been applied. */
     readonly expectedTables: readonly string[];
-    /** The manifest digest the caller expects this runner to hold, when it stated one. */
-    readonly expectManifestSha?: string | undefined;
+    /**
+     * The manifest digest the caller expects this runner to hold.
+     *
+     * ⛔ REQUIRED, and ADR-0035 rejects the optional form by name: "an optional expectation is one a caller
+     * forgets, and a forgotten one is indistinguishable from the behaviour it replaces". It was briefly
+     * optional here, because the in-stack `triggers.Trigger` sent a custom-resource payload carrying none.
+     * That mechanism is gone, so the last reason to tolerate its absence went with it — and while it stood,
+     * the property the whole change rests on was enforced by one argument check in one shell script rather
+     * than by the runner.
+     */
+    readonly expectManifestSha: string;
 }
 
 /**
@@ -148,14 +157,12 @@ export async function applyMigrations(options: ApplyMigrationsOptions): Promise<
 
     const manifest = readMigrationManifest(migrationsDir);
 
-    if (expectManifestSha !== undefined) {
-        assertManifestMatches({
-            label,
-            expected: expectManifestSha,
-            actual: manifest.sha,
-            migrations: manifest.migrations,
-        });
-    }
+    assertManifestMatches({
+        label,
+        expected: expectManifestSha,
+        actual: manifest.sha,
+        migrations: manifest.migrations,
+    });
 
     const migrations = migrationsOf(manifest);
     const applied: string[] = [];

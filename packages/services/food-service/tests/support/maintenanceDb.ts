@@ -16,6 +16,11 @@ import pg from 'pg';
 import { BASE_FOOD_DATABASE_NAME, runMigrations } from '../../src/lambdas/migrate/handler.js';
 import { DATABASE_URL, migrationsDir } from './db.js';
 
+// The digest of the very directory each call migrates. `expectManifestSha` is REQUIRED (ADR-0035), so
+// passing it here is not ceremony: it makes these tests exercise the contract the deployed runner enforces
+// rather than a laxer one that only exists in the test.
+import { readMigrationManifest } from '@kitchensink/db-schema-guard';
+
 /** The marker row seeded into the base catalog, so a clone can be proven to arrive WARM, not merely present. */
 export const BASE_MARKER_FOOD = {
     id: 'u38-base-marker',
@@ -65,7 +70,11 @@ export async function ensureSeededBaseDatabase(): Promise<void> {
 
     try {
         // The production runner, not a restatement of it — so the base is migrated the way a stage is.
-        await runMigrations({ pool: basePool, migrationsDir });
+        await runMigrations({
+            pool: basePool,
+            migrationsDir,
+            expectManifestSha: readMigrationManifest(migrationsDir).sha,
+        });
         await basePool.query(
             'INSERT INTO food (id, normalized_name, status) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
             [BASE_MARKER_FOOD.id, BASE_MARKER_FOOD.normalizedName, 'RESOLVED'],

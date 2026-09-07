@@ -353,7 +353,16 @@ jobs:
             # and `run-migrations.sh` records that this exact mistake made PRODUCTION the weaker stage. A
             # `cdk deploy` of an unchanged stack is a no-op; the minute it costs is what makes the invoke
             # below provably hit THIS release's bundle rather than whatever was deployed last.
+            # ⚠️ GATED ON THE SAME FLAG AS THE STEP THAT BUNDLES ITS ASSET, and the invoke below is NOT.
+            # The asymmetry is the whole correctness argument, so it is written here rather than inferred.
+            # Ungated, this step runs on a push that built neither the CDK app nor `dist-lambda/`: at best a
+            # `MODULE_NOT_FOUND`, at worst a SUCCESSFUL deploy of the throwing inline placeholder over a
+            # working runner, which persists until someone touches identity again. Gating costs nothing,
+            # because ADR-0035's property lives in the INVOKE — the migrations are under this service's own
+            # path, so either they changed and this flag is true, or last release's runner still holds a set
+            # whose digest matches the tree. A stale runner for any other reason is caught by the invoke.
             - name: CDK Deploy (identity schema — before anything reads it)
+              if: steps.flags.outputs.deploy_service == 'true'
               env:
                   IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}

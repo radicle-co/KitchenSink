@@ -58,7 +58,10 @@ interface SchemaDeploy {
 
 /** Every deploy workflow, parsed. */
 function workflows(): readonly { readonly file: string; readonly jobs: Record<string, { steps?: Step[] }> }[] {
-    return globSync('.github/workflows/*deploy*.yml', { cwd: REPO_ROOT })
+    // ⚠️ EVERY workflow, not a `*deploy*` glob. The first draft used one and missed `_sandbox-preview.yml`
+    // the moment the deploy jobs moved there — a discovery predicate that silently stopped seeing two of
+    // the six schema deploys, which is the exact rot every anti-vacuity anchor in this directory exists for.
+    return globSync('.github/workflows/*.yml', { cwd: REPO_ROOT })
         .sort()
         .map((file) => ({
             file,

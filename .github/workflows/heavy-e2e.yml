@@ -88,13 +88,6 @@ on:
                 description: Run the mobile Maestro job (Android emulator + release APK)
                 type: boolean
                 default: true
-    pull_request:
-        branches: [main]
-        # `labeled` is what makes the opt-in usable: adding `heavy-e2e` to an open PR starts a run without a
-        # new push. `opened`/`synchronize`/`reopened` keep an already-labelled PR covered on every push, and
-        # are also what carries the AUTOMATIC path (clause 4) — `paths-filter` diffs against the PR's BASE, not
-        # the previous push, so a PR that touched a measured path stays covered for the rest of its life.
-        types: [opened, synchronize, reopened, labeled]
 
 permissions:
     contents: read

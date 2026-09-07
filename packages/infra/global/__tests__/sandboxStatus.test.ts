@@ -25,8 +25,12 @@ import { describe, expect, it } from 'vitest';
 const SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/sandbox-status.sh', import.meta.url));
 
 /** One verdict, as the script prints it. */
-function verdict(tierUp: string, skipLabel: string): { readonly branch: string; readonly reason: string } {
-    const run = spawnSync('bash', [SCRIPT, 'verdict', tierUp, skipLabel], { encoding: 'utf8' });
+function verdict(
+    tierUp: string,
+    skipLabel: string,
+    event = 'pull_request',
+): { readonly branch: string; readonly reason: string } {
+    const run = spawnSync('bash', [SCRIPT, 'verdict', event, tierUp, skipLabel], { encoding: 'utf8' });
     const read = (key: string): string =>
         (run.stdout ?? '')
             .split('\n')
@@ -60,11 +64,23 @@ describe('the e2e branch verdict', () => {
         expect(verdict('true', 'true').branch).toBe('skip');
     });
 
+    it('⛔ gates only a PULL REQUEST — main has no preview to deploy', () => {
+        // Failing a push to `main`, or a schedule, for "the sandbox is down" would red the default branch
+        // for a property that has nothing to say about it. There is no merge decision to protect there.
+        for (const event of ['push', 'schedule', 'workflow_dispatch']) {
+            const result = verdict('false', 'false', event);
+
+            expect(result.branch, `${event} must not be gated`).toBe('skip');
+            expect(result.reason).toContain('nothing to gate');
+        }
+    });
+
     it('is MISUSE — never a branch — to call it with missing arguments', () => {
         // ⛔ A gate invoked with nothing to judge must not answer `run` or `skip`. Both would let a pipeline
         // proceed on a verdict nobody reached.
         expect(spawnSync('bash', [SCRIPT, 'verdict'], { encoding: 'utf8' }).status).toBe(2);
-        expect(spawnSync('bash', [SCRIPT, 'verdict', 'true'], { encoding: 'utf8' }).status).toBe(2);
+        expect(spawnSync('bash', [SCRIPT, 'verdict', 'pull_request'], { encoding: 'utf8' }).status).toBe(2);
+        expect(spawnSync('bash', [SCRIPT, 'verdict', 'pull_request', 'true'], { encoding: 'utf8' }).status).toBe(2);
     });
 
     it('is MISUSE to invoke the script with no subcommand, or probe with no stage', () => {

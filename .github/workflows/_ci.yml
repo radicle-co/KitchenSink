@@ -883,12 +883,105 @@ jobs:
     # staying 200 to curl (a stale pre-CORS recipe build served pr-73 for fifteen days behind exactly that
     # green). The image-currency and dependency-wiring classifiers are deliberately NOT invoked: both compare
     # against what a DEPLOY just produced, and this workflow deploys nothing.
+    # ⛔ THE E2E BRANCH — the pipeline ASKS whether the sandbox is up, and refuses to call a silent skip a
+    # pass.
+    #
+    # ADR-0032's ruling stands: a deployed TIER skips when there is nothing to test against. What it left
+    # open — and names itself — is the PR-level question: "a PR merged without ever raising a sandbox has
+    # had no end-to-end test of any kind … and neither is enforced by a check". The mitigation was a
+    # `sandbox-up` label, and a label a human must remember is a single point of failure whose failure mode
+    # is SILENCE: forget it, everything skips, every check is green, and the skip is indistinguishable from
+    # a pass.
+    #
+    # So the decision moved into the pipeline. Three outcomes, one of which did not exist before:
+    #
+    #   run   the shared tier is up → deploy this preview, migrate it, then test against it
+    #   skip  `skip-e2e` is present → a human decision, recorded where a reviewer sees it
+    #   fail  the tier is down and nobody said that was intended
+    #
+    # ⚠️ It probes the SHARED tier, not the per-PR preview — the preview is what the deploy CREATES, so
+    # testing for it would refuse the first push of every PR.
+    sandbox-status:
+        name: Is the sandbox up?
+        runs-on: ubuntu-latest
+        environment: Sandbox
+        outputs:
+            branch: ${{ steps.verdict.outputs.branch }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+            - name: Configure AWS credentials
+              if: ${{ github.event_name == 'pull_request' }}
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Probe the shared tier and decide the branch
+              id: verdict
+              env:
+                  EVENT: ${{ github.event_name }}
+                  SKIP_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
+                  REGION: ${{ vars.DEFAULT_AWS_REGION }}
+              run: |
+                  set -uo pipefail
+
+                  # ⚠️ The probe only runs for a pull request. On `main` there is nothing to probe and no
+                  # credentials step above, so asking would fail for the wrong reason.
+                  up='false'
+                  if [ "${EVENT}" = 'pull_request' ]; then
+                    probe=$(bash .github/scripts/sandbox-status.sh probe "${REGION}" sandbox) || exit 2
+                    up=$(printf '%s' "$probe" | sed -n 's/^up=//p')
+                    printf '%s\n' "$probe"
+                  fi
+
+                  verdict=$(bash .github/scripts/sandbox-status.sh verdict "${EVENT}" "${up}" "${SKIP_LABEL}") || exit 2
+                  branch=$(printf '%s' "$verdict" | sed -n 's/^branch=//p')
+                  reason=$(printf '%s' "$verdict" | sed -n 's/^reason=//p')
+
+                  echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+                  {
+                    echo "### Deployed-test branch: \`${branch}\`"
+                    echo
+                    echo "${reason}"
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+                  case "$branch" in
+                    fail)
+                      echo "::error::${reason}"
+                      exit 1
+                      ;;
+                    *)
+                      echo "::notice::${reason}"
+                      ;;
+                  esac
+
+    # The preview itself — deploy, and the schema stacks + migrations inside it (ADR-0035). A REUSABLE
+    # workflow, because GitHub Actions has no cross-workflow `needs`: while these jobs lived in
+    # `sandbox-deploy.yml` on their own `pull_request` trigger, nothing in this pipeline could wait for
+    # them, so "deploy, then test what was deployed" was not expressible.
+    deploy-preview:
+        name: Deploy the preview
+        needs: [sandbox-status, resolve-sandbox]
+        if: ${{ needs.sandbox-status.outputs.branch == 'run' }}
+        uses: ./.github/workflows/_sandbox-preview.yml
+        with:
+            stage: ${{ needs.resolve-sandbox.outputs.stage }}
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
     e2e-identity-boot:
         name: E2E (identity — the deployed identity service)
         timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [install, resolve-sandbox]
-        if: needs.resolve-sandbox.outputs.live == 'true'
+        needs: [deploy-preview, install, resolve-sandbox, sandbox-status]
+        # ⛔ GATED ON THE DEPLOY, not on a pre-deploy liveness probe. `resolve-sandbox` runs BEFORE
+        # anything is deployed, so its `live` verdict is false on the first push of every PR — using it
+        # here meant a brand-new preview was never tested by the run that created it. What this tier
+        # needs is that the preview EXISTS NOW, which is exactly `deploy-preview` having succeeded.
+        # `resolve-sandbox` is still needed for the origin URLs, which are derived from the stage name.
+        if: ${{ needs.sandbox-status.outputs.branch == 'run' && needs.deploy-preview.result == 'success' }}
         env:
             IDENTITY_ORIGIN: ${{ needs.resolve-sandbox.outputs.identity_origin }}
             WEB_ORIGIN: ${{ needs.resolve-sandbox.outputs.web_origin }}
@@ -1524,8 +1617,13 @@ jobs:
         name: E2E (food — the deployed food service)
         timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [install, resolve-sandbox]
-        if: needs.resolve-sandbox.outputs.live == 'true'
+        needs: [deploy-preview, install, resolve-sandbox, sandbox-status]
+        # ⛔ GATED ON THE DEPLOY, not on a pre-deploy liveness probe. `resolve-sandbox` runs BEFORE
+        # anything is deployed, so its `live` verdict is false on the first push of every PR — using it
+        # here meant a brand-new preview was never tested by the run that created it. What this tier
+        # needs is that the preview EXISTS NOW, which is exactly `deploy-preview` having succeeded.
+        # `resolve-sandbox` is still needed for the origin URLs, which are derived from the stage name.
+        if: ${{ needs.sandbox-status.outputs.branch == 'run' && needs.deploy-preview.result == 'success' }}
         env:
             FOOD_ORIGIN: ${{ needs.resolve-sandbox.outputs.food_origin }}
         steps:
@@ -1611,8 +1709,13 @@ jobs:
         name: E2E (recipe — the deployed recipe service)
         timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [install, resolve-sandbox]
-        if: needs.resolve-sandbox.outputs.live == 'true'
+        needs: [deploy-preview, install, resolve-sandbox, sandbox-status]
+        # ⛔ GATED ON THE DEPLOY, not on a pre-deploy liveness probe. `resolve-sandbox` runs BEFORE
+        # anything is deployed, so its `live` verdict is false on the first push of every PR — using it
+        # here meant a brand-new preview was never tested by the run that created it. What this tier
+        # needs is that the preview EXISTS NOW, which is exactly `deploy-preview` having succeeded.
+        # `resolve-sandbox` is still needed for the origin URLs, which are derived from the stage name.
+        if: ${{ needs.sandbox-status.outputs.branch == 'run' && needs.deploy-preview.result == 'success' }}
         env:
             RECIPE_ORIGIN: ${{ needs.resolve-sandbox.outputs.recipe_origin }}
             WEB_ORIGIN: ${{ needs.resolve-sandbox.outputs.web_origin }}
@@ -1721,12 +1824,17 @@ jobs:
         name: E2E (recipe ↔ food — the deployed services, actually linked)
         timeout-minutes: 20
         runs-on: ubuntu-latest
-        needs: [install, resolve-sandbox]
+        needs: [deploy-preview, install, resolve-sandbox, sandbox-status]
         # ⚠️ The `vars.LINKAGE_E2E_ENABLED` half is GONE, because the reason for it is. It existed for one
         # stated blocker — an empty per-PR food catalog — and the seeding step below closes it. A live
         # sandbox is now the only precondition, so this check is present on every PR that raises one rather
         # than absent behind a repository variable nobody would think to look at.
-        if: needs.resolve-sandbox.outputs.live == 'true'
+        # ⛔ GATED ON THE DEPLOY, not on a pre-deploy liveness probe. `resolve-sandbox` runs BEFORE
+        # anything is deployed, so its `live` verdict is false on the first push of every PR — using it
+        # here meant a brand-new preview was never tested by the run that created it. What this tier
+        # needs is that the preview EXISTS NOW, which is exactly `deploy-preview` having succeeded.
+        # `resolve-sandbox` is still needed for the origin URLs, which are derived from the stage name.
+        if: ${{ needs.sandbox-status.outputs.branch == 'run' && needs.deploy-preview.result == 'success' }}
         env:
             # REQUIRED with no default, and the suite THROWS rather than skipping when one is absent: by the
             # time it runs, `resolve-sandbox` has already reported the stage serving, so absence is a
@@ -2124,8 +2232,13 @@ jobs:
         name: E2E (identity — the deployed API surface rejects unauthenticated callers)
         timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [resolve-sandbox]
-        if: needs.resolve-sandbox.outputs.live == 'true'
+        needs: [deploy-preview, resolve-sandbox, sandbox-status]
+        # ⛔ GATED ON THE DEPLOY, not on a pre-deploy liveness probe. `resolve-sandbox` runs BEFORE
+        # anything is deployed, so its `live` verdict is false on the first push of every PR — using it
+        # here meant a brand-new preview was never tested by the run that created it. What this tier
+        # needs is that the preview EXISTS NOW, which is exactly `deploy-preview` having succeeded.
+        # `resolve-sandbox` is still needed for the origin URLs, which are derived from the stage name.
+        if: ${{ needs.sandbox-status.outputs.branch == 'run' && needs.deploy-preview.result == 'success' }}
         env:
             IDENTITY_ORIGIN: ${{ needs.resolve-sandbox.outputs.identity_origin }}
         steps:
@@ -2199,7 +2312,12 @@ jobs:
         # these shards now skip by default, so that is the uncommon case. The shard number stays in
         # the STEP name, where a human reads it and no required-check rule matches on it.
         name: E2E (web — Playwright against the deployed preview)
-        if: needs.resolve-sandbox.outputs.live == 'true'
+        # ⛔ GATED ON THE DEPLOY, not on a pre-deploy liveness probe. `resolve-sandbox` runs BEFORE
+        # anything is deployed, so its `live` verdict is false on the first push of every PR — using it
+        # here meant a brand-new preview was never tested by the run that created it. What this tier
+        # needs is that the preview EXISTS NOW, which is exactly `deploy-preview` having succeeded.
+        # `resolve-sandbox` is still needed for the origin URLs, which are derived from the stage name.
+        if: ${{ needs.sandbox-status.outputs.branch == 'run' && needs.deploy-preview.result == 'success' }}
         # 30 + the sandbox wake's own 15-minute bound (see the wake step below). A run that lands in ADR-0007's
         # 00:00–09:00 ET window legitimately waits minutes for a stopped `db.t4g.micro` to reach `available`,
         # and a JOB timeout is precisely the misleading failure that step exists to prevent: it would kill the
@@ -2211,7 +2329,7 @@ jobs:
         # `build-ui` rather than `build`: the `.next` artifact is gone with the local server, but
         # `mockupFidelity.spec.ts` still imports `@commise/ui/tokens/gradients`, whose exports map resolves to
         # `./dist/…`, so the shard holding that spec fails to COLLECT without the UI dist.
-        needs: [build-ui, resolve-sandbox]
+        needs: [build-ui, deploy-preview, resolve-sandbox, sandbox-status]
         # SHARDED, 4 ways. This job WAS the entire critical path of a PR run: measured on the green run
         # 31514368684 it started at +4.0m and ran 15.5m, ending at 19.5m, while every other job in the
         # pipeline finished by ~+6m (next slowest: `Test`, 4.8m). Wall clock was 19.4m for 42.1m of summed
@@ -3096,90 +3214,55 @@ jobs:
                       *) echo "::error::the web Playwright matrix did not pass ($result) — see the merged report artifact"; exit 1 ;;
                   esac
 
-    # ⛔ THE ONE CHECK THAT NOTICES A PR NOBODY EVER DEPLOYED.
+    # ⛔ MAESTRO AND K6 ARE THEIR OWN JOBS, siblings of the e2e tiers rather than steps inside them, and
+    # each carries its own label ON TOP of the branch.
     #
-    # ADR-0032's ruling stands: a deployed tier SKIPS when the PR's sandbox is not running, and a PR that ran
-    # no e2e tests is GREEN. This does not change that. What it changes is that the skip stops being SILENT.
+    # Both are expensive and neither is wanted on every PR — Maestro boots an Android emulator, k6 drives
+    # real load at a preview's single 0.5-vCPU Spot task. So the branch decides whether they COULD run and
+    # the label decides whether they SHOULD, which is two different questions and needs two terms.
     #
-    # The ADR names this gap itself — "a PR merged without ever raising a sandbox has had no end-to-end test
-    # of any kind — the mitigation is `sandbox-up` plus the manual job, and neither is enforced by a check".
-    # A label a human has to remember is a single point of failure whose failure mode is silence: every
-    # deployed tier skips, every check is green, and a skip looks exactly like a pass.
+    # ⚠️ They run in PARALLEL with the e2e tiers, not after them: all three depend on `deploy-preview` and
+    # on nothing else, so GitHub schedules them together. Chaining them behind the tiers would serialise
+    # ~20 minutes of independent work for no ordering anybody needs.
     #
-    # So this fails ONLY when a pull request ran no deployed tier at all AND nobody said that was intended.
-    # Applying `no-deployed-tests` turns it green and records the choice where a reviewer can see it.
-    #
-    # ⚠️ `!cancelled()`, not `always()`: a cancelled run has no verdict to give, and reporting one would
-    # redden the cancel. It depends on the TIERS rather than on `resolve-sandbox` alone, because a tier that
-    # ran is the evidence — the liveness verdict is only what predicted it.
-    #
-    # ⚠️ Maestro and k6 live in `_ci-heavy.yml`, a different workflow this job cannot observe. It says so in
-    # its summary rather than implying it covered them.
-    deployed-tier-evidence:
-        name: Deployed-tier evidence
-        needs:
-            - resolve-sandbox
-            - e2e-identity-boot
-            - e2e-food
-            - e2e-recipe
-            - e2e-cross-service-linkage
-            - e2e-backend
-            - e2e-web
-        if: ${{ !cancelled() }}
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-            - name: Report the deployed tiers, and refuse a silent none
-              env:
-                  EVENT: ${{ github.event_name }}
-                  STAGE: ${{ needs.resolve-sandbox.outputs.stage }}
-                  LIVE: ${{ needs.resolve-sandbox.outputs.live }}
-                  OPT_OUT: ${{ contains(github.event.pull_request.labels.*.name, 'no-deployed-tests') }}
-                  SANDBOX_UP: ${{ contains(github.event.pull_request.labels.*.name, 'sandbox-up') }}
-                  R_IDENTITY_BOOT: ${{ needs.e2e-identity-boot.result }}
-                  R_FOOD: ${{ needs.e2e-food.result }}
-                  R_RECIPE: ${{ needs.e2e-recipe.result }}
-                  R_LINKAGE: ${{ needs.e2e-cross-service-linkage.result }}
-                  R_BACKEND: ${{ needs.e2e-backend.result }}
-                  R_WEB: ${{ needs.e2e-web.result }}
-              run: |
-                  set -uo pipefail
+    # ⚠️ They call `_ci-heavy.yml`, the same reusable workflow `heavy-e2e.yml` and `deployed-e2e.yml` use,
+    # so the suites themselves have ONE definition and this is only a new caller.
+    e2e-mobile-maestro:
+        name: Maestro (mobile, deployed)
+        needs: [sandbox-status, deploy-preview, resolve-sandbox]
+        if: >-
+            ${{ needs.sandbox-status.outputs.branch == 'run'
+            && needs.deploy-preview.result == 'success'
+            && contains(github.event.pull_request.labels.*.name, 'mobile-e2e') }}
+        uses: ./.github/workflows/_ci-heavy.yml
+        with:
+            # The stage the deploy above just published. NOT a literal `sandbox`: these suites drive this
+            # PR's own preview.
+            stage: ${{ needs.resolve-sandbox.outputs.stage }}
+            run_mobile_maestro: true
+            run_load_test: false
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-                  {
-                    echo '### Deployed-tier evidence'
-                    echo
-                    echo "Sandbox stage: ${STAGE:-none} - live: ${LIVE:-false} - sandbox-up label: ${SANDBOX_UP}"
-                    echo
-                    echo '| Tier | Result |'
-                    echo '| --- | --- |'
-                    echo "| identity boot | ${R_IDENTITY_BOOT} |"
-                    echo "| food | ${R_FOOD} |"
-                    echo "| recipe | ${R_RECIPE} |"
-                    echo "| cross-service linkage | ${R_LINKAGE} |"
-                    echo "| backend | ${R_BACKEND} |"
-                    echo "| web | ${R_WEB} |"
-                    echo
-                    echo 'Maestro and k6 run in _ci-heavy.yml and are NOT observed here.'
-                  } >> "$GITHUB_STEP_SUMMARY"
-
-                  verdict=$(bash .github/scripts/deployed-tier-evidence.sh verdict \
-                    "${EVENT}" "${OPT_OUT}" \
-                    "${R_IDENTITY_BOOT}" "${R_FOOD}" "${R_RECIPE}" \
-                    "${R_LINKAGE}" "${R_BACKEND}" "${R_WEB}") || exit 2
-                  reason=$(printf '%s' "$verdict" | sed -n 's/^reason=//p')
-
-                  printf '%s\n' "$verdict"
-
-                  case "$verdict" in
-                    verdict=ok*)
-                      echo "::notice::${reason}"
-                      ;;
-                    *)
-                      echo "::error::${reason}. Raise a preview by applying the sandbox-up label and pushing, run the manual deployed-e2e job, or apply no-deployed-tests to record that this change does not need one."
-                      exit 1
-                      ;;
-                  esac
+    e2e-load-test:
+        name: k6 (load, deployed)
+        needs: [sandbox-status, deploy-preview, resolve-sandbox]
+        if: >-
+            ${{ needs.sandbox-status.outputs.branch == 'run'
+            && needs.deploy-preview.result == 'success'
+            && contains(github.event.pull_request.labels.*.name, 'k6') }}
+        uses: ./.github/workflows/_ci-heavy.yml
+        with:
+            stage: ${{ needs.resolve-sandbox.outputs.stage }}
+            run_mobile_maestro: false
+            run_load_test: true
+            # ⚠️ `load_test_target` stays at its `sandbox` default: k6 drives the PR's own preview origins,
+            # which the stage above selects. Pointing it at prod is the manual `deployed-e2e` job's job, and
+            # ADR-0032 is explicit that the production suite is a separate, non-destructive decision.
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     e2e-mobile:
         # ⛔ NOT "Hermetic". This job boots no backend and drives no deployment — it is a Vitest component

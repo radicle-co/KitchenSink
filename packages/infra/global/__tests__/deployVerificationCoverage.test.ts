@@ -159,7 +159,7 @@ describe('deploy verification coverage', () => {
 
         expect(found.length).toBeGreaterThan(3);
         expect(workflows).toContain('prod-deploy.yml');
-        expect(workflows).toContain('sandbox-deploy.yml');
+        expect(workflows).toContain('_sandbox-preview.yml');
         expect(workflows).toContain('sandbox-identity-deploy.yml');
         expect(workflows).toContain('sandbox-router-deploy.yml');
     });

@@ -36,7 +36,8 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-const WORKFLOW = fileURLToPath(new URL('../../../../.github/workflows/sandbox-deploy.yml', import.meta.url));
+// ⚠️ `_sandbox-preview.yml`, not `sandbox-deploy.yml`: the deploy jobs moved to `_sandbox-preview.yml`, a REUSABLE workflow, because GitHub Actions has no cross-workflow `needs` — `_ci.yml` has to be able to run them as one branch of its own graph.
+const WORKFLOW = fileURLToPath(new URL('../../../../.github/workflows/_sandbox-preview.yml', import.meta.url));
 
 interface Step {
     readonly name?: string;

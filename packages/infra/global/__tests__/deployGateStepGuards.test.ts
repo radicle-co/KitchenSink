@@ -33,7 +33,8 @@ import { describe, expect, it } from 'vitest';
 
 import { repoRoot } from './serviceSources.js';
 
-const WORKFLOW = join(repoRoot, '.github/workflows/sandbox-deploy.yml');
+// ⚠️ `_sandbox-preview.yml`, not `sandbox-deploy.yml`: the deploy jobs moved to `_sandbox-preview.yml`, a REUSABLE workflow, because GitHub Actions has no cross-workflow `needs` — `_ci.yml` has to be able to run them as one branch of its own graph.
+const WORKFLOW = join(repoRoot, '.github/workflows/_sandbox-preview.yml');
 
 interface PostGateStep {
     readonly job: string;

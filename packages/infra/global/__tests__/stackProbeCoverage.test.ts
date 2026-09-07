@@ -251,7 +251,7 @@ describe('stack-existence probes name every stack the app declares', () => {
         const found = probes();
 
         expect(found.length).toBeGreaterThan(2);
-        expect(new Set(found.map((probe) => probe.workflow))).toContain('sandbox-deploy.yml');
+        expect(new Set(found.map((probe) => probe.workflow))).toContain('_sandbox-preview.yml');
         expect(found.flatMap((probe) => probe.names).length).toBeGreaterThan(2);
     });
 

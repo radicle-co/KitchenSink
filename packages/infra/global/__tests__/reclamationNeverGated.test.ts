@@ -75,7 +75,8 @@ describe('reclamation jobs are never gated behind a GitHub Environment', () => {
     }
 
     it('the deploying jobs ARE bound, so this guard is not just asserting the absence of all bindings', () => {
-        const jobs = readWorkflow('sandbox-deploy.yml')['jobs'] as Record<string, Record<string, unknown>>;
+        // ⚠️ `_sandbox-preview.yml`: the deploy jobs moved to `_sandbox-preview.yml`, a reusable workflow `_ci.yml` calls, because GitHub Actions has no cross-workflow `needs`.
+        const jobs = readWorkflow('_sandbox-preview.yml')['jobs'] as Record<string, Record<string, unknown>>;
 
         // Without this, deleting every `environment:` key in the file would leave the suite green and the
         // deploy-side scoping silently undone.

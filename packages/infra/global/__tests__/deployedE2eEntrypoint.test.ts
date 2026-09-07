@@ -37,7 +37,7 @@
  *   6. `schedule:` added to `deployed-e2e.yml` → analyzer 4 fails.
  *   7. The prod refusal step deleted → analyzer 4's refusal assertion fails.
  *   8. `https://recipe-pr-91.commise.app` typed into the workflow → analyzer 5 reports the literal.
- *   9. The intent term removed from `deploy-food`'s job-level `if:` → analyzer 6 reports it.
+ *   9. The intent term left behind on a deploy job after the caller took it over → analyzer 6.
  *  10. `!cancelled()` removed from `deploy-recipe`'s `if:` → analyzer 7 fails.
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -54,7 +54,9 @@ const WORKFLOW_DIR = join(repoRoot, '.github', 'workflows');
 const ENTRYPOINT = 'deployed-e2e.yml';
 
 /** The workflow whose deploy jobs must render "nothing to do" as a SKIP. */
-const SANDBOX_DEPLOY = 'sandbox-deploy.yml';
+// ⚠️ `_sandbox-preview.yml`: the deploy jobs moved to a REUSABLE workflow so `_ci.yml` can run
+// them as one branch of its own graph — GitHub Actions has no cross-workflow `needs`.
+const SANDBOX_DEPLOY = '_sandbox-preview.yml';
 
 /** The npm script that RUNS the deployed tier — the marker analyzer 1 discovers callers by. */
 const DEPLOYED_TIER_SCRIPT = /npm run test:deployed/;
@@ -275,24 +277,29 @@ describe('analyzer 5 — origins come from the authority, never from YAML', () =
 });
 
 describe('analyzer 6 — a deploy with nothing to do reports SKIPPED, not green', () => {
-    it('is not vacuous: both sandbox deploy jobs exist and carry a job-level if', () => {
+    it('is not vacuous: both sandbox deploy jobs exist', () => {
         const jobs = workflow(SANDBOX_DEPLOY)?.doc.jobs ?? {};
 
         expect(Object.keys(jobs)).toEqual(expect.arrayContaining(['deploy-food', 'deploy-recipe']));
-        expect(jobs['deploy-food']?.if ?? '').not.toBe('');
-        expect(jobs['deploy-recipe']?.if ?? '').not.toBe('');
     });
 
-    it('⛔ carries the INTENT term on the job-level if, the only gate condition knowable before a job starts', () => {
+    it('⛔ the INTENT term is the CALLER’s now — these jobs carry no label of their own', () => {
+        // ⚠️ THE ANALYZER INVERTED, and the property it protects did not.
+        //
+        // It used to require `sandbox-up` on each job's `if:`, because without an intent term the job ran on
+        // every PR event, skipped every step and reported GREEN having deployed nothing — and green and
+        // green-having-done-nothing are the same colour.
+        //
+        // Intent still exists; it moved up. `_ci.yml` PROBES whether the shared sandbox tier is up and calls
+        // this workflow only when it is, so being called IS the intent. A label term left here would be a
+        // second, weaker copy of a decision now made against the environment rather than against somebody's
+        // memory — and the two could disagree.
         const jobs = workflow(SANDBOX_DEPLOY)?.doc.jobs ?? {};
-        const missing = (['deploy-food', 'deploy-recipe'] as const)
-            .filter((name) => !/sandbox-up/.test(jobs[name]?.if ?? ''))
-            .map(
-                (name) =>
-                    `${name}: if: ${jobs[name]?.if ?? '(absent)'} — no intent term, so it runs and reports GREEN having deployed nothing`,
-            );
+        const stale = (['deploy-food', 'deploy-recipe'] as const)
+            .filter((name) => /sandbox-up/.test(jobs[name]?.if ?? ''))
+            .map((name) => `${name}: still gated on the sandbox-up label, which the caller replaced`);
 
-        expect(missing).toEqual([]);
+        expect(stale).toEqual([]);
     });
 
     it('leaves `changed`, stack status and health in the STEP-level gate, where a job-level if cannot see them', () => {

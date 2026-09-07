@@ -35,7 +35,7 @@
 # end-to-end test of any kind ... and neither is enforced by a check". This is that check. The tiers still
 # skip; what changes is that the PIPELINE refuses to call that a pass unless somebody says so.
 #
-#   sandbox-status.sh verdict <tierUp:true|false> <skipLabel:true|false>   # pure
+#   sandbox-status.sh verdict <event> <tierUp:true|false> <skipLabel:true|false>   # pure
 #   sandbox-status.sh probe   <region> <stage>                             # impure: prints up=true|false
 set -uo pipefail
 
@@ -43,17 +43,26 @@ set -uo pipefail
 # the thing that raises it, the thing that deletes it and the thing that detects it cannot disagree.
 SANDBOX_STATUS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-# sandbox_status_verdict <tierUp> <skipLabel>
+# sandbox_status_verdict <event> <tierUp> <skipLabel>
 #
 # Pure. Prints `branch=run|skip|fail` and `reason=<one line>`.
 sandbox_status_verdict() {
-    if [ "$#" -lt 2 ]; then
-        echo "usage: sandbox-status.sh verdict <tierUp> <skipLabel>" >&2
+    if [ "$#" -lt 3 ]; then
+        echo "usage: sandbox-status.sh verdict <event> <tierUp> <skipLabel>" >&2
 
         return 2
     fi
 
-    local tier_up="$1" skip_label="$2"
+    local event="$1" tier_up="$2" skip_label="$3"
+
+    # ⛔ Only a pull request can be gated. `main` has no preview to deploy and no merge decision attached,
+    # and a push or a schedule is not somebody proposing a change — failing those would red the default
+    # branch for a property that has nothing to say about it.
+    if [ "$event" != 'pull_request' ]; then
+        printf 'branch=skip\nreason=%s\n' "not a pull request (${event}) — no preview to deploy, nothing to gate"
+
+        return 0
+    fi
 
     if [ "$skip_label" = 'true' ]; then
         printf 'branch=skip\nreason=%s\n' \

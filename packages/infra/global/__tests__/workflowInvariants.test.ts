@@ -566,7 +566,7 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // proves the assertion is still there.
     'suppressed-exit prod-deploy.yml::deploy::Smoke test — food service live & reachable (prod) ×1',
     'suppressed-exit prod-deploy.yml::deploy::Smoke test — identity service live & reachable (prod) ×1',
-    'suppressed-exit sandbox-deploy.yml::deploy-food::Smoke test — food service live & reachable (sandbox) ×1',
+    'suppressed-exit _sandbox-preview.yml::deploy-food::Smoke test — food service live & reachable (sandbox) ×1',
     'suppressed-exit sandbox-identity-deploy.yml::deploy::Smoke test — identity service live & reachable (sandbox) ×1',
     // The sandbox router is a separately-deployed singleton; its absence is a missing prerequisite, so the
     // step reports `::error::` and sets `found=false` for downstream steps rather than failing the PR.

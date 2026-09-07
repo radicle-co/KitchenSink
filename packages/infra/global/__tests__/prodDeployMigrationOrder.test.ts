@@ -637,7 +637,12 @@ describe('the production pipeline knows which services are cut over to the edge'
  */
 const DEPLOY_WORKFLOWS = [
     '.github/workflows/prod-deploy.yml',
-    '.github/workflows/sandbox-deploy.yml',
+    // ⚠️ `_sandbox-preview.yml`, not `sandbox-deploy.yml`. The per-PR deploy jobs moved to a REUSABLE
+    // workflow so `_ci.yml` can run them as one branch of its own graph — GitHub Actions has no
+    // cross-workflow `needs`, so while they sat on their own `pull_request` trigger nothing could wait for
+    // them. `sandbox-deploy.yml` keeps the teardown jobs and the hand-dispatch door, neither of which
+    // deploys a schema.
+    '.github/workflows/_sandbox-preview.yml',
     '.github/workflows/sandbox-identity-deploy.yml',
 ] as const;
 
@@ -893,9 +898,11 @@ describe('every stack that reads a service database deploys AFTER that schema is
             'expected recipe-service + recipe-workers, and identity + identity-webhooks, in every workflow ' +
                 'that deploys both halves of the pair',
         ).toStrictEqual([
+            // ⚠️ `_sandbox-preview.yml` sorts first: the per-PR deploy jobs moved to a REUSABLE workflow so
+            // `_ci.yml` can run them as one branch — GitHub Actions has no cross-workflow `needs`.
+            '.github/workflows/_sandbox-preview.yml:recipe-service+recipe-workers',
             '.github/workflows/prod-deploy.yml:identity+identity-webhooks',
             '.github/workflows/prod-deploy.yml:recipe-service+recipe-workers',
-            '.github/workflows/sandbox-deploy.yml:recipe-service+recipe-workers',
             '.github/workflows/sandbox-identity-deploy.yml:identity+identity-webhooks',
         ]);
     });

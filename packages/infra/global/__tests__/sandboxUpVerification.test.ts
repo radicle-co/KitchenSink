@@ -131,6 +131,20 @@ function dispatchingSteps(): readonly Step[] {
 function appsTheSandboxStandsUp(): readonly string[] {
     const dispatched = new Set(dispatchedWorkflows());
 
+    // ⛔ FOLLOWS `uses:` ONE LEVEL. A dispatched workflow may hand its real work to a REUSABLE one —
+    // `sandbox-deploy.yml` does exactly that now, because the per-PR deploy jobs had to become callable so
+    // `_ci.yml` could run them as a branch of its own graph (GitHub Actions has no cross-workflow `needs`).
+    // Reading only the dispatched file made this derivation report THREE apps where the button stands up
+    // seven, and every assertion below would then have been checked against a set missing the four that
+    // matter most.
+    for (const workflow of [...dispatched]) {
+        const text = readFileSync(join(repoRoot, '.github/workflows', workflow), 'utf8');
+
+        for (const [, called] of text.matchAll(/uses:\s*\.\/\.github\/workflows\/([\w.-]+\.ya?ml)/gu)) {
+            dispatched.add(called ?? '');
+        }
+    }
+
     return [
         ...new Set(deployedApps().flatMap((app) => (dispatched.has(app.workflow) ? [app.entrypoint] : []))),
     ].toSorted();

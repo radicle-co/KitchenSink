@@ -232,8 +232,9 @@ describe('sandbox DB wake wiring — no sandbox deploy runs against a possibly-s
     // The three jobs that exist today. Named explicitly so NARROWING the fix — deleting the step from one
     // job while the generic rule above still passes for the others — is a red test, not a silent regression.
     it.each([
-        'sandbox-deploy.yml::deploy-food',
-        'sandbox-deploy.yml::deploy-recipe',
+        // ⚠️ `_sandbox-preview.yml`: the deploy jobs moved to `_sandbox-preview.yml`, a REUSABLE workflow, because GitHub Actions has no cross-workflow `needs` — `_ci.yml` has to be able to run them as one branch of its own graph.
+        '_sandbox-preview.yml::deploy-food',
+        '_sandbox-preview.yml::deploy-recipe',
         'sandbox-identity-deploy.yml::deploy',
     ])('%s wakes the sandbox database', (jobId) => {
         expect(wakeSteps().map(({ id }) => id.split('::').slice(0, 2).join('::'))).toContain(jobId);

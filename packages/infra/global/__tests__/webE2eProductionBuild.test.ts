@@ -258,10 +258,16 @@ describe('the web Playwright suite drives the deployed preview', () => {
      * NEW 2026-09-05, and it is the ruling's other half: a tier that targets a deployment must SKIP when
      * there is none. Without this gate every shard drives an origin that does not resolve and reports eight
      * reds that say nothing about the commit — which is precisely the "false status" the ruling removes.
+     *
+     * ⚠️ THE GATE MOVED, and it moved because the old one could not answer the question. It was
+     * `resolve-sandbox.outputs.live`, a probe taken BEFORE anything was deployed — so on the first push of
+     * a PR it read false and the run that CREATED a preview never tested it. What the tier actually needs
+     * is that the preview exists NOW, which is `deploy-preview` having succeeded, under a branch verdict
+     * that says a deploy was even attempted.
      */
     it('skips, rather than running, when nothing is deployed at that stage', () => {
-        expect(String(job('e2e-web').if ?? ''), 'e2e-web is not gated on the resolver’s liveness verdict').toContain(
-            `needs.${RESOLVER_JOB}.outputs.live == 'true'`,
+        expect(String(job('e2e-web').if ?? ''), 'e2e-web must wait for the preview it tests').toContain(
+            "needs.deploy-preview.result == 'success'",
         );
     });
 

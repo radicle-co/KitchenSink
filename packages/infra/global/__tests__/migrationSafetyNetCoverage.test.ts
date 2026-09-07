@@ -39,7 +39,11 @@ import { publishedRunnerOutputs, readRepoFile, stackSources } from './migrationR
 const PROD_DEPLOY = '.github/workflows/prod-deploy.yml';
 
 /** Every deploy workflow that targets a non-prod stage. Every runner's net must appear in one of them. */
-const SANDBOX_DEPLOYS = ['.github/workflows/sandbox-deploy.yml', '.github/workflows/sandbox-identity-deploy.yml'];
+const SANDBOX_DEPLOYS = [
+    // ⚠️ `_sandbox-preview.yml`: the deploy jobs moved to `_sandbox-preview.yml`, a REUSABLE workflow, because GitHub Actions has no cross-workflow `needs` — `_ci.yml` has to be able to run them as one branch of its own graph.
+    '.github/workflows/_sandbox-preview.yml',
+    '.github/workflows/sandbox-identity-deploy.yml',
+];
 
 /**
  * An output no `run-migrations.sh` invoke names, in the workflows it must appear in.

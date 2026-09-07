@@ -29,7 +29,7 @@
  * |---|------|------|-----|
  * | 1 | exactly one job runs the spec | unchanged | unchanged |
  * | 2 | BOTH services, not one | both entrypoints are launched on the runner | both ORIGINS are resolved, from the resolver job, and they differ |
- * | 3 | the liveness gate | — (the runner always had both services) | the job is gated on `resolve-sandbox`'s `live`, so an absent sandbox SKIPS instead of failing |
+ * | 3 | the liveness gate | — (the runner always had both services) | the job waits for `deploy-preview`, so it tests the preview THIS run deployed and skips when the branch did not run |
  * | 4 | nothing is booted here | each service got its own database on a real Postgres | the job stands NOTHING up: no service container, no entrypoint, no `*_DATABASE_URL` |
  * | 5 | the dev-auth bypass | the killer: recipe degrades WITHOUT calling food | kept as a rule, with reduced bite — see the case |
  * | 6 | the spec REQUIRES its targets | — | new: a missing origin THROWS rather than skipping |
@@ -248,8 +248,12 @@ describe('the live linkage proof is wired into CI', () => {
     it('skips, rather than failing, when nothing is deployed at that stage', () => {
         expect(
             String(linkageJob().if ?? ''),
-            'the linkage job is not gated on the resolver’s liveness verdict',
-        ).toContain(`needs.${RESOLVER_JOB}.outputs.live == 'true'`);
+            'the linkage job must wait for the preview it tests',
+            // ⚠️ THE GATE MOVED. It was `resolve-sandbox.outputs.live`, a probe taken BEFORE anything was
+            // deployed — false on the first push of every PR, so the run that CREATED a preview never
+            // tested it. What this tier needs is that the preview exists NOW, which is `deploy-preview`
+            // having succeeded under a branch verdict that says a deploy was attempted at all.
+        ).toContain("needs.deploy-preview.result == 'success'");
     });
 
     /**

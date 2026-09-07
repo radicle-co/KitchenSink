@@ -3096,6 +3096,91 @@ jobs:
                       *) echo "::error::the web Playwright matrix did not pass ($result) — see the merged report artifact"; exit 1 ;;
                   esac
 
+    # ⛔ THE ONE CHECK THAT NOTICES A PR NOBODY EVER DEPLOYED.
+    #
+    # ADR-0032's ruling stands: a deployed tier SKIPS when the PR's sandbox is not running, and a PR that ran
+    # no e2e tests is GREEN. This does not change that. What it changes is that the skip stops being SILENT.
+    #
+    # The ADR names this gap itself — "a PR merged without ever raising a sandbox has had no end-to-end test
+    # of any kind — the mitigation is `sandbox-up` plus the manual job, and neither is enforced by a check".
+    # A label a human has to remember is a single point of failure whose failure mode is silence: every
+    # deployed tier skips, every check is green, and a skip looks exactly like a pass.
+    #
+    # So this fails ONLY when a pull request ran no deployed tier at all AND nobody said that was intended.
+    # Applying `no-deployed-tests` turns it green and records the choice where a reviewer can see it.
+    #
+    # ⚠️ `!cancelled()`, not `always()`: a cancelled run has no verdict to give, and reporting one would
+    # redden the cancel. It depends on the TIERS rather than on `resolve-sandbox` alone, because a tier that
+    # ran is the evidence — the liveness verdict is only what predicted it.
+    #
+    # ⚠️ Maestro and k6 live in `_ci-heavy.yml`, a different workflow this job cannot observe. It says so in
+    # its summary rather than implying it covered them.
+    deployed-tier-evidence:
+        name: Deployed-tier evidence
+        needs:
+            - resolve-sandbox
+            - e2e-identity-boot
+            - e2e-food
+            - e2e-recipe
+            - e2e-cross-service-linkage
+            - e2e-backend
+            - e2e-web
+        if: ${{ !cancelled() }}
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+            - name: Report the deployed tiers, and refuse a silent none
+              env:
+                  EVENT: ${{ github.event_name }}
+                  STAGE: ${{ needs.resolve-sandbox.outputs.stage }}
+                  LIVE: ${{ needs.resolve-sandbox.outputs.live }}
+                  OPT_OUT: ${{ contains(github.event.pull_request.labels.*.name, 'no-deployed-tests') }}
+                  SANDBOX_UP: ${{ contains(github.event.pull_request.labels.*.name, 'sandbox-up') }}
+                  R_IDENTITY_BOOT: ${{ needs.e2e-identity-boot.result }}
+                  R_FOOD: ${{ needs.e2e-food.result }}
+                  R_RECIPE: ${{ needs.e2e-recipe.result }}
+                  R_LINKAGE: ${{ needs.e2e-cross-service-linkage.result }}
+                  R_BACKEND: ${{ needs.e2e-backend.result }}
+                  R_WEB: ${{ needs.e2e-web.result }}
+              run: |
+                  set -uo pipefail
+
+                  {
+                    echo '### Deployed-tier evidence'
+                    echo
+                    echo "Sandbox stage: ${STAGE:-none} - live: ${LIVE:-false} - sandbox-up label: ${SANDBOX_UP}"
+                    echo
+                    echo '| Tier | Result |'
+                    echo '| --- | --- |'
+                    echo "| identity boot | ${R_IDENTITY_BOOT} |"
+                    echo "| food | ${R_FOOD} |"
+                    echo "| recipe | ${R_RECIPE} |"
+                    echo "| cross-service linkage | ${R_LINKAGE} |"
+                    echo "| backend | ${R_BACKEND} |"
+                    echo "| web | ${R_WEB} |"
+                    echo
+                    echo 'Maestro and k6 run in _ci-heavy.yml and are NOT observed here.'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+                  verdict=$(bash .github/scripts/deployed-tier-evidence.sh verdict \
+                    "${EVENT}" "${OPT_OUT}" \
+                    "${R_IDENTITY_BOOT}" "${R_FOOD}" "${R_RECIPE}" \
+                    "${R_LINKAGE}" "${R_BACKEND}" "${R_WEB}") || exit 2
+                  reason=$(printf '%s' "$verdict" | sed -n 's/^reason=//p')
+
+                  printf '%s\n' "$verdict"
+
+                  case "$verdict" in
+                    verdict=ok*)
+                      echo "::notice::${reason}"
+                      ;;
+                    *)
+                      echo "::error::${reason}. Raise a preview by applying the sandbox-up label and pushing, run the manual deployed-e2e job, or apply no-deployed-tests to record that this change does not need one."
+                      exit 1
+                      ;;
+                  esac
+
     e2e-mobile:
         # ⛔ NOT "Hermetic". This job boots no backend and drives no deployment — it is a Vitest component
         # test of the real `useAuth` hook over a mocked Clerk — so it was never the tier ADR-0032's ruling

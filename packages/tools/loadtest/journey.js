@@ -149,7 +149,16 @@ let handle = null; // this VU's { userId, sessionId, devJwt, cookie, jwt }
 let token = null;
 let mintedAt = 0;
 
-/** Refresh this VU's session token when it is older than REFRESH_AFTER_S (invariant #1). */
+/**
+ * Refresh this VU's session token when it is older than REFRESH_AFTER_S (invariant #1).
+ *
+ * ⛔ DELIBERATELY NOT `k6/session.js`'s `freshBearer`, which does the same thing for the service tiers.
+ * The two diverge on four axes and each divergence is a decision — see that module's header for the full
+ * argument. The two that matter most here: this one accepts a BACKEND-API pool entry, which `session.js`
+ * is guaranteed never to do, and this one KEEPS a stale token on a failed re-mint so the iteration
+ * finishes and `food_token_refresh_fail` carries the verdict, where `session.js` throws. Sharing an
+ * implementation would need a flag for each, and the first of those flags re-opens sign-in.
+ */
 function freshToken() {
     if (token && Date.now() - mintedAt < REFRESH_AFTER_S * 1000) {
         return token;

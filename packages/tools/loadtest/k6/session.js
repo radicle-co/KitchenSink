@@ -23,6 +23,25 @@
 // here — which is precisely the confusion this module exists to end.
 import http from 'k6/http';
 
+// ⛔ THIS IS NOT A COPY OF `journey.js`'s REFRESHER, AND MERGING THEM WOULD COST A PROPERTY.
+//
+// The two look alike — both re-mint a Clerk bearer from a live session — and they change for four
+// different reasons, which is the test CLAUDE.md sets before calling anything duplication:
+//
+//   1. POOL SHAPE. `journey.js` accepts a Backend-API entry (`sk_test_` + `sessionId`) as well as a FAPI
+//      one. This module accepts only FAPI, and the paragraph above states that as a GUARANTEE: it can
+//      neither sign in nor create a session. Folding journey's second branch in here would delete that
+//      guarantee, which is the one thing keeping this module off the per-IP-limited half of Clerk.
+//   2. FAILURE POLICY. This module THROWS, because a silent 401 run is exactly what it was written to end.
+//      `journey.js` keeps the stale token and increments `food_token_refresh_fail`, so its own threshold
+//      reddens the run — it wants the iteration to finish and the metric to carry the verdict.
+//   3. THRESHOLD, for the reason immediately below.
+//   4. HANDLE SHAPE. Each handle here carries its own `fapi` and `origin`; journey reads one `__ENV.FAPI`
+//      base plus a per-entry cookie.
+//
+// A shared helper spanning all four would be the flag-riddled wrong abstraction, and the flag that
+// mattered would be the one that re-opened sign-in. Two implementations, one reason each, is correct here.
+
 /**
  * Refresh this many seconds after minting — a quarter of the ~60s lifetime left as headroom.
  *

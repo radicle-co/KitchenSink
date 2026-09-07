@@ -54,6 +54,20 @@ COPY packages/shared/nest-error-envelope/dist ./packages/shared/nest-error-envel
 COPY packages/shared/messaging/prod.package.json ./packages/shared/messaging/package.json
 COPY packages/shared/messaging/dist ./packages/shared/messaging/dist
 
+# Shared @kitchensink/db-schema-guard — the boot-time schema-currency check (`main.ts` calls it before
+# `listen`), and the one apply engine the migration runner Lambda shares. Same pattern as the shared leaves
+# above: the root node_modules symlink resolves to this path, so its built dist + dist-pointing prod manifest
+# must be in the image or the bare-specifier import crash-loops at boot.
+COPY packages/shared/db-schema-guard/prod.package.json ./packages/shared/db-schema-guard/package.json
+COPY packages/shared/db-schema-guard/dist ./packages/shared/db-schema-guard/dist
+
+# ⛔ THIS RELEASE'S ORDERED `.sql`, copied to the place the compiled `schemaCurrency.js` resolves as its
+# own SIBLING. This build emits `dist/src/**` (the CMD above runs `dist/src/main.js`), so the compiled module
+# and its migrations sit at the same relative offset as the source pair — ONE path is correct both from
+# source and inside the image, with no probing and no branch that is only ever exercised in one of the two. Without it the boot check reports
+# a packaging fault on every start (and, under `SCHEMA_CURRENCY_MODE=enforce`, refuses).
+COPY packages/services/food-service/src/db/migrations ./packages/services/food-service/dist/src/db/migrations
+
 EXPOSE 3000
 
 # WORKDIR the food package so the ECS task commands (`node dist/src/main.js`,

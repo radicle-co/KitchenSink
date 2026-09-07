@@ -17,6 +17,7 @@
         "@aws-sdk/s3-request-presigner": "^3.723.0",
         "@clerk/backend": "^3.16.12",
         "@kitchensink/clerk-verify": "*",
+        "@kitchensink/db-schema-guard": "*",
         "@kitchensink/identity-core": "*",
         "@kitchensink/identity-db": "*",
         "@kitchensink/identity-utils": "*",

@@ -12,6 +12,7 @@
         "@aws-sdk/rds-signer": "^3.1079.0",
         "@aws-sdk/s3-request-presigner": "^3.1083.0",
         "@kitchensink/clerk-verify": "*",
+        "@kitchensink/db-schema-guard": "*",
         "@kitchensink/food-service-client": "*",
         "@kitchensink/identity-core": "*",
         "@kitchensink/nest-error-envelope": "*",

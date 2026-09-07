@@ -12,6 +12,7 @@
         "@aws-sdk/lib-dynamodb": "^3.716.0",
         "@aws-sdk/rds-signer": "^3.935.0",
         "@kitchensink/clerk-verify": "*",
+        "@kitchensink/db-schema-guard": "*",
         "@kitchensink/messaging": "*",
         "@kitchensink/nest-error-envelope": "*",
         "@kitchensink/recipe-core": "*",

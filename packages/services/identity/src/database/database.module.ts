@@ -7,6 +7,11 @@ const { Pool } = pg;
 
 export const DrizzleProvider = 'DRIZZLE_CONNECTION';
 
+/** The Drizzle client type provided by {@link DatabaseModule}, including the identity schema. */
+export type IdentityDrizzle = ReturnType<
+    typeof drizzle<{ users: typeof users; accounts: typeof accounts; profiles: typeof profiles }>
+>;
+
 function buildConnectionString(): string {
     if (process.env['DATABASE_URL']) {
         return process.env['DATABASE_URL'];

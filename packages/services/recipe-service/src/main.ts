@@ -17,6 +17,8 @@ import { CONTRACT_HASH as SCHEMA_PACKAGE_CONTRACT_HASH } from '@kitchensink/sche
 import { buildCorsPolicy } from './config/cors.js';
 import { CONTRACT_HASH } from './contract/contractHash.js';
 import { assertContractHashesAgree } from './contract/contractSkew.js';
+import { DrizzleProvider, type RecipeDrizzle } from './database/database.module.js';
+import { verifyRecipeSchemaCurrent } from './database/schemaCurrency.js';
 
 async function bootstrap(): Promise<void> {
     // DRIFT LAYER 3 (Skew) — the FIRST thing this process does, before config is validated, before the DI graph
@@ -43,7 +45,22 @@ async function bootstrap(): Promise<void> {
     });
 
     app.enableCors(cors.options);
-    new Logger('bootstrap').log(`CORS origin mode: ${cors.mode}`);
+
+    const logger = new Logger('bootstrap');
+
+    logger.log(`CORS origin mode: ${cors.mode}`);
+
+    // DRIFT LAYER 4 (Schema) — is the database this process is about to serve from actually current for
+    // this release? The pipeline migrates ahead of this deploy (ADR-0035), so on the ordinary release path
+    // this says nothing. It exists for the paths that are not a release — a restore from a snapshot taken
+    // before a migration, a task scaling out long afterwards, a stack deployed by hand — which is exactly
+    // the case a pipeline step structurally cannot see.
+    //
+    // ⛔ It runs BEFORE `listen`, so a refusal (once `SCHEMA_CURRENCY_MODE=enforce`) happens before this
+    // task can be registered healthy and given traffic. It ships in `warn`, where it cannot refuse anything.
+    await verifyRecipeSchemaCurrent(app.get<RecipeDrizzle>(DrizzleProvider), (message) => {
+        logger.warn(message);
+    });
 
     await app.listen(process.env['PORT'] ?? 3000);
 }

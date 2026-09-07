@@ -28,6 +28,10 @@
 # The shared Nest error-envelope mechanism, imported by all three services' ApiExceptionFilter.
 !packages/shared/nest-error-envelope/dist
 !packages/shared/nest-error-envelope/prod.package.json
+# The shared schema guard, imported by all three services' `main.ts` for the boot-time schema-currency
+# check (ADR-0035) and by their migration-runner Lambdas for the one apply engine.
+!packages/shared/db-schema-guard/dist
+!packages/shared/db-schema-guard/prod.package.json
 !packages/shared/messaging/dist
 !packages/shared/messaging/prod.package.json
 !packages/clients/usda/dist

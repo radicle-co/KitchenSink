@@ -78,6 +78,12 @@ schema**, deployed and invoked by its own pipeline step ahead of every consumer.
   sides and still agree; two cannot, because sha256 has exactly one right answer.
 - **Discovery is unchanged.** Migrations remain ordered `.sql` found by `readdir` + `sort`, tracked in
   `schema_migrations` keyed by filename. Nothing is registered by hand, which is the owner's constraint.
+- **Each service checks at boot that its database is current for its release**, before it listens. The
+  pipeline covers the release path; this covers the paths that are not a release — a database restored from
+  a snapshot taken before a migration, a task scaling out long afterwards, a stack deployed by hand. ⛔ It
+  ships in `warn`, because a boot assertion that fails closed can crash-loop a service; the flip is
+  `SCHEMA_CURRENCY_MODE=enforce` once the reports read clean, and an unrecognised value resolves to `warn`
+  rather than arming a check on a typo.
 - **The schema deploy and the migrate step are ungated**, for the reason the safety net's own history
   records: a path-diff gate skips precisely the case the step exists for.
 
@@ -108,6 +114,9 @@ schema**, deployed and invoked by its own pipeline step ahead of every consumer.
 - Three more CloudFormation stacks per stage, and one more `cdk deploy` per service per pipeline run.
 - The ordering is no longer expressed in the artifact CloudFormation deploys. A hand-run `cdk deploy` that
   skips the pipeline gets no barrier at all — which was already true across apps, and is now true within one.
+  The boot check reports that case rather than preventing it, and only once it is moved to `enforce`.
+- Each service image carries a copy of its own `.sql`, so the boot check has something to compare against.
+  That is a Docker build change in three services for a check that, in `warn`, only writes a log line.
 - The runner's placement in the pipeline is a property of YAML, so it is guarded by a test over the workflow
   text rather than by the type system.
 
@@ -139,6 +148,9 @@ schema**, deployed and invoked by its own pipeline step ahead of every consumer.
 - **One `kitchensink-schema-{stage}` stack holding all three runners.** Rejected: it would couple three
   services' schema deploys, and the stack would have to live in one CDK app while reaching into the other
   two packages' build output — the coupling recipe-workers just shed, tripled.
+- **A boot check that fails closed from day one.** Rejected for the soak's duration: a wrong assertion at
+  boot takes a whole service down, and the failure it guards against (a restore) is rare enough that
+  observing first costs nothing.
 - **A checksum column in `schema_migrations`.** Rejected as insufficient rather than wrong: it detects an
   EDITED migration, which the manifest also does, but it cannot detect a runner that has never heard of a
   migration — the actual failure — because a set it does not know about produces no row to compare.
@@ -163,3 +175,7 @@ schema**, deployed and invoked by its own pipeline step ahead of every consumer.
   stacks, so a stage without one cannot read as complete.
 - `packages/services/recipe-service/infra/__tests__/recipeDatabaseNameParity.test.ts` — the API, the workers
   and the schema runner resolve the same per-PR database name across three templates.
+- `packages/infra/global/__tests__/bootSchemaGuardPackaging.test.ts` — the boot check can find its own
+  migrations: the module resolves them as its own sibling, they exist, the Dockerfile copies them to the
+  path the compiled module will resolve, and the check runs before `listen`. Without that last mile the
+  check reports a packaging fault on every start and, in `warn`, nobody notices.

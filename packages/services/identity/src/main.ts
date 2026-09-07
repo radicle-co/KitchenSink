@@ -24,6 +24,8 @@ import { CONTRACT_HASH } from './contract/contractHash.js';
 import { assertContractHashesAgree } from './contract/contractSkew.js';
 import { NestSentryLogger } from './observability/sentryLogging.js';
 import { buildCorsPolicy } from './config/cors.js';
+import { DrizzleProvider, type IdentityDrizzle } from './database/database.module.js';
+import { verifyIdentitySchemaCurrent } from './database/schemaCurrency.js';
 
 async function bootstrap(): Promise<void> {
     // DRIFT LAYER 3 (Skew) — the first thing this process does after Sentry is installed, and before config is
@@ -52,6 +54,18 @@ async function bootstrap(): Promise<void> {
 
     app.enableCors(cors.options);
     logger.log(`CORS origin mode: ${cors.mode}`, 'bootstrap');
+
+    // DRIFT LAYER 4 (Schema) — is the database this process is about to serve from actually current for this
+    // release? The pipeline migrates ahead of this deploy (ADR-0035), so on the ordinary release path this
+    // says nothing. It exists for the paths that are NOT a release — a restore from a snapshot taken before a
+    // migration, a task scaling out long afterwards, a stack deployed by hand — which is exactly the case a
+    // pipeline step structurally cannot see.
+    //
+    // ⛔ It runs BEFORE `listen`, so a refusal (once `SCHEMA_CURRENCY_MODE=enforce`) happens before this task
+    // can be registered healthy and given traffic. It ships in `warn`, where it cannot refuse anything.
+    await verifyIdentitySchemaCurrent(app.get<IdentityDrizzle>(DrizzleProvider), (message) => {
+        logger.warn(message, 'bootstrap');
+    });
 
     const port = Number.parseInt(process.env['PORT'] ?? '3001', 10);
 

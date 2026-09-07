@@ -42,4 +42,7 @@ export type { MigrationClient, MigrationPool, MigrationQueryResult } from './por
 export type { MigrationManifest } from './manifestFile.js';
 
 export { assertManifestMatches, assertSchemaCurrent, missingMigrations } from './assertions.js';
+
+export { schemaCurrencyMode, verifySchemaCurrent } from './bootGuard.js';
+export type { SchemaCurrencyMode, VerifySchemaCurrentOptions } from './bootGuard.js';
 export type { AssertManifestMatchesOptions, AssertSchemaCurrentOptions } from './assertions.js';

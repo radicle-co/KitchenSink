@@ -52,6 +52,8 @@ interface SchemaDeploy {
     readonly job: string;
     /** The service package the deploy's `--app` names, e.g. `packages/services/recipe-service`. */
     readonly servicePackage: string;
+    /** The stack selector the command passes to `cdk deploy`. */
+    readonly selector: string;
     readonly deployIf: string;
     readonly bundleIf: string | undefined;
 }
@@ -94,6 +96,7 @@ export function schemaDeploys(): readonly SchemaDeploy[] {
 
                 // DERIVED from the deploy's own `--app` string, so the pairing cannot drift from the step.
                 const servicePackage = /--app "node (packages\/services\/[a-z-]+)\/infra/u.exec(run)?.[1] ?? '';
+                const selector = /cdk deploy "([^"]+)"/u.exec(run)?.[1] ?? '';
                 const bundle = steps.find((candidate) =>
                     (candidate.run ?? '').includes(`bundle:lambda --workspace=${servicePackage}`),
                 );
@@ -103,6 +106,7 @@ export function schemaDeploys(): readonly SchemaDeploy[] {
                         workflow: file,
                         job,
                         servicePackage,
+                        selector,
                         deployIf: step.if ?? '',
                         bundleIf: bundle === undefined ? undefined : (bundle.if ?? ''),
                     },
@@ -111,6 +115,47 @@ export function schemaDeploys(): readonly SchemaDeploy[] {
         }),
     );
 }
+
+describe('a schema deploy names a stack `cdk deploy` will actually match', () => {
+    it('⛔ every selector equals a construct id the app declares', () => {
+        // ⛔ MEASURED, not theorised. `cdk deploy <selector>` matches a stack's CONSTRUCT ID, not its
+        // CloudFormation name — `cdk deploy "kitchensink-food-schema-pr-91"` answered
+        // `No stacks match the name(s) …` against an app that declared it perfectly, and the deploy failed
+        // AFTER building and pushing an image.
+        //
+        // Every other consumer addresses the stack by its CloudFormation name, because that is what
+        // CloudFormation knows. The schema stacks therefore use ONE string for both, and this is what says
+        // so: the selector in the workflow must be the id the `new *SchemaStack(app, …)` call passes.
+        const violations = schemaDeploys().flatMap((deploy) => {
+            const app = globSync(`${deploy.servicePackage}/infra/bin/app.ts`, { cwd: REPO_ROOT })[0];
+
+            if (app === undefined) {
+                return [`${deploy.workflow}: ${deploy.servicePackage} has no CDK entrypoint to check against`];
+            }
+
+            const source = readFileSync(path.join(REPO_ROOT, app), 'utf8');
+            // ⚠️ The literal, not a binding. It is spelled inline in the app for a reason the app states:
+            // three other guards derive this app's stacks by reading exactly this template out of the
+            // `new …Stack(app, …)` call, and hoisting it to a variable made all of them resolve nothing.
+            const declared = [...source.matchAll(/new \w*SchemaStack\(\s*app,\s*`([^`]+)`\s*,/gu)].map(
+                ([, value]) => value,
+            );
+            // `${stage}` in the app, `${STAGE}` in the shell — one template, two spellings.
+            const normalise = (value: string): string => value.replace(/\$\{stage\}|\$\{STAGE\}/gu, '{stage}');
+            const selector = normalise(deploy.selector);
+
+            return declared.map(normalise).includes(selector)
+                ? []
+                : [
+                      `${deploy.workflow}:${deploy.job} deploys "${deploy.selector}", which is not a construct id ` +
+                          `${app} declares (it declares: ${declared.join(', ') || 'none'}). ` +
+                          '`cdk deploy` matches the construct id, so this fails AFTER the image is built.',
+                  ];
+        });
+
+        expect(violations).toStrictEqual([]);
+    });
+});
 
 describe('a schema deploy runs under exactly the conditions that built its asset', () => {
     it('finds the schema deploys at all — a vacuous pass here would assert nothing below', () => {

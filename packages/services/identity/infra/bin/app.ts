@@ -51,7 +51,21 @@ const env = account ? { account, region } : { region };
 // deploy everything else" a real barrier rather than a convention. It takes no dependency on the service
 // stack and the service takes none on it: the ordering is the pipeline's, so a `cdk deploy --all` that
 // deploys them in either order is still correct — the migrate step is what sits between.
-new IdentitySchemaStack(app, `IdentitySchema-${stage}`, {
+// ⛔ THE CONSTRUCT ID IS THE STACK NAME, deliberately, and unlike its siblings here.
+//
+// `cdk deploy <selector>` matches a stack's CONSTRUCT ID, not its CloudFormation name — measured:
+// `cdk deploy "kitchensink-food-schema-pr-91"` answered `No stacks match the name(s) …` while the stack
+// was declared perfectly. Every other consumer of this stack — the liveness probe, `run-migrations.sh`,
+// the teardown sweep — addresses it by its CloudFormation name, because that is what CloudFormation
+// knows. Making the two strings ONE removes the only place they could disagree, and the sibling stacks'
+// `Id-${stage}` convention is not worth a second name for a stack the pipeline deploys BY NAME.
+//
+// ⚠️ And the two strings are spelled TWICE rather than shared through a const, which looks like the DRY
+// violation it is not: `deploy-gate.sh stacks-for`, `prodDeployMigrationOrder` and `stackProbeCoverage`
+// all derive this app's stacks by reading the template literal out of the `new …Stack(app, …)` call.
+// Hoisting it to a variable made every one of them resolve NOTHING — three guards silently reporting an
+// app with no stacks. One repeated literal is cheaper than teaching four readers to chase a binding.
+new IdentitySchemaStack(app, `kitchensink-identity-schema-${stage}`, {
     env,
     stackName: `kitchensink-identity-schema-${stage}`,
     stage,

@@ -14,10 +14,20 @@
 #
 # ## What "up" means, precisely
 #
-# The SHARED tier — `kitchensink-alb-sandbox` and `kitchensink-identity-service-sandbox`, the two stacks
-# `sandbox-shared-tier.sh` reclaims and `sandbox-up.yml` rebuilds — plus a database that is not in the
-# nightly stopped window. It is deliberately NOT the per-PR preview: that is what the deploy CREATES, so
-# testing for it would refuse the very first push of every PR.
+# The SHARED tier that must PRE-EXIST for a preview to be deployable at all: the ALB a service attaches its
+# host rule to, and the identity service every preview signs in against. It is deliberately NOT the per-PR
+# preview — that is what the deploy CREATES, so testing for it would refuse the very first push of every PR.
+#
+# ⛔ AND IT IS NOT SIMPLY "everything the reclaim deletes". The reclaim allowlist answers a DIFFERENT
+# question — what may be destroyed when the tier is released — and a stack can be reclaimable without being
+# a precondition. `kitchensink-identity-schema-{stage}` is exactly that: it is reclaimed with the tier, and
+# it is CREATED by the deploy this probe gates. Requiring it here is circular, and the circle closes:
+# the tier reads down, the branch fails, the deploy never runs, the stack is never created, the tier never
+# reads up. Measured — the first live run of this probe returned `up=false` against a sandbox whose ALB and
+# identity service were both `UPDATE_COMPLETE`.
+#
+# So the precondition set is the allowlist MINUS what the deploy stands up, matched by shape rather than by
+# name, so a second schema stack added to the allowlist tomorrow is excluded without anyone remembering to.
 #
 # ## The three outcomes
 #
@@ -102,6 +112,12 @@ sandbox_status_probe() {
 
     local missing='' stack status
     for stack in $(bash "${SANDBOX_STATUS_SCRIPT_DIR}/sandbox-shared-tier.sh" order); do
+        # ⛔ A schema stack is reclaimed WITH the tier but CREATED BY the deploy this probe gates, so it is
+        # not a precondition. See the header: requiring it deadlocks the pipeline against itself.
+        case "$stack" in
+            *-schema-*) continue ;;
+        esac
+
         status=$(aws cloudformation describe-stacks --region "$region" --stack-name "$stack" \
             --query 'Stacks[0].StackStatus' --output text 2>/dev/null) || status='ABSENT'
 

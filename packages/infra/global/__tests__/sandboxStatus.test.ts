@@ -101,6 +101,23 @@ describe('the probe reads the tier from the ONE place that defines it', () => {
         expect(source).toMatch(/sandbox-shared-tier\.sh"? order/u);
     });
 
+    it('⛔ EXCLUDES a stack the deploy itself creates — the circle that deadlocks the pipeline', () => {
+        // ⛔ MEASURED, not theorised. The first live run of this probe answered `up=false` against a sandbox
+        // whose ALB and identity service were both `UPDATE_COMPLETE`, because the reclaim allowlist had
+        // just gained `kitchensink-identity-schema-sandbox` — a stack that is reclaimed WITH the tier but
+        // CREATED BY the deploy this probe gates.
+        //
+        // The circle closes on itself: the tier reads down, the branch fails, the deploy never runs, the
+        // stack is never created, the tier never reads up. It is the same error one commit earlier fixed in
+        // the tiers — asking a question before the thing that answers it has run.
+        //
+        // Matched by SHAPE, so a second schema stack added to the allowlist is excluded without anyone
+        // remembering to.
+        const source = readFileSync(SCRIPT, 'utf8');
+
+        expect(source).toMatch(/\*-schema-\*\)\s*continue/u);
+    });
+
     it('⛔ treats a wedged stack as NOT up, not merely an absent one', () => {
         // `describe-stacks` answers happily for `UPDATE_ROLLBACK_FAILED`, so a bare existence check reads a
         // wedged tier as healthy. That is the shape ADR-0010's ensure-exists gate was written after, and

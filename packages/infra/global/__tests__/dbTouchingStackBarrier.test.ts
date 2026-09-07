@@ -63,6 +63,11 @@ const MIGRATION_HANDLER = 'lambdas/migrate/handler.handler';
 /**
  * A barrier CONSTRUCTION.
  *
+ * ⛔ TWO SHAPES, because ADR-0022 §1 had already rejected the second: a hand-rolled `AwsCustomResource`
+ * calling `lambda:Invoke` reads HTTP 200 with `FunctionError` set as success, reintroducing the silent
+ * no-op by a different road. Now that `Trigger` is forbidden outright it is the natural next attempt, so
+ * forbidding only the first would leave the easier mistake unguarded.
+ *
  * ⛔ The `new`, not the import and not the bare class name. Every barriered stack in this repo imports
  * `triggers` as a named export of `aws-cdk-lib` rather than from `aws-cdk-lib/triggers`, so a module check
  * finds nothing; and a bare `Trigger` would match the long comment each of those stacks carries explaining
@@ -71,10 +76,20 @@ const MIGRATION_HANDLER = 'lambdas/migrate/handler.handler';
  * it guarded: there is no ordered set to derive when the schema is applied by a stack of its own, and this
  * gate forbids the construction outright, which is strictly stronger than checking its shape.
  */
-const BARRIER_CONSTRUCTION = /new\s+(?:triggers\.)?Trigger\s*\(/u;
+const BARRIER_CONSTRUCTION = /new\s+(?:triggers\.)?Trigger\s*\(|new\s+(?:cr\.)?AwsCustomResource\s*\(/u;
 
 /** A stack whose whole job is applying a schema — the one place a migration runner may live. */
 const SCHEMA_STACK = /SchemaStack$/u;
+
+/**
+ * A stack naming the database it addresses through a shared authority.
+ *
+ * This is what makes a stack VISIBLE to `prodDeployMigrationOrder.test.ts`, which pairs a stack to a
+ * database by the name-producing function it calls or the platform export it imports. It is not a style
+ * rule: a hand-spelled connection is a stack no ordering guard can attribute, and #119 is what happens when
+ * two halves of one system name the same database independently.
+ */
+const NAMES_ITS_DATABASE = /DatabaseNameForStage\s*\(|kitchensink-data-\$\{/u;
 
 /**
  * Constructions a schema stack may NOT contain, because each one reads the schema it is about to apply and
@@ -205,7 +220,7 @@ export function unbarrieredDatabaseStacks(
 
         if (BARRIER_CONSTRUCTION.test(stack.contents)) {
             violations.push(
-                `${stack.file}: constructs an in-deploy migration Trigger. That re-couples the schema to an ` +
+                `${stack.file}: constructs an in-deploy migration barrier. That re-couples the schema to an ` +
                     'application release and cannot order anything outside this stack — which is why recipe ' +
                     'needed two runners for one database. The schema is applied by its own stack + pipeline step.',
             );
@@ -237,10 +252,24 @@ export function unbarrieredDatabaseStacks(
             );
         }
 
-        if (addressesADatabase(stack) && !exempt.has(stack.name) && !shipsRunner) {
-            // Ordering for these comes from the pipeline, which this gate cannot read. Recorded rather than
-            // asserted here so the claim has ONE home; `prodDeployMigrationOrder.test.ts` owns the evidence.
-            return violations;
+        if (addressesADatabase(stack) && !exempt.has(stack.name) && !NAMES_ITS_DATABASE.test(stack.contents)) {
+            // ⛔ THE DIRECTION THIS FILE WAS WRITTEN FOR, restored in the only form that still means
+            // something. Its ordering now comes from the pipeline, and `prodDeployMigrationOrder.test.ts`
+            // pairs a stack to a database through the shared name authority it calls or the
+            // `kitchensink-data-*` export it imports. A stack that spells its connection by hand is
+            // attributable to no database, so that guard never pairs it, orders nothing behind it, and
+            // stays green — which is the `1e96ac08` shape exactly: DB-touching compute that every gate can
+            // see and none can judge.
+            //
+            // ⚠️ Asserted as ATTRIBUTABILITY rather than as a register entry on purpose. Under the schema
+            // stacks almost every service stack is "ordered by the pipeline", so a register naming them all
+            // would be a list that says the same thing about everything — worth less than no list.
+            violations.push(
+                `${stack.file}: deploys compute that addresses a service database without naming that ` +
+                    'database through a shared authority (`*DatabaseNameForStage(...)` or a ' +
+                    '`kitchensink-data-${...}` import). Nothing can attribute it to a schema, so nothing ' +
+                    'can order it behind one — and the pipeline-ordering guard passes over it in silence.',
+            );
         }
 
         return violations;
@@ -315,7 +344,19 @@ describe('the gate fires — at stacks built to break it', () => {
         const found = unbarrieredDatabaseStacks([fake('WidgetServiceStack', "new triggers.Trigger(this, 'T', {});")]);
 
         expect(found).toHaveLength(1);
-        expect(found[0]).toContain('in-deploy migration Trigger');
+        expect(found[0]).toContain('in-deploy migration barrier');
+    });
+
+    it('catches the AwsCustomResource form ADR-0022 had already rejected', () => {
+        // The natural next attempt once `Trigger` is forbidden, and the worse of the two: a raw
+        // `lambda:Invoke` returns HTTP 200 with `FunctionError` set, which a custom resource reads as
+        // success — the silent no-op arriving by a different road.
+        const found = unbarrieredDatabaseStacks([
+            fake('WidgetServiceStack', "new cr.AwsCustomResource(this, 'Invoke', { onUpdate: {} });"),
+        ]);
+
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain('in-deploy migration barrier');
     });
 
     it('catches a schema stack that grew something which reads the schema', () => {
@@ -337,11 +378,36 @@ describe('the gate fires — at stacks built to break it', () => {
         expect(found[0]).toContain('ships no migration runner');
     });
 
+    it('catches a DB-touching stack that names its database by hand', () => {
+        const found = unbarrieredDatabaseStacks([
+            fake('WidgetServiceStack', "new ecs.FargateService(this, 'S', { DB_HOST: 'db.internal' });"),
+        ]);
+
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain('without naming that database through a shared authority');
+    });
+
+    it('passes a DB-touching stack that resolves its name through the shared authority', () => {
+        expect(
+            unbarrieredDatabaseStacks([
+                fake(
+                    'WidgetServiceStack',
+                    'const name = widgetDatabaseNameForStage(stage, baseStage, imported);\n' +
+                        "new ecs.FargateService(this, 'S', { DB_HOST: host });",
+                ),
+            ]),
+        ).toStrictEqual([]);
+    });
+
     it('passes a well-formed pair', () => {
         expect(
             unbarrieredDatabaseStacks([
                 fake('WidgetSchemaStack', `new lambda.Function(this, 'X', { handler: '${MIGRATION_HANDLER}' });`),
-                fake('WidgetServiceStack', "new ecs.FargateService(this, 'S', { DB_HOST: x });"),
+                fake(
+                    'WidgetServiceStack',
+                    'const name = widgetDatabaseNameForStage(stage, baseStage, imported);\n' +
+                        "new ecs.FargateService(this, 'S', { DB_HOST: x });",
+                ),
             ]),
         ).toStrictEqual([]);
     });

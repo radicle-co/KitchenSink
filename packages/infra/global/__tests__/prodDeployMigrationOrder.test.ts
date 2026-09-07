@@ -20,7 +20,7 @@
  * a missing relation. Nothing in the pipeline can tell the difference between "no migrations were needed"
  * and "the runner had never heard of them".
  *
- * The real repair therefore lives INSIDE the deploy — an `aws-cdk-lib/triggers` `Trigger` between the
+ * The repair ADR-0022 reached for lived INSIDE the deploy — an `aws-cdk-lib/triggers` `Trigger` between the
  * Lambda's code update and the ECS service's rollout, asserted in each service's own infra suite
  * (`FoodServiceStack.test.ts`, `RecipeServiceStack.test.ts`, and identity's `stacks.test.ts` — identity's
  * runner moved OUT of the webhooks app precisely so it could take part). What remains in the pipeline is the safety
@@ -571,41 +571,41 @@ describe('the production pipeline knows which services are cut over to the edge'
  * ⛔ THE SECOND HALF OF THE SAME INVARIANT: a Lambda that talks to a service's database is CODE, governed by
  * the same rule as that service's ECS tasks — it may not be updated ahead of the schema it reads.
  *
- * ## What the trigger above does NOT reach
+ * ## The window this was written for
  *
- * `RecipeServiceStack`'s `triggers.Trigger` orders the migration ahead of `apiService`, and CloudFormation
- * enforces that absolutely — INSIDE one stack. The recipe **workers** are six DB-touching Lambdas in a
- * DIFFERENT CDK app (`kitchensink-recipe-workers-{stage}`), applied by a SEPARATE `cdk deploy`, and both
- * pipelines run that deploy FIRST. So every release shipped new worker code over the old schema and left it
- * there until the service deploy's trigger caught up — and an SQS-driven worker (archive, erasure,
- * handle-sync) is fed by the STILL-RUNNING previous release for that whole window, so it is not idle time.
- * On a first-ever `pr-{N}` deploy it is worse than skew: the per-PR logical database is created BY the
- * migration run (ADR-0006), so until then the six workers address a database that does not exist.
+ * The recipe **workers** are eight DB-touching Lambdas in a DIFFERENT CDK app
+ * (`kitchensink-recipe-workers-{stage}`), applied by a SEPARATE `cdk deploy`, and both pipelines run that
+ * deploy FIRST. Under ADR-0022 the schema was applied by a `triggers.Trigger` inside the recipe SERVICE's
+ * deploy, so every release shipped new worker code over the old schema and left it there until the service
+ * deploy caught up — and an SQS-driven worker (archive, erasure, handle-sync) is fed by the STILL-RUNNING
+ * previous release for that whole window, so it is not idle time. On a first-ever `pr-{N}` deploy it was
+ * worse than skew: the per-PR logical database is created BY the migration run (ADR-0006), so until then
+ * the workers addressed a database that did not exist.
  *
- * ## Why this is a guard and not a `DependsOn`
+ * ## Why it is a guard over the pipeline, and no longer a choice of two routes
  *
- * No CloudFormation primitive spans two CDK apps run as two CLI invocations. There are therefore exactly two
- * ways for a DB-touching stack to be safe, and this suite accepts EITHER:
+ * No CloudFormation primitive spans two CDK apps run as two CLI invocations. ADR-0022 could therefore only
+ * offer two routes — be deployed after the migration-owning app, or carry your OWN in-deploy barrier — and
+ * recipe took the second, which cost a SECOND runner for one database shipping the first's bundle.
  *
- *   1. it is deployed after the migration-owning app, so the pipeline's own sequencing orders it; or
- *   2. it carries its OWN in-deploy barrier — a `triggers.Trigger` over the same migration runner, with the
- *      DB-touching resources behind it — which is a real `DependsOn` and needs no pipeline cooperation.
+ * ⛔ Reordering the pipeline to reach the first route was considered and REJECTED then, for a reason that
+ * still stands: the workers-first order is not an SSM accident (`RecipeWorkersStack` publishes the
+ * `account-erasure-queue-{url,arn}` parameters `RecipeServiceStack` resolves at deploy time) — it is the
+ * CORRECT order for a queue, because the CONSUMER must upgrade before the PRODUCER. Deploying the service
+ * first would trade schema skew for message-contract skew on a right-to-erasure request.
  *
- * ⛔ Reordering the pipeline to reach (1) was considered and REJECTED, and the reason is not the one that
- * first suggests itself. The workers-first order is not merely an SSM accident (`RecipeWorkersStack` publishes
- * the `account-erasure-queue-{url,arn}` parameters that `RecipeServiceStack` resolves at deploy time, so the
- * service cannot even synthesize first on a new stage): it is also the CORRECT order for a queue, because the
- * CONSUMER must upgrade before the PRODUCER. Deploying the service first would trade a schema-skew window for
- * a message-contract-skew window on the account-erasure path, which is not an improvement — it is a different
- * defect on a right-to-erasure request. So recipe takes route (2).
+ * ADR-0035 dissolves the dilemma instead of choosing a side: the schema is applied by a step ahead of BOTH
+ * apps, so the workers keep their position and are ordered behind the migration anyway. There is one route
+ * now, and this suite asserts it over the workflow text — which is the only place it exists, since the
+ * ordering is no longer expressible in any single template.
  *
  * ## What this guard can and cannot see
  *
- * It checks that the barrier EXISTS in the stack that addresses the database. That the barrier COVERS every
- * DB-touching resource — the way a `triggers.Trigger` stops being a barrier while keeping its name — is a
- * property of the synthesized template, and is asserted where the template is:
- * `packages/services/recipe-workers/infra/__tests__/RecipeWorkersStack.test.ts` derives the covered set from
- * the template itself, so a seventh worker cannot be added outside it.
+ * It reads STEP ORDER in the workflows. That a schema stack holds only its runner, that no stack ships a
+ * second one, and that none re-introduces an in-deploy Trigger are properties of the CDK sources, asserted
+ * in `dbTouchingStackBarrier.test.ts`. That a schema deploy runs under the conditions that BUILT its asset
+ * is `schemaDeployGating.test.ts`'s. Neither of those gates can see step order, and this one cannot see a
+ * template — which is why all three exist.
  *
  * ## Nothing is enumerated
  *

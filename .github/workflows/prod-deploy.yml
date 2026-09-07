@@ -215,17 +215,12 @@ jobs:
                     "deploy_recipe=$deploy_recipe@packages/services/recipe-service/infra/bin/app.ts" \
                     "deploy_recipe=$deploy_recipe@packages/services/recipe-workers/infra/bin/app.ts" \
                     "deploy_recipe=$deploy_recipe@packages/services/ingredient-parser/infra/bin/app.ts")
-                  # ⚠️ Derived from the CLOSED flags, never the raw ones: a leg the closure forced still owes
-                  # its schema, and reading the pre-closure value would skip the ADR-0022 §4 safety net for
-                  # exactly the deploy that was added late.
-                  run_migrations=false
-                  if printf '%s\n' "$closed" | grep -qxE 'deploy_(service|webhooks)=true'; then run_migrations=true; fi
-                  {
-                    printf '%s\n' "$closed"
-                    echo "run_migrations=$run_migrations"
-                  } >> "$GITHUB_OUTPUT"
+                  # ⛔ A `run_migrations` output used to be derived here, so the migrate steps could be gated
+                  # on it. It is gone with that gate: the schema apply is ungated (ADR-0035), because a
+                  # path-diff gate skips it in exactly the case it exists for. Nothing read this output by
+                  # the end, which is the state a computed-and-unread flag decays into.
+                  printf '%s\n' "$closed" >> "$GITHUB_OUTPUT"
                   printf '%s\n' "$closed"
-                  echo "migrations=$run_migrations"
 
             - name: Setup Node.js
               uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0

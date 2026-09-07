@@ -131,8 +131,27 @@ schema**, deployed and invoked by its own pipeline step ahead of every consumer.
 **Residual risk, stated rather than implied**
 
 - The manifest proves the runner's SQL matches the working tree. It does NOT prove the tree matches what was
-  reviewed — a migration edited after approval still applies. Unchanged from before, but now the only
-  remaining silent path.
+  reviewed — a migration edited after approval still applies.
+- It proves the **SQL**, not the runner. A runner whose ENGINE is a release behind — a different
+  `expectedTables()` derivation, a different pool config — passes the assertion whenever the SQL set is
+  unchanged. In practice the schema deploy ships both together, so this is a limit on what the digest
+  claims rather than a gap; it is recorded because "a runner holding a different set throws" reads as a
+  claim about the runner.
+- **The expand-first window widened, materially.** Under ADR-0022 the interval between "schema applied" and
+  "new code serving" was one stack's rollout inside one `cdk deploy`, enforced by CloudFormation. It is now
+  the rest of the pipeline — identity, webhooks, food, recipe workers, recipe service — and it is UNBOUNDED
+  if any step in between fails, because the schema step already succeeded and the pipeline stops. Expand-first
+  is what makes that safe, and it is now doing considerably more work than it was: a migration that is only
+  NEARLY expand-first (a `NOT NULL` with a default, a unique index the previous release's writes can violate)
+  had minutes of exposure and now has hours. Prose is the only thing enforcing it; a check over migration SQL
+  for narrowing operations is owed.
+- **A wedged schema stack now blocks every service's deploy**, not just its own. The three schema deploys are
+  sequential in one prod job, so a `kitchensink-food-schema-prod` stuck in `UPDATE_ROLLBACK_FAILED` reds an
+  identity-only release. `kitchensink-recipe-service-pr-91` reached that state in practice, so this is
+  observed behaviour rather than a hypothetical.
+- **Concurrent pipeline runs against one stage fail loudly rather than silently**, which is the manifest
+  working: run A deploys M1, run B overwrites with M2, A's invoke expects M1 and refuses. Recorded because it
+  will present as a flake to whoever meets it first.
 - Nothing orders two CDK apps except the pipeline. That was true under ADR-0022 as well; what changed is
   that the pipeline now carries the schema, so the gap no longer needs a second runner to paper over.
 - A stage deployed by hand, outside a pipeline, has no barrier.

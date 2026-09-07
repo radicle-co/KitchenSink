@@ -10,11 +10,11 @@
  * is not a degraded read — `AuthMiddleware` read-through-creates the user row on EVERY authenticated
  * request, so a column this release expects and the database lacks is a failed sign-in, cached at the edge.
  *
- * Closing the window needs the runner and the ECS service in ONE CloudFormation stack, so an
- * `aws-cdk-lib/triggers` `Trigger` can sit between the Lambda's code update and the service's rollout.
- * `WebhooksStack` is a different CDK app that deploys AFTER `IdentityServiceStack` (it imports that
- * stack's log-group export), so there was no cross-app edge to express. The runner therefore moved to the
- * stack that owns the service it protects; the `.sql` files did not move at all.
+ * ADR-0022 closed that window by putting the runner and the ECS service in ONE stack, with an
+ * `aws-cdk-lib/triggers` `Trigger` between the Lambda's code update and the service's rollout. ADR-0035
+ * replaced it: the runner owns `kitchensink-identity-schema-{stage}` and is deployed and invoked by its own
+ * pipeline step ahead of every consumer, which reaches across apps as `DependsOn` never could. The `.sql`
+ * files have not moved through any of this — they have always been owned here.
  *
  * ## Contract
  *
@@ -25,10 +25,9 @@
  * the destructive reset in `0005` never re-runs.
  *
  * Every failure here THROWS. Nothing catches these: a thrown error surfaces as a Lambda `FunctionError`,
- * which the triggers framework turns into a failed deploy (and which the pipeline's idempotent safety-net
- * invocation also fails on). A migration runner that resolves successfully having applied nothing is
- * indistinguishable, to both callers, from one that had nothing to do — which is the exact silent no-op
- * the in-deploy trigger exists to remove.
+ * which `run-migrations.sh` classifies as a failed run and which fails the deploy. A migration runner that
+ * resolves successfully having applied nothing is indistinguishable from one that had nothing to do — which
+ * is the silent no-op ADR-0022 recorded, and which `expectManifestSha` is what actually removes.
  */
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

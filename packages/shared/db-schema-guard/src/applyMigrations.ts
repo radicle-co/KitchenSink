@@ -129,6 +129,34 @@ function migrationsOf(manifest: MigrationManifest): DiscoveredMigration[] {
 }
 
 /**
+ * Assert, WITHOUT connecting to anything, that this bundle holds the migration set the caller expects.
+ *
+ * ⛔ For callers that do work before {@link applyMigrations} — food's and recipe's runners CREATE a per-PR
+ * logical database first (ADR-0006) — because "refuse before any side effect" is a property `applyMigrations`
+ * claims and cannot deliver on its own. Without this, a stale runner creates an empty, unmigrated database
+ * and only then refuses on the digest.
+ *
+ * @param options - The label, the migrations directory, and the caller's expectation.
+ * @throws {EmptyMigrationSetError} when the directory holds no `.sql`.
+ * @throws {SchemaManifestMismatchError} when the expectation names a different set.
+ * @sideEffect Reads the migrations directory.
+ */
+export function assertBundleMatches(options: {
+    readonly label: string;
+    readonly migrationsDir: string;
+    readonly expectManifestSha: string;
+}): void {
+    const manifest = readMigrationManifest(options.migrationsDir);
+
+    assertManifestMatches({
+        label: options.label,
+        expected: options.expectManifestSha,
+        actual: manifest.sha,
+        migrations: manifest.migrations,
+    });
+}
+
+/**
  * Apply the ordered migrations idempotently against a pool, then validate the result.
  *
  * The manifest is checked FIRST, before a connection is taken: a runner holding the wrong set must fail
@@ -195,7 +223,17 @@ export async function applyMigrations(options: ApplyMigrationsOptions): Promise<
                 continue;
             }
 
-            const sql = manifest.bodies.get(migration.file) ?? '';
+            const sql = manifest.bodies.get(migration.file);
+
+            if (sql === undefined) {
+                // ⛔ NOT a fallback to the empty string, which is what this was. An empty statement SUCCEEDS,
+                // so the loop would `INSERT` the name and `COMMIT` — recording a migration as applied having
+                // executed nothing, permanently, with no re-run able to repair it. That is the exact failure
+                // class this file exists to abolish, and it is unreachable today only because `migrationsOf`
+                // and `bodies` come from one read. A refactor that separates discovery from reading makes it
+                // reachable, and the fallback would hide it.
+                throw new Error(`[${label}] manifest and migration list disagree — no body for ${migration.file}`);
+            }
 
             await client.query('BEGIN');
 

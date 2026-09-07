@@ -1,31 +1,49 @@
 #!/usr/bin/env bash
 #
-# The schema-migration SAFETY NET — ONE definition, invoked by every deploy workflow.
+# The schema apply — ONE definition, invoked by every deploy workflow.
 #
-# ⚠️  DELIBERATE — read docs/architecture/decisions/0022-in-stack-migration-trigger.md before changing this.
+# ⚠️  DELIBERATE — read docs/architecture/decisions/0035-schema-stacks-decoupled-from-service-deploys.md
+# before changing this. (ADR-0022 is SUPERSEDED by it and kept as the record of the in-stack posture.)
 #
-# ## Why it runs UNCONDITIONALLY
+# ## This is the MECHANISM, not a safety net
 #
-# ADR-0022 moved the schema apply INSIDE the deploy, as an `aws-cdk-lib/triggers` Trigger every Lambda and
-# ECS service in the stack is ordered behind. That Trigger is the MECHANISM. This invoke is the stated SAFETY
-# NET, kept "because it is idempotent and catches a stage whose schema is behind for a reason no code change
-# explains: a restore, a stage created later, a `deploy_webhooks`-only run" (§4).
+# It used to be the net behind an `aws-cdk-lib/triggers` Trigger that applied the schema inside each
+# service's deploy. That Trigger is gone. Each database's runner now lives in its own stack
+# (`kitchensink-{svc}-schema-{stage}`), deployed by its own pipeline step, and THIS invoke is what applies
+# the schema — ahead of every consumer, in every app, which is more than a Trigger could ever reach
+# (`DependsOn` cannot leave a stack, which is why recipe needed two runners for one database).
 #
-# ⛔ The net used to be gated on the same path-diff flag as the deploy it followed — so in the ONE case it
-# exists for, a schema behind for a reason NO CODE CHANGE EXPLAINS, the flag was `false`: no `cdk deploy`, so
-# the Trigger never fired, the invoke was skipped, and the deploy reported success against an unmigrated
-# database. The net covered exactly the runs that did not need it. Sandbox never had that hole, because
-# ADR-0010's ensure-exists gate forces a deploy when the stack is absent or the origin is not serving — which
-# made PRODUCTION the weaker stage, the inverse of what anybody would assume.
+# ## Why it runs UNCONDITIONALLY, and why the deploy before it does not
+#
+# ⛔ The invoke is ungated. A gate on a path diff skips it in the ONE case it exists for — a stage whose
+# schema is behind for a reason NO CODE CHANGE explains: a restore, a stage created later, a
+# `deploy_webhooks`-only run. That mistake was live once: the net was gated on the same flag as the deploy
+# it followed, so it covered exactly the runs that did not need it, and PRODUCTION was the weaker stage
+# because sandbox's ensure-exists gate (ADR-0010) forces a deploy the flag would not.
+#
+# ⚠️ The schema `cdk deploy` that precedes it IS gated, on the same flag as the step that bundles its asset,
+# and the asymmetry is deliberate rather than an oversight. That step has INPUTS; ungated, it runs on a push
+# that built neither the CDK app nor `dist-lambda/` — at best `MODULE_NOT_FOUND`, at worst a SUCCESSFUL
+# deploy of the throwing inline placeholder over a working runner. Gating costs nothing because the property
+# lives HERE: a service's migrations are under that service's own path, so either they changed and the flag
+# is true, or the deployed runner still holds a set whose digest matches the tree.
+# `packages/infra/global/__tests__/schemaDeployGating.test.ts` asserts it.
 #
 # Running every time is safe, and that is a property of the runner rather than optimism: `schema_migrations`
 # is keyed by FILENAME (`name TEXT PRIMARY KEY`, no checksum) and the runner skips on a name match, so a run
 # against an up-to-date database applies nothing and costs one Lambda invocation.
 #
-# ⛔ Do NOT hoist a call to this script ABOVE the `cdk deploy` that ships the runner's bundle. `esbuild.mjs`
-# copies `migrations/*.sql` into the bundle at BUILD time and the bundle ships WITH the deploy, so invoking
-# first invokes the PREVIOUS release's runner carrying the PREVIOUS migration set — exit 0, "nothing
-# pending", nothing applied. Position is load-bearing; the GATE is what changed.
+# ## ⛔ POSITION IS STILL LOAD-BEARING — after the schema deploy, never before it
+#
+# ADR-0022 found that hoisting a migrate step above `cdk deploy` is SILENTLY WORSE, and that finding still
+# holds for the reason it always did: `esbuild.mjs` copies `migrations/*.sql` into the bundle at BUILD time
+# and the bundle ships WITH the deploy, so invoking first invokes the PREVIOUS release's runner carrying the
+# PREVIOUS migration set — exit 0, "nothing pending", nothing applied.
+#
+# What changed is that the hazard is no longer UNDETECTABLE, which is what made hoisting unsafe. This script
+# digests the working tree's migrations and sends `expectManifestSha` with the invoke; a runner holding a
+# different set THROWS instead of reporting a clean run. So the step still sits after the deploy that ships
+# its bundle — and if it ever does not, the runner says so rather than lying.
 #
 # ## Why `aws lambda invoke`'s exit status proves nothing
 #
@@ -199,7 +217,7 @@ run_migrations_run() {
     fn=$(printf '%s' "$outputs" | jq -r --arg key "$output_key" '(. // []) | map(select(.OutputKey == $key)) | .[0].OutputValue // empty')
 
     if [ -z "$fn" ]; then
-        echo "::error::[${label}] ${stack} exists but publishes no '${output_key}' output, so its migration runner cannot be reached. The in-stack Trigger may still be applying the schema, but the ADR-0022 §4 safety net is BLIND here — give the runner a CfnOutput."
+        echo "::error::[${label}] ${stack} exists but publishes no '${output_key}' output, so its migration runner cannot be reached and NOTHING is applying this schema. There is no in-stack Trigger behind this any more (ADR-0035) — give the runner a CfnOutput."
 
         return 1
     fi

@@ -252,10 +252,15 @@ describe('prod-deploy.yml — the food and recipe legs are reachable', () => {
         expect(recipe['deploy_recipe']).toBe('true');
         expect(recipe['deploy_food']).toBe('false');
 
-        // Feature-only changes must not drag identity along, and must not run its migrations.
+        // Feature-only changes must not drag identity along.
+        //
+        // ⚠️ This used to also assert `run_migrations === 'false'`. That output is gone: the schema apply is
+        // ungated (ADR-0035), because a path-diff gate skips it in exactly the case it exists for. What
+        // remains true, and is what this test was really about, is that a recipe-only push does not deploy
+        // identity — the ORDERING of identity's schema against identity's service is
+        // `prodDeployMigrationOrder.test.ts`'s.
         expect(recipe['deploy_service']).toBe('false');
         expect(recipe['deploy_webhooks']).toBe('false');
-        expect(recipe['run_migrations']).toBe('false');
     });
 });
 
@@ -314,10 +319,15 @@ describe('prod-deploy.yml — the deploy graph is closed against unmet cross-app
         });
     });
 
-    it('derives run_migrations from the CLOSED flags, not the raw ones', () => {
-        // ⚠️ A leg the closure forces still owes its schema. Computing `run_migrations` from the pre-closure
-        // flags would deploy the identity service and skip the ADR-0022 §4 safety net for it — and the
-        // ordering bug would be invisible, because the flag it reads would still say `false`.
+    it('closes a leg its consumer forced, so the forced leg gets its schema too', () => {
+        // ⚠️ REWRITTEN, not deleted. It used to assert `run_migrations === 'true'` here, on the reasoning
+        // that a leg the closure FORCES still owes its schema and computing that flag from the pre-closure
+        // values would skip the migrate step for exactly the deploy that was added late.
+        //
+        // The flag is gone — the schema apply is ungated now, so nothing can skip it — but the closure it
+        // was testing is not, and it is what makes the forced leg's schema deploy run at all: the schema
+        // `cdk deploy` is gated on `deploy_service`, so a closure that failed to set it would deploy the
+        // identity service against a runner nothing had updated.
         //
         // The edge used here is the PRE-ADR-0028 one, which was real until 2026-08-30: webhooks imported the
         // log group name straight from `kitchensink-identity-service-{stage}`.
@@ -328,7 +338,6 @@ describe('prod-deploy.yml — the deploy graph is closed against unmet cross-app
         );
 
         expect(flags['deploy_service']).toBe('true');
-        expect(flags['run_migrations']).toBe('true');
     });
 
     it('reads the unmet edges as DATA, never as script text', () => {

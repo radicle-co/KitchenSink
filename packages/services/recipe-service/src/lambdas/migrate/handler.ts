@@ -20,7 +20,7 @@ import { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 import { z } from 'zod';
 
-import { applyMigrations } from '@kitchensink/db-schema-guard';
+import { applyMigrations, assertBundleMatches } from '@kitchensink/db-schema-guard';
 import type { MigrateResult } from '@kitchensink/db-schema-guard';
 
 import { BASE_RECIPE_DATABASE_NAME } from '@kitchensink/recipe-core/database-name';
@@ -290,6 +290,20 @@ export const handler = async (event: unknown = {}): Promise<MigrateResult | { dr
             await maintenancePool.end();
         }
     };
+
+    // ⛔ BEFORE ANY SIDE EFFECT, and before the drop branch below. A `migrate` that will CREATE a per-PR
+    // logical database (ADR-0006) must not create one and only then discover it is the wrong release's
+    // runner: that leaves an empty, unmigrated database behind for the reaper to find. `applyMigrations`
+    // makes the same assertion, and this is the only way its "refuse before touching anything" claim can be
+    // true for a handler that does work in front of it.
+    if (parsed.data.action !== 'drop') {
+        assertBundleMatches({
+            label: 'recipe',
+            migrationsDir: bundledMigrationsDir(),
+            // Non-null by construction: the schema's refine rejects a migrate event without it.
+            expectManifestSha: parsed.data.expectManifestSha as string,
+        });
+    }
 
     if (parsed.data.action === 'drop') {
         const dropped = await withMaintenancePool((pool) => dropDatabase({ maintenancePool: pool, databaseName }));

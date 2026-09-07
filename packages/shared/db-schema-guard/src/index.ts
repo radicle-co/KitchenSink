@@ -35,7 +35,7 @@ export type { ManifestEntry } from './manifest.js';
 
 export { readMigrationManifest } from './manifestFile.js';
 
-export { applyMigrations, discoverMigrations } from './applyMigrations.js';
+export { applyMigrations, assertBundleMatches, discoverMigrations } from './applyMigrations.js';
 export type { ApplyMigrationsOptions, DiscoveredMigration, MigrateResult } from './applyMigrations.js';
 
 export type { MigrationClient, MigrationPool, MigrationQueryResult } from './port.js';

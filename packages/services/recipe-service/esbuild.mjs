@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
  * every dependency (pg, drizzle, the recipe schema, `@aws-sdk/rds-signer` for the IAM auth token) is
  * inlined; only `pg-native` (pg's optional native binding we never use) is left external.
  */
-const entryPoints = ['src/lambdas/migrate/handler.ts', 'src/lambdas/seed/handler.ts'];
+const entryPoints = ['src/lambdas/migrate/handler.ts'];
 
 await build({
     entryPoints,

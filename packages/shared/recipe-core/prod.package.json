@@ -14,10 +14,6 @@
             "types": "./dist/recipeDatabaseName.d.ts",
             "default": "./dist/recipeDatabaseName.js"
         },
-        "./seed-on-deploy": {
-            "types": "./dist/seedOnDeploy.d.ts",
-            "default": "./dist/seedOnDeploy.js"
-        },
         "./food-name": {
             "types": "./dist/foodName.d.ts",
             "default": "./dist/foodName.js"

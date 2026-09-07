@@ -10,7 +10,6 @@
         ".": "./src/index.ts",
         "./testing": "./src/testing/index.ts",
         "./database-name": "./src/recipeDatabaseName.ts",
-        "./seed-on-deploy": "./src/seedOnDeploy.ts",
         "./food-name": "./src/foodName.ts",
         "./resolution/normalized-key": "./src/resolution/normalizedKey.ts",
         "./resolution/ranking-terms": "./src/resolution/rankingTerms.ts",

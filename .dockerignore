@@ -32,6 +32,15 @@
 # check (ADR-0035) and by their migration-runner Lambdas for the one apply engine.
 !packages/shared/db-schema-guard/dist
 !packages/shared/db-schema-guard/prod.package.json
+
+# ⛔ THIS RELEASE'S ORDERED `.sql`, for the boot-time schema-currency check. The Dockerfiles copy these to
+# the place the compiled `schemaCurrency.js` resolves as its own sibling — and a COPY of a path this file
+# excludes is not a silent no-op, it FAILS THE BUILD, which is how this was found. `.dockerignore` denies
+# everything and allowlists back, so a new COPY needs its source named here or the build context does not
+# contain it.
+!packages/services/identity/src/database/migrations
+!packages/services/food-service/src/db/migrations
+!packages/services/recipe-service/src/database/migrations
 !packages/shared/messaging/dist
 !packages/shared/messaging/prod.package.json
 !packages/clients/usda/dist

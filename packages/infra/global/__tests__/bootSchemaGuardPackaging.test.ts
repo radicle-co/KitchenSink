@@ -120,6 +120,28 @@ describe('the boot schema check can find its own migrations', () => {
         expect(missing).toStrictEqual([]);
     });
 
+    it('⛔ is IN THE BUILD CONTEXT — `.dockerignore` denies everything and allowlists back', () => {
+        // ⛔ THE GAP THAT BROKE THE BUILD, and the reason asserting the COPY was not enough. `.dockerignore`
+        // opens with `*`, so a path nobody allowlisted is simply absent from the context — and a COPY of an
+        // absent path is not a silent no-op, it FAILS the image build. Every service's image build failed
+        // on the first push after these COPYs landed.
+        //
+        // ⚠️ It is the SOURCE path that must be un-ignored, not the destination: the destination is created
+        // inside the image, and the thing `.dockerignore` filters is what the daemon is handed.
+        const ignore = readFileSync(path.join(REPO_ROOT, '.dockerignore'), 'utf8')
+            .split('\n')
+            .map((line) => line.trim());
+        const excluded = bootGuardModules()
+            .filter((module) => !ignore.includes(`!${module.sourceMigrations}`))
+            .map(
+                (module) =>
+                    `${module.sourceMigrations} is not un-ignored in .dockerignore, so the COPY that ships ` +
+                    'it has no source and the image build fails',
+            );
+
+        expect(excluded).toStrictEqual([]);
+    });
+
     it('⛔ can be FLIPPED — every such service declares SCHEMA_CURRENCY_MODE on its task definition', () => {
         // ⛔ A soak with no ending is just a permanently disabled check. The mode ships as `warn` and the
         // flip to `enforce` has to be a DEPLOY-TIME setting: if the only way to arm it were editing three

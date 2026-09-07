@@ -216,7 +216,14 @@ describe('recipe-workers CDK app — deploy input contract', () => {
         // The analytics retention sweeper (analytics plan U6) is the eleventh: it deletes this
         // preview's own aged analytics_events, so a base-database sweeper would age out another
         // stage's rows on schedule.
-        expect(dbNames).toHaveLength(11);
+        //
+        // ⚠️ TEN, DOWN FROM ELEVEN (ADR-0035): the migration runner this count included moved to
+        // `kitchensink-recipe-schema-{stage}`, its own stack, deployed and migrated ahead of this app. The
+        // #119 guarantee did not weaken — it got STRONGER, because one runner ahead of everything covers
+        // consumers in BOTH CDK apps, which an in-stack trigger never could. That the runner resolves the
+        // same name is asserted across all three templates by recipe-service's
+        // `recipeDatabaseNameParity.test.ts`.
+        expect(dbNames).toHaveLength(10);
         expect(new Set(dbNames)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 
@@ -288,48 +295,35 @@ describe('recipe-workers CDK app — deploy input contract', () => {
         expect(message).toContain('RECIPE_DB_BASE_NAME');
     });
 
-    it('⛔ wires the schema barrier from the REAL composition root, over every database-bound Lambda', () => {
-        // The seam the synth suite cannot see. `RecipeWorkersStack` takes the recipe-service migration
-        // bundle as a PROP; only `infra/bin/app.ts` knows where that bundle lives on disk. If that path is
-        // wrong — a package moved, a directory renamed — the stack silently falls back to the throwing
-        // placeholder and NOTHING about the template shape changes, so every assertion in the synth suite
-        // still passes while the deploy would fail at the trigger. This runs the real app and reads the real
-        // template back, which is the only place that path is exercised.
+    it('⛔ resolves NO migration bundle from the composition root — the schema left this app', () => {
+        // ⚠️ THE SUBJECT MOVED, so this assertion inverted rather than being deleted.
+        //
+        // It used to prove a seam the synth suite could not see: `RecipeWorkersStack` took recipe-service's
+        // migration bundle as a PROP, and only `infra/bin/app.ts` knew where that bundle lived on disk. A
+        // wrong path there made the stack fall back to a throwing placeholder with NOTHING about the
+        // template changing, so every synth assertion still passed while the deploy died at the trigger.
+        //
+        // ADR-0035 removed the prop and the trigger with it: the schema belongs to
+        // `kitchensink-recipe-schema-{stage}`, deployed and migrated ahead of this app. The cross-package
+        // path that could silently go wrong no longer exists, and what this test now protects is that it
+        // does not come back — a re-added bundle path would reintroduce a failure mode whose whole
+        // character was being invisible to the template.
         const template = synthApp('pr-73');
         const all = resources(template) as Record<string, SynthesizedResource>;
-        const triggerIds = Object.entries(all)
+        const triggers = Object.entries(all)
             .filter(([, resource]) => resource.Type === 'Custom::Trigger')
             .map(([id]) => id);
 
-        expect(triggerIds, 'the app must synthesize exactly one in-deploy migration trigger').toHaveLength(1);
+        expect(triggers, 'a trigger here means a second runner for one database has come back').toStrictEqual([]);
 
-        const trigger = all[triggerIds[0] as string] as SynthesizedResource;
-        const handlerArn = JSON.stringify(trigger.Properties?.['HandlerArn']);
-        const runnerId = Object.entries(all)
-            .filter(([id, resource]) => resource.Type === 'AWS::Lambda::Version' && handlerArn.includes(id))
-            .map(([, resource]) => (resource.Properties?.['FunctionName'] as { Ref?: string } | undefined)?.Ref)
-            .find((id): id is string => id !== undefined);
+        const migrationRunners = Object.entries(all)
+            .filter(
+                ([, resource]) =>
+                    resource.Type === 'AWS::Lambda::Function' &&
+                    String(resource.Properties?.['Handler'] ?? '').includes('migrate'),
+            )
+            .map(([id]) => id);
 
-        expect(runnerId, 'the trigger must invoke a runner defined in this stack').toBeDefined();
-
-        // The composition root resolved a REAL bundle, not the placeholder: an asset, not inline code.
-        const runner = all[runnerId as string] as SynthesizedResource;
-
-        expect(
-            (runner.Properties?.['Code'] as { ZipFile?: string; S3Key?: string } | undefined)?.S3Key,
-            'infra/bin/app.ts must resolve the recipe-service migration bundle — an inline placeholder here ' +
-                'means the path is wrong and every deploy would fail at the trigger',
-        ).toBeDefined();
-
-        const unordered = [...databaseBoundFunctions(template).keys()]
-            .filter((id) => id !== runnerId)
-            .filter((id) => {
-                const value = all[id]?.DependsOn;
-                const deps = value === undefined ? [] : Array.isArray(value) ? value : [value];
-
-                return !deps.includes(triggerIds[0] as string);
-            });
-
-        expect(unordered, 'these Lambdas would be updated before the migration has run').toStrictEqual([]);
+        expect(migrationRunners, 'this app must ship no migration runner of its own').toStrictEqual([]);
     });
 });

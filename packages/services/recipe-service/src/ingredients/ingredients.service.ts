@@ -12,16 +12,32 @@
  *     `food_id` and sectioned by provenance. This is the picker's read.
  *   - **addByFoodId (Stage 2 pick)** — {@link IngredientsService.addByFoodId} admits a catalog suggestion as a
  *     food-backed row AND backfills its golden-record nutrition in one round-trip (F1).
- *   - **addByName** — `foodClient.addByName` returns `202` (`PENDING` / `UNRESOLVED`); we persist a
+ *   - **addByName** — consults the RESOLUTION CASCADE first (plan U10: curated mappings, then remembered
+ *     verifications, then the catalog ranking — `resolution/resolutionRegistry.ts` owns and justifies that
+ *     order), and admits the mapped food directly on a hit. On a miss —
+ *     `foodClient.addByName` returns `202` (`PENDING` / `UNRESOLVED`); we persist a
  *     food-backed catalog row (deduped on the opaque `food_id`) and return it immediately with its
  *     non-terminal status, so the picker can render a "nutrition pending" state.
- *   - **poll** — {@link IngredientsService.refreshStatus} re-reads `foodClient.getStatus`; on `RESOLVED`
- *     it persists the golden-record per-100g nutrition, otherwise it just advances the stored status.
+ *   - **poll** — {@link IngredientsService.refreshStatus} re-reads `foodClient.getStatus` and advances the
+ *     stored status; on `RESOLVED` it also ADOPTS the golden record's canonical name (plan U3).
+ *
  *   - **disambiguation** — {@link IngredientsService.getCandidates} + {@link IngredientsService.resolve}
  *     drive an `UNRESOLVED` food through `getCandidates` / `resolve(id, candidateIds)`.
  *   - **terminal** — a `NOT_FOUND` / `FAILED` food is written back as the ingredient's terminal status;
  *     the caller surfaces an error, offers a freeform fallback ({@link IngredientsService.createFreeform},
  *     `is_user_entered = true`), and allows removal. A terminal food never throws out of the poll.
+ *
+ * ⛔ **THE NAME ON A ROW IS SHARED STATE, AND ONLY FOOD-SERVICE MAY SETTLE IT** (plan U3). `ingredients` has
+ * no `owner_id`: whoever adds a food names it for everyone who later searches. `addByName` must persist the
+ * caller's own text when the food is not yet resolved — that text is the only label a `PENDING` food has, and
+ * the owner ruling is that such a row stays VISIBLE in search so the demand signal is not lost — but it is a
+ * PLACEHOLDER, not a label. From the picker that placeholder is a search term ("butter"); from the cookbook
+ * importer it is a fragment of recipe prose ("1 cup of sifted pastry flour, well packed"), and ~92.8% of the
+ * 448-recipe import's lines were decided against this table, so the placeholders became the corpus the ranker
+ * searched. The repair is the WRITE path: every transition to `RESOLVED` — the poll, the pick, and an add
+ * whose food food-service ALREADY holds — takes the canonical name, decided once by `canonicalNameFrom`. Do
+ * not fix this by filtering non-terminal rows out of the read, and do not add a fourth name-writing path
+ * without a {@link CanonicalIngredientName} (the DAL will not compile if you try).
  *
  * **Every food call is made AS THE CALLER** (issue #120). Food-service verifies a Clerk token, so the only
  * credential that can satisfy it is the requesting user's own. It is therefore threaded explicitly through
@@ -33,114 +49,163 @@
  *
  * @implements FR-007 FR-007a FR-047
  */
-import { Injectable } from '@nestjs/common';
-import { FoodResolutionStatus, normalizeUnit } from '@kitchensink/recipe-core';
-import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { FoodResolutionStatus, RecipeErrorCode } from '@kitchensink/recipe-core';
+import type { FoodReferencesResponse } from './ingredients.schema.js';
+import type { CatalogFoodResolutionStatus, Ingredient } from '@kitchensink/recipe-core';
+import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
+import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { isNotFoundError } from '@kitchensink/food-service-client';
-import type { CandidateView, FoodStatus, FoodView, StatusResult } from '@kitchensink/food-service-client';
+import type { CandidateView, StatusResult } from '@kitchensink/food-service-client';
 
-import type { CallerToken } from '../auth/caller-token.js';
-import { clampLimit, IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
-import { FoodCatalogGateway } from './food-catalog.gateway.js';
-import { FoodServiceClients } from './food-service-clients.factory.js';
-import { blendIngredientSuggestions } from './ingredient-suggestion.js';
-import type { IngredientSuggestions } from './ingredient-suggestion.js';
-import { foodNotAdmissible, ingredientNotFound } from '../recipes/recipe.error.js';
+import type { CallerToken } from '../auth/CallerToken.js';
+import type { AuthoredMacros } from '@kitchensink/schema-food';
+import { clampLimit, IngredientsDal } from './dal/ingredients.dal.js';
+import type { CanonicalIngredientName } from './domain/ingredientName.js';
+import { canonicalNameFrom, toResolutionStatus } from './foodStatusTranslation.js';
+import type { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
+import { marginBandOf } from '@kitchensink/recipe-core/resolution/band-policy';
+import { queryShapeOf } from '@kitchensink/recipe-core/resolution/band-policy';
+import { RANKER_VERSION } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import type { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
+import { runResolutionCascade, type ResolutionTier } from './resolution/resolutionCascade.js';
+import { FoodCatalogGateway } from './foodCatalog.gateway.js';
+import { FoodServiceClients } from './FoodServiceClients.factory.js';
+import { blendIngredientSuggestions } from './ingredientSuggestion.js';
+import type { IngredientSuggestions } from './ingredientSuggestion.js';
+import type { IngredientCandidate, LiveIngredientSearchResponse } from './ingredients.schema.js';
+import { apiError } from '../common/apiError.js';
+import { foodNotAdmissible, ingredientNotFound, isRecipeDomainError } from '../recipes/recipe.error.js';
+
+/*
+ * ⛔ DELETED HERE (KTD-3 / plan U10): `nutrientPer100g`, `extractNutrition`, `parsePortionAmount`,
+ * `parsePortion` and `extractPortions`.
+ *
+ * They were the recipe service INTERPRETING food's data — a substring selector that matched `energy` and
+ * so picked the `kJ` row as readily as the `kcal` one (a 4.184× error rendered as a calorie count), and a
+ * portion parser that re-derived what a cup of a food weighs. Two services parsing the same rows can
+ * disagree about one food, and only one of them owns it.
+ *
+ * Their replacements live in the FOOD service, which owns the data: `foods/nutrition/nutrientSelection.ts`
+ * (basis + canonical name + unit — all three) and `foods/nutrition/portionNormalization.ts`. Recipe now
+ * consumes the already-projected result through `FoodNutritionGateway` and keeps no heuristic of its own.
+ */
 
 /**
- * The food client's `FoodStatus` and recipe-core's `FoodResolutionStatus` are the SAME UPPER_SNAKE
- * union by design (they mirror each other); this identity conversion documents the crossing of the
- * package boundary without any runtime remap.
+ * Map the food service's `CandidateView` onto the RECIPE API's own candidate shape.
+ *
+ * This one-line adapter is the whole point of the ownership decision recorded in `ingredients.schema.ts`: the
+ * recipe API's public response body is `IngredientCandidate`, which recipe owns, and `CandidateView` is an
+ * implementation detail of how recipe happens to obtain it. Before this, the controller returned
+ * `readonly CandidateView[]` — so ANOTHER SERVICE'S CLIENT LIBRARY defined this endpoint's contract, and the
+ * recipe client had to re-declare the shape to avoid depending on it.
+ *
+ * It is written field-by-field rather than as a pass-through cast on purpose: a field FOOD adds does not
+ * silently become part of RECIPE's contract, and a field food REMOVES is a compile error here — at the seam
+ * that has to decide what to do about it — rather than a silently-missing key on the wire.
+ *
+ * @param view - The food service's candidate view.
+ * @returns The recipe API's candidate shape. Pure.
  */
-function toResolutionStatus(status: FoodStatus): FoodResolutionStatus {
-    return status as FoodResolutionStatus;
-}
-
-/** Case-insensitively find the per-100g amount for the first matching nutrient name. Pure. */
-function nutrientPer100g(
-    nutrients: readonly FoodView['nutrients'][number][],
-    matches: (name: string) => boolean,
-): number | undefined {
-    const hit = nutrients.find((n) => n.basis === 'per_100g' && matches(n.nutrient.toLowerCase()));
-
-    return hit?.amount;
-}
-
-/** Parse a portion label's leading amount (integer, decimal, or `a/b` fraction), or `null`. Pure. */
-function parsePortionAmount(raw: string): number | null {
-    const fraction = /^(\d+)\/(\d+)$/.exec(raw);
-
-    if (fraction !== null) {
-        const denominator = Number(fraction[2]);
-
-        return denominator !== 0 ? Number(fraction[1]) / denominator : null;
-    }
-
-    const value = Number(raw);
-
-    return Number.isFinite(value) ? value : null;
-}
-
-/**
- * Parse a food-service portion label + gram weight into a normalized grams-PER-UNIT portion, or `null`
- * when the label has no leading amount + unit (e.g. `"1 cup chopped"` → `{ unit: 'cup', gramsPerUnit: g }`;
- * `"1 tablespoon"` → tablespoon). Trailing modifiers ("chopped", "sliced") are ignored. Pure.
- */
-export function parsePortion(label: string, gramWeight: number): IngredientPortion | null {
-    const tokens = label.trim().split(/\s+/);
-
-    if (tokens.length < 2 || gramWeight <= 0) {
-        return null;
-    }
-
-    const amount = parsePortionAmount(tokens[0]!);
-
-    if (amount === null || amount <= 0) {
-        return null;
-    }
-
-    const unit = normalizeUnit(tokens[1]!);
-
-    return unit.length > 0 ? { unit, gramsPerUnit: gramWeight / amount } : null;
-}
-
-/**
- * Extract a resolved food's household-measure portions as normalized grams-per-unit, de-duplicated by unit
- * (the first parseable portion for a unit wins). Labels with no parseable amount+unit are skipped. Pure.
- */
-export function extractPortions(food: FoodView): IngredientPortion[] {
-    const byUnit = new Map<string, IngredientPortion>();
-
-    for (const portion of food.portions) {
-        const parsed = parsePortion(portion.label, portion.gramWeight);
-
-        if (parsed !== null && !byUnit.has(parsed.unit)) {
-            byUnit.set(parsed.unit, parsed);
-        }
-    }
-
-    return [...byUnit.values()];
-}
-
-/** Project a `RESOLVED` golden record's nutrients into the ingredient's per-100g nutrition columns. Pure. */
-export function extractNutrition(food: FoodView): IngredientNutrition {
-    const n = food.nutrients;
-
+function toIngredientCandidate(view: CandidateView): IngredientCandidate {
     return {
-        caloriesPer100g: nutrientPer100g(n, (name) => name.includes('energy') || name.includes('calorie')),
-        proteinGPer100g: nutrientPer100g(n, (name) => name.includes('protein')),
-        carbsGPer100g: nutrientPer100g(n, (name) => name.includes('carbohydrate')),
-        fatGPer100g: nutrientPer100g(n, (name) => name.includes('lipid') || name.includes('fat')),
+        candidateId: view.candidateId,
+        source: view.source,
+        externalKey: view.externalKey,
+        name: view.name,
+        summary: view.summary,
     };
 }
 
+/** Outcome of {@link IngredientsService.createAuthoredFood} — created-and-admitted, or the dedup collision. */
+export type CreateAuthoredFoodOutcome =
+    | { readonly kind: 'created'; readonly ingredient: Ingredient }
+    | { readonly kind: 'duplicate'; readonly existingFoodId: string };
+
 @Injectable()
 export class IngredientsService {
+    /** One logger for the cascade's tier failures — a degraded tier must be visible, never silent. */
+    private readonly logger = new Logger(IngredientsService.name);
+
+    /**
+     * @param dal - The shared `ingredients` catalog.
+     * @param foodClients - The per-caller food-service client factory.
+     * @param catalog - The typeahead blend's short-timeout, no-throw gateway.
+     * @param resolutionTiers - The ORDERED resolution cascade (plan U10). The order IS the configuration —
+     *   a PRECEDENCE — so it is injected as a registry rather than assembled here, and the registry itself
+     *   (`resolution/resolutionRegistry.ts`) is where that order is stated and machine-checked against the
+     *   declared evidence-class ladder. ⛔ It is NOT R11's literal order: see that file for why. An EMPTY
+     *   array is a valid and fully-supported state — it leaves `addByName` behaving exactly as it did
+     *   before the cascade existed.
+     */
     public constructor(
         private readonly dal: IngredientsDal,
         private readonly foodClients: FoodServiceClients,
         private readonly catalog: FoodCatalogGateway,
+        private readonly resolutionTiers: readonly ResolutionTier[] = [],
+        // Optional like the tiers above, for the same reason: a service constructed without the store is a
+        // fully-supported state (unit fixtures, pre-0035 callers) — resolutions simply go unrecorded, which
+        // is the pre-U2 behaviour.
+        private readonly resolutions?: IngredientResolutionsDal,
+        // Optional for the same reason again: without it, ranked events simply record no band epoch.
+        private readonly bands?: Pick<ResolutionBandsDal, 'authorityFor'>,
     ) {}
+
+    /**
+     * `POST /api/v1/ingredients/authored-food` (plan U16) — the picker's create-and-attach vertical:
+     * author a food (macros-only, Q3a) AND admit it as a food-backed ingredient in ONE round-trip.
+     *
+     * ⛔ A BFF composition, deliberately: neither app holds a food-service origin — every food read and
+     * write the picker makes rides this service with the caller's own forwarded bearer (issue #120), and
+     * splitting create/admit across the client would add a public origin, a CORS surface, and a
+     * half-created state (food authored, line never admitted) for zero gain.
+     *
+     * The per-author dedup collision is a UNION ARM, not an error: the U16 reuse affordance turns it
+     * into "attach the food you already made", which needs the existing id — the `recordCorrection`
+     * `recorded` discriminant precedent.
+     *
+     * @param caller - The caller's own bearer, forwarded to food for both the create and the admission.
+     * @param callerUserId - The verified author ULID — the U11 privacy capture on the admitted row.
+     * @param input - Name + per-100g macros.
+     * @returns The admitted ingredient, or the colliding existing food's id.
+     * @sideEffect One food-service create, then the by-food admission (a read + local writes).
+     */
+    public async createAuthoredFood(
+        caller: CallerToken | undefined,
+        callerUserId: string,
+        input: { readonly name: string; readonly macros: AuthoredMacros },
+    ): Promise<CreateAuthoredFoodOutcome> {
+        const created = await this.foodClients.standard(caller).createAuthoredFood(input);
+
+        if (created.kind === 'duplicate') {
+            return { kind: 'duplicate', existingFoodId: created.existingId };
+        }
+
+        const ingredient = await this.addByFoodId(caller, created.food.id, callerUserId);
+
+        return { kind: 'created', ingredient };
+    }
+
+    /**
+     * `GET /api/v1/ingredients/food-references/{foodId}` (plan U18, R22) — who references this food.
+     *
+     * Serves the food service's delete flow (consulted with the CALLER's own forwarded bearer) and the
+     * 409 body it reports back. `total` spans all users; ids are the CALLER's own recipes only — another
+     * user's (possibly private) recipe id is never enumerated to the food's author.
+     *
+     * @param callerId - The authenticated caller's app-user ULID.
+     * @param foodId - The opaque food id.
+     * @returns The reference count and the caller's own referencing recipe ids.
+     * @sideEffect One grouped read.
+     */
+    public async foodReferences(callerId: string, foodId: string): Promise<FoodReferencesResponse> {
+        const references = await this.dal.recipesReferencingFood(foodId);
+
+        return {
+            total: references.length,
+            ownRecipeIds: references.filter((row) => row.ownerId === callerId).map((row) => row.recipeId),
+        };
+    }
 
     /**
      * Local catalog search (fuzzy `pg_trgm` + tsvector FTS) for the `GET /api/v1/ingredients/search`
@@ -151,8 +216,8 @@ export class IngredientsService {
      * @returns Ranked catalog ingredients.
      * @sideEffect Reads `ingredients`.
      */
-    public async search(query: string, limit?: number): Promise<Ingredient[]> {
-        return this.dal.search(query.trim(), limit);
+    public async search(query: string, callerUserId?: string, limit?: number): Promise<Ingredient[]> {
+        return this.dal.search(query.trim(), callerUserId, limit);
     }
 
     /**
@@ -187,13 +252,14 @@ export class IngredientsService {
     public async suggest(
         caller: CallerToken | undefined,
         query: string,
+        callerUserId?: string,
         limit?: number,
     ): Promise<IngredientSuggestions> {
         const trimmed = query.trim();
         const perSection = clampLimit(limit);
 
         const [local, catalog] = await Promise.all([
-            this.dal.search(trimmed, perSection),
+            this.dal.search(trimmed, callerUserId, perSection),
             // The gateway is total by contract; this guard exists so a future regression there degrades the
             // typeahead rather than 500-ing a keystroke.
             this.catalog
@@ -209,6 +275,7 @@ export class IngredientsService {
 
         return {
             suggestions: blendIngredientSuggestions({
+                query: trimmed,
                 local,
                 promoted,
                 catalogHits: catalog.hits,
@@ -216,6 +283,57 @@ export class IngredientsService {
             }),
             catalogAvailability: catalog.availability,
         };
+    }
+
+    /**
+     * ON-DEMAND live source search (plan U29) — the seam behind the picker's "Search USDA for '…'" control.
+     *
+     * ⛔ **Not a typeahead, and it must never be wired to one.** Each call spends one request against a
+     * SHARED per-IP source quota, out of FR-019's reserved interactive lane: at 50 concurrent cooks even a
+     * perfect one-call-per-settled-query autocomplete would want roughly three times the whole hourly key.
+     * It exists for a button a cook presses. It is also the acknowledged SLOW path — a multi-second wait is
+     * the expected experience, and it is explicitly outside SC-007's 500ms local-search budget.
+     *
+     * ⛔ **Three outcomes, kept apart.** Unlike {@link suggest} — whose catalog half is additive and may
+     * therefore flatten every failure into `catalogAvailability: 'unavailable'` — this method's outcome IS
+     * the product: hits (possibly EMPTY, meaning the source answered and has nothing), `SOURCE_BUSY` (a rate
+     * refusal that names its window), or `SOURCE_UNAVAILABLE` (the source did not answer). A cook takes a
+     * different action on each, so collapsing any pair strands them in the wrong loop.
+     *
+     * @param caller - The requesting user's credential, forwarded to food. Absent → the source cannot be
+     *   searched, reported as `SOURCE_UNAVAILABLE` by the gateway.
+     * @param query - The raw user query (trimmed here).
+     * @returns The source's hits, each carrying `foodId` when we already hold that food.
+     * @throws {BadRequestException} (→ 400) below the 003-FR-010a search minimum, BEFORE any call goes out —
+     *   a query that short can never justify a request against a shared external quota.
+     * @throws {HttpException} `503 SOURCE_BUSY` / `502 SOURCE_UNAVAILABLE`, per the gateway's outcome.
+     * @sideEffect Performs one food-service request that causes an upstream source call.
+     */
+    public async searchLive(caller: CallerToken | undefined, query: string): Promise<LiveIngredientSearchResponse> {
+        const trimmed = query.trim();
+
+        if (!meetsSearchMinimum(trimmed)) {
+            throw new BadRequestException(`q must be at least ${MIN_SEARCH_QUERY_LENGTH} characters`);
+        }
+
+        const outcome = await this.catalog.searchLive(caller, trimmed);
+
+        switch (outcome.kind) {
+            case 'results':
+                return { hits: outcome.hits };
+            case 'busy':
+                // The window rides in `details` only when one is actually known — see the schema arm for why
+                // fabricating one is worse than omitting it.
+                throw apiError(
+                    'SOURCE_BUSY',
+                    'The ingredient source is busy; try again shortly.',
+                    outcome.retryAfterSeconds === undefined
+                        ? undefined
+                        : { retryAfterSeconds: outcome.retryAfterSeconds },
+                );
+            default:
+                throw apiError('SOURCE_UNAVAILABLE', 'The ingredient source did not answer.');
+        }
     }
 
     /**
@@ -239,60 +357,236 @@ export class IngredientsService {
      *
      * @param caller - The requesting user's credential, forwarded to food-service.
      * @param foodId - The opaque food-service id from a `catalog` suggestion (trimmed here).
-     * @returns The food-backed ingredient, `RESOLVED` and carrying its per-100g nutrition + portions.
+     * @returns The food-backed ingredient, `RESOLVED`. Nutrition is NOT carried (U10) — it is read live.
      * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when the food cannot back an ingredient — unknown,
      *   terminal, still mid-resolution, or nameless — and no row already exists to advance.
      * @sideEffect One food-service read, then inserts/updates `ingredients`.
      */
-    public async addByFoodId(caller: CallerToken | undefined, foodId: string): Promise<Ingredient> {
+    public async addByFoodId(
+        caller: CallerToken | undefined,
+        foodId: string,
+        callerUserId?: string,
+    ): Promise<Ingredient> {
         const id = foodId.trim();
         const existing = await this.dal.findByFoodId(id);
 
-        // Already settled AND already nourished: nothing to admit and nothing to backfill — no round-trip.
-        if (
-            existing !== undefined &&
-            existing.foodResolutionStatus === FoodResolutionStatus.RESOLVED &&
-            existing.caloriesPer100g !== undefined
-        ) {
+        // Already settled: nothing to admit and nothing to advance — no round-trip.
+        //
+        // ⚠️ This used to also require `existing.caloriesPer100g !== undefined` ("already nourished"). U10
+        // dropped that column, and simply deleting the clause made the short-circuit unreachable — every
+        // repeat pick issued a second cross-service read. The RESOLUTION STATUS is the same signal and is
+        // data this service still owns: a row that reached `RESOLVED` has nothing left to learn from food
+        // about its identity, and its NUTRITION is fetched live on read rather than backfilled here.
+        // `blendedSuggest.integration.test.ts` is what caught the extra call; no unit test could.
+        if (existing !== undefined && existing.foodResolutionStatus === FoodResolutionStatus.RESOLVED) {
             return existing;
         }
 
         const status = await this.readFoodStatus(caller, id, existing);
-        const resolved = status.status === 'RESOLVED' ? status.food : undefined;
-        const name = resolved?.name?.trim();
+        // ⚠️ ONE decision, made once. This used to be an inline `status.food?.name?.trim()` — a second, weaker
+        // copy of the same "may this name be used?" rule that `refreshStatus` now asks of
+        // `canonicalNameFrom`, differing precisely in that `.trim()` admits a name of zero-width
+        // characters into an ownerless catalog (plan U3).
+        const name = canonicalNameFrom(status);
 
-        if (resolved === undefined || name === undefined || name.length === 0) {
+        if (name === undefined) {
             // Nothing admissible. An existing row still advances to the status we just observed, so the picker
             // can poll/disambiguate/fall back exactly as it does elsewhere; a brand-new pick is rejected
-            // rather than half-admitted as a nameless, nutrition-less row.
+            // rather than half-admitted as a nameless row.
             if (existing !== undefined) {
                 const advanced = await this.dal.updateResolution(existing.id, {
+                    expectedStatus: existing.foodResolutionStatus ?? null,
                     foodResolutionStatus: toResolutionStatus(status.status),
                 });
 
-                return advanced ?? existing;
+                return advanced ?? (await this.dal.findById(existing.id)) ?? existing;
             }
 
             throw foodNotAdmissible(
                 id,
-                resolved === undefined ? `status is ${status.status}, not RESOLVED` : 'the golden record has no name',
+                status.status === 'RESOLVED'
+                    ? 'the golden record has no usable name'
+                    : `status is ${status.status}, not RESOLVED`,
             );
         }
 
+        // U5: the golden record's consumption prior, captured into the local cache (ADR-0006 forbids a
+        // cross-database join at rank time). Spread, not assigned: absent stays absent.
+        const prior = status.food?.priorFraction === undefined ? {} : { priorFraction: status.food.priorFraction };
+        // U11/R20: the privacy fact, captured the same way. `visibility: 'private'` on the response means
+        // the CALLER is the author — the authorship policy 404s everyone else — so their ULID is the one
+        // to record; anything else (catalog, promoted) records nothing.
+        const privacy =
+            status.food?.visibility === 'private' && callerUserId !== undefined ? { foodOwnerId: callerUserId } : {};
         const row =
             existing ??
             (await this.dal.createFoodBacked({
                 name,
                 foodId: id,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                ...prior,
+                ...privacy,
             }));
+        // Status + name — nutrition is no longer copied into this table (U10). The name matters even when the
+        // row already existed: the pick may be landing on a row the importer minted under prose, and leaving
+        // that alone would keep serving prose to every other user's search (plan U3).
         const backfilled = await this.dal.updateResolution(row.id, {
+            expectedStatus: row.foodResolutionStatus ?? null,
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
-            nutrition: extractNutrition(resolved),
-            portions: extractPortions(resolved),
+            canonicalName: name,
+            ...prior,
         });
 
-        return backfilled ?? row;
+        // `undefined` here means a concurrent writer settled this row first (the compare-and-set found the
+        // status already moved). Re-read rather than returning `row`, so the caller is handed the state that
+        // actually stands instead of the one this request observed before the race.
+        return backfilled ?? (await this.dal.findById(row.id)) ?? row;
+    }
+
+    /**
+     * Consult the resolution cascade and, on a hit, admit the mapped food.
+     *
+     * ⛔ TOTAL AND NON-THROWING BY CONSTRUCTION. Every failure mode here — an unusable phrase, an exhausted
+     * cascade, a tier whose database read failed, a mapping naming a food that no longer resolves — returns
+     * `undefined`, which the caller reads as "carry on down the ordinary path". The cascade is a shortcut to a
+     * better answer; it must never be able to WITHHOLD the ordinary one. The only error deliberately swallowed
+     * is `UNKNOWN_INGREDIENT` from the admission, which is the stale-mapping case; anything else (a
+     * food-service outage, a database failure on the `ingredients` write) still propagates, because those are
+     * failures of the ordinary path too and hiding them would report success for an ingredient never created.
+     *
+     * @param caller - The requesting user's credential, forwarded to food-service on admission.
+     * @param name - The phrase the caller supplied, already in canonical display form.
+     * @param userId - The requesting user, or `undefined` for an unattended import (R22).
+     * @returns The admitted ingredient, or `undefined` when the cascade could not (or should not) answer.
+     * @sideEffect Runs the cascade's tiers, then admits a food (one food-service read + an `ingredients` write).
+     */
+    /**
+     * The band-authority epoch a ranked resolution was made under, or `undefined` when the band has never
+     * crossed a threshold — the "zero-authority" state KTD-A's pending derivation keys on.
+     *
+     * ⚠️ Quiet by contract: an unreadable band table degrades to "no epoch observed" rather than failing a
+     * resolution that already succeeded, the same discipline as the event write around it.
+     *
+     * @param rung - The winner's ladder rung.
+     * @param margin - The measured margin, or `undefined` for a singleton shortlist.
+     * @param phrase - The resolved phrase, for the query-shape axis.
+     * @returns The epoch as stored text, or `undefined`. @sideEffect One band-authority read.
+     */
+    private async observedBandEpoch(
+        rung: string,
+        margin: number | undefined,
+        phrase: string,
+    ): Promise<string | undefined> {
+        if (this.bands === undefined) {
+            return undefined;
+        }
+
+        try {
+            const authority = await this.bands.authorityFor({
+                rung,
+                marginBand: marginBandOf(margin),
+                queryShape: queryShapeOf(phrase),
+                rankerVersion: RANKER_VERSION,
+            });
+
+            return authority === undefined ? undefined : String(authority.epoch);
+        } catch (error) {
+            this.logger.warn(
+                'Band-authority read failed; the resolution event records no epoch.',
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return undefined;
+        }
+    }
+
+    private async resolveThroughCascade(
+        caller: CallerToken | undefined,
+        name: CanonicalIngredientName,
+        userId: string | undefined,
+    ): Promise<Ingredient | undefined> {
+        if (this.resolutionTiers.length === 0) {
+            return undefined;
+        }
+
+        const key = normalizedIngredientKey(name);
+
+        if (key === undefined) {
+            return undefined;
+        }
+
+        const outcome = await runResolutionCascade(
+            this.resolutionTiers,
+            { key, phrase: name },
+            { userId, caller },
+            {
+                onTierFailure: (tier, error) =>
+                    this.logger.warn(
+                        `Resolution tier '${tier}' failed; falling through to the food service.`,
+                        error instanceof Error ? error.stack : String(error),
+                    ),
+            },
+        );
+
+        if (outcome.kind !== 'resolved') {
+            return undefined;
+        }
+
+        try {
+            const admitted = await this.addByFoodId(caller, outcome.foodId, userId);
+
+            // U2: the provenance EVENT — which tier answered, recorded so the verification producer can
+            // send real evidence and the band log (plan U3) has a substrate. Quietly: a lost event
+            // degrades to `unattributed`, the pre-U2 behaviour, and must never fail a resolution that
+            // already succeeded.
+            if (this.resolutions !== undefined) {
+                try {
+                    await this.resolutions.record({
+                        ingredientId: admitted.id,
+                        tier: outcome.tier,
+                        // KTD-C: a RANKED resolution persists its full confidence shape — the band log's
+                        // substrate and the verification producer's evidence. Non-ranking tiers leave all
+                        // of this undefined, exactly as before.
+                        ...(outcome.rung === undefined
+                            ? {}
+                            : {
+                                  rung: outcome.rung,
+                                  margin: outcome.confidence,
+                                  shortlist: outcome.shortlist,
+                                  queryShape: queryShapeOf(name),
+                                  rankerVersion: RANKER_VERSION,
+                                  authorAugmented: outcome.authorAugmented ?? false,
+                                  // U11/R20: an author-augmented shortlist's margins describe ONE user's
+                                  // catalog, so no shared band authority is consulted or observed for it.
+                                  bandEpoch: outcome.authorAugmented
+                                      ? undefined
+                                      : await this.observedBandEpoch(outcome.rung, outcome.confidence, name),
+                              }),
+                    });
+                } catch (recordError) {
+                    this.logger.warn(
+                        `Resolution provenance write failed for ingredient '${admitted.id}' (tier '${outcome.tier}').`,
+                        recordError instanceof Error ? recordError.stack : String(recordError),
+                    );
+                }
+            }
+
+            return admitted;
+        } catch (error) {
+            if (isRecipeDomainError(error) && error.code === RecipeErrorCode.UNKNOWN_INGREDIENT) {
+                // The stale-mapping case. `food_id` has no foreign key and U12's reseed mints fresh ULIDs, so
+                // this is expected traffic rather than an incident — logged at `warn` so a SUSTAINED rate is
+                // still visible as the "the knowledge base is pointing at a dead catalog" signal it would be.
+                this.logger.warn(
+                    `Curated mapping for '${name}' names food '${outcome.foodId}', which is not admissible; ` +
+                        'falling through to the food service.',
+                );
+
+                return undefined;
+            }
+
+            throw error;
+        }
     }
 
     /**
@@ -334,24 +628,148 @@ export class IngredientsService {
      * and return it immediately so the picker renders a "nutrition pending" state and polls later.
      *
      * @param caller - The requesting user's credential, forwarded to food-service.
-     * @param name - The display name (trimmed here).
+     * ⛔ **`202` does NOT imply a non-terminal status, and assuming it did is what made caller prose
+     * PERMANENT** (plan U3). `FoodsService.addByName` enqueues only when it CREATES or REACTIVATES a row;
+     * for a food the catalog already holds it returns that food's real status — which is `RESOLVED` whenever
+     * the name is already known. On that branch the row created here would be born terminal, and nothing
+     * would ever rename it: `refreshStatus` is only reached by a client polling a non-terminal row, the
+     * importer's settle pass re-reads only `PENDING`/`UNRESOLVED`, `addByFoodId` short-circuits on `RESOLVED`
+     * and `resolve` is converge-only. It is also the DOMINANT branch once the catalog is warm — i.e. exactly
+     * the state U12's reseed leaves for U15's re-import. So a `RESOLVED` add spends one more read to learn
+     * the canonical name; every other status keeps the caller's placeholder, as it must.
+     *
+     * ⚠️ It does NOT delegate to {@link IngredientsService.addByFoodId}, which throws `UNKNOWN_INGREDIENT`
+     * for a resolved-but-nameless golden record. That is the right answer for a PICK (the caller chose a row
+     * that cannot back an ingredient) and the wrong one here, where the caller supplied a perfectly good name
+     * of their own and a `400` would strand a legitimate add.
+     *
+     * ⛔ **THE RESOLUTION CASCADE IS CONSULTED FIRST** (plan U10 / R11, R19). This route is where BOTH the
+     * picker and the cookbook importer land, so it is the one place a curated mapping written by one cook can
+     * resolve another cook's — and every future import's — line without a food-service round trip. That is
+     * AE6's whole content, and it is what makes the learning loop close. A cascade hit is admitted by
+     * `food_id`, which also means the row is named from food-service's CANONICAL record rather than from the
+     * caller's phrase, so this is the one add path that structurally cannot mint prose into the shared
+     * catalog (plan U3).
+     *
+     * ⛔ A cascade hit is an OPTIMISATION, never an obligation: if the mapped food is not admissible, this
+     * falls through to the ordinary path and never raises. `ingredients.food_id` has no foreign key and U12's
+     * reseed mints fresh food ULIDs, so a mapping naming a food that no longer resolves is a certainty rather
+     * than a hazard — and `UNKNOWN_INGREDIENT` is the right answer for a PICK (the caller chose that row) and
+     * the wrong one here, where the caller chose a NAME and knows nothing about the mapping. Turning a stale
+     * mapping into a `400` would take a whole class of ingredient adds down the day the catalog is reseeded.
+     *
+     * @param caller - The requesting user's credential, forwarded to food-service.
+     * @param name - The display name, already parsed to its canonical form by the controller.
+     * @param userId - The requesting user's ULID, so a curated mapping THEY wrote outranks the global one.
+     *   `undefined` means an unattended import (R22): the cascade then sees global mappings and nobody's
+     *   personal ones, because one user's private correction must never silently rewrite an import.
      * @returns The created (or deduped) food-backed ingredient with its current resolution status.
-     * @sideEffect Calls the food service, then reads/writes `ingredients`.
+     * @sideEffect Consults the cascade, then calls the food service and reads/writes `ingredients`.
      */
-    public async addByName(caller: CallerToken | undefined, name: string): Promise<Ingredient> {
-        const trimmed = name.trim();
-        const added = await this.foodClients.standard(caller).addByName(trimmed);
+    public async addByName(
+        caller: CallerToken | undefined,
+        name: CanonicalIngredientName,
+        userId?: string,
+    ): Promise<Ingredient> {
+        const mapped = await this.resolveThroughCascade(caller, name, userId);
+
+        if (mapped !== undefined) {
+            return mapped;
+        }
+
+        const client = this.foodClients.standard(caller);
+        const added = await client.addByName(name);
+        const status = toResolutionStatus(added.status);
         const existing = await this.dal.findByFoodId(added.id);
 
-        if (existing) {
+        if (existing !== undefined) {
+            return this.settleExisting(client, existing, status);
+        }
+
+        const canonical =
+            status === FoodResolutionStatus.RESOLVED ? await this.canonicalNameOf(client, added.id) : undefined;
+
+        return this.dal.createFoodBacked({
+            name: canonical ?? name,
+            foodId: added.id,
+            foodResolutionStatus: status,
+        });
+    }
+
+    /**
+     * Advance a row this add DEDUPED onto to the status the add itself just reported.
+     *
+     * ⛔ THE DEDUP BRANCH USED TO RETURN THE ROW UNTOUCHED (PR #91 review), discarding a status the response
+     * already carried — and for one case nothing else would ever repair it. A `FAILED` row re-added by name
+     * is REACTIVATED by `FoodsService.addByName` (it answers `PENDING`), but `refreshStatus` is only reached
+     * by a client polling a NON-terminal row and the importer's settle pass re-reads only
+     * `PENDING`/`UNRESOLVED` — so the row stayed `FAILED` for good while the food behind it was resolving.
+     * This is the same settlement `addByFoodId` performs for ITS existing row, and it is deliberately the
+     * only thing shared: `addByFoodId` may reject a nameless food, which would be the wrong answer here,
+     * where the caller supplied a perfectly good name of their own (see this method's caller).
+     *
+     * The equality short-circuit is what keeps the common case free: a repeat add of a row already in the
+     * status the food reports spends no read and no write.
+     *
+     * @param client - The per-request food client, already minted for this caller.
+     * @param existing - The row the add deduped onto.
+     * @param status - The status the add reported for this food.
+     * @returns The settled row (or `existing` when there was nothing to settle).
+     * @sideEffect May perform one food-service read and one `ingredients` write.
+     */
+    private async settleExisting(
+        client: ReturnType<FoodServiceClients['standard']>,
+        existing: Ingredient,
+        status: CatalogFoodResolutionStatus,
+    ): Promise<Ingredient> {
+        if (existing.foodResolutionStatus === status) {
             return existing;
         }
 
-        return this.dal.createFoodBacked({
-            name: trimmed,
-            foodId: added.id,
-            foodResolutionStatus: toResolutionStatus(added.status),
+        // The one extra read the fresh-add branch also spends, and for the same reason (plan U3): a row the
+        // importer minted under the caller's prose must be renamed from the catalog's record, or that prose
+        // is served to every other user's search forever.
+        const canonical =
+            status === FoodResolutionStatus.RESOLVED && existing.foodId !== undefined
+                ? await this.canonicalNameOf(client, existing.foodId)
+                : undefined;
+        const settled = await this.dal.updateResolution(existing.id, {
+            expectedStatus: existing.foodResolutionStatus ?? null,
+            foodResolutionStatus: status,
+            ...(canonical !== undefined ? { canonicalName: canonical } : {}),
         });
+
+        // A lost compare-and-set means a concurrent writer settled this row first — the state that stands is
+        // the answer, so re-read rather than reporting the one this request observed before the race.
+        return settled ?? (await this.dal.findById(existing.id)) ?? existing;
+    }
+
+    /**
+     * Read a just-added food's canonical name, tolerating the narrow race in which it went terminal between
+     * the add and this read.
+     *
+     * A `404` here is not a failure of the ADD — the row is legitimate and the caller's own name is a valid
+     * placeholder for it — so it degrades to "no canonical name" rather than propagating. Naming is a quality
+     * improvement on a path whose purpose is to persist the ingredient.
+     *
+     * @param client - The per-request food client, already minted for this caller.
+     * @param foodId - The opaque food id just returned by add-by-name.
+     * @returns The canonical name, or `undefined` when the food is terminal or carries no usable name.
+     * @sideEffect One authenticated food-service read.
+     */
+    private async canonicalNameOf(
+        client: ReturnType<FoodServiceClients['standard']>,
+        foodId: string,
+    ): Promise<CanonicalIngredientName | undefined> {
+        try {
+            return canonicalNameFrom(await client.getStatus(foodId));
+        } catch (error) {
+            if (isNotFoundError(error)) {
+                return undefined;
+            }
+
+            throw error;
+        }
     }
 
     /**
@@ -365,7 +783,11 @@ export class IngredientsService {
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      * @sideEffect Calls the food service, then updates `ingredients`.
      */
-    public async refreshStatus(caller: CallerToken | undefined, id: string): Promise<Ingredient> {
+    public async refreshStatus(
+        caller: CallerToken | undefined,
+        id: string,
+        callerUserId?: string,
+    ): Promise<Ingredient> {
         const ingredient = await this.requireIngredient(id);
 
         // Freeform / user-entered ingredients carry no food reference — nothing to poll.
@@ -375,23 +797,45 @@ export class IngredientsService {
 
         try {
             const status = await this.foodClients.standard(caller).getStatus(ingredient.foodId);
-            const resolved = status.status === 'RESOLVED' && status.food !== undefined ? status.food : undefined;
+            // Status + NAME (U3), and nothing else. Whether the food resolved is a fact about THIS
+            // ingredient's link, and so is the label the shared row should now carry; what the food CONTAINS
+            // is food's, read live rather than copied here (U10). `canonicalNameFrom` returns `undefined`
+            // for every status that does not license a rename, which the DAL treats as "leave the name".
+            const canonicalName = canonicalNameFrom(status);
             const updated = await this.dal.updateResolution(id, {
+                // The status this refresh OBSERVED before it asked the food service. A slower refresh that
+                // read the same value and is answered later matches nothing and regresses nothing.
+                expectedStatus: ingredient.foodResolutionStatus ?? null,
                 foodResolutionStatus: toResolutionStatus(status.status),
-                ...(resolved !== undefined
-                    ? { nutrition: extractNutrition(resolved), portions: extractPortions(resolved) }
-                    : {}),
+                ...(canonicalName !== undefined ? { canonicalName } : {}),
+                // U5: the refresh IS the prior's staleness contract — a food-side prior update reaches
+                // the local rank column on exactly this write. Absent leaves the stored value.
+                ...(status.food?.priorFraction === undefined ? {} : { priorFraction: status.food.priorFraction }),
+                // U11/R20: the refresh re-captures the privacy fact — and unlike the prior, it CLEARS on a
+                // non-private answer (promotion is exactly the transition this write must observe). A
+                // status-only response (no food body) leaves it untouched.
+                ...(status.food === undefined
+                    ? {}
+                    : {
+                          foodOwnerId:
+                              status.food.visibility === 'private' && callerUserId !== undefined ? callerUserId : null,
+                      }),
             });
 
-            return updated ?? ingredient;
+            // A lost compare-and-set is not a failed refresh: another refresh settled this row while this one
+            // was in flight, so the honest answer is the row that stands, not the one this request read.
+            return updated ?? (await this.dal.findById(id)) ?? ingredient;
         } catch (error) {
             // A terminal food (NOT_FOUND / FAILED) or a vanished row surfaces as a client NotFoundError;
             // record the terminal status rather than propagating, so the picker can fall back to freeform.
             if (isNotFoundError(error)) {
                 const terminal = toResolutionStatus(error.foodStatus ?? 'NOT_FOUND');
-                const updated = await this.dal.updateResolution(id, { foodResolutionStatus: terminal });
+                const updated = await this.dal.updateResolution(id, {
+                    expectedStatus: ingredient.foodResolutionStatus ?? null,
+                    foodResolutionStatus: terminal,
+                });
 
-                return updated ?? ingredient;
+                return updated ?? (await this.dal.findById(id)) ?? ingredient;
             }
 
             throw error;
@@ -407,7 +851,7 @@ export class IngredientsService {
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      * @sideEffect Calls the food service.
      */
-    public async getCandidates(caller: CallerToken | undefined, id: string): Promise<readonly CandidateView[]> {
+    public async getCandidates(caller: CallerToken | undefined, id: string): Promise<readonly IngredientCandidate[]> {
         const ingredient = await this.requireIngredient(id);
 
         if (ingredient.foodId === undefined) {
@@ -416,7 +860,7 @@ export class IngredientsService {
 
         const result = await this.foodClients.standard(caller).getCandidates(ingredient.foodId);
 
-        return result.candidates;
+        return result.candidates.map(toIngredientCandidate);
     }
 
     /**
@@ -468,12 +912,16 @@ export class IngredientsService {
      * `POST /api/v1/ingredients` fallback — a name with no linked food record. Its nutrition, when supplied,
      * lives per-line on `recipe_ingredients`, not here.
      *
-     * @param name - The display name (trimmed here).
+     * ⚠️ The name is already in canonical form, not merely trimmed (plan U3). A freeform row is still a row in
+     * the ownerless shared catalog, and its dedup key is the partial unique index on `lower(name)` — so an
+     * invisible character in the name mints a second row that renders identically to the first.
+     *
+     * @param name - The display name, already parsed to its canonical form by the controller.
      * @returns The created or pre-existing freeform ingredient.
      * @sideEffect Reads, then conditionally inserts into `ingredients`.
      */
-    public async createFreeform(name: string): Promise<Ingredient> {
-        return this.dal.createFreeform(name.trim());
+    public async createFreeform(name: CanonicalIngredientName): Promise<Ingredient> {
+        return this.dal.createFreeform(name);
     }
 
     /** Load an ingredient or throw the shared `RECIPE_NOT_FOUND` domain error (mapped to 404 by the filter). */

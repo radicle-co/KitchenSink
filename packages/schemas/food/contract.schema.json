@@ -1,0 +1,2456 @@
+{
+    "$comment": "⚠️ GENERATED FILE — DO NOT EDIT. A comparison fingerprint of the published wire contract, regenerated and diffed by CI (`npm run contract:verify`).",
+    "blindTo": "A zod `.refine()`/`.superRefine()` predicate does NOT project into JSON Schema, so a business rule changed inside a refinement is invisible here and to the breaking-change classifier. A `.transform()` is recorded as `unrepresentable` rather than dropped.",
+    "contract": "@kitchensink/schema-food",
+    "derivedBy": "z.toJSONSchema(schema, { io: 'output' }) over every zod export of ./src/schemas.ts",
+    "notCodegen": "This document GENERATES NOTHING — no type, no zod, no client. It is not the type authority (the zod in ./src is), and it is not ADR-0014 §1’s rejected \"derive types through OpenAPI\": it exists only to be compared against its own previous version.",
+    "regenerate": "npm run contract:generate --workspace=@kitchensink/food-service",
+    "schemas": {
+        "addFoodRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "type": "object"
+        },
+        "addResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "estimatedWaitSeconds": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "PENDING",
+                        "UNRESOLVED",
+                        "RESOLVED",
+                        "NOT_FOUND",
+                        "FAILED",
+                        "AWAITING_RETRY"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status"
+            ],
+            "type": "object"
+        },
+        "apiErrorSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": {},
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {
+                    "additionalProperties": {},
+                    "propertyNames": {
+                        "type": "string"
+                    },
+                    "type": "object"
+                },
+                "message": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "code",
+                "message"
+            ],
+            "type": "object"
+        },
+        "approvePromotionResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "canonicalFoodId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "normalizedName": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "canonicalFoodId",
+                "normalizedName"
+            ],
+            "type": "object"
+        },
+        "authoredMacrosSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "calories": {
+                    "maximum": 900,
+                    "minimum": 0,
+                    "type": "number"
+                },
+                "carbsG": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "number"
+                },
+                "fatG": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "number"
+                },
+                "proteinG": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "number"
+                }
+            },
+            "required": [
+                "calories",
+                "proteinG",
+                "carbsG",
+                "fatG"
+            ],
+            "type": "object"
+        },
+        "authoredPortionInputSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "gramWeight": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 10000,
+                    "type": "number"
+                },
+                "label": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "label",
+                "gramWeight"
+            ],
+            "type": "object"
+        },
+        "backlogMetricsSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "failed": {
+                    "type": "number"
+                },
+                "notFound": {
+                    "type": "number"
+                },
+                "unresolved": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "unresolved",
+                "notFound",
+                "failed"
+            ],
+            "type": "object"
+        },
+        "batchAddFoodRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "names": {
+                    "items": {
+                        "maxLength": 200,
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "names"
+            ],
+            "type": "object"
+        },
+        "batchItemViewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "estimatedWaitSeconds": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "status": {
+                    "enum": [
+                        "PENDING",
+                        "UNRESOLVED",
+                        "RESOLVED",
+                        "NOT_FOUND",
+                        "FAILED",
+                        "AWAITING_RETRY"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status"
+            ],
+            "type": "object"
+        },
+        "batchResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "items": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "estimatedWaitSeconds": {
+                                "type": "number"
+                            },
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "status": {
+                                "enum": [
+                                    "PENDING",
+                                    "UNRESOLVED",
+                                    "RESOLVED",
+                                    "NOT_FOUND",
+                                    "FAILED",
+                                    "AWAITING_RETRY"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "status"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "items"
+            ],
+            "type": "object"
+        },
+        "candidateViewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "candidateId": {
+                    "type": "string"
+                },
+                "externalKey": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "summary": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "candidateId",
+                "source",
+                "externalKey",
+                "name",
+                "summary"
+            ],
+            "type": "object"
+        },
+        "candidatesResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "candidates": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "candidateId": {
+                                "type": "string"
+                            },
+                            "externalKey": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "source": {
+                                "type": "string"
+                            },
+                            "summary": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                            "candidateId",
+                            "source",
+                            "externalKey",
+                            "name",
+                            "summary"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                },
+                "id": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "candidates"
+            ],
+            "type": "object"
+        },
+        "corroboratedResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "PENDING",
+                        "UNRESOLVED",
+                        "RESOLVED",
+                        "NOT_FOUND",
+                        "FAILED",
+                        "AWAITING_RETRY"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status"
+            ],
+            "type": "object"
+        },
+        "createAuthoredFoodRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "description": {
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "macros": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "calories": {
+                            "maximum": 900,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "carbsG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "fatG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "proteinG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "calories",
+                        "proteinG",
+                        "carbsG",
+                        "fatG"
+                    ],
+                    "type": "object"
+                },
+                "name": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "portions": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "gramWeight": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 10000,
+                                "type": "number"
+                            },
+                            "label": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "label",
+                            "gramWeight"
+                        ],
+                        "type": "object"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
+                }
+            },
+            "required": [
+                "name",
+                "macros"
+            ],
+            "type": "object"
+        },
+        "foodErrorCodeSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "VALIDATION_FAILED",
+                "INVALID_ID",
+                "BATCH_TOO_LARGE",
+                "UNAUTHORIZED",
+                "IDENTITY_SYNC_PENDING",
+                "FORBIDDEN",
+                "FOOD_PENDING",
+                "FOOD_NOT_FOUND",
+                "CANDIDATE_MISMATCH",
+                "NOT_RESOLVABLE",
+                "NOT_REQUEUEABLE",
+                "NOT_EDITABLE",
+                "DUPLICATE_AUTHORED_NAME",
+                "FOOD_REFERENCED",
+                "REFERENCE_CHECK_UNAVAILABLE",
+                "PROMOTION_NOT_FOUND",
+                "PROMOTION_NOT_ACTIONABLE",
+                "FETCH_UNAVAILABLE",
+                "SOURCE_UNAVAILABLE",
+                "INTERNAL_ERROR"
+            ],
+            "type": "string"
+        },
+        "foodErrorSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "VALIDATION_FAILED",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "fields": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "fields"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "INVALID_ID",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "BATCH_TOO_LARGE",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "maxNames": {
+                                    "type": "number"
+                                }
+                            },
+                            "required": [
+                                "maxNames"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "UNAUTHORIZED",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "IDENTITY_SYNC_PENDING",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "FORBIDDEN",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "FOOD_PENDING",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "estimatedWaitSeconds": {
+                                    "type": "number"
+                                },
+                                "id": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "enum": [
+                                        "PENDING",
+                                        "UNRESOLVED",
+                                        "AWAITING_RETRY"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "status"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "FOOD_NOT_FOUND",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "enum": [
+                                        "NOT_FOUND",
+                                        "FAILED"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "CANDIDATE_MISMATCH",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "NOT_RESOLVABLE",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "enum": [
+                                        "PENDING",
+                                        "UNRESOLVED",
+                                        "RESOLVED",
+                                        "NOT_FOUND",
+                                        "FAILED",
+                                        "AWAITING_RETRY"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "status"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "FOOD_REFERENCED",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "ownRecipeIds": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "referencingRecipeCount": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "referencingRecipeCount",
+                                "ownRecipeIds"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "REFERENCE_CHECK_UNAVAILABLE",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "PROMOTION_NOT_FOUND",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "PROMOTION_NOT_ACTIONABLE",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "reason": {
+                                    "enum": [
+                                        "not_pending",
+                                        "not_promotable"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "reason"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "NOT_EDITABLE",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "DUPLICATE_AUTHORED_NAME",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "existingId": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "existingId"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "NOT_REQUEUEABLE",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "enum": [
+                                        "PENDING",
+                                        "UNRESOLVED",
+                                        "RESOLVED",
+                                        "NOT_FOUND",
+                                        "FAILED",
+                                        "AWAITING_RETRY"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "status"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "SOURCE_UNAVAILABLE",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "FETCH_UNAVAILABLE",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "retryAfterSeconds": {
+                                    "type": "number"
+                                }
+                            },
+                            "required": [
+                                "retryAfterSeconds"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "INTERNAL_ERROR",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "foodNutritionBatchResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "foods": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "caloriesPer100g": {
+                                "type": "number"
+                            },
+                            "carbsGPer100g": {
+                                "type": "number"
+                            },
+                            "fatGPer100g": {
+                                "type": "number"
+                            },
+                            "id": {
+                                "type": "string"
+                            },
+                            "portions": {
+                                "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "gramsPerUnit": {
+                                            "exclusiveMinimum": 0,
+                                            "type": "number"
+                                        },
+                                        "unit": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "unit",
+                                        "gramsPerUnit"
+                                    ],
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            },
+                            "proteinGPer100g": {
+                                "type": "number"
+                            },
+                            "status": {
+                                "enum": [
+                                    "PENDING",
+                                    "UNRESOLVED",
+                                    "RESOLVED",
+                                    "NOT_FOUND",
+                                    "FAILED",
+                                    "AWAITING_RETRY"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "status",
+                            "portions"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                },
+                "unknownIds": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "foods",
+                "unknownIds"
+            ],
+            "type": "object"
+        },
+        "foodNutritionQuerySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "ids": {
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ids"
+            ],
+            "type": "object"
+        },
+        "foodNutritionSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "caloriesPer100g": {
+                    "type": "number"
+                },
+                "carbsGPer100g": {
+                    "type": "number"
+                },
+                "fatGPer100g": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "portions": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "gramsPerUnit": {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                            },
+                            "unit": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "unit",
+                            "gramsPerUnit"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                },
+                "proteinGPer100g": {
+                    "type": "number"
+                },
+                "status": {
+                    "enum": [
+                        "PENDING",
+                        "UNRESOLVED",
+                        "RESOLVED",
+                        "NOT_FOUND",
+                        "FAILED",
+                        "AWAITING_RETRY"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status",
+                "portions"
+            ],
+            "type": "object"
+        },
+        "foodResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "description": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "name": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "nutrients": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "amount": {
+                                "type": "number"
+                            },
+                            "basis": {
+                                "type": "string"
+                            },
+                            "nutrient": {
+                                "type": "string"
+                            },
+                            "source": {
+                                "type": "string"
+                            },
+                            "unit": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "nutrient",
+                            "amount",
+                            "unit",
+                            "basis",
+                            "source"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                },
+                "portions": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "gramWeight": {
+                                "type": "number"
+                            },
+                            "label": {
+                                "type": "string"
+                            },
+                            "source": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "label",
+                            "gramWeight",
+                            "source"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                },
+                "priorFraction": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                },
+                "provenance": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "propertyNames": {
+                        "type": "string"
+                    },
+                    "type": "object"
+                },
+                "status": {
+                    "enum": [
+                        "PENDING",
+                        "UNRESOLVED",
+                        "RESOLVED",
+                        "NOT_FOUND",
+                        "FAILED",
+                        "AWAITING_RETRY"
+                    ],
+                    "type": "string"
+                },
+                "visibility": {
+                    "enum": [
+                        "private",
+                        "promoted"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "name",
+                "description",
+                "kind",
+                "status",
+                "nutrients",
+                "portions",
+                "provenance"
+            ],
+            "type": "object"
+        },
+        "foodServiceErasureAcceptedResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "deletedAuthoredFoods": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "deletedRequesterRows": {
+                    "type": "number"
+                },
+                "keptAuthoredFoods": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "requesterId": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "requesterId",
+                "deletedRequesterRows"
+            ],
+            "type": "object"
+        },
+        "foodServiceErasureBeginResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "authoredFoodIds": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "authoredFoodIds"
+            ],
+            "type": "object"
+        },
+        "foodServiceErasureRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "referencedFoodIds": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "maxItems": 10000,
+                    "type": "array"
+                }
+            },
+            "type": "object"
+        },
+        "foodStatusSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "PENDING",
+                "UNRESOLVED",
+                "RESOLVED",
+                "NOT_FOUND",
+                "FAILED",
+                "AWAITING_RETRY"
+            ],
+            "type": "string"
+        },
+        "getFoodResultSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "food": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "description": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "id": {
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "nutrients": {
+                                    "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "amount": {
+                                                "type": "number"
+                                            },
+                                            "basis": {
+                                                "type": "string"
+                                            },
+                                            "nutrient": {
+                                                "type": "string"
+                                            },
+                                            "source": {
+                                                "type": "string"
+                                            },
+                                            "unit": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "nutrient",
+                                            "amount",
+                                            "unit",
+                                            "basis",
+                                            "source"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    "type": "array"
+                                },
+                                "portions": {
+                                    "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "gramWeight": {
+                                                "type": "number"
+                                            },
+                                            "label": {
+                                                "type": "string"
+                                            },
+                                            "source": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "label",
+                                            "gramWeight",
+                                            "source"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    "type": "array"
+                                },
+                                "priorFraction": {
+                                    "maximum": 1,
+                                    "minimum": 0,
+                                    "type": "number"
+                                },
+                                "provenance": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "propertyNames": {
+                                        "type": "string"
+                                    },
+                                    "type": "object"
+                                },
+                                "status": {
+                                    "enum": [
+                                        "PENDING",
+                                        "UNRESOLVED",
+                                        "RESOLVED",
+                                        "NOT_FOUND",
+                                        "FAILED",
+                                        "AWAITING_RETRY"
+                                    ],
+                                    "type": "string"
+                                },
+                                "visibility": {
+                                    "enum": [
+                                        "private",
+                                        "promoted"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "description",
+                                "kind",
+                                "status",
+                                "nutrients",
+                                "portions",
+                                "provenance"
+                            ],
+                            "type": "object"
+                        },
+                        "status": {
+                            "const": "RESOLVED",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "status",
+                        "food"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "estimatedWaitSeconds": {
+                            "type": "number"
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "status": {
+                            "enum": [
+                                "PENDING",
+                                "UNRESOLVED",
+                                "AWAITING_RETRY"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "status",
+                        "id"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "healthStatusSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "contractHash": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                },
+                "service": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "status",
+                "service",
+                "contractHash"
+            ],
+            "type": "object"
+        },
+        "liveSearchResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "results": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "name"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "results"
+            ],
+            "type": "object"
+        },
+        "liveSearchResultViewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "type": "object"
+        },
+        "normalizedPortionSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "gramsPerUnit": {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                },
+                "unit": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "unit",
+                "gramsPerUnit"
+            ],
+            "type": "object"
+        },
+        "nutrientViewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "basis": {
+                    "type": "string"
+                },
+                "nutrient": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "nutrient",
+                "amount",
+                "unit",
+                "basis",
+                "source"
+            ],
+            "type": "object"
+        },
+        "operationalMetricsSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "backlog": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "failed": {
+                            "type": "number"
+                        },
+                        "notFound": {
+                            "type": "number"
+                        },
+                        "unresolved": {
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "unresolved",
+                        "notFound",
+                        "failed"
+                    ],
+                    "type": "object"
+                },
+                "queue": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "inFlight": {
+                            "type": "number"
+                        },
+                        "pending": {
+                            "type": "number"
+                        },
+                        "tombstone": {
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "pending",
+                        "inFlight",
+                        "tombstone"
+                    ],
+                    "type": "object"
+                },
+                "sources": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "hardCap": {
+                                "type": "number"
+                            },
+                            "pauseThreshold": {
+                                "type": "number"
+                            },
+                            "paused": {
+                                "type": "boolean"
+                            },
+                            "source": {
+                                "type": "string"
+                            },
+                            "utilization": {
+                                "type": "number"
+                            },
+                            "windowCount": {
+                                "type": "number"
+                            }
+                        },
+                        "required": [
+                            "source",
+                            "windowCount",
+                            "hardCap",
+                            "pauseThreshold",
+                            "utilization",
+                            "paused"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "queue",
+                "backlog",
+                "sources"
+            ],
+            "type": "object"
+        },
+        "pendingFoodStatusSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "PENDING",
+                "UNRESOLVED",
+                "AWAITING_RETRY"
+            ],
+            "type": "string"
+        },
+        "pendingPromotionsResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "pending": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "candidateFoodIds": {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            "canonicalFoodId": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "createdAt": {
+                                "type": "string"
+                            },
+                            "dataFingerprint": {
+                                "type": "string"
+                            },
+                            "decidedAt": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "id": {
+                                "type": "string"
+                            },
+                            "normalizedName": {
+                                "type": "string"
+                            },
+                            "status": {
+                                "enum": [
+                                    "pending",
+                                    "approved",
+                                    "rejected"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "normalizedName",
+                            "candidateFoodIds",
+                            "dataFingerprint",
+                            "status",
+                            "canonicalFoodId",
+                            "createdAt",
+                            "decidedAt"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "pending"
+            ],
+            "type": "object"
+        },
+        "pendingResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "estimatedWaitSeconds": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "PENDING",
+                        "UNRESOLVED",
+                        "AWAITING_RETRY"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status"
+            ],
+            "type": "object"
+        },
+        "portionViewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "gramWeight": {
+                    "type": "number"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "label",
+                "gramWeight",
+                "source"
+            ],
+            "type": "object"
+        },
+        "promotionQueueRowSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "candidateFoodIds": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "canonicalFoodId": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "dataFingerprint": {
+                    "type": "string"
+                },
+                "decidedAt": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "normalizedName": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "pending",
+                        "approved",
+                        "rejected"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "normalizedName",
+                "candidateFoodIds",
+                "dataFingerprint",
+                "status",
+                "canonicalFoodId",
+                "createdAt",
+                "decidedAt"
+            ],
+            "type": "object"
+        },
+        "queueDepthMetricsSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "inFlight": {
+                    "type": "number"
+                },
+                "pending": {
+                    "type": "number"
+                },
+                "tombstone": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "pending",
+                "inFlight",
+                "tombstone"
+            ],
+            "type": "object"
+        },
+        "rejectPromotionResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "const": "rejected",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status"
+            ],
+            "type": "object"
+        },
+        "requeueResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "const": "PENDING",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status"
+            ],
+            "type": "object"
+        },
+        "resolveFoodRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "candidateIds": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                }
+            },
+            "required": [
+                "candidateIds"
+            ],
+            "type": "object"
+        },
+        "resolveResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "const": "RESOLVED",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status"
+            ],
+            "type": "object"
+        },
+        "searchFoodQuerySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "query": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "withNutrition": {
+                    "const": "true",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "query"
+            ],
+            "type": "object"
+        },
+        "searchResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "results": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "caloriesPer100g": {
+                                "type": "number"
+                            },
+                            "carbsGPer100g": {
+                                "type": "number"
+                            },
+                            "fatGPer100g": {
+                                "type": "number"
+                            },
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "proteinGPer100g": {
+                                "type": "number"
+                            },
+                            "score": {
+                                "type": "number"
+                            },
+                            "visibility": {
+                                "enum": [
+                                    "private",
+                                    "promoted"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name",
+                            "score"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "results"
+            ],
+            "type": "object"
+        },
+        "searchResultViewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "caloriesPer100g": {
+                    "type": "number"
+                },
+                "carbsGPer100g": {
+                    "type": "number"
+                },
+                "fatGPer100g": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "proteinGPer100g": {
+                    "type": "number"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "visibility": {
+                    "enum": [
+                        "private",
+                        "promoted"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "name",
+                "score"
+            ],
+            "type": "object"
+        },
+        "sourceWindowMetricsSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "hardCap": {
+                    "type": "number"
+                },
+                "pauseThreshold": {
+                    "type": "number"
+                },
+                "paused": {
+                    "type": "boolean"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "utilization": {
+                    "type": "number"
+                },
+                "windowCount": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "source",
+                "windowCount",
+                "hardCap",
+                "pauseThreshold",
+                "utilization",
+                "paused"
+            ],
+            "type": "object"
+        },
+        "statusResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "estimatedWaitSeconds": {
+                    "type": "number"
+                },
+                "food": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "description": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "kind": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "nutrients": {
+                            "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "amount": {
+                                        "type": "number"
+                                    },
+                                    "basis": {
+                                        "type": "string"
+                                    },
+                                    "nutrient": {
+                                        "type": "string"
+                                    },
+                                    "source": {
+                                        "type": "string"
+                                    },
+                                    "unit": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "nutrient",
+                                    "amount",
+                                    "unit",
+                                    "basis",
+                                    "source"
+                                ],
+                                "type": "object"
+                            },
+                            "type": "array"
+                        },
+                        "portions": {
+                            "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "gramWeight": {
+                                        "type": "number"
+                                    },
+                                    "label": {
+                                        "type": "string"
+                                    },
+                                    "source": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "label",
+                                    "gramWeight",
+                                    "source"
+                                ],
+                                "type": "object"
+                            },
+                            "type": "array"
+                        },
+                        "priorFraction": {
+                            "maximum": 1,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "provenance": {
+                            "additionalProperties": {
+                                "type": "string"
+                            },
+                            "propertyNames": {
+                                "type": "string"
+                            },
+                            "type": "object"
+                        },
+                        "status": {
+                            "enum": [
+                                "PENDING",
+                                "UNRESOLVED",
+                                "RESOLVED",
+                                "NOT_FOUND",
+                                "FAILED",
+                                "AWAITING_RETRY"
+                            ],
+                            "type": "string"
+                        },
+                        "visibility": {
+                            "enum": [
+                                "private",
+                                "promoted"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "name",
+                        "description",
+                        "kind",
+                        "status",
+                        "nutrients",
+                        "portions",
+                        "provenance"
+                    ],
+                    "type": "object"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "PENDING",
+                        "UNRESOLVED",
+                        "RESOLVED",
+                        "NOT_FOUND",
+                        "FAILED",
+                        "AWAITING_RETRY"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status"
+            ],
+            "type": "object"
+        },
+        "terminalFoodStatusSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "NOT_FOUND",
+                "FAILED"
+            ],
+            "type": "string"
+        },
+        "updateAuthoredFoodRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "description": {
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "macros": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "calories": {
+                            "maximum": 900,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "carbsG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "fatG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "proteinG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "calories",
+                        "proteinG",
+                        "carbsG",
+                        "fatG"
+                    ],
+                    "type": "object"
+                },
+                "name": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "portions": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "gramWeight": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 10000,
+                                "type": "number"
+                            },
+                            "label": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "label",
+                            "gramWeight"
+                        ],
+                        "type": "object"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
+                }
+            },
+            "required": [
+                "name",
+                "macros"
+            ],
+            "type": "object"
+        }
+    }
+}

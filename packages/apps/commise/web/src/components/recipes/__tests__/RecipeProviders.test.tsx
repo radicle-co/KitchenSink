@@ -16,8 +16,9 @@
  *    the ref's bridge was ever observably different from a plain closure), the very next request uses it;
  *  - `forceRefresh` (B22) still threads through to Clerk's `skipCache`, so the identity-sync / expired-token
  *    retry paths in `RecipeServiceClient` are not broken by the rework;
- *  - before `getToken` is defined (SSR / pre-hydration), a request is sent unauthenticated rather than
- *    throwing.
+ *  - before `getToken` is defined (SSR / pre-hydration), NO request is issued at all — the supplier refuses
+ *    with a typed `RecipeAuthNotReadyError` rather than fabricating an empty bearer (see that case's own
+ *    comment for the reversal, and for why it awaits the request's promise instead of a wall-clock sleep).
  *
  * A source-level check also asserts the render-mutated-ref pattern itself is gone from the file.
  */
@@ -30,6 +31,8 @@ import userEvent from '@testing-library/user-event';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import type { ReactElement } from 'react';
+
+import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
 
 const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
 vi.mock('@clerk/nextjs', () => ({ useAuth: useAuthMock }));
@@ -52,6 +55,34 @@ function renderProbe(): { fetchButton: () => HTMLElement } {
     );
 
     return { fetchButton: () => screen.getByRole('button', { name: 'fetch' }) };
+}
+
+/**
+ * Render the provider tree and hand back the client it supplied, so a test can await a request's OWN
+ * promise instead of a timer.
+ *
+ * The button path (`renderProbe`) fires the request and DROPS the promise, which is fine for a positive
+ * assertion — `waitFor` polls until the expected call lands — but leaves a negative assertion with
+ * nothing to synchronize on. Holding the promise makes "the client has finished" observable.
+ */
+function renderProbeCapturingClient(): RecipeServiceClient {
+    let captured: RecipeServiceClient | undefined;
+
+    render(
+        <RecipeProviders>
+            <ClientProbe
+                onClient={(client) => {
+                    captured = client;
+                }}
+            />
+        </RecipeProviders>,
+    );
+
+    if (captured === undefined) {
+        throw new Error('RecipeProviders did not supply a recipe-service client to the probe');
+    }
+
+    return captured;
 }
 
 /** The `Authorization` header the fake `fetch`'s Nth call received, or `null` if absent. */
@@ -147,18 +178,42 @@ describe('RecipeProviders (web) — token resolution', () => {
         expect(getToken).toHaveBeenNthCalledWith(2, { skipCache: true });
     });
 
-    it('sends an unauthenticated request (never throws) before getToken is defined — SSR/pre-hydration', async () => {
-        const user = userEvent.setup();
+    // ⚠️ REVERSES a decision this suite previously asserted as correct. The old test was
+    // "sends an unauthenticated request (never throws) before getToken is defined — SSR/pre-hydration",
+    // and it pinned `authorizationAt(fetchMock)` to `'Bearer'` — an EMPTY bearer.
+    //
+    // That is a fabricated credential, and it cannot succeed: every protected recipe endpoint answers
+    // `401 {"message":"Missing bearer token"}`. Observed in production on 2026-08-07 —
+    // `GET recipe.commise.app/api/v1/recipes?pageSize=4` returned 401 on a signed-in Home load, while the
+    // identical call with a real token returned 200. The 401 then met the app's redirect-to-sign-in
+    // handler. "Never throws" bought nothing: issuing a request that CANNOT succeed is not more graceful
+    // than declining to issue it, and it converts a transient not-ready state into a server-side auth
+    // failure indistinguishable from a genuine one.
+    //
+    // Now the supplier throws a typed `RecipeAuthNotReadyError`. TanStack Query's default retry recovers
+    // it once hydration completes, so the transient case self-heals WITHOUT a doomed round trip — and no
+    // 401 is ever produced, so nothing can trigger the sign-in bounce.
+    it('does NOT issue an unauthenticated request before getToken is defined — SSR/pre-hydration', async () => {
         useAuthMock.mockReturnValue({ getToken: undefined });
 
-        const { fetchButton } = renderProbe();
-        await user.click(fetchButton());
+        const client = renderProbeCapturingClient();
 
-        await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-        // Pre-existing (unchanged) behavior: an undefined `getToken` resolves to `''`, so the header is sent
-        // as `Bearer ` (empty token, trimmed to `Bearer` by the Fetch `Headers` spec) rather than omitted —
-        // B14 only removes the ref, it does not change this.
-        expect(authorizationAt(fetchMock)).toBe('Bearer');
+        // ⛔ NOT a wall-clock sleep. A `setTimeout(50)` "wait" cannot prove a negative: it passes whenever the
+        // fetch is merely slower than the sleep, so it asserts "no fetch within 50ms" while claiming "no
+        // fetch". The request's real async boundary is the promise `listRecipes()` returns — the token
+        // supplier throws inside ky's `beforeRequest` hook, which is a plain microtask chain with no timer
+        // (`retry: 0`, and `send()` retries only a 401 RESPONSE, which a refusal never produces). Awaiting
+        // that promise to settlement is therefore exact: by the time it resolves the client has done
+        // everything it intends to do, so a `fetch` it decided to issue is ALREADY recorded on the mock.
+        const outcome = await client.listRecipes().then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+
+        // The request is never sent: no empty `Bearer`, no 401, nothing for the redirect handler to see.
+        expect(fetchMock).not.toHaveBeenCalled();
+        // …and the refusal is the TYPED one, so "not ready" stays distinguishable from "the server said no".
+        expect(outcome).toBeInstanceOf(RecipeAuthNotReadyError);
     });
 });
 

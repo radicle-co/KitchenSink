@@ -6,8 +6,10 @@
  * absent (route escaped auth) — here it is used PURELY as an authentication assertion: the shared
  * `ingredients` catalog is intentionally ownerless (data-model R5), so no endpoint keys on the caller, but
  * every one still proves the caller is authenticated exactly the way the sibling controllers (recipes,
- * ratings, account) do. Bodies are validated by class-validator DTOs under the same controller-scoped
- * `ValidationPipe` (`transform + whitelist`) the siblings use, so a stray/spoofed field is stripped:
+ * ratings, account) do. Bodies are validated by the controller-scoped `ZodValidationPipe` against the DTOs in
+ * `dto/`, which ARE the authored wire contract (`ingredients.schema.ts`) rather than a second set of
+ * `class-validator` rules beside it — CODING_STANDARDS §15.2. Unknown keys are stripped, so a stray/spoofed
+ * field never reaches the service:
  *
  *   - `GET /api/v1/ingredients/search?q=&limit=` — fuzzy + full-text autocomplete over the shared catalog
  *     (`200` → `Ingredient[]`). A missing/blank `q` is a `400`.
@@ -29,10 +31,24 @@
  *     read from the caller's view (idempotent, convergent) and carries the generous read limit so a
  *     client polling a `PENDING` food is never throttled into a false failure mid-resolution.
  *   - `GET /api/v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED`
- *     food-backed ingredient (`200` → `Candidate[]`; empty for a freeform or non-`UNRESOLVED` row).
+ *     food-backed ingredient (`200` → `IngredientCandidate[]`, RECIPE's own wire shape — see
+ *     `ingredients.schema.ts` for why this endpoint no longer returns the food client's `CandidateView`;
+ *     empty for a freeform or non-`UNRESOLVED` row).
  *   - `POST /api/v1/ingredients/{id}/resolve` `{ candidateIds }` — resolve an `UNRESOLVED` ingredient from a
  *     candidate pick, then re-poll so the newly-`RESOLVED` nutrition is persisted (`200` → `Ingredient`).
  *     A missing/empty/oversized `candidateIds` is a `400`; a missing ingredient is a `404`.
+ *
+ *   - `POST /api/v1/ingredients/corrections` `{ phrase, foodId, surfacing }` — record "this phrase means
+ *     this food" in the resolution knowledge base (`200` → `RecordCorrectionResponse`, plan U14 / R19, R20).
+ *     ⛔ The ONE route here that takes `@CurrentPrincipal()` rather than only `@OwnerId()`, and the reason is
+ *     the authorization: how far a correction reaches is decided by the pure `evaluateMappingWrite` from the
+ *     caller's SIGNED grants, so a controller forwarding only a ULID would silently make every correction
+ *     author-scoped and the curator grant decorative — with nothing failing. ⛔ It is NOT behind a scopes
+ *     Guard: the route must stay open to every authenticated user, because a cook fixing their own
+ *     ingredient line is the ordinary case and the entire point of the learning loop. What is authorized is
+ *     the FIELD VALUE `scope` (ADR-0023's shape, second instance). A `recorded: false` answer is a `200` —
+ *     re-asserting a binding already in force is idempotent, not an error — while a phrase that reduces to
+ *     nothing is a `400`.
  *
  * Input is validated at the boundary and delegated to {@link IngredientsService}; domain errors are
  * surfaced via thrown `RecipeError`s mapped by the global `ApiExceptionFilter`.
@@ -41,7 +57,7 @@
  * `@CallerBearerToken()`: food verifies a Clerk token, so recipe calls it AS the authenticated user rather
  * than with a service credential. The decorator yields `undefined` when the request carried no bearer (the
  * non-production dev-auth bypass) and the ingredient paths degrade rather than substitute a credential — see
- * `auth/caller-token.ts` for why the credential is an opaque value object and never a `string`. The
+ * `auth/CallerToken.ts` for why the credential is an opaque value object and never a `string`. The
  * local-only routes (`/search`, `POST /`) take no credential because they make no cross-service call.
  *
  * @implements FR-007 FR-007a FR-047
@@ -58,19 +74,30 @@ import {
     Post,
     Query,
     UsePipes,
-    ValidationPipe,
 } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 import type { Ingredient } from '@kitchensink/recipe-core';
-import type { CandidateView } from '@kitchensink/food-service-client';
 
-import { CallerBearerToken } from '../auth/caller-token.decorator.js';
-import type { CallerToken } from '../auth/caller-token.js';
-import { OwnerId } from '../auth/current-principal.decorator.js';
+import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
+import type { CallerToken } from '../auth/CallerToken.js';
+import { CurrentPrincipal, OwnerId } from '../auth/currentPrincipal.decorator.js';
+import type { Principal } from '../auth/principal.js';
+import { apiError } from '../common/apiError.js';
+import { canonicalIngredientName, type CanonicalIngredientName } from './domain/ingredientName.js';
 import { IngredientsService } from './ingredients.service.js';
-import type { IngredientSuggestions } from './ingredient-suggestion.js';
-import { AddIngredientByFoodDto } from './dto/add-ingredient-by-food.dto.js';
-import { CreateIngredientDto } from './dto/create-ingredient.dto.js';
-import { ResolveIngredientDto } from './dto/resolve-ingredient.dto.js';
+import type { IngredientSuggestions } from './ingredientSuggestion.js';
+import type { FoodReferencesResponse, CreateAuthoredFoodViaPickerResponse } from './ingredients.schema.js';
+import type {
+    IngredientCandidate,
+    LiveIngredientSearchResponse,
+    RecordCorrectionResponse,
+} from './ingredients.schema.js';
+import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
+import { AddIngredientByFoodDto } from './dto/addIngredientByFood.dto.js';
+import { CreateIngredientDto } from './dto/createIngredient.dto.js';
+import { RecordCorrectionDto } from './dto/recordCorrection.dto.js';
+import { CreateAuthoredFoodViaPickerDto } from './dto/createAuthoredFoodViaPicker.dto.js';
+import { ResolveIngredientDto } from './dto/resolveIngredient.dto.js';
 import { SearchRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 /** Parse the optional `limit` query param into a number (the DAL clamps it into `[1, 50]`, default 10). */
@@ -93,9 +120,17 @@ function parseLimit(raw: string | undefined): number | undefined {
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/ingredients', 'v1/ingredients'])
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+@UsePipes(ZodValidationPipe)
 export class IngredientsController {
-    public constructor(private readonly ingredients: IngredientsService) {}
+    public constructor(
+        private readonly ingredients: IngredientsService,
+        /**
+         * The U14 correction write path (plan U10 / R19, R20) — a SECOND collaborator rather than a method on
+         * {@link IngredientsService}, because it owns its own Unit of Work over a different table and answers
+         * a different question (what a phrase MEANS, not which ingredient row exists).
+         */
+        private readonly corrections: ResolutionMappingsService,
+    ) {}
 
     /**
      * `GET /api/v1/ingredients/search` — fuzzy + FTS autocomplete over the shared ingredient catalog.
@@ -111,7 +146,7 @@ export class IngredientsController {
     @Get('search')
     @SearchRateLimit()
     public async search(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @Query('q') q?: string,
         @Query('limit') limit?: string,
     ): Promise<Ingredient[]> {
@@ -121,7 +156,8 @@ export class IngredientsController {
             throw new BadRequestException('q is required');
         }
 
-        return this.ingredients.search(query, parseLimit(limit));
+        // R20 (plan U11): the caller's identity scopes private-food rows into (only) their own results.
+        return this.ingredients.search(query, ownerId, parseLimit(limit));
     }
 
     /**
@@ -154,7 +190,7 @@ export class IngredientsController {
     @Get('suggest')
     @SearchRateLimit()
     public async suggest(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Query('q') q?: string,
         @Query('limit') limit?: string,
@@ -165,7 +201,48 @@ export class IngredientsController {
             throw new BadRequestException('q is required');
         }
 
-        return this.ingredients.suggest(caller, query, parseLimit(limit));
+        return this.ingredients.suggest(caller, query, ownerId, parseLimit(limit));
+    }
+
+    /**
+     * `GET /api/v1/ingredients/search/live?q=` — the ON-DEMAND live source search (plan U29): the seam
+     * behind the picker's "Search USDA for '…'" control.
+     *
+     * ⚠️ **Declared before every `:id` route.** Nest matches in declaration order, so registered after them
+     * `search` would bind as an `:id` and this endpoint would 404 with no clue why.
+     *
+     * ⛔ **Never wire this to a typeahead.** Each call spends one request against a SHARED per-IP source
+     * quota, out of FR-019's reserved interactive lane; the whole surface is affordable only because a cook
+     * presses a button for it. It carries {@link WriteRateLimit} rather than {@link SearchRateLimit} for the
+     * same reason: the per-user allowance for an action that costs an external call is the write budget, not
+     * the generous read one a debounced typeahead needs. That is our own fairness limit, NOT the quota —
+     * the quota is aggregate and lives in food-service (F-#4).
+     *
+     * ⚠️ It is the acknowledged SLOW path. A multi-second wait is expected here and is deliberately outside
+     * SC-007's 500ms budget, which governs the LOCAL search.
+     *
+     * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
+     * @param q - The name query (required, and at least the shared search minimum).
+     * @returns The source's hits — EMPTY meaning the source answered and has nothing.
+     * @throws {BadRequestException} (→ 400) when `q` is missing/blank or below the search minimum.
+     * @throws {HttpException} `503 SOURCE_BUSY` when the rate budget refused; `502 SOURCE_UNAVAILABLE` when
+     *   the source did not answer. Three outcomes a cook acts on differently — see the service.
+     */
+    @Get('search/live')
+    @WriteRateLimit()
+    public async searchLive(
+        @OwnerId() _ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Query('q') q?: string,
+    ): Promise<LiveIngredientSearchResponse> {
+        const query = (q ?? '').trim();
+
+        if (query.length === 0) {
+            throw new BadRequestException('q is required');
+        }
+
+        return this.ingredients.searchLive(caller, query);
     }
 
     /**
@@ -179,7 +256,7 @@ export class IngredientsController {
     @HttpCode(HttpStatus.CREATED)
     @WriteRateLimit()
     public async create(@OwnerId() _ownerId: string, @Body() body: CreateIngredientDto): Promise<Ingredient> {
-        return this.ingredients.createFreeform(body.name);
+        return this.ingredients.createFreeform(this.visibleName(body.name));
     }
 
     /**
@@ -195,7 +272,13 @@ export class IngredientsController {
      * (distinct from the synchronous `201` freeform create); the body's `foodResolutionStatus` is authoritative.
      * A mutation (food-service add + DB write) → the write rate limit.
      *
-     * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * ⚠️ **`ownerId` is no longer an auth assertion ALONE on this route** (plan U10). It is passed to the
+     * service, where the resolution cascade uses it so a curated mapping the CALLER wrote outranks the global
+     * one for them. Every other route here still takes it purely as the "this request is authenticated"
+     * proof the shared, ownerless catalog otherwise has no use for.
+     *
+     * @param ownerId - The verified caller ULID: the authentication assertion, AND the identity whose own
+     *   curated mappings take precedence in the cascade.
      * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param body - `{ name }` (non-blank, ≤120 chars), validated by {@link CreateIngredientDto}.
      * @returns The created (or deduped) food-backed ingredient with its current non-terminal resolution status.
@@ -204,11 +287,11 @@ export class IngredientsController {
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
     public async addByName(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: CreateIngredientDto,
     ): Promise<Ingredient> {
-        return this.ingredients.addByName(caller, body.name);
+        return this.ingredients.addByName(caller, this.visibleName(body.name), ownerId);
     }
 
     /**
@@ -228,7 +311,8 @@ export class IngredientsController {
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
      * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param body - `{ foodId }` (non-blank, ≤64 chars), validated by {@link AddIngredientByFoodDto}. Any
-     *   caller-supplied `name` is stripped by the whitelist — the display name comes from the food service.
+     *   caller-supplied `name` is REFUSED with a `400` (it was stripped before GR-017 §17-c) — the display name
+     *   comes from the food service, so a client that supplied one must learn it was not used.
      * @returns The food-backed ingredient with its golden-record nutrition.
      * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when the food cannot back an ingredient (unknown,
      *   terminal, mid-resolution, or nameless) and no row exists to advance.
@@ -237,11 +321,50 @@ export class IngredientsController {
     @HttpCode(HttpStatus.OK)
     @WriteRateLimit()
     public async addByFood(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: AddIngredientByFoodDto,
     ): Promise<Ingredient> {
-        return this.ingredients.addByFoodId(caller, body.foodId);
+        // U11/R20: the caller ULID rides along for the privacy capture — a private authored food admitted
+        // here must land with `food_owner_id` set, or its NAME enters every user's local search.
+        return this.ingredients.addByFoodId(caller, body.foodId, ownerId);
+    }
+
+    /**
+     * `POST /api/v1/ingredients/authored-food` (plan U16) — the picker's create-and-attach: author a food
+     * (macros-only, Q3a) and admit it as a food-backed ingredient in ONE round-trip.
+     *
+     * A BFF composition — neither app holds a food-service origin; the caller's own bearer is forwarded
+     * for both halves (issue #120), and the U11 privacy capture rides the admission. The per-author dedup
+     * collision comes back as the `created: false` union arm carrying the existing food's id (the
+     * `recordCorrection` `recorded`-discriminant precedent), so the reuse affordance needs no error parse.
+     *
+     * A mutation (food-service write + local writes) → the write rate limit.
+     *
+     * @param ownerId - The verified caller ULID — the food's author, and the privacy capture's input.
+     * @param caller - The caller's own bearer, forwarded to the food service.
+     * @param body - `{ name, macros }`, validated by {@link CreateAuthoredFoodViaPickerDto} (bounds are
+     *   the food service's own, composed — never redeclared).
+     * @returns The admitted ingredient, or the duplicate arm naming the caller's existing food.
+     */
+    @Post('authored-food')
+    @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
+    public async createAuthoredFood(
+        @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Body() body: CreateAuthoredFoodViaPickerDto,
+    ): Promise<CreateAuthoredFoodViaPickerResponse> {
+        const outcome = await this.ingredients.createAuthoredFood(caller, ownerId, {
+            name: body.name,
+            macros: body.macros,
+        });
+
+        if (outcome.kind === 'duplicate') {
+            return { created: false, reason: 'duplicate', existingFoodId: outcome.existingFoodId };
+        }
+
+        return { created: true, ingredient: outcome.ingredient };
     }
 
     /**
@@ -258,13 +381,30 @@ export class IngredientsController {
      * @returns The refreshed ingredient (with its current `foodResolutionStatus`).
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      */
+    /**
+     * `GET /api/v1/ingredients/food-references/:foodId` (plan U18, R22) — how many live recipes reference
+     * this food, plus the CALLER's own referencing recipe ids. Consumed by the food service's authored
+     * DELETE flow with the caller's forwarded bearer; the count spans all users, the ids never do.
+     *
+     * ⚠️ Declared BEFORE the `:id/*` routes — Nest matches in declaration order.
+     */
+    @Get('food-references/:foodId')
+    public async foodReferences(
+        @OwnerId() ownerId: string,
+        @Param('foodId') foodId: string,
+    ): Promise<FoodReferencesResponse> {
+        return this.ingredients.foodReferences(ownerId, foodId);
+    }
+
     @Get(':id/status')
     public async status(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<Ingredient> {
-        return this.ingredients.refreshStatus(caller, id);
+        // The ULID rides along so a refresh re-captures the privacy fact (U11) exactly as it re-captures
+        // the consumption prior.
+        return this.ingredients.refreshStatus(caller, id, ownerId);
     }
 
     /**
@@ -282,7 +422,7 @@ export class IngredientsController {
         @OwnerId() _ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
-    ): Promise<readonly CandidateView[]> {
+    ): Promise<readonly IngredientCandidate[]> {
         return this.ingredients.getCandidates(caller, id);
     }
 
@@ -308,5 +448,95 @@ export class IngredientsController {
         @Body() body: ResolveIngredientDto,
     ): Promise<Ingredient> {
         return this.ingredients.resolve(caller, id, body.candidateIds);
+    }
+
+    /**
+     * `POST /api/v1/ingredients/corrections` — record what an ingredient phrase MEANS (plan U14 / R19, R20).
+     *
+     * The affordance that makes U10's write path reachable: without it the knowledge base has a writer and
+     * no caller, and the learning loop never fires. A mutation → the write rate limit.
+     *
+     * ⚠️ `200`, not `201`, and the choice carries information. The honest answer is often that NOTHING was
+     * created — the caller re-asserted a binding already in force, or a concurrent correction committed
+     * first — and `201 Created` would assert a resource that does not exist. The response body's `recorded`
+     * discriminant is what says which happened.
+     *
+     * ⚠️ NO route Guard, deliberately — see the class doc. And no `foodId` verification against the food
+     * service: migration 0021 requires every reader to treat an unresolvable mapping as a MISS and fall
+     * through (U12's reseed mints fresh food ULIDs, so a dangling id is a certainty), and a cross-service
+     * round-trip here would put a network dependency on a write whose entire value is that it is cheap.
+     *
+     * @param principal - The verified caller. Passed WHOLE: its signed `scopes`/`permissions` are what the
+     *   pure scope policy reads, and this controller neither inspects nor narrows them.
+     * @param body - `{ phrase, foodId, surfacing }`, validated by {@link RecordCorrectionDto}.
+     * @returns What the correction did, and HOW FAR it reaches.
+     * @throws {HttpException} `VALIDATION_FAILED` (→ 400) when the phrase carries no content the knowledge
+     *   base can key on — the same condition, written in characters a caller cannot see, that
+     *   {@link IngredientsController.visibleName} answers `400` for on a name.
+     */
+    @Post('corrections')
+    @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
+    public async recordCorrection(
+        @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Body() body: RecordCorrectionDto,
+    ): Promise<RecordCorrectionResponse> {
+        const result = await this.corrections.recordCorrection({
+            principal,
+            phrase: body.phrase,
+            foodId: body.foodId,
+            surfacing: body.surfacing,
+            // U19: forwarded so a corroboration promotion can fire the food-side completion trigger.
+            caller,
+        });
+
+        if (result.written) {
+            return { recorded: true, mappingId: result.mappingId, scope: result.scope };
+        }
+
+        if (result.outcome === 'phrase_not_usable') {
+            // ⛔ NOT a `recorded: false` answer. `min(1)` passes for zero-width characters and for
+            // punctuation alone, and the normalized key is then empty — reporting that as "already in force"
+            // would tell the caller their correction was redundant when it was never usable at all.
+            throw apiError('VALIDATION_FAILED', 'phrase must contain at least one visible character');
+        }
+
+        // ⛔ `result.reason` is NOT forwarded. It is prose written for a reviewer reading the policy module;
+        // publishing it would freeze that wording into the contract, and a client cannot branch on a
+        // sentence. The closed `outcome` is what crosses.
+        return { recorded: false, outcome: result.outcome };
+    }
+
+    /**
+     * Reduce a caller's name to the canonical form the shared catalog stores, or reject it. THE parse
+     * boundary for every name this API accepts (plan U3).
+     *
+     * ⛔ **HERE rather than in the published contract**, mirroring `foods.controller.ts`'s sibling method for
+     * the sibling ownerless catalog. This is server-side NORMALIZATION, and `contract-gen` states the rule
+     * directly: it "is not part of the shape a caller must satisfy — move it out of the published schema and
+     * into the handler." Two further reasons this is not a style preference: an authored `*.schema.ts` that
+     * imported the rule would drag the whole text of `recipe-core/src/foodName.ts` into the contract
+     * fingerprint, so a future Unicode-hygiene fix with no wire projection would move `CONTRACT_HASH`; and
+     * unlike `.trim()`, NFKC can EXPAND a string, so the published `maxLength: 120` would begin rejecting
+     * bodies it documents as valid.
+     *
+     * The `400` is the SAME `VALIDATION_FAILED` envelope the validation pipe raises for `""`, because a name
+     * of U+200B ZERO WIDTH SPACEs is the same condition written in characters a caller cannot see —
+     * `String#trim` does not remove format characters, so the pipe's `min(1)` passes it and, before this, a
+     * blank name was stored in a catalog every user searches.
+     *
+     * @param raw - The name from the validated request body (already trimmed and length-bounded).
+     * @returns The parsed, branded canonical name.
+     * @throws {HttpException} `VALIDATION_FAILED` (→ 400) when nothing visible survives canonicalization.
+     */
+    private visibleName(raw: string): CanonicalIngredientName {
+        const name = canonicalIngredientName(raw);
+
+        if (name === undefined) {
+            throw apiError('VALIDATION_FAILED', 'name must contain at least one visible character');
+        }
+
+        return name;
     }
 }

@@ -4,16 +4,16 @@
  * Mirrors the recipes controller suite: the thin controller receives the owner key already resolved by
  * the `@OwnerId()` decorator, delegates to the service with the path `recipeId` + body, and returns the
  * service result verbatim. The "missing principal → 401" path lives on the decorator and is covered by
- * `auth/__tests__/current-principal.decorator.test.ts`. HTTP status codes are declared with framework
+ * `auth/__tests__/currentPrincipal.decorator.test.ts`. HTTP status codes are declared with framework
  * decorators and verified by the integration/e2e specs.
  */
 import { describe, it, expect, vi } from 'vitest';
 
 import { PhotosController } from '../photos.controller.js';
 import type { PhotosService } from '../photos.service.js';
-import type { CreatePhotoUploadDto } from '../dto/create-photo-upload.dto.js';
-import type { ConfirmPhotoDto } from '../dto/confirm-photo.dto.js';
-import type { ReorderPhotosDto } from '../dto/reorder-photos.dto.js';
+import type { CreatePhotoUploadDto } from '../dto/createPhotoUpload.dto.js';
+import type { ConfirmPhotoDto } from '../dto/confirmPhoto.dto.js';
+import type { ReorderPhotosDto } from '../dto/reorderPhotos.dto.js';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 
 const OWNER = '01J000000000000000000FREE0';

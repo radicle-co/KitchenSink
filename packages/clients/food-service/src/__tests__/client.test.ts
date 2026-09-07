@@ -1,10 +1,21 @@
 /**
- * Unit tests for {@link FoodServiceClient} (T-057) with a mocked `fetch`: request build (URL, method,
- * body, bearer-token attach from a literal and a callback) + status mapping (`202`/`200` → typed
- * results; `401`/`403`/`400`/`404`/`409`/`503` → typed errors; `CandidateMismatch` → `409`, no `429`).
+ * Unit tests for {@link FoodServiceClient} (T-057) with a mocked `fetch`: request build (URL, method, body,
+ * bearer-token attach from a literal and a callback) + response mapping (`202`/`200` → typed results; the coded
+ * error envelope → typed errors; no `429`).
+ *
+ * ⚠️ EVERY ERROR BODY BELOW IS THE ONE ENVELOPE — `{ code, message, details? }`. The food service published three
+ * error shapes until 2026-08-12 and this client discriminated a `409` with `/candidate/i.test(body.error)`; both
+ * are gone. Discrimination is on the stable `code`.
+ *
+ * These are still LITERALS, i.e. this file's own belief about the server, which is the limitation §15.1 names. The
+ * body the SERVICE actually produces is driven through this client for real in
+ * `packages/services/food-service/src/common/__tests__/errorContractLockstep.test.ts` — that is the tier that
+ * fails when only one side of the contract moves. Cases here cover what that tier cannot: an unknown code, and a
+ * non-envelope body.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { resetContractSkewLatchForTests } from '../contractSkew.js';
 import {
     BadRequestError,
     CandidateMismatchError,
@@ -12,14 +23,31 @@ import {
     FetchUnavailableError,
     FoodServiceClient,
     ForbiddenError,
+    InvalidRequestError,
     NotFoundError,
     UnauthorizedError,
     isCandidateMismatchError,
     isFetchUnavailableError,
+    isInvalidRequestError,
     isNotFoundError,
+    isSourceUnavailableError,
 } from '../index.js';
 
 const BASE = 'https://food.example.test';
+
+// Every request also fires the drift-layer-3 skew probe (`GET /health`, CODING_STANDARDS §15.2.5) — once per
+// ORIGIN per process, fire-and-forget. Clearing the latch per test keeps these cases order-independent: without
+// it only whichever test ran first would see the probe, and the rest would pass for the wrong reason.
+beforeEach(() => {
+    resetContractSkewLatchForTests();
+});
+
+/** The calls a `fetch` double received that are API requests, i.e. excluding the `/health` skew probe. */
+function apiCalls(fetchMock: typeof fetch): unknown[][] {
+    return (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (call) => !String(call[0]).endsWith('/health'),
+    );
+}
 
 /** A `fetch` double that returns a single canned response and records the call. */
 function stubFetch(status: number, body?: unknown, headers: Record<string, string> = {}): typeof fetch {
@@ -36,8 +64,10 @@ describe('FoodServiceClient — request build + token attach', () => {
         const result = await client.addByName('Broccoli');
 
         expect(result).toEqual({ id: 'food_1', status: 'PENDING', estimatedWaitSeconds: 30 });
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        const [url, init] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
+        // Exactly ONE API request. (The double also sees the unauthenticated `/health` skew probe, which is
+        // fired after the response and is not part of the caller's request.)
+        expect(apiCalls(fetchMock)).toHaveLength(1);
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, Record<string, never>];
         expect(url).toBe(`${BASE}/api/v1/foods`); // trailing slash on baseUrl normalized
         expect(init.method).toBe('POST');
         expect(init.headers['authorization']).toBe('Bearer tok-123');
@@ -54,7 +84,10 @@ describe('FoodServiceClient — request build + token attach', () => {
         await client.search('x');
         await client.search('y');
 
-        const calls = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls;
+        // `apiCalls`, not the raw calls: the `/health` skew probe lands BETWEEN the two searches (it fires
+        // after the first response) and carries no `Authorization` by design, so indexing the raw list here
+        // would compare the second search against the probe.
+        const calls = apiCalls(fetchMock) as [string, { headers: Record<string, string> }][];
         expect(calls[0]![1].headers['authorization']).toBe('Bearer tok-A');
         expect(calls[1]![1].headers['authorization']).toBe('Bearer tok-B');
         expect(getToken).toHaveBeenCalledTimes(2);
@@ -72,7 +105,9 @@ describe('FoodServiceClient — request build + token attach', () => {
     });
 
     it('URL-encodes the search query and path ids', async () => {
-        const fetchMock = stubFetch(200, { id: 'food x', status: 'NOT_FOUND' });
+        // A VALID `SearchResponse` body: the client parses responses now, so a stub that is not a real search
+        // response fails at the boundary before the assertion about the URL can be reached.
+        const fetchMock = stubFetch(200, { results: [] });
         const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock });
 
         await client.search('chicken breast');
@@ -83,7 +118,18 @@ describe('FoodServiceClient — request build + token attach', () => {
 
 describe('FoodServiceClient — getById result mapping', () => {
     it('200 → RESOLVED with the golden record', async () => {
-        const food = { id: 'food_1', status: 'RESOLVED', nutrients: [], portions: [], provenance: {} };
+        // Every field `foodResponseSchema` requires — `name`, `description` and `kind` were absent, so the old
+        // stub was not a golden record at all. The cast this test used to exercise could not tell; the parse can.
+        const food = {
+            id: 'food_1',
+            name: 'Chicken breast',
+            description: 'raw',
+            kind: 'generic',
+            status: 'RESOLVED',
+            nutrients: [],
+            portions: [],
+            provenance: {},
+        };
         const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, food) });
 
         const result = await client.getById('food_1');
@@ -103,10 +149,14 @@ describe('FoodServiceClient — getById result mapping', () => {
         expect(result).toEqual({ status: 'PENDING', id: 'food_2', estimatedWaitSeconds: 30 });
     });
 
-    it('404 → NotFoundError carrying the terminal food status', async () => {
+    it('404 → NotFoundError carrying the terminal food status from details', async () => {
         const client = new FoodServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(404, { error: 'Food not found', id: 'food_3', status: 'NOT_FOUND' }),
+            fetch: stubFetch(404, {
+                code: 'FOOD_NOT_FOUND',
+                message: 'No source has this food; tombstoned until TTL (default 30 days)',
+                details: { id: 'food_3', status: 'NOT_FOUND' },
+            }),
         });
 
         const error = await client.getById('food_3').catch((caught: unknown) => caught);
@@ -117,26 +167,148 @@ describe('FoodServiceClient — getById result mapping', () => {
     });
 });
 
+describe('FoodServiceClient.createAuthoredFood (plan U16)', () => {
+    const AUTHORED = {
+        id: 'food_a1',
+        name: 'My Protein Blend',
+        description: null,
+        kind: 'generic',
+        status: 'RESOLVED',
+        nutrients: [],
+        portions: [],
+        provenance: {},
+        visibility: 'private',
+    };
+    const BODY = { name: 'My Protein Blend', macros: { calories: 380, proteinG: 70, carbsG: 12, fatG: 6 } };
+
+    it('201 → created, with the full authored record', async () => {
+        const fetchMock = stubFetch(201, AUTHORED);
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const result = await client.createAuthoredFood(BODY);
+
+        expect(result.kind).toBe('created');
+
+        if (result.kind === 'created') {
+            expect(result.food.id).toBe('food_a1');
+        }
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, { method: string; body: string }];
+
+        expect(url).toBe(`${BASE}/api/v1/foods/authored`);
+        expect(init.method).toBe('POST');
+        expect(JSON.parse(init.body)).toEqual(BODY);
+    });
+
+    it('409 DUPLICATE_AUTHORED_NAME → the duplicate arm carrying the EXISTING food id, never a throw', async () => {
+        // The reuse affordance (U16) needs the colliding row's id — a bare ConflictError cannot carry it.
+        const fetchMock = stubFetch(409, {
+            code: 'DUPLICATE_AUTHORED_NAME',
+            message: 'You already authored a food with this name',
+            details: { existingId: 'food_prior' },
+        });
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const result = await client.createAuthoredFood(BODY);
+
+        expect(result).toEqual({ kind: 'duplicate', existingId: 'food_prior' });
+    });
+
+    it('any OTHER failure still maps through the shared error ladder', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: stubFetch(401, { code: 'UNAUTHORIZED', message: 'no' }),
+        });
+
+        await expect(client.createAuthoredFood(BODY)).rejects.toBeInstanceOf(UnauthorizedError);
+    });
+
+    it('refuses an ILLEGAL body before any request leaves (parse, do not validate)', async () => {
+        const fetchMock = stubFetch(201, AUTHORED);
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        await expect(
+            client.createAuthoredFood({ name: '', macros: { calories: -1, proteinG: 0, carbsG: 0, fatG: 0 } }),
+        ).rejects.toBeInstanceOf(Error);
+        expect(apiCalls(fetchMock)).toHaveLength(0);
+    });
+});
+
+describe('FoodServiceClient.corroborateFood (plan U19)', () => {
+    it('POSTs the corroboration trigger and returns the (possibly unchanged) status', async () => {
+        const fetchMock = stubFetch(200, { id: 'food_1', status: 'RESOLVED' });
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const result = await client.corroborateFood('food_1');
+
+        expect(result).toEqual({ id: 'food_1', status: 'RESOLVED' });
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, { method: string }];
+
+        expect(url).toBe(`${BASE}/api/v1/foods/food_1/corroborated`);
+        expect(init.method).toBe('POST');
+    });
+
+    it('maps failures through the shared ladder', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: stubFetch(404, {
+                code: 'FOOD_NOT_FOUND',
+                message: 'gone',
+                details: { id: 'x', status: 'NOT_FOUND' },
+            }),
+        });
+
+        await expect(client.corroborateFood('x')).rejects.toBeInstanceOf(NotFoundError);
+    });
+});
+
 describe('FoodServiceClient — status → typed error mapping', () => {
     it('401 → UnauthorizedError', async () => {
-        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(401, { error: 'nope' }) });
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(401, { code: 'UNAUTHORIZED', message: 'nope' }),
+        });
         await expect(client.addByName('x')).rejects.toBeInstanceOf(UnauthorizedError);
     });
 
     it('403 → ForbiddenError', async () => {
-        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(403, { error: 'no scope' }) });
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(403, { code: 'FORBIDDEN', message: 'no scope' }),
+        });
         await expect(client.addByName('x')).rejects.toBeInstanceOf(ForbiddenError);
     });
 
-    it('400 → BadRequestError (empty name / oversized batch)', async () => {
-        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(400, { error: 'Empty name' }) });
-        await expect(client.addByName('')).rejects.toBeInstanceOf(BadRequestError);
+    // The SERVER's 400, on a body this client's own outbound parse accepts — which is what makes the mapping
+    // reachable at all now that the request schema runs first. `'x'` is a legal `addFoodRequestSchema` name, so
+    // the request goes out and the service's rejection is what produces the error.
+    it('400 → BadRequestError', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(400, {
+                code: 'VALIDATION_FAILED',
+                message: 'name: too small',
+                details: { fields: ['name'] },
+            }),
+        });
+        await expect(client.addByName('x')).rejects.toBeInstanceOf(BadRequestError);
     });
 
     it('503 → FetchUnavailableError with the Retry-After seconds', async () => {
         const client = new FoodServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(503, { error: 'Fetch temporarily unavailable' }, { 'retry-after': '42' }),
+            fetch: stubFetch(
+                503,
+                {
+                    code: 'FETCH_UNAVAILABLE',
+                    message: 'Fetch temporarily unavailable',
+                    details: { retryAfterSeconds: 42 },
+                },
+                { 'retry-after': '42' },
+            ),
         });
 
         const error = await client.addByName('x').catch((caught: unknown) => caught);
@@ -145,25 +317,83 @@ describe('FoodServiceClient — status → typed error mapping', () => {
         expect((error as FetchUnavailableError).retryAfterSeconds).toBe(42);
     });
 
-    it('resolve 409 candidate-not-in-set → CandidateMismatchError (DSN-14, never 429)', async () => {
+    it('resolve 409 CANDIDATE_MISMATCH → CandidateMismatchError (DSN-14, never 429)', async () => {
         const client = new FoodServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(409, { error: "Candidate not in food's candidate set" }),
+            // Note the message says nothing about candidates: the code is the discriminant, and this body is
+            // exactly the one the retired `/candidate/i` regex would have mapped to a plain ConflictError.
+            fetch: stubFetch(409, {
+                code: 'CANDIDATE_MISMATCH',
+                message: 'That selection does not belong to this ingredient',
+                details: { id: 'food_1' },
+            }),
         });
 
         const error = await client.resolve('food_1', ['cand_x']).catch((caught: unknown) => caught);
 
         expect(isCandidateMismatchError(error)).toBe(true);
         expect((error as CandidateMismatchError).status).toBe(409);
+        expect((error as CandidateMismatchError).id).toBe('food_1');
     });
 
-    it('resolve 409 not-awaiting-disambiguation → ConflictError', async () => {
+    it('resolve 409 NOT_RESOLVABLE → ConflictError, even when the message mentions candidates', async () => {
         const client = new FoodServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(409, { error: 'Food is not awaiting disambiguation', status: 'RESOLVED' }),
+            // The mirror-image trap: prose containing "candidate" on the body that must NOT become a
+            // CandidateMismatchError. Under the old regex this test fails.
+            fetch: stubFetch(409, {
+                code: 'NOT_RESOLVABLE',
+                message: 'This ingredient has no candidate list to choose from',
+                details: { id: 'food_1', status: 'RESOLVED' },
+            }),
         });
 
-        await expect(client.resolve('food_1', ['cand_x'])).rejects.toBeInstanceOf(ConflictError);
+        const error = await client.resolve('food_1', ['cand_x']).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ConflictError);
+        expect(isCandidateMismatchError(error)).toBe(false);
+    });
+
+    /**
+     * FORWARD COMPATIBILITY, which is the other half of keying on `code`. A DEPLOYED service adds codes ahead of
+     * a released mobile binary, so an unrecognised code must degrade to "map by status alone" — never crash with
+     * a `ZodError` out of the error mapper, and never be coerced into a code this build does know.
+     */
+    it('maps a code it has not been taught by STATUS, without crashing', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(409, { code: 'FOOD_ON_FIRE', message: 'a code from a newer service' }),
+        });
+
+        const error = await client.resolve('food_1', ['cand_x']).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ConflictError);
+        expect(isCandidateMismatchError(error)).toBe(false);
+        // The envelope still parsed, so the server's message survives for a human reading a log.
+        expect((error as ConflictError).message).toBe('a code from a newer service');
+    });
+
+    /**
+     * The ALB case (ADR-0003): during every deploy the shared internet-facing load balancer answers `502`/`503`/
+     * `504` with an HTML page, and its default rule answers an unmatched host with `404 text/plain`. None of that
+     * is our envelope, and the error mapper must still produce the right typed error rather than throwing.
+     */
+    it('maps a body that is not our envelope at all by status, without throwing', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(
+                503,
+                { html: '<html>503 Service Temporarily Unavailable</html>' },
+                {
+                    'retry-after': '5',
+                },
+            ),
+        });
+
+        const error = await client.addByName('kale').catch((caught: unknown) => caught);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+        expect((error as FetchUnavailableError).retryAfterSeconds).toBe(5);
     });
 
     it('PATCH resolve sends the candidateIds body and returns RESOLVED on 200', async () => {
@@ -248,5 +478,325 @@ describe('FoodServiceClient — per-request timeout + transport failure', () => 
         expect(result).toEqual({ id: 'food_1', status: 'PENDING', estimatedWaitSeconds: 5 });
         // The timer was cleared in `finally`; the successful request's signal must never have aborted.
         expect(capturedSignal?.aborted).toBe(false);
+    });
+});
+
+/**
+ * DRIFT LAYER 3 (Skew) WIRING — CODING_STANDARDS §15.2.5, owner ruling 2026-08-11 (a mismatch WARNS).
+ *
+ * `contractSkew.test.ts` proves the comparison itself. These cases prove the CLIENT's half of the contract:
+ * that the check fires from the transport (not the constructor), that it reaches the configured sink, and —
+ * the part that actually matters in production — that it cannot influence the caller's call in any way.
+ */
+describe('FoodServiceClient — contract-skew reporting', () => {
+    const SERVED_HASH = 'b'.repeat(64);
+
+    /** A `fetch` double that answers `/health` with `healthBody` and everything else with `apiBody`. */
+    function routingFetch(apiBody: unknown, healthBody: unknown): typeof fetch {
+        return vi.fn(async (url: string | URL | Request) =>
+            String(url).endsWith('/health')
+                ? new Response(JSON.stringify(healthBody), { status: 200 })
+                : new Response(JSON.stringify(apiBody), { status: 200 }),
+        ) as unknown as typeof fetch;
+    }
+
+    // The constructor is called PER REQUEST — and per keystroke for the typeahead — by the recipe service's
+    // `FoodServiceClients` factory. A probe here would be a `/health` request per keystroke.
+    it('performs NO network call when a client is merely constructed', () => {
+        const fetchMock = stubFetch(200, { results: [] });
+
+        new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock, onContractSkew: vi.fn() });
+
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('warns through the configured sink when the service serves a different fingerprint', async () => {
+        const onContractSkew = vi.fn();
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: routingFetch({ results: [] }, { status: 'ok', service: 'food', contractHash: SERVED_HASH }),
+            onContractSkew,
+        });
+
+        await client.search('kale');
+
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+        expect(onContractSkew.mock.calls[0]?.[0]).toContain(SERVED_HASH.slice(0, 12));
+    });
+
+    // THE ruling, asserted at the boundary that matters: warn, do not refuse. The call still succeeds and
+    // returns exactly what it would have returned with no skew at all.
+    it('returns the caller a normal, unchanged result while skewed — it does not refuse', async () => {
+        const onContractSkew = vi.fn();
+        const results = { results: [{ id: 'food_1', name: 'Kale', score: 1 }] };
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: routingFetch(results, { status: 'ok', service: 'food', contractHash: SERVED_HASH }),
+            onContractSkew,
+        });
+
+        await expect(client.search('kale')).resolves.toEqual(results);
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    // The probe is fire-and-forget, and this is what proves it: a `/health` that NEVER answers must not delay
+    // or hang the caller's request. If the probe were awaited, this test would time out.
+    it('does not wait for the probe: the caller resolves even when /health never answers', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            onContractSkew: vi.fn(),
+            fetch: vi.fn(async (url: string | URL | Request) => {
+                if (String(url).endsWith('/health')) {
+                    return new Promise<Response>(() => {}); // never settles
+                }
+
+                return new Response(JSON.stringify({ results: [] }), { status: 200 });
+            }) as unknown as typeof fetch,
+        });
+
+        await expect(client.search('kale')).resolves.toEqual({ results: [] });
+    });
+
+    // An older deployed food service predates publication. Silence, not a warning.
+    it('stays silent when the deployed service publishes no fingerprint', async () => {
+        const onContractSkew = vi.fn();
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: routingFetch({ results: [] }, { status: 'ok', service: 'food' }),
+            onContractSkew,
+        });
+
+        await client.search('kale');
+        // Give the fire-and-forget probe a full turn to have (incorrectly) warned.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+
+        expect(onContractSkew).not.toHaveBeenCalled();
+    });
+
+    it('probes once per origin across MANY separately-constructed clients (the per-keystroke case)', async () => {
+        const onContractSkew = vi.fn();
+        const fetchMock = routingFetch({ results: [] }, { status: 'ok', service: 'food', contractHash: SERVED_HASH });
+
+        await Promise.all(
+            Array.from({ length: 20 }, async () =>
+                new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock, onContractSkew }).search('kale'),
+            ),
+        );
+
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+        const healthProbes = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((call) =>
+            String(call[0]).endsWith('/health'),
+        );
+        expect(healthProbes).toHaveLength(1);
+    });
+});
+
+/**
+ * RESPONSE VALIDATION AT THE WIRE BOUNDARY (§15, rule 4).
+ *
+ * Every success path in this client used to end in `return res.body as T` — eight of them. A cast asserts a
+ * shape rather than establishing one, so the client's beliefs about the server were unfalsifiable at runtime:
+ * a response that had drifted from the published contract did not fail here, it surfaced later as a mystery
+ * `undefined` inside a caller (the recipe service's ingredient path, or a web component) with nothing pointing
+ * back at the wire. The sibling `recipe-service` client already parsed; this one did not.
+ *
+ * These cases are the mutation guard. Each feeds a body that is WRONG in one specific way and asserts the call
+ * rejects, so restoring any `as` cast reds the case for that method. Note they are not merely "parses the happy
+ * path" — the fixtures above already cover that, and they passed while the casts were still in place, which is
+ * exactly why the negative cases have to exist.
+ */
+describe('FoodServiceClient — a drifted response FAILS at the boundary, not deep in a caller', () => {
+    const drifted: ReadonlyArray<readonly [string, number, unknown, (client: FoodServiceClient) => Promise<unknown>]> =
+        [
+            // A field the contract requires is missing.
+            ['search: no `results` array', 200, {}, (c) => c.search('kale')],
+            ['getStatus: no `status`', 200, { id: 'food_1' }, (c) => c.getStatus('food_1')],
+            ['getCandidates: no `candidates`', 200, { id: 'food_1' }, (c) => c.getCandidates('food_1')],
+            ['addByName: no `status`', 202, { id: 'food_1' }, (c) => c.addByName('kale')],
+            ['batch: no `items`', 201, {}, (c) => c.batch(['kale'])],
+            ['resolve: no `status`', 200, { id: 'food_1' }, (c) => c.resolve('food_1', ['cand_1'])],
+            [
+                'getById: a golden record missing `kind`',
+                200,
+                { id: 'f', name: 'n', description: 'd' },
+                (c) => c.getById('f'),
+            ],
+            // A field is present but the WRONG TYPE — the case a presence-only check would miss.
+            ['search: `results` is an object, not an array', 200, { results: {} }, (c) => c.search('kale')],
+            ['getStatus: `status` is a number', 200, { id: 'f', status: 7 }, (c) => c.getStatus('f')],
+            // A 202 answered with a status only a 200/404 may carry. `pendingResponseSchema.status` is now the
+            // TWO-value enum in the service's own published contract, so the single envelope parse rejects it —
+            // this used to need a second, client-side re-narrowing to catch, because the published response type
+            // admitted all five values and a `GetFoodResult` could carry a status outside its own union.
+            [
+                'getById 202: a terminal `NOT_FOUND` status',
+                202,
+                { id: 'f', status: 'NOT_FOUND' },
+                (c) => c.getById('f'),
+            ],
+        ];
+
+    it.each(drifted)('rejects %s', async (_label, status, body, call) => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(status, body) });
+
+        await expect(call(client)).rejects.toThrow();
+    });
+
+    it('still returns a VALID body unchanged — the parse narrows, it does not rewrite', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, { results: [] }) });
+
+        await expect(client.search('kale')).resolves.toEqual({ results: [] });
+    });
+});
+
+/**
+ * The OUTBOUND half of the contract (ADR-0014): a body this client cannot legally send never leaves.
+ *
+ * These assert the DISTINCTION, not merely that something throws. `InvalidRequestError` and
+ * `BadRequestError` both mean "400-ish" to a careless caller, and collapsing them is what the separate type
+ * exists to prevent: the first says "your body is illegal per the published contract, no request was made,
+ * retrying it cannot work", the second says "the service rejected a body the contract allows". A test that
+ * accepted either would not notice them being merged.
+ */
+describe('FoodServiceClient — outbound request validation', () => {
+    /** A fetch double that FAILS the test if it is ever called — the proof that no request was issued. */
+    const neverFetch: typeof fetch = () => {
+        throw new Error('the client must not issue a request for a body that fails the published contract');
+    };
+
+    it('rejects an empty name before issuing a request', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: neverFetch });
+        const error = await client.addByName('').catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        // NOT the server's 400: nothing was sent, so blaming the service would send an operator hunting a
+        // problem that is not happening.
+        expect(error).not.toBeInstanceOf(BadRequestError);
+        // The ZodError is carried so the offending field path survives to the caller.
+        expect((error as InvalidRequestError).cause).toBeDefined();
+    });
+
+    // ⚠️ THE CASE THAT DEFINES THE BOUNDARY, and it goes the other way. An oversized batch is LEGAL per
+    // `batchAddFoodRequestSchema` — that schema deliberately carries no `.max()`, because the cap is
+    // `FOOD_MAX_BATCH_NAMES`, a runtime configuration value, and a static bound in the published contract would
+    // be a second representation that disagrees the moment the environment variable is tuned (the schema says so
+    // in its own header). So the request DOES go out and the server's `400` is the answer.
+    //
+    // Pinned because the tempting shape for this suite is "anything a caller might get wrong fails locally",
+    // which would mean re-declaring server policy in the client — the exact duplication §15 forbids. The
+    // outbound parse enforces the CONTRACT; it does not enforce configuration it cannot know.
+    it('sends an oversized batch and surfaces the server 400, because the cap is not in the contract', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(400, { error: 'Too many names' }) });
+        const names = Array.from({ length: 101 }, (_unused, index) => `food-${index}`);
+
+        await expect(client.batch(names)).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    it('rejects an empty candidate list before issuing a request', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: neverFetch });
+
+        expect(isInvalidRequestError(await client.resolve('id', []).catch((caught: unknown) => caught))).toBe(true);
+    });
+
+    // The mirror image, and the reason the suite is not just three rejections: a LEGAL body must still go out.
+    // Without this, deleting every method's outbound parse and replacing it with an unconditional throw would
+    // pass everything above.
+    it('sends a body that satisfies the published request schema', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(202, { id: 'f_1', status: 'PENDING' }),
+        });
+
+        await expect(client.addByName('tomato')).resolves.toStrictEqual({ id: 'f_1', status: 'PENDING' });
+    });
+});
+
+/**
+ * `searchLive` — the ON-DEMAND source search (plan U29). The three outcomes it can produce are the whole
+ * point of the method: an EMPTY `results` (the source has nothing), a `503` (our reserved lane is exhausted
+ * or the source throttled us) and a `502` (the source did not answer). A caller renders three different
+ * sentences from them, so a client that collapsed any pair would strand a cook in the wrong loop.
+ */
+describe('FoodServiceClient.searchLive', () => {
+    it('GETs the live path — a DIFFERENT route from the local search, because it spends source quota', async () => {
+        const fetchMock = stubFetch(200, { results: [] });
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        await client.searchLive('broccoli rabe');
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, Record<string, never>];
+        expect(url).toBe(`${BASE}/api/v1/foods/search/live?query=broccoli%20rabe`);
+        expect(init.method).toBe('GET');
+        expect(init.headers['authorization']).toBe('Bearer tok');
+    });
+
+    it('returns the source hits, carrying our internal id only where the catalog already has one', async () => {
+        const body = { results: [{ name: 'Broccoli, raw', id: 'food_1' }, { name: 'Broccoli rabe' }] };
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, body) });
+
+        await expect(client.searchLive('broccoli')).resolves.toEqual(body);
+    });
+
+    it('treats an EMPTY result set as a SUCCESS — the source has nothing, which is an answer', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, { results: [] }) });
+
+        await expect(client.searchLive('nosuchfood')).resolves.toEqual({ results: [] });
+    });
+
+    it('throws FetchUnavailableError on 503, carrying the Retry-After a caller can act on', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(
+                503,
+                { code: 'FETCH_UNAVAILABLE', message: 'shed', details: { retryAfterSeconds: 60 } },
+                { 'retry-after': '60' },
+            ),
+        });
+
+        const error = await client.searchLive('broccoli').catch((thrown: unknown) => thrown);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+        expect((error as FetchUnavailableError).retryAfterSeconds).toBe(60);
+    });
+
+    it('throws SourceUnavailableError on 502 — a DISTINCT error, with no retry window to promise', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(502, { code: 'SOURCE_UNAVAILABLE', message: 'The food data source is unavailable' }),
+        });
+
+        const error = await client.searchLive('broccoli').catch((thrown: unknown) => thrown);
+
+        // ⛔ NOT a FetchUnavailableError. Collapsing the two would make the picker promise a retry window
+        // that does not exist, for a source we know nothing about the recovery of.
+        expect(isSourceUnavailableError(error)).toBe(true);
+        expect(isFetchUnavailableError(error)).toBe(false);
+    });
+
+    it('throws BadRequestError when the service refuses a below-minimum query', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(400, {
+                code: 'VALIDATION_FAILED',
+                message: 'The search query is shorter than the minimum',
+                details: { fields: ['query: at least 3 characters'] },
+            }),
+        });
+
+        await expect(client.searchLive('br')).rejects.toThrow(BadRequestError);
+    });
+
+    it('refuses a structurally illegal query WITHOUT spending a round trip on the quota-charging path', async () => {
+        const fetchMock = stubFetch(200, { results: [] });
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock });
+
+        await expect(client.searchLive('   ')).rejects.toSatisfy(isInvalidRequestError);
+        expect(apiCalls(fetchMock)).toHaveLength(0);
     });
 });

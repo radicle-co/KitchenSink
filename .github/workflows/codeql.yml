@@ -1,0 +1,79 @@
+# CodeQL static analysis (advanced setup).
+#
+# WHY THIS FILE EXISTS: until it landed, this repository had NO code scanning at all. That was not
+# obvious — runs named "CodeQL" appear in the Actions list and succeed, but they belong to GitHub
+# Code Quality (`event: dynamic`, run name "Code Quality: PR #NN"), which runs CodeQL internally for
+# its PR comments and does NOT publish SARIF. The discriminating evidence was
+# `GET /code-scanning/default-setup` → `state: "not-configured"` and `GET /code-scanning/analyses` →
+# 404 `no analysis found`. Seeing `Perform CodeQL Analysis` succeed proves something ran CodeQL, not
+# that we did. Advanced setup (this file) is what gives us the Security tab, alert history, dismissal
+# workflow and SARIF.
+#
+# `security-and-quality`, NOT `security-extended`: the query closest to a defect class this repo has
+# actually shipped — `actions/if-expression-always-true`, i.e. a workflow condition that can never be
+# false — is tagged `actions` + `maintainability` with NO `security` tag. `security-extended` widens
+# precision but keeps the security-tag filter, so it silently omits that query. Only
+# `security-and-quality` drops the filter. Do not "tighten" this to security-extended.
+#
+# The `actions` language is the point of the exercise, not an afterthought: three production incidents
+# here originated in workflow YAML (a no-op that reported success, a build step ordered after the
+# prune, and deploy legs unreachable from any trigger).
+name: CodeQL
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+    schedule:
+        # Weekly, so a newly-published query finds existing code without waiting for a push.
+        - cron: '19 4 * * 1'
+
+permissions:
+    contents: read
+
+concurrency:
+    group: codeql-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    analyze:
+        name: Analyze (${{ matrix.language }})
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            # Required to upload SARIF results to code scanning.
+            security-events: write # upload the CodeQL SARIF to code scanning
+            contents: read # read the checkout being analysed
+            actions: read # read workflow run metadata, which the analysis needs on PRs
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    # Workflow/action analysis — the coverage gap this file was written to close.
+                    - language: actions
+                      build-mode: none
+                    # `javascript-typescript` covers both; listing `javascript` and `typescript`
+                    # separately would analyze the same files twice.
+                    - language: javascript-typescript
+                      build-mode: none
+                    # 46 tracked .py files, all vendored SpecKit tooling. Low value, near-zero cost.
+                    - language: python
+                      build-mode: none
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              with:
+                  persist-credentials: false
+
+            - name: Initialize CodeQL
+              uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
+              with:
+                  languages: ${{ matrix.language }}
+                  build-mode: ${{ matrix.build-mode }}
+                  queries: security-and-quality
+
+            - name: Perform CodeQL Analysis
+              uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
+              with:
+                  category: /language:${{ matrix.language }}

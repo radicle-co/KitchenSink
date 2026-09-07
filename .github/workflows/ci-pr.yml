@@ -5,13 +5,27 @@ on:
     pull_request:
         branches: [main]
 
-concurrency:
-    group: ci-pr-${{ github.ref }}
-    cancel-in-progress: true
+# Declared rather than inherited: with no `permissions:` block a workflow gets the repository's DEFAULT
+# token scope, which for a public repo can be read-all and is set OUTSIDE this file — so the pipeline's
+# privilege would change without a diff here.
+permissions:
+    contents: read
 
 jobs:
     ci:
         uses: ./.github/workflows/_ci.yml
+        # A called workflow can only DOWNGRADE what its caller grants, so `id-token: write` has to be
+        # granted here for `_ci.yml`'s `e2e-web` job to keep exchanging an OIDC token for its secretless
+        # Argos credential. Scoped to this job (not the workflow) so it is not ambiently available.
+        # `contents: read` is restated because a job-level block REPLACES the workflow default.
+        permissions:
+            contents: read
+            id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
         with:
             stage: sandbox
-        secrets: inherit
+        # Explicit, not `inherit`: pass ONLY the two secrets `_ci.yml` declares, instead of exposing every
+        # repository secret to the called workflow. `_ci.yml` marks both optional, so a fork PR (where
+        # GitHub withholds them) still runs and skips the secret-dependent steps as designed.
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

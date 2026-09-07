@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Unit tests for the identity-webhooks DB connection factory. The external boundaries — `pg.Pool`
@@ -56,6 +56,22 @@ const validSecret = {
 };
 
 let savedEnv: Record<string, string | undefined>;
+
+/**
+ * ⛔ Pay the module graph's COLD transform cost here, outside any test's timeout budget.
+ *
+ * `afterEach` calls `vi.resetModules()`, so every test re-imports `../db.js` — but only the FIRST import
+ * compiles the graph (pg, drizzle, the AWS SDK); the rest hit vitest's transform cache. That made the first
+ * test in this file cost ~5.2s against the 5s default while its siblings ran in 43-65ms, and it went red in
+ * CI the moment it shared a runner with `buildInputs.test.ts` (37s of esbuild). The test was never slow —
+ * the first import was, and the timeout simply landed on whichever test drew the short straw.
+ *
+ * Warming it in a hook with its own generous budget makes the cost explicit and stops it being charged to a
+ * test assertion. Do NOT "fix" this by raising `testTimeout` globally: that hides genuinely slow tests.
+ */
+beforeAll(async () => {
+    await import('../db.js');
+}, 60_000);
 
 beforeEach(() => {
     savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));

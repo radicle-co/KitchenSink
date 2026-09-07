@@ -18,8 +18,10 @@ on:
             - '.github/workflows/sandbox-identity-deploy.yml'
     workflow_dispatch:
 
+# NO `id-token: write` — the single `deploy` job authenticates to AWS with STATIC access keys, never OIDC,
+# so the grant was dead privilege (same removal as prod-deploy.yml / sandbox-deploy.yml). Re-add it on the
+# job that assumes a role if this is ever migrated to OIDC.
 permissions:
-    id-token: write
     contents: read
 
 concurrency:
@@ -34,19 +36,45 @@ env:
     CDK_DEFAULT_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
     STAGE: sandbox
     DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
-    SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
     deploy:
         name: Deploy Sandbox Identity
         runs-on: ubuntu-latest
 
+        # Binds the one job here — which authenticates to AWS with static keys and deploys the PERSISTENT
+        # shared sandbox identity tier — to the `Sandbox` GitHub Environment. Full rationale, including what
+        # this does and does NOT buy while the AWS keys are ORGANIZATION secrets (which cannot be
+        # environment-scoped) and why `Sandbox` must keep zero protection rules, is on `sandbox-deploy.yml`'s
+        # `cleanup` job. Note the asymmetry with prod-deploy.yml: this tier is shared and long-lived, but its
+        # trigger is `pull_request`, so an approval rule would gate every identity-touching PR.
+        environment: Sandbox
+
+        # ⚠️ Scoped to this job, NOT to the workflow-level `env:` above (same change as prod-deploy.yml). A
+        # workflow-level secret read is in scope for EVERY job in the file — including any added later that
+        # has no business with it — and no per-job Environment binding can narrow it back down. Sole consumer
+        # is the identity-webhooks CDK deploy's source-map upload, which no-ops while the secret is unset (it
+        # is set at neither repo nor organization scope today, so this move is behaviour-neutral).
+        env:
+            SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
         steps:
-            - name: Checkout
-              uses: actions/checkout@v6
+            # ⚠️ DELIBERATE: this checkout KEEPS its git credential (`persist-credentials` left at its `true`
+            # default), unlike the rest of the repo. `dorny/paths-filter` below is NOT gated on the event, and
+            # its GitHub-API code path applies only to `pull_request`; on the `workflow_dispatch` trigger it
+            # falls through to `getChangedFilesFromGit`, which fetches the base ref from `origin`. Same
+            # reasoning as prod-deploy.yml's `deploy` job — see the note there.
+            #
+            # The `zizmor: ignore[artipacked]` below is how that exception is DECLARED, per-site, so the gate in
+            # zizmor.yml can sit at the `low` floor and still fail on any artipacked we have NOT accepted. It is
+            # scoped to this ONE step and to that ONE audit: every other finding here still reports, and the
+            # other checkout in this file keeps `persist-credentials: false`. Removing the paths-filter step (or
+            # gating it to `pull_request` only) means dropping BOTH the credential and this ignore.
+            - name: Checkout # zizmor: ignore[artipacked]
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
             - name: Detect changes
-              uses: dorny/paths-filter@v3
+              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
               id: changes
               with:
                   filters: |
@@ -59,30 +87,85 @@ jobs:
                         - 'packages/services/identity-webhooks/**'
 
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
 
-            # Deploy a service when its code changed OR its sandbox stack doesn't exist yet (so the
-            # environment self-heals / bootstraps on the first PR). A global-infra change (or missing
-            # network stack) forces both consumers to redeploy.
+            # Deploy a service when its code changed OR any stack it owns doesn't exist yet (so the
+            # environment self-heals / bootstraps on the first PR). A global-infra change — or ANY missing
+            # platform stack — forces both consumers to redeploy.
             - name: Compute deploy flags
               id: flags
+              # Every `${{ … }}` arrives through `env:` and is read as a quoted shell variable, never
+              # interpolated into the script text: GitHub substitutes expressions BEFORE bash parses the
+              # body, so an interpolated value is source code, whereas an env var is only ever data.
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  CHANGED_GLOBAL: ${{ steps.changes.outputs.global }}
+                  CHANGED_SERVICE: ${{ steps.changes.outputs.service }}
+                  CHANGED_WEBHOOKS: ${{ steps.changes.outputs.webhooks }}
               run: |
                   stack_exists() { aws cloudformation describe-stacks --stack-name "$1" >/dev/null 2>&1; }
+
+                  # ⛔ THE STACK SET IS DERIVED, NOT WRITTEN DOWN — and this gate is the reason the rule
+                  # exists. It used to name TWO of the platform's stacks. It named ONE until ADR-0028's
+                  # 2026-08-30 amendment made `kitchensink-alb-sandbox` reclaimable: a reaped tier leaves the
+                  # network stack standing (it owns the VPC and the NAT the RDS needs, so it deliberately
+                  # OUTLIVES the ALB), the network-only probe answered `global_missing=false`, the global
+                  # deploy was skipped, and the identity deploy then died resolving
+                  # `SharedAlbHttpsListenerArn` from a stack that no longer existed.
+                  #
+                  # Adding the ALB fixed that INSTANCE. It left six sandbox stacks — data, domain, global,
+                  # messaging, service-logs and the scheduler — still unprobed, and would have left the next
+                  # one unprobed too: a copy of a list cannot detect that the list is incomplete (ADR-0025
+                  # §3). `deploy-gate.sh stacks-for` answers from the generated manifest, which
+                  # `scripts/infrastructureManifest.mjs` reads out of the CDK source by AST under a
+                  # regenerate-and-diff staleness gate — so a stack added tomorrow is probed the day it is
+                  # written, and a prod-only one is correctly absent from this stage's answer.
+                  # `stackProbeCoverage.test.ts` fails any workflow that goes back to listing them.
+                  #
+                  # ⛔ A refusal from `stacks-for` (unknown app, unreadable guard, unreadable name) ABORTS
+                  # this step. It must never read as "nothing is missing", which is the same three characters
+                  # of stdout and would skip the deploy that repairs the very thing it could not read.
+                  # The propagation is EXPLICIT — `|| exit 1` at each call site — and deliberately does not
+                  # lean on the runner's ambient `bash -e`: this function is invoked inside a command
+                  # substitution, so an `exit` within it ends only that subshell, and errexit is suspended
+                  # outright when a caller is written as an `if` condition. Measured, not assumed.
+                  absent_stacks() {
+                      local declared name
+                      declared=$(bash .github/scripts/deploy-gate.sh stacks-for "$1" "${STAGE}") || return 1
+                      while IFS= read -r name; do
+                          [ -n "$name" ] || continue
+                          stack_exists "$name" || printf '%s\n' "$name"
+                      done <<<"$declared"
+                  }
+
+                  global_absent=$(absent_stacks 'packages/infra/global/bin/app.ts') || exit 1
+                  service_absent=$(absent_stacks 'packages/services/identity/infra/bin/app.ts') || exit 1
+                  webhooks_absent=$(absent_stacks 'packages/services/identity-webhooks/infra/bin/app.ts') || exit 1
+
                   global_missing=false; service_missing=false; webhooks_missing=false
-                  stack_exists "kitchensink-network-sandbox" || global_missing=true
-                  stack_exists "kitchensink-identity-service-sandbox" || service_missing=true
-                  stack_exists "kitchensink-identity-webhooks-sandbox" || webhooks_missing=true
+                  if [ -n "$global_absent" ]; then
+                    global_missing=true
+                    echo "::notice::absent platform stacks: $(echo "$global_absent" | tr '\n' ' ')"
+                  fi
+                  if [ -n "$service_absent" ]; then
+                    service_missing=true
+                    echo "::notice::absent identity-service stacks: $(echo "$service_absent" | tr '\n' ' ')"
+                  fi
+                  if [ -n "$webhooks_absent" ]; then
+                    webhooks_missing=true
+                    echo "::notice::absent identity-webhooks stacks: $(echo "$webhooks_absent" | tr '\n' ' ')"
+                  fi
 
                   deploy_global=false; deploy_service=false; deploy_webhooks=false
-                  if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.changes.outputs.global }}" = "true" ] || [ "$global_missing" = "true" ]; then
+                  if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$CHANGED_GLOBAL" = "true" ] || [ "$global_missing" = "true" ]; then
                     deploy_global=true; deploy_service=true; deploy_webhooks=true
                   fi
-                  if [ "${{ steps.changes.outputs.service }}" = "true" ] || [ "$service_missing" = "true" ]; then deploy_service=true; fi
-                  if [ "${{ steps.changes.outputs.webhooks }}" = "true" ] || [ "$webhooks_missing" = "true" ]; then deploy_webhooks=true; fi
+                  if [ "$CHANGED_SERVICE" = "true" ] || [ "$service_missing" = "true" ]; then deploy_service=true; fi
+                  if [ "$CHANGED_WEBHOOKS" = "true" ] || [ "$webhooks_missing" = "true" ]; then deploy_webhooks=true; fi
                   run_migrations=false
                   if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
                   {
@@ -93,8 +176,38 @@ jobs:
                   } >> "$GITHUB_OUTPUT"
                   echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations (missing: g=$global_missing s=$service_missing w=$webhooks_missing)"
 
+            # ⛔ ADR-0007 × ADR-0022 — the SAME composition that wedged `kitchensink-recipe-service-pr-91`,
+            # and this tier is the one that hurts most. The shared sandbox RDS instance is STOPPED nightly
+            # 00:00–09:00 ET; `IdentityServiceStack` carries an in-stack migration Trigger, `DataStack`'s
+            # bootstrap custom resources CREATE databases and roles, and the five webhook Lambdas all talk
+            # to the same instance. An identity deploy inside that window hits the identical
+            # `connect ETIMEDOUT …:5432`, fails the update, fails the rollback, and rests in
+            # `UPDATE_ROLLBACK_FAILED` — on the SINGLE shared identity service every PR preview signs in
+            # against, so the blast radius is every open preview rather than one PR.
+            #
+            # Run whenever ANY stack in this workflow will deploy. Nothing here keeps the tier awake and
+            # the nightly schedule is untouched (ADR-0007's cost intent stands); the script takes no
+            # instance argument by construction, so it cannot address the prod database.
+            #
+            # ⚠️ 2026-09-05 — this step being PRESENT is not the whole guarantee, and reading it as one is how
+            # the wedge above happened anyway. On run 33943032063 it ran at 23:52:52 ET and answered
+            # `available (ready)`, truthfully; the scheduler stopped the instance at 00:00:07 and the global
+            # `cdk deploy` below reached `DatabaseB269D8BB` at 00:02:11, nine minutes after the check, dying
+            # on `Cannot modify a stopped DB Instance` — CloudFormation's own ModifyDBInstance, NOT the
+            # ADR-0022 Trigger, which is why grepping for `connect ETIMEDOUT` finds nothing. The gate now
+            # also asserts HEADROOM (that the instance will still be up ~45 minutes later, the longest
+            # observed run of this job) and waits out the 00:00 boundary rather than deploying across it, so
+            # this step can now legitimately take minutes. Do NOT set any `SANDBOX_WAKE_*` env var here to
+            # make it faster — those are test seams, and `sandboxWakeWiring.test.ts` fails the build for it.
+            - name: Wake the shared sandbox database
+              if: |
+                  steps.flags.outputs.deploy_global == 'true' ||
+                  steps.flags.outputs.deploy_service == 'true' ||
+                  steps.flags.outputs.deploy_webhooks == 'true'
+              run: bash .github/scripts/sandbox-wake.sh ensure "${DEFAULT_AWS_REGION}"
+
             - name: Setup Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
@@ -115,18 +228,23 @@ jobs:
 
             - name: Build webhooks package
               if: steps.flags.outputs.deploy_webhooks == 'true'
-              run: npm run build --workspace=packages/services/identity-webhooks
+              # turbo (not plain npm) so the workspace DEPENDENCY graph is built too: the CDK
+              # entrypoint imports @kitchensink/infra-security, whose built dist must exist before
+              # `node .../infra/dist/bin/app.js` can load it (ADR-0013).
+              run: npx turbo run build --filter=@kitchensink/identity-webhooks
 
             - name: Build global infra
               if: steps.flags.outputs.deploy_global == 'true'
-              run: npm run build --workspace=packages/infra/global
+              # turbo (not plain npm) so the workspace DEPENDENCY graph is built too — see the
+              # webhooks build step above and ADR-0013.
+              run: npx turbo run build --filter=@kitchensink/infra-global
 
             # `build` is tsc only — it does NOT bundle the DataStack's custom-resource handlers. Without this
             # step `dist-lambda/` is absent at synth and the DataStack ships an inline placeholder instead of
             # the real food/recipe bootstrap, which is how BOTH stages came to hold 217-byte stubs that
             # created no `food_app`/`recipe_app` role while CloudFormation reported success. Must stay ABOVE
             # the prune below: `bundle:lambda` runs esbuild, a devDependency the prune deletes (exit 127).
-            # Guarded by global-bootstrap-bundle.test.ts, which discovers every global-deploying workflow.
+            # Guarded by globalBootstrapBundle.test.ts, which discovers every global-deploying workflow.
             - name: Bundle global infra custom-resource handlers
               if: steps.flags.outputs.deploy_global == 'true'
               run: npm run bundle:lambda --workspace=packages/infra/global
@@ -139,12 +257,34 @@ jobs:
               if: steps.flags.outputs.deploy_webhooks == 'true'
               run: npm run infra:build --workspace=packages/services/identity-webhooks
 
+            # ⛔ Same two constraints as the prod pipeline: ABOVE the prune (`esbuild` is a devDependency,
+            # so a bundle on the far side of it exits 127) and above the identity `cdk deploy` (the stack
+            # ships `dist-lambda/` as the migration runner's asset, and an unbundled deploy ships a
+            # placeholder that THROWS and fails the in-deploy migration trigger).
+            - name: Bundle identity migration runner Lambda
+              if: steps.flags.outputs.deploy_service == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/identity
+
+            # The identity smoke below the prune runs recipe-service's `infra/smoke/deployedSmoke.ts` — the
+            # ONE post-deploy smoke every service leg shares — under plain `node`, so it is compiled HERE,
+            # above the prune, together with the dist-exporting workspaces its infra project imports
+            # (ADR-0013). It used to run under `npx tsx`, which nothing declares as a runtime dependency;
+            # `postPruneToolchain.test.ts` asserts that nothing below the prune needs a tool the prune took.
+            - name: Compile the shared post-deploy smoke (recipe-service infra)
+              if: steps.flags.outputs.deploy_service == 'true'
+              run: |
+                  npx turbo run build --filter='@kitchensink/recipe-service^...'
+                  npm run infra:build --workspace=packages/services/recipe-service
+
             - name: Prune dev dependencies
               run: npm prune --omit=dev
 
+            # Same check as prod-deploy.yml: the CDK CLI is a ROOT dependency so that it survives the prune,
+            # and `--no-install` makes the registry fallback impossible.
             - name: Verify runtime dependencies
               run: |
                   node -e "require('aws-cdk-lib')" || (echo 'FATAL: aws-cdk-lib missing after prune' && exit 1)
+                  npx --no-install cdk --version || (echo 'FATAL: the CDK CLI (aws-cdk) is missing after prune — keep it in the ROOT package.json dependencies, never only in a devDependencies block' && exit 1)
 
             - name: Resolve AWS Account ID
               id: account
@@ -153,11 +293,11 @@ jobs:
             - name: Login to Amazon ECR
               id: login-ecr
               if: steps.flags.outputs.deploy_service == 'true'
-              uses: aws-actions/amazon-ecr-login@v2
+              uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
 
             - name: Ensure ECR repository exists
               if: steps.flags.outputs.deploy_service == 'true'
-              run: aws ecr describe-repositories --repository-names kitchensink-identity || aws ecr create-repository --repository-name kitchensink-identity
+              run: bash .github/scripts/ecr-ensure-repo.sh kitchensink-identity
 
             - name: Build, tag, and push identity service Docker image
               if: steps.flags.outputs.deploy_service == 'true'
@@ -168,35 +308,141 @@ jobs:
                   docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
 
             - name: CDK Bootstrap
-              run: npx cdk bootstrap aws://${{ steps.account.outputs.id }}/${DEFAULT_AWS_REGION}
+              env:
+                  ACCOUNT_ID: ${{ steps.account.outputs.id }}
+              run: npx cdk bootstrap "aws://${ACCOUNT_ID}/${DEFAULT_AWS_REGION}"
 
+            # `STAGE` is already exported to every step by the workflow-level `env:` block, so the old
+            # `STAGE=${{ env.STAGE }}` command prefix was re-deriving a variable that was in scope — and
+            # doing it by text substitution. Dropped rather than rewritten; the value reaching `cdk` is
+            # identical.
             - name: CDK Deploy (global infra)
               if: steps.flags.outputs.deploy_global == 'true'
-              run: STAGE=${{ env.STAGE }} npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
+              run: npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
+
+            # ⛔ `cdk deploy` exiting 0 proves the stacks CONVERGED, not that the things inside them arrived.
+            # Both stages ran this tier with 217-byte bootstrap STUBS that created no `food_app`/`recipe_app`
+            # role while CloudFormation reported success — see the bundle step above, which now stops that
+            # particular cause. This stops the class: a Lambda that deployed and cannot run, a resource left
+            # at its previous revision by a rollback, a handler pointed at a resource no account contains.
+            #
+            # The stack list is DERIVED by synthesising the same `--app` string above, so the sandbox-only
+            # `kitchensink-sandbox-scheduler-sandbox` is picked up without anybody listing it.
+            # `deployVerificationCoverage.test.ts` asserts the two strings stay byte-identical.
+            - name: Verify the global infra deployment — every resource and handler
+              if: steps.flags.outputs.deploy_global == 'true'
+              run: |
+                  bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
+                    "node packages/infra/global/dist/bin/app.js"
 
             - name: Resolve Identity VPC ID
               id: identity-vpc
-              run: echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-network-sandbox:VpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
+              run: echo "vpc_id=$(bash .github/scripts/cfn-export.sh 'kitchensink-network-sandbox:VpcId')" >> "$GITHUB_OUTPUT"
 
+            # ⛔ THE SCHEMA, DEPLOYED AND MIGRATED AHEAD OF THE SERVICE — and both steps are UNGATED.
+            #
+            # ADR-0022 put the apply INSIDE the service deploy, because CloudFormation's `DependsOn` cannot
+            # leave a stack and the only seam where the new SQL existed and the new tasks were not yet
+            # serving was between the runner's code update and the service's rollout. That coupling made the
+            # schema a hostage of the application's release: it could not be applied without deploying the
+            # application. The runner now owns `kitchensink-identity-schema-${STAGE}`, which holds nothing
+            # that reads the schema, so this step plus the invoke below ARE the barrier.
+            #
+            # ⛔ UNGATED, for the same reason the invoke is. A gate on a path diff skips precisely the case
+            # the step exists for — a stage whose schema is behind for a reason no code change explains —
+            # and `run-migrations.sh` records that this exact mistake made PRODUCTION the weaker stage. A
+            # `cdk deploy` of an unchanged stack is a no-op; the minute it costs is what makes the invoke
+            # below provably hit THIS release's bundle rather than whatever was deployed last.
+            # ⚠️ GATED ON THE SAME FLAG AS THE STEP THAT BUNDLES ITS ASSET, and the invoke below is NOT.
+            # The asymmetry is the whole correctness argument, so it is written here rather than inferred.
+            # Ungated, this step runs on a push that built neither the CDK app nor `dist-lambda/`: at best a
+            # `MODULE_NOT_FOUND`, at worst a SUCCESSFUL deploy of the throwing inline placeholder over a
+            # working runner, which persists until someone touches identity again. Gating costs nothing,
+            # because ADR-0035's property lives in the INVOKE — the migrations are under this service's own
+            # path, so either they changed and this flag is true, or last release's runner still holds a set
+            # whose digest matches the tree. A stale runner for any other reason is caught by the invoke.
+            - name: CDK Deploy (identity schema — before anything reads it)
+              if: steps.flags.outputs.deploy_service == 'true'
+              env:
+                  IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+              run: |
+                  npx cdk deploy "kitchensink-identity-schema-${STAGE}" \
+                    --app "node packages/services/identity/infra/dist/bin/app.js" \
+                    --exclusively --require-approval never
+
+            # The apply itself, against the runner the step above just deployed. The invoke carries the
+            # manifest digest of the working tree, so a runner holding a different migration set REFUSES
+            # rather than answering `applied: []` — which is what a previous release's bundle returns, and
+            # is byte-identical to "everything was already applied".
+            #
+            # ⚠️ Safe to run every time because of a property of the runner, not optimism:
+            # `schema_migrations` is keyed by FILENAME (`name TEXT PRIMARY KEY`, no checksum) and the runner
+            # skips on a name match, so a run against an up-to-date database applies nothing.
+            #
+            # `run-migrations.sh` is the ONE definition of "did the runner succeed" — `aws lambda invoke`
+            # exits 0 when the FUNCTION threw, and this repo had four call sites with four different amounts
+            # of rigour about that.
+            - name: Run identity DB migrations (before the service that reads them)
+              run: |
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-identity-schema-${STAGE}" IdentityMigrationFunctionName identity \
+                    packages/services/identity/src/database/migrations
+
+            # The CDK app reads these from `process.env`, so declaring them in `env:` delivers them exactly
+            # as the old command-prefix assignments did — without building the command line out of
+            # expression text. `STAGE` comes from the workflow-level `env:` (see above).
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'
-              run: STAGE=${{ env.STAGE }} IDENTITY_IMAGE_TAG=sandbox-${{ github.sha }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
+              env:
+                  # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
+                  # lets the task serve. Set the repo/environment variable to `enforce` once the reports read
+                  # clean and a task will refuse to boot against a database behind its release. Anything else
+                  # normalises to `warn` at synth, so a typo cannot arm a check that can crash-loop a service.
+                  # Deliberately a VARIABLE, not a code change: a soak nobody can end is a disabled check.
+                  SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
+                  IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+              run: npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
+
+            # The identity stack's RESOURCE check. The smoke at the end of this job asserts the ORIGIN and
+            # says nothing about the stack's Lambdas — among them the migration runner the next step invokes,
+            # whose asset an unbundled deploy replaces with an inline placeholder that THROWS inside the
+            # ADR-0022 Trigger, somewhere no origin probe can see.
+            - name: Verify the identity service deployment — every resource and handler
+              if: steps.flags.outputs.deploy_service == 'true'
+              env:
+                  IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+              run: |
+                  bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
+                    "node packages/services/identity/infra/dist/bin/app.js"
 
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'
-              run: STAGE=${{ env.STAGE }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} SENTRY_RELEASE=${{ github.sha }} npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
+              env:
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+              run: npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
 
-            - name: Run identity DB migrations
-              if: steps.flags.outputs.run_migrations == 'true'
+            # ⛔ THE only post-deploy signal this stack has ever had, and the one that needed it most: the
+            # webhooks app serves no origin, so every check in this file was blind to it. It is five
+            # DB-touching Lambdas behind an API Gateway — the Clerk webhook, the SQS deletion worker, the
+            # nightly reconciliation, the log forwarder and a migration runner — that no smoke can reach. A
+            # `user.created` dropped by a crash-looping handler stays invisible until somebody notices a
+            # Clerk account with no row, which is exactly the 2026-06-15 sandbox incident.
+            #
+            # ⚠️ WebhooksStack deliberately has NO in-stack migration barrier (ADR-0022) — its Lambdas are
+            # ordered by deploying AFTER the identity service — so the references those handlers carry are
+            # asserted here against the account rather than left to the ordering.
+            - name: Verify the identity-webhooks deployment — every handler and reference
+              if: steps.flags.outputs.deploy_webhooks == 'true'
+              env:
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  SENTRY_RELEASE: ${{ github.sha }}
               run: |
-                  set -euo pipefail
-                  FN=$(aws cloudformation list-exports \
-                    --query "Exports[?Name=='kitchensink-identity-webhooks-${STAGE}:MigrationFunctionName'].Value" \
-                    --output text)
-                  echo "Invoking migration runner: $FN"
-                  ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/migrate-out.json)
-                  echo "Result: $(cat /tmp/migrate-out.json)"
-                  if [ "$ERR" != "None" ]; then echo "::error::identity DB migration failed"; exit 1; fi
+                  bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
+                    "node packages/services/identity-webhooks/infra/dist/bin/app.js"
 
             # Post-deploy smoke test. `cdk deploy` returning success only means the stack converged —
             # it does NOT prove the service serves traffic. Hit the public /health end-to-end
@@ -223,3 +469,45 @@ jobs:
                   done
                   echo "::error::identity not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
                   exit 1
+
+            # …and CURRENT. The step above proves a container ANSWERS; it does not prove THIS deploy landed —
+            # a task running a build from weeks ago returns the same 200, which is how a stale recipe build
+            # served pr-73 for fifteen days. Prod has had this assertion since #137; the shared sandbox
+            # identity service — the ONE identity every PR preview signs in against — did not, so a rollout
+            # the ECS circuit breaker rolled BACK shipped green here. Cluster + service come from the stack's
+            # own exports, so a renamed cluster fails loudly rather than matching nothing.
+            #
+            # ⚠️ NO `--web-origin`, unlike the prod leg, and the reason is specific rather than an oversight:
+            # identity DOES enable CORS, but its allowlist is DERIVED per stage from
+            # `CLERK_AUTHORIZED_PARTIES` / `CLERK_AZP_PATTERN` (`config/cors.ts`), and on sandbox every caller
+            # is a different `pr-{N}.sandbox.<domain>` origin. There is no single stable browser origin this
+            # workflow could name, and naming the wrong one reds the deploy for a reason unrelated to it.
+            # Browser reachability for this service is asserted on prod, where the origin is one value.
+            - name: Smoke test — identity service CURRENT (sandbox)
+              if: steps.flags.outputs.deploy_service == 'true'
+              env:
+                  EXPECTED_IMAGE_TAG: sandbox-${{ github.sha }}
+              run: |
+                  set -euo pipefail
+                  # `>&2` on the diagnostic, NOT stdout: this runs inside `$( … )`, so an `::error::` written
+                  # to stdout is captured into the variable and never reaches the log.
+                  lookup() {
+                    local name="$1" value
+                    value=$(bash .github/scripts/cfn-export.sh --optional "${name}")
+                    if [ -z "$value" ] || [ "$value" = "None" ]; then
+                      echo "::error::CloudFormation export '${name}' not found — is kitchensink-identity-service-${STAGE} deployed?" >&2
+                      exit 1
+                    fi
+                    echo "$value"
+                  }
+                  cluster=$(lookup "kitchensink-identity-service-${STAGE}:IdentityClusterArn")
+                  service=$(lookup "kitchensink-identity-service-${STAGE}:IdentityServiceArn")
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                    --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  node packages/services/recipe-service/infra/dist/smoke/deployedSmoke.js \
+                    --base-url "https://identity.sandbox.${DOMAIN_NAME}" \
+                    --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
+                    --running-image-tag "${image##*:}" \
+                    || { echo "::error::the DEPLOYED SANDBOX IDENTITY service failed post-deploy verification (running image ${image##*:}, expected ${EXPECTED_IMAGE_TAG})" >&2; exit 1; }

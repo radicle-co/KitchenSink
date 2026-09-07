@@ -2,7 +2,18 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
 
-import { IdentityServiceStack } from '../lib/identity-service-stack.js';
+import {
+    BASE_LISTENER_PRIORITY,
+    BASE_SPAN_CEILING,
+    EDGE_CUTOVER_SERVICES_ENV,
+    EDGE_ORIGIN_HEADER_NAME,
+    EPHEMERAL_SERVICE_SLOTS,
+    edgeOriginHeaderFor,
+    ephemeralBandsForSlot,
+} from '@kitchensink/infra-alb';
+
+import { IdentitySchemaStack } from '../lib/IdentitySchemaStack.js';
+import { IdentityServiceStack } from '../lib/IdentityServiceStack.js';
 
 // NetworkStack/DataStack assertions live with the deployed (global) definitions in
 // packages/infra/global/__tests__. This suite covers only the service stack, which
@@ -107,6 +118,7 @@ describe('Identity env vars present', () => {
             ),
         );
     };
+
     const taskHasEnvVar = (name: string): boolean => templateHasEnvVar(serviceTemplate, name);
 
     it('service task has AUTH_SECRET_ARN env var', () => {
@@ -133,12 +145,16 @@ describe('Identity env vars present', () => {
         expect(templateHasEnvVar(prodTemplate, 'CLERK_AZP_PREVIEW_MODE')).toBe(false);
     });
 
-    // Native (@clerk/expo) tokens are azp-less; pattern mode rejects them without the admission gate. The
-    // mobile app authenticates against the shared sandbox identity, so non-prod admits `client_type:native`.
-    // Prod runs list mode (skips the azp check on absent azp) → no flag, template byte-identical.
-    it('non-prod task admits native azp-less tokens (CLERK_ADMIT_NATIVE_CLIENT), prod does NOT', () => {
+    // Native (@clerk/expo) tokens are azp-less, and BOTH modes reject them without the admission gate —
+    // the native gate is STAGE-INDEPENDENT since @clerk/backend 3.x (2026-09-02).
+    // It used to be non-prod only, justified by "prod runs list mode, which skips the azp check on absent
+    // azp" — true of 1.34, FALSE of 3.16.12, whose `assertAuthorizedPartiesClaim` throws on an absent `azp`
+    // whenever a party list is configured (read from the installed source; measured against a live device
+    // token). Without the flag, prod would 401 every azp-less @clerk/expo token. Admission still requires
+    // the POSITIVE `client_type: 'native'` claim, never azp-absence alone, so this widens nothing else.
+    it('EVERY stage admits native azp-less tokens through the gate (CLERK_ADMIT_NATIVE_CLIENT), prod included', () => {
         expect(taskHasEnvVar('CLERK_ADMIT_NATIVE_CLIENT')).toBe(true);
-        expect(templateHasEnvVar(prodTemplate, 'CLERK_ADMIT_NATIVE_CLIENT')).toBe(false);
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_ADMIT_NATIVE_CLIENT')).toBe(true);
     });
 });
 
@@ -151,6 +167,7 @@ describe('Alarms notify via SNS (A4)', () => {
         const alarms = serviceTemplate.findResources('AWS::CloudWatch::Alarm');
         const ids = Object.keys(alarms);
         expect(ids.length).toBeGreaterThanOrEqual(3);
+
         for (const id of ids) {
             const actions = (alarms[id] as any).Properties?.AlarmActions;
             expect(Array.isArray(actions), `${id} has no AlarmActions`).toBe(true);
@@ -173,10 +190,36 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
     });
 
+    /**
+     * Identity is the ONE shared persistent service every per-PR preview signs in against, so it has no
+     * ephemeral deploy and must NEVER allocate from an ephemeral band — it reads its BASE priority straight
+     * from `@kitchensink/infra-alb`'s registry (note this stack imports `kitchensink-alb-${stage}`, not
+     * `${baseStage}`: its stage is always a base stage). Asserted against the SYNTHESIZED rule, not the
+     * constant, and against EVERY reserved slot's bands — so "consistency-fixing" this stack onto the stage
+     * resolver reds here even though this suite synthesizes the non-prod `test` stage.
+     */
+    it('synthesizes its rule in the BASE span, outside every reserved slot`s ephemeral band', () => {
+        const priorities = Object.values(
+            serviceTemplate.findResources('AWS::ElasticLoadBalancingV2::ListenerRule'),
+        ).map((resource) => resource.Properties.Priority as number);
+
+        expect(priorities).toEqual([BASE_LISTENER_PRIORITY.identity]);
+        expect(priorities[0]).toBe(100);
+
+        for (let slot = 0; slot < EPHEMERAL_SERVICE_SLOTS; slot += 1) {
+            const { perPr, named } = ephemeralBandsForSlot(slot);
+
+            expect(priorities[0]).toBeLessThan(named.floor);
+            expect(priorities[0]).toBeLessThan(perPr.floor);
+        }
+
+        expect(priorities[0]).toBeLessThanOrEqual(BASE_SPAN_CEILING);
+    });
+
     it('attaches exactly one host-based listener rule to the shared HTTPS listener', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
         serviceTemplate.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-            Priority: 100,
+            Priority: BASE_LISTENER_PRIORITY.identity,
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',
@@ -256,6 +299,17 @@ const VPC_LOOKUP_CONTEXT = {
     },
 };
 
+const identitySchemaTemplate = (stage: string): Template => {
+    const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
+    const stack = new IdentitySchemaStack(app, `IdentitySchemaSpot-${stage}`, {
+        env,
+        stage,
+        vpcId: 'vpc-12345678',
+    });
+
+    return Template.fromStack(stack);
+};
+
 const identityTemplate = (stage: string): Template => {
     const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
     const stack = new IdentityServiceStack(app, `IdentitySpot-${stage}`, {
@@ -295,7 +349,14 @@ describe('Per-stage Fargate Spot (ADR-0008)', () => {
     });
 });
 
-describe('Per-stage Container Insights (ADR-0007)', () => {
+/**
+ * REWRITTEN 2026-08-30 — both cases asserted `enabled` and now assert `disabled`. See the note on the
+ * matching block in FoodServiceStack.test.ts: after the 2026-08-27 amendment the whole residual
+ * ($40.80/month, ~136 series) was the three prod clusters, and nothing anywhere reads the namespace — the
+ * ECS alarms and autoscaling use the free `AWS/ECS` metrics. The tier is now the stage-independent
+ * constant `CONTAINER_INSIGHTS_TIER`; what these assertions add is that it reaches THIS cluster.
+ */
+describe('Container Insights is off on every cluster (ADR-0007, amended 2026-08-30)', () => {
     const insightsValue = (template: Template): string => {
         const clusters = Object.values(template.findResources('AWS::ECS::Cluster'));
         const setting = (clusters[0] as any).Properties.ClusterSettings.find(
@@ -305,11 +366,11 @@ describe('Per-stage Container Insights (ADR-0007)', () => {
         return setting.Value;
     };
 
-    it('drops the non-prod (test) identity cluster to STANDARD', () => {
-        expect(insightsValue(serviceTemplate)).toBe('enabled');
+    it('disables Container Insights on the non-prod (test) identity cluster', () => {
+        expect(insightsValue(serviceTemplate)).toBe('disabled');
     });
 
-    it('keeps ENHANCED Container Insights for prod', () => {
+    it('disables Container Insights on the prod cluster too, with no stage exempt', () => {
         const app = new App({
             context: {
                 'vpc-provider:account=123456789012:filter.vpc-id=vpc-12345678:region=us-east-1:returnAsymmetricSubnets=true':
@@ -356,7 +417,7 @@ describe('Per-stage Container Insights (ADR-0007)', () => {
             vpcId: 'vpc-12345678',
         });
 
-        expect(insightsValue(Template.fromStack(prodService))).toBe('enhanced');
+        expect(insightsValue(Template.fromStack(prodService))).toBe('disabled');
     });
 });
 
@@ -397,11 +458,564 @@ describe('Auth secret grant (regression: ECS NotStabilized / GetSecretValue Acce
                         resource !== null &&
                         'Fn::ImportValue' in resource &&
                         (resource as Record<string, unknown>)['Fn::ImportValue'] === 'kitchensink-data-test:SecretArn';
+
                     return actions.includes('secretsmanager:GetSecretValue') && isBareSecretArn;
                 },
             ),
         );
 
         expect(bareGrants).toEqual([]);
+    });
+});
+
+describe('Deletion-queue grant (regression: closure/reactivation never reached Clerk)', () => {
+    /**
+     * The service is a pure PRODUCER on the deletion queue: `queue/sqs.service.ts` imports exactly one command
+     * (`SendMessageCommand`) and nothing in `src/` ever receives — the deletion-WORKER Lambda is the consumer,
+     * and it holds its own `grantConsumeMessages` in the webhooks stack.
+     *
+     * This stack nevertheless granted the task role `grantConsumeMessages` and never `grantSendMessages`, while
+     * injecting `DELETION_QUEUE_URL` into the container. Verified against the DEPLOYED sandbox role, which held
+     * `sqs:ReceiveMessage`, `ChangeMessageVisibility`, `GetQueueUrl`, `DeleteMessage`, `GetQueueAttributes` and
+     * no `sqs:SendMessage`. So every enqueue was an `AccessDenied`, and because both call sites
+     * (`users.service.ts` closure, `admin.service.ts` reactivation) `await` inside a swallow that logs a
+     * warning, the API answered `200`: account closure never BANNED the Clerk identity, reactivation never
+     * UNBANNED it, and a reactivated user stayed locked out of a working account.
+     *
+     * Asserted over the SQS statements the template actually synthesizes rather than by construct id, so the
+     * grant cannot be satisfied by a statement attached to some other role.
+     */
+    const sqsStatements = (): ReadonlyArray<{ readonly actions: readonly string[] }> =>
+        Object.values(serviceTemplate.findResources('AWS::IAM::Policy'))
+            .flatMap(
+                (policy) =>
+                    (policy.Properties?.PolicyDocument?.Statement ?? []) as ReadonlyArray<Record<string, unknown>>,
+            )
+            .map((statement) => ({
+                actions: ([] as string[]).concat(statement['Action'] as string | string[]),
+            }))
+            .filter((statement) => statement.actions.some((action) => action.startsWith('sqs:')));
+
+    it('grants sqs:SendMessage — without it every closure/reactivation enqueue is AccessDenied', () => {
+        expect(sqsStatements().flatMap((statement) => statement.actions)).toContain('sqs:SendMessage');
+    });
+
+    it('does NOT grant the consume actions — the service never receives, the worker Lambda does', () => {
+        // Least privilege, and the tell that the original grant was simply the wrong one rather than
+        // insufficient: a consume grant here is dead permission on a queue this task only ever writes to.
+        expect(sqsStatements().flatMap((statement) => statement.actions)).not.toContain('sqs:ReceiveMessage');
+        expect(sqsStatements().flatMap((statement) => statement.actions)).not.toContain('sqs:DeleteMessage');
+    });
+
+    it('scopes the grant to the imported deletion queue, not a wildcard', () => {
+        serviceTemplate.hasResourceProperties('AWS::IAM::Policy', {
+            PolicyDocument: {
+                Statement: Match.arrayWith([
+                    Match.objectLike({
+                        Action: Match.arrayWith(['sqs:SendMessage']),
+                        Resource: { 'Fn::ImportValue': 'kitchensink-data-test:DeletionQueueArn' },
+                    }),
+                ]),
+            },
+        });
+    });
+});
+
+/**
+ * ADR-0020 / plan U15 — the internal ORIGIN host this service answers on behind the CloudFront edge.
+ *
+ * Additive by construction: prod gains a SECOND host on its existing rule plus a matching A-record, and the
+ * public name keeps serving from the ALB untouched. U17 removes the public host, per service, and identity
+ * moves LAST — it carries the auth path and the ADR-0001 hazard.
+ *
+ * Pinned here because neither failure is visible in a green synth: a SECOND listener rule (instead of a
+ * second condition) would have to claim a priority on a namespace shared across stacks and fail the prod
+ * deploy with `Priority 'N' is currently in use` (ADR-0003); and a record naming anything other than the
+ * host the rule matches yields an origin that resolves to nothing, surfacing only in U16.
+ */
+describe('the internal-origin host (prod only, ADR-0020 / U15)', () => {
+    const internalHost = 'identity.internal.example.com';
+
+    it('matches BOTH the public and the internal host on the SAME rule in prod', () => {
+        const template = identityTemplate('prod');
+
+        template.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'host-header',
+                    // Exact, and public FIRST: nothing has cut over, so the public name must still match.
+                    HostHeaderConfig: Match.objectLike({ Values: ['identity.example.com', internalHost] }),
+                }),
+            ]),
+        });
+    });
+
+    it('keeps its live prod priority — an in-place condition update, never a rule replacement', () => {
+        identityTemplate('prod').hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: BASE_LISTENER_PRIORITY.identity,
+        });
+    });
+
+    it('publishes the internal A-record at exactly the host the rule matches', () => {
+        const template = identityTemplate('prod');
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        template.hasResourceProperties('AWS::Route53::RecordSet', { Type: 'A', Name: `${internalHost}.` });
+    });
+
+    it('aliases the internal record to the SAME shared ALB as the public one', () => {
+        const records = Object.values(identityTemplate('prod').findResources('AWS::Route53::RecordSet')) as Array<{
+            Properties: { Name: string; AliasTarget?: unknown };
+        }>;
+        const publicRecord = records.find((r) => r.Properties.Name === 'identity.example.com.');
+        const internalRecord = records.find((r) => r.Properties.Name === `${internalHost}.`);
+
+        expect(publicRecord?.Properties.AliasTarget).toBeDefined();
+        expect(internalRecord?.Properties.AliasTarget).toEqual(publicRecord?.Properties.AliasTarget);
+    });
+
+    it('creates nothing internal outside prod — no other stage has the *.internal certificate', () => {
+        for (const stage of ['sandbox', 'test']) {
+            const template = identityTemplate(stage);
+
+            template.resourceCountIs('AWS::Route53::RecordSet', 1);
+            expect(JSON.stringify(template.toJSON())).not.toContain('identity.internal.');
+        }
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for identity's half of the U17 DNS cutover — the LAST service to cut over.
+ *
+ * Identity moves last on purpose: it carries the auth path and ADR-0001's `azp` hazard, so it goes only
+ * after food and recipe have been proven through the edge. The mechanics are the two other services':
+ * `identity.example.com` stops being this stack's Route 53 record (EdgeStack publishes it, aliased to the
+ * distribution) and stops being a host this rule answers on.
+ *
+ * ⚠️ Note what does NOT change here. The `/api/v1/internal/*` erasure route stays reachable — U16 exempts
+ * it from the edge verifier rather than from the distribution — so the fan-out keeps working through the
+ * public name. That exemption is what makes the SSM base URLs safe to leave pointing at public hostnames,
+ * and it is asserted in `EdgeStack.test.ts`, not here.
+ */
+describe('the U17 DNS cutover (prod only, ADR-0020)', () => {
+    const internalHost = 'identity.internal.example.com';
+    const publicHost = 'identity.example.com';
+
+    /**
+     * Synthesize a prod identity stack with a given cut-over set, restoring the environment afterwards.
+     *
+     * A fresh `App` per call is required: synth freezes the whole construct tree, so the shared
+     * `beforeAll` templates at the top of this file cannot vary by environment.
+     *
+     * @param cutOver - The `EDGE_CUTOVER_SERVICES` value, or `undefined` to leave it unset.
+     * @returns The synthesized prod template.
+     * @sideEffect Temporarily mutates `process.env`.
+     */
+    function synthProdWithCutover(cutOver: string | undefined): Template {
+        const previous = process.env[EDGE_CUTOVER_SERVICES_ENV];
+
+        if (cutOver === undefined) {
+            delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+        } else {
+            process.env[EDGE_CUTOVER_SERVICES_ENV] = cutOver;
+        }
+
+        try {
+            const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
+
+            return Template.fromStack(
+                new IdentityServiceStack(app, 'CutoverService', {
+                    env,
+                    stage: 'prod',
+                    domainName: 'example.com',
+                    imageTag: 'test',
+                    desiredCount: 1,
+                    vpcId: 'vpc-12345678',
+                }),
+            );
+        } finally {
+            if (previous === undefined) {
+                delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+            } else {
+                process.env[EDGE_CUTOVER_SERVICES_ENV] = previous;
+            }
+        }
+    }
+
+    /**
+     * Every host this template's listener rules answer on.
+     *
+     * @param template - The synthesized template.
+     * @returns The flattened host-header values.
+     */
+    function ruleHosts(template: Template): readonly string[] {
+        return Object.values(template.findResources('AWS::ElasticLoadBalancingV2::ListenerRule')).flatMap(
+            (rule) =>
+                (
+                    rule as {
+                        Properties: { Conditions?: readonly { HostHeaderConfig?: { Values?: string[] } }[] };
+                    }
+                ).Properties.Conditions?.flatMap((condition) => condition.HostHeaderConfig?.Values ?? []) ?? [],
+        );
+    }
+
+    it('changes NOTHING when the cutover has not been declared — an unset variable is not a cutover', () => {
+        const template = synthProdWithCutover(undefined);
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        template.hasResourceProperties('AWS::Route53::RecordSet', { Type: 'A', Name: `${publicHost}.` });
+        expect(ruleHosts(template)).toEqual([publicHost, internalHost]);
+    });
+
+    it('⛔ stays put while food and recipe cut over — identity is LAST, and that is the whole sequencing', () => {
+        // If identity moved with the others, the riskiest cutover would happen before either of the safe
+        // ones had been verified — which is precisely the ordering U17 exists to impose.
+        const template = synthProdWithCutover('food,recipe');
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        template.hasResourceProperties('AWS::Route53::RecordSet', { Type: 'A', Name: `${publicHost}.` });
+        expect(ruleHosts(template)).toEqual([publicHost, internalHost]);
+    });
+
+    it('⛔ releases the public A-record once identity has cut over, so EdgeStack can claim it', () => {
+        const template = synthProdWithCutover('food,recipe,identity');
+        const names = Object.values(template.findResources('AWS::Route53::RecordSet')).map(
+            (record) => (record as { Properties: { Name: string } }).Properties.Name,
+        );
+
+        expect(names).not.toContain(`${publicHost}.`);
+        // The internal record STAYS — it is what the distribution origins at, and it is this stack's.
+        expect(names).toContain(`${internalHost}.`);
+        template.resourceCountIs('AWS::Route53::RecordSet', 1);
+    });
+
+    it('⛔ stops answering on the public host once identity has cut over, leaving only the origin host', () => {
+        // Asserted on the RULE, not the whole template: `identity.example.com` legitimately survives as
+        // this service's own published origin and in the `azp` allow-list, which is the point of the
+        // cutover — callers keep addressing the public name, which now resolves to CloudFront.
+        expect(ruleHosts(synthProdWithCutover('food,recipe,identity'))).toEqual([internalHost]);
+    });
+
+    it('keeps its OWN fixed priority through the cutover — the rule is edited, never replaced', () => {
+        synthProdWithCutover('food,recipe,identity').hasResourceProperties(
+            'AWS::ElasticLoadBalancingV2::ListenerRule',
+            { Priority: BASE_LISTENER_PRIORITY.identity },
+        );
+    });
+});
+
+/**
+ * Every value the listener rules demand for the secret origin header (ADR-0020 / U17).
+ *
+ * Collected across ALL rules and conditions rather than asserted positionally, so a header condition added
+ * to the wrong rule, or a second rule carrying it, is visible rather than matched by luck.
+ *
+ * @param template - A synthesized template.
+ * @returns The condition values, in template order.
+ */
+function ruleHeaderConditionValues(template: Template): readonly string[] {
+    return Object.values(template.findResources('AWS::ElasticLoadBalancingV2::ListenerRule')).flatMap(
+        (rule) =>
+            (
+                rule as {
+                    Properties: {
+                        Conditions?: readonly {
+                            HttpHeaderConfig?: { HttpHeaderName?: string; Values?: readonly string[] };
+                        }[];
+                    };
+                }
+            ).Properties.Conditions?.filter(
+                (condition) => condition.HttpHeaderConfig?.HttpHeaderName === EDGE_ORIGIN_HEADER_NAME,
+            ).flatMap((condition) => condition.HttpHeaderConfig?.Values ?? []) ?? [],
+    );
+}
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for the secret origin header, identity's ALB side (plan U17, ADR-0020 trap 5).
+ *
+ * The prefix-list restriction on prod's ALB authorizes **CloudFront**, not **our** CloudFront:
+ * `identity.internal.example.com` is published in the PUBLIC zone, so anyone may point their own
+ * distribution at it and reach this target group with the edge verifier out of the path. The header is the
+ * boundary — and it matters most here, because this is the service every preview signs in against.
+ *
+ * Three properties are pinned because each fails in a way a green synth cannot show:
+ *
+ *   - **an additional condition on the EXISTING rule, never a second rule** — priority is one namespace
+ *     shared across independently-deployed stacks, so a second rule must claim one and the deploy dies with
+ *     `Priority 'N' is currently in use` (ADR-0003);
+ *   - **prod only** — sandbox has no distribution to send the header, and identity's sandbox stack is the
+ *     ONE shared service every per-PR preview authenticates against, so a header condition there takes
+ *     every open preview offline at once; and
+ *   - **≤ 5 conditions** — ALB's per-rule limit, which a third or fourth condition would silently approach.
+ */
+describe('the secret origin header condition (prod only, ADR-0020 / U17)', () => {
+    it('⛔ requires the header on the SAME rule as the host condition, never a second rule', () => {
+        const header = edgeOriginHeaderFor('prod');
+        const template = identityTemplate('prod');
+
+        expect(header).toBeDefined();
+        template.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'http-header',
+                    HttpHeaderConfig: Match.objectLike({ HttpHeaderName: header!.headerName }),
+                }),
+            ]),
+        });
+    });
+
+    it('⛔ matches a dynamic REFERENCE, never a literal — this repository is public', () => {
+        const values = ruleHeaderConditionValues(identityTemplate('prod'));
+
+        expect(values).toHaveLength(1);
+        expect(values[0]).toMatch(/^\{\{resolve:secretsmanager:/u);
+    });
+
+    it('⛔ adds NO header condition on any other stage — nothing there sends it', () => {
+        for (const stage of ['sandbox', 'test', 'dev']) {
+            const template = identityTemplate(stage);
+
+            expect(ruleHeaderConditionValues(template), `stage ${stage}`).toEqual([]);
+            expect(JSON.stringify(template.toJSON()), `stage ${stage}`).not.toContain(EDGE_ORIGIN_HEADER_NAME);
+        }
+    });
+
+    it('keeps its live prod priority — an in-place condition update, never a rule replacement', () => {
+        identityTemplate('prod').hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: BASE_LISTENER_PRIORITY.identity,
+        });
+    });
+
+    it('stays within ALB\u2019s five-condition ceiling', () => {
+        const rules = Object.values(
+            identityTemplate('prod').findResources('AWS::ElasticLoadBalancingV2::ListenerRule'),
+        ) as Array<{ Properties: { Conditions?: readonly unknown[] } }>;
+
+        for (const rule of rules) {
+            expect(rule.Properties.Conditions ?? []).toHaveLength(2);
+            expect((rule.Properties.Conditions ?? []).length).toBeLessThanOrEqual(5);
+        }
+    });
+
+    it('survives the cutover — the header is the boundary AFTER the public host is dropped', () => {
+        // Identity cuts over LAST, and after it does the public host is gone from this rule. If the header
+        // condition went with it, the auth path would be reachable by anyone who resolves the origin name.
+        const previous = process.env[EDGE_CUTOVER_SERVICES_ENV];
+        process.env[EDGE_CUTOVER_SERVICES_ENV] = 'food,recipe,identity';
+
+        try {
+            expect(ruleHeaderConditionValues(identityTemplate('prod'))).toHaveLength(1);
+        } finally {
+            if (previous === undefined) {
+                delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+            } else {
+                process.env[EDGE_CUTOVER_SERVICES_ENV] = previous;
+            }
+        }
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for "the schema exists before identity serves a single request".
+ *
+ * ## The hazard, and why it is worse here than for food or recipe
+ *
+ * `cdk deploy` returns only once ECS has STABILISED, so a pipeline that deploys and THEN invokes the
+ * migration runner has already put the new image in front of live traffic for the whole stabilisation
+ * window, with the old schema underneath it. For a content service that window is a degraded read. For
+ * identity it is a failed SIGN-IN: `AuthMiddleware` read-through-creates the user row on every
+ * authenticated request, so a column this release expects and the database does not have turns every
+ * first request of every session into a 500 — and prod is fronted by CloudFront.
+ *
+ * ## Why the fix is IN this stack, and why it could not be before
+ *
+ * The obvious repair — hoist the pipeline's migrate step above its `cdk deploy` — is silently WORSE:
+ * `esbuild.mjs` copies `src/database/migrations/*.sql` into the bundle at BUILD time and the bundle ships
+ * WITH the deploy, so invoking first invokes the PREVIOUS deploy's Lambda carrying the PREVIOUS migration
+ * set. Exit 0, "nothing pending", nothing applied, and the new tasks still meet the missing column.
+ *
+ * The only moment at which the NEW migrations exist and the NEW tasks are not yet serving is INSIDE this
+ * deploy — the seam `aws-cdk-lib/triggers` occupies. Identity could not use it while its runner lived in
+ * `kitchensink-identity-webhooks-{stage}`: a different CDK app, deployed AFTER this one, with no
+ * cross-app dependency edge to express. The runner now lives HERE, which is what these assertions pin.
+ *
+ * ## What each assertion is load-bearing for
+ *
+ * The trigger is tied to the function the PIPELINE invokes (the `IdentityMigrationFunctionName` output),
+ * not to "some Lambda" — a second runner drifting from the one CI calls is the defect class this whole
+ * gate exists for. The ECS dependency is asserted over EVERY `AWS::ECS::Service` the stack synthesizes
+ * rather than a named one, so a second Fargate workload added later is covered without anyone remembering
+ * this file. And the trigger's socket timeout is compared against the runner's OWN timeout rather than a
+ * literal, because the trigger default is two minutes while the runner is allowed five — a migration that
+ * outlives the socket fails a deploy whose schema was already applied.
+ */
+describe('the schema deploys and migrates AHEAD of the service, in its own stack', () => {
+    /**
+     * ⛔ WHAT REPLACED WHAT, so nobody restores the old shape by reflex.
+     *
+     * ADR-0022 put the schema apply inside the SERVICE deploy, as an `aws-cdk-lib/triggers` Trigger every
+     * ECS service and Lambda in this stack took a `DependsOn` on. It was the right answer to a real
+     * problem — `cdk deploy` returns only once ECS has stabilised, so "deploy, then migrate" served the new
+     * image against the old schema for the whole stabilisation window — but it made the schema a hostage of
+     * the application's release, and it could not be applied without deploying the application.
+     *
+     * The runner now owns its own stack, deployed and invoked by its own pipeline step ahead of the
+     * service. The ordering did not weaken; it changed hands, from a construct graph that cannot cross a
+     * stack boundary to a pipeline position plus the manifest expectation the invoke carries.
+     *
+     * These tests therefore assert the INVERSE of what they used to: the schema stack has the runner and
+     * nothing that reads the schema, and the service stack has NO runner and NO trigger at all.
+     */
+    /**
+     * The logical ID the schema stack's `*MigrationFunctionName` output points at — i.e. the function the
+     * pipeline resolves and invokes. Everything below is anchored to THIS function, so the runner the
+     * pipeline reaches and the runner these assertions describe cannot drift apart.
+     *
+     * @param template - A synthesized template.
+     * @returns The migration function's logical ID.
+     */
+    function pipelineInvokedMigrationFunctionId(template: Template): string {
+        const outputs = template.findOutputs('*') as Record<string, { Value?: { Ref?: string } }>;
+        const entry = Object.entries(outputs).find(([name]) => name.endsWith('MigrationFunctionName'));
+
+        expect(entry, 'the schema stack must export the migration function the pipeline invokes').toBeDefined();
+
+        const ref = entry?.[1].Value?.Ref;
+
+        expect(typeof ref, 'the migration-function output must be a Ref to a function in this stack').toBe('string');
+
+        return ref as string;
+    }
+
+    it('the schema stack ships exactly one Lambda — the runner — and exports its name', () => {
+        const template = identitySchemaTemplate('test');
+        const migrationFunctionId = pipelineInvokedMigrationFunctionId(template);
+        const functions = Object.keys(template.findResources('AWS::Lambda::Function'));
+
+        expect(functions).toStrictEqual([migrationFunctionId]);
+    });
+
+    it('⛔ the schema stack holds NOTHING that reads the schema', () => {
+        // The stack's entire invariant. A DB-touching Lambda or service placed here would be updated by the
+        // same `cdk deploy` that ships the runner — i.e. BEFORE the migration it depends on — which is the
+        // failure the separate stack exists to make impossible rather than merely discouraged.
+        const template = identitySchemaTemplate('test');
+
+        expect(Object.keys(template.findResources('AWS::ECS::Service'))).toStrictEqual([]);
+        expect(Object.keys(template.findResources('AWS::ECS::TaskDefinition'))).toStrictEqual([]);
+    });
+
+    it('puts the runner in a PRIVATE subnet with the lambda security group — it must reach the private RDS', () => {
+        const template = identitySchemaTemplate('test');
+        const migrationFunctionId = pipelineInvokedMigrationFunctionId(template);
+        const runner = template.findResources('AWS::Lambda::Function')[migrationFunctionId] as {
+            Properties: { VpcConfig?: { SubnetIds?: readonly unknown[]; SecurityGroupIds?: readonly unknown[] } };
+        };
+
+        // A Lambda's public IP does NOT give it egress (ADR-0004), so the runner is VPC-attached in the
+        // private subnets and rides the NAT — unchanged by the move, which is the same function in a
+        // different template.
+        expect(runner.Properties.VpcConfig?.SubnetIds).toEqual(['subnet-private-1']);
+        expect(JSON.stringify(runner.Properties.VpcConfig?.SecurityGroupIds)).toContain('LambdaSecurityGroupId');
+    });
+
+    it('gives the runner the whole apply loop to finish in', () => {
+        // The loop holds a session advisory lock for its duration, and a runner killed mid-apply by the
+        // Lambda timeout leaves the deploy with no diagnostic about which migration was in flight.
+        const template = identitySchemaTemplate('test');
+        const migrationFunctionId = pipelineInvokedMigrationFunctionId(template);
+        const runner = template.findResources('AWS::Lambda::Function')[migrationFunctionId] as {
+            Properties: { Timeout: number };
+        };
+
+        expect(runner.Properties.Timeout).toBeGreaterThanOrEqual(300);
+    });
+
+    it('⛔ SHIPS AN ASSET OR A THROWING PLACEHOLDER — never one that resolves', () => {
+        // The quietest failure available, and this repo has shipped it once already: a placeholder that
+        // RESOLVES is a SUCCESSFUL invocation, so the migrate step goes green and the schema was never
+        // touched. Written as a disjunction rather than gated on the bundle's presence, because whether
+        // `dist-lambda/` exists depends on whether the machine happened to have run `bundle:lambda` — CI
+        // has not, a developer's machine usually has, and a test that only means something in one of those
+        // two states is the "invisible if you built before" class this repo has been bitten by.
+        const [runner] = Object.values(identitySchemaTemplate('test').findResources('AWS::Lambda::Function')) as Array<{
+            Properties: { Code?: { ZipFile?: string; S3Bucket?: unknown } };
+        }>;
+        const code = runner?.Properties.Code;
+
+        expect(code, 'the runner must ship some code').toBeDefined();
+
+        if (code?.ZipFile === undefined) {
+            expect(code?.S3Bucket, 'a bundled runner ships an S3 asset').toBeDefined();
+        } else {
+            expect(code.ZipFile, 'an unbuilt bundle must synthesize a THROWING placeholder').toContain(
+                'throw new Error',
+            );
+        }
+    });
+
+    it('synthesizes for prod too — the stage that carries live sign-in', () => {
+        const template = identitySchemaTemplate('prod');
+
+        expect(pipelineInvokedMigrationFunctionId(template)).toBeTruthy();
+    });
+
+    it('⛔ the SERVICE stack carries no migration runner and no trigger', () => {
+        // Two runners for one schema is what recipe had, and the second existed only to be ordered against
+        // constructs the first could not see. A trigger left here would also re-apply the schema from
+        // whatever bundle this stack happened to ship, which is no longer the bundle the pipeline migrated.
+        const template = identityTemplate('test');
+
+        expect(Object.keys(template.findResources('Custom::Trigger'))).toStrictEqual([]);
+
+        const outputs = template.findOutputs('*') as Record<string, unknown>;
+
+        expect(Object.keys(outputs).filter((name) => name.endsWith('MigrationFunctionName'))).toStrictEqual([]);
+    });
+
+    it('⛔ prod\u2019s service stack carries none either', () => {
+        const template = identityTemplate('prod');
+
+        expect(Object.keys(template.findResources('Custom::Trigger'))).toStrictEqual([]);
+    });
+});
+
+// ── ADR-0028 (2026-08-30): the ECS log group is imported, not owned ────────────────────────────────
+/**
+ * ADDED 2026-08-30, after a real failure rather than a review.
+ *
+ * This stack became RECLAIMABLE — deleted when the last sandbox expires so the shared ALB it pins can be
+ * released — while `WebhooksStack`, which must survive, imported its exported log-group name to hang a
+ * drain on. CloudFormation refused the first real reclaim:
+ *
+ *     Delete canceled. Cannot delete export
+ *       kitchensink-identity-service-sandbox:IdentityServiceLogGroupName
+ *     as it is in use by kitchensink-identity-webhooks-sandbox.
+ *
+ * The group now lives in `kitchensink-service-logs-{stage}`, which outlives both consumers and already
+ * deploys before them, so nothing about the deploy order moved.
+ *
+ * ⚠️ The second assertion looks like it contradicts the first, and does not. `WebhooksStack` still imports
+ * this stack's `IdentityServiceLogGroupName` export at the moment THIS stack deploys, because prod-deploy
+ * runs identity BEFORE webhooks — and CloudFormation refuses both to delete an export in use and to change
+ * its value while in use. So the old group and its export must survive this release untouched even though
+ * nothing writes to them: the expand step of ADR-0022's expand-first rule. The contracting release that
+ * removes them ships LATER. Deleting them here fails the identity deploy outright, which is exactly the
+ * mistake this test exists to stop someone "tidying" into place.
+ */
+describe('ECS log group ownership (ADR-0028, amended 2026-08-30)', () => {
+    it('sends container logs to the group imported from the persistent service-logs stack', () => {
+        const taskDefs = Object.values(serviceTemplate.findResources('AWS::ECS::TaskDefinition'));
+        const rendered = JSON.stringify(taskDefs[0]?.Properties?.ContainerDefinitions ?? []);
+
+        expect(rendered).toContain('kitchensink-service-logs-');
+        expect(rendered).toContain('Fn::ImportValue');
+    });
+
+    it('keeps the retired log group and its export for one more release (ADR-0022 expand-first)', () => {
+        serviceTemplate.resourceCountIs('AWS::Logs::LogGroup', 1);
+        expect(Object.keys(serviceTemplate.toJSON().Outputs ?? {})).toContain('IdentityServiceLogGroupName');
     });
 });

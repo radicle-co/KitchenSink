@@ -1,44 +1,128 @@
+# AI code review.
+#
+# WHY THIS WAS RECONFIGURED. The previous version ran the stock `code-review` plugin, whose command
+# declares (verified in the plugin source at
+# `~/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`):
+#
+#   allowed-tools: Bash(gh issue view:*), Bash(gh search:*), Bash(gh issue list:*),
+#                  Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr list:*)
+#
+# Seven `gh` patterns and nothing else — no Read, no Grep, no Glob. So it could not open
+# `docs/architecture/decisions/` even if asked. For a repository whose ten ADRs exist precisely to
+# record decisions that LOOK like bugs (a deliberate 404, a NAT instance instead of a Gateway, a
+# service with no load balancer of its own, prod/non-prod divergence), a reviewer that can only see
+# the diff will confidently recommend reverting them. That is not a hypothetical: correcting the
+# same class of false context in AGENTS.md is a sibling commit on this branch.
+#
+# `pr-review-toolkit` is the swap. Its agents carry NO `tools:` frontmatter (verified across all six),
+# so they inherit the default grant including Read/Grep/Glob — which is what makes reading an ADR
+# possible at all. Two of its agents map directly onto this repo's worst defect classes:
+#
+#   - `silent-failure-hunter` — "zero tolerance for silent failures", "any error that occurs without
+#     proper logging and user feedback is a critical defect". That is a verbatim description of the
+#     bootstrap stub that returned CREATE_COMPLETE for work it never did and ran production for four
+#     weeks behind green deploys.
+#   - `pr-test-analyzer` — judges BEHAVIOURAL rather than line coverage, which is the right lens.
+#     ⚠️ Its stock prompt says it should work "without being overly pedantic about 100% coverage"
+#     (verified verbatim in the agent file). That directly contradicts `docs/CODING_STANDARDS.md`
+#     §7.1, which is absolute and admits no exceptions. The prompt below overrides it explicitly.
+#     If you ever drop that override, this reviewer will start excusing missing tests.
+#
+# TRIGGERS: deliberately NOT `synchronize`. Firing a full review on every push produced review noise
+# nobody read, and noise is how a real finding gets scrolled past. It runs when a PR opens, when it
+# becomes ready, when it reopens, and on demand via the `ai-review` label for a re-run after changes.
 name: Claude Code Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    pull_request:
+        types: [opened, ready_for_review, reopened, labeled]
+
+permissions:
+    contents: read
+
+concurrency:
+    # Cancel a superseded review rather than posting two sets of comments on the same PR.
+    group: claude-review-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
 
 jobs:
-  claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    claude-review:
+        name: Review
+        # `labeled` fires for EVERY label, so gate it: only the `ai-review` label re-triggers a review.
+        # Without this, adding an unrelated label (e.g. `heavy-e2e`) would spend a full review run.
+        if: >-
+            github.event.action != 'labeled' ||
+            github.event.label.name == 'ai-review'
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: read # read the checkout, so the reviewer can open the ADRs and standards
+            pull-requests: write # post the review comments
+            issues: read # read the PR's own issue thread for prior feedback
+            # NO `id-token: write` — verified against the pinned action.yml (v1.0.189): OIDC is used only
+            # for workload-identity federation (`anthropic_federation_rule_id` + `anthropic_organization_id`)
+            # and the Bedrock/Vertex/Foundry paths. This job authenticates with `claude_code_oauth_token`,
+            # so the grant was dead privilege — the same class the zizmor burn-down removed from
+            # prod-deploy / sandbox-deploy / sandbox-identity-deploy. If a federation path is ever adopted,
+            # re-add it on THIS job only.
 
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              with:
+                  persist-credentials: false
+                  # Depth 1 is sufficient and deliberate: the reviewer needs the ADRs and standards as
+                  # FILES at this commit, which a shallow checkout provides in full. It does not need
+                  # history, and a full fetch on this repo is not free.
+                  fetch-depth: 1
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+            - name: Run Claude Code Review
+              id: claude-review
+              uses: anthropics/claude-code-action@6b082c41935b4c8a3b8b0ef85ba4ba4d9eeb8975 # v1.0.189
+              with:
+                  claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+                  plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+                  plugins: 'pr-review-toolkit@claude-code-plugins'
+                  prompt: |
+                      Review pull request #${{ github.event.pull_request.number }} of
+                      ${{ github.repository }}.
 
-      - name: Run Claude Code Review
-        id: claude-review
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+                      READ THESE BEFORE COMMENTING — they change what counts as a defect here:
 
+                      1. `CLAUDE.md`, section "Deliberate decisions — looks wrong, isn't". Every entry is a
+                         choice that resembles a bug and is not one, with a linked ADR.
+                      2. The specific ADR under `docs/architecture/decisions/` for any file you are about
+                         to criticise. You have Read/Grep/Glob — use them. Do not reason from the diff
+                         alone.
+                      3. `docs/CODING_STANDARDS.md`, especially §1 (file naming, which differs between
+                         backend kebab-case and frontend camel/PascalCase packages) and §7.1 (tests).
+                      4. `.github/instructions/*.instructions.md` for the paths the diff touches.
+
+                      HARD RULES FOR THIS REPOSITORY:
+
+                      - NEVER recommend reverting a decision recorded in an ADR without first reading that
+                        ADR and engaging with the failure it prevents. If after reading it you still think
+                        it is wrong, say so explicitly as a challenge to the ADR — do not present it as an
+                        ordinary defect. Recommending an ADR revert unknowingly is the single worst
+                        outcome of this job.
+                      - The test mandate in §7.1 is ABSOLUTE and has no exceptions. Ignore any instinct to
+                        avoid being "pedantic about 100% coverage": UI code needs a component test for
+                        EVERY state, not just the happy path; non-UI code needs unit AND integration
+                        tests; a deployable service also needs e2e AND k6. Code missing the tests its
+                        category requires is INCOMPLETE and must be flagged as such. A test that would
+                        still pass if the code were subtly broken is coverage theater and does not count
+                        toward the mandate — apply the mutation lens and say when a test fails it.
+                      - Weight your attention toward SILENT FAILURE above all else. A fallback that
+                        returns success, a swallowed catch, a default substituted for a required input, a
+                        `continue-on-error`, a `|| true`, an assertion that cannot fail, a smoke test that
+                        proves less than its name claims. This repository has lost four weeks of
+                        production to exactly this class.
+                      - Lead the review with the DESIGN PATTERNS involved — which are used, introduced or
+                        affected, and why they fit — before line-level detail. That is the house style for
+                        reviews here, per CLAUDE.md.
+                      - Localisation: any string a user reads must go through the localisation path, never
+                        a hard-coded literal.
+
+                      Be specific and concrete. Prefer a small number of real findings with evidence over
+                      a long list of style observations. If you are uncertain whether something is a
+                      defect, say you are uncertain and why, rather than asserting it.

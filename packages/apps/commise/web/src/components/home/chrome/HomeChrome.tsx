@@ -3,14 +3,19 @@
 /**
  * @module home/chrome/HomeChrome — the Home app shell (web; US-000 / FR-046).
  *
- * Assembles the four renderings of the Home navigation into the mockup's layout: the desktop {@link
- * HomeSidebar}, the sticky {@link HomeTopBar}, the mobile {@link HomeTabBar}, and the hamburger-driven
+ * Assembles the four renderings of the Home navigation into the mockup's layout: the desktop
+ * {@link HomeSidebar}, the sticky {@link HomeTopBar}, the mobile {@link HomeTabBar}, and the hamburger-driven
  * {@link HomeMobileNav} drawer — with the surface content (`children`) in the `<main>` landmark between them.
  *
  * It owns only the two pieces of ephemeral chrome state — whether the desktop rail is collapsed and whether
  * the mobile drawer is open — because they are pure view state with no home for them elsewhere. Everything
  * that decides WHAT the nav shows (destinations, reachability, active id) is derived from props, so the shell
  * has no product knowledge of its own to drift.
+ *
+ * ⚠️ That makes it PRESENTATIONAL, and it is worth saying because the pair above it splits the other way:
+ * `AppShell` — one component up, same "shell" vocabulary — reads the signed-in profile and sits on the far
+ * side of the line. That line is exactly the `useUserProfile()` call, which lives there and must not move
+ * here.
  */
 import type { HomeNavItemId } from '@commise/features-core';
 import { useState, type JSX, type ReactNode } from 'react';
@@ -60,7 +65,15 @@ export function HomeChrome({
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
     return (
-        <div className="flex min-h-screen bg-gradient-to-br from-sand via-[#F5F8FA] to-[#EDF5F8]">
+        // The shell is TRANSPARENT so the `body` beach-glow canvas shows through (issue #145). It used to
+        // hand-spell its own three-stop `bg-gradient-to-br` ramp — a second definition of the canvas that had
+        // already drifted from `@commise/ui`'s `gradient.hero` (mid/end tints #F5F8FA and #EDF5F8 against the
+        // wireframes' own #F0F7F4 and #E8F4F8) and covered only shell-hosted routes, leaving auth flat. Do not
+        // reintroduce a background here: one canvas, one definition, in the token layer.
+        //
+        // Tailwind v4 scans this file as TEXT, comments included, so the replaced classes are DESCRIBED rather
+        // than written out — spelling one verbatim regenerates the utility it warns about.
+        <div className="flex min-h-screen">
             <HomeSidebar
                 chrome={chrome}
                 locale={locale}

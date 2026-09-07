@@ -11,18 +11,17 @@
 /**
  * @requirements
  * 1. Presign against the identity service with the blob's REAL content-type and byte size (the presign
- *    endpoint re-validates both, and the signature binds the content-type), using the native Clerk token
- *    template so the azp-less native token is admitted.
+ *    endpoint re-validates both, and the signature binds the content-type), through the shared
+ *    {@link useProfileServiceClient} client — which mints the native Clerk token, parses both directions against
+ *    the published contract, and reports contract skew.
  * 2. PUT the exact blob to the returned presigned URL WITHOUT the Authorization header (the presigned URL is
  *    the credential) and with a matching `Content-Type`.
  * 3. Resolve the durable public URL on success; reject (never silently succeed) if either the presign or the
  *    S3 PUT fails, so the caller can surface a localized error and leave the stored avatar unchanged.
  */
-import { useAuth } from '@clerk/expo';
 import { useCallback } from 'react';
 
-import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
-import { apiRequest, type GetToken } from '../services/api.js';
+import { useProfileServiceClient } from './useProfileServiceClient.js';
 
 /** The bytes + type of a picked avatar image, ready to upload. */
 export interface AvatarUploadInput {
@@ -32,13 +31,7 @@ export interface AvatarUploadInput {
     readonly contentType: string;
 }
 
-/** The identity avatar presign response: a short-lived S3 PUT URL + the durable public URL. */
-interface AvatarPresignResponse {
-    readonly uploadUrl: string;
-    readonly publicUrl: string;
-}
-
-/** The avatar upload seam consumed by the profile screen's {@link import('../components/account/AvatarField.js')}. */
+/** The avatar upload seam consumed by the profile screen's `../components/account/AvatarField.tsx`. */
 export interface UseAvatarUpload {
     /**
      * Presign, PUT the bytes to S3, and resolve the durable public URL.
@@ -50,18 +43,19 @@ export interface UseAvatarUpload {
 
 /** Build the avatar upload seam bound to the current native session's token. */
 export function useAvatarUpload(): UseAvatarUpload {
-    const { getToken } = useAuth();
+    const client = useProfileServiceClient();
 
     const upload = useCallback(
         async ({ blob, contentType }: AvatarUploadInput): Promise<string> => {
-            // Native tokens are azp-less; the services only admit them when minted from the native template.
-            const getIdentityToken: GetToken = () => getToken({ template: NATIVE_JWT_TEMPLATE });
-            const query = `type=${encodeURIComponent(contentType)}&size=${blob.size}`;
-            const presign = await apiRequest<AvatarPresignResponse>(
-                getIdentityToken,
-                `/api/v1/users/me/avatar/presign?${query}`,
-                { method: 'POST' },
-            );
+            // ⚠️ THE PRESIGN GOES THROUGH `ProfileServiceClient`, NOT A TRANSPORT OF ITS OWN. This hook used to call
+            // `services/api.ts`'s `apiRequest` — a second way to reach identity, and the only one outside the funnel
+            // that reports contract skew, so a RELEASED binary uploading an avatar against a service that had moved
+            // ahead of it produced no signal (GR-017 §17-b.5). The client owns the path, the query encoding, and the
+            // parse of both directions against `@kitchensink/schema-identity`.
+            //
+            // `blob.size` — never `asset.fileSize`, which Android/web often omit — because the service signs it into
+            // the presigned URL as `ContentLength` and S3 rejects a PUT that does not match.
+            const presign = await client.presignAvatar({ type: contentType, size: blob.size });
 
             // The presigned URL is itself the credential — PUT the raw bytes with only the matching
             // Content-Type (adding Authorization would break the S3 signature).
@@ -77,7 +71,7 @@ export function useAvatarUpload(): UseAvatarUpload {
 
             return presign.publicUrl;
         },
-        [getToken],
+        [client],
     );
 
     return { upload };

@@ -37,6 +37,79 @@ export type {
     FoodResolutionStatus,
 } from './ingredients.js';
 
+// ── ingredient_resolutions (plan U2, 0035) — the cascade's provenance events ─────────────────────
+export { ingredientResolutions } from './ingredientResolutions.js';
+export type { IngredientResolutionRow, NewIngredientResolutionRow } from './ingredientResolutions.js';
+
+// ── recipe_parse_jobs + lines (plan U8/U9, 0039) — the async parse-job substrate ────────────────
+export { recipeParseJobs, recipeParseJobLines, PARSE_JOB_STATUSES, PARSE_JOB_LINE_STATUSES } from './parseJobs.js';
+export type {
+    ParseJobStatus,
+    ParseJobLineStatus,
+    RecipeParseJobRow,
+    NewRecipeParseJobRow,
+    RecipeParseJobLineRow,
+    NewRecipeParseJobLineRow,
+} from './parseJobs.js';
+
+// ── recipe_ingredient_verification_redrive (plan U4c, 0037) — the pending re-drive substrate ─────
+export { verificationRedrive } from './verificationRedrive.js';
+export type { VerificationRedriveRow, NewVerificationRedriveRow } from './verificationRedrive.js';
+
+// ── resolution_band_* (plan U3, 0036) — earned autonomy's memory ─────────────────────────────────
+export {
+    resolutionBandAuthority,
+    resolutionBandObservations,
+    resolutionBandSkips,
+    BAND_STATES,
+    BAND_OBSERVATION_SOURCES,
+} from './resolutionBands.js';
+export type {
+    BandStateValue,
+    BandObservationSource,
+    ResolutionBandAuthorityRow,
+    NewResolutionBandAuthorityRow,
+    ResolutionBandObservationRow,
+    NewResolutionBandObservationRow,
+    ResolutionBandSkipRow,
+    NewResolutionBandSkipRow,
+} from './resolutionBands.js';
+
+// ── ingredient_resolution_mappings + ingredient_resolution_memos (plan U10, 0021) ───────────────
+export {
+    ingredientResolutionMappings,
+    ingredientResolutionMemos,
+    RESOLUTION_MAPPING_SCOPES,
+    RESOLUTION_MAPPING_ORIGINS,
+} from './resolutionMappings.js';
+export type {
+    IngredientResolutionMappingRow,
+    NewIngredientResolutionMappingRow,
+    IngredientResolutionMemoRow,
+    NewIngredientResolutionMemoRow,
+} from './resolutionMappings.js';
+
+// ── ingredient_parse_corrections (plan U21, 0029) — the parse pipeline's TOP tier ─────────────────
+export {
+    ingredientParseCorrections,
+    PARSE_CORRECTION_SCOPES,
+    PARSE_CORRECTION_ORIGINS,
+} from './ingredientParseCorrections.js';
+export type {
+    CorrectedParse,
+    IngredientParseCorrectionRow,
+    JsonValue,
+    NewIngredientParseCorrectionRow,
+} from './ingredientParseCorrections.js';
+
+// ── recipe_ingredient_verifications (plan U11/U14, 0023) — READ-ONLY here; recipe-workers writes it ──
+export { recipeIngredientVerifications, LINE_VERIFICATION_BANDS } from './lineVerifications.js';
+export type { RecipeIngredientVerificationRow } from './lineVerifications.js';
+
+// ── ingredient_parse_cache (plan U20 / KTD-13, KTD-14, 0028) — engine parses, keyed by digest+engine ──
+export { ingredientParseCache, PARSE_CACHE_ENGINES } from './ingredientParseCache.js';
+export type { IngredientParseCacheRow, CachedParsePayload } from './ingredientParseCache.js';
+
 // ── recipe_versions + recipe_version_pending_archives (T013, T121) ────────────────────────────────
 export { recipeVersions, recipeVersionPendingArchives, PENDING_ARCHIVE_STATUSES } from './versions.js';
 export type {
@@ -55,8 +128,8 @@ export type { RecipePhotoRow, NewRecipePhotoRow } from './photos.js';
 export { recipeRatings } from './ratings.js';
 export type { RecipeRatingRow, NewRecipeRatingRow } from './ratings.js';
 
-export { authorHandles } from './author-handles.js';
-export type { AuthorHandleRow, AuthorHandleInsert } from './author-handles.js';
+export { authorHandles } from './authorHandles.js';
+export type { AuthorHandleRow, AuthorHandleInsert } from './authorHandles.js';
 
 // ── collections + recipe_collections (T014, T119) ─────────────────────────────────────────────────
 export { collections, recipeCollections, COLLECTION_VISIBILITIES, RECIPE_COLLECTION_ADDED_VIA } from './collections.js';
@@ -77,6 +150,15 @@ export type {
     ErasureJobStatus,
     ActiveErasureJobStatus,
 } from './account.js';
+
+// ── analytics_events + recipe_impact_signals (analytics plan U1, migration 0043) ──────────────────
+export { analyticsEvents, recipeImpactSignals, ANALYTICS_EVENT_TYPES } from './analyticsEvents.js';
+export type {
+    AnalyticsEventType,
+    AnalyticsEventRow,
+    NewAnalyticsEventRow,
+    RecipeImpactSignalRow,
+} from './analyticsEvents.js';
 
 // ── convenience re-exports ────────────────────────────────────────────────────────────────────────
 export type { InferInsertModel, InferSelectModel } from 'drizzle-orm';

@@ -24,7 +24,14 @@ import { mintSessionToken } from '../auth/provision-users.mjs';
 const execFileAsync = promisify(execFile);
 
 const ADMIN_FILE = process.env['ADMIN_FILE'] ?? './admin.json';
-const FOOD_BASE_URL = (process.env['FOOD_BASE_URL'] ?? 'https://food-pr-59.commise.app').replace(/\/$/, '');
+// ⛔ NO DEFAULT. This read `?? 'https://food-pr-59.commise.app'` — a host that stopped resolving
+// the day PR 59 closed, so a caller who forgot the variable got a dead target instead of an error.
+// Resolve the origin from the stage instead: `node printPublicOrigin.mjs food <stage> <apex>`.
+const FOOD_BASE_URL = (process.env['FOOD_BASE_URL'] ?? '').replace(/\/$/, '');
+
+if (!FOOD_BASE_URL) {
+    throw new Error('FOOD_BASE_URL is required — resolve it with printPublicOrigin.mjs, never a typed host');
+}
 const DURATION_S = Number(process.env['DURATION_S'] ?? 60);
 const INTERVAL_S = Number(process.env['INTERVAL_S'] ?? 10);
 const OUT_FILE = process.env['OUT_FILE'] ?? './server-metrics.json';

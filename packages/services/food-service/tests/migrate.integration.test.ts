@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 import {
@@ -24,6 +24,13 @@ import {
     runMigrations,
 } from '../src/lambdas/migrate/handler.js';
 import { DATABASE_URL } from './support/db.js';
+import { ensureSeededBaseDatabase } from './support/maintenanceDb.js';
+import { poolForDroppableDatabase } from '@kitchensink/service-test-harness';
+
+// The digest of the very directory each call migrates. `expectManifestSha` is REQUIRED (ADR-0035), so
+// passing it here is not ceremony: it makes these tests exercise the contract the deployed runner enforces
+// rather than a laxer one that only exists in the test.
+import { readMigrationManifest } from '@kitchensink/db-schema-guard';
 
 const sourceMigrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
 
@@ -71,7 +78,11 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
     describe('runMigrations', () => {
         it('applies every discovered migration in order and validates the expected tables exist', async () => {
             const expected = expectedMigrationNames();
-            const result = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+            const result = await runMigrations({
+                pool,
+                migrationsDir: sourceMigrationsDir,
+                expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+            });
 
             expect(result.applied).toEqual(expected);
             expect(result.skipped).toEqual([]);
@@ -84,8 +95,16 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
         });
 
         it('is idempotent — a re-invocation skips already-recorded migrations and applies nothing', async () => {
-            await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
-            const second = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
+            await runMigrations({
+                pool,
+                migrationsDir: sourceMigrationsDir,
+                expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+            });
+            const second = await runMigrations({
+                pool,
+                migrationsDir: sourceMigrationsDir,
+                expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+            });
 
             expect(second.applied).toEqual([]);
             expect(second.skipped).toEqual(expectedMigrationNames());
@@ -95,7 +114,9 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             const tempDir = mkdtempSync(join(tmpdir(), 'food-migrate-'));
             writeFileSync(join(tempDir, '0000_noop.sql'), 'SELECT 1;');
 
-            await expect(runMigrations({ pool, migrationsDir: tempDir })).rejects.toThrow(/tables missing/i);
+            await expect(
+                runMigrations({ pool, migrationsDir: tempDir, expectManifestSha: readMigrationManifest(tempDir).sha }),
+            ).rejects.toThrow(/tables missing/i);
         });
     });
 
@@ -111,6 +132,12 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
 
             return url.toString();
         };
+
+        // U38: a per-PR database is CLONED from the base, so the base must exist here as it does on a
+        // deployed stage. Bootstrapped explicitly rather than relying on another suite having run first.
+        beforeAll(async () => {
+            await ensureSeededBaseDatabase();
+        });
 
         beforeEach(async () => {
             await dropDatabase({ maintenancePool, databaseName: perPrName });
@@ -130,19 +157,38 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             );
         });
 
-        it('creates the per-PR database, is idempotent, migrates into it, then drops it', async () => {
-            expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('created');
+        /**
+         * ⚠️ REWRITTEN for U38, not relaxed. This used to assert `'created'` and a full `applied` list —
+         * the shape of an EMPTY database being migrated from nothing. A per-PR database is now cloned
+         * from the seeded base, so it arrives WITH the base's `schema_migrations` history and the run
+         * that follows correctly applies nothing. The warm-start guarantee itself (the base's ROWS
+         * arriving, and the loud failure when the template is held) is proven in
+         * `migrateTemplateClone.integration.test.ts`; what this case still owns is the LIFECYCLE —
+         * clone, idempotent re-invoke, migrate into it, force-drop, idempotent re-drop.
+         */
+        it('clones the per-PR database, is idempotent, migrates into it, then drops it', async () => {
+            expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('cloned');
             // Re-invoke is a no-op.
             expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('exists');
 
-            // Migrate INTO the freshly created per-PR database (a separate connection).
-            const perPrPool = new pg.Pool({ connectionString: perPrConnectionString() });
+            // Migrate INTO the freshly cloned per-PR database (a separate connection).
+            // ⚠️ Not a bare `new pg.Pool`. Three lines down this database is dropped WITH (FORCE), and
+            // `pool.end()` resolves before the backend is actually gone — so the drop can terminate a
+            // socket that is still closing and `pg` raises it as an unhandled pool-level error, failing a
+            // run whose tests all passed. Measured in recipe-service; the same shape lives here.
+            const perPrPool = poolForDroppableDatabase(perPrConnectionString());
 
             try {
-                const result = await runMigrations({ pool: perPrPool, migrationsDir: sourceMigrationsDir });
+                const result = await runMigrations({
+                    pool: perPrPool,
+                    migrationsDir: sourceMigrationsDir,
+                    expectManifestSha: readMigrationManifest(sourceMigrationsDir).sha,
+                });
 
-                // The runner discovers the full ordered set — every `.sql` in the directory, no exceptions.
-                expect(result.applied).toEqual(expectedMigrationNames());
+                // The runner discovers the full ordered set — every `.sql` in the directory, no exceptions
+                // — and finds every one of them already recorded, carried over by the clone.
+                expect(result.skipped).toEqual(expectedMigrationNames());
+                expect(result.applied).toEqual([]);
                 expect(result.validated.tables).toBeGreaterThanOrEqual(13);
             } finally {
                 await perPrPool.end();

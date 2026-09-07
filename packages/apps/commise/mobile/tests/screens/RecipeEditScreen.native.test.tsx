@@ -48,6 +48,15 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
 });
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
+    // U16: the create-your-own-food mutation the picker now reads — inert idle default.
+    useCreateAuthoredFoodViaPicker: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
     useRecipe: vi.fn(),
     useUpdateRecipe: vi.fn(),
     useSuggestIngredients: vi.fn(),
@@ -64,6 +73,23 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useIngredientStatus: () => ({ data: undefined }),
     useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
     useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
+    useSearchIngredientsLive: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
+    // U14 — the picker mounted inside this screen now also mounts the CORRECTION command. A module mock that
+    // omits a hook the tree calls fails the whole render, so this list must name every hook mounted below it.
+    // Inert here on purpose: the correction's own states are covered in
+    // `tests/components/IngredientPickerCorrection.native.test.tsx`.
+    useRecordIngredientCorrection: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+        data: undefined,
+    }),
     // The screen now mounts the RecipePhotoUploader below the editor; stub its photo hooks so the screen's
     // own render paths (this suite) don't reach the network. The uploader has its own dedicated test.
     useRecipePhotos: vi.fn(),
@@ -165,7 +191,6 @@ function toVersionConflictSide(detail: RecipeDetail): VersionConflictSide {
 
     return {
         versionNumber: detail.currentVersion,
-        deviceLabel: 'iPhone',
         updatedAt: '2026-05-09T14:30:00.000Z',
         snapshot,
     };
@@ -179,14 +204,14 @@ function conflictError(currentVersion: number, conflictingVersion: number, their
 }
 
 /**
- * Navigate the (seeded, valid) edit wizard to step 4 (Photos) and click the footer Publish primary. U6 moved
+ * Navigate the (seeded, valid) edit wizard to step 4 (Review) and click the action bar's Publish primary.
  * Publish from an always-present top-bar button to the ONE contextual footer primary, live only on step 4;
- * every seeded edit fixture here is fully valid, so the `Next` footer primary advances cleanly to Photos.
+ * Every seeded edit fixture here is fully valid, so `Next` advances cleanly to Review.
  */
 function publish(): void {
     fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
     fireEvent.click(screen.getByLabelText(/Next: Instructions/));
-    fireEvent.click(screen.getByLabelText(/Next: Photos/));
+    fireEvent.click(screen.getByLabelText(/Next: Review/));
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 }
 
@@ -374,7 +399,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         publish();
 
         expect(await screen.findByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
-        expect(screen.getByText(/^Server version \(v5\): Saved .* on iPhone$/)).toBeTruthy();
+        expect(screen.getByText(/^Server version \(v5\): Saved .*ago$/u)).toBeTruthy();
         expect(screen.getByText('Your version: local unsaved changes')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Keep server version' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Overwrite with your version' })).toBeTruthy();

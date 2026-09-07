@@ -4,7 +4,7 @@
  * @module auth/LogoutButton — the web sign-out control (U3).
  *
  * The orchestration half of the sign-out surface: it owns only the control's own state (busy, error) and
- * issues the app's one sign-out command, {@link import('./useSignOutAndLeave.js').useSignOutAndLeave} —
+ * issues the app's one sign-out command, `useSignOutAndLeave` —
  * which owns the mechanism (Clerk's load-safe `signOut`), the ordering (await the revoke, THEN replace the
  * document), and the post-condition that the session really ended. Read that module before changing anything
  * here; the post-condition guards a real, observed security defect (B23), not a hypothetical one.
@@ -12,6 +12,9 @@
  * B17/B23 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never
  * swallowed: the busy state is released and a localized alert appears, so the control is retryable instead of
  * marching the viewer to the public page on a session that is still live.
+ *
+ * @pattern Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the
+ *     ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and error.
  */
 import { useState } from 'react';
 import { Button } from '@commise/ui/button';

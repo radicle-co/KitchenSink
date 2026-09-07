@@ -1,4 +1,4 @@
-import type { APIGatewayProxyEvent, Context } from 'aws-lambda';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
@@ -90,13 +90,29 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-    process.env.AUTH_SECRET_ARN = 'sk_test_dummy';
-    process.env.IDP_WEBHOOK_SECRET = 'whsec_dummy';
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:000:secret:db';
-    process.env.DELETION_QUEUE_URL = 'http://localhost:4566/queue/identity-deletions';
+    process.env['AUTH_SECRET_ARN'] = 'sk_test_dummy';
+    process.env['IDP_WEBHOOK_SECRET'] = 'whsec_dummy';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:000:secret:db';
+    process.env['DELETION_QUEUE_URL'] = 'http://localhost:4566/queue/identity-deletions';
 });
 
 const ctx = { getRemainingTimeInMillis: () => 5000 } as Context;
+
+/**
+ * `aws-lambda`'s `Handler` declares three parameters and returns `void | Promise<TResult>`, so calling it as
+ * `handler(event, ctx)` and reading `result.statusCode` is a type error even though it is exactly how the
+ * runtime invokes an async handler. Narrowed through the same alias
+ * `src/handlers/__tests__/identityWebhook.test.ts` already uses, rather than a new form — this tier simply
+ * never had a typecheck project to make the mismatch visible (12 x TS2554 plus 5 x TS2339).
+ */
+type TestHandler = (event: APIGatewayProxyEvent, context: Context) => Promise<APIGatewayProxyResult>;
+
+/** Load the webhook handler under the narrowed call signature. @sideEffect Dynamically imports the module. */
+const loadWebhookHandler = async (): Promise<TestHandler> => {
+    const { handler } = await import('../../../src/handlers/identityWebhook.js');
+
+    return handler as unknown as TestHandler;
+};
 
 const makeWebhookEvent = (svixId: string, body: object): APIGatewayProxyEvent =>
     ({
@@ -124,7 +140,7 @@ describe('e2e: identityWebhook Lambda', () => {
             kind: 'complete',
             user: { id: '01USERCREATED0000000000000' },
         } as never);
-        const { handler } = await import('../../../src/handlers/identityWebhook.js');
+        const handler = await loadWebhookHandler();
 
         const event = makeWebhookEvent('svix-create-1', {
             type: 'user.created',
@@ -148,7 +164,7 @@ describe('e2e: identityWebhook Lambda', () => {
 
     it('processes user.deleted → enqueues deletion job to SQS', async () => {
         mockRecordOnce.mockResolvedValueOnce(true);
-        const { handler } = await import('../../../src/handlers/identityWebhook.js');
+        const handler = await loadWebhookHandler();
 
         const event = makeWebhookEvent('svix-delete-1', {
             type: 'user.deleted',
@@ -165,7 +181,7 @@ describe('e2e: identityWebhook Lambda', () => {
 
     it('is idempotent on duplicate svix-id (no re-processing)', async () => {
         mockHasProcessed.mockResolvedValueOnce(true);
-        const { handler } = await import('../../../src/handlers/identityWebhook.js');
+        const handler = await loadWebhookHandler();
 
         const event = makeWebhookEvent('svix-dup-1', {
             type: 'user.created',
@@ -184,7 +200,7 @@ describe('e2e: identityWebhook Lambda', () => {
         vi.mocked(svix.verifyWebhook).mockImplementationOnce(() => {
             throw new Error('signature mismatch');
         });
-        const { handler } = await import('../../../src/handlers/identityWebhook.js');
+        const handler = await loadWebhookHandler();
 
         const event = makeWebhookEvent('svix-bad-1', {
             type: 'user.created',

@@ -6,12 +6,109 @@
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
-        ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
         "./database-name": {
             "types": "./dist/recipeDatabaseName.d.ts",
             "default": "./dist/recipeDatabaseName.js"
+        },
+        "./food-name": {
+            "types": "./dist/foodName.d.ts",
+            "default": "./dist/foodName.js"
+        },
+        "./resolution/normalized-key": {
+            "types": "./dist/resolution/normalizedKey.d.ts",
+            "default": "./dist/resolution/normalizedKey.js"
+        },
+        "./resolution/ranking-terms": {
+            "types": "./dist/resolution/rankingTerms.d.ts",
+            "default": "./dist/resolution/rankingTerms.js"
+        },
+        "./resolution/band-authority-store": {
+            "types": "./dist/resolution/bandAuthorityStore.d.ts",
+            "default": "./dist/resolution/bandAuthorityStore.js"
+        },
+        "./resolution/band-policy": {
+            "types": "./dist/resolution/bandPolicy.d.ts",
+            "default": "./dist/resolution/bandPolicy.js"
+        },
+        "./resolution/ranking-tiers": {
+            "types": "./dist/resolution/rankingTiers.d.ts",
+            "default": "./dist/resolution/rankingTiers.js"
+        },
+        "./resolution/verification-prompt": {
+            "types": "./dist/resolution/verificationPrompt.d.ts",
+            "default": "./dist/resolution/verificationPrompt.js"
+        },
+        "./resolution/verification-verdict": {
+            "types": "./dist/resolution/verificationVerdict.d.ts",
+            "default": "./dist/resolution/verificationVerdict.js"
+        },
+        "./parsing/parse-job-message": {
+            "types": "./dist/parsing/parseJobMessage.d.ts",
+            "default": "./dist/parsing/parseJobMessage.js"
+        },
+        "./parsing/parse-job-text": "./dist/parsing/parseJobText.js",
+        "./parsing/parse-job-aggregate": "./dist/parsing/parseJobAggregate.js",
+        "./parsing/parse-retry-prompt": {
+            "types": "./dist/parsing/parseRetryPrompt.d.ts",
+            "default": "./dist/parsing/parseRetryPrompt.js"
+        },
+        "./parsing/foodness-prompt": {
+            "types": "./dist/parsing/foodnessPrompt.d.ts",
+            "default": "./dist/parsing/foodnessPrompt.js"
+        },
+        "./parsing/foodness-answer": {
+            "types": "./dist/parsing/foodnessAnswer.d.ts",
+            "default": "./dist/parsing/foodnessAnswer.js"
+        },
+        "./resolution/verification-gate-policy": {
+            "types": "./dist/resolution/verificationGatePolicy.d.ts",
+            "default": "./dist/resolution/verificationGatePolicy.js"
+        },
+        "./resolution/verification-message": {
+            "types": "./dist/resolution/verificationMessage.d.ts",
+            "default": "./dist/resolution/verificationMessage.js"
+        },
+        "./resolution/verification-key": {
+            "types": "./dist/resolution/verificationKey.d.ts",
+            "default": "./dist/resolution/verificationKey.js"
+        },
+        "./resolution/confidence": {
+            "types": "./dist/resolution/confidence.d.ts",
+            "default": "./dist/resolution/confidence.js"
+        },
+        "./resolution/search-minimum": {
+            "types": "./dist/resolution/searchMinimum.d.ts",
+            "default": "./dist/resolution/searchMinimum.js"
+        },
+        "./parsing/parse-key": {
+            "types": "./dist/parsing/parseKey.d.ts",
+            "default": "./dist/parsing/parseKey.js"
+        },
+        "./spend/spend-arithmetic": {
+            "types": "./dist/spend/spendArithmetic.d.ts",
+            "default": "./dist/spend/spendArithmetic.js"
+        },
+        "./parsing/parse-prompt": {
+            "types": "./dist/parsing/parsePrompt.d.ts",
+            "default": "./dist/parsing/parsePrompt.js"
+        },
+        "./parsing/parse-answer": {
+            "types": "./dist/parsing/parseAnswer.d.ts",
+            "default": "./dist/parsing/parseAnswer.js"
+        },
+        "./analytics/event-payload": {
+            "types": "./dist/analytics/eventPayload.d.ts",
+            "default": "./dist/analytics/eventPayload.js"
         }
     },
-    "dependencies": { "zod": "^4.4.3" },
-    "engines": { "node": "24.x" }
+    "dependencies": {
+        "zod": "^4.4.3"
+    },
+    "engines": {
+        "node": "24.x"
+    }
 }

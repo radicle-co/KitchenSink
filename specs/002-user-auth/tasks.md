@@ -7,6 +7,15 @@
 
 ---
 
+> ⚠️ **URL prefix normalized 2026-08-12 (GR-002 AC-002-a).** This file previously carried bare `/v1/*`
+> endpoint references. The canonical path is **`/api/v1/*`** and that is what all three services serve. ⛔ This is
+> **not** a claim the bare form was removed from the running services: every endpoint ALSO answers on its original
+> bare `/v1/*` path as a **DEPRECATED ALIAS**, because consumers outside this repository hold those URLs (the Clerk
+> dashboard webhook, already-shipped mobile builds, cached web bundles with build-time-inlined endpoints).
+> Retiring the alias has an ordered prerequisite list — see
+> [ADR-0011](../../docs/architecture/decisions/0011-api-version-prefix.md). Specs cite the canonical path; the
+> alias stays in code until that list is worked through.
+
 ## User Story Reference
 
 | US     | Title                                              | FR Coverage    | Priority |
@@ -51,9 +60,14 @@ T-053 → T-084[P] → T-085[P]
 T-053 → T-086[P]
 T-021 → T-087[P]
 T-030 → T-089[P]
+
+[Phase 8 — Contract Ownership, Validation & the Client Half (GR-015/016/017)]
+T-030 → T-092[P] ─┐
+T-089 → T-091[P] ─┴─→ T-093[P] → T-094[P]
+T-020, T-021 → T-095[P]
 ```
 
-**Parallelizable tasks ([P])**: T-001, T-010, T-020, T-024, T-030, T-039, T-040, T-050, T-055, T-060, T-064, T-070, T-081, T-084, T-085, T-086, T-087, T-089
+**Parallelizable tasks ([P])**: T-001, T-010, T-020, T-024, T-030, T-039, T-040, T-050, T-055, T-060, T-064, T-070, T-081, T-084, T-085, T-086, T-087, T-089, T-091, T-092, T-093, T-094, T-095
 
 ---
 
@@ -175,11 +189,21 @@ T-030 → T-089[P]
     - Build Node 24.x Lambda handler (no NestJS) for API Gateway REQUEST authorizer. Validate JWT signature/issuer/audience/expiry via JWKS. Inject canonical `userId` into authorizer context. Enforce suspension by returning deny policy for blocked/suspended users.
     - **Acceptance**: Valid token ⇒ allow+context; invalid/missing token ⇒ 401; suspended ⇒ 403.
 
-- [x] **T-089** [P] [US-005] Generate OpenAPI 3.1 contract for identity API — `contracts/identity-api.openapi.json`
+- [x] **T-089** [P] [US-005] ~~Generate OpenAPI 3.1 contract for identity API~~ — **SUPERSEDED** by `packages/schemas/identity/openapi.yaml`
     - **Depends on**: T-030
     - **Implements**: FR-038, FR-039, NFR-001
-    - Generate OpenAPI 3.1 spec from NestJS controllers + Zod schemas. Validate all endpoints have request/response schemas, error codes, and auth requirements. Publish to `contracts/identity-api.openapi.json`.
-    - **Acceptance**: Contract covers all public endpoints; validated against spec.md FR-038..FR-040.
+    - **⛔ SUPERSEDED 2026-08-12 — do NOT regenerate or extend `contracts/identity-api.openapi.json`.** This task published a **hand-maintained** OpenAPI document at `specs/002-user-auth/contracts/identity-api.openapi.json` (**262 lines, 7 paths**, verified by nothing). The identity service's **derived** document now exists at **`packages/schemas/identity/openapi.yaml`** (**760 lines, 10 paths** — ⚠️ re-measured 2026-08-12; this line said **716**, which was the figure a day earlier, and a **generated** document's line count moves whenever the authored zod does, so `wc -l` it rather than quoting), generated from the zod the service authors at `packages/services/identity/src/**/*.schema.ts` and guarded by the regenerate-and-diff CI gate.
+    - **⚠️ CODING_STANDARDS §15.2(6) / GR-015 §15-a.7: one contract document per service, and it REPLACES its hand-written predecessor.** A generated document living alongside a hand-maintained one makes the problem worse, because two artifacts both claim to be normative and only one is verified. Where the two disagree, **the service's zod wins** — always.
+    - **⚠️ `plan.md`'s _Status — IN PROGRESS_ is stale on this point.** It records that "`packages/schemas/identity` does not exist yet, and no `openapi.yaml` exists for any service in this repo." Both halves are **no longer true**: all three schema packages exist with derived documents (⚠️ re-measured 2026-08-12 — **recipe 5,700 / food 1,134 / identity 760** lines, correcting the **4,945 / 922 / 716** this line carried from the day before; all three are **generated**, so treat any line count in prose as a timestamp, not a fact). That correction belongs to `plan.md`'s owner; this note is the record.
+    - **Acceptance (historical)**: the hand-written contract covered the then-public endpoints. **Superseding it is T-091.**
+
+- [ ] **T-091** [P] [US-005] Mark the hand-written identity contracts superseded and repoint every citation — `specs/002-user-auth/contracts/`, `packages/services/identity/src/`
+    - **Depends on**: T-089
+    - **Implements**: FR-038, FR-039, GR-015 §15-a.7/AC-015-f, CODING_STANDARDS §15.2(6)
+    - **Acceptance**: `contracts/identity-api.openapi.json` carries a **superseded notice** naming `packages/schemas/identity/openapi.yaml` as the normative document, and so do the seven hand-written TS contract files beside it (`user.ts`, `auth-session.ts`, `authorizer.ts`, `deletion.ts`, `errors.ts`, `post-reg.ts`, `reconciliation.ts`) — all of which are **hand-maintained and verified by nothing**. Every citation that treats the hand-written document as authoritative is repointed at the derived one. **No new surface is added to any of them**, and CI does not regenerate them.
+    - **⚠️ Verified citation inventory (2026-08-12)**: `identity-api.openapi.json` is referenced from `specs/governance-rules.md`, `specs/cross-feature-burndown.md`, `specs/002-user-auth/plan.md`, `specs/002-user-auth/pre-impl-review.md`, `specs/002-user-auth/verify-report.md` and this file. **No file under `packages/` cites it**, so unlike 001's `api.openapi.yaml` (31 files under `packages/`) there is **no source-code repointing** to do here — only documents, and four of them are owned outside this task list.
+    - **⛔ Do NOT delete the hand-written files in this task.** They remain the historical record until their citations are repointed; deleting them first turns every citation into a dead link.
+    - **Tests**: unit (a `git ls-files`-based assertion that no file under `packages/` cites `identity-api.openapi.json` as authority, so the state this task establishes cannot silently regress) **AND** integration (the regenerate-and-diff gate `scripts/contractDriftGate.mjs` proves `packages/schemas/identity/openapi.yaml` is reproducible from the service's `*.schema.ts` — which is the property the hand-written document never had).
 
 ---
 
@@ -187,19 +211,19 @@ T-030 → T-089[P]
 
 > Covers FR-018..FR-021: profile read, display name + avatar update, avatar validation.
 
-- [x] **T-031** [US-006] Implement `GET /v1/users/me` profile read path — `packages/services/identity/src/users/users.controller.ts`
+- [x] **T-031** [US-006] Implement `GET /api/v1/users/me` profile read path — `packages/services/identity/src/users/users.controller.ts`
     - **Depends on**: T-030, T-020
     - **Implements**: REQ-018, FR-018, ARCH-013, ARCH-015, MOD-013, MOD-015
     - Resolve caller identity from authorizer context (`userId`). Fetch and return profile/account read model.
     - **Acceptance**: Authenticated user gets own profile payload; no anonymous access.
 
-- [x] **T-032** [US-006] Implement `PATCH /v1/users/me` account/profile update path — `packages/services/identity/src/users/users.controller.ts`
+- [x] **T-032** [US-006] Implement `PATCH /api/v1/users/me` account/profile update path — `packages/services/identity/src/users/users.controller.ts`
     - **Depends on**: T-031
     - **Implements**: REQ-019, REQ-020, REQ-021, REQ-CN-005, FR-019, FR-020, FR-021, ARCH-014, ARCH-015, MOD-014, MOD-015
     - Support display name and avatar URL updates with validation. Return updated representation with consistent timestamps.
     - **Acceptance**: Valid updates persist; invalid payloads return deterministic 4xx errors.
 
-- [x] **T-032b** [P] [US-006] Implement avatar upload validation endpoint — `packages/services/identity/src/users/avatar-upload.controller.ts`
+- [x] **T-032b** [P] [US-006] Implement avatar upload validation endpoint — `packages/services/identity/src/users/avatarUpload.controller.ts`
     - **Depends on**: T-030
     - **Implements**: FR-022, REQ-021
     - Accept multipart/form-data avatar uploads with MIME-type validation (JPEG, PNG, WebP). Enforce 5 MB file-size limit and virus scan stub. Return deterministic 4xx errors for invalid uploads.
@@ -209,7 +233,7 @@ T-030 → T-089[P]
     - **Depends on**: T-031, T-051
     - **Implements**: FR-018, REQ-018, ARCH-013, MOD-013
     - **Visual reference**: [`docs/mockups/screens/screen-profile.html`](../../docs/mockups/screens/screen-profile.html) · design tokens from [`docs/mockups/README.md`](../../docs/mockups/README.md)
-    - Wire UI route to `GET /v1/users/me`. Display read-only profile data (no edit form).
+    - Wire UI route to `GET /api/v1/users/me`. Display read-only profile data (no edit form).
     - **Acceptance**: Profile page renders canonical API response.
 
 - [x] **T-054** [US-006] Build web account edit + deletion integration — `apps/web/src/app/(protected)/account/`
@@ -238,13 +262,13 @@ T-030 → T-089[P]
 
 > Covers FR-022..FR-026: DB cascade delete, async IdP deletion via SQS, retry/DLQ, cascade to user-owned data.
 
-- [x] **T-022** [US-007] Implement async deletion-worker Lambda (SQS consumer) — `packages/services/identity-webhooks/src/handlers/deletion-worker.ts`
+- [x] **T-022** [US-007] Implement async deletion-worker Lambda (SQS consumer) — `packages/services/identity-webhooks/src/handlers/deletionWorker.ts`
     - **Depends on**: T-012
     - **Implements**: REQ-025, REQ-026, REQ-IF-005, REQ-CN-001, FR-025, FR-026, ARCH-017, MOD-017
     - Consume deletion messages from SQS queue. Retry IdP delete with exponential backoff policy; move to DLQ after 5 receives.
     - **Acceptance**: Transient IdP failures retry correctly; permanent failures land in DLQ.
 
-- [x] **T-033** [US-007] Implement `DELETE /v1/users/me` with cascade + async delete enqueue — `packages/services/identity/src/users/users.controller.ts`
+- [x] **T-033** [US-007] Implement `DELETE /api/v1/users/me` with cascade + async delete enqueue — `packages/services/identity/src/users/users.controller.ts`
     - **Depends on**: T-030, T-022
     - **Implements**: REQ-022, REQ-023, REQ-024, REQ-025, REQ-026, REQ-CN-004, REQ-IF-005, FR-022, FR-023, FR-024, FR-025, FR-026, ARCH-016, ARCH-017, MOD-016, MOD-017
     - Execute DB deletion transaction (user-owned cascades). Publish deletion job to SQS for IdP delete worker. Return safe completion response and revoke local session contract.
@@ -310,7 +334,11 @@ T-030 → T-089[P]
 
 > Covers FR-029..FR-031 — explicitly excluded per spec.md §Out of Scope. Task retained for dependency chain numbering only.
 
-- [ ] ~~**T-035**~~ [US-011] ~~MFA enrollment/management support endpoints~~ **[DEPRECATED — OUT OF SCOPE]** — `packages/services/identity/src/`
+- [x] ~~**T-035**~~ [US-011] ~~MFA enrollment/management support endpoints~~ **[CLOSED — OUT OF SCOPE, no work owed]** — `packages/services/identity/src/`
+    - **Closed 2026-08-08.** Ticked to mean _resolved_, not _implemented_: MFA is excluded by `spec.md`
+      §Out of Scope, and this entry exists only to keep the dependency-chain numbering contiguous. It was left
+      unchecked, which made feature 002 read as 56/57 complete and invited someone to "finish" a task that has
+      no deliverable.
     - **Depends on**: T-030
     - **Implements**: _(None — MFA is out of scope per spec.md §Out of Scope)_
     - > Do not implement. Retained for dependency chain numbering only.
@@ -340,25 +368,25 @@ T-030 → T-089[P]
     - Initialize `packages/services/identity/infra/` with CDK app entrypoint for ECS service + domain stacks. Initialize `packages/services/identity-webhooks/infra/` with CDK app entrypoint for Lambda/API Gateway stacks. Register npm workspace scripts and Turbo tasks for synth/deploy/dev-local flows. Add environment contract docs for dev/staging/prod IdP tenants and AWS accounts.
     - **Acceptance**: `npm run turbo -- filter infra/identity` targets resolve; package is self-contained in this repo.
 
-- [x] **T-011** [INFRA] Implement NetworkStack (VPC, subnets, SGs, routing) — `packages/services/identity/infra/lib/network-stack.ts`
+- [x] **T-011** [INFRA] Implement NetworkStack (VPC, subnets, SGs, routing) — `packages/services/identity/infra/lib/NetworkStack.ts`
     - **Depends on**: T-010
     - **Implements**: REQ-050, REQ-IF-007, REQ-CN-007, FR-038, ARCH-031, MOD-031
     - CDK `NetworkStack` with VPC/subnets/security groups for ECS service + DB connectivity. Define ingress path ALB → ECS and controlled egress for IdP Backend API calls. Export stack outputs consumed by `IdentityServiceStack` and `DataStack`.
     - **Acceptance**: `cdk synth` emits NetworkStack resources and cross-stack exports with no unresolved refs.
 
-- [x] **T-012** [INFRA] Implement DataStack (RDS, SQS+DLQ, S3, secrets) — `packages/services/identity/infra/lib/data-stack.ts`
+- [x] **T-012** [INFRA] Implement DataStack (RDS, SQS+DLQ, S3, secrets) — `packages/services/identity/infra/lib/DataStack.ts`
     - **Depends on**: T-011
     - **Implements**: REQ-013, REQ-014, REQ-017, REQ-025, REQ-026, REQ-050, REQ-IF-007, REQ-CN-007, FR-013, FR-014, FR-017, FR-025, FR-026, ARCH-017, ARCH-031, MOD-017, MOD-031
     - CDK `DataStack` resources: RDS PostgreSQL 16 (`db.t4g.micro`), SQS deletion queue + DLQ (`maxReceiveCount=5`), S3 bucket(s) required by feature boundary, Secrets Manager entries for DB/IdP credentials. Enable `pg_trgm` extension bootstrap migration hooks in deployment plan.
     - **Acceptance**: Synth shows RDS/SQS/DLQ/S3/secrets defined; queue redrive policy correct.
 
-- [x] **T-013** [INFRA] Implement IdentityServiceStack (ECR, ECS/Fargate, ALB, IAM) — `packages/services/identity/infra/lib/identity-service-stack.ts`
+- [x] **T-013** [INFRA] Implement IdentityServiceStack (ECR, ECS/Fargate, ALB, IAM) — `packages/services/identity/infra/lib/IdentityServiceStack.ts`
     - **Depends on**: T-011, T-012
     - **Implements**: REQ-018, REQ-019, REQ-020, REQ-021, REQ-022, REQ-023, REQ-024, REQ-035, REQ-036, REQ-037, REQ-038, REQ-050, FR-018..FR-024, FR-036..FR-040, ARCH-015, ARCH-016, ARCH-026, ARCH-031, MOD-015, MOD-016, MOD-026, MOD-031
     - CDK `IdentityServiceStack`: ECR repo and image deployment pipeline hooks, ECS task/service (Fargate) for NestJS identity API (Node 24), ALB + target group + health checks, IAM role policies for DB/SQS/secrets access, CloudWatch log group and alarm wiring.
     - **Acceptance**: Synth includes ECS service reachable through ALB; IAM least-privilege policies in place.
 
-- [x] **T-014** [INFRA] Implement WebhooksStack boundary (CDK owns Lambda + REST API + authorizer) — `packages/services/identity-webhooks/infra/lib/webhooks-stack.ts`
+- [x] **T-014** [INFRA] Implement WebhooksStack boundary (CDK owns Lambda + REST API + authorizer) — `packages/services/identity-webhooks/infra/lib/WebhooksStack.ts`
     - **Depends on**: T-012, T-013
     - **Implements**: REQ-039, REQ-040, REQ-042, REQ-050, REQ-IF-007, REQ-IF-009, FR-038, FR-039, FR-040, FR-042, ARCH-024, ARCH-031, MOD-024, MOD-031
     - In CDK `WebhooksStack`, define Lambda functions and API Gateway REST resources. Wire REQUEST authorizer Lambda to protected routes. Ensure ALB-backed identity API routes are integrated through API Gateway mapping. All infrastructure is CDK-owned; no Serverless Framework or `serverless.yml` references.
@@ -472,7 +500,7 @@ T-030 → T-089[P]
     - Wire CI jobs for all new workspaces and localstack-backed e2e stage. Add performance benchmark gates (NFR-011a): CI MUST fail if token refresh >500ms P99, profile endpoint >1s P99, or webhook processing >2s P99. Test split: `@kitchensink/identity-service` exposes `npm test` (unit/integration, Vitest, excluding LocalStack e2e); `@kitchensink/identity-webhooks` exposes `npm test` (unit); root e2e target exercises LocalStack stack.
     - **Acceptance**: CI validates strict typing/lint/tests across shared, infra, webhook, service, web, and mobile packages.
 
-- [x] **T-088** [QUALITY] Add feature flag for staged rollout — `packages/services/identity/src/config/feature-flags.ts`
+- [x] **T-088** [QUALITY] Add feature flag for staged rollout — `packages/services/identity/src/config/featureFlags.ts`
     - **Depends on**: T-083
     - **Implements**: NFR-001, NFR-014
     - Implement feature flag `auth-v2-rollout` with percentage-based traffic split. Staged rollout: 10% → 50% → 100% over 2-week period. Fallback to legacy auth path if flag disabled or error.
@@ -486,9 +514,57 @@ T-030 → T-089[P]
 
 ---
 
+## Contract Ownership, Validation & the Client Half (GR-015, GR-016, GR-017)
+
+> ⚠️ **The service half of this is largely LANDED; the client half has never had a task.** Re-measured 2026-08-12:
+> `packages/schemas/identity` exists (5 authored schema files, `openapi.yaml` **760 lines / 10 paths**) and the
+> service carries **11** `ZodValidationPipe` references and **10** classes extending `createZodDto` across 6 files.
+> ⚠️ **Both figures here have now been wrong twice** — this line said "716 lines" and "**6** pipes / **6** DTOs, up
+> from 3/4", and the 3/4 pair before that. Adoption is climbing daily, so **run the count**; do not quote a
+> paragraph. What has **no** task is the consumer obligation — GR-017 §17-e.12's failure mode, and the portfolio's
+> most common violation.
+
+- [ ] **T-092** [P] [US-005] Verify the identity contract's three drift gates, including the `CONTRACT_HASH` boot assertion — `packages/services/identity/src/main.ts`, `packages/services/identity/package.json`, `turbo.json`
+    - **Depends on**: T-030
+    - **Implements**: FR-038, FR-039, GR-015 §15-c, GR-017 §17-a.2/§17-a.4
+    - **Acceptance**: All three layers are wired and each is proven by a test, because each catches what the others cannot. **(1) Rebuild** — `turbo.json` gives `@kitchensink/schema-identity#build` `$TURBO_ROOT$`-anchored **`inputs`** covering `packages/services/identity/src/**/*.schema.ts`. **(2) Correctness** — `contract:generate` is declared so `scripts/contractOwners.mjs` `discoverContractOwners` finds the service **with no list edit**, and `npm run contract:verify` regenerates and fails on any diff. **(3) Skew** — the service asserts `CONTRACT_HASH` equality against `@kitchensink/schema-identity` **at boot** and **refuses to start** on mismatch, **before** the HTTP listener binds.
+    - **⛔ NOT `dependsOn`** — `schema-<service>#build` `dependsOn` `<service>#build` closes the cycle `client → schema → service → client` and turbo rejects the graph. The generated files are committed, so ordering was never the requirement; content-hashed `inputs` are.
+    - **⚠️ The boot assertion is the layer that matters for a released mobile binary**, which cannot be updated in step with a backend deploy — invisible to both the rebuild and the CI gate.
+    - **Tests**: unit (`src/__tests__/buildInputs.test.ts` and `src/__tests__/mainBootOrder.test.ts`, modelled on `packages/services/recipe-service/src/__tests__/{build-inputs,main-boot-order}.test.ts`) **AND** integration (`scripts/contractDriftGate.mjs` clean on a fresh checkout, red on a hand-edited schema package; boot with a skewed hash binds no port).
+
+- [ ] **T-093** [P] [US-006] Move every identity wire shape out of the consumer and into `@kitchensink/schema-identity` — `packages/apps/commise/features/account/src/`
+    - **Depends on**: T-091, T-092
+    - **Implements**: FR-018..FR-021, GR-015 §15-b.2/§15-b.3/§15-b.4, GR-017 §17-b.1/§17-b.2
+    - **⚠️ 002's consumer is an APP-FEATURE package, and GR-015 §15-b.4 binds it identically** — the rule is about **who authors a wire shape**, not which directory it sits in. `ProfileServiceClient` in `@commise/features-account` is where identity's wire shapes currently land.
+    - **Acceptance**: The consumer imports its wire **types and runtime zod** from `@kitchensink/schema-identity` and declares **no** identity request/response body type, including type-only. `DeleteAccountResult` and every profile/account response shape are **wire** shapes and move to the schema package; what stays in the consumer's own `types.ts` is genuinely client-side — base URL and fetch config, `TokenSource`, request options, its own error shapes. A divergent consumer shape (the settings form model, a redacted profile view) is **DERIVED** with `Pick`/`Omit`/`Partial` over the wire type. Reference implementation: `packages/apps/commise/features/recipes/src/filters/model.ts`.
+    - **⚠️ Depends on an OPEN owner decision, and does NOT pre-empt it.** `plan.md` L246-250 asks: **(a)** introduce `packages/clients/identity` and have `@commise/features-account` wrap it, or **(b)** have `@commise/features-account` import `@kitchensink/schema-identity` directly and remain the only consumer. **Neither §15 nor any ADR decides it.** The obligations in this task are identical either way; only the file layout differs. ⚠️ If **(a)** is chosen, that new client also owes a **contract-skew guard** (`src/contractSkew.ts`, modelled on `packages/clients/{food-service,recipe-service}/src/contractSkew.ts`) and its own `src/__tests__/contractSkew.test.ts` — obligations option **(b)** does not create, since the schema package is then imported directly and pinned by the workspace.
+    - **Tests**: unit (each derived model asserted **assignable from** its wire parent, so a contract change breaks the derivation instead of drifting past it) **AND** integration (a parser-based guard over `git ls-files` asserting no client/app/feature file declares an identity wire shape, modelled on `packages/infra/global/__tests__/appServiceDependency.test.ts` — ⚠️ this repo-wide guard **does not exist yet**; see GR-017's enforcement table).
+
+- [ ] **T-094** [P] [US-006] Validate every identity response on receipt and every outbound body before the call — `packages/apps/commise/features/account/src/`
+    - **Depends on**: T-093
+    - **Implements**: FR-018..FR-021, GR-016 §16-c.2/§16-c.3, GR-017 §17-b.3/§17-b.4, §17-f (the **required** half)
+    - **Acceptance**: Every response body is parsed with `@kitchensink/schema-identity`'s runtime zod **at the moment it arrives**; every outbound body is validated against that zod **before** the call, so a malformed payload fails in the caller with a usable stack rather than as a remote `400`. A parse failure is a typed error naming the field, never a silent cast. **The account-deletion and suspension responses are the load-bearing cases** — a drifted field there either strands a user mid-erasure or shows an unsuspended UI for a suspended account.
+    - **⛔ Do NOT add server-side response validation.** GR-016 §16-g defers a **producing service** parsing what it **emits** — an owner decision, not an unfinished task. This task is the **consumer** parsing what it **received** (GR-017 §17-f); conflating the two is how contributors either skip the required half or add the forbidden one.
+    - **Tests**: unit (a response with a missing, renamed and wrong-typed field each raise the typed parse error; an invalid outbound body is rejected before any fetch) **AND** integration (a live identity response parses clean; a hand-skewed fixture does not) **AND** **vitest component tests for every consuming UI state on BOTH platforms** — loading, populated, save-failed, avatar-rejected, deletion-pending, suspended, response-unparseable **AND** **Playwright** (web, extending T-074/T-075) **AND** a **Maestro** flow per story (mobile) in lockstep (§14.1).
+
+- [ ] **T-095** [P] [US-004] ⛔ Keep Clerk's boundary schemas — the §15-d OPPOSITE case — and never converge them — `packages/services/identity-webhooks/src/handlers/`, `packages/shared/clerk-verify/src/`
+    - **Depends on**: T-020, T-021
+    - **Implements**: FR-036..FR-040, GR-015 §15-d, GR-016 §16-b, GR-017 §17-b.6
+    - **⛔ Clerk is an API the platform does NOT serve.** There is no service of ours to own its types, and Clerk versions its contract independently of us. Clerk's shapes **MAY** be declared locally, get **NO** OpenAPI document, and **must not** be folded into `@kitchensink/schema-identity` as though we owned them. The webhook's **own response** is ours and belongs in the schema package; the inbound Clerk payload does not.
+    - **Acceptance**: `identityWebhook.ts` verifies the **svix signature first** and validates the Clerk payload **shape second** — ⚠️ a signature proves **origin, not shape**, and a correctly signed payload whose fields moved, went null or gained a member is still an unvalidated body being written to the identity database. Both controls, in that order, never one instead of the other. ✅ This landed 2026-08-12 (`be0530a1`), hardened for an unrecognised deletion event by `c18a1765`; this task is the standing guard on it.
+    - **⛔ svix retries on ANY non-2xx**, so an invalid payload — signature **or** shape, **equally invalid**, differing only in a **`reason`** field on **one** rejection path — is answered **`2xx`** with the rejection in the response body, in structured logs, in a per-`reason` counter, and **alarmed** (GR-018 §18-a/§18-c). A `400` would request a retry storm of a payload that can never succeed. **Reject the content, accept the delivery.**
+    - **⛔ The rejected event is NOT recorded as a row.** `webhook_events.identity_id` is `text NOT NULL` (`packages/shared/identity-db/src/schema/webhookEvents.ts`), so recording a rejected payload forces an invented id — the `'unknown'` sentinel **GR-019 forbids outright**, and the exact string this repo has already had to remove from this handler. An unresolvable principal is a **rejection**, never a placeholder; the log line and the counter are **load-bearing**.
+    - **⛔ Deleting a Clerk boundary schema in the name of §15-b replaces a checked parse of an unauthenticated external body with unchecked trust — a security regression on this feature's most exposed surface**, not a cleanup. `packages/clients/usda/src/schemas.ts` is the reference implementation and must **NEVER** be touched in this rule's name.
+    - **Tests**: unit (each Clerk event schema rejects a renamed, missing, wrong-typed and null-valued field; a bad signature and a malformed body produce the **same** shape differing only in `reason`; neither writes a row) **AND** integration — **BOTH halves, per AC-018-c**: an **invalid** body yields **`2xx`** + the rejection recorded + the per-`reason` counter incremented + **no** row, **AND** a **valid** body still yields its normal success. ⚠️ Without the second half the test **passes on a handler that always returns `200`**.
+
+---
+
 ## Coverage Summary
 
-- **Total tasks**: 57 (T-001, T-002, T-010..T-015, T-020..T-024, T-030..T-041, T-050..T-056, T-060..T-066, T-070..T-075, T-080..T-090)
+- **Total tasks**: 61 (T-001, T-002, T-010..T-015, T-020..T-024, T-030..T-041, T-050..T-056, T-060..T-066, T-070..T-075, T-080..T-095)
+    - **Added 2026-08-12**: T-091 (supersede the hand-written contract), T-092 (verify the three drift gates),
+      T-093/T-094 (the client half — wire types out of the consumer, responses parsed on receipt), T-095 (Clerk's
+      §15-d boundary schemas). T-089 is retained as `[x]` and marked **superseded**, not deleted.
 - **Deprecated**: T-035 (MFA — out of scope)
 - **REQ coverage**: REQ-001..REQ-050 addressed across phases.
 - **FR coverage**: FR-001..FR-044 addressed across phases.

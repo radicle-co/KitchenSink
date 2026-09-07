@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/widget/web — web entry for the recipe Home widget.
  *
  * The `./widget/web` package export and the loader seam (`@commise/features-core`
- * {@link HomeWidgetDescriptor.load}) resolve to this module's default export. It composes the
+ * `HomeWidgetDescriptor.load`) resolve to this module's default export. It composes the
  * platform-neutral building-block barrel (which resolves to the web `*.tsx` leaves) into the
  * recent-recipes card.
  *
@@ -18,6 +18,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { Suspense, use, type FC } from 'react';
 
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import type { Recipe } from '@kitchensink/recipe-core';
 
 import { recipeMessages } from '../messages.js';
@@ -26,7 +27,7 @@ import {
     RecentRecipeGrid,
     RecipeWidgetCard,
     RecipeWidgetEmptyState,
-    RecipeWidgetSkeleton,
+    RecipeWidgetLoadingCard,
     toRecipeSummary,
 } from '../components/index.js';
 
@@ -43,25 +44,20 @@ export interface RecipeHomeWidgetProps {
      * host knows the platform's router and its locale-prefixed paths. Absent ⇒ the cards render inert.
      */
     readonly onSelectRecipe?: (id: string) => void;
+    /**
+     * Per-card calorie slot (ADR-0021). A RENDER PROP, so this widget stays a pure `props → JSX` leaf and
+     * never learns what a promise, a batch or a `QueryClient` is — the HOST owns the lookup, exactly as the
+     * `.native` leaf does. That split is also what keeps this component testable without a provider.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
-
-/** The card shown while the recipes promise is still pending — the Suspense fallback. */
-const RecipeHomeWidgetFallback: FC = () => {
-    const { widgetTitle } = useMessages(recipeMessages);
-
-    return (
-        <RecipeWidgetCard title={widgetTitle}>
-            <RecipeWidgetSkeleton itemCount={MAX_RECENT_RECIPES} />
-        </RecipeWidgetCard>
-    );
-};
 
 /**
  * Suspends on the recipes promise via `use`, then — as the orchestration step — SELECTS the render component:
  * the dedicated empty state when the viewer has none, else the mockup's recent-recipes card grid. The choice
  * lives here rather than as a mode prop on one component.
  */
-const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe }) => {
+const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe, renderNutrition }) => {
     const { widgetTitle } = useMessages(recipeMessages);
     const recent = use(recipesPromise).slice(0, MAX_RECENT_RECIPES).map(toRecipeSummary);
 
@@ -75,7 +71,7 @@ const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise, on
 
     return (
         <RecipeWidgetCard title={widgetTitle}>
-            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} />
+            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} renderNutrition={renderNutrition} />
         </RecipeWidgetCard>
     );
 };
@@ -83,10 +79,19 @@ const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise, on
 /**
  * The recipe Home widget (web): a `<Suspense>` boundary whose fallback is the skeleton card and whose
  * content suspends on the recipes promise — the loading state is declarative, not an `isLoading` branch.
+ *
+ * ⚠️ EVERY prop is threaded to the content component, `renderNutrition` included. The split into two
+ * functions across a Suspense hop is exactly where a prop goes missing without a compile error — the widget
+ * still accepts it, still type-checks, and renders identically to a surface that never supplied one, so the
+ * only thing that catches it is an assertion that the returned NODE reached a card.
  */
-const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe }) => (
-    <Suspense fallback={<RecipeHomeWidgetFallback />}>
-        <RecipeHomeWidgetContent recipesPromise={recipesPromise} onSelectRecipe={onSelectRecipe} />
+const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe, renderNutrition }) => (
+    <Suspense fallback={<RecipeWidgetLoadingCard />}>
+        <RecipeHomeWidgetContent
+            recipesPromise={recipesPromise}
+            onSelectRecipe={onSelectRecipe}
+            renderNutrition={renderNutrition}
+        />
     </Suspense>
 );
 

@@ -6,6 +6,106 @@
             "dependsOn": ["^build"],
             "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
         },
+        "@kitchensink/schema-recipe#build": {
+            // DRIFT LAYER 1 (Rebuild). This package is GENERATED OUTPUT: its zod, its `z.infer` types and its
+            // derived `openapi.yaml` are copied from the recipe service's authored `src/**/*.schema.ts`.
+            // The `$TURBO_ROOT$` INPUT below — not a `dependsOn` edge to the service — is what puts the
+            // service's authored sources inside turbo's hash for this task, so touching an authored schema
+            // invalidates the generated package instead of serving a stale cache hit. `dependsOn` is the
+            // intuitive spelling and it is UNAVAILABLE; see the paragraph below before reaching for it.
+            //
+            // NOTE THE DIRECTION: the service is the SOURCE and never imports this package.
+            //
+            // There is deliberately NO `dependsOn: ["@kitchensink/recipe-service#build"]` here, though that
+            // is the obvious spelling. It is UNAVAILABLE: `recipe-service` devDepends on
+            // `recipe-service-client` (its `__tests__/integration/contract/*` tier drives the real client
+            // against the booted app), and the client now depends on this package — so that edge closes
+            // client -> schema-recipe -> service -> client, which turbo rejects with "Cyclic dependency
+            // detected". Removing the service's devDependency would delete a genuine contract-test tier, so
+            // the edge is the thing that gives way, not the tier.
+            //
+            // Losing it costs nothing here, because ORDERING was never what layer 1 needed. The generated
+            // files are COMMITTED, so this package's `build` only compiles files already on disk — it does
+            // not run generation and therefore does not need the service built first. What layer 1 actually
+            // needs is CACHE INVALIDATION when an authored schema changes, and the `$TURBO_ROOT$` input
+            // below delivers exactly that (verified: editing an authored schema turns this task into a cache
+            // miss). Generation itself is the `contract:generate` task plus CI's regenerate-and-diff gate.
+            //
+            // ⚠️ `^build` IS NOT OPTIONAL AND IS NOT INHERITED. A package-task entry REPLACES the base `build`
+            // task rather than merging with it, so the first version of this block — which argued only about the
+            // SERVICE edge — silently dropped the ordinary "build my own workspace dependencies first" edge along
+            // with it. Measured with `--dry=json`: this task had `deps=[]` while `typecheck` (not overridden)
+            // still depended on `@kitchensink/recipe-core#build`, and that asymmetry was the tell. This package
+            // has a real runtime dependency on `@kitchensink/recipe-core` and its schemas import runtime values
+            // from it; it only compiled because recipe-core's DEV manifest exports `./src`, so `tsc` resolved
+            // source instead of a build output that had never been produced. `^build` restores that edge (and
+            // must stay on the other two, where the packages are zod-only today and the cost of the omission is
+            // therefore latent rather than live).
+            "dependsOn": ["^build"],
+            "inputs": [
+                "src/**",
+                "openapi.yaml",
+                "package.json",
+                "tsconfig*.json",
+                // The authored sources this package is generated FROM. Turbo resolves `$TURBO_ROOT$` to the
+                // repo root, which is what lets a task depend on files outside its own package — without it
+                // a relative `../../services/...` glob is silently ignored and the cache goes stale.
+                "$TURBO_ROOT$/packages/services/recipe-service/src/**/*.schema.ts"
+            ],
+            "outputs": ["dist/**"]
+        },
+        "@kitchensink/schema-food#build": {
+            // DRIFT LAYER 1 (Rebuild) for the food (INGREDIENT) contract — the same shape, and the same
+            // reasoning, as `@kitchensink/schema-recipe#build` above. This package is GENERATED OUTPUT copied
+            // from `packages/services/food-service/src/**/*.schema.ts`, and the `$TURBO_ROOT$` input is what puts
+            // those sources inside turbo's hash for this task: without it a relative `../../services/...` glob is
+            // silently ignored and an edited schema serves a stale cache hit.
+            //
+            // NOTE THE DIRECTION: the service is the SOURCE and never imports this package. There is deliberately
+            // no `dependsOn: ["@kitchensink/food-service#build"]` — `food-service` devDepends on
+            // `food-service-client` (its e2e tier drives the real client against the booted app) and the client
+            // now depends on this package, so that edge would close client -> schema-food -> service -> client,
+            // which turbo rejects outright. Ordering was never what layer 1 needed: the generated files are
+            // COMMITTED, so `build` only compiles what is already on disk. Generation is `contract:generate`, and
+            // the regenerate-and-diff gate is `food-service`'s own `contract/__tests__` suite.
+            //
+            // `^build` for the same reason as above: a package-task entry REPLACES the base task, so omitting it
+            // drops this package's own workspace-dependency ordering.
+            "dependsOn": ["^build"],
+            "inputs": [
+                "src/**",
+                "openapi.yaml",
+                "package.json",
+                "tsconfig*.json",
+                "$TURBO_ROOT$/packages/services/food-service/src/**/*.schema.ts"
+            ],
+            "outputs": ["dist/**"]
+        },
+        "@kitchensink/schema-identity#build": {
+            // DRIFT LAYER 1 (Rebuild) for the identity contract. See `@kitchensink/schema-food#build` above for
+            // the full reasoning on what `inputs` buys.
+            //
+            // ⚠️ ONE DIFFERENCE THAT MATTERS, so nobody reads food's cycle argument as applying here: identity
+            // has NO client package, so `identity` devDepends on no client of its own and the
+            // `client -> schema -> service -> client` cycle that makes the `dependsOn` edge unavailable for
+            // recipe and food does NOT exist for identity. The edge would build. `inputs` is used anyway, for
+            // UNIFORMITY — the three services should not diverge on mechanism because of a devDependency that
+            // has nothing to do with contracts, and `inputs` is sufficient on its own (the generated files are
+            // committed, so ordering was never the requirement). See `docs/CODING_STANDARDS.md` §15.
+            "dependsOn": ["^build"],
+            "inputs": [
+                "src/**",
+                "openapi.yaml",
+                "package.json",
+                "tsconfig*.json",
+                "$TURBO_ROOT$/packages/services/identity/src/**/*.schema.ts"
+            ],
+            "outputs": ["dist/**"]
+        },
+        "contract:generate": {
+            "cache": false,
+            "outputs": []
+        },
         "build-ui": {
             "dependsOn": ["^build"],
             "outputs": ["dist/**"]
@@ -13,6 +113,81 @@
         "test": {
             "dependsOn": ["^build"],
             "outputs": []
+        },
+        // ⛔ THE CONFORMANCE LAYER MUST NOT CACHE ON ITS OWN PACKAGE ALONE.
+        //
+        // `infra-global`'s suite is not a unit suite over `lib/**` — it is the repo-wide guard layer. Its
+        // assertions read `.github/workflows/**` (workflow invariants, reclamation gating, deploy-gate,
+        // heavy-tier wiring), `specs/*/tasks.md` (task-id and table-collision sweeps), every
+        // `packages/services/*/**` source (the G1–G6 security invariants and W1–W5 infra wiring, both
+        // discovered from manifests) and the root `scripts/**` + `package.json`.
+        //
+        // The base `test` task above declares NO `inputs`, so turbo hashes only this package's own files.
+        // Measured 2026-08-12 with `--dry=json`: 104 inputs, ZERO from `.github/`, `specs/` or any other
+        // package, and two consecutive runs returned FULL TURBO. That silently degrades the layer's
+        // guarantee to "these gates ran on whichever commit last touched infra-global" — so adding a
+        // service that violates G1, or a workflow that re-gates a reclamation job, could serve a cache hit
+        // and report green. It is latent only because no `.turbo` cache is persisted between CI runs today;
+        // one `actions/cache` step, or a remote-cache token, makes it live.
+        //
+        // ⚠️ `inputs` CANNOT express this dependency, measured before choosing `cache: false`. With
+        // `$TURBO_ROOT$` globs declared for all of it, `--dry=json` resolved 993 files: `.github/**` → 151,
+        // `specs/*/tasks.md` → 14, `scripts/**` → 16 — but `packages/services/*/src/**`,
+        // `packages/services/*/infra/**` and `packages/clients/*/**` each resolved to **ZERO**. turbo does
+        // not hash files that belong to ANOTHER WORKSPACE PACKAGE into a task's inputs; those are meant to
+        // travel through `dependsOn` edges. And the edge is not available either — see the schema blocks
+        // above for why depending on the services from here is cycle-forming.
+        //
+        // So the guard layer's real input set is not expressible, and a PARTIAL input list is the worst
+        // outcome: it looks precise, hashes `.github` correctly, and stays blind to exactly the service
+        // sources that G1–G6 and W1–W5 assert on. An always-run task is honest. It costs ~8s for 865 tests,
+        // which is cheaper than one false green.
+        //
+        // A package-task entry REPLACES the base task rather than merging with it, so `^build` is repeated
+        // here deliberately — dropping it is the exact defect documented at length in the schema blocks above.
+        "@kitchensink/infra-global#test": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
+        },
+        // ⛔ THE SUBPATH-EXPORT GUARD MUST NOT CACHE ON ITS OWN PACKAGE ALONE — the same defect and the
+        // same reasoning as `@kitchensink/infra-global#test` above, and this one was not latent.
+        //
+        // `subpathExports.test.js` reads the `exports` map of EVERY workspace `package.json` and asserts the
+        // allow-list in `index.js` names each declared subpath, so the rule cannot report a published entry
+        // point as reaching into internals. Its real inputs therefore live in other packages — which turbo
+        // does not hash into a task's `inputs`, per the measurement recorded above.
+        //
+        // ⚠️ MEASURED, not theorised: three declared subpaths (`e2e-fixtures/session`, `loadtest/pool`,
+        // `loadtest/load-tier`) were missing from the allow-list while `ci / Test (services)` reported PASS,
+        // because nothing those exports live in is an input to this package's task. The failure reproduced
+        // instantly on a cold local run. An always-run task is honest; it costs well under a second for 52
+        // tests, which is cheaper than one false green.
+        "@kitchensink/eslint#test": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
+        },
+        // ⛔ THE DOCUMENTATION STALENESS GUARD MUST NOT CACHE ON ITS OWN PACKAGE ALONE — the same defect,
+        // and the same reasoning, as `@kitchensink/infra-global#test` above.
+        //
+        // This package's `test` script runs a regenerate-and-diff over EVERY `.tsx` file in
+        // `packages/apps/commise/**` plus the `@commise/ui` token modules, and compares the result with the
+        // committed bytes under `docs/generated/`. The base `test` task declares no `inputs`, so turbo would
+        // hash only this package's own files: edit a component, do not regenerate, and the gate serves a
+        // cache hit and reports green — which is precisely the rot the artifact exists to prevent.
+        //
+        // ⚠️ `inputs` CANNOT express it, for the reason measured and written up on infra-global: turbo does
+        // not hash files belonging to ANOTHER workspace package into a task's inputs. And the `dependsOn`
+        // edge is not a substitute either — it would order the app packages' builds, not invalidate on their
+        // SOURCES. An always-run task is honest; it costs ~9s.
+        //
+        // A package-task entry REPLACES the base task rather than merging with it, so `^build` is repeated
+        // deliberately: the token emitter imports `@commise/ui`'s built entry point.
+        "@kitchensink/docgen-components#test": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
         },
         "test:integration": {
             "dependsOn": ["^build"],
@@ -35,7 +210,7 @@
         "format:check": {
             "outputs": []
         },
-        "dev:local": {
+        "dev": {
             "cache": false,
             "persistent": true,
             "outputs": []

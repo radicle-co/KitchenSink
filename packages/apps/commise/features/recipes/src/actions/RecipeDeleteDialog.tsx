@@ -15,15 +15,20 @@
  * Focus-return is handled explicitly, NOT left to Radix's default: `AlertDialog.Content` wraps
  * `Dialog.Content`, whose built-in `onCloseAutoFocus` only restores focus to an OWNED `*.Trigger` (see
  * `PullUpdatesDialog`'s module doc for the underlying Radix behavior). The "Delete" control that opens this
- * dialog lives in the composing container (a sibling button, not an owned `AlertDialog.Trigger`), so
- * `triggerRef` below captures `document.activeElement` at the render where `open` flips true — BEFORE
+ * dialog lives in the composing container (a sibling button, not an owned `AlertDialog.Trigger`), so that
+ * default silently focuses nothing. `useReturnFocusOnClose` (`@commise/ui/dialog-focus`) owns the repair for
+ * every such surface: it snapshots `document.activeElement` at the render where `open` flips true — BEFORE
  * `AlertDialog.Content` (and its own autofocus-on-mount, onto the Cancel action per the alertdialog pattern)
- * ever commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own no-op default.
+ * ever commits — and returns the `onCloseAutoFocus` handler that restores it.
+ *
+ * @pattern Adapter over the house Radix `AlertDialog` — Radix owns the focus trap, Escape-to-dismiss and background
+ *     inert, so this leaf hand-rolls none of it and stays a controlled `props → JSX` render.
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import { useRef, type FC } from 'react';
+import { type FC } from 'react';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeActionMessages } from './messages.js';
@@ -51,17 +56,9 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
 }) => {
     const { deleteDialog } = useMessages(recipeActionMessages);
 
-    // Capture whatever had focus right before this dialog opened, during render (not an effect) — see the
-    // module doc. Guarded on the false→true edge so it isn't re-captured on every re-render while the
-    // dialog stays open (e.g. the `deleting`/`error` state changing).
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this dialog opened, and restore it on close — see the module
+    // doc. The edge guard is inside the hook, so the `deleting`/`error` state changing cannot re-snapshot.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     return (
         <AlertDialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
@@ -69,10 +66,7 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
                 <AlertDialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
                 <AlertDialog.Content
                     aria-modal="true"
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
+                    onCloseAutoFocus={onCloseAutoFocus}
                     className="fixed left-1/2 top-1/2 z-50 flex w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-card p-6 shadow-lg md:max-w-md"
                 >
                     <AlertDialog.Title className="font-display text-heading-lg font-semibold text-charcoal">

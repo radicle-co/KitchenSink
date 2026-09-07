@@ -4,7 +4,7 @@
  *
  * The orchestration half of the sign-out surface: it owns only the control's own state (busy, failed) and
  * issues the app's one sign-out command,
- * {@link import('../../hooks/useSignOutAndVerify.js').useSignOutAndVerify} — which owns the mechanism
+ * `useSignOutAndVerify` — which owns the mechanism
  * (Clerk's load-safe `signOut`), the ordering, and the post-condition that the session really ended. Read
  * that module, and ADR-0009, before changing anything here.
  *
@@ -15,6 +15,9 @@
  *
  * It exists as its own component because TWO surfaces need exactly this behaviour: the account hub's session
  * section, and the danger zone's recovery after an erasure that was ACCEPTED but whose sign-out failed.
+ *
+ * @pattern Command over the app's one sign-out use case, `useSignOutAndVerify` — that module owns the mechanism, the
+ *     ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and failed.
  */
 import { Button } from '@commise/ui/button';
 import { palette } from '@commise/ui';

@@ -1,22 +1,33 @@
 /**
  * @module @commise/features-recipes/wizard — native 4-step recipe-edit wizard SHELL (w3/e1,e2, P8). The
- * React Native leaf of {@link import('./Wizard.js').Wizard} — same compound-component shape (Root + Context
+ * React Native leaf of `Wizard` — same compound-component shape (Root + Context
  * + `useWizardModel()` + `Object.assign` parts), same navigation statechart (attempted steps, discard guard,
- * preview toggle); see that module's doc for the full rationale, including why `Wizard.TopBar` and
+ * blocked-advance notice); see that module's doc for the full rationale, including why `Wizard.Header` and
  * `Wizard.Controls` are deliberately two separate parts rather than the plan's literal single "Controls".
  *
  * **Native adaptation (per the plan):** `Wizard.Rail` collapses to a WRAPPING pill row plus "Step N of 4"
  * (it was a horizontally scrollable row until that row was found laying steps 3–4 past the screen edge — see
- * {@link WizardRail}); `Wizard.Step` bodies are full-screen (the composing screen wraps its `Wizard.Step` content
- * in its own `ScrollView`, exactly as `RecipeForm.native.tsx` already does for the flat form); `Wizard.TopBar`
- * is a sticky header row the composing screen places above the scrolling step content.
+ * {@link WizardRail}); `Wizard.Step` bodies are full-screen (the composing screen wraps its `Wizard.Step`
+ * content in its own `ScrollView`, exactly as `RecipeForm.native.tsx` already does for the flat form).
  *
- * **U6 chrome remediation (plan bullet U6, SHARED with the web leaf — see its doc).** `Wizard.Controls`
- * (footer) is the ONE contextual primary: `Next: {name}` on steps 1–3, swapping to `Publish` on step 4 (so
- * Publish is NO LONGER live on steps 1–3), with a secondary `Prev` once past step 1. `Wizard.TopBar` (header)
- * keeps `Preview` and demotes `Save Draft` + `Cancel` into an overflow ("More actions") menu — a kebab
- * `Feather` trigger opening a `Modal` sheet of `Pressable` items (house style, cf. `ConfirmDialog.native`).
- * Cancel routes through `requestCancel` so the discard guard fires; Save Draft busies while submitting.
+ * **U32 — `Wizard.Header` is NEW, and it is not a restyle** (owner ruling 2026-08-25). `RecipesScreen`
+ * renders every pushed surface bare — no title, no back affordance — so the editor had no way out except the
+ * hardware back button and a kebab item. This part is the header that never existed: a BACK control routed
+ * through the SAME `requestCancel` the overflow menu's `Cancel` used, so the discard guard still fires, plus
+ * the step's name as a heading. Native is always below the web leaf's `lg` cutover, so — exactly as on web
+ * below `lg` — there is no kebab here at all: `Save Draft` lives in the action bar and `Cancel` is this
+ * arrow, leaving the menu with nothing to disclose.
+ *
+ * ⛔ **`Wizard.Controls` is PINNED, and that is a SHIPPED-DEFECT FIX rather than a restyle.** It used to be
+ * rendered INSIDE `RecipeEditor.tsx`'s single `ScrollView`, together with the rail and all four step bodies —
+ * so on a recipe with a long ingredient list the primary control scrolled away beneath it and a cook had to
+ * scroll the whole list to reach `Next`. (`useScrollResetOnChange` exists because four Maestro flows caught
+ * the consequence: advancing left the cook at the BOTTOM of the next step.) The composing screen now places
+ * this part as a SIBLING BELOW that scroller, so it cannot scroll at all. The bottom safe-area inset is
+ * applied ONCE, by `RecipesScreen`'s container — see this part's own note on why it is not re-applied here.
+ *
+ * **U33 — Preview is GONE, replaced by the Review step** (owner ruling 2026-08-25). The `Preview` button and
+ * the overlay it opened are DELETED, not merely unrendered; step 4 is Review. See the web leaf's doc.
  */
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -24,12 +35,19 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { Feather } from '@expo/vector-icons';
 import { createContext, useContext, useState, type FC, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeFormMessages } from '../form/messages.js';
 import type { RecipeFormErrors, RecipeFormValues, RecipeWizardStep } from '../form/model.js';
-import { blockedAdvanceErrors, deriveRailStepState, WIZARD_STEPS, WIZARD_TOTAL_STEPS } from './model.js';
+import {
+    blockedAdvanceErrors,
+    deriveRailStepState,
+    nextStep,
+    previousStep,
+    WIZARD_STEPS,
+    WIZARD_TOTAL_STEPS,
+} from './model.js';
 import { wizardMessages } from './messages.js';
 
 /** Props for {@link Wizard} (Root) — identical contract to the web leaf. */
@@ -61,13 +79,11 @@ interface WizardModel extends Omit<WizardProps, 'children'> {
      * web leaf's identical field for why this is NOT `attempted` (Publish would double-report).
      */
     readonly blockedStep: RecipeWizardStep | null;
-    readonly previewOpen: boolean;
     readonly requestGoNext: () => void;
     readonly requestGoPrev: () => void;
     readonly requestGoToStep: (step: RecipeWizardStep) => void;
     readonly requestCancel: () => void;
     readonly requestPublish: () => void;
-    readonly togglePreview: () => void;
 }
 
 const WizardContext = createContext<WizardModel | null>(null);
@@ -87,7 +103,6 @@ const WizardRoot: FC<WizardProps> = (props) => {
     const m = useMessages(wizardMessages);
     const [attempted, setAttempted] = useState<ReadonlySet<RecipeWizardStep>>(new Set());
     const [blockedStep, setBlockedStep] = useState<RecipeWizardStep | null>(null);
-    const [previewOpen, setPreviewOpen] = useState(false);
     const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
     const markAttempted = (target: RecipeWizardStep): void =>
@@ -132,54 +147,20 @@ const WizardRoot: FC<WizardProps> = (props) => {
         publish();
     };
 
-    const togglePreview = (): void => setPreviewOpen((open) => !open);
-
     const model: WizardModel = {
         ...props,
         attempted,
         blockedStep,
-        previewOpen,
         requestGoNext,
         requestGoPrev,
         requestGoToStep,
         requestCancel,
         requestPublish,
-        togglePreview,
     };
 
     return (
         <WizardContext.Provider value={model}>
             {children}
-
-            {previewOpen && (
-                <View accessibilityRole="none" style={styles.previewBackdrop}>
-                    <View accessibilityLabel={m.previewHeading} style={styles.previewCard}>
-                        <View style={styles.previewHeader}>
-                            <Text accessibilityRole="header" style={styles.previewHeading}>
-                                {m.previewHeading}
-                            </Text>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={m.previewClose}
-                                onPress={togglePreview}
-                            >
-                                <Feather name="x" size={20} color={palette.slate} />
-                            </Pressable>
-                        </View>
-                        {previewRow(m.previewTitle, props.values.title)}
-                        {previewRow(m.previewDescription, props.values.description)}
-                        {previewRow(m.previewServings, String(props.values.servings))}
-                        {previewRow(m.previewIngredientCount, String(props.values.ingredients.length))}
-                        {previewRow(m.previewStepCount, String(props.values.steps.length))}
-                        {previewRow(
-                            m.previewVisibility,
-                            props.values.visibility === 'private'
-                                ? m.previewVisibilityPrivate
-                                : m.previewVisibilityPublic,
-                        )}
-                    </View>
-                </View>
-            )}
 
             <ConfirmDialog
                 open={pendingAction !== null}
@@ -197,13 +178,6 @@ const WizardRoot: FC<WizardProps> = (props) => {
         </WizardContext.Provider>
     );
 };
-
-const previewRow = (label: string, value: string): ReactNode => (
-    <View key={label} style={styles.previewRow}>
-        <Text style={styles.previewLabel}>{label}</Text>
-        <Text style={styles.previewValue}>{value}</Text>
-    </View>
-);
 
 /** Renders its children only while `step` is the wizard's active step (a full-screen body). */
 const WizardStep: FC<{ readonly step: RecipeWizardStep; readonly children: ReactNode }> = ({ step, children }) => {
@@ -244,7 +218,7 @@ const RAIL_MARKER_TEXT_COLOR: Record<RailState, string> = {
  * The step-rail: a WRAPPING pill row + "Step N of 4" (native adaptation of FR-044).
  *
  * It wraps rather than scrolls horizontally, which is a bug fix, not a restyle. The four pills
- * (`[1 Basic] [2 Ingredients] [3 Instructions] [4 Photos]`) need ~390dp, while a 360dp phone leaves ~296dp
+ * (`[1 Details] [2 Ingredients] [3 Instructions] [4 Review]`) need ~390dp, while a 360dp phone leaves ~296dp
  * inside the composing screen's and this rail's own 16dp paddings — so on one unbounded line steps 3–4 were
  * laid out past the right screen edge (the Maestro view-hierarchy dump caught step 4 clipped at the 1080px
  * boundary), reachable only by a horizontal drag that is undiscoverable AND fights the vertical `ScrollView`
@@ -262,8 +236,8 @@ const WizardRail: FC = () => {
                 {fillTemplate(m.stepProgress, { current: model.step, total: WIZARD_TOTAL_STEPS })}
             </Text>
             <View style={styles.railRow}>
-                {WIZARD_STEPS.map((s, index) => {
-                    const name = m.stepNames[index] ?? '';
+                {WIZARD_STEPS.map((s) => {
+                    const name = m.stepNames[s];
                     const railState = deriveRailStepState({
                         step: s,
                         currentStep: model.step,
@@ -301,126 +275,66 @@ const WizardRail: FC = () => {
 };
 
 /**
- * The header's overflow ("More actions") disclosure (U6): a kebab (`more-vertical`) trigger opening a `Modal`
- * sheet of `Pressable` items — `Save Draft` and `Cancel` — in the house `ConfirmDialog.native` idiom.
- * Demoting these two off the header is what keeps it from packing four buttons that wrap on a phone. Cancel
- * routes through `requestCancel` so the discard guard still fires; Save Draft busies while submitting (a
- * disabled item cannot be double-fired). The `Modal` is rendered only while `open`, so its items are absent
- * from the tree when closed (react-native-web keeps a `visible={false}` Modal mounted — see
- * `ConfirmDialog.native`'s same guard).
+ * The sticky wizard header (U32) — NEW on native, not a restyle of anything.
+ *
+ * `RecipesScreen` renders every pushed surface bare, so before this the editor had no title and no back
+ * affordance at all. The back control routes through `requestCancel`, which means the discard guard fires
+ * exactly as it did for the overflow menu's deleted `Cancel` item — it is NOT a navigation control and must
+ * never be wired to one. The heading names the RECIPE — not the step, which the rail's "Step N of 4" and the
+ * step body's own section heading already say twice. Two headings called "Review" on one screen was the
+ * concrete outcome of naming the step here.
+ *
+ * No overflow menu here. Native is always below the web leaf's `lg` cutover, and at that width both of the
+ * menu's items have moved out: `Save Draft` is a first-class control in {@link WizardControls}, and `Cancel`
+ * is this arrow. A kebab would disclose an empty list.
  */
-const WizardActionsMenu: FC = () => {
+const WizardHeader: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
-    const [open, setOpen] = useState(false);
-
-    // Every item closes the menu first, then runs its action — so Cancel's discard dialog opens over a closed
-    // menu, not behind an open one.
-    const runAndClose = (action: () => void): void => {
-        setOpen(false);
-        action();
-    };
 
     return (
-        <>
+        <View accessibilityLabel={m.headerLabel} style={styles.header}>
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={m.actionsMenu}
-                // Both state forms are load-bearing, neither is redundant (#123). `accessibilityState.expanded`
-                // is the DEVICE trait VoiceOver/TalkBack read; `aria-expanded` is the only one that reaches the
-                // DOM — react-native-web forwards literal `aria-*` props and projects `accessibilityState` for
-                // NOTHING, so the object form alone left this disclosure trigger with no state attribute at all
-                // on the web build, and the ⋮ glyph is a SIGHTED affordance. Both sibling disclosure triggers
-                // (`MoreActionsMenu.native`, `CuisineSelect.native`) already carry the alias. Keep both: RN
-                // reverse-maps `aria-expanded` into `accessibilityState.expanded`. Unlike `aria-busy` this is
-                // NOT omitted when false — for a disclosure, `aria-expanded="false"` is what announces that
-                // the control reveals something at all.
-                accessibilityState={{ expanded: open }}
-                aria-expanded={open}
-                onPress={() => setOpen(true)}
-                style={styles.menuTrigger}
+                accessibilityLabel={m.back}
+                onPress={model.requestCancel}
+                style={styles.backControl}
             >
-                <Feather name="more-vertical" size={20} color={palette.charcoal} />
+                <Feather name="arrow-left" size={22} color={palette.charcoal} />
             </Pressable>
-            {open && (
-                <Modal visible transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-                    <Pressable
-                        accessibilityLabel={m.actionsMenu}
-                        style={styles.menuBackdrop}
-                        onPress={() => setOpen(false)}
-                    >
-                        <View style={styles.menuSheet}>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={m.saveDraft}
-                                // The `disabled` half already reaches the DOM (react-native-web derives
-                                // `aria-disabled` from the `disabled` PROP below); `busy` did not, because RNW
-                                // projects `accessibilityState` for nothing (#123) — so the in-flight item was
-                                // announced as merely unavailable rather than working, with no label change or
-                                // live region to say otherwise. `aria-busy` is RN's own first-class ALIAS for
-                                // `accessibilityState.busy`, so it is device-correct too; omitted when idle,
-                                // since ARIA already defaults it to false.
-                                accessibilityState={{ disabled: model.submitting, busy: model.submitting }}
-                                aria-busy={model.submitting || undefined}
-                                disabled={model.submitting}
-                                onPress={() => runAndClose(model.saveDraft)}
-                                style={[styles.menuItem, model.submitting && styles.menuItemDisabled]}
-                            >
-                                <Feather name="save" size={16} color={palette.charcoal} />
-                                <Text style={styles.menuItemLabel}>{m.saveDraft}</Text>
-                            </Pressable>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={m.cancel}
-                                onPress={() => runAndClose(model.requestCancel)}
-                                style={styles.menuItem}
-                            >
-                                <Feather name="x" size={16} color={palette['error-dark']} />
-                                <Text style={styles.menuItemDestructiveLabel}>{m.cancel}</Text>
-                            </Pressable>
-                        </View>
-                    </Pressable>
-                </Modal>
-            )}
-        </>
-    );
-};
-
-/**
- * The sticky header (U6): `Preview` as its own button plus the overflow ("More actions") menu carrying Save
- * Draft + Cancel. Two controls, never four — the four-button wrap is gone. Publish is no longer here; it is
- * the footer's step-4 primary.
- */
-const WizardTopBar: FC = () => {
-    const model = useWizardModel();
-    const m = useMessages(wizardMessages);
-
-    return (
-        <View accessibilityLabel={m.topBarLabel} style={styles.topBar}>
-            <Button
-                variant="secondary"
-                icon={<Feather name="eye" size={16} color={palette.charcoal} />}
-                onPress={model.togglePreview}
-            >
-                {m.preview}
-            </Button>
-            <WizardActionsMenu />
+            <Text accessibilityRole="header" numberOfLines={1} style={styles.headerTitle}>
+                {model.values.title.trim() === '' ? m.untitledRecipe : model.values.title.trim()}
+            </Text>
+            {/* Balances the back control's width so the heading stays optically centred. */}
+            <View style={styles.headerSpacer} />
         </View>
     );
 };
 
 /**
- * The footer — the ONE contextual primary (U6). Left: a secondary `Prev: {name}` once past step 1. Right: a
- * single filled primary that is `Next: {name}` on steps 1–3 (advances via `requestGoNext`) and swaps to
- * `Publish` on step 4 (submits via `requestPublish`, busies while submitting). Never more than two buttons.
+ * The PINNED action bar (U32) — `Previous / Save Draft / Next`, with `Publish` in Next's slot on the last
+ * step.
+ *
+ * The composing screen places this OUTSIDE its `ScrollView`, and that placement IS the unit: inside it, the
+ * primary control scrolled away beneath a long ingredient list. Nothing in this component can enforce that
+ * from here, so `RecipeEditor.tsx` carries the matching note and its screen test asserts the bar is not a
+ * descendant of the scroller.
+ *
+ * The bottom safe-area inset is applied ONCE, by `RecipesScreen`'s container (`paddingBottom: insets.bottom`),
+ * which wraps every pushed surface including this editor. Re-applying it here would double-pad the bar on
+ * every gesture-navigation device — so this component pads for TOUCH TARGET only, and the screen pads for
+ * the gesture bar. The web leaf's `env(safe-area-inset-bottom)` is the same rule spelled in CSS, where there
+ * is no enclosing padded container to inherit it from.
+ *
+ * Three controls, never four: `Save Draft` is a real control here rather than an overflow item a phone user
+ * had to go looking for.
  */
 const WizardControls: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
     const f = useMessages(recipeFormMessages);
-    const index = model.step - 1;
-    const prevName = index > 0 ? m.stepNames[index - 1] : undefined;
-    const nextName = index < WIZARD_TOTAL_STEPS - 1 ? m.stepNames[index + 1] : undefined;
+    const prev = previousStep(model.step);
+    const next = nextStep(model.step);
     // Why the refusal is voiced HERE, next to the control that refused: see `blockedAdvanceErrors`.
     const blocking = blockedAdvanceErrors(model.blockedStep === model.step, model.stepErrors(model.step));
 
@@ -436,23 +350,31 @@ const WizardControls: FC = () => {
                 </View>
             )}
             <View accessibilityLabel={m.controlsLabel} style={styles.controlsRow}>
-                {prevName !== undefined ? (
+                {prev !== null ? (
                     <Button
                         variant="secondary"
                         icon={<Feather name="chevron-left" size={16} color={palette.charcoal} />}
                         onPress={model.requestGoPrev}
                     >
-                        {fillTemplate(m.prevLabel, { name: prevName })}
+                        {fillTemplate(m.prevLabel, { name: m.stepNames[prev] })}
                     </Button>
                 ) : (
                     <View />
                 )}
-                {nextName !== undefined ? (
+                <Button
+                    variant="secondary"
+                    icon={<Feather name="save" size={16} color={palette.charcoal} />}
+                    busy={model.submitting}
+                    onPress={model.saveDraft}
+                >
+                    {m.saveDraft}
+                </Button>
+                {next !== null ? (
                     <Button
                         icon={<Feather name="chevron-right" size={16} color={palette.white} />}
                         onPress={model.requestGoNext}
                     >
-                        {fillTemplate(m.nextLabel, { name: nextName })}
+                        {fillTemplate(m.nextLabel, { name: m.stepNames[next] })}
                     </Button>
                 ) : (
                     <Button
@@ -468,11 +390,11 @@ const WizardControls: FC = () => {
     );
 };
 
-/** The 4-step recipe-edit wizard shell: `<Wizard>` plus its `.Step`/`.Rail`/`.TopBar`/`.Controls` parts. */
+/** The 4-step recipe-edit wizard shell: `<Wizard>` plus its `.Step`/`.Rail`/`.Header`/`.Controls` parts. */
 export const Wizard = Object.assign(WizardRoot, {
     Step: WizardStep,
     Rail: WizardRail,
-    TopBar: WizardTopBar,
+    Header: WizardHeader,
     Controls: WizardControls,
 });
 
@@ -498,89 +420,38 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     railPillLabel: { fontSize: 13, color: palette.charcoal },
-    topBar: {
+    header: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
         alignItems: 'center',
+        justifyContent: 'space-between',
         gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 8,
         backgroundColor: palette.white,
         borderBottomWidth: 1,
         borderBottomColor: border,
     },
-    controls: { gap: 4 },
+    // 44pt minimums: this is the editor's only deliberate exit, so it must not be a thumb-sized miss.
+    backControl: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { flexShrink: 1, fontSize: 17, fontWeight: '600', color: palette.charcoal },
+    headerSpacer: { width: 44 },
+    // The bar's own surface. It is pinned by WHERE the composing screen puts it (outside the scroller), not
+    // by absolute positioning: an absolutely-positioned bar would overlay the last rows of the step body,
+    // which is the defect one layer up from the one being fixed.
+    controls: {
+        gap: 4,
+        backgroundColor: palette.white,
+        borderTopWidth: 1,
+        borderTopColor: border,
+    },
     blockedNotice: { gap: 2, paddingHorizontal: 16, paddingTop: 12 },
     blockedText: { fontSize: 13, color: palette['error-dark'] },
     controlsRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: 8,
         paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingVertical: 12,
     },
-    menuTrigger: {
-        minHeight: 44,
-        minWidth: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: border,
-        backgroundColor: palette.white,
-    },
-    menuBackdrop: {
-        flex: 1,
-        alignItems: 'flex-end',
-        paddingTop: 64,
-        paddingHorizontal: 16,
-        backgroundColor: 'rgba(44, 62, 80, 0.2)',
-    },
-    menuSheet: {
-        minWidth: 200,
-        backgroundColor: palette.white,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: border,
-        padding: 8,
-        gap: 4,
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        minHeight: 44,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: 12,
-    },
-    menuItemDisabled: { opacity: 0.6 },
-    menuItemLabel: { fontSize: 15, fontWeight: '500', color: palette.charcoal },
-    menuItemDestructiveLabel: { fontSize: 15, fontWeight: '500', color: palette['error-dark'] },
-    previewBackdrop: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(44, 62, 80, 0.4)',
-        padding: 16,
-    },
-    previewCard: {
-        width: '100%',
-        maxWidth: 420,
-        backgroundColor: palette.white,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: border,
-        padding: 20,
-        gap: 10,
-    },
-    previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    previewHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
-    previewRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-    previewLabel: { fontSize: 13, fontWeight: '500', color: palette.slate },
-    previewValue: { fontSize: 13, color: palette.charcoal, flexShrink: 1, textAlign: 'right' },
 });

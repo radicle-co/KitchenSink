@@ -1,0 +1,474 @@
+name: Sandbox Up
+
+# THE BUTTON. Actions → Sandbox Up → Run workflow.
+#
+# ⚠️  DELIBERATE — a preview is no longer created by pushing. It is created here, on purpose, and it dies at
+# midnight America/New_York the same day (ADR-0028). Pushing to a PR that has no live sandbox deploys
+# nothing: `deploy-gate.sh` refuses without the `sandbox-up` label this workflow applies, which is what
+# stops the reaper's work being undone by the next commit.
+#
+# Pressing it again on an already-live sandbox re-stamps the expiry and redeploys — that is also how you
+# EXTEND one you are still working in.
+
+on:
+    workflow_dispatch:
+        inputs:
+            pr:
+                description: 'PR number to bring a sandbox up for (e.g. 91)'
+                required: true
+                type: string
+
+# ⚠️ Only `contents: read` is workflow-level. The two WRITE grants sit on the `start` job instead
+# (2026-09-02): at the pedantic persona zizmor flags a workflow-level write because a job added later
+# inherits it silently — the same resolution the 2026-08-10 burn-down applied to sandbox-web-preview.
+permissions:
+    contents: read # checkout of this repo's workflow scripts
+
+concurrency:
+    # One start at a time per PR. Two concurrent presses would race on the expiry stamp.
+    group: sandbox-up-${{ inputs.pr }}
+    cancel-in-progress: false
+
+jobs:
+    start:
+        name: Start sandbox for PR #${{ inputs.pr }}
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read # checkout of this repo's workflow scripts
+            pull-requests: write # apply the `sandbox-up` label that carries intent
+            actions: write # dispatch the deploy
+        env:
+            GH_TOKEN: ${{ github.token }}
+            PR: ${{ inputs.pr }}
+            AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            # The stage every preview stack this button stands up is named for, in ONE place — the
+            # verification and reachability steps below both scope themselves by it, and two spellings of
+            # `pr-{N}` is how a sweep reaches the wrong environment.
+            PREVIEW_STAGE: pr-${{ inputs.pr }}
+            # Needed by the reachability step: the recipe service's browser origin is `{stage}.sandbox.{domain}`.
+            DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No job here pushes, fetches or otherwise talks to `origin`, so the checkout credential
+                  # would only sit on disk for later steps to reach (zizmor: artipacked).
+                  persist-credentials: false
+            # Needed since this workflow started waking the shared tier: resolving the scheduler function's
+            # CloudFormation export and invoking it are both AWS calls.
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # Refuse a PR number that is not an open PR BEFORE anything is tagged or labelled. A sandbox for
+            # a closed PR is infrastructure nobody will ever reap by the on-close path.
+            - name: Check the PR is open
+              run: |
+                  set -euo pipefail
+                  if ! [[ $PR =~ ^[1-9][0-9]*$ ]]; then
+                      echo "::error::'${PR}' is not a PR number" >&2; exit 1
+                  fi
+                  state=$(gh pr view "$PR" --json state --jq .state 2>/dev/null || echo MISSING)
+                  if [ "$state" != 'OPEN' ]; then
+                      echo "::error::PR #${PR} is ${state}, not OPEN — refusing to stand up a sandbox that the on-close cleanup will never see." >&2
+                      exit 1
+                  fi
+
+            # ⚠️ BELOW the PR check on purpose, so a typo'd PR number fails in seconds rather than after an
+            # install. The reachability step at the end of this job runs the SHARED post-deploy smoke
+            # (`recipe-service/infra/smoke/deployedSmoke.ts`) under `npx tsx`, exactly as `sandbox-deploy.yml`
+            # invokes it — that module imports nothing but `node:util`, so `npm ci` is the whole toolchain it
+            # needs and no workspace build is required here.
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Install dependencies (the shared smoke runs under npx tsx)
+              run: npm ci
+
+            # The expiry is computed ONCE, here, and carried from now on as an absolute epoch. The reconciler
+            # never repeats this arithmetic, so it cannot disagree about when this sandbox dies.
+            - name: Stamp the expiry
+              id: expiry
+              run: |
+                  set -euo pipefail
+                  chmod +x .github/scripts/sandbox-lifetime.sh
+                  .github/scripts/sandbox-lifetime.sh expires-at "$(date +%s)" >>"$GITHUB_OUTPUT"
+
+            - name: Declare intent
+              env:
+                  EXPIRES_AT_ISO: ${{ steps.expiry.outputs.expiresAtIso }}
+              run: |
+                  set -euo pipefail
+                  gh pr edit "$PR" --add-label sandbox-up
+                  echo "PR #${PR} labelled sandbox-up; sandbox expires ${EXPIRES_AT_ISO}"
+
+            # ⛔ WAKE THE SHARED TIER FIRST — a preview is not self-contained.
+            #
+            # `sandbox-deploy.yml` runs `sandbox-wake.sh`, which brings back the sandbox RDS and NAT, so the
+            # deploy itself is covered. This step is what restores the things the wake script deliberately
+            # does not touch, and it must run BEFORE the identity rebuild below: that rebuild deploys an ECS
+            # service and an in-stack migration Trigger (ADR-0022) against the shared database, which has to
+            # be running first.
+            #
+            # ⚠️ AMENDED 2026-08-30 — this step no longer restores the identity SERVICE, and the scheduler
+            # is no longer what brings it back. ADR-0028's amendment made the shared identity service and
+            # the sandbox ALB reclaimable rather than merely stopped, so when the last sandbox expired they
+            # were DELETED, not scaled to zero. The scheduler's ECS half therefore finds no sandbox service
+            # to restore here and correctly does nothing; the next step is what recreates it. The RDS and
+            # NAT half of this call is still essential and is still the only thing that may issue it.
+            #
+            # The error check below stays, and stays meaningful: if a delete failed and the reconciler's
+            # fallback scaled the service to zero instead, this is still the path that restores it, and
+            # `runStart` refuses to invent a desired count it has no record of.
+            - name: Wake the shared sandbox tier (RDS and NAT — the identity service is rebuilt below)
+              run: |
+                  set -euo pipefail
+                  FN=$(bash .github/scripts/cfn-export.sh 'kitchensink-sandbox-scheduler-sandbox:SchedulerFunctionName')
+                  if [ -z "$FN" ] || [ "$FN" = 'None' ]; then
+                      echo '::error::sandbox scheduler function not found — deploy packages/infra/global at stage sandbox first. Without it the shared identity service stays at zero and this preview could not be signed into.' >&2
+                      exit 1
+                  fi
+                  echo "invoking ${FN} {action:start}"
+                  aws lambda invoke --function-name "$FN" \
+                    --payload '{"action":"start"}' --cli-binary-format raw-in-base64-out \
+                    /tmp/sandbox-start.json >/dev/null
+                  echo "result: $(cat /tmp/sandbox-start.json)"
+                  # ⛔ FIRST: did the function run at all? `aws lambda invoke` exits 0 when the FUNCTION
+                  # THREW — the failure is in the response, not in the status — so the phrase check below
+                  # would find no match in an error payload and this step would report success for a
+                  # scheduler that never started anything. Same class as the food migration invoke that
+                  # inspected nothing at all.
+                  if grep -q '"errorType"' /tmp/sandbox-start.json; then
+                      echo '::error::the sandbox scheduler threw — the shared tier was NOT started, so sign-in for this preview will fail. See the payload above.' >&2
+                      exit 1
+                  fi
+                  # A service the scheduler could not restore is reported, not swallowed: `runStart` skips a
+                  # service with no stored prior count rather than guessing, and that skip is exactly the
+                  # state in which sign-in silently fails.
+                  if grep -q 'no stored prior desired count' /tmp/sandbox-start.json; then
+                      echo '::error::the scheduler could not restore a sandbox service (no stored prior desired count) — sign-in for this preview will fail until it is scaled by hand' >&2
+                      exit 1
+                  fi
+
+            # ⛔ REBUILD THE SHARED TIER, AND WAIT FOR IT. This is the create half of ADR-0028's 2026-08-30
+            # amendment, and it must complete BEFORE the previews are dispatched.
+            #
+            # `identity.sandbox.commise.app` is the ONE identity service every preview signs in against
+            # (ADR-0001). Dispatch the previews first and they come up, their smoke tests pass, and nobody
+            # can log in — the failure `sandbox-up.yml` has always documented for the scaled-down case, now
+            # reachable one step earlier because the stack itself may be absent.
+            #
+            # `sandbox-identity-deploy.yml` already carries the ensure-exists logic (deploy when the code
+            # changed OR the stack is missing), so this dispatches THAT rather than growing a second copy of
+            # it here. On `workflow_dispatch` its gate deploys everything, which is what a rebuild needs:
+            # the global-sandbox app first — that is what recreates `kitchensink-alb-sandbox`, whose HTTPS
+            # listener ARN the identity stack imports — and then the service itself.
+            #
+            # ⚠️ `gh workflow run` returns the moment the dispatch is ACCEPTED, not when it finishes. The
+            # newest run id is captured BEFORE dispatching and polled for a change, because a fresh run does
+            # not appear in the API immediately and `--limit 1` would otherwise watch the PREVIOUS run and
+            # report its result — green, instantly, having built nothing.
+            - name: Rebuild the shared sandbox tier (ALB + identity) and wait for it
+              run: |
+                  set -euo pipefail
+                  before=$(gh run list --workflow sandbox-identity-deploy.yml --limit 1 \
+                    --json databaseId --jq '.[0].databaseId // 0')
+                  gh workflow run sandbox-identity-deploy.yml
+
+                  id="$before"
+                  for _ in $(seq 1 30); do
+                      sleep 10
+                      id=$(gh run list --workflow sandbox-identity-deploy.yml --limit 1 \
+                        --json databaseId --jq '.[0].databaseId // 0')
+                      [ "$id" != "$before" ] && break
+                  done
+                  if [ "$id" = "$before" ]; then
+                      echo '::error::sandbox-identity-deploy.yml never started — the shared identity service may be absent and this preview would have no sign-in.' >&2
+                      exit 1
+                  fi
+
+                  echo "watching sandbox-identity-deploy run ${id}"
+                  # `--exit-status` is what makes a failed rebuild fail THIS job, rather than letting the
+                  # previews deploy against a tier that did not come back.
+                  gh run watch "$id" --exit-status
+
+            # `deploy-gate.sh` sees `forced=true` for a dispatch, so these deploy unconditionally — the press
+            # IS the intent. SANDBOX_EXPIRES_AT rides through to the CDK app, which tags every stack with it.
+            # ⛔ DISPATCH **AND WAIT** — firing and forgetting was this button's whole verdict, and it was
+            # no verdict at all.
+            #
+            # `gh workflow run` returns the moment the dispatch is ACCEPTED. Until 2026-09-05 this step was
+            # the last thing before `Summary`, so `Sandbox Up` went green roughly ninety seconds after being
+            # pressed — before a stack had been touched — and stayed green if every preview deploy failed.
+            # Green and green-having-deployed-nothing are the same colour, which is the defect class this
+            # repository keeps paying for (ADR-0010's half-wired preview, ADR-0025's absent CRF function).
+            #
+            # Waiting is also the REUSE: `sandbox-deploy.yml` already carries eleven verification and smoke
+            # steps — `verify-deployment.sh verify` over the byte-identical `--app` string each leg deployed
+            # (food, ingredient-parser, recipe-workers, recipe-service) plus the deployed-smoke probes — and
+            # `deployVerificationCoverage.test.ts` asserts that EVERY app a job deploys, that same job then
+            # verifies. So watching those runs inherits all of it; re-implementing any of it here would be
+            # the second unowned authority this repository refuses.
+            #
+            # SEQUENTIAL, food first, for two reasons: recipe needs a live food origin (ADR-0010's ordering,
+            # which `needs: deploy-food` only enforces WITHIN one run — these are two separate runs), and one
+            # dispatch in flight at a time is what makes the run-id resolution below unambiguous.
+            #
+            # ⚠️ The run id is resolved by watching the newest `workflow_dispatch` run of that workflow
+            # change, exactly as the identity rebuild above does. `--event workflow_dispatch` narrows the
+            # population past the `pull_request` runs other PRs produce constantly; the residual is another
+            # human dispatching the same workflow inside the same ~5 minute window, which would make this
+            # job report on their run. Recorded rather than hidden — the alternative (correlating by inputs)
+            # is not exposed by the Actions API.
+            - name: Deploy the preview services and wait for every one of them
+              env:
+                  SANDBOX_EXPIRES_AT: ${{ steps.expiry.outputs.expiresAt }}
+              run: |
+                  set -euo pipefail
+                  newest() {
+                      gh run list --workflow sandbox-deploy.yml --event workflow_dispatch --limit 1 \
+                        --json databaseId --jq '.[0].databaseId // 0'
+                  }
+
+                  for service in food recipe; do
+                      before=$(newest)
+                      gh workflow run sandbox-deploy.yml \
+                        -f service="$service" \
+                        -f stage="${PREVIEW_STAGE}"
+
+                      id="$before"
+                      for _ in $(seq 1 30); do
+                          sleep 10
+                          id=$(newest)
+                          [ "$id" != "$before" ] && break
+                      done
+                      if [ "$id" = "$before" ]; then
+                          echo "::error::sandbox-deploy.yml never started for ${service} — the ${PREVIEW_STAGE} preview is incomplete and nothing below can be trusted." >&2
+                          exit 1
+                      fi
+
+                      echo "watching sandbox-deploy (${service}) run ${id}"
+                      # `--exit-status` is what makes a failed preview deploy fail THIS job. Without it the
+                      # button reports on a dispatch rather than on a deployment.
+                      gh run watch "$id" --exit-status
+                  done
+
+            # ⛔ "EVERY SERVICE, LAMBDA AND RESOURCE, ACCORDING TO ALL THE CDK" — asserted HERE, in the job
+            # whose colour the owner reads, not only inside the runs it dispatched.
+            #
+            # The dispatched runs each verify what THEY deployed. Nothing before this asked whether the
+            # ASSEMBLED sandbox is intact at the moment this button claims success: the shared tier is built
+            # by one workflow and the previews by another, twenty-plus minutes apart, and a stack can be
+            # reaped, rolled back or wedged in between. This step asks that question once, over the whole
+            # thing, and it is the same authority — `verify-deployment.sh` — that every deploy leg uses.
+            #
+            # ⛔ NEITHER SIDE IS A LIST.
+            #   * the STACKS come from `deploy-gate.sh stacks-for`, which answers from
+            #     `docs/generated/infrastructure/manifest.json` — read out of the CDK source by AST under a
+            #     regenerate-and-diff staleness gate — so a stack added tomorrow is checked the day it is
+            #     written, a prod-only stack is correctly absent, and a refusal (unknown app, unreadable
+            #     guard) ABORTS rather than reading as "nothing to check".
+            #   * the RESOURCES, Lambda code packages, ECS running counts and cross-stack references come
+            #     from `verify-deployment.sh verify-stacks`, which discovers them from
+            #     `cloudformation:ListStackResources` and each Lambda's own environment.
+            #
+            # ⚠️ The (entrypoint, stage) pairs below ARE written down, and that is the one hand-written thing
+            # in this step: nothing in the repository records which apps belong to the shared `sandbox` tier
+            # and which to the per-PR stage. It cannot rot silently — `sandboxUpVerification.test.ts` DERIVES
+            # the required entrypoints from the `cdk deploy --app` lines of the very workflows this job
+            # dispatches, and fails the build the moment one of them deploys an app this list omits.
+            #
+            # ⚠️ `preflight` is deliberately NOT run here: it asks whether an EXISTING stack's managed log
+            # groups are still present, before a deploy, and errors on a stack that is absent — which is the
+            # normal resting state of a reaped sandbox at the moment this button is pressed.
+            - name: Verify every stack this sandbox's CDK apps declare — every resource, handler and reference
+              run: |
+                  set -euo pipefail
+                  targets=(
+                      "packages/infra/global/bin/app.ts sandbox"
+                      "packages/services/identity/infra/bin/app.ts sandbox"
+                      "packages/services/identity-webhooks/infra/bin/app.ts sandbox"
+                      "packages/services/food-service/infra/bin/app.ts ${PREVIEW_STAGE}"
+                      "packages/services/ingredient-parser/infra/bin/app.ts ${PREVIEW_STAGE}"
+                      "packages/services/recipe-workers/infra/bin/app.ts ${PREVIEW_STAGE}"
+                      "packages/services/recipe-service/infra/bin/app.ts ${PREVIEW_STAGE}"
+                  )
+
+                  stacks=()
+                  for target in "${targets[@]}"; do
+                      entrypoint="${target%% *}"
+                      stage="${target##* }"
+                      # ⛔ An unreadable answer must never read as an empty stack set — three characters of
+                      # stdout say the same thing as "this app declares nothing", and the permissive
+                      # direction verifies nothing behind a green check.
+                      declared=$(bash .github/scripts/deploy-gate.sh stacks-for "$entrypoint" "$stage") || {
+                          echo "::error::could not read the stacks '${entrypoint}' declares for stage '${stage}' — this run verified NOTHING for it." >&2
+                          exit 1
+                      }
+                      while IFS= read -r name; do
+                          [ -n "$name" ] || continue
+                          stacks+=("$name")
+                      done <<<"$declared"
+                  done
+
+                  if [ "${#stacks[@]}" -eq 0 ]; then
+                      echo '::error::no stacks were derived from the manifest — a sweep over nothing is not a verification.' >&2
+                      exit 1
+                  fi
+                  printf 'verifying %d stacks declared by this sandbox'"'"'s CDK apps:\n' "${#stacks[@]}"
+                  printf '  %s\n' "${stacks[@]}"
+
+                  # An ABSENT stack is reported by the verifier itself: `ListStackResources` returning
+                  # nothing is an `::error::`, never a pass. So presence and contents are one question.
+                  bash .github/scripts/verify-deployment.sh verify-stacks "${AWS_REGION}" "${stacks[@]}"
+
+                  # …and a hole that ANNOUNCES ITSELF, in the direction the derivation above cannot see: a
+                  # stack that exists for this sandbox which no app named above declares. Reported as a
+                  # warning rather than an error because it is not necessarily wrong — the singleton
+                  # `kitchensink-sandbox-router-sandbox` (deployed by its own workflow, ADR-0001) is the
+                  # known member of that set — but silence would let a whole service go unverified.
+                  # Scoped by explicit `kitchensink-` name: this AWS account also hosts an unrelated
+                  # production system.
+                  known=" ${stacks[*]} "
+                  while IFS= read -r name; do
+                      [ -n "$name" ] || continue
+                      case "$name" in
+                          kitchensink-*-sandbox | kitchensink-*-"${PREVIEW_STAGE}") ;;
+                          *) continue ;;
+                      esac
+                      case "$known" in
+                          *" ${name} "*) continue ;;
+                      esac
+                      echo "::warning::${name} exists for this sandbox and was NOT verified — no CDK app this button dispatches declares it."
+                  done < <(aws cloudformation list-stacks --region "${AWS_REGION}" \
+                    --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE IMPORT_COMPLETE \
+                    --query 'StackSummaries[].StackName' --output text | tr '\t' '\n')
+
+            # ⛔ REACHABILITY IS THE VERDICT (owner directive, 2026-09-05). A resource that exists and does
+            # not answer is not deployed for the purpose this button serves.
+            #
+            # Every origin is DISCOVERED from the CloudFormation exports the deployed stacks publish
+            # (`<stack>:…ServiceUrl`), not from a host shape copied into YAML: the host lives in the CDK
+            # (`foodSubdomainForStage`, `recipeSubdomainForStage`), and a third copy of it here is exactly
+            # the drift `printFoodHost.ts` exists to prevent. A service that starts exporting a
+            # `…ServiceUrl` tomorrow is probed the day it deploys.
+            #
+            # ⚠️ `Exports[].[Name,Value]` is a PROJECTION, not an index. The broken idiom `cfn-export.sh`
+            # exists for is `Exports[?Name=='X'].Value | [0]`, whose `| [0]` is applied PER PAGE and emits a
+            # `None` line for every page without the match. A projection has no such reduction, so every
+            # page contributes its own rows and pagination is harmless. `cfn-export.sh` is still the right
+            # tool for ONE export by name; it cannot enumerate.
+            #
+            # ⛔ The probe is `deployedSmoke.ts` — the SAME five pure classifiers every deploy leg runs — and
+            # not a status table written here. ADR-0010 §4's rule is the reason that matters: for an
+            # authenticated API, `401`/`403` is the PASS (DNS, the shared ALB host rule and the service's own
+            # auth layer all had to work to produce it) while a `2xx` to an unauthenticated probe, the shared
+            # ALB's default `404 text/plain` for an unmatched host (ADR-0003), or a transport failure are all
+            # FAILURES. That distinction lives in `classifyDependencyReachability`, and a second copy of it
+            # would be the authority this repository refuses.
+            #
+            # Which extra assertions each origin gets is derived from the EXPORT NAME, and each mirrors the
+            # invocation that service's own deploy leg already uses:
+            #   * `…:FoodServiceUrl`   → `--food-origin` / `--configured-food-origin`, the authenticated
+            #     `/api/v1/foods/search` door where 401 is the PASS. Food enables no CORS (server-to-server
+            #     only), so no browser origin is asserted — the same reason `prodDeploySmokeDepth.test.ts`
+            #     derives.
+            #   * `…:RecipeServiceUrl` → `--web-origin`, the CORS preflight from this preview's own web
+            #     origin. A recipe service that answers curl and not a browser is unusable, and that is a
+            #     shape that has shipped here.
+            #   * everything else (identity) → `/health`. Identity's CORS allowlist is derived per stage from
+            #     `CLERK_AUTHORIZED_PARTIES` / `CLERK_AZP_PATTERN`, so on sandbox there is no single stable
+            #     browser origin to name — the reason `sandbox-identity-deploy.yml` records for omitting it.
+            # A future service with neither export gets `/health` and is reported as such, rather than
+            # silently counting as fully probed.
+            #
+            # ⚠️ The retry is around the WHOLE probe, not inside it: the dispatched deploys already smoked
+            # each service, so this is guarding against a task that is mid-rollout, not polling for a deploy.
+            - name: Reachability — every origin this sandbox serves must answer
+              run: |
+                  set -euo pipefail
+                  smoke='packages/services/recipe-service/infra/smoke/deployedSmoke.ts'
+
+                  probe() {
+                      local label="$1"
+                      shift
+                      local attempts=8 delay=15 i
+                      for i in $(seq 1 "$attempts"); do
+                          if npx tsx "$smoke" "$@"; then
+                              echo "✅ ${label} reachable on attempt ${i}"
+                              return 0
+                          fi
+                          echo "attempt ${i}/${attempts}: ${label} not reachable yet — retrying in ${delay}s"
+                          sleep "$delay"
+                      done
+                      echo "::error::${label} is deployed and does NOT answer — this sandbox is not usable." >&2
+
+                      return 1
+                  }
+
+                  shared=0 preview=0 failures=0
+                  while IFS=$'\t' read -r name url; do
+                      [ -n "${name:-}" ] && [ -n "${url:-}" ] || continue
+                      case "$name" in
+                          kitchensink-*-sandbox:*ServiceUrl) shared=$((shared + 1)) ;;
+                          kitchensink-*-"${PREVIEW_STAGE}":*ServiceUrl) preview=$((preview + 1)) ;;
+                          *) continue ;;
+                      esac
+
+                      case "$name" in
+                          *:FoodServiceUrl)
+                              probe "$name (${url})" --base-url "$url" \
+                                --food-origin "$url" --configured-food-origin "$url" \
+                                || failures=$((failures + 1))
+                              ;;
+                          *:RecipeServiceUrl)
+                              probe "$name (${url})" --base-url "$url" \
+                                --web-origin "https://${PREVIEW_STAGE}.sandbox.${DOMAIN_NAME}" \
+                                || failures=$((failures + 1))
+                              ;;
+                          *)
+                              echo "note: ${name} is probed for liveness only (no browser origin, no API door declared)"
+                              probe "$name (${url})" --base-url "$url" || failures=$((failures + 1))
+                              ;;
+                      esac
+                  done < <(aws cloudformation list-exports --region "${AWS_REGION}" \
+                    --query 'Exports[].[Name,Value]' --output text)
+
+                  # ⛔ VACUITY GUARDS. "Nothing answered badly" is not a pass when nothing was asked: an
+                  # empty export listing, a renamed output or a mistyped stage would otherwise report a
+                  # perfect sandbox. Both TIERS must contribute at least one origin — the shared identity
+                  # service every preview signs in against, and this PR's own services.
+                  if [ "$shared" -eq 0 ]; then
+                      echo '::error::no shared-tier origin was found to probe — kitchensink-*-sandbox publishes no …ServiceUrl export, so sign-in for this preview was never verified.' >&2
+                      failures=$((failures + 1))
+                  fi
+                  if [ "$preview" -eq 0 ]; then
+                      echo "::error::no ${PREVIEW_STAGE} origin was found to probe — this PR's own services publish no …ServiceUrl export, so nothing about the preview was verified." >&2
+                      failures=$((failures + 1))
+                  fi
+                  echo "probed ${shared} shared-tier and ${preview} ${PREVIEW_STAGE} origin(s)"
+
+                  if [ "$failures" -gt 0 ]; then
+                      echo "::error::${failures} reachability check(s) failed — the sandbox is NOT up." >&2
+                      exit 1
+                  fi
+
+            # Reached ONLY when every deploy above succeeded, every declared stack verified, and every
+            # origin answered — a failed step skips the rest of the job. So this summary is a report of what
+            # happened, never a claim made ahead of it.
+            - name: Summary
+              env:
+                  EXPIRES_AT_ISO: ${{ steps.expiry.outputs.expiresAtIso }}
+              run: |
+                  {
+                      echo "### Sandbox UP and VERIFIED for PR #${PR}"
+                      echo
+                      echo "- Shared tier (\`sandbox\`) and preview tier (\`${PREVIEW_STAGE}\`) both deployed and waited on"
+                      echo "- Every stack their CDK apps declare verified — resources, Lambda code packages, ECS running counts, cross-stack references"
+                      echo "- Every published service origin probed and answering"
+                      echo "- Expires **${EXPIRES_AT_ISO}** (midnight America/New_York)"
+                      echo "- Press this button again to extend it or to bring it back after it is reaped."
+                  } >>"$GITHUB_STEP_SUMMARY"

@@ -3,35 +3,56 @@
  * DAOs, the source-adapter registry (USDA wired), the per-source rolling-window limiter, the
  * merge/persist seam, and the completion-event emitter into a {@link WorkerRuntime}, then starts the
  * single-drainer loop. The actual EventBridge put is deliberately NOT required here — the bootstrap
- * uses the no-AWS {@link ConsoleEventBus} fallback so the worker runs without an AWS dependency; the
+ * uses the no-AWS `ConsolePublisher` fallback so the worker runs without an AWS dependency; the
  * real EventBridge bus is wired with the infra slice.
  *
  * @sideEffect Opens Postgres connections, acquires the advisory lock, and begins draining.
  */
-import { readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { ConsoleEventBus, FoodEventEmitter } from '../events/food-event-emitter.js';
-import { AdminMetricsDao } from '../foods/admin/admin-metrics.dao.js';
-import { FetchQueueDao } from '../foods/dao/fetch-queue.dao.js';
+import { ConsolePublisher, type MessagePublisher } from '@kitchensink/messaging';
+import { DynamoPublisher } from '../events/DynamoPublisher.js';
+import { FoodEventEmitter } from '../events/FoodEventEmitter.js';
+import { AdminMetricsDao } from '../foods/admin/adminMetrics.dao.js';
+import { FetchQueueDao } from '../foods/dao/fetchQueue.dao.js';
 import { FoodDao } from '../foods/dao/food.dao.js';
-import { FoodSourcesDao } from '../foods/dao/food-sources.dao.js';
-import { SourceCallLogDao } from '../foods/dao/source-call-log.dao.js';
-import { GoldenRecordMergeEngine } from '../foods/merge/merge-engine.js';
-import { MergeAndPersistService } from '../foods/merge/merge-and-persist.service.js';
-import { FoodMetrics } from '../observability/emf-metrics.js';
-import { foodPoolConfigFromEnv } from '../database/pool-config.js';
+import { FoodSourcesDao } from '../foods/dao/foodSources.dao.js';
+import { SourceCallLogDao } from '../foods/dao/sourceCallLog.dao.js';
+import { GoldenRecordMergeEngine } from '../foods/merge/mergeEngine.js';
+import { MergeAndPersistService } from '../foods/merge/mergeAndPersist.service.js';
+import { FoodMetrics } from '../observability/emfMetrics.js';
+import { foodPoolConfigFromEnv } from '../database/poolConfig.js';
 import * as schema from '../db/schema/index.js';
-import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
-import { RollingWindowLimiter, sourceCapsFromEnv } from '../sources/rolling-window-limiter.js';
-import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
-import { UsdaApiClient } from '@kitchensink/usda-client';
-import { FoodConsumerService } from './food-consumer.service.js';
-import { ConsoleWorkerLogger } from './worker-logger.js';
-import { WorkerRuntime } from './worker-runtime.js';
+import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
+import { createUsdaSourceRegistry } from '../sources/usda/usdaRegistry.js';
+import { containerCpus, workerConcurrency } from './concurrency.js';
+import { FoodConsumerService } from './foodConsumer.service.js';
+import { ConsoleWorkerLogger } from './ConsoleWorkerLogger.js';
+import { WorkerRuntime } from './WorkerRuntime.js';
+
+/**
+ * Choose the substrate adapter for this process (plan U6).
+ *
+ * `MESSAGE_TABLE_NAME` is injected by the service stack, which resolves it from SSM at deploy time — from
+ * this stage's own per-PR table, or from the base stage's. When it is absent (a local run, a unit test,
+ * anything outside a deployed task) the worker falls back to `ConsolePublisher`, which is what keeps the
+ * worker runnable with NO AWS dependency at all.
+ *
+ * The fallback is deliberately a fallback rather than a throw: a worker that refused to start without a
+ * table would make the substrate a hard dependency of food resolution, and the substrate is a SIDE
+ * CHANNEL — losing it must never stop food from resolving.
+ *
+ * @returns The DynamoDB adapter in a deployed stage, else the console one.
+ * @sideEffect Reads `process.env`.
+ */
+function resolvePublisher(): MessagePublisher {
+    const tableName = process.env['MESSAGE_TABLE_NAME'];
+
+    return tableName === undefined || tableName === '' ? new ConsolePublisher() : new DynamoPublisher(tableName);
+}
 
 const { Pool } = pg;
 
@@ -40,63 +61,6 @@ const { Pool } = pg;
  *
  * @sideEffect Connects to Postgres, registers signal handlers, and runs the drain loop.
  */
-/**
- * The container's actual CPU allowance (vCPUs). `availableParallelism()`/`os.cpus()` report the HOST's
- * cores, which on Fargate/K8s is NOT the task's CPU limit (a CFS quota) — a 0.25-vCPU task on an 8-core
- * host would read 8. So prefer the cgroup quota (cgroup v2 `cpu.max`, then v1 `cpu.cfs_quota_us`), and
- * fall back to `availableParallelism()` off-container (local dev / macOS, where the files are absent).
- *
- * @sideEffect Reads cgroup files under /sys/fs/cgroup.
- */
-function containerCpus(): number {
-    try {
-        const [quota, period] = readFileSync('/sys/fs/cgroup/cpu.max', 'utf8').trim().split(/\s+/); // cgroup v2
-
-        if (quota !== 'max' && Number(quota) > 0 && Number(period) > 0) {
-            return Number(quota) / Number(period);
-        }
-    } catch {
-        /* not cgroup v2 */
-    }
-
-    try {
-        const quota = Number(readFileSync('/sys/fs/cgroup/cpu/cpu.cfs_quota_us', 'utf8').trim()); // cgroup v1
-        const period = Number(readFileSync('/sys/fs/cgroup/cpu/cpu.cfs_period_us', 'utf8').trim());
-
-        if (quota > 0 && period > 0) {
-            return quota / period;
-        }
-    } catch {
-        /* not cgroup v1 */
-    }
-
-    return availableParallelism();
-}
-
-/**
- * How many foods the drainer processes concurrently. The fan-out is ~80% USDA network I/O, so a single
- * food leaves the CPU mostly idle — oversubscribe the task's vCPUs by `FOOD_WORKER_CONCURRENCY_PER_CPU`
- * (default 2). vCPUs come from {@link containerCpus} (sub-1-vCPU tasks round up to 1 logical slot), and
- * the result is clamped to [2, 8]. The upper bound is deliberately conservative: each concurrent food
- * issues ~2 USDA requests, so N-in-flight is ~2N simultaneous requests from one Fargate IP, and a higher
- * width drove USDA's response latency past the client timeout (self-inflicted timeouts → deferred foods).
- * `FOOD_WORKER_CONCURRENCY` overrides the whole computation. The rolling-window limiter still caps the
- * actual USDA call rate, so this only sets the burst width.
- */
-function workerConcurrency(): number {
-    const explicit = Number(process.env['FOOD_WORKER_CONCURRENCY']);
-
-    if (Number.isInteger(explicit) && explicit > 0) {
-        return explicit;
-    }
-
-    const perCpuRaw = Number(process.env['FOOD_WORKER_CONCURRENCY_PER_CPU'] ?? 2);
-    const perCpu = Number.isFinite(perCpuRaw) && perCpuRaw > 0 ? perCpuRaw : 2;
-    const cpus = Math.max(1, Math.round(containerCpus()));
-
-    return Math.max(2, Math.min(8, Math.round(cpus * perCpu)));
-}
-
 async function bootstrap(): Promise<void> {
     const logger = new ConsoleWorkerLogger();
     // A pool large enough to back the concurrent drainer (each in-flight food may hold a connection).
@@ -104,14 +68,10 @@ async function bootstrap(): Promise<void> {
     const pool = new Pool({ ...foodPoolConfigFromEnv(), max: Math.max(10, concurrency + 2) });
     const db = drizzle(pool, { schema });
 
-    const apiKey = process.env['USDA_API_KEY'];
-
-    if (!apiKey) {
-        throw new Error('USDA_API_KEY is required to run the food-fetch consumer');
-    }
-
-    const registry = new SourceAdapterRegistry();
-    registry.register(new UsdaSourceAdapter(new UsdaApiClient({ apiKey })));
+    // Source credentials (USDA_API_KEY) and the adapter's base URL (USDA_API_BASE_URL) are resolved by the
+    // ONE registry factory through the ONE validated reader, so this entrypoint cannot wire a differently
+    // configured adapter than the API or the change-refresh task.
+    const registry = createUsdaSourceRegistry();
 
     const metrics = new FoodMetrics();
     const queue = new FetchQueueDao(db);
@@ -120,12 +80,15 @@ async function bootstrap(): Promise<void> {
         sources: new FoodSourcesDao(db),
         queue,
         registry,
-        // Honor FOOD_SOURCE_RATE_LIMIT_PER_HOUR — the worker is what consults isPaused, so it MUST use the
-        // same configured cap as the API (previously it silently used the 1,000 default).
-        limiter: new RollingWindowLimiter(new SourceCallLogDao(db), { caps: sourceCapsFromEnv() }),
+        // The limiter resolves FOOD_SOURCE_RATE_LIMIT_PER_HOUR itself, so this worker — which is what
+        // consults isPaused — cannot drift from the cap the API and the change-refresh task charge.
+        limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),
         merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),
-        events: new FoodEventEmitter(new ConsoleEventBus(), undefined, (error, detailType) =>
-            logger.warn('event-bus-put-failed', { detailType, error: String(error) }),
+        events: new FoodEventEmitter(resolvePublisher(), undefined, (error, kind) =>
+            // ⛔ The ONLY signal a fire-and-forget publish ever produces. The producer does not await a
+            // consumer and never sees a failure, so a swallowed error here is a message that silently
+            // never existed — see the `publish` port's contract.
+            logger.warn('message-publish-failed', { kind, error: String(error) }),
         ),
         logger,
         metrics,

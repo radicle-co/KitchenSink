@@ -10,8 +10,8 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { RatingsController } from '../ratings.controller.js';
 import type { RatingsService } from '../ratings.service.js';
-import type { SetRatingDto } from '../dto/set-rating.dto.js';
-import type { RecipeResponse } from '../../recipes/dto/recipe-response.dto.js';
+import type { SetRatingDto } from '../dto/setRating.dto.js';
+import type { RecipeResponse } from '../../recipes/dto/recipeResponse.dto.js';
 
 const RATER = '01JRATER00000000000000000A';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';

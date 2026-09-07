@@ -1,0 +1,152 @@
+appId: io.commise.mobile
+---
+# U16 — the picker's CREATE-YOUR-OWN-FOOD door (plan U16, ADR-0029). Assumes an authenticated session (the
+# auth login flow runs first in CI ordering) and the app pointed at the runner's recipe-service, exactly like
+# `create.yaml`.
+#
+# ⛔ THIS FILE WAS COMMITTED EMPTY (zero bytes, by `4d186d1a`) AND STAYED THAT WAY. It was in `FLOW_PLAN` the
+# whole time, so every heavy run tried to execute it and every heavy run died on `Config Section Required` —
+# the inventory guard only ever asked whether the file EXISTED, which an empty file satisfies. That hole is
+# closed now (`maestroFlowSelection.test.ts` parses each planned flow's config section), and this is the flow
+# it was holding a place for.
+#
+# ⛔ WHAT THIS FLOW ASSERTS, AND WHY IT IS THE REFUSAL PATH RATHER THAN THE HAPPY ONE.
+# `IngredientsService.createAuthoredFood` is a BFF composition: its FIRST act is
+# `foodClients.standard(caller).createAuthoredFood(input)` — it authors the food IN THE FOOD SERVICE, then
+# admits the ingredient. The Maestro job boots recipe-service + Postgres and NOTHING ELSE, with
+# `FOOD_SERVICE_URL=http://localhost:3002` and nothing listening on it (see the `e2e-mobile-maestro` job in
+# `.github/workflows/_ci-heavy.yml`). So a successful create is not reachable here, and a flow asserting one
+# could never pass — the same reasoning `ingredient-catalog-blend.yaml` records for the catalog PICK.
+#
+# What IS deterministic here, every run, is the whole surface up to and including the network boundary: the
+# door exists, the form renders its per-100g fields and its privacy promise, validation refuses an incomplete
+# draft WITHOUT a request, and a complete draft against a dead food service DISCLOSES the failure instead of
+# hanging or silently closing. That last one is the falsifiable core — a form that swallowed the error would
+# leave the cook staring at a spinner, and nothing else in the suite would notice.
+#
+# The happy path (created → admitted → attached to the line) is covered by the mobile component tests
+# (`tests/components/IngredientPicker.native.test.tsx`) and by the recipe-service integration tier, where the
+# food service is a real socket. Giving it on-device coverage needs a food service in this job.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Authored Food'
+
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+
+# A name deliberately absent from the seeded catalog (Flour/Sugar/Butter), so the picker falls through to its
+# no-good-match actions — which is where U16's door lives.
+- inputText: 'Maestro Nut Butter'
+
+# ⛔ THE DOOR ITSELF. `Create “{query}”` (the freeform row) and `Create your own food` sit side by side, and
+# they are NOT the same affordance: the first attaches an unbacked name, the second authors a real food with
+# macros. Tapping the wrong one is the regression this asserts against.
+- scrollUntilVisible:
+      element: 'Create your own food'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Create your own food'
+
+# ⛔ THE FORM OPENS BELOW THE FOLD, AND `assertVisible` DOES NOT SCROLL. This is not a selector-spelling
+# problem and no rewording of the assertions below could have fixed it — the nodes were not in the tree.
+#
+# Measured from the failing run's own hierarchy dump (33878552289, job 101042182336): the wizard's
+# `ScrollView` occupies `[0,288][1080,2084]` and tapping the door laid the form card out from y=1781. The
+# dump therefore held the card's heading and its name field, `Nutrition per 100 g` survived by a SEVEN-
+# pixel sliver at `[121,2077][961,2084]`, and every macro field, the privacy line and both buttons were
+# absent from the hierarchy entirely — clipped by the viewport, so Maestro could not see them at all.
+# (The a11y-hidden visual `Text` is a red herring: `Food name` is in that same dump with
+# `important-for-accessibility=false`, and the input beside it carries the label as its accessible NAME,
+# so either node satisfies the assertion. The macro labels are missing because of the fold, nothing else.)
+#
+# So bring the card's action row into view first. The card measures ~935px against a ~1796px viewport, so
+# once its bottom is on screen the WHOLE form is — heading through Cancel, which shares the action row
+# with `Create and add`. This also un-vacuums the two `assertNotVisible`s below: an element clipped off
+# the bottom of a scroll view is trivially "not visible", so they asserted nothing until now.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
+
+# The form. `draftFromQuery` carries the typed query into the name field, so the cook never retypes it.
+- assertVisible: 'Nutrition per 100 g'
+- assertVisible: 'Food name'
+- assertVisible: 'Calories (kcal)'
+- assertVisible: 'Protein (g)'
+- assertVisible: 'Carbs (g)'
+- assertVisible: 'Fat (g)'
+
+# D9a/U11 — the promise the backend keeps: an authored food is PRIVATE until a human promotes it. If this
+# line ever disappears, a cook is authoring public data without being told.
+- assertVisible: 'Only you can see foods you create.'
+
+# ⛔ VALIDATION FIRST, AND IT COSTS NO REQUEST. The macros start empty, so submitting now must refuse locally.
+# This is what proves the form is not a thin passthrough that discovers its own bounds from a 400.
+- tapOn: 'Create and add'
+- assertVisible: 'Required'
+- assertNotVisible: 'Creating your food…'
+
+# Now a complete, in-bounds draft (calories <= 900, each macro <= 100 — `authoredMacrosSchema`).
+- tapOn: 'Calories (kcal)'
+- inputText: '588'
+- tapOn: 'Protein (g)'
+- inputText: '21'
+- tapOn: 'Carbs (g)'
+- inputText: '20'
+- tapOn: 'Fat (g)'
+- inputText: '50'
+- assertNotVisible: 'Required'
+
+# ⛔ RE-ANCHOR, because the CARD CHANGED HEIGHT under us. The refused submit added a `Required` line beneath
+# each macro input and filling them took the lines away again, and a scroll view that was already at its
+# bottom does not follow content that grows below the offset — it just clips it. `scrollUntilVisible` is a
+# no-op when the element is already fully visible, so this costs a hierarchy read when nothing has moved.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Create and add'
+
+# ⛔ THE FALSIFIABLE CORE. The food service is unreachable in this job, so the create MUST fail — and the
+# failure must reach the cook as a sentence. `extendedWaitUntil`, never a fixed sleep: the request has to
+# reach the transport and be refused first, and that duration is not a constant this flow may assume.
+- extendedWaitUntil:
+      visible:
+          text: 'Could not create the food. Check your connection and try again.'
+      timeout: 40000
+
+# ⛔ AND THE FORM STAYS OPEN ON THE DRAFT. A failed submit that closed the form (or cleared the fields) would
+# make the cook retype every macro, which is the cost this disclosure exists to avoid.
+#
+# The disclosure itself is two lines of copy inserted ABOVE the action row, so it lands in the space the
+# actions occupied (which is why `extendedWaitUntil` above sees it without scrolling) and pushes them
+# under the fold. Re-anchor before asserting, or `Create and add` is judged absent for a layout reason
+# rather than a behavioural one — and `Creating your food…` would go un-asserted for the same reason.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
+- assertVisible: 'Nutrition per 100 g'
+- assertVisible: 'Create and add'
+- assertNotVisible: 'Creating your food…'
+
+# Cancel returns to the picker with the search intact — the door swings both ways.
+- tapOn: 'Cancel'
+- assertNotVisible: 'Nutrition per 100 g'
+- assertVisible: 'Create your own food'

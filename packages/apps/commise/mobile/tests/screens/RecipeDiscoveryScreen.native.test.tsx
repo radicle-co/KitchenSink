@@ -36,11 +36,22 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useInfiniteSearchRecipes: vi.fn(),
     useCloneRecipe: vi.fn(),
     // The screen's filter bar composes `useIngredientFilterSearch` (FR-006 gap #3), which calls this —
     // idle/disabled by default (no test here types an ingredient query), mirroring the empty-typeahead state.
     useSearchIngredients: vi.fn(),
+}));
+
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
 }));
 
 const useSearchRecipesMock = vi.mocked(useInfiniteSearchRecipes);

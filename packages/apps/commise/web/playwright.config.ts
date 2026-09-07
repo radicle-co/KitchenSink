@@ -1,6 +1,11 @@
 import nextEnv from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
 
+import { AUTH_STATE_PATH, SESSION_OWNING_SPEC_GLOBS } from './tests/e2e/utils/authState';
+import { mockedSpecGlobs } from './tests/e2e/utils/specTier';
+import { resolveServiceUrls, serviceUrlEnv } from './tests/e2e/utils/serviceUrls';
+import { resolveWebServerMode, webServerCommand } from './tests/e2e/utils/webServerMode';
+
 // @next/env is CommonJS — destructure off the default import (named ESM imports fail).
 const { loadEnvConfig } = nextEnv;
 
@@ -16,7 +21,45 @@ loadEnvConfig(process.cwd());
 const BASE_PATH = process.env.E2E_BASE_PATH ?? '';
 const LOCALE = process.env.E2E_LOCALE ?? 'en';
 const PORT = Number(process.env.PORT ?? 3000);
+// ── The DEPLOYED tier excludes every spec that stubs the recipe API ───────────────────────────────
+//
+// `mockRecipeApi` intercepts `/api/v1/**` in the BROWSER. A Next `page.tsx` prefetches inside the Next
+// server's own process, which the browser mock cannot reach — so the mocked suite silently relies on the
+// local harness having NO recipe API to answer that prefetch (`ssrPrefetch.spec.ts` documents the same
+// mechanism from the other side). Against a deployed preview a real service answers it with real, empty
+// data, the page renders that, and the stub never applies: the specs then fail on fixtures nobody served.
+//
+// ⛔ Do not "fix" a failing mocked spec by seeding data into a preview. It is not an end-to-end test —
+// the owner's ruling scopes this tier to tests "which should be hitting remote services", and a spec
+// that stubs every API call is not one. It keeps its full value locally, where its assumption holds.
+// The partition is DERIVED per spec (see `utils/specTier.ts`), so a new mocked spec excludes itself.
+const deployedTargetIgnores = process.env['PLAYWRIGHT_BASE_URL'] ? mockedSpecGlobs() : [];
+
+// The inverse selection, for the tier that OWNS the mocked specs. CI runs them against a locally-booted app
+// where their stub assumption holds; without this the deployed switch would leave 39 specs running nowhere.
+// It is an explicit opt-in rather than "whenever PLAYWRIGHT_BASE_URL is unset", so a developer running the
+// suite locally still gets the whole thing.
+const mockedTierOnly = process.env['PLAYWRIGHT_MOCKED_ONLY'] === '1';
+
 const ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
+
+// WHICH BACKENDS the app under test calls — every one overridable, each defaulting to the port that
+// service binds locally, and no localhost string written down anywhere but the one module below. This
+// config used to pass the web server nothing but `PORT`, so the origins came from whatever `.env.local`
+// happened to hold on the machine running the suite: a run could not be pointed at another stack without
+// editing an untracked file, and a stale value there failed as an assertion timeout rather than as a
+// configuration error. Malformed values throw HERE, not 120 seconds later inside the spawned server.
+//
+// ⚠️ `loadEnvConfig` above has already merged `.env.local` / `.env.development` into `process.env`, so a
+// value set in either of those files counts as configured and wins over the default. That is the intended
+// precedence (explicit beats default); it also means a STALE endpoint in `.env.local` still wins, and
+// unsetting it — not editing this file — is how you get back to the local default.
+const SERVICE_URLS = resolveServiceUrls(process.env);
+
+// `dev` locally, `start` (a real production build) under CI. The whole rationale — including the measured
+// per-test cost of on-demand route compilation that made this a reliability problem rather than a speed one —
+// lives in `tests/e2e/utils/webServerMode.ts`, next to the guard that pins it.
+const WEB_SERVER_MODE = resolveWebServerMode(process.env);
 
 export default defineConfig({
     testDir: './tests/e2e',
@@ -25,16 +68,17 @@ export default defineConfig({
     // readViewerAppId.test.ts) as Playwright specs and crash the run on their `vitest` imports.
     testMatch: '**/*.spec.ts',
     // Serial (single worker), not parallel: this run's specs share ONE Clerk test user (run-scoped — see
-    // tests/e2e/utils/runFixtureIdentity.ts) and ONE Next dev server, and concurrent sign-ins / on-demand
-    // route compilation under load flake intermittently. Reliability matters more than wall-clock for a
-    // red-alert auth suite. NOTE: this says nothing about two SEPARATE runs — those are isolated by the
-    // per-run fixture identity, not by the worker count.
+    // @kitchensink/e2e-fixtures) and ONE Next server, and concurrent sign-ins — plus, in `dev`
+    // mode, on-demand route compilation — under load flake intermittently. Reliability matters more than
+    // wall-clock for a red-alert auth suite. NOTE: this says nothing about two SEPARATE runs — those are
+    // isolated by the per-run fixture identity, not by the worker count.
     fullyParallel: false,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 1,
     workers: 1,
     // 60s, not Playwright's 30s default. Almost every spec here opens with `signInWithTicket`, whose own
-    // landing poll budgets 30s to absorb Next dev's on-demand route compilation — i.e. EXACTLY the default
+    // landing poll budgets 30s to absorb the Clerk handshake — and, in `dev` mode, Next's on-demand route
+    // compilation on top of it. That is EXACTLY the default
     // per-test budget. A step whose timeout equals the whole test's budget can never report its own
     // failure: the test dies of a generic 30s timeout first, which is how the `signInWithTicket` flake
     // presents (a bare timeout on the sign-in step, with no indication of which precondition missed).
@@ -54,21 +98,81 @@ export default defineConfig({
         baseURL: ORIGIN,
         trace: 'on-first-retry',
     },
+    // ── THREE projects, because ONE shared Clerk session is not safe for every spec ────────────────────
+    //
+    // `setup` signs in once and saves `storageState`; `chromium` restores it; `own-session` deliberately does
+    // not. The split is defined ONCE, by `SESSION_OWNING_SPECS` — used here as one project's `testMatch` and
+    // the other's `testIgnore`, so a spec cannot land in both projects or in neither. See
+    // `tests/e2e/utils/authState.ts` for the reasoning and `tests/e2e/utils/__tests__/authState.test.ts` for
+    // the guard that re-derives this partition from the files on disk.
+    //
+    // ⚠️ THE MAIN PROJECT MUST STAY NAMED `chromium`. Playwright bakes the project name into screenshot
+    // baselines (`recipe-detail-desktop-chromium-linux.png`), so renaming it — or moving a spec that owns a
+    // `-snapshots/` directory into `own-session` — silently invalidates those baselines.
+    //
+    // ⚠️ `dependencies` RE-RUNS `setup` in every shard. That is correct here rather than wasteful: each shard
+    // derives its own run key (`COMMISE_E2E_SHARD` → `deriveRunKey`) and provisions its own Clerk user, so a
+    // shard must authenticate as ITS user and write ITS own state file (`authStatePath` is run-key scoped). One
+    // shared file would hand shard 2 a session belonging to a user shard 1's teardown then deletes.
     projects: [
         {
+            name: 'setup',
+            testMatch: /auth\.setup\.ts$/,
+            use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            // Every signed-in spec. Restores the shared session; `signInWithTicket` becomes a navigation.
             name: 'chromium',
+            testIgnore: [...SESSION_OWNING_SPEC_GLOBS, ...deployedTargetIgnores],
+            ...(mockedTierOnly ? { testMatch: mockedSpecGlobs() } : {}),
+            use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE_PATH },
+            dependencies: ['setup'],
+        },
+        {
+            // Specs that revoke their session or assert the signed-OUT surface. No `storageState`, and no
+            // dependency on `setup` — they mint their own session exactly as the whole suite used to, so a
+            // failure here is never a symptom of the shared one.
+            name: 'own-session',
+            testMatch: mockedTierOnly
+                ? SESSION_OWNING_SPEC_GLOBS.filter((glob) => mockedSpecGlobs().includes(glob))
+                : SESSION_OWNING_SPEC_GLOBS,
+            testIgnore: deployedTargetIgnores,
             use: { ...devices['Desktop Chrome'] },
         },
     ],
     webServer: process.env.PLAYWRIGHT_BASE_URL
         ? undefined
         : {
-              command: 'npm run dev',
+              // `next dev` locally, `next start` under CI — see tests/e2e/utils/webServerMode.ts.
+              //
+              // ⚠️ `start` SERVES A BUILD; it does not make one. CI's `build` job publishes `.next` as an
+              // artifact and the Playwright job downloads it. Locally, run `npm run build` first (with the
+              // three NEXT_PUBLIC_* values this app requires) or leave the mode at `dev`.
+              command: webServerCommand(WEB_SERVER_MODE),
               // Empty basePath (subdomain shape) unless E2E_BASE_PATH pins a legacy prefix; the locale
               // lives in the path. PREVIEW_BASE_PATH is only set when exercising the legacy path shape.
-              env: BASE_PATH ? { PREVIEW_BASE_PATH: BASE_PATH, PORT: String(PORT) } : { PORT: String(PORT) },
+              //
+              // ⚠️ PREVIEW_BASE_PATH IS BUILD-TIME AND HAS NO EFFECT ON A `start` RUN. `next.config.ts`
+              // reads it through `derivePreviewBasePath` while the bundle is being COMPILED, so the prefix
+              // is already baked (or absent) in whatever `.next` this server is about to serve — passing it
+              // here only reaches an already-built app, which ignores it. CI runs the BARE shape only (no
+              // workflow sets E2E_BASE_PATH or PREVIEW_BASE_PATH), so nothing is lost today. If the legacy
+              // prefixed preview shape is ever wired into CI it needs its OWN build, made with
+              // PREVIEW_BASE_PATH set — it cannot share the bare artifact. See ADR-0001.
+              //
+              // The service origins are passed EXPLICITLY rather than left to the dotenv files the server
+              // would otherwise read: Playwright merges this over `process.env`, so whatever the caller
+              // configured is what the app compiles against. Spread from the resolver's own record, so a
+              // backend added there reaches the server without a second edit here.
+              env: {
+                  PORT: String(PORT),
+                  ...serviceUrlEnv(SERVICE_URLS),
+                  ...(BASE_PATH ? { PREVIEW_BASE_PATH: BASE_PATH } : {}),
+              },
               // Readiness probe: the localized sign-in page returns 200 (`/sign-in` 307s to `/{locale}`).
-              url: `http://localhost:${PORT}${BASE_PATH}/${LOCALE}/sign-in`,
+              // Derived from ORIGIN — the one place this run's own address is decided — rather than
+              // rebuilt from `localhost` and PORT, which drifted from `baseURL` the moment either moved.
+              url: new URL(`${BASE_PATH}/${LOCALE}/sign-in`, ORIGIN).toString(),
               reuseExistingServer: !process.env.CI,
               timeout: 120_000,
           },

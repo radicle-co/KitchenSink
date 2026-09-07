@@ -31,10 +31,16 @@ export const SaveIcon: FC = () => (
     <Glyph d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" />
 );
 
-/** Eye — the "Preview" top-bar action. */
-export const EyeIcon: FC = () => (
-    <Glyph d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-);
+/**
+ * Arrow-left — the sticky header's BACK affordance (U32), which below `lg` replaces the overflow menu's
+ * `Cancel` item. Deliberately distinct from {@link ChevronLeftIcon}: the chevron means "one step back inside
+ * this wizard", the arrow means "leave the wizard". Mirrors the native leaf's `Feather` name `arrow-left`.
+ *
+ * ⚠️ This REPLACED `EyeIcon` (the deleted Preview action) rather than being added beside it — the sheet's
+ * export count is pinned by `oneFileOneThing.test.ts`'s icon-set ruling, so a net addition here is a gate
+ * failure, not a silent growth.
+ */
+export const ArrowLeftIcon: FC = () => <Glyph d="M19 12H5M12 19l-7-7 7-7" />;
 
 /** Chevron-left — the footer "Prev" nav. */
 export const ChevronLeftIcon: FC = () => <Glyph d="M15 18l-6-6 6-6" />;

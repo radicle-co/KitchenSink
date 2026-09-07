@@ -3,7 +3,7 @@
  * aggregate read, `createByName` normalized-name dedup + terminal-row reactivation, and the guarded
  * legal status-transition set (FR-005, FR-013, FR-025, FR-028, FR-028a, FR-IDN-1).
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 
 import { FoodDao } from '../src/foods/dao/food.dao.js';
@@ -100,6 +100,52 @@ describe.skipIf(!DATABASE_URL)('FoodDao (integration)', () => {
             expect(reactivated.reactivated).toBe(true);
             const row = await dao.getById(created.id);
             expect(row?.status).toBe('PENDING');
+        });
+
+        /**
+         * T-150 — the tombstone TTL is CONFIGURED (`FOOD_NOT_FOUND_TTL_DAYS`), not the literal 30 days the
+         * statement used to carry. Lowering it is the lever an operator pulls to let a batch that failed
+         * against a broken upstream be re-attempted sooner; before this it did nothing at all, silently.
+         *
+         * A fresh `FoodDao` is built per case because the TTL is resolved at construction.
+         */
+        describe('the configured tombstone TTL (FR-025)', () => {
+            afterEach(() => {
+                vi.unstubAllEnvs();
+            });
+
+            it('reactivates a 10-day-old tombstone under a 5-day TTL (the default 30 would not)', async () => {
+                const created = await dao.createByName({ normalizedName: 'loquat' });
+                await pool.query(
+                    `UPDATE food SET status='NOT_FOUND', tombstoned_at = now() - interval '10 days' WHERE id = $1`,
+                    [created.id],
+                );
+
+                vi.stubEnv('FOOD_NOT_FOUND_TTL_DAYS', '5');
+                const result = await new FoodDao(db).createByName({ normalizedName: 'loquat' });
+
+                expect(result.id).toBe(created.id);
+                expect(result.reactivated).toBe(true);
+
+                const row = await dao.getById(created.id);
+                expect(row?.status).toBe('PENDING');
+                // The TTL gates every arm of the upsert, so the anchor is cleared with the status.
+                expect(row?.tombstonedAt).toBeNull();
+            });
+
+            it('holds a 40-day-old tombstone under a 90-day TTL (the default 30 would release it)', async () => {
+                const created = await dao.createByName({ normalizedName: 'medlar' });
+                await pool.query(
+                    `UPDATE food SET status='NOT_FOUND', tombstoned_at = now() - interval '40 days' WHERE id = $1`,
+                    [created.id],
+                );
+
+                vi.stubEnv('FOOD_NOT_FOUND_TTL_DAYS', '90');
+                const result = await new FoodDao(db).createByName({ normalizedName: 'medlar' });
+
+                expect(result.reactivated).toBe(false);
+                expect((await dao.getById(created.id))?.status).toBe('NOT_FOUND');
+            });
         });
     });
 

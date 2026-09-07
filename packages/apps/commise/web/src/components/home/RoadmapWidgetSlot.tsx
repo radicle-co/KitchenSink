@@ -3,15 +3,20 @@
 /**
  * @module home/RoadmapWidgetSlot — the host slot for a roadmap skeleton placeholder (web).
  *
- * The Home composition root renders one slot per curated widget id. Where {@link RecipeWidgetSlot} is the
+ * The Home composition root renders one slot per curated widget id. Where `RecipeWidgetSlot` is the
  * bespoke slot for the live recipe widget (it wires the recipe data prop), THIS is the generic slot for a
- * {@link PlaceholderHomeWidgetDescriptor}: it code-splits the platform skeleton through the descriptor's own
+ * `PlaceholderHomeWidgetDescriptor`: it code-splits the platform skeleton through the descriptor's own
  * loader seam (`descriptor.load`, bound to a host-owned skeleton in `roadmapFeature.ts`) via `next/dynamic`,
  * and renders it with no props — a placeholder has no data to feed.
  *
  * Rendering through the loader seam (rather than a second id→component map in the host) is what keeps the
  * placeholder ids in ONE place: the shared roadmap registry binds id → skeleton once, and the host just draws
  * whatever the descriptor resolves. Adding a roadmap widget needs no edit here.
+ *
+ * ⚠️ "Slot" + a loader seam + code-splitting read as registry plumbing, but this is PRESENTATIONAL: it
+ * starts no request, owns no state, and decides nothing — it draws whatever a prop resolves to. Its native
+ * twin says the same thing through `React.lazy` + `Suspense` rather than `next/dynamic`, and that spelling
+ * difference must not put the two leaves on different layers.
  */
 import type { HomeWidgetDescriptor } from '@commise/features-core';
 import dynamic from 'next/dynamic';

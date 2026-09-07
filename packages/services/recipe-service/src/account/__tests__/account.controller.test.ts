@@ -14,7 +14,7 @@
  *     → `describe('the request body')` / `describe('the response')`
  *
  * The `401`-on-missing-principal path lives in `@OwnerId()` itself
- * (`auth/__tests__/current-principal.decorator.test.ts`); the wire status codes (`202`/`410`) are pinned
+ * (`auth/__tests__/currentPrincipal.decorator.test.ts`); the wire status codes (`202`/`410`) are pinned
  * over real HTTP by the integration tier (T137).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';

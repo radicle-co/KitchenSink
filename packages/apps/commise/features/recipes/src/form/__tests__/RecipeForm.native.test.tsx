@@ -33,7 +33,8 @@ vi.mock('@expo/vector-icons', () => ({
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeForm } from '../RecipeForm.native.js';
 import { DESCRIPTION_MAX_LENGTH, defaultRecipeFormValues, TITLE_MAX_LENGTH, type RecipeFormValues } from '../model.js';
-import type { RecipeFormProps } from '../props.js';
+import { resolutionStatusLabel, type RecipeFormProps } from '../props.js';
+import { recipeFormMessages } from '../messages.js';
 
 afterEach(cleanup);
 afterEach(() => {
@@ -71,6 +72,8 @@ function renderForm(overrides: Partial<RecipeFormProps> = {}) {
         values: filledValues(),
         mode: 'create',
         onChange: noop,
+        // U28 — REQUIRED, so a composition cannot forget to say where "+ Add ingredient" leads.
+        onRequestAddIngredient: noop,
         onSubmit: noop,
         onCancel: noop,
         ...overrides,
@@ -282,6 +285,7 @@ describe('RecipeForm (native) — cuisine dropdown (w3/e5; U6 Select, not a radi
         for (const cuisine of CUISINES) {
             expect(screen.getByRole('menuitem', { name: cuisine })).toBeTruthy();
         }
+
         expect(screen.getByRole('menuitem', { name: 'No cuisine' })).toBeTruthy();
     });
 
@@ -372,7 +376,8 @@ describe('RecipeForm (native) — B8 error accessibility wiring (aria-invalid + 
         expect(cook.getAttribute('aria-describedby')).toBe(alert.id);
     });
 
-    it('wires only the offending ingredient line(s) to the ingredients alert, per field (WCAG 3.3.1)', () => {
+    /** REWRITTEN + SPLIT for U9 — see the web suite for the rationale. One test per error code. */
+    it('wires only the UNRESOLVED lines to an ingredientsUnresolved alert (WCAG 3.3.1)', () => {
         renderForm({
             values: filledValues({
                 ingredients: [
@@ -387,15 +392,38 @@ describe('RecipeForm (native) — B8 error accessibility wiring (aria-invalid + 
         const alert = screen.getByRole('alert');
 
         expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-invalid')).toBe('true');
-        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-describedby')).toBe(alert.id);
+        // ⚠️ WIDENED BY U28 (was `toBe(alert.id)`) — see the web leaf's test for the reasoning: the field is
+        // now described by its OWN "no food chosen" note as well as the section alert, and what must stay
+        // true is that the alert is still REACHED.
+        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-describedby')?.split(' ')).toContain(
+            alert.id,
+        );
         expect(screen.getByLabelText('Ingredient 1 quantity').getAttribute('aria-invalid')).toBeNull();
 
         expect(screen.getByLabelText('Ingredient 2 name').getAttribute('aria-invalid')).toBeNull();
-        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-invalid')).toBe('true');
-        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-describedby')).toBe(alert.id);
+        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-invalid')).toBeNull();
 
         expect(screen.getByLabelText('Ingredient 3 name').getAttribute('aria-invalid')).toBeNull();
         expect(screen.getByLabelText('Ingredient 3 quantity').getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('wires only the offending QUANTITY lines to an ingredientsQuantityInvalid alert (WCAG 3.3.1)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Salt', quantity: 0 },
+                    { ingredientId: 'ing_2', name: 'Pepper', quantity: 1 },
+                ],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(screen.getByLabelText('Ingredient 1 quantity').getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByLabelText('Ingredient 1 quantity').getAttribute('aria-describedby')).toBe(alert.id);
+        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-invalid')).toBeNull();
+        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-invalid')).toBeNull();
     });
 
     it('does not mark any ingredient line invalid on an ingredientsEmpty error (no lines exist)', () => {
@@ -436,7 +464,11 @@ describe('RecipeForm (native) — ingredients', () => {
         expect(inputValue('Ingredient 1 unit')).toBe('g');
     });
 
-    it('renders a RESOLVED line’s name READ-ONLY, and an UNRESOLVED line’s name editable (U6)', () => {
+    /**
+     * REWRITTEN for U28 (was: "… and an UNRESOLVED line’s name editable (U6)") — see the web leaf's test
+     * for the full reasoning. Every name field is read-only now: a food is picked, never typed.
+     */
+    it('renders EVERY line’s name READ-ONLY, resolved or not (U28)', () => {
         cleanup();
         renderForm({
             values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300 }] }),
@@ -446,18 +478,23 @@ describe('RecipeForm (native) — ingredients', () => {
 
         cleanup();
         renderForm({ values: filledValues({ ingredients: [{ ingredientId: null, name: 'rice', quantity: 1 }] }) });
-        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1 name').readOnly).toBe(false);
+        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1 name').readOnly).toBe(true);
+        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1 name').value).toBe('rice');
     });
 
-    it('appends a blank ingredient line on add', () => {
+    /**
+     * REWRITTEN for U28 (was: "appends a blank ingredient line on add") — the mutant guard for "restore the
+     * append-an-empty-row behaviour" on this platform. See the web leaf's test for the full reasoning.
+     */
+    it('⛔ asks for the PICKER on add — and changes no values (U28)', () => {
         const onChange = vi.fn();
-        renderForm({ values: filledValues({ ingredients: [] }), onChange });
+        const onRequestAddIngredient = vi.fn();
+        renderForm({ values: filledValues({ ingredients: [] }), onChange, onRequestAddIngredient });
 
         fireEvent.click(screen.getByRole('button', { name: 'Add ingredient' }));
 
-        expect(onChange).toHaveBeenCalledWith(
-            expect.objectContaining({ ingredients: [{ ingredientId: null, name: '', quantity: 1 }] }),
-        );
+        expect(onRequestAddIngredient).toHaveBeenCalledTimes(1);
+        expect(onChange).not.toHaveBeenCalled();
     });
 
     it('removes the targeted ingredient line', () => {
@@ -479,7 +516,11 @@ describe('RecipeForm (native) — ingredients', () => {
         );
     });
 
-    it('reports an UNRESOLVED line’s name edit upward (freeform-in-progress; U6)', () => {
+    /**
+     * REWRITTEN for U28 (was: "reports an UNRESOLVED line’s name edit upward ... U6") — the inverse
+     * assertion; see the web leaf's test for the reasoning.
+     */
+    it('emits NOTHING when an unresolved line’s name is typed into (U28)', () => {
         const onChange = vi.fn();
         renderForm({
             values: filledValues({ ingredients: [{ ingredientId: null, name: 'ric', quantity: 1 }] }),
@@ -488,11 +529,7 @@ describe('RecipeForm (native) — ingredients', () => {
 
         fireEvent.change(screen.getByLabelText('Ingredient 1 name'), { target: { value: 'rice' } });
 
-        expect(onChange).toHaveBeenCalledWith(
-            expect.objectContaining({
-                ingredients: [expect.objectContaining({ name: 'rice', ingredientId: null })],
-            }),
-        );
+        expect(onChange).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -501,6 +538,8 @@ describe('RecipeForm (native) — ingredients', () => {
         [FoodResolutionStatus.RESOLVED, 'Resolved'],
         [FoodResolutionStatus.NOT_FOUND, 'No match found'],
         [FoodResolutionStatus.FAILED, 'Resolution failed'],
+        // ⚠️ EXTENDED for U14, not rewritten — see the web mirror.
+        [FoodResolutionStatus.NEEDS_REVIEW, 'Needs review'],
     ])('renders the %s resolution-status badge', (status, label) => {
         renderForm({
             values: filledValues({
@@ -515,6 +554,36 @@ describe('RecipeForm (native) — ingredients', () => {
         renderForm({ values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Rice', quantity: 1 }] }) });
 
         expect(screen.queryByText('Resolved')).toBeNull();
+    });
+
+    it('⛔ styles the NEEDS_REVIEW badge differently from every other status (U14)', () => {
+        // The native mirror of the web assertion, case for case: a doubted line is the ONE status a cook can
+        // act on, and the editor is where they act. Compared against the OTHER statuses rather than against a
+        // literal colour, so it pins the DISTINCTION rather than today's palette.
+        const styleOf = (status: (typeof FoodResolutionStatus)[keyof typeof FoodResolutionStatus]): string => {
+            cleanup();
+            renderForm({
+                values: filledValues({
+                    ingredients: [{ ingredientId: 'ing_1', name: 'Rice', quantity: 1, resolutionStatus: status }],
+                }),
+            });
+
+            const badge = screen.getByText(resolutionStatusLabel(recipeFormMessages.en, status));
+
+            return getComputedStyle(badge).color + '|' + getComputedStyle(badge).backgroundColor;
+        };
+
+        const review = styleOf(FoodResolutionStatus.NEEDS_REVIEW);
+
+        for (const other of [
+            FoodResolutionStatus.PENDING,
+            FoodResolutionStatus.UNRESOLVED,
+            FoodResolutionStatus.RESOLVED,
+            FoodResolutionStatus.NOT_FOUND,
+            FoodResolutionStatus.FAILED,
+        ] as const) {
+            expect(review).not.toBe(styleOf(other));
+        }
     });
 });
 
@@ -586,6 +655,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -604,6 +674,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -623,6 +694,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -640,6 +712,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -660,6 +733,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -677,6 +751,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -1051,7 +1126,7 @@ describe('RecipeForm (native) — PLACEHOLDER text clears the AA body-text floor
      * `--placeholderTextColor` custom property that the compiled `::placeholder` rule resolves), so this fails
      * both if the token drifts and if the prop stops being passed at all.
      */
-    it('gives the basics fields (RecipeFormSections) a legible placeholder', () => {
+    it('gives the basics fields (RecipeBasicsFields) a legible placeholder', () => {
         renderForm({ values: filledValues({ title: '' }) });
 
         expect(
@@ -1067,5 +1142,556 @@ describe('RecipeForm (native) — PLACEHOLDER text clears the AA body-text floor
             placeholderContrast(screen.getByLabelText('Tags')),
             'ChipInput placeholder on its white field',
         ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * U9 / R42 — the two-bound quantity field, native leaf.
+ *
+ * The one-for-one mirror of the web suite's ranged-quantity block: same states, same accessible names, same
+ * marking rules. §14's cross-platform rule is what makes this a mirror rather than a variation — a range
+ * that renders on one platform and not the other is the failure both suites exist to catch.
+ */
+describe('RecipeForm (native) — ranged quantity (U9/R42)', () => {
+    const lowField = (number = 1) => screen.getByLabelText<HTMLInputElement>(`Ingredient ${number} quantity`);
+    const highField = (number = 1) => screen.getByLabelText<HTMLInputElement>(`Ingredient ${number} maximum quantity`);
+
+    it('renders BOTH bounds of a stated range, sharing one unit field', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3, unit: 'cups' }],
+            }),
+        });
+
+        expect(lowField().value).toBe('2');
+        expect(highField().value).toBe('3');
+        expect(inputValue('Ingredient 1 unit')).toBe('cups');
+    });
+
+    it('leaves the upper bound EMPTY for a single stated value', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+        });
+
+        expect(highField().value).toBe('');
+    });
+
+    it('renders an ABSENT quantity as an empty field, never a zero (R40)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Butter', quantity: Number.NaN, unit: 'the size of an egg' },
+                ],
+            }),
+        });
+
+        expect(lowField().value).toBe('');
+        expect(highField().value).toBe('');
+    });
+
+    it('states an upper bound when the user types one', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+            onChange,
+        });
+
+        fireEvent.change(highField(), { target: { value: '3' } });
+
+        expect(onChange).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+        );
+    });
+
+    it('CLEARS the upper bound back to a single value when the field is emptied', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+            onChange,
+        });
+
+        fireEvent.change(highField(), { target: { value: '' } });
+
+        const next = onChange.mock.calls.at(-1)?.[0] as RecipeFormValues;
+        expect('quantityHigh' in (next.ingredients[0] ?? {})).toBe(false);
+    });
+
+    it('clears the LOWER bound to an absent amount when emptied, not to a zero', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+            onChange,
+        });
+
+        fireEvent.change(lowField(), { target: { value: '' } });
+
+        const next = onChange.mock.calls.at(-1)?.[0] as RecipeFormValues;
+        expect(next.ingredients[0]?.quantity).toBeNaN();
+    });
+
+    it('marks BOTH bounds invalid and wires them to the alert when the range is incoherent (WCAG 3.3.1)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 3, quantityHigh: 2 }],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(alert.textContent).toContain('above');
+        expect(lowField().getAttribute('aria-invalid')).toBe('true');
+        expect(lowField().getAttribute('aria-describedby')).toBe(alert.id);
+        expect(highField().getAttribute('aria-invalid')).toBe('true');
+        expect(highField().getAttribute('aria-describedby')).toBe(alert.id);
+    });
+
+    it('marks NEITHER bound on a line whose quantity is absent — absence is not an error', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Butter', quantity: Number.NaN },
+                    { ingredientId: 'ing_2', name: 'Flour', quantity: 3, quantityHigh: 2 },
+                ],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        expect(lowField(1).getAttribute('aria-invalid')).toBeNull();
+        expect(highField(1).getAttribute('aria-invalid')).toBeNull();
+        expect(lowField(2).getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('does NOT mark a quantity on an ingredientsUnresolved error — that error is about the picker', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: null, name: 'Flour', quantity: 0 }] }),
+            errors: { ingredients: 'ingredientsUnresolved' },
+        });
+
+        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-invalid')).toBe('true');
+        expect(lowField().getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('discloses that the running total was computed from one bound of a range (R38)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    {
+                        ingredientId: 'ing_1',
+                        name: 'Flour',
+                        quantity: 100,
+                        quantityHigh: 200,
+                        unit: 'g',
+                        caloriesPer100g: 364,
+                    },
+                ],
+            }),
+        });
+
+        expect(screen.getByText('Estimated from the lower amount of each stated range')).toBeTruthy();
+    });
+
+    it('shows NO range disclosure when no line states a range', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 100, unit: 'g', caloriesPer100g: 364 }],
+            }),
+        });
+
+        expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
+    });
+});
+
+/**
+ * U9 — the separator glyph is PUNCTUATION, and the native spelling of "hidden" is the load-bearing part.
+ *
+ * ⛔ THE REGRESSION THIS CATCHES. `importantForAccessibility="no"` reads as correct RN and produces NO DOM
+ * attribute under react-native-web, so the web build would carry a bare dash in its accessibility tree with
+ * nothing failing. `aria-hidden` reverse-maps onto RN's own pair on device AND emits the attribute here —
+ * the same reasoning `RecipeWidgetSkeleton.native.tsx` records, and the same form the web leaf uses.
+ */
+describe('RecipeForm (native) — the range separator is decorative', () => {
+    it('hides the separator glyph from the accessibility tree', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+        });
+
+        const separators = Array.from(document.body.querySelectorAll('[aria-hidden="true"]')).filter(
+            (element) => element.textContent === '–',
+        );
+
+        expect(separators).toHaveLength(1);
+    });
+});
+
+/**
+ * U25/U26/U27 — the three new ingredient-row affordances on the NATIVE leaf, in every state.
+ *
+ * ⛔ The cross-platform rule (§14) means these are not "the web tests again": a field that ships to one
+ * platform and not the other is precisely what that rule exists to stop, and the two leaves are separate
+ * files with no compiler edge between them. The FOLD and the note MAPPING are shared (`props.ts`), so what
+ * these prove is that this leaf renders what the shared layer produces.
+ */
+describe('RecipeForm (native) — preparation, section and unit class (U25/U26/U27)', () => {
+    it('renders a preparation field per line, seeded from the draft', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, preparation: 'finely chopped' }],
+            }),
+        });
+
+        expect(inputValue('Ingredient 1 preparation')).toBe('finely chopped');
+    });
+
+    it('renders an EMPTY preparation field for a line that states none', () => {
+        renderForm();
+
+        expect(inputValue('Ingredient 1 preparation')).toBe('');
+    });
+
+    it('reports a preparation edit upward without touching the food name', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2 }] }),
+            onChange,
+        });
+
+        fireEvent.change(screen.getByLabelText('Ingredient 1 preparation'), { target: { value: 'diced' } });
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, preparation: 'diced' }],
+            }),
+        );
+    });
+
+    it('renders a section field per line, seeded from the draft', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, groupLabel: 'For the marinade' }],
+            }),
+        });
+
+        expect(inputValue('Ingredient 1 section')).toBe('For the marinade');
+    });
+
+    it('reports a section edit upward, preserving the line’s other fields', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'cup', preparation: 'diced' }],
+            }),
+            onChange,
+        });
+
+        fireEvent.change(screen.getByLabelText('Ingredient 1 section'), { target: { value: 'Dry' } });
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ingredients: [
+                    {
+                        ingredientId: 'ing_1',
+                        name: 'Onion',
+                        quantity: 2,
+                        unit: 'cup',
+                        preparation: 'diced',
+                        groupLabel: 'Dry',
+                    },
+                ],
+            }),
+        );
+    });
+
+    // ⛔ THE NO-CHROME STATE, on the platform where a stray heading costs the most vertical space.
+    it('⛔ an UNGROUPED recipe renders NO section heading at all', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Rice', quantity: 300 },
+                    { ingredientId: 'ing_2', name: 'Stock', quantity: 1 },
+                ],
+            }),
+        });
+
+        expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    });
+
+    it('a GROUPED recipe renders one heading per section, in stored order', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Sugar', quantity: 1, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_3', name: 'Milk', quantity: 1, groupLabel: 'Wet' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+            'Dry',
+            'Wet',
+        ]);
+    });
+
+    it('⛔ a label repeated NON-ADJACENTLY renders THREE headings, in stored order', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1, groupLabel: 'Wet' },
+                    { ingredientId: 'ing_3', name: 'Sugar', quantity: 1, groupLabel: 'Dry' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+            'Dry',
+            'Wet',
+            'Dry',
+        ]);
+    });
+
+    it('a MIXED recipe leaves the leading ungrouped run unheaded, and keeps the line numbering', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Salt', quantity: 1 },
+                    { ingredientId: 'ing_2', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
+        expect(inputValue('Ingredient 1 name')).toBe('Salt');
+        expect(inputValue('Ingredient 2 name')).toBe('Flour');
+    });
+
+    it('marks a CANONICAL unit with no note at all', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'cups' }],
+            }),
+        });
+
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+    });
+
+    it('marks a SUBJECTIVE unit as a cook’s measure, and describes the field with it', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Basil', quantity: 1, unit: 'handful' }],
+            }),
+        });
+
+        const note = screen.getByText('Cook’s measure');
+
+        expect(screen.getByLabelText('Ingredient 1 unit').getAttribute('aria-describedby')).toBe(note.id);
+    });
+
+    it('marks an UNKNOWN unit as unrecognised — and still ACCEPTS it', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'blorp' }],
+            }),
+        });
+
+        const note = screen.getByText('Unrecognised unit');
+
+        expect(screen.getByLabelText('Ingredient 1 unit').getAttribute('aria-describedby')).toBe(note.id);
+        expect(inputValue('Ingredient 1 unit')).toBe('blorp');
+    });
+
+    it('marks an EMPTY unit with NO note — a unitless line is not an unrecognised one', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Eggs', quantity: 2 }] }),
+        });
+
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+    });
+
+    /**
+     * U35 — the NATIVE half of "capital `T` is a tablespoon, lowercase `t` is a teaspoon".
+     *
+     * ⛔ §14's cross-platform rule, and it is not ceremony here: the two leaves are separate files with no
+     * compiler edge between them, and BOTH derive their unit styling from `classifyUnit` independently. A
+     * ruling that landed on web and not on mobile would show the same recipe two different ways.
+     *
+     * ⚠️ The NOTE was already absent for both spellings before the ruling (the prefix rule withheld it,
+     * because `t` begins `teaspoon`), so the note assertions alone cannot see this change — the subdued
+     * style is what moved, exactly as on web.
+     */
+    it.each(['T', 't'])('marks the case-sensitive unit %j as ordinary — no note, no subdued style (U35)', (unit) => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Butter', quantity: 2, unit }],
+            }),
+        });
+
+        expect(screen.getByLabelText('Ingredient 1 unit').getAttribute('aria-describedby')).toBeNull();
+        expect(inputValue('Ingredient 1 unit')).toBe(unit);
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+    });
+
+    it('still marks a genuinely unrecognised short unit — the ruling covers T and t, not the alphabet', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Butter', quantity: 2, unit: 'zq' }],
+            }),
+        });
+
+        expect(screen.getByLabelText('Ingredient 1 unit').getAttribute('aria-describedby')).toBe(
+            screen.getByText('Unrecognised unit').id,
+        );
+    });
+});
+
+/**
+ * U27 — the NATIVE half of "typing a section must not cost the cook their caret".
+ *
+ * ⛔ §14's cross-platform rule is the whole point: the two leaves are separate files with no compiler edge,
+ * and the defect is STRUCTURAL (a per-run wrapper makes the section the ancestor of its rows, so the first
+ * character of a new label resplits the runs and UNMOUNTS the row holding the focused input). On native
+ * that dismisses the keyboard mid-word. Fixing one platform and not the other ships the bug to half the
+ * cooks.
+ *
+ * ⚠️ These assert the RENDER TREE rather than `document.activeElement`: react-native-web reflects focus, but
+ * what actually breaks is the row being unmounted and remounted, and the tree is where that is visible on
+ * this platform without an emulator.
+ */
+describe('RecipeForm (native) — a section resplit does not remount the rows (U27)', () => {
+    /** The form's props for the given lines — `render`ed directly so this test can `rerender` in place. */
+    const propsFor = (ingredients: RecipeFormValues['ingredients']): RecipeFormProps => ({
+        values: filledValues({ ingredients }),
+        mode: 'create',
+        onChange: noop,
+        onRequestAddIngredient: noop,
+        onSubmit: noop,
+        onCancel: noop,
+    });
+
+    it('⛔ keeps the SAME row input across a resplit — the row is never unmounted', () => {
+        const { rerender } = render(
+            <RecipeForm
+                {...propsFor([
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2 },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1 },
+                    { ingredientId: 'ing_3', name: 'Sugar', quantity: 1 },
+                ])}
+            />,
+        );
+
+        const before = screen.getByLabelText('Ingredient 2 section');
+
+        rerender(
+            <RecipeForm
+                {...propsFor([
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2 },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1, groupLabel: 'D' },
+                    { ingredientId: 'ing_3', name: 'Sugar', quantity: 1 },
+                ])}
+            />,
+        );
+
+        // ⛔ THE SAME DOM NODE. A per-run wrapper would have unmounted this row and mounted a fresh one,
+        // which on a device is the keyboard closing after one character.
+        expect(screen.getByLabelText('Ingredient 2 section')).toBe(before);
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['D']);
+    });
+
+    it('⛔ CLEARING a section leaves NO empty heading', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2 },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1, groupLabel: '' },
+                ],
+            }),
+        });
+
+        expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    });
+
+    it('⛔ treats a PADDED label as the same section as its trimmed twin', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Sugar', quantity: 1, groupLabel: '  Dry  ' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
+    });
+});
+
+describe('RecipeForm (native) — meal type (U34: the ONE closed axis)', () => {
+    const chip = (label: string): HTMLElement => within(screen.getByLabelText('Meal type')).getByLabelText(label);
+
+    it('renders a chip for every member of the vocabulary plus an explicit Not stated', () => {
+        renderForm();
+
+        for (const label of ['Breakfast', 'Brunch', 'Lunch', 'Dinner', 'Snack', 'Dessert', 'Drink', 'No meal type']) {
+            expect(chip(label)).toBeTruthy();
+        }
+    });
+
+    it('marks Not stated selected (and nothing else) when no meal type is set', () => {
+        renderForm({ values: filledValues() });
+
+        expect(chip('No meal type').getAttribute('aria-checked')).toBe('true');
+        expect(chip('Dinner').getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('marks the chip matching a stated meal type', () => {
+        renderForm({ values: filledValues({ mealType: 'dessert' }) });
+
+        expect(chip('Dessert').getAttribute('aria-checked')).toBe('true');
+        expect(chip('No meal type').getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('reports a selection upward', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues(), onChange });
+
+        fireEvent.click(chip('Lunch'));
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mealType: 'lunch' }));
+    });
+
+    it('clears it (REMOVING the field) when Not stated is chosen', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ mealType: 'dinner' }), onChange });
+
+        fireEvent.click(chip('No meal type'));
+
+        const next = onChange.mock.calls[0]?.[0] as RecipeFormValues;
+
+        expect(next.mealType).toBeUndefined();
+        expect('mealType' in next).toBe(false);
+    });
+
+    it('gives every chip a 44pt touch target', () => {
+        renderForm();
+
+        for (const label of ['Breakfast', 'No meal type']) {
+            expect(Number.parseInt(getComputedStyle(chip(label)).minHeight, 10)).toBeGreaterThanOrEqual(44);
+        }
+    });
+
+    it('does not select a meal type merely because a TAG names one', () => {
+        renderForm({ values: filledValues({ tags: ['dinner'] }) });
+
+        expect(chip('Dinner').getAttribute('aria-checked')).toBe('false');
+        expect(chip('No meal type').getAttribute('aria-checked')).toBe('true');
     });
 });

@@ -1,0 +1,41 @@
+{
+    "name": "@kitchensink/cookbook-import",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "import": "tsx scripts/importCookbook.ts",
+        "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "parse-comparison": "tsx scripts/parseModelComparison.ts"
+    },
+    "dependencies": {
+        "@kitchensink/bedrock-client": "*",
+        "@kitchensink/recipe-core": "*",
+        "@kitchensink/recipe-import-core": "*",
+        "@kitchensink/schema-recipe": "*",
+        "@lhncbc/ucum-lhc": "^7.1.9",
+        "p-limit": "^7.1.1",
+        "p-retry": "^8.0.0",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "tsx": "^4.20.6",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

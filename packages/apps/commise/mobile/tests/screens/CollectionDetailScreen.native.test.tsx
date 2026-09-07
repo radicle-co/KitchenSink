@@ -27,6 +27,8 @@ import { mobileMessages } from '../../src/i18n/messages.js';
 import { makeCollection, makeCollectionWithRecipes, makeRecipe } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useCollection: vi.fn(),
     useDeleteCollection: vi.fn(),
     useRemoveRecipeFromCollection: vi.fn(),
@@ -38,6 +40,15 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: vi.fn(),
+}));
+
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
 }));
 
 const useCollectionMock = vi.mocked(useCollection);

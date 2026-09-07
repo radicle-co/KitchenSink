@@ -9,12 +9,13 @@
 import { UsdaApiClient } from '@kitchensink/usda-client';
 import { describe, expect, it } from 'vitest';
 
-import { isAdapterValidationError, isSourceApiError } from '../../food-source-adapter.js';
+import { isAdapterValidationError, isSourceApiError } from '../../foodSource.errors.js';
 import { UsdaSourceAdapter } from '../usda.adapter.js';
 import {
     makeAbortingFetch,
     makeJsonFetch,
     makeStatusFetch,
+    makeUsdaAliasAttributes,
     makeUsdaBrandedLabelBody,
     makeUsdaFoodDetailBody,
     makeUsdaSearchResultBody,
@@ -34,6 +35,60 @@ describe('UsdaSourceAdapter.searchByName', () => {
         expect(candidates).toHaveLength(2);
         expect(candidates[0]).toEqual({ source: 'usda', externalKey: '171688', name: 'Broccoli, raw' });
         expect(Object.keys(candidates[0] ?? {})).not.toContain('fdcId');
+    });
+});
+
+/**
+ * CURATED ALIASES (plan U2 / KTD-2) — the adapter is the boundary that carries USDA's alias table onto
+ * the source-agnostic candidate. Nothing downstream may see `foodAttributes` or `foodAttributeType`
+ * (FR-ADP-1/FR-IDN-2): the canonical field is `aliases`, a plain ordered list.
+ *
+ * Mutation lens: reds if the field is dropped, if the WWEIA category attribute leaks in as an alias, if
+ * a USDA-native term appears on the candidate, or if a food with no aliases yields anything but `[]`.
+ */
+describe('UsdaSourceAdapter — curated aliases (U2)', () => {
+    it('carries USDA additional descriptions onto the canonical candidate, in rank order', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(
+                makeUsdaFoodDetailBody({
+                    foodAttributes: makeUsdaAliasAttributes(['sharp cheese', 'Tillamook', 'Longhorn']),
+                }),
+            ),
+        );
+
+        const candidate = await adapter.fetchByKey('171688');
+
+        expect(candidate.aliases).toEqual(['sharp cheese', 'Tillamook', 'Longhorn']);
+    });
+
+    it('surfaces no USDA-native attribute term on the canonical candidate', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(makeUsdaFoodDetailBody({ foodAttributes: makeUsdaAliasAttributes(['Tillamook']) })),
+        );
+
+        const candidate = await adapter.fetchByKey('171688');
+
+        expect(Object.keys(candidate)).not.toContain('foodAttributes');
+        expect(Object.keys(candidate)).not.toContain('additionalDescriptions');
+        expect(candidate.aliases).not.toContain('Cheese');
+    });
+
+    it('yields an empty list for a food USDA publishes no aliases for (Foundation / SR Legacy)', async () => {
+        const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody()));
+
+        const candidate = await adapter.fetchByKey('171688');
+
+        expect(candidate.aliases).toEqual([]);
+    });
+
+    it('carries them through the BATCH path too — the one the fan-out worker uses', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch([makeUsdaFoodDetailBody({ foodAttributes: makeUsdaAliasAttributes(['Tillamook', 'Coon']) })]),
+        );
+
+        const [candidate] = await adapter.fetchByKeys(['171688']);
+
+        expect(candidate?.aliases).toEqual(['Tillamook', 'Coon']);
     });
 });
 
@@ -119,6 +174,7 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         const adapter = makeAdapter(makeJsonFetch(body));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -132,6 +188,7 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody()));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('not-a-number');
         } catch (error) {
@@ -218,6 +275,7 @@ describe('UsdaSourceAdapter.fetchByKey — branded labelNutrients (per-serving p
         );
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('555001');
         } catch (error) {
@@ -233,6 +291,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(429));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -247,6 +306,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(404));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -261,6 +321,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(503));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -275,6 +336,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeAbortingFetch());
 
         let thrown: unknown;
+
         try {
             await adapter.searchByName('broccoli');
         } catch (error) {
@@ -291,6 +353,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeJsonFetch({ totalHits: 1, foods: [{ description: 'no fdcId' }] }));
 
         let thrown: unknown;
+
         try {
             await adapter.searchByName('broccoli');
         } catch (error) {

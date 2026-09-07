@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        // The `__fixtures__` are real `.tsx` components the extractor parses, so this project must be able to
+        // compile JSX — they are INCLUDED rather than excluded on purpose: a fixture that had drifted from a
+        // shape TypeScript accepts would otherwise be tested against and never compiled.
+        "jsx": "react-jsx",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "noEmit": true
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "bin/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+}

@@ -8,6 +8,6 @@
         "outDir": "dist",
         "rootDir": "."
     },
-    "include": ["bin/**/*.ts", "lib/**/*.ts", "__tests__/**/*.ts"],
+    "include": ["bin/**/*.ts", "lib/**/*.ts", "smoke/**/*.ts", "__tests__/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

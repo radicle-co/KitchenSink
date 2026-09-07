@@ -1,0 +1,247 @@
+name: Sandbox Reconcile
+
+# The hourly convergence loop for on-demand sandboxes (ADR-0028).
+#
+# ⚠️  It RECONCILES, it does not merely delete. For every `pr-{N}` preview it asks "should this be up?" and
+# makes reality match — which also catches a teardown that died halfway, a stack created out of band, and
+# the RDS instance AWS silently auto-restarts after 7 days of being stopped. A one-shot deleter fixes none
+# of those, and each of them bills until a human notices.
+#
+# ⚠️  HOURLY, not once at midnight. GitHub's scheduled workflows are best-effort: delayed under load,
+# skipped entirely, and auto-disabled after 60 days of repository inactivity. A single nightly run that
+# silently does not happen is indistinguishable from one that found nothing to do. Asking "is anything past
+# due?" every hour is self-healing — a missed run costs an hour, not a month.
+#
+# It never computes an expiry. That number was decided once, by `sandbox-up.yml`, and is carried on the
+# stacks as the `SandboxExpiresAt` tag.
+
+on:
+    schedule:
+        - cron: '17 * * * *' # hourly, off the hour — the top of the hour is GitHub's most contended slot
+    workflow_dispatch:
+
+# ⚠️ Only `contents: read` is workflow-level; the write grant sits on the `reconcile` job instead
+# (2026-09-02), so a job added here later does not silently inherit the ability to edit PRs.
+permissions:
+    contents: read # checkout of the teardown/scan scripts this workflow runs
+
+concurrency:
+    group: sandbox-reconcile
+    cancel-in-progress: false
+
+jobs:
+    reconcile:
+        name: Converge sandboxes to their intent
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read # checkout of the teardown/scan scripts this workflow runs
+            pull-requests: write # remove the `sandbox-up` label from a reaped PR
+        env:
+            GH_TOKEN: ${{ github.token }}
+            AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # Nothing here pushes or fetches from `origin` — the scripts only call AWS and the
+                  # GitHub API — so the checkout credential would just sit on disk (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # Discover from AWS, not from the PR list: a sandbox that outlived its PR is exactly the case
+            # that costs money, and it has no PR to enumerate.
+            # ⚠️  `set -e` is deliberately ABSENT. This step runs before the teardown, and a step that
+            # aborts is a step that silently cancels reclamation for every sandbox — the 2026-07-28
+            # incident, where a DNS lookup unrelated to teardown took the whole sweep down for 11 runs.
+            # Each stack is probed defensively and a failure downgrades that one stack, not the sweep.
+            - name: Find live per-PR sandboxes
+              id: find
+              run: |
+                  set -uo pipefail
+                  source .github/scripts/pr-scope.sh
+                  now=$(date +%s)
+                  chmod +x .github/scripts/sandbox-lifetime.sh
+
+                  expired=()
+                  live=()
+                  while read -r stack; do
+                      [ -z "$stack" ] && continue
+                      token=$(sed -E 's/^kitchensink-[a-z-]+-(pr-[0-9]+)$/\1/' <<<"$stack")
+                      [[ $token =~ ^pr-[0-9]+$ ]] || continue
+
+                      expires=$(aws cloudformation describe-stacks --stack-name "$stack" \
+                        --query "Stacks[0].Tags[?Key=='SandboxExpiresAt'].Value | [0]" --output text 2>/dev/null || echo None)
+
+                      # ⚠️  FAIL TOWARD OFF. An untagged sandbox is treated as EXPIRED, not as immortal: the
+                      # tag is missing when a deploy died before it stamped one, and the cheap mistake is
+                      # reaping something reproducible with one button press. The expensive mistake is a
+                      # preview nothing will ever collect.
+                      if [ "$expires" = 'None' ] || [ -z "$expires" ] || ! [[ $expires =~ ^[0-9]+$ ]]; then
+                          echo "  ${token}: no SandboxExpiresAt tag on ${stack} — treating as expired"
+                          expired+=("$token"); continue
+                      fi
+                      if [ "$(.github/scripts/sandbox-lifetime.sh is-expired "$expires" "$now" | sed -n 's/^expired=//p')" = 'true' ]; then
+                          echo "  ${token}: expired at $(date -u -d "@${expires}" +%FT%TZ)"
+                          expired+=("$token")
+                      else
+                          echo "  ${token}: live until $(date -u -d "@${expires}" +%FT%TZ)"
+                          live+=("$token")
+                      fi
+                  done < <(aws cloudformation list-stacks \
+                      --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE ROLLBACK_COMPLETE CREATE_FAILED DELETE_FAILED \
+                      --query 'StackSummaries[].StackName' --output text | tr '\t' '\n' | sort -u)
+
+                  printf 'expired=%s\n' "$(printf '%s\n' "${expired[@]:-}" | sort -u | tr '\n' ' ')" >>"$GITHUB_OUTPUT"
+                  printf 'live=%s\n' "$(printf '%s\n' "${live[@]:-}" | sort -u | tr '\n' ' ')" >>"$GITHUB_OUTPUT"
+
+            # ONE teardown implementation, the same one the on-close cleanup and the abandoned-preview reaper
+            # already use. A second copy of "what belongs to pr-{N}" is how a sweep eventually deletes
+            # something shared.
+            # `!cancelled()` is REQUIRED, not stylistic: GitHub skips every remaining step once one fails,
+            # so without it a failure in discovery silently skips reclamation. Asserted by
+            # `sandboxReclamationReachability.test.ts` analyzer 3.
+            - name: Tear down expired sandboxes
+              if: ${{ !cancelled() && steps.find.outputs.expired != '' }}
+              env:
+                  # Read through the environment, never interpolated into the shell body: the repo-wide
+                  # invariant is that no `${{ … }}` appears in a `run:` (zizmor: template-injection).
+                  # ⚠️ Deliberately UNQUOTED at the `for` below — this is a space-separated token list the
+                  # discovery step built, and it must word-split into one iteration per `pr-{N}`.
+                  EXPIRED_TOKENS: ${{ steps.find.outputs.expired }}
+              run: |
+                  set -uo pipefail
+                  chmod +x .github/scripts/teardown-sandbox-pr.sh
+                  failed=0
+                  for token in ${EXPIRED_TOKENS}; do
+                      echo "::group::teardown ${token}"
+                      .github/scripts/teardown-sandbox-pr.sh "$token" || { echo "::error::teardown failed for ${token}"; failed=1; }
+                      pr="${token#pr-}"
+                      gh pr edit "$pr" --remove-label sandbox-up 2>/dev/null \
+                        || echo "note: could not clear the sandbox-up label on #${pr} (already gone, or the PR is closed)"
+                      echo "::endgroup::"
+                  done
+                  exit "$failed"
+
+            # The convergence half, and the reason this is not just a reaper. With no sandbox live, nothing
+            # in the shared sandbox tier should be running — including an RDS instance AWS restarted by
+            # itself after 7 days stopped.
+            # ⛔ "No live sandbox" is NOT the same as "nothing needs the sandbox". The shared tier has a
+            # second consumer that owns no stack at all: the `e2e-web` Playwright suite wakes the sandbox
+            # RDS + NAT on every run, because its Clerk fixture blocks on the sandbox `user.created` webhook
+            # backfilling `external_id` (ADR-0007's note on that suite). Stopping the database underneath a
+            # running shard would reproduce the 2026-08-25 incident — eight shards dead in a minute with a
+            # message that sends the reader hunting a webhook outage.
+            #
+            # The consumer list is DERIVED, not maintained: a workflow needs the tier awake exactly when it
+            # invokes `sandbox-wake.sh`, so the set is a grep over the workflow directory plus the button
+            # itself. A workflow that starts waking the sandbox tomorrow is covered without editing this.
+            # Being wrong is cheap in one direction only — we skip an hour and try again — so the guard is
+            # deliberately conservative.
+            # ⛔ "No live sandbox" is NOT "nothing needs the sandbox". The shared tier has a consumer that
+            # owns no stack at all: the `e2e-web` Playwright suite wakes the RDS + NAT on every run, because
+            # its Clerk fixture blocks on the sandbox `user.created` webhook backfilling `external_id`.
+            # Stopping the database underneath a running shard reproduces the 2026-08-25 incident — eight
+            # shards dead in a minute, with a message that sends the reader hunting a webhook outage.
+            #
+            # The consumer set is DERIVED, not maintained: a workflow needs the tier awake exactly when it
+            # invokes the wake script. Two corrections that a naive grep gets wrong, and both were live bugs
+            # in the first draft of this step:
+            #
+            #   1. THIS FILE matches its own grep (the script is named in the comment above). Left in, the
+            #      reconciler would see its own in-progress run every hour and never stop anything at all.
+            #   2. `_ci.yml` is a REUSABLE workflow. Its runs are reported under the CALLER's name, so
+            #      `gh run list --workflow _ci.yml` is always empty and the busiest consumer in the repo
+            #      would look idle. Underscore-prefixed hits are expanded to whatever `uses:` them.
+            #
+            # Being wrong is cheap in one direction only — skip an hour, retry — so this stays conservative.
+            - name: Check whether anything is using the shared tier right now
+              id: inuse
+              if: ${{ !cancelled() && steps.find.outputs.live == '' }}
+              run: |
+                  set -uo pipefail
+                  self='sandbox-reconcile.yml'
+                  consumers=''
+                  for f in $(grep -l 'sandbox-wake\.sh' .github/workflows/*.yml 2>/dev/null); do
+                      base=$(basename "$f")
+                      [ "$base" = "$self" ] && continue
+                      case "$base" in
+                          _*)
+                              # Reusable: charge its runs to every workflow that calls it.
+                              for caller in $(grep -rl "uses:.*${base}" .github/workflows/*.yml 2>/dev/null); do
+                                  cb=$(basename "$caller")
+                                  [ "$cb" = "$base" ] && continue
+                                  consumers="${consumers}${cb}"$'\n'
+                              done
+                              ;;
+                          *) consumers="${consumers}${base}"$'\n' ;;
+                      esac
+                  done
+                  consumers=$(printf '%s\nsandbox-up.yml\n' "$consumers" | sed '/^$/d' | sort -u)
+                  echo 'workflows that wake the shared tier:'; sed 's/^/  /' <<<"$consumers"
+
+                  busy=''
+                  while read -r wf; do
+                      [ -z "$wf" ] && continue
+                      for state in in_progress queued; do
+                          n=$(gh run list --workflow "$wf" --status "$state" --limit 1 --json databaseId --jq 'length' 2>/dev/null || echo 0)
+                          [ "${n:-0}" != '0' ] && busy="${busy} ${wf}(${state})"
+                      done
+                  done <<<"$consumers"
+
+                  if [ -n "${busy// /}" ]; then
+                      echo 'busy=true' >>"$GITHUB_OUTPUT"
+                      echo "::notice::Still needed by:${busy} — leaving the shared tier up; the next hourly pass retries."
+                  else
+                      echo 'busy=false' >>"$GITHUB_OUTPUT"
+                  fi
+
+            # ⛔ RECLAIM THE ALB — the residual floor ADR-0028 left, and the reason this step exists at all.
+            #
+            # An ALB cannot be stopped, only deleted, so unlike the RDS and the NAT it cannot be handled by
+            # the scheduler. `kitchensink-alb-sandbox` plus its two public IPv4 addresses billed ~$23.73/month
+            # around the clock for an environment live a few hours a week.
+            #
+            # ⚠️ ORDER: AFTER the per-PR teardown above. Reclaiming shared infrastructure while a preview
+            # teardown is still running is how a half-deleted preview becomes unreachable AND unreclaimable.
+            #
+            # ⛔ THIS IS THE LAST STEP, and what used to follow it is gone ON PURPOSE (owner ruling,
+            # 2026-09-03). This job ended by invoking the scheduler Lambda with `{"action":"stop"}` whenever
+            # no preview was live, which stopped the shared sandbox DATABASE on a preview's teardown. The
+            # ruling is that per-PR cleanup reclaims the per-PR logical databases and nothing else, while
+            # "the RDS should still be stopped and started on the original schedule" — so that lifecycle is
+            # ONE decision expressed ONCE, in `SandboxSchedulerStack`'s 00:00/09:00 ET pair, and this
+            # workflow must not carry a second copy of it on a different trigger.
+            #
+            # The removed step's ordering constraint is DISCHARGED rather than dropped: the reason the delete
+            # had to precede the stop was that draining ECS tasks into an environment with no database is
+            # what produced the `NotStabilized` wedge repaired on 2026-08-30. With no stop here, the delete
+            # can no longer be followed by one. `sharedTierLifecycle.test.ts` asserts the absence in both
+            # directions — no `{"action":"stop"}` invocation, and no hand-rolled equivalent.
+            #
+            # The two stack names and their delete order live in the script, not here, because this is the
+            # ONE place in the repository that deletes `*-sandbox` stacks — the exact shape `pr-scope.sh`
+            # exists to forbid everywhere else. Its allowlist is pinned by `sandboxSharedTier.test.ts`,
+            # which fires the predicate at the shared database, the VPC, the webhooks and prod.
+            #
+            # `!cancelled()` for the same reason the teardown carries it: a failure in an earlier step must
+            # not silently skip reclamation. Asserted by `sharedTierLifecycle.test.ts`.
+            #
+            # ⛔ NO `continue-on-error` HERE, deliberately — and the first draft of this step had one.
+            #
+            # The reasoning for it was that a failed ALB delete must not stop the RDS and NAT from being
+            # stopped afterwards. That argument is now moot twice over — this step is last, and the stop it
+            # was protecting no longer lives here — but the prohibition stands on its own footing:
+            # `continue-on-error: true` reports the JOB green, which means an ALB that never deletes bills
+            # forever behind a passing check. That is ADR-0005's failure mode exactly, and what
+            # `workflowInvariants` invariant 4 exists to catch (it did). Letting this step FAIL makes the
+            # leak visible, and the next hourly pass retries it.
+            - name: Reclaim the shared sandbox ALB and identity service
+              if: ${{ !cancelled() && steps.find.outputs.live == '' && steps.inuse.outputs.busy == 'false' }}
+              run: |
+                  set -uo pipefail
+                  chmod +x .github/scripts/sandbox-shared-tier.sh
+                  .github/scripts/sandbox-shared-tier.sh down "$REGION"

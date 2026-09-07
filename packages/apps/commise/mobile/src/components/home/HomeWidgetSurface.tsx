@@ -28,7 +28,6 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_CAPABILITY, RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { GradientSurface } from '@commise/ui/surface';
 import { makeViewer, type Tier } from '@kitchensink/recipe-core';
@@ -178,7 +177,7 @@ export function HomeWidgetSurface({
                         const Bespoke = activeRenderers[descriptor.id];
 
                         // A live widget with a bespoke slot. Its last-resort fallback is the localized
-                        // {@link HomeWidgetErrorNotice}, matching web: a `null` here meant a slot-level throw
+                        // `HomeWidgetErrorNotice`, matching web: a `null` here meant a slot-level throw
                         // (not just a widget-body one — the recipe slot's own inner boundary handles that)
                         // erased the whole slot into unexplained blank space, with nothing announced to
                         // assistive tech. Losing the content is acceptable; saying nothing about it is not.
@@ -231,7 +230,9 @@ export function HomeWidgetSurface({
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    screen: { flex: 1, backgroundColor: 'transparent' },
     region: { flex: 1 },
     regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 16 },
     hero: { borderRadius: nativeTokens.radius.lg, overflow: 'hidden', paddingVertical: nativeTokens.spacing[2] },

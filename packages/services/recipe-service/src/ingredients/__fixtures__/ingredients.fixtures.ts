@@ -14,8 +14,9 @@ import type {
     StatusResult,
 } from '@kitchensink/food-service-client';
 
-import { CallerToken } from '../../auth/caller-token.js';
-import type { FoodServiceClients } from '../food-service-clients.factory.js';
+import { CallerToken } from '../../auth/CallerToken.js';
+import { canonicalIngredientName, type CanonicalIngredientName } from '../domain/ingredientName.js';
+import type { FoodServiceClients } from '../FoodServiceClients.factory.js';
 
 /**
  * The caller credential the ingredient tests forward to the food service (issue #120). A real request
@@ -45,6 +46,7 @@ export function makeFoodClients(): {
         getCandidates: vi.fn(),
         resolve: vi.fn(),
         batch: vi.fn(),
+        createAuthoredFood: vi.fn(),
     };
     const client = mocks as unknown as FoodServiceClient;
     const standard = vi.fn(() => client);
@@ -60,6 +62,27 @@ export function makeFoodClients(): {
  */
 export function foodClientsOf(client: FoodServiceClient): FoodServiceClients {
     return { standard: () => client, typeahead: () => client } as unknown as FoodServiceClients;
+}
+
+/**
+ * Parse a test literal into a {@link CanonicalIngredientName}.
+ *
+ * ⚠️ It runs the REAL smart constructor rather than casting, so a test can never hand the DAL a brand the
+ * production parser would have refused — which would make the type's guarantee a fiction exactly where it is
+ * being verified. A literal that does not survive canonicalization is a broken fixture, so it throws.
+ *
+ * @param raw - The literal name a test wants to write.
+ * @returns The branded canonical name.
+ * @throws {Error} When the literal carries no visible content.
+ */
+export function makeCanonicalName(raw: string): CanonicalIngredientName {
+    const name = canonicalIngredientName(raw);
+
+    if (name === undefined) {
+        throw new Error(`Test fixture name ${JSON.stringify(raw)} carries no visible content.`);
+    }
+
+    return name;
 }
 
 /** A canonical `Ingredient` domain object with overridable fields. */
@@ -81,10 +104,6 @@ export function makeRawIngredientRow(overrides: Partial<Record<string, unknown>>
         food_id: null,
         food_resolution_status: null,
         is_user_entered: false,
-        calories_per_100g: null,
-        protein_g_per_100g: null,
-        carbs_g_per_100g: null,
-        fat_g_per_100g: null,
         created_at: '2026-07-01T00:00:00.000Z',
         ...overrides,
     };
@@ -116,6 +135,9 @@ export function makeFoodView(overrides: Partial<FoodView> = {}): FoodView {
         name: 'All-purpose flour',
         description: null,
         kind: 'generic',
+        // FOOD's own portions — this is the food service's view type, not the `ingredients` column U10
+        // dropped. Removing it was my over-correction; the two are different shapes with the same name.
+        portions: [],
         status: FoodResolutionStatus.RESOLVED,
         nutrients: [
             { nutrient: 'Energy', amount: 364, unit: 'kcal', basis: 'per_100g', source: 'usda' },
@@ -123,7 +145,6 @@ export function makeFoodView(overrides: Partial<FoodView> = {}): FoodView {
             { nutrient: 'Carbohydrate, by difference', amount: 76.3, unit: 'g', basis: 'per_100g', source: 'usda' },
             { nutrient: 'Total lipid (fat)', amount: 0.98, unit: 'g', basis: 'per_100g', source: 'usda' },
         ],
-        portions: [],
         provenance: {},
         ...overrides,
     };

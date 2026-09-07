@@ -21,7 +21,8 @@
  * below drives the CURRENT `overwrite`/`keepServer` names, now that both platform containers are wired onto
  * them.
  */
-import { act, renderHook } from '@testing-library/react';
+import { act, render, renderHook, screen } from '@testing-library/react';
+import { Suspense, useEffect, useRef, type JSX } from 'react';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, VersionConflictSide } from '@kitchensink/recipe-core';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
@@ -47,8 +48,8 @@ const makeStep = (overrides: Partial<RecipeStep> = {}): RecipeStep => ({
 const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngredient => ({
     id: 'ri_1',
     recipeId: 'rec_1',
-    ingredientId: 'ing_1',
-    quantity: 2,
+    ingredientId: '00000000-0000-4000-8000-000000000001',
+    quantity: { kind: 'exact', value: 2 },
     unit: 'tbsp',
     sortOrder: 0,
     ingredientName: 'Olive oil',
@@ -86,10 +87,14 @@ const { useRecipeMock, useUpdateRecipeMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipe: useRecipeMock,
     useUpdateRecipe: useUpdateRecipeMock,
 }));
 
+import { useDiscardGuard } from '../../wizard/useDiscardGuard.js';
+import { AUTO_SAVE_INTERVAL_MS, useRecipeAutoSave } from '../useRecipeAutoSave.js';
 import { useRecipeEditor } from '../useRecipeEditor.js';
 
 /** A `useRecipe` double. `refetch` defaults to resolving with the SAME `data` (a plain background refetch). */
@@ -111,8 +116,7 @@ type MutateOptions = { onSuccess?: (recipe: unknown) => void; onError?: (err: un
 
 /** One scripted outcome the mocked update mutation replays, in order, per `mutate` call. */
 type Outcome =
-    | { readonly type: 'success'; readonly recipe: unknown }
-    | { readonly type: 'conflict'; readonly error: unknown };
+    { readonly type: 'success'; readonly recipe: unknown } | { readonly type: 'conflict'; readonly error: unknown };
 
 /** Build a `useUpdateRecipe` double whose `mutate` replays `outcomes` in order via the caller's callbacks. */
 function updateMutation(outcomes: readonly Outcome[] = []): {
@@ -872,7 +876,14 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
                 makeStepView({ stepNumber: 1, instruction: 'Mine step one' }),
                 makeStepView({ stepNumber: 2, instruction: 'Mine step two' }),
             ],
-            ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' })],
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: '00000000-0000-4000-8000-000000000001',
+                    name: 'Olive oil',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'tbsp',
+                }),
+            ],
         });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const server = makeSide({
@@ -886,17 +897,17 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
                 ingredients: [
                     makeIngredient({
                         id: 'ri_1',
-                        ingredientId: 'ing_1',
+                        ingredientId: '00000000-0000-4000-8000-000000000001',
                         ingredientName: 'Olive oil',
-                        quantity: 2,
+                        quantity: { kind: 'exact', value: 2 },
                         unit: 'tbsp',
                         sortOrder: 0,
                     }),
                     makeIngredient({
                         id: 'ri_2',
-                        ingredientId: 'ing_2',
+                        ingredientId: '00000000-0000-4000-8000-000000000002',
                         ingredientName: 'Butter',
-                        quantity: 1,
+                        quantity: { kind: 'exact', value: 1 },
                         unit: 'tbsp',
                         sortOrder: 1,
                     }),
@@ -913,7 +924,12 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.submit());
-        act(() => result.current.resolutions.merge({ 'steps[1]': 'theirs', 'ingredients:ing_2': 'theirs' }));
+        act(() =>
+            result.current.resolutions.merge({
+                'steps[1]': 'theirs',
+                'ingredients:00000000-0000-4000-8000-000000000002': 'theirs',
+            }),
+        );
 
         expect(mutation.mutate).toHaveBeenCalledTimes(2);
         const [secondVars] = mutation.mutate.mock.calls[1] as [{ id: string; input: Record<string, unknown> }];
@@ -921,7 +937,10 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
         const steps = secondVars.input['steps'] as ReadonlyArray<{ instruction: string }>;
         expect(steps.map((step) => step.instruction)).toEqual(['Mine step one', 'Their step two']);
         const ingredients = secondVars.input['ingredients'] as ReadonlyArray<{ ingredientId: string }>;
-        expect(ingredients.map((ingredient) => ingredient.ingredientId).sort()).toEqual(['ing_1', 'ing_2']);
+        expect(ingredients.map((ingredient) => ingredient.ingredientId).sort()).toEqual([
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000002',
+        ]);
         expect(onSaved).toHaveBeenCalledWith(saved);
     });
 
@@ -1288,5 +1307,695 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
         act(() => result.current.setField('servings', 6));
 
         expect(result.current.state).toEqual({ status: 'editing' });
+    });
+});
+
+/**
+ * AUTO-SAVE WIRED TO THE REAL EDITOR (U34) — the tier the hook's own unit tests structurally cannot reach.
+ *
+ * ⛔ `useRecipeAutoSave.test.tsx` proves the TIMER: when it fires, when it does not, that it calls
+ * `saveDraft`. It mocks `saveDraft`, so it can say nothing at all about the thing that actually matters —
+ * what goes on the wire. These cases drive the composition instead: the real `useRecipeEditor`, the real
+ * `useDiscardGuard`, and the auto-save hook between them, against the same scripted mutation double every
+ * other case here uses.
+ *
+ * The three claims, and why each is here rather than there:
+ *
+ *  1. **The unattended write carries `expectedVersion`.** This is THE lost-update guard. A background write
+ *     with no optimistic-concurrency token silently clobbers a change made on another device, and nothing in
+ *     the timer's own tests could observe the request body.
+ *  2. **A 409 from an unattended write SURFACES.** It must land in the same `conflict` state a manual save's
+ *     409 does — a cook who was not looking still has to be told, and the later write must not win by
+ *     default.
+ *  3. **It writes `status: 'draft'`.** An unattended write that published a private work-in-progress would
+ *     be a disclosure, not a save.
+ */
+describe('auto-save, wired to the real editor (U34)', () => {
+    /** The editor plus auto-save, composed exactly as a container composes them. */
+    const renderAutoSaving = (mutation: ReturnType<typeof updateMutation>, onSaved = vi.fn()) => {
+        useUpdateRecipeMock.mockReturnValue(mutation);
+
+        const rendered = renderHook(() => {
+            const editor = useRecipeEditor('rec_1', { onSaved, locale: 'en' });
+            const isDirty = useDiscardGuard(editor.values, {
+                ready: editor.state.status !== 'loading',
+                justSaved: editor.state.status === 'saved',
+            });
+
+            useRecipeAutoSave({
+                isDirty,
+                // The container's own race gate — see `useRecipeAutoSave`'s doc for the three cases.
+                enabled: editor.state.status === 'editing',
+                // ⛔ `autoSaveDraft`, exactly as both containers wire it. Using `saveDraft` here would make
+                // this suite pass while production navigated the cook out of the editor.
+                saveDraft: editor.autoSaveDraft,
+            });
+
+            return editor;
+        });
+
+        return { ...rendered, onSaved };
+    };
+
+    /** Let the seed effect and the discard guard's baseline settle before the draft is touched. */
+    const settleBaseline = (rerender: () => void): void => {
+        act(() => {
+            rerender();
+        });
+        act(() => {
+            rerender();
+        });
+    };
+
+    it('carries `expectedVersion` on the unattended write — the lost-update guard', () => {
+        vi.useFakeTimers();
+
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result, rerender } = renderAutoSaving(mutation);
+
+        settleBaseline(rerender);
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
+        });
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
+        });
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+
+        const vars = mutation.mutate.mock.calls[0]?.[0] as { input: { expectedVersion?: number } };
+
+        // The loaded recipe's own `currentVersion` (3, from `recipeQuery`'s default) — not absent, not zero.
+        expect(vars.input.expectedVersion).toBe(3);
+
+        vi.useRealTimers();
+    });
+
+    it('SURFACES a 409 from an unattended write as a conflict, never letting the later write win', () => {
+        vi.useFakeTimers();
+
+        const server = makeSide({
+            versionNumber: 9,
+            snapshot: makeSnapshot({ version: 9, title: 'Changed on another device' }),
+        });
+        const mutation = updateMutation([
+            { type: 'conflict', error: new VersionConflictError(9, 3, undefined, { server }) },
+        ]);
+        const { result, rerender } = renderAutoSaving(mutation);
+
+        settleBaseline(rerender);
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
+        });
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
+        });
+
+        expect(result.current.state.status).toBe('conflict');
+
+        vi.useRealTimers();
+    });
+
+    // ⛔ REWRITTEN mid-implementation, because the first version of this case asserted the WRONG guarantee.
+    // It expected `status: 'draft'` unconditionally and failed against an already-published recipe — which
+    // is `saveDraft` behaving CORRECTLY: it re-asserts `published` for a live recipe, because "Save Draft
+    // must never downgrade an already-published recipe" (`useRecipeEditor`'s own ruling). The guarantee auto-
+    // save actually owes is stronger and simpler: an unattended write NEVER CHANGES publication state, in
+    // either direction. Asserted in both directions below, which the original could not have been.
+    it('never changes publication state: a draft stays a draft', () => {
+        vi.useFakeTimers();
+
+        useRecipeMock.mockReturnValue(
+            recipeQuery({
+                data: makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT }),
+            }),
+        );
+
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result, rerender } = renderAutoSaving(mutation);
+
+        settleBaseline(rerender);
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
+        });
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
+        });
+
+        const vars = mutation.mutate.mock.calls[0]?.[0] as { input: { status?: string } };
+
+        expect(vars.input.status).toBe(RecipeStatus.DRAFT);
+
+        vi.useRealTimers();
+    });
+
+    it('never changes publication state: a PUBLISHED recipe is not quietly unpublished', () => {
+        // The direction that would actually hurt: an unattended write pulling a live recipe out of public
+        // listings while its author edits a typo.
+        vi.useFakeTimers();
+
+        // Stated explicitly rather than relying on the fixture default — the sibling case above points the
+        // shared `useRecipe` double at a DRAFT, and a leaked mock would make this assertion pass for the
+        // wrong reason (it did, until this line was added).
+        useRecipeMock.mockReturnValue(
+            recipeQuery({
+                data: makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.PUBLISHED }),
+            }),
+        );
+
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result, rerender } = renderAutoSaving(mutation);
+
+        settleBaseline(rerender);
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
+        });
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
+        });
+
+        const vars = mutation.mutate.mock.calls[0]?.[0] as { input: { status?: string } };
+
+        expect(vars.input.status).toBe(RecipeStatus.PUBLISHED);
+
+        vi.useRealTimers();
+    });
+
+    it('does not navigate: the composed timer never fires the container’s onSaved', () => {
+        // ⛔ The end-to-end form of the worst defect this unit had. Assert it through the COMPOSITION, not
+        // just against `autoSaveDraft` directly, because the wiring is where it went wrong — the hook was
+        // handed `saveDraft` and inherited its navigation.
+        vi.useFakeTimers();
+
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result, rerender, onSaved } = renderAutoSaving(mutation);
+
+        settleBaseline(rerender);
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
+        });
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
+        });
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+        expect(onSaved).not.toHaveBeenCalled();
+
+        vi.useRealTimers();
+    });
+
+    it('does NOT write while the draft is untouched, however long the editor sits open', () => {
+        vi.useFakeTimers();
+
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { rerender } = renderAutoSaving(mutation);
+
+        settleBaseline(rerender);
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS * 10);
+        });
+
+        expect(mutation.mutate).not.toHaveBeenCalled();
+
+        vi.useRealTimers();
+    });
+
+    /**
+     * ⛔⛔ THE HEADLINE — the ruling, through the composition that actually ships (owner, 2026-08-26;
+     * defect measured 2026-09-03).
+     *
+     * `AUTO_SAVE_INTERVAL_MS`'s own docblock says it plainly: *"The timer is armed when the draft becomes
+     * dirty and fires at that deadline whatever the cook types in between, so a cook editing continuously
+     * IS protected."* The wired behaviour was the exact opposite — a DEBOUNCE from the last keystroke —
+     * and no test could see it, because `useRecipeAutoSave.test.tsx` hands the hook a `vi.fn()` whose
+     * identity never moves. In production the editor handed it `autoSaveDraft`, whose `useCallback` deps
+     * included `values`: every keystroke minted a new function, changed the effect's deps, cleared the
+     * armed timer and started the window over. Measured with a probe: after the original deadline elapsed,
+     * ZERO writes.
+     *
+     * That inverts which cook is protected. A debounce protects the one who STOPS typing; the ruling chose
+     * five minutes precisely to protect the one who does not — the cook with an hour of unsaved work who
+     * never pauses long enough to trigger it.
+     *
+     * Types right through the deadline, then asserts BOTH halves: the write landed on the original
+     * deadline (count and cadence), and it carried what the cook had typed AS OF THE TICK — a fixed
+     * cadence that wrote the mount-time draft would be the mirror failure, silently persisting stale
+     * content over newer edits.
+     */
+    it('writes on the deadline while the cook keeps typing, carrying the draft as of the tick', () => {
+        vi.useFakeTimers();
+
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result, rerender } = renderAutoSaving(mutation);
+
+        settleBaseline(rerender);
+
+        // Ten edits spread evenly across ONE window — a cook who never stops. The last lands at 9/10 of the
+        // window, so a debounce of the same length would not fire until 1.9 windows in.
+        for (let keystroke = 1; keystroke <= 10; keystroke += 1) {
+            act(() => {
+                result.current.setValues({ ...result.current.values, title: `Typing ${keystroke}` });
+            });
+            act(() => {
+                vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS / 10);
+            });
+        }
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+
+        const vars = mutation.mutate.mock.calls[0]?.[0] as { input: { title?: string } };
+
+        expect(vars.input.title).toBe('Typing 10');
+
+        vi.useRealTimers();
+    });
+
+    /**
+     * The other edge of the same cadence: once a tick has WRITTEN, an unchanged draft must never be
+     * written again. Every auto-save mints a version row (FR-007b) and only the last ten survive, so a
+     * no-op write costs a cook one of their own deliberate versions plus an `expectedVersion` round-trip,
+     * for nothing.
+     *
+     * ⚠️ The gate is `isDirty` — the discard guard's baseline, which the editor's `saved` terminal moves
+     * forward — NOT a second "did anything change" check inside the timer. This case is what stops a
+     * repeating interval from becoming a repeating no-op.
+     */
+    it('writes ONCE and then stops, when the cook stops editing after an auto-save lands', () => {
+        vi.useFakeTimers();
+
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result, rerender } = renderAutoSaving(mutation);
+
+        settleBaseline(rerender);
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited once, then left alone' });
+        });
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
+        });
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS * 10);
+        });
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+
+        vi.useRealTimers();
+    });
+
+    /**
+     * A tick that fires while the PREVIOUS write is still in flight would issue a second PATCH carrying
+     * the SAME `expectedVersion` — one of the two must lose, and the loser lands in a conflict view over
+     * content the cook never edited twice.
+     *
+     * The gate is the container's `enabled`, which both containers derive from
+     * `editor.state.status === 'editing'`: an in-flight mutation puts the machine in `'submitting'`, which
+     * tears the interval down. The scripted double below never settles and — unlike TanStack — does not
+     * re-render on its own, so the explicit `rerender` stands in for the render TanStack's own `isPending`
+     * transition would cause.
+     */
+    it('issues no second write while the first is still in flight', () => {
+        vi.useFakeTimers();
+
+        let pending = false;
+        const mutation = {
+            mutate: vi.fn(() => {
+                pending = true;
+            }),
+            get isPending(): boolean {
+                return pending;
+            },
+            isError: false,
+            error: undefined,
+        };
+        const { result, rerender } = renderAutoSaving(mutation as unknown as ReturnType<typeof updateMutation>);
+
+        settleBaseline(rerender);
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
+        });
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
+        });
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            rerender();
+        });
+        expect(result.current.state.status).toBe('submitting');
+
+        act(() => {
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS * 5);
+        });
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+
+        vi.useRealTimers();
+    });
+});
+
+/**
+ * ⛔ WHAT AN UNATTENDED SAVE MUST **NOT** DO — the three ways delegating to `saveDraft` went wrong.
+ *
+ * `useRecipeAutoSave` issues no write of its own; it calls the editor. That is what makes the write carry
+ * `expectedVersion` (see the suite above). But `saveDraft` is ONE command bundling three concerns —
+ * validate-and-record-errors, persist, and notify-the-container — and an unattended caller wants only the
+ * middle one. Inheriting the other two produced three defects, each of which a cook meets within seconds:
+ *
+ *  1. **It navigated them out of the editor.** `submitDraft`'s `onSuccess` calls `opts.onSaved`, which both
+ *     containers wire to "go to the detail page". Type, pause two seconds, and the editor closes underneath
+ *     you mid-edit.
+ *  2. **It painted validation errors nobody asked for.** `validateThenSubmit` calls `setErrors` BEFORE its
+ *     gate, so clearing a title to retype it put "A title is required." under the field on a timer.
+ *  3. **It re-armed forever.** That `setErrors` stored a fresh object every time, so the render it caused
+ *     re-armed the (then two-second) timer, which fired, which re-rendered — a permanent loop on any draft
+ *     failing the floor.
+ *
+ * The fix is a separate `autoSaveDraft` command that persists and nothing else. It still sets the `saved`
+ * terminal, deliberately: the discard guard's baseline has to move forward, or auto-save would keep writing
+ * the same content forever.
+ */
+describe('autoSaveDraft — the unattended command, and what it deliberately does not do (U34)', () => {
+    const renderEditor = (mutation: ReturnType<typeof updateMutation>, onSaved = vi.fn()) => {
+        useUpdateRecipeMock.mockReturnValue(mutation);
+
+        return { onSaved, ...renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' })) };
+    };
+
+    it('does NOT call onSaved — the cook is not navigated out of the editor mid-edit', () => {
+        // ⛔ THE defect. Both containers wire `onSaved` to a navigation, so calling it from a background
+        // timer closes the editor two seconds after the cook stops typing.
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result, onSaved } = renderEditor(mutation);
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
+        });
+        act(() => {
+            result.current.autoSaveDraft();
+        });
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+        expect(onSaved).not.toHaveBeenCalled();
+    });
+
+    it('still calls onSaved for an EXPLICIT Save Draft, so the button is unaffected', () => {
+        // The other half: suppressing navigation must not suppress it for the control the cook pressed.
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result, onSaved } = renderEditor(mutation);
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited deliberately' });
+        });
+        act(() => {
+            result.current.saveDraft();
+        });
+
+        expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT paint validation errors on a draft the cook is still typing', () => {
+        // Clearing a title to retype it must not be answered by a timer shouting about it.
+        const mutation = updateMutation([]);
+        const { result } = renderEditor(mutation);
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: '' });
+        });
+        act(() => {
+            result.current.autoSaveDraft();
+        });
+
+        expect(result.current.errors).toEqual({});
+    });
+
+    it('issues NO write at all when the draft fails the step-1 floor', () => {
+        const mutation = updateMutation([]);
+        const { result } = renderEditor(mutation);
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: '' });
+        });
+        act(() => {
+            result.current.autoSaveDraft();
+        });
+
+        expect(mutation.mutate).not.toHaveBeenCalled();
+    });
+
+    it('DOES move the saved terminal, so the discard baseline advances and it stops re-writing', () => {
+        // Deliberately NOT suppressed: without it `isDirty` stays true against the pre-save baseline and the
+        // hook would write the same content on every tick, forever.
+        const mutation = updateMutation([{ type: 'success', recipe: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const { result } = renderEditor(mutation);
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
+        });
+        act(() => {
+            result.current.autoSaveDraft();
+        });
+
+        expect(result.current.state.status).toBe('saved');
+    });
+
+    /**
+     * ⚠️ REWRITTEN 2026-09-03 to prove the NEW behaviour, and the case it replaces is the hole the defect
+     * lived in. That case rerendered WITHOUT touching the draft, so it only ever exercised the half that
+     * already worked: `autoSaveDraft`'s `useCallback` deps were `[values, query.data]`, and a bare
+     * `rerender()` changes neither. An EDIT changes `values`, mints a new function, changes
+     * `useRecipeAutoSave`'s effect deps, and re-arms the timer — turning the ruled five-minute INTERVAL
+     * into a debounce from the last keystroke, so a cook typing continuously was never written at all.
+     *
+     * Stability across an edit is therefore the load-bearing half, and it is asserted first-class here.
+     * (`AUTO_SAVE_INTERVAL_MS`'s original 2-second value is gone; the poller-starvation reasoning the old
+     * comment gave still holds at five minutes, and is the same reason.)
+     */
+    it('keeps a STABLE identity across re-renders AND across edits, or the interval is re-armed forever', () => {
+        const mutation = updateMutation([]);
+        const { result, rerender } = renderEditor(mutation);
+        const first = result.current.autoSaveDraft;
+
+        rerender();
+        expect(result.current.autoSaveDraft).toBe(first);
+
+        act(() => {
+            result.current.setField('title', 'Typed one character');
+        });
+
+        expect(result.current.autoSaveDraft).toBe(first);
+    });
+
+    /**
+     * The cook navigated to a different recipe while the interval was armed. The tick that follows must
+     * write the recipe the editor is now SEEDED from — its content, its `expectedVersion`, its id — and
+     * never the one the timer was armed under. See the sibling suite below for the commit in which those
+     * two facts disagree.
+     */
+    it('writes the newly seeded recipe after a navigation, never the one the timer was armed under', () => {
+        useRecipeMock.mockReturnValue(
+            recipeQuery({ data: makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', currentVersion: 3 }) }),
+        );
+        const mutation = updateMutation([]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result, rerender } = renderHook(({ id }) => useRecipeEditor(id, { onSaved: vi.fn(), locale: 'en' }), {
+            initialProps: { id: 'rec_1' },
+        });
+
+        useRecipeMock.mockReturnValue(
+            recipeQuery({ data: makeRecipeDetail({ id: 'rec_2', title: 'Sunday Roast', currentVersion: 7 }) }),
+        );
+        rerender({ id: 'rec_2' });
+
+        act(() => {
+            result.current.autoSaveDraft();
+        });
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+
+        const [vars] = mutation.mutate.mock.calls[0] as [MutateVars & { input: { title?: string } }];
+
+        expect(vars.id).toBe('rec_2');
+        expect(vars.input.expectedVersion).toBe(7);
+        expect(vars.input.title).toBe('Sunday Roast');
+    });
+});
+
+/**
+ * `autoSaveDraftRef` — the implementation `autoSaveDraft` forwards to, and the ONE thing about it that has
+ * to be right: it must carry the implementation from the render that COMMITTED.
+ *
+ * ⛔ It used to be assigned in the render BODY, which React documents as forbidden ("do not write or read
+ * `ref.current` during rendering") for a reason this hook can pay in data loss rather than a warning. A ref
+ * write is not part of the render's work, so React never rolls it back: a render it DISCARDS — a sibling
+ * suspends, a transition is interrupted — still advances the ref to that abandoned pass's closure, and the
+ * committed tree then calls through a closure over a `recipeId` the user never landed on. The unattended
+ * write goes to the WRONG RECIPE, carrying this recipe's draft and this recipe's `expectedVersion` — a
+ * silent overwrite with no error path, because every guard inside reads the COMMITTED `query.data` and
+ * passes.
+ *
+ * The repair is React's documented shape: assign in an effect, which a discarded render never runs. This
+ * case is driven through Suspense for the same reason `useReturnFocusOnClose.test.tsx` is — it is the one
+ * way to discard a render deterministically — and it was watched failing on the render-body assignment.
+ *
+ * ⚠️ UNCHANGED by the 2026-09-03 cadence repair, deliberately. What the ref publishes widened from
+ * `submitDraft` to the whole unattended-save command, and this case was re-run against a render-body
+ * assignment of the NEW ref and still fails on it — the guarantee it pins survived the refactor rather
+ * than being quietly re-scoped.
+ */
+describe('autoSaveDraft — it writes to the recipe that COMMITTED, not one React discarded', () => {
+    /** A Suspense gate the test opens by hand. `done` is what lets React's retry render past the throw. */
+    interface Gate {
+        readonly promise: Promise<void>;
+        readonly open: () => void;
+        done: boolean;
+    }
+
+    function makeGate(): Gate {
+        let release = (): void => undefined;
+        const promise = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const gate: Gate = { promise, open: release, done: false };
+
+        void promise.then(() => {
+            gate.done = true;
+        });
+
+        return gate;
+    }
+
+    /** Suspends the render pass it is part of until {@link Gate.open} is called. */
+    function Suspender({ gate }: { readonly gate: Gate | null }): null {
+        if (gate !== null && !gate.done) {
+            throw gate.promise;
+        }
+
+        return null;
+    }
+
+    /** Published during render so the enclosing test can hold the COMMITTED render's own `autoSaveDraft`. */
+    let published: ReturnType<typeof useRecipeEditor> | undefined;
+
+    function Probe({ recipeId }: { readonly recipeId: string }): null {
+        published = useRecipeEditor(recipeId, { onSaved: vi.fn(), locale: 'en' });
+
+        return null;
+    }
+
+    it('does not adopt the submit implementation from a render React threw away', () => {
+        // One query double per recipe, so the discarded pass genuinely sees a DIFFERENT recipe.
+        useRecipeMock.mockImplementation((id: string) =>
+            recipeQuery({ data: makeRecipeDetail({ id, title: `Title of ${id}`, currentVersion: 3 }) }),
+        );
+        const mutation = updateMutation();
+        useUpdateRecipeMock.mockReturnValue(mutation);
+
+        const tree = (recipeId: string, gate: Gate | null): JSX.Element => (
+            <Suspense fallback={<p>loading</p>}>
+                <Probe recipeId={recipeId} />
+                <Suspender gate={gate} />
+            </Suspense>
+        );
+
+        const { rerender } = render(tree('rec_A', null));
+
+        // The committed editor: seeded from rec_A, and the handle a timer already holds.
+        expect(published?.state.status).toBe('editing');
+        const autoSaveFromTheCommittedRender = published?.autoSaveDraft;
+
+        // ONE update both navigates to rec_B and suspends a sibling: React renders the probe (which writes
+        // the ref under the old shape), then hits the throw and abandons the whole pass.
+        rerender(tree('rec_B', makeGate()));
+
+        expect(screen.getByText('loading')).toBeTruthy();
+
+        // The auto-save timer armed against rec_A fires while that pass is parked.
+        act(() => autoSaveFromTheCommittedRender?.());
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+        expect(mutation.mutate.mock.calls[0]?.[0]).toMatchObject({ id: 'rec_A' });
+    });
+});
+
+/**
+ * The ONE commit in which the editor's two halves disagree about which recipe is being edited — and the
+ * reason an unattended timer needs a guard the manual controls do not.
+ *
+ * A navigation flips `useRecipe(recipeId)` to the new recipe BEFORE the seed-once effect has copied it into
+ * `values`. For that single commit the editor holds the PREVIOUS recipe's draft alongside the NEW recipe's
+ * `currentVersion`, and `state.status` is `'editing'` (not `'loading'` — `seededId` is already non-null from
+ * the previous recipe), so the container's `enabled` gate is wide open. A tick landing there writes the old
+ * recipe's CONTENT, under the new recipe's `expectedVersion`, to the new recipe's id: a silent cross-recipe
+ * overwrite with no error path, since every other guard reads one committed render and passes.
+ *
+ * ⚠️ This is a DIFFERENT hazard from the discarded-render one above, and it is not covered by it: here the
+ * render COMMITS. It is reachable only in the window between that commit's passive effects and the seed's
+ * own re-render — sub-millisecond in production, and unreachable through `act`, which flushes both. It is
+ * reached here deliberately, by a sibling whose effect runs in the SAME passive-effect flush as the
+ * editor's: `TickOnce` sits after `Probe` in the tree, so React runs the editor's seed and publish effects
+ * first, then this one, all before the seed's re-render commits.
+ *
+ * Watched failing on the unguarded implementation, where it wrote `Title of rec_A` onto `rec_B`.
+ */
+describe('autoSaveDraft — it refuses the commit where the query has moved on and the draft has not', () => {
+    /** Published during render so the sibling effect below can reach the CURRENT render's editor. */
+    let editor: ReturnType<typeof useRecipeEditor> | undefined;
+
+    function Probe({ recipeId }: { readonly recipeId: string }): null {
+        editor = useRecipeEditor(recipeId, { onSaved: vi.fn(), locale: 'en' });
+
+        return null;
+    }
+
+    /** Fires the auto-save exactly once, from a passive effect in the same flush as the editor's own. */
+    function TickOnce({ armed }: { readonly armed: boolean }): null {
+        const fired = useRef(false);
+
+        // No dependency array, so it is ordered by the flush rather than by a dep change; the latch is what
+        // keeps it to the single commit under test.
+        useEffect(() => {
+            if (armed && !fired.current) {
+                fired.current = true;
+                editor?.autoSaveDraft();
+            }
+        });
+
+        return null;
+    }
+
+    it('writes nothing while the draft is still seeded from the PREVIOUS recipe', () => {
+        useRecipeMock.mockImplementation((id: string) =>
+            recipeQuery({
+                data: makeRecipeDetail({
+                    id,
+                    title: `Title of ${id}`,
+                    currentVersion: id === 'rec_B' ? 7 : 3,
+                }),
+            }),
+        );
+        const mutation = updateMutation();
+        useUpdateRecipeMock.mockReturnValue(mutation);
+
+        const tree = (recipeId: string, armed: boolean): JSX.Element => (
+            <>
+                <Probe recipeId={recipeId} />
+                <TickOnce armed={armed} />
+            </>
+        );
+
+        const { rerender } = render(tree('rec_A', false));
+
+        expect(editor?.state.status).toBe('editing');
+        expect(editor?.values.title).toBe('Title of rec_A');
+
+        // ONE update navigates to rec_B and arms the tick: the editor commits with rec_B's query data and
+        // rec_A's draft, and the tick fires inside that commit's own effect flush.
+        rerender(tree('rec_B', true));
+
+        expect(mutation.mutate).not.toHaveBeenCalled();
     });
 });

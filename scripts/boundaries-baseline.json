@@ -1,0 +1,168 @@
+{
+    "pairs": [
+        {
+            "package": "@commise/features-account",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/features-account",
+            "dependency": "@testing-library/user-event",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/features-recipes",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/features-recipes",
+            "dependency": "@testing-library/user-event",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/mobile",
+            "dependency": "typescript-eslint",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/ui",
+            "dependency": "@commise/test-utils",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/ui",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/ui",
+            "dependency": "@testing-library/user-event",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "@clerk/backend",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "@next/env",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "cloudfront",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "postcss",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "typescript-eslint",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/food-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/food-service",
+            "dependency": "packages/tools/loadtest/k6/session.js",
+            "rule": "imports-outside-package",
+            "why": "k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright, so this service's k6 load library cannot import the shared Clerk re-mint (packages/tools/loadtest/k6/session.js) by package name \u2014 verified against the k6 binary. The alternative is three copies of the refresh logic, whose absence cost run 34041143051 every authenticated request after 60 seconds."
+        },
+        {
+            "package": "@kitchensink/identity-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/identity-service",
+            "dependency": "packages/tools/loadtest/k6/session.js",
+            "rule": "imports-outside-package",
+            "why": "k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright, so this service's k6 load library cannot import the shared Clerk re-mint (packages/tools/loadtest/k6/session.js) by package name \u2014 verified against the k6 binary. The alternative is three copies of the refresh logic, whose absence cost run 34041143051 every authenticated request after 60 seconds."
+        },
+        {
+            "package": "@kitchensink/identity-webhooks",
+            "dependency": "zod",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/infra-global",
+            "dependency": "scripts/contractDriftGate.mjs",
+            "rule": "imports-outside-package",
+            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions. Not debt: `packages/infra/global` is a CDK app that is never published or containerized, and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur here. Spawning the script instead would downgrade pure-function tests to black-box subprocess tests. The structural fix is a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__; that is a separate change, not a silencing."
+        },
+        {
+            "package": "@kitchensink/infra-global",
+            "dependency": "scripts/contractGenerate.mjs",
+            "rule": "imports-outside-package",
+            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions. Not debt: `packages/infra/global` is a CDK app that is never published or containerized, and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur here. Spawning the script instead would downgrade pure-function tests to black-box subprocess tests. The structural fix is a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__; that is a separate change, not a silencing."
+        },
+        {
+            "package": "@kitchensink/infra-global",
+            "dependency": "scripts/contractOwners.mjs",
+            "rule": "imports-outside-package",
+            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions. Not debt: `packages/infra/global` is a CDK app that is never published or containerized, and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur here. Spawning the script instead would downgrade pure-function tests to black-box subprocess tests. The structural fix is a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__; that is a separate change, not a silencing."
+        },
+        {
+            "package": "@kitchensink/infra-global",
+            "dependency": "scripts/deploymentDrift.mjs",
+            "rule": "imports-outside-package",
+            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions \u2014 the SAME shape as the four sibling entries already recorded here (contractDriftGate, contractGenerate, contractOwners, prepareProdManifest), not a new kind of debt. `packages/infra/global` is a CDK app that is never published or containerized and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur. Spawning the scripts instead would downgrade the manifest derivation and the drift comparison \u2014 both pure \u2014 to black-box subprocess tests, which is precisely how the prose deployment table it replaces went unchecked. Moving only these two into the package would put six scripts of one kind in two homes; the structural fix is the SAME one the sibling entries name \u2014 a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__."
+        },
+        {
+            "package": "@kitchensink/infra-global",
+            "dependency": "scripts/infrastructureManifest.mjs",
+            "rule": "imports-outside-package",
+            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions \u2014 the SAME shape as the four sibling entries already recorded here (contractDriftGate, contractGenerate, contractOwners, prepareProdManifest), not a new kind of debt. `packages/infra/global` is a CDK app that is never published or containerized and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur. Spawning the scripts instead would downgrade the manifest derivation and the drift comparison \u2014 both pure \u2014 to black-box subprocess tests, which is precisely how the prose deployment table it replaces went unchecked. Moving only these two into the package would put six scripts of one kind in two homes; the structural fix is the SAME one the sibling entries name \u2014 a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__."
+        },
+        {
+            "package": "@kitchensink/infra-global",
+            "dependency": "scripts/prepareProdManifest.mjs",
+            "rule": "imports-outside-package",
+            "why": "Repo-root tooling imported by an infra-global unit test for its PURE functions. Not debt: `packages/infra/global` is a CDK app that is never published or containerized, and its `__tests__` never ship, so the shipped-coupling this rule guards cannot occur here. Spawning the script instead would downgrade pure-function tests to black-box subprocess tests. The structural fix is a root-level test project owning the ~20 tests of repo-root tooling that currently live in infra-global/__tests__; that is a separate change, not a silencing."
+        },
+        {
+            "package": "@kitchensink/loadtest",
+            "dependency": "k6",
+            "rule": "type-only-import"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "dotenv",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "esbuild",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "packages/tools/loadtest/k6/session.js",
+            "rule": "imports-outside-package",
+            "why": "k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright, so this service's k6 load library cannot import the shared Clerk re-mint (packages/tools/loadtest/k6/session.js) by package name \u2014 verified against the k6 binary. The alternative is three copies of the refresh logic, whose absence cost run 34041143051 every authenticated request after 60 seconds."
+        },
+        {
+            "package": "@kitchensink/recipe-workers",
+            "dependency": "dotenv",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/service-test-harness",
+            "dependency": "reflect-metadata",
+            "rule": "undeclared-dependency"
+        }
+    ]
+}

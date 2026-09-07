@@ -38,6 +38,12 @@ let deadOrigin = '';
 let foodBehaviour: FoodBehaviour = 'unauthenticated-401';
 /** Headers the stub recorded for the most recent food probe. */
 let lastFoodRequestHeaders: Record<string, string | string[] | undefined> = {};
+/**
+ * How many CORS preflights the stub has answered. The negative assertion needs this: "the preflight was
+ * SKIPPED" is a claim about a request that was never sent, which no verdict or exit status can witness — a
+ * run that sent the preflight and merely dropped its verdict would look identical from the outside.
+ */
+let preflightCount = 0;
 
 beforeAll(async () => {
     server = createServer((request, response) => {
@@ -53,6 +59,7 @@ beforeAll(async () => {
         }
 
         if (url.pathname === '/api/v1/recipes' && request.method === 'OPTIONS') {
+            preflightCount += 1;
             response.writeHead(204, { ...base, 'access-control-allow-origin': WEB_ORIGIN });
             response.end();
 
@@ -327,10 +334,32 @@ describe('deployedSmoke CLI — the exit status is what turns a deploy red', () 
         expect(result.output).toMatch(/usage/i);
     }, 60_000);
 
-    it('exits 2 when the required flags are missing', async () => {
-        const result = await runCli('--base-url', origin);
+    // `--base-url` is the ONLY required flag. `--web-origin` became optional in #152 so food — which has no
+    // `app.enableCors(…)` because nothing outside the cluster calls it — can take the rest of the smoke
+    // without being asked to prove a browser reaches it. Which deploy legs still OWE the preflight is not
+    // left to the caller's discretion: `prodDeploySmokeDepth.test.ts` derives it from whether the
+    // service's `main.ts` enables CORS.
+    it('exits 2 when --base-url, the only required flag, is missing', async () => {
+        const result = await runCli('--web-origin', WEB_ORIGIN);
 
         expect(result.status).toBe(2);
         expect(result.output).toMatch(/usage/i);
+    }, 60_000);
+
+    // The other half of #152, and the half a unit test of `runSmoke` structurally cannot reach: the omission
+    // is expressed as an ABSENT CLI FLAG, so only the real argument parser can be asked whether it accepts it.
+    it('accepts --base-url ALONE, sending no preflight and still exiting 0', async () => {
+        const before = preflightCount;
+
+        const result = await runCli('--base-url', origin);
+
+        expect(result.status, result.output).toBe(0);
+        expect(result.output).not.toContain('FAIL');
+        // The skip is STATED, so a deploy log says which assertion did not apply and why — a check that
+        // silently stopped running is the whole failure class this file exists to catch.
+        expect(result.output).toMatch(/preflight skipped/i);
+        // ...and it really was not sent. On the exit status alone, a run that fired the preflight with an
+        // `undefined` origin and merely dropped its verdict would be indistinguishable from a real skip.
+        expect(preflightCount).toBe(before);
     }, 60_000);
 });

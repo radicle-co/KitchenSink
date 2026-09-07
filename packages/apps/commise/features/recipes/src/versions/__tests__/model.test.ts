@@ -23,6 +23,7 @@ import {
     conflictMarkerLabel,
     conflictRowLabel,
     countMergeSelections,
+    draftToSnapshot,
     findPriorVersion,
     formatChangedFieldNames,
     formatChangedFromCurrent,
@@ -31,7 +32,6 @@ import {
     formatServerBanner,
     formatServerCardHeading,
     formatVersionAttribution,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatVersionTimestamp,
     formatYourCardHeading,
@@ -51,7 +51,7 @@ const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngred
     id: 'ri_1',
     recipeId: 'rec_1',
     ingredientId: 'ing_1',
-    quantity: 200,
+    quantity: { kind: 'exact', value: 200 },
     unit: 'g',
     sortOrder: 1,
     ingredientName: 'Pasta',
@@ -130,23 +130,16 @@ describe('formatRelativeTimeAgo (W7 Task 3 / X3)', () => {
     });
 });
 
+/**
+ * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution (`deviceLabel`). The banner
+ * used to have two branches — with and without a device suffix — and the pair of cases below it existed to
+ * pin both. There is now ONE rendering, so the surviving case asserts the WHOLE string (never `toContain`),
+ * which is what makes it fail if the version number, the relative time, or the template wording moves.
+ */
 describe('formatServerBanner (W7 Task 3 / X3)', () => {
-    it('renders "Server version (vN): Saved {time} ago on {device}" when a device is known', () => {
+    it('renders "Server version (vN): Saved {time} ago" — version and relative time, and nothing else', () => {
         const server = makeVersionConflictSide({
             versionNumber: 6,
-            deviceLabel: 'iPhone',
-            updatedAt: '2026-05-09T14:30:00.000Z',
-        });
-
-        expect(formatServerBanner(server, new Date('2026-05-09T14:32:00.000Z'), conflict, 'en')).toBe(
-            'Server version (v6): Saved 2 minutes ago on iPhone',
-        );
-    });
-
-    it('omits the device clause when deviceLabel is absent', () => {
-        const server = makeVersionConflictSide({
-            versionNumber: 6,
-            deviceLabel: undefined,
             updatedAt: '2026-05-09T14:30:00.000Z',
         });
 
@@ -154,12 +147,26 @@ describe('formatServerBanner (W7 Task 3 / X3)', () => {
             'Server version (v6): Saved 2 minutes ago',
         );
     });
+
+    it('carries no device clause even when the caller hands it a stray deviceLabel-shaped property', () => {
+        // The field is gone from `VersionConflictSide`, but an OLD server (or a stale cache) can still put
+        // the key on the wire. The banner must ignore it rather than resurrect the deleted suffix.
+        const server = { ...makeVersionConflictSide({ versionNumber: 6, updatedAt: '2026-05-09T14:30:00.000Z' }) };
+
+        expect(
+            formatServerBanner(
+                { ...server, deviceLabel: 'iPhone' } as typeof server,
+                new Date('2026-05-09T14:32:00.000Z'),
+                conflict,
+                'en',
+            ),
+        ).toBe('Server version (v6): Saved 2 minutes ago');
+    });
 });
 
 describe('two-column per-side summary cards (wireframe gap #2)', () => {
     const server = makeVersionConflictSide({
         versionNumber: 6,
-        deviceLabel: 'iPhone',
         updatedAt: '2026-05-09T14:30:00.000Z',
     });
 
@@ -179,14 +186,6 @@ describe('two-column per-side summary cards (wireframe gap #2)', () => {
 
     it('formatVersionCardSavedLine renders an ABSOLUTE date, distinct from the banner’s relative time', () => {
         expect(formatVersionCardSavedLine(server, 'en', conflict)).toContain('Saved: May 9, 2026');
-    });
-
-    it('formatVersionCardDeviceLine renders "Device: {device}" when a deviceLabel is present', () => {
-        expect(formatVersionCardDeviceLine(server, conflict)).toBe('Device: iPhone');
-    });
-
-    it('formatVersionCardDeviceLine returns undefined (never a fabricated line) when deviceLabel is absent', () => {
-        expect(formatVersionCardDeviceLine({ ...server, deviceLabel: undefined }, conflict)).toBeUndefined();
     });
 });
 
@@ -553,21 +552,26 @@ describe('formatChangedFieldNames (W6 Task 2)', () => {
     });
 });
 
+/**
+ * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution (`deviceLabel`). The function
+ * used to take a device label and branch on it; two of the four cases here existed only to pin that branch.
+ * What survives is the editor-only rendering, and it is asserted as a WHOLE string on purpose — the two
+ * deleted cases were the only ones that pinned the `by @` prefix and the handle's position, so asserting
+ * merely "contains clara" here would let the surviving format rot unnoticed.
+ */
 describe('formatVersionAttribution (W6 Task 2)', () => {
-    it('renders the editor + device when both are present', () => {
-        expect(formatVersionAttribution('clara', 'iPhone', versionList)).toBe('by @clara (from iPhone)');
+    it('renders exactly "by @{handle}" — the prefix, the sigil and the handle, with no suffix', () => {
+        expect(formatVersionAttribution('clara', versionList)).toBe('by @clara');
     });
 
-    it('renders the editor alone when the device is absent', () => {
-        expect(formatVersionAttribution('clara', undefined, versionList)).toBe('by @clara');
+    it('renders undefined when the editor is unknown (never "by @undefined")', () => {
+        expect(formatVersionAttribution(undefined, versionList)).toBeUndefined();
     });
 
-    it('renders undefined when neither the editor nor the device is present (never "by @undefined")', () => {
-        expect(formatVersionAttribution(undefined, undefined, versionList)).toBeUndefined();
-    });
-
-    it('renders undefined when only the device is present (no editor to attribute to)', () => {
-        expect(formatVersionAttribution(undefined, 'iPhone', versionList)).toBeUndefined();
+    it('attributes to the handle it was GIVEN, not to a fixed one', () => {
+        // Guards the template's `{handle}` substitution: a formatter that ignored its argument and returned
+        // a constant would pass the case above and fail here.
+        expect(formatVersionAttribution('devon', versionList)).toBe('by @devon');
     });
 });
 
@@ -575,8 +579,18 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
     it('maps snapshot ingredients to formatted display lines, in order', () => {
         const lines = toVersionPreviewIngredientLines(
             [
-                makeIngredient({ id: 'ri_1', quantity: 200, unit: 'g', ingredientName: 'Pasta' }),
-                makeIngredient({ id: 'ri_2', quantity: 1, unit: 'cup', ingredientName: 'Cherry tomatoes' }),
+                makeIngredient({
+                    id: 'ri_1',
+                    quantity: { kind: 'exact', value: 200 },
+                    unit: 'g',
+                    ingredientName: 'Pasta',
+                }),
+                makeIngredient({
+                    id: 'ri_2',
+                    quantity: { kind: 'exact', value: 1 },
+                    unit: 'cup',
+                    ingredientName: 'Cherry tomatoes',
+                }),
             ],
             preview,
             'en',
@@ -597,7 +611,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
     it('renders a calorie chip for userCalories: 0 (a real zero override, not "no override")', () => {
         // CRITICAL: guards the `!== undefined` check in the implementation. A regression to a truthy
         // `if (userCalories)` check would silently drop the chip for this real (zero) override, which is
-        // exactly what {@link RecipeIngredient.userCalories} is for — this test MUST fail in that case.
+        // exactly what `RecipeIngredient.userCalories` is for — this test MUST fail in that case.
         const [line] = toVersionPreviewIngredientLines([makeIngredient({ userCalories: 0 })], preview, 'en');
 
         expect(line).toEqual({ key: 'ri_1', text: '200 g Pasta', calories: '0 cal' });
@@ -615,7 +629,14 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
 
     it('appends displayText as a parenthesized suffix to the ingredient name', () => {
         const [line] = toVersionPreviewIngredientLines(
-            [makeIngredient({ quantity: 2, unit: 'tbsp', ingredientName: 'Olive oil', displayText: 'extra virgin' })],
+            [
+                makeIngredient({
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'tbsp',
+                    ingredientName: 'Olive oil',
+                    displayText: 'extra virgin',
+                }),
+            ],
             preview,
             'en',
         );
@@ -625,7 +646,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
 
     it('renders the bare ingredient name when displayText is absent', () => {
         const [line] = toVersionPreviewIngredientLines(
-            [makeIngredient({ quantity: 3, unit: 'oz', ingredientName: 'Basil' })],
+            [makeIngredient({ quantity: { kind: 'exact', value: 3 }, unit: 'oz', ingredientName: 'Basil' })],
             preview,
             'en',
         );
@@ -833,5 +854,99 @@ describe('resolveVersionPreview', () => {
         resolveVersionPreview({ previewTarget: 1, versions, currentVersion: 2, restoringVersion: null });
 
         expect(versions).toStrictEqual([v2, v1]);
+    });
+});
+
+/**
+ * U26/U27 — the version layer's three mappers, each of which loses data silently if a field is missed.
+ *
+ * ⛔ `draftToSnapshot` is the LOCAL side of the three-way conflict merge, and `toConflictSideDetail` builds
+ * the SERVER and BASE sides. A field one side cannot REPRESENT is a field the merge can never report a
+ * conflict about — so the cook's edit is dropped in favour of the other side, with no conflict banner and
+ * nothing to notice.
+ */
+describe('U26/U27 — the preparation and the section survive the version layer', () => {
+    it('draftToSnapshot carries both onto the local side of the merge', () => {
+        const snapshot = draftToSnapshot(
+            makeRecipeFormValues({
+                ingredients: [
+                    {
+                        ingredientId: 'ing-1',
+                        name: 'Onion',
+                        quantity: 2,
+                        preparation: 'finely chopped',
+                        groupLabel: 'For the marinade',
+                    },
+                ],
+            }),
+            1,
+        );
+
+        expect(snapshot.ingredients[0]).toMatchObject({
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+        });
+    });
+
+    it('draftToSnapshot OMITS both for a line stating neither, and TRIMS a padded one', () => {
+        const snapshot = draftToSnapshot(
+            makeRecipeFormValues({
+                ingredients: [
+                    { ingredientId: 'ing-1', name: 'Onion', quantity: 2, preparation: '  ', groupLabel: ' Dry ' },
+                ],
+            }),
+            1,
+        );
+
+        expect(snapshot.ingredients[0]).not.toHaveProperty('preparation');
+        expect(snapshot.ingredients[0]?.groupLabel).toBe('Dry');
+    });
+
+    /**
+     * ⛔ U26's headline rule, at the ONE place in this package that already folds a field into the name.
+     * `displayText` is an author-chosen DISPLAY override and is parenthesised beside the name deliberately;
+     * a preparation is a field of its own and is appended as a trailing CLAUSE instead. A name carrying a
+     * preparation matches no catalog row.
+     */
+    it('⛔ the preview appends the preparation as a CLAUSE and never folds it into the name', () => {
+        const [line] = toVersionPreviewIngredientLines(
+            [
+                makeIngredient({
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cups',
+                    ingredientName: 'Onion',
+                    preparation: 'finely chopped',
+                }),
+            ],
+            preview,
+            'en',
+        );
+
+        expect(line?.text).toBe('2 cups Onion, finely chopped');
+        // ⛔ Never the parenthesised `displayText` form — that idiom is one copy-paste away at all times.
+        expect(line?.text).not.toContain('(finely chopped)');
+    });
+
+    // ⛔ F4 — the SECTION is on the same footing as the preparation: `diffSnapshots` counts a section-only
+    // edit as `modified`, so a preview that omitted it would show two identical lines beside a history entry
+    // claiming one changed.
+    it('⛔ the preview shows the SECTION too, so a section-only edit is visible in the history', () => {
+        const [line] = toVersionPreviewIngredientLines(
+            [makeIngredient({ ingredientName: 'Flour', unit: 'cups', groupLabel: 'Dry' })],
+            preview,
+            'en',
+        );
+
+        expect(line?.text).toContain('[Dry]');
+    });
+
+    it('the preview renders a line with NO preparation exactly as it did before U26', () => {
+        const [line] = toVersionPreviewIngredientLines(
+            [makeIngredient({ quantity: { kind: 'exact', value: 2 }, unit: 'cups', ingredientName: 'Onion' })],
+            preview,
+            'en',
+        );
+
+        expect(line?.text).toBe('2 cups Onion');
     });
 });

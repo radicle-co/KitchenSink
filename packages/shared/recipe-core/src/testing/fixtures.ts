@@ -60,7 +60,6 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         hasSubstantiveEdit: false,
         dietaryFlags: [],
         tags: [],
-        hasPartialNutrition: false,
         currentVersion: 1,
         averageRating: 4.5,
         ratingCount: 12,
@@ -91,9 +90,13 @@ export function makeRecipeDetail(overrides: Partial<RecipeDetail> = {}): RecipeD
         ...makeRecipe(),
         ingredients: [
             {
-                ingredientId: 'ing_1',
+                // A v4 UUID, because `recipe_ingredients.ingredient_id` IS a `uuid` column and the recipe
+                // service's create/update contract enforces that. A short token like `ing_1` describes a
+                // state the database cannot hold, so a draft built from it looked submittable here while the
+                // API would answer 400 — which is exactly what the editor's validator now catches.
+                ingredientId: '00000000-0000-4000-8000-000000000001',
                 name: 'Olive oil',
-                quantity: 2,
+                quantity: { kind: 'exact', value: 2 },
                 unit: 'tbsp',
                 isUserEntered: false,
             },
@@ -178,7 +181,8 @@ export function makeCollection(overrides: Partial<Collection> = {}): Collection 
  */
 export function makeIngredient(overrides: Partial<Ingredient> = {}): Ingredient {
     return {
-        id: 'ing_1',
+        // A v4 UUID — `ingredients.id` is a `uuid` column; see `makeRecipeDetail` above.
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Olive oil',
         foodId: 'food_1',
         foodResolutionStatus: FoodResolutionStatus.RESOLVED,

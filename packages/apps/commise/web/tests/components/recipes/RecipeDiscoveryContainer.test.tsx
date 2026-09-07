@@ -27,7 +27,7 @@ import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryContainer';
 
-import { makeSearchResponse, makeSearchResult } from './__fixtures__/discoveryFixtures';
+import { makeSearchFacets, makeSearchResponse, makeSearchResult } from './__fixtures__/discoveryFixtures';
 import { makeRecipe, makeRecipeDetail } from './__fixtures__/recipeFixtures';
 
 const { pushMock, nav } = vi.hoisted(() => ({
@@ -201,7 +201,9 @@ describe('RecipeDiscoveryContainer — URL criteria', () => {
         const client = createFakeRecipeServiceClient();
         const searchSpy = vi
             .spyOn(client, 'searchRecipes')
-            .mockResolvedValue(makeSearchResponse([], { facets: { dietaryFlags: [{ value: 'vegan', count: 2 }] } }));
+            .mockResolvedValue(
+                makeSearchResponse([], { facets: makeSearchFacets({ dietaryFlags: [{ value: 'vegan', count: 2 }] }) }),
+            );
 
         renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
@@ -215,7 +217,7 @@ describe('RecipeDiscoveryContainer — URL criteria', () => {
         const replaceState = vi.spyOn(window.history, 'replaceState');
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(
-            makeSearchResponse([], { facets: { dietaryFlags: [{ value: 'vegan', count: 2 }] } }),
+            makeSearchResponse([], { facets: makeSearchFacets({ dietaryFlags: [{ value: 'vegan', count: 2 }] }) }),
         );
 
         renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
@@ -289,7 +291,7 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
         const replaceState = vi.spyOn(window.history, 'replaceState');
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(
-            makeSearchResponse([], { facets: { cuisine: [{ value: 'Thai', count: 3 }] } }),
+            makeSearchResponse([], { facets: makeSearchFacets({ cuisine: [{ value: 'Thai', count: 3 }] }) }),
         );
 
         renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);

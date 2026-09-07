@@ -10,7 +10,7 @@
 --   Stage 1 seeds ~8k Foundation + SR Legacy foods as RESOLVED golden records straight from the USDA
 --   BULK download. `ChangeRefreshConsumer` then scans every RESOLVED food's backing items and does a
 --   LIVE `fetchByKey` per item to compare `food_sources.item_version`
---   (worker/change-refresh/change-refresh.consumer.ts, worker/food-consumer.service.ts refresh branch).
+--   (worker/change-refresh/changeRefresh.consumer.ts, worker/foodConsumer.service.ts refresh branch).
 --   A bulk-seeded crosswalk row's `item_version` is derived from the bulk file's CONTENT, so it can
 --   never equal an API `publicationDate`. Left unexcluded, that produces TWO failures:
 --     (1) DATA CORRUPTION — every sweep sees "changed", re-enqueues the food forever, and the drain's

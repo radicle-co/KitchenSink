@@ -19,6 +19,7 @@ import {
     RecipeBrowseRails,
     RecipeDiscoveryList,
     RecipeFilterBar,
+    RecipeNutritionSlot,
     DISCOVERY_SEARCH_DEBOUNCE_MS,
     addIngredientFilter,
     clearRecipeFilters,
@@ -37,11 +38,14 @@ import {
     type RecipeDiscoveryStatus,
     type RecipeFilterState,
 } from '@commise/features-recipes';
+import type { RecipeFacets } from '@commise/features-recipes';
 import {
     useBrowseRails,
     useDebouncedValue,
     useIngredientFilterSearch,
     useRecentSearches,
+    useRecipeNutritionBatches,
+    type RecipeNutritionLookup,
 } from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useInfiniteSearchRecipes, useCloneRecipe } from '@kitchensink/recipe-service-client/hooks';
@@ -72,6 +76,21 @@ interface BrowseRailsSectionProps {
 }
 
 /**
+ * The host closure every wired surface writes: one slot per card, all reading the SAME batch promise.
+ *
+ * `null` from the lookup means no batch covers this recipe — render nothing, rather than mounting a boundary
+ * with no promise to settle (a skeleton that would never come down).
+ *
+ * @param nutritionFor - The screen's batch lookup.
+ * @returns The `renderNutrition` render prop the presentational views call once per card.
+ */
+const nutritionRenderer = (nutritionFor: RecipeNutritionLookup) => (recipeId: string) => {
+    const batch = nutritionFor(recipeId);
+
+    return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
+};
+
+/**
  * The curated rails' data section — its `useBrowseRails` runs ONLY while mounted, and the screen mounts it
  * solely when browsing, so the three rail queries are a browse-time cost, not an always-on one.
  */
@@ -89,6 +108,11 @@ const BrowseRailsSection: FC<BrowseRailsSectionProps> = ({
         results: rail.results,
         onSeeAll: () => onSeeAll(rail.sortBy),
     }));
+    // ONE batch PER RAIL, not one for all three: the rails are three independent searches that settle at
+    // different moments, so a single combined id set would change as each landed and re-batch the rails that
+    // were already showing figures. The rails are also the DEFAULT state of Discover — without this, the
+    // first screen a viewer sees would be the only card grid in the product with no calorie figure.
+    const nutritionFor = useRecipeNutritionBatches(rails.map((rail) => rail.results.map((hit) => hit.recipe.id)));
 
     return (
         <RecipeBrowseRails
@@ -97,6 +121,7 @@ const BrowseRailsSection: FC<BrowseRailsSectionProps> = ({
             cloningId={cloningId}
             onSelectRecipe={onSelectRecipe}
             onClone={onClone}
+            renderNutrition={nutritionRenderer(nutritionFor)}
         />
     );
 };
@@ -130,7 +155,17 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
     const cloningId = clone.isPending ? (clone.variables ?? null) : null;
 
     const results = search.data?.pages.flatMap((page) => page.results) ?? [];
-    const facets = search.data?.pages[0]?.facets ?? {};
+    // The deferred calorie lookup (ADR-0021 §6), fired during render so the cards paint over an in-flight
+    // request. ⛔ ONE BATCH PER FETCHED PAGE — deliberately NOT the flattened `results` above: a "load more"
+    // grows that array, which would change the query key, mint a new promise, re-request every id already
+    // answered, and drop every chip on screen back to its skeleton. Paged, page one stays settled forever.
+    const nutritionFor = useRecipeNutritionBatches(
+        search.data?.pages.map((page) => page.results.map((hit) => hit.recipe.id)) ?? [],
+    );
+    // Annotated with the NARROW view-model rather than inferred: the `?? {}` fallback (no page yet) would
+    // otherwise widen the type to `{}` and silently lose every facet dimension. `RecipeFacets` permits an
+    // empty object by design -- see its docstring for why the bar's shape is intentionally partial.
+    const facets: RecipeFacets = search.data?.pages[0]?.facets ?? {};
 
     const searching = searchValue.trim().length > 0 || hasActiveFilters(filters);
     const browsing = !searching && !browseDismissed;
@@ -149,6 +184,7 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
             onSelectRecipe={onSelectRecipe}
             onClone={(id) => clone.mutate(id)}
             onRetry={() => void search.refetch()}
+            renderNutrition={nutritionRenderer(nutritionFor)}
             // Pull-to-refresh (U4/L8): the spinner tracks the in-flight refetch; pulling re-runs the search.
             refresh={{ refreshing: search.isRefetching, onRefresh: () => void search.refetch() }}
             cloningId={cloningId}

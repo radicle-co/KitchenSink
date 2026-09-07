@@ -43,10 +43,10 @@ appId: io.commise.mobile
 - tapOn: 'Add a recipe'
 - assertVisible: 'Add recipes to Maestro pull source'
 - scrollUntilVisible:
-      element: 'Add Mediterranean Grilled Lamb'
+      element: 'Add ${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Add Mediterranean Grilled Lamb'
+- tapOn: 'Add ${E2E_RECIPE_LAMB}'
 - assertVisible: 'In this collection'
 - tapOn: 'Done'
 - assertVisible: 'Rename'
@@ -79,10 +79,10 @@ appId: io.commise.mobile
 - tapOn: 'Add a recipe'
 - assertVisible: 'Add recipes to Maestro pull source'
 - scrollUntilVisible:
-      element: 'Add Asparagus with Green Sauce'
+      element: 'Add ${E2E_RECIPE_ASPARAGUS}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Add Asparagus with Green Sauce'
+- tapOn: 'Add ${E2E_RECIPE_ASPARAGUS}'
 - assertVisible: 'In this collection'
 - tapOn: 'Done'
 - assertVisible: 'Rename'
@@ -128,7 +128,7 @@ appId: io.commise.mobile
 # sees the current viewport, which is why the old blind wait timed out against a collection that had really
 # pulled.
 - scrollUntilVisible:
-      element: 'Asparagus with Green Sauce'
+      element: '${E2E_RECIPE_ASPARAGUS}'
       direction: DOWN
       timeout: 20000
 

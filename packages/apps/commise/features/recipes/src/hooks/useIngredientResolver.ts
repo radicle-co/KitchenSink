@@ -16,7 +16,7 @@
  *  4. **freeform** (`addFreeform`, the explicit FALLBACK) — creates a plain user-entered ingredient with no
  *     food resolution. Reachable from every non-idle `viewState` — there is no dead end.
  *
- * All four converge on one `resolveLine`, which reports the resolved `RecipeFormIngredient` via the
+ * All four converge on one `resolveLine`, which reports the `ResolvedRecipeFormIngredient` via the
  * caller's `onResolved` and resets the picker to a blank search.
  *
  * **Search Stage 2 (blended typeahead).** The search read is `useSuggestIngredients`
@@ -28,9 +28,9 @@
  * `catalogAvailability` is `'unavailable'`, never as `isError` (F2).
  *
  * **Unifies three platform drifts** (see `.superpowers/sdd/cp6-current-state.md` §3):
- *  1. **Callback contract.** Web's `onSelect: (line: RecipeFormIngredient) => void` and mobile's
+ *  1. **Callback contract.** Web's `onSelect: (line: ResolvedRecipeFormIngredient) => void` and mobile's
  *     `onResolve: (ingredient: ResolvedIngredient) => void` were two shapes for the same event. The hook
- *     standardizes on ONE contract — `onResolved: (line: RecipeFormIngredient) => void` — and each leaf
+ *     standardizes on ONE contract — `onResolved: (line: ResolvedRecipeFormIngredient) => void` — and each leaf
  *     adapts at its own boundary (mobile's leaf keeps its public `onResolve` prop and narrows the line down
  *     to the `ResolvedIngredient` shape its own callers expect).
  *  2. **Mutation-reset on resolve.** Web called `.reset()` on `addIngredientByName`/`createIngredient`/
@@ -50,31 +50,48 @@
  * ({@link IngredientResolverViewState}) so each leaf renders it with an exhaustive `switch` instead of
  * re-deriving the state machine from raw TanStack query/mutation flags — see that type's doc for the exact
  * kinds and what each carries.
+ *
+ * @pattern Headless hook — the resolution state machine lives here and both `IngredientPicker` leaves are
+ *     Humble Objects over it.
+ * @pattern State, satisfied by the language — `viewState` is a discriminated union the leaves consume with
+ *     an exhaustive `switch`, so no state-object hierarchy is built.
+ * @pattern Memento over the analytics side-channel — `sessionRef` holds the open query-outcome session so
+ *     the mount-only unmount effect can settle an abandoned one. This is the hook's ONLY ref, and it is the
+ *     claim CLAUDE.md rule 3 demands: it is never read to decide what to render, and the latest-value
+ *     semantics an empty-dep cleanup needs are what `useState` structurally cannot give.
  */
 import type { Ingredient } from '@kitchensink/recipe-core';
 import {
     useAddIngredientByFood,
     useAddIngredientByName,
+    useCreateAuthoredFoodViaPicker,
     useCreateIngredient,
     useIngredientCandidates,
     useResolveIngredient,
     useSuggestIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
-import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
-import { useState } from 'react';
+import type { IngredientSuggestion, LiveIngredientHit } from '@kitchensink/recipe-service-client';
+import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
+import { useEffect, useRef, useState } from 'react';
 
-import type { RecipeFormIngredient } from '../form/model.js';
+import type { ResolvedRecipeFormIngredient } from '../form/props.js';
 
 import {
     deriveViewState,
     INGREDIENT_SEARCH_DEBOUNCE_MS,
-    meetsIngredientSearchThreshold,
     nextMatchAction,
-    rankIngredientSuggestions,
     toIngredientLine,
 } from './ingredientResolver.model.js';
 import type { IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
+import { draftFromQuery, validateAuthoredFoodDraft } from './authoredFoodCreate.model.js';
+import type { AuthoredFoodCreateState, AuthoredFoodDraft } from './authoredFoodCreate.model.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
+import { abandonOutcome, observeServedList, pickOutcome } from '../analytics/queryOutcome.model.js';
+import { mintEventId } from '../analytics/mintEventId.js';
+import type { SearchSession } from '../analytics/queryOutcome.model.js';
+import { useAnalyticsEmitter } from '../analytics/useAnalyticsEmitter.js';
+import { useOnDemandIngredientSearch } from './useOnDemandIngredientSearch.js';
+import type { UseOnDemandIngredientSearchResult } from './useOnDemandIngredientSearch.js';
 
 /** The state + actions {@link useIngredientResolver} exposes to a leaf. */
 export interface UseIngredientResolverResult {
@@ -119,16 +136,73 @@ export interface UseIngredientResolverResult {
     readonly addFreeform: () => void;
     /** Leave disambiguation and return to search, discarding any stale resolve-error state. */
     readonly cancelDisambiguation: () => void;
+    /**
+     * The ON-DEMAND live source search (plan U29) — the "Search USDA for '…'" affordance's whole behaviour.
+     *
+     * ⛔ Its `search` is the ONLY thing in this hook that causes an upstream source call, and it runs only
+     * when a leaf calls it. See {@link useOnDemandIngredientSearch} for why it can never be a typeahead.
+     */
+    readonly liveSearch: UseOnDemandIngredientSearchResult;
+    /**
+     * U16 — the create-your-own-food sub-machine: the "Create your own food" affordance's whole
+     * behaviour, from the empty/no-good-match state through the macros form to the admitted line (or the
+     * per-author duplicate's reuse affordance). See {@link AuthoredFoodCreateState} for the states a leaf
+     * renders.
+     */
+    readonly createFood: {
+        readonly state: AuthoredFoodCreateState;
+        /** Open the form, name prefilled from the typed query. */
+        readonly open: () => void;
+        /** Close the form (or the duplicate notice), discarding the draft. */
+        readonly cancel: () => void;
+        /** Update one draft field (clears that field's error). */
+        readonly setField: (field: keyof AuthoredFoodDraft, value: string) => void;
+        /** Validate and submit; on success the admitted line resolves like any other pick. */
+        readonly submit: () => void;
+        /** From the duplicate state: admit the EXISTING food onto the line instead. */
+        readonly reuseExisting: () => void;
+    };
+    /**
+     * Pick one live-search hit. Dispatches on whether we already hold the food:
+     *  - `foodId` present — it is already in our catalog, so it admits through the SAME `by-food` path a
+     *    catalog suggestion uses: one round-trip, nutrition already attached, NO further source call.
+     *  - `foodId` absent — not yet admitted, so it goes through `addByName`, which is slower and may land
+     *    `UNRESOLVED`. That is the honest cost of picking something the source has and we do not.
+     */
+    readonly selectLiveHit: (hit: LiveIngredientHit) => void;
 }
+
+/** The U16 create-food sub-machine's INTERNAL phase (`submitting`/`reusePending` derive from mutations). */
+type CreateFoodPhase =
+    | null
+    | {
+          readonly kind: 'open';
+          readonly draft: AuthoredFoodDraft;
+          readonly fieldErrors: Extract<ReturnType<typeof validateAuthoredFoodDraft>, { ok: false }>['fieldErrors'];
+          readonly submitFailed: boolean;
+      }
+    | {
+          readonly kind: 'duplicate';
+          readonly draft: AuthoredFoodDraft;
+          readonly existingFoodId: string;
+          readonly reuseFailed: boolean;
+      };
 
 /**
  * The shared ingredient-resolution state machine.
  *
+ * ⛔ `onResolved` takes the NARROWED {@link ResolvedRecipeFormIngredient} (U28). Every one of this
+ * hook's five resolve routes goes through `toIngredientLine`, which cannot produce an unresolved line —
+ * so declaring the wider type here was a lie that forced each consumer to re-check (or, on mobile, to
+ * re-project and lose the nutrition fields). A leaf can no longer hand a foodless line upward.
+ *
  * @param onResolved - Called with a fully-resolved recipe line (its `ingredientId` set) to append.
  * @returns The search/disambiguation view state plus the actions that drive it.
  */
-export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) => void): UseIngredientResolverResult {
-    const [query, setQuery] = useState('');
+export function useIngredientResolver(
+    onResolved: (line: ResolvedRecipeFormIngredient) => void,
+): UseIngredientResolverResult {
+    const [query, setQueryRaw] = useState('');
     const [disambiguating, setDisambiguating] = useState<Ingredient | null>(null);
     const trimmed = query.trim();
     // REQ-057: debounce the search-triggering query ~300ms behind keystrokes, and never search below the
@@ -139,23 +213,90 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
     // Search Stage 2: the BLENDED read (local `ingredients` + the food-service golden catalog), not the
     // local-only `/search` — that one stays the recipe-SEARCH filter's read, where a not-yet-admitted food
     // would be a meaningless filter value.
+    const searchEnabled = disambiguating === null && meetsSearchMinimum(debouncedTrimmed);
     const search = useSuggestIngredients(debouncedTrimmed, undefined, {
-        enabled: disambiguating === null && meetsIngredientSearchThreshold(debouncedTrimmed),
+        enabled: searchEnabled,
     });
+    // ── U5: query-outcome session tracking (analytics plan U5; KTD5/KTD6) ────────────────────────
+    // A ref, not state, DELIBERATELY: the session is invisible to render (no UI reads it), and holding
+    // it in state would re-render the whole picker on every debounce settle for nothing. This is the
+    // sanctioned ref shape — wrapping a non-declarative side-channel (analytics emission, including the
+    // unmount flush below) that React's render model has no seat for.
+    const emitAnalytics = useAnalyticsEmitter();
+    const sessionRef = useRef<SearchSession | null>(null);
+
+    /** End the session, emitting its outcome (if any) fire-and-forget. */
+    const settleSession = (outcome: ReturnType<typeof abandonOutcome>): void => {
+        sessionRef.current = null;
+
+        if (outcome !== null) {
+            emitAnalytics(outcome);
+        }
+    };
+
+    useEffect(() => {
+        // A served list settled for the debounced query: begin, CONTINUE (KTD6 — a refined prefix
+        // never counts as an abandonment), or REPLACE the session — a wholesale retype settles the old
+        // phrasing as a no-pick and begins a new session (owner ruling 2026-09-01, REVIEW F2). Gated on
+        // the search actually being enabled so stale data below the minimum (or during disambiguation)
+        // observes nothing.
+        if (searchEnabled && search.isSuccess && search.data !== undefined) {
+            const observed = observeServedList(
+                sessionRef.current,
+                debouncedTrimmed,
+                search.data.suggestions,
+                mintEventId,
+            );
+            sessionRef.current = observed.session;
+
+            if (observed.abandoned !== null) {
+                emitAnalytics(observed.abandoned);
+            }
+        }
+    }, [searchEnabled, search.isSuccess, search.data, debouncedTrimmed]);
+
+    useEffect(() => {
+        return (): void => {
+            // The leave-the-screen moment: an open session unmounting is a no-pick (KTD6c); the web
+            // transport's keepalive lets this flush survive the navigation that caused it (KTD4b).
+            const pending = abandonOutcome(sessionRef.current);
+            sessionRef.current = null;
+
+            if (pending !== null) {
+                emitAnalytics(pending);
+            }
+        };
+        // Mount-only on purpose: the emitter is context-stable, and re-running this effect on any
+        // dependency change would flush open sessions spuriously mid-search.
+    }, []);
     const addIngredientByName = useAddIngredientByName();
     const addIngredientByFood = useAddIngredientByFood();
     const createIngredient = useCreateIngredient();
     const candidates = useIngredientCandidates(disambiguating?.id ?? '', { enabled: disambiguating !== null });
     const resolveIngredient = useResolveIngredient();
+    // The on-demand source search composes HERE rather than in each leaf, so a leaf gets one hook and one
+    // view model and the two platforms cannot drift on when a source call is made.
+    const liveSearch = useOnDemandIngredientSearch(trimmed);
+    // U16: the create-your-own-food sub-machine. `null` = closed; the duplicate arm carries the colliding id.
+    const [createFoodPhase, setCreateFoodPhase] = useState<CreateFoodPhase>(null);
+    const createAuthoredFood = useCreateAuthoredFoodViaPicker();
 
-    // REQ-057: re-rank each provenance section by match quality (prefix > substring > fuzzy) so the picker's
-    // order is deterministic regardless of either catalog's own ordering — WITHIN sections, never across them.
-    const suggestions = rankIngredientSuggestions(search.data?.suggestions ?? [], trimmed);
+    // ⛔ The SERVER's order, unmodified (plan U5). This used to call `rankIngredientSuggestions`; that
+    // client re-sort is retired — see the "RETIRED IN PLAN U5" note in `ingredientResolver.model.ts` for
+    // why re-ranking a page the server had already truncated could not fix the ordering, and for where the
+    // replacement ranking now lives. The `local`-before-`catalog` sectioning is unchanged: it is a property
+    // of the server's blend, not of this hook.
+    const suggestions = search.data?.suggestions ?? [];
 
     /** Append a resolved line and reset the picker back to a blank search (drift #2 — see module doc). */
     const resolveLine = (ingredient: Ingredient): void => {
+        // U5: any resolution reaching here with the session still open came through a NON-SUGGESTION
+        // route (addByName, candidate, freeform — create-after-search included, live hit, terminal
+        // selectMatch): the served list did not produce the line, so the session ends as a no-pick.
+        // A suggestion pick already settled the session at `selectSuggestion`, making this a no-op.
+        settleSession(abandonOutcome(sessionRef.current));
         onResolved(toIngredientLine(ingredient));
-        setQuery('');
+        setQueryRaw('');
         setDisambiguating(null);
         addIngredientByName.reset();
         addIngredientByFood.reset();
@@ -186,6 +327,12 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
      *    silently landing a nutrition-less line. On failure the freeform fallback stays available.
      */
     const selectSuggestion = (suggestion: IngredientSuggestion): void => {
+        // U5 (AE1): the pick is recorded AT THE TAP — the only moment provenance and the served-list
+        // position both exist (KTD6: the pick seam is here, never `resolveLine`, which converges eight
+        // non-pick paths). Recorded before the admit round-trip: the cook picked regardless of how the
+        // admission fares.
+        settleSession(pickOutcome(sessionRef.current, suggestion));
+
         if (suggestion.provenance === 'local') {
             selectMatch(suggestion.ingredient);
 
@@ -237,10 +384,151 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
         createIngredient.mutate(trimmed, { onSuccess: resolveLine });
     };
 
+    /**
+     * Pick a live-search hit (plan U29). Dispatches on whether we already hold the food — see the result
+     * type's doc for why the two paths differ in cost, and why that is worth exposing rather than hiding.
+     */
+    const selectLiveHit = (hit: LiveIngredientHit): void => {
+        if (hit.foodId === undefined) {
+            // Not in our catalog yet: the by-name path admits it, at the cost of an admission fan-out that
+            // can land UNRESOLVED. ⚠️ Deliberately NOT a silent failure — the same status routing every
+            // other add uses applies, so a split food opens disambiguation exactly as it would elsewhere.
+            addIngredientByName.mutate(hit.name, {
+                onSuccess: (ingredient) => {
+                    if (nextMatchAction(ingredient.foodResolutionStatus) === 'disambiguate') {
+                        setDisambiguating(ingredient);
+
+                        return;
+                    }
+
+                    resolveLine(ingredient);
+                },
+            });
+
+            return;
+        }
+
+        addIngredientByFood.mutate(hit.foodId, {
+            onSuccess: (ingredient) => {
+                if (nextMatchAction(ingredient.foodResolutionStatus) === 'disambiguate') {
+                    setDisambiguating(ingredient);
+
+                    return;
+                }
+
+                resolveLine(ingredient);
+            },
+        });
+    };
+
     /** Leave disambiguation without resolving — discards any stale resolve-error state (drift #2). */
     const cancelDisambiguation = (): void => {
         setDisambiguating(null);
         resolveIngredient.reset();
+    };
+
+    // ── U16: the create-your-own-food sub-machine ────────────────────────────────────────────────
+    /** The leaf-facing state: `submitting`/`reusePending` are DERIVED from the mutations, never stored. */
+    const createFoodState: AuthoredFoodCreateState = (() => {
+        if (createFoodPhase === null) {
+            return { kind: 'closed' };
+        }
+
+        if (createFoodPhase.kind === 'open') {
+            if (createAuthoredFood.isPending) {
+                return { kind: 'submitting', draft: createFoodPhase.draft };
+            }
+
+            return {
+                kind: 'open',
+                draft: createFoodPhase.draft,
+                fieldErrors: createFoodPhase.fieldErrors,
+                submitFailed: createFoodPhase.submitFailed,
+            };
+        }
+
+        return {
+            kind: 'duplicate',
+            draft: createFoodPhase.draft,
+            existingFoodId: createFoodPhase.existingFoodId,
+            reusePending: addIngredientByFood.isPending,
+            reuseFailed: createFoodPhase.reuseFailed,
+        };
+    })();
+
+    const createFood: UseIngredientResolverResult['createFood'] = {
+        state: createFoodState,
+        open: (): void => {
+            setCreateFoodPhase({ kind: 'open', draft: draftFromQuery(trimmed), fieldErrors: {}, submitFailed: false });
+        },
+        cancel: (): void => {
+            setCreateFoodPhase(null);
+            createAuthoredFood.reset();
+        },
+        setField: (field, value): void => {
+            setCreateFoodPhase((phase) => {
+                if (phase === null || phase.kind !== 'open') {
+                    return phase;
+                }
+
+                const { [field]: _cleared, ...rest } = phase.fieldErrors;
+
+                return { ...phase, draft: { ...phase.draft, [field]: value }, fieldErrors: rest, submitFailed: false };
+            });
+        },
+        submit: (): void => {
+            if (createFoodPhase === null || createFoodPhase.kind !== 'open') {
+                return;
+            }
+
+            const validated = validateAuthoredFoodDraft(createFoodPhase.draft);
+
+            if (!validated.ok) {
+                // Inline, per-field — never a toast: the cook fixes the field they can see.
+                setCreateFoodPhase({ ...createFoodPhase, fieldErrors: validated.fieldErrors });
+
+                return;
+            }
+
+            createAuthoredFood.mutate(validated.value, {
+                onSuccess: (outcome) => {
+                    if (!outcome.created) {
+                        // The per-author collision — a DISTINCT state with a reuse affordance, not
+                        // validation copy (U16's test scenario says so explicitly).
+                        setCreateFoodPhase({
+                            kind: 'duplicate',
+                            draft: createFoodPhase.draft,
+                            existingFoodId: outcome.existingFoodId,
+                            reuseFailed: false,
+                        });
+
+                        return;
+                    }
+
+                    setCreateFoodPhase(null);
+                    resolveLine(outcome.ingredient);
+                },
+                onError: () => {
+                    setCreateFoodPhase({ ...createFoodPhase, submitFailed: true });
+                },
+            });
+        },
+        reuseExisting: (): void => {
+            if (createFoodPhase === null || createFoodPhase.kind !== 'duplicate') {
+                return;
+            }
+
+            // The EXISTING by-food admission — one flow for "put this food on the line", whoever made it.
+            addIngredientByFood.mutate(createFoodPhase.existingFoodId, {
+                onSuccess: (ingredient) => {
+                    setCreateFoodPhase(null);
+                    resolveLine(ingredient);
+                },
+                onError: () => {
+                    setCreateFoodPhase({ ...createFoodPhase, reuseFailed: true });
+                },
+            });
+        },
     };
 
     const viewState = deriveViewState({
@@ -262,18 +550,29 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
 
     return {
         query,
-        setQuery,
+        setQuery: (next: string): void => {
+            // U5 (AE2/KTD6a): clearing to EMPTY without resolving abandons the session — one no-pick
+            // carrying the final settled query + served list. A non-empty edit continues the session.
+            if (next.trim() === '' && sessionRef.current !== null) {
+                settleSession(abandonOutcome(sessionRef.current));
+            }
+
+            setQueryRaw(next);
+        },
         trimmed,
         viewState,
         addByNameStatus: { isPending: addIngredientByName.isPending, isError: addIngredientByName.isError },
         addByFoodStatus: { isPending: addIngredientByFood.isPending, isError: addIngredientByFood.isError },
         createStatus: { isPending: createIngredient.isPending, isError: createIngredient.isError },
         resolveError: resolveIngredient.isError,
+        createFood,
         selectSuggestion,
         selectMatch,
         findNutrition,
         pickCandidate,
         addFreeform,
         cancelDisambiguation,
+        liveSearch,
+        selectLiveHit,
     };
 }

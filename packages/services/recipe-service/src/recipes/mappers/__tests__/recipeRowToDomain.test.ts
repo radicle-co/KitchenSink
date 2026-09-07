@@ -1,0 +1,196 @@
+/**
+ * S-R4-test — unit tests for the canonical {@link recipeRowToDomain} Data Mapper: every field rule the
+ * three former call sites (`collections.service#toRecipe`, `recipes.service#toRecipeResponse`,
+ * `search.dal#rowToRecipe`) independently re-encoded before this collapse. Mutation lens: a wrong
+ * coercion/omit/derivation in the mapper must fail one of these.
+ */
+import { describe, it, expect } from 'vitest';
+
+import { recipeRowToDomain, type RecipeRowInput } from '../recipeRowToDomain.js';
+import { makeRecipeRow } from '../../../__fixtures__/index.js';
+
+/** A fully-populated {@link RecipeRowInput} (via the Drizzle `RecipeRow` fixture) with overrides. */
+function row(overrides: Partial<RecipeRowInput> = {}): RecipeRowInput {
+    return { ...makeRecipeRow(), ...overrides };
+}
+
+describe('recipeRowToDomain', () => {
+    it('maps the required scalar fields straight through', () => {
+        const recipe = recipeRowToDomain(
+            row({ id: 'r-1', ownerId: 'owner-1', title: 'Pasta', servings: 4, currentVersion: 3, ratingCount: 7 }),
+        );
+
+        expect(recipe).toMatchObject({
+            id: 'r-1',
+            ownerId: 'owner-1',
+            title: 'Pasta',
+            servings: 4,
+            currentVersion: 3,
+            ratingCount: 7,
+        });
+    });
+
+    it("defaults description to '' when NULL (Recipe.description is required)", () => {
+        expect(recipeRowToDomain(row({ description: null })).description).toBe('');
+    });
+
+    it('passes a stated description through unchanged', () => {
+        expect(recipeRowToDomain(row({ description: 'Tasty' })).description).toBe('Tasty');
+    });
+
+    it('defaults prepTimeMinutes/cookTimeMinutes/totalTimeMinutes to 0 when NULL', () => {
+        const recipe = recipeRowToDomain(row({ prepTimeMinutes: null, cookTimeMinutes: null, totalTimeMinutes: null }));
+
+        expect(recipe.prepTimeMinutes).toBe(0);
+        expect(recipe.cookTimeMinutes).toBe(0);
+        expect(recipe.totalTimeMinutes).toBe(0);
+    });
+
+    it('passes stated time values through unchanged', () => {
+        const recipe = recipeRowToDomain(row({ prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30 }));
+
+        expect(recipe.prepTimeMinutes).toBe(10);
+        expect(recipe.cookTimeMinutes).toBe(20);
+        expect(recipe.totalTimeMinutes).toBe(30);
+    });
+
+    it('maps difficulty when stated and OMITS it (not null) when unstated', () => {
+        expect(recipeRowToDomain(row({ difficulty: 'hard' })).difficulty).toBe('hard');
+        expect(recipeRowToDomain(row({ difficulty: null }))).not.toHaveProperty('difficulty');
+    });
+
+    it('coerces the trigger-maintained averageRating (numeric string) to a number when rated', () => {
+        expect(recipeRowToDomain(row({ averageRating: '4.50', ratingCount: 12 })).averageRating).toBe(4.5);
+    });
+
+    it('OMITS averageRating (never 0) when unrated', () => {
+        expect(recipeRowToDomain(row({ averageRating: null, ratingCount: 0 }))).not.toHaveProperty('averageRating');
+    });
+
+    /**
+     * REWRITTEN from two tests that took a `DerivedNutritionFields` ARGUMENT — "takes
+     * `leadCaloriesPerServing` from the DERIVED figure" and "OMITS it when the caller computed none". The
+     * mapper no longer has that parameter: the field it fed left the wire (ADR-0021's "Follow-up owed"),
+     * because the only caller still supplying it was the detail read, and there it was `nutrition.calories`
+     * under a second name. The rule that survives — this mapper NEVER fabricates a calorie figure, on any
+     * path — is asserted here as total absence, which is strictly stronger than the old pair (they could
+     * both pass while some OTHER caller injected one).
+     */
+    it('⛔ emits NO calorie field — the mapper has no nutrition input and can invent none', () => {
+        const recipe = recipeRowToDomain(row());
+
+        expect(recipe).not.toHaveProperty('leadCaloriesPerServing');
+        expect(Object.keys(recipe).filter((key) => key.toLowerCase().includes('calor'))).toStrictEqual([]);
+    });
+
+    it('⛔ emits NO `hasPartialNutrition` — a two-valued encoding of a three-valued fact left the wire', () => {
+        // REWRITTEN, not deleted. The old assertion pinned the field's value coming from a DERIVED verdict
+        // so that no path could assert completeness by omission. The field itself is now gone: three call
+        // sites pinned it `true` to mean "not looked up", which is not what its own docstring said, and the
+        // deferred-nutrition union (`recipes.schema.ts`) carries the fact with a discriminant instead. The
+        // invariant that survives is that this mapper never fabricates one, which is asserted as absence.
+        expect(recipeRowToDomain(row())).not.toHaveProperty('hasPartialNutrition');
+    });
+
+    it('maps authorHandle when present and OMITS it when NULL', () => {
+        expect(recipeRowToDomain(row({ authorHandle: '@chef' })).authorHandle).toBe('@chef');
+        expect(recipeRowToDomain(row({ authorHandle: null }))).not.toHaveProperty('authorHandle');
+    });
+
+    it('OMITS sourceUrl / sourceAttribution / clonedFromId / cuisine when NULL', () => {
+        const recipe = recipeRowToDomain(
+            row({ sourceUrl: null, sourceAttribution: null, clonedFromId: null, cuisine: null }),
+        );
+
+        expect(recipe).not.toHaveProperty('sourceUrl');
+        expect(recipe).not.toHaveProperty('sourceAttribution');
+        expect(recipe).not.toHaveProperty('clonedFromId');
+        expect(recipe).not.toHaveProperty('cuisine');
+    });
+
+    it('includes sourceUrl / sourceAttribution / clonedFromId / cuisine when present', () => {
+        const recipe = recipeRowToDomain(
+            row({
+                sourceUrl: 'https://example.com/r',
+                sourceAttribution: 'Some Chef',
+                clonedFromId: 'src-1',
+                cuisine: 'italian',
+            }),
+        );
+
+        expect(recipe.sourceUrl).toBe('https://example.com/r');
+        expect(recipe.sourceAttribution).toBe('Some Chef');
+        expect(recipe.clonedFromId).toBe('src-1');
+        expect(recipe.cuisine).toBe('italian');
+    });
+
+    it('derives usesPremiumCapability from visibility + sourceType via the ONE recipe-core rule', () => {
+        // Chosen-private → PRO.
+        expect(
+            recipeRowToDomain(row({ visibility: 'private', sourceType: 'user_created' })).usesPremiumCapability,
+        ).toBe(true);
+        // Forced-private import → NOT PRO (the `visibility === 'private'` trap must not be re-derived here).
+        expect(
+            recipeRowToDomain(row({ visibility: 'private', sourceType: 'imported_physical' })).usesPremiumCapability,
+        ).toBe(false);
+        // Public → never PRO.
+        expect(recipeRowToDomain(row({ visibility: 'public', sourceType: 'user_created' })).usesPremiumCapability).toBe(
+            false,
+        );
+    });
+
+    it('normalizes a Date createdAt/updatedAt to an ISO-8601 string', () => {
+        const recipe = recipeRowToDomain(
+            row({ createdAt: new Date('2026-07-01T12:00:00.000Z'), updatedAt: new Date('2026-07-02T00:00:00.000Z') }),
+        );
+
+        expect(recipe.createdAt).toBe('2026-07-01T12:00:00.000Z');
+        expect(recipe.updatedAt).toBe('2026-07-02T00:00:00.000Z');
+    });
+
+    it('normalizes a string createdAt (raw-row adapter input) to an ISO-8601 string', () => {
+        const recipe = recipeRowToDomain(row({ createdAt: '2026-07-01T00:00:00.000Z' }));
+
+        expect(recipe.createdAt).toBe('2026-07-01T00:00:00.000Z');
+    });
+
+    it('OMITS deletedAt (never null) when the recipe is active', () => {
+        expect(recipeRowToDomain(row({ deletedAt: null }))).not.toHaveProperty('deletedAt');
+    });
+
+    it('maps deletedAt to an ISO string when tombstoned (Date or string input)', () => {
+        expect(recipeRowToDomain(row({ deletedAt: new Date('2026-06-01T00:00:00.000Z') })).deletedAt).toBe(
+            '2026-06-01T00:00:00.000Z',
+        );
+        expect(recipeRowToDomain(row({ deletedAt: '2026-06-02T00:00:00.000Z' })).deletedAt).toBe(
+            '2026-06-02T00:00:00.000Z',
+        );
+    });
+
+    it('passes dietaryFlags / tags arrays through unchanged', () => {
+        const recipe = recipeRowToDomain(row({ dietaryFlags: ['vegan'], tags: ['dinner', 'quick'] }));
+
+        expect(recipe.dietaryFlags).toEqual(['vegan']);
+        expect(recipe.tags).toEqual(['dinner', 'quick']);
+    });
+
+    it('passes hasSubstantiveEdit / status / sourceType / visibility straight through', () => {
+        const recipe = recipeRowToDomain(
+            row({
+                hasSubstantiveEdit: true,
+                status: 'draft',
+                sourceType: 'imported_paid',
+                visibility: 'private',
+            }),
+        );
+
+        expect(recipe.hasSubstantiveEdit).toBe(true);
+        expect(recipe.status).toBe('draft');
+        expect(recipe.sourceType).toBe('imported_paid');
+        expect(recipe.visibility).toBe('private');
+    });
+
+    it('never emits a coverPhotoUrl (resolved by the caller, not this mapper)', () => {
+        expect(recipeRowToDomain(row())).not.toHaveProperty('coverPhotoUrl');
+    });
+});

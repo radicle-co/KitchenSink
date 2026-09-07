@@ -14,7 +14,10 @@ import { createElement } from 'react';
 
 vi.mock('@clerk/expo', () => ({ useAuth: vi.fn() }));
 
-import { useDeleteAccount, useUpdateProfile, useUserProfile } from '../../src/hooks/useUserProfile.js';
+import { makeUserProfile, makeUserProfileUser } from '@commise/features-account/testing';
+import type { DeleteUserMeResponse, EraseUserMeResponse } from '@kitchensink/schema-identity';
+
+import { useDeleteAccount, useEraseAccount, useUpdateProfile, useUserProfile } from '../../src/hooks/useUserProfile.js';
 
 const useAuthMock = vi.mocked(useAuth);
 
@@ -24,7 +27,31 @@ function wrapper({ children }: { children: ReactNode }) {
     return createElement(QueryClientProvider, { client }, children);
 }
 
-const profile = { user: { id: 'usr_1', displayName: 'Ada' }, account: {} };
+/**
+ * A COMPLETE `UserProfile`, because `ProfileServiceClient` now PARSES its response against
+ * `@kitchensink/schema-identity`'s `userProfileSchema` instead of casting it.
+ *
+ * It was `{ user: { id: 'usr_1', displayName: 'Ada' }, account: {} }` — two of seven `user` fields and none of
+ * `account`'s five — which passed only because the client ended in `JSON.parse(text) as T`. These cases assert
+ * the outgoing `fetch` (URL, method, body, token policy), and they were doing so against a body the identity
+ * service cannot send. Shared factory, so the web hook's suite and this one cannot disagree about what a valid
+ * profile is.
+ */
+const profile = makeUserProfile({ user: makeUserProfileUser({ id: 'usr_1', displayName: 'Ada' }) });
+
+/**
+ * The real `202 Accepted` body of `DELETE /api/v1/users/me`.
+ *
+ * `202` and not `204` because closure is ASYNCHRONOUS — the reversible Clerk ban is handed to the deletion
+ * worker — so the response acknowledges the request rather than its completion, which is why it HAS a body.
+ * This case used to answer `json: () => ({})` with `text: () => ''`, i.e. an EMPTY body, which took the
+ * bodyless short-circuit and never exercised the parse at all.
+ */
+const deletion: DeleteUserMeResponse = {
+    sub: '01JQZX0000000000000000USER',
+    deletedAt: '2026-01-01T00:00:00.000Z',
+    message: 'Account closure accepted.',
+};
 
 beforeEach(() => {
     global.fetch = vi.fn().mockResolvedValue({
@@ -117,8 +144,8 @@ describe('useDeleteAccount (mobile)', () => {
         global.fetch = vi.fn().mockResolvedValue({
             ok: true,
             status: 202,
-            json: () => Promise.resolve({}),
-            text: () => Promise.resolve(''),
+            json: () => Promise.resolve(deletion),
+            text: () => Promise.resolve(JSON.stringify(deletion)),
         } as Response);
 
         const { result } = renderHook(() => useDeleteAccount(), { wrapper });
@@ -130,5 +157,112 @@ describe('useDeleteAccount (mobile)', () => {
         expect(url).toContain('/api/v1/users/me');
         expect(init.method).toBe('DELETE');
         expect(signOut).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * The ACCOUNT-level ERASURE (plan U2) — the irreversible sibling of the closure above, and the call that makes
+ * an erasure reach anything beyond the recipe service. It shipped with no test on either platform: every suite
+ * that drives the erase flow doubles this hook at its own seam, so nothing observed what it actually sends.
+ *
+ * The `202 Accepted` body of `POST /api/v1/users/me/erasure`, which the client PARSES against
+ * `eraseUserMeResponseSchema` — an incomplete literal would not survive the parse.
+ */
+const erasure: EraseUserMeResponse = {
+    sub: '01JQZX0000000000000000USER',
+    erasedAt: '2026-08-16T00:00:00.000Z',
+    message: 'Account erasure initiated.',
+};
+
+describe('useEraseAccount (mobile)', () => {
+    /** Answer the next `fetch` with the accepted-erasure body. */
+    function stubAcceptedErasure(): void {
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 202,
+            json: () => Promise.resolve(erasure),
+            text: () => Promise.resolve(JSON.stringify(erasure)),
+        } as Response);
+    }
+
+    it('POSTs the ERASURE endpoint — not the recoverable closure — with a native-template bearer', async () => {
+        const getToken = vi.fn().mockResolvedValue('tok_cached');
+        useAuthMock.mockReturnValue({ getToken } as unknown as ReturnType<typeof useAuth>);
+        stubAcceptedErasure();
+
+        const { result } = renderHook(() => useEraseAccount(), { wrapper });
+        result.current.mutate();
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        const [url, init] = vi.mocked(global.fetch).mock.calls[0] as [
+            string,
+            RequestInit & { headers: Record<string, string> },
+        ];
+        expect(url).toContain('/api/v1/users/me/erasure');
+        expect(init.method).toBe('POST');
+        // ⛔ The closure is `DELETE /api/v1/users/me`. Collapsing the irreversible action onto the recoverable
+        // one would leave a user who was told their data was destroyed with a live, signed-in-able account.
+        expect(init.method).not.toBe('DELETE');
+        // Native tokens are `azp`-less, so identity only admits them from this template.
+        expect(getToken).toHaveBeenCalledWith({ template: 'commise-native', skipCache: false });
+        expect(result.current.data).toEqual(erasure);
+    });
+
+    /**
+     * ⛔ Unlike `useDeleteAccount`, the erasure command must NOT sign out. The erase FLOW owns the exit,
+     * because it may only leave once BOTH legs (recipes, then the account) are accepted and the session is
+     * PROVEN dead (ADR-0009). A sign-out inside this mutation would resurrect the original U2 failure mode:
+     * the viewer is returned to the sign-in page as though it worked, whatever the account's real fate.
+     */
+    it('does NOT sign the viewer out — the erase flow owns the verified exit', async () => {
+        const getToken = vi.fn().mockResolvedValue('tok_cached');
+        const signOut = vi.fn().mockResolvedValue(undefined);
+        useAuthMock.mockReturnValue({ getToken, signOut } as unknown as ReturnType<typeof useAuth>);
+        stubAcceptedErasure();
+
+        const { result } = renderHook(() => useEraseAccount(), { wrapper });
+        result.current.mutate();
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(signOut).not.toHaveBeenCalled();
+    });
+
+    it('reports a REJECTED erasure as an error rather than resolving', async () => {
+        const failure = { code: 'SERVICE_UNAVAILABLE', message: 'Erasure could not be accepted.' };
+        useAuthMock.mockReturnValue({
+            getToken: vi.fn().mockResolvedValue('tok_cached'),
+        } as unknown as ReturnType<typeof useAuth>);
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 503,
+            json: () => Promise.resolve(failure),
+            text: () => Promise.resolve(JSON.stringify(failure)),
+        } as Response);
+
+        const { result } = renderHook(() => useEraseAccount(), { wrapper });
+        result.current.mutate();
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        // A resolved-on-failure mutation is what would let the caller's `onSuccess` end the session for an
+        // account that still exists — the U2 defect, one layer down.
+        expect(result.current.isSuccess).toBe(false);
+    });
+
+    it('sends no erasure request at all when the session yields no token', async () => {
+        useAuthMock.mockReturnValue({
+            getToken: vi.fn().mockResolvedValue(null),
+        } as unknown as ReturnType<typeof useAuth>);
+        stubAcceptedErasure();
+
+        const { result } = renderHook(() => useEraseAccount(), { wrapper });
+        result.current.mutate();
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        expect(result.current.error).toMatchObject({ name: 'UnauthorizedError' });
+        expect(global.fetch).not.toHaveBeenCalled();
     });
 });

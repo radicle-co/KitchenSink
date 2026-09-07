@@ -1,6 +1,6 @@
 # 0006 — Per-PR feature-service deploys: base-stage imports + per-PR logical database
 
-- Status: Accepted
+- **Status:** Accepted
 - Date: 2026-07-01
 - Deciders: platform
 - Related: [0002](0002-vpc-consolidation-and-cidr-scheme.md), [0003](0003-shared-alb-per-stage.md), [0005](0005-environment-tagging-and-pr-cleanup.md)
@@ -34,6 +34,10 @@ imports from). Resolution:
 | `prod`         | `prod`      |
 | `sandbox`      | `sandbox`   |
 | `pr-{N}` / any | `sandbox`   |
+
+The `sandbox → sandbox` row is live arithmetic but a dead deploy target for a feature service: the
+resolver is exactly this table (`const baseStage = stage === 'prod' ? 'prod' : 'sandbox'`), and the very
+next lines refuse the deploy when `stage !== 'prod' && stage === baseStage`.
 
 All platform imports (`kitchensink-{network,data,alb,domain}-…`, `kitchensink/{…}/food/usda-api-key`,
 `Vpc.fromLookup`) use **`baseStage`**. A per-PR deploy therefore rides the **shared sandbox** VPC,
@@ -71,7 +75,9 @@ configuration that can produce or name one.
 **`food_app` needs `CREATEDB` on the sandbox instance.** The per-PR database is created by the
 migration runner connected AS `food_app`, so the non-prod bootstrap SQL (DataStack) grants
 `ALTER ROLE food_app CREATEDB`. Prod's `food_app` is left without it (prod has no previews), keeping
-the prod bootstrap secret byte-identical.
+the prod bootstrap secret byte-identical. (Verified 2026-09-04 and still true, now for **two** roles:
+`packages/infra/global/lib/platform/DataStack.ts:277` for `food_app`, `:341` for `recipe_app`, with the
+prod exclusion stated at `:387`.)
 
 **2. Per-PR isolation is a per-PR logical database on the shared instance.** The database name is
 derived from `stage`: `kitchensink_food` for `sandbox`/`prod`, and **`kitchensink_food_pr_{N}`** for
@@ -80,6 +86,14 @@ a per-PR deploy. The in-VPC migration-runner Lambda (T-191) **creates the databa
 ordered migrations into it and records them in that DB's own `schema_migrations`. PR-close cleanup
 (the `sandbox-deploy.yml` cleanup job) **drops** `kitchensink_food_pr_{N}` alongside the tagged
 stacks.
+
+**The drop does not run through the per-service migration runner.** It is ADR-0031's
+`PerPrDatabaseReaperFunction`, declared once in `DataStack` beside the instance itself and invoked from
+`.github/scripts/teardown-sandbox-pr.sh`. The reason is the weakness ADR-0005's residue list named: a door
+living on the PR's OWN stack is destroyed with it seconds later, so a failed drop has no retry. The
+per-service `action: 'drop'` doors still exist and are still tested in their packages; teardown simply does
+not depend on them. **Creation** is unchanged — the in-VPC migration runner does
+`SELECT 1 FROM pg_database` → `CREATE DATABASE`.
 
 This is deliberately **not** a per-PR RDS instance and **not** a shared-tables model: a logical
 database gives clean isolation at ~zero cost (one instance, marginal storage), while shared tables
@@ -97,3 +111,18 @@ would let previews corrupt each other.
   and keyed on the delimiter-aware `pr-{N}` match (ADR-0005), so `pr-1` ≠ `pr-15`.
 - `prod`/`sandbox` behaviour is unchanged (`stage == baseStage`, DB name `kitchensink_food`), so the
   synthesized prod/sandbox templates do not diff on this change.
+
+**Open consequence of the two keying choices — not a reversal of either.**
+
+The `baseStage`-keyed secret import and the `stage`-keyed per-PR database interact in a way neither
+half describes. `kitchensink/sandbox/food/usda-api-key` is the SAME credential in every open preview,
+while each preview's rolling-window rate limiter counts `source_call_log` rows in its OWN logical
+database — so N previews each enforce the full 1,000 req/hr USDA cap (003 A-001) against a budget of
+1,000 that all N are spending. The cache-aside design compounds it: a fresh per-PR database is empty
+and unseeded, so each preview re-fetches from USDA what every other preview already holds.
+
+Nothing here is decided, and neither keying choice above is retracted — a per-PR secret would put a
+human back in the PR-open path, and shared tables are what this ADR rejected. The defect, the blast
+radius, the (absent) evidence and four candidate resolutions with their real costs are filed at
+`specs/003-usda-food-data/tasks.md` → "⛔ OPEN — every open preview shares ONE USDA key while each
+counts its own quota". It needs an owner ruling.

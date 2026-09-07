@@ -10,6 +10,7 @@
  * the query-string round-trip asserts the exact wire keys the service's `SearchRecipesQueryDto` accepts.
  */
 import { describe, expect, it } from 'vitest';
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 import type { RecipeFacetCount } from '@kitchensink/recipe-core';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
 
@@ -447,7 +448,10 @@ describe('filtersToQueryString / filtersFromQueryString', () => {
 describe('deriveIngredientFilterSearchViewState (FR-006 gap #3)', () => {
     const chicken = makeIngredient({ id: 'ing_1', name: 'Chicken' });
 
-    it('is idle below the search threshold', () => {
+    it('is tooShort below the FR-010a minimum', () => {
+        // ⚠️ REWRITTEN for 003-FR-010a (plan U37): it asserted `idle` at one character under the retired
+        // 2-character client trigger. A below-minimum query still renders no results — what is new is that
+        // the bar now says why, instead of leaving the cook typing into a surface that does nothing.
         expect(
             deriveIngredientFilterSearchViewState({
                 trimmed: 'c',
@@ -456,7 +460,7 @@ describe('deriveIngredientFilterSearchViewState (FR-006 gap #3)', () => {
                 isLoading: false,
                 isError: false,
             }),
-        ).toEqual({ kind: 'idle' });
+        ).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
     });
 
     it('is idle for a blank query', () => {
@@ -529,5 +533,62 @@ describe('deriveIngredientFilterSearchViewState (FR-006 gap #3)', () => {
                 isError: true,
             }),
         ).toEqual({ kind: 'results', results: [], isError: true });
+    });
+});
+
+/**
+ * The FR-010a minimum, seen from the FILTER typeahead (003-FR-010a, plan U37).
+ *
+ * Same rule, second surface. It is asserted separately rather than shared with the picker's suite because
+ * these are two derivations over two different unions; a single test over one of them would leave the other
+ * free to drift, and the two surfaces drifting apart is exactly the defect the shared constant fixes.
+ */
+describe('deriveIngredientFilterSearchViewState — the FR-010a minimum (plan U37)', () => {
+    it('is idle for an untouched box', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: '',
+                debouncedTrimmed: '',
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'idle' });
+    });
+
+    it.each(['e', 'eg'])('is tooShort for the below-minimum query %j', (trimmed) => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed,
+                debouncedTrimmed: trimmed,
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
+    });
+
+    it('searches at the minimum', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'egg',
+                debouncedTrimmed: 'egg',
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toMatchObject({ kind: 'results' });
+    });
+
+    it('never shows the searching spinner below the minimum, mid-debounce or not', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'eg',
+                debouncedTrimmed: 'e',
+                results: [],
+                isLoading: true,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
     });
 });

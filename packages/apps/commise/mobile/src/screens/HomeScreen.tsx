@@ -4,12 +4,15 @@
  * "see all recipes" → `onOpenRecipes`, and a "Recent recipes" CARD tap → `onOpenRecipe` (that recipe's detail).
  * It owns no widget logic itself — the surface resolves, curates, and renders the registered Home widgets; this
  * screen only supplies the device chrome (status-bar inset) and navigation.
+ *
+ * ⚠️ So it is PRESENTATIONAL, which a file under `src/screens/` is not expected to be: every other screen
+ * here mounts a query or a statechart. This one reads a safe-area inset and passes three callbacks straight
+ * through. The child that decides — `HomeWidgetSurface` — is where a read belongs; one added here would be
+ * in the wrong place.
  */
 import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { palette } from '@commise/ui';
 
 import { HomeWidgetSurface } from '../components/home/index.js';
 
@@ -47,5 +50,7 @@ export function HomeScreen({ onOpenRecipes, onOpenRecipe, onOpenProfile }: HomeS
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    container: { flex: 1, backgroundColor: 'transparent' },
 });

@@ -17,6 +17,7 @@ import { fillTemplate } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from './model.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
 /**
  * A browse section heading: the Playfair title over a short brand-gradient accent bar (U8). The accent is a
@@ -54,7 +55,8 @@ const Rail: FC<{
     readonly cloningId?: string | null;
     readonly onSelectRecipe: (id: string) => void;
     readonly onClone: (id: string) => void;
-}> = ({ rail, cloningId, onSelectRecipe, onClone }) => {
+    readonly renderNutrition?: RenderRecipeNutrition;
+}> = ({ rail, cloningId, onSelectRecipe, onClone, renderNutrition }) => {
     const discovery = useMessages(discoveryMessages);
     const title = railTitle(rail.id, discovery);
 
@@ -93,6 +95,7 @@ const Rail: FC<{
                             isCloning={cloningId === entry.recipe.id}
                             onSelect={onSelectRecipe}
                             onClone={onClone}
+                            nutrition={renderNutrition?.(entry.recipe.id)}
                         />
                     </li>
                 ))}
@@ -129,6 +132,7 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({
     cloningId,
     onSelectRecipe,
     onClone,
+    renderNutrition,
 }) => {
     const discovery = useMessages(discoveryMessages);
 
@@ -138,7 +142,13 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({
                 owns the `motion-safe:` gate, so a reduce-motion viewer simply gets the settled surface. */}
             {rails.map((rail, index) => (
                 <EnterTransition key={rail.id} delayMs={index * SECTION_STAGGER_MS}>
-                    <Rail rail={rail} cloningId={cloningId} onSelectRecipe={onSelectRecipe} onClone={onClone} />
+                    <Rail
+                        rail={rail}
+                        cloningId={cloningId}
+                        onSelectRecipe={onSelectRecipe}
+                        onClone={onClone}
+                        renderNutrition={renderNutrition}
+                    />
                 </EnterTransition>
             ))}
             {cuisines.length > 0 && (

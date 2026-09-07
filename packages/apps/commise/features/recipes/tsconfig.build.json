@@ -1,5 +1,10 @@
 {
     "$schema": "https://json.schemastore.org/tsconfig",
     "extends": "./tsconfig.json",
+    // `rootDir` is an EMIT concern and lives here, not in the check project: the check project also covers
+    // `test-utils/`, which a `rootDir` of `src` would reject with TS6059. `include` is re-narrowed so nothing
+    // added to the check project can become a build input.
+    "compilerOptions": { "rootDir": "src" },
+    "include": ["src/**/*.ts", "src/**/*.tsx"],
     "exclude": ["node_modules", "dist", "src/**/__tests__", "src/**/*.test.ts", "tests"]
 }

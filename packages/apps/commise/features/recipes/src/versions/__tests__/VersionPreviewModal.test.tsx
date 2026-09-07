@@ -34,7 +34,7 @@ const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngred
     id: 'ri_1',
     recipeId: 'rec_1',
     ingredientId: 'ing_1',
-    quantity: 200,
+    quantity: { kind: 'exact', value: 200 },
     unit: 'g',
     sortOrder: 1,
     ingredientName: 'Pasta',
@@ -51,11 +51,17 @@ const makeSnapshot = (overrides: Partial<RecipeSnapshot> = {}): RecipeSnapshot =
     cookTimeMinutes: 30,
     steps: [makeStep()],
     ingredients: [
-        makeIngredient({ id: 'ri_1', quantity: 200, unit: 'g', ingredientName: 'Pasta', userCalories: 420 }),
+        makeIngredient({
+            id: 'ri_1',
+            quantity: { kind: 'exact', value: 200 },
+            unit: 'g',
+            ingredientName: 'Pasta',
+            userCalories: 420,
+        }),
         makeIngredient({
             id: 'ri_2',
             ingredientId: 'ing_2',
-            quantity: 1,
+            quantity: { kind: 'exact', value: 1 },
             unit: 'cup',
             sortOrder: 2,
             ingredientName: 'Cherry tomatoes',
@@ -78,11 +84,17 @@ const populatedVersion = makeVersion();
 
 const currentSnapshot = makeSnapshot({
     ingredients: [
-        makeIngredient({ id: 'ri_1', quantity: 220, unit: 'g', ingredientName: 'Pasta', userCalories: 460 }),
+        makeIngredient({
+            id: 'ri_1',
+            quantity: { kind: 'exact', value: 220 },
+            unit: 'g',
+            ingredientName: 'Pasta',
+            userCalories: 460,
+        }),
         makeIngredient({
             id: 'ri_3',
             ingredientId: 'ing_3',
-            quantity: 2,
+            quantity: { kind: 'exact', value: 2 },
             unit: 'tbsp',
             sortOrder: 3,
             ingredientName: 'Basil',
@@ -292,6 +304,7 @@ describe('VersionPreviewModal (web) — dismissal', () => {
 
         function Harness() {
             const [open, setOpen] = useState(false);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>

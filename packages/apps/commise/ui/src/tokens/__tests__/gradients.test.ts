@@ -56,6 +56,7 @@ describe('gradient specs', () => {
         // Both CSS and expo-linear-gradient interpolate premultiplied RGB, so charcoal→`transparent` would
         // pass through a muddy grey. Holding the rgb fixed and moving only alpha is what keeps the fade clean.
         expect(rgb(gradient.scrim.stops[1].color)).toBe(rgb(gradient.scrim.stops[0].color));
+
         for (const stop of gradient.scrim.stops) {
             expect(stop.color).not.toBe('transparent');
         }
@@ -66,6 +67,7 @@ describe('gradient specs', () => {
             const positions = spec.stops.map((s) => s.position);
             expect(positions[0]).toBe(0);
             expect(positions[positions.length - 1]).toBe(100);
+
             for (let i = 1; i < positions.length; i += 1) {
                 expect(positions[i]).toBeGreaterThanOrEqual(positions[i - 1]!);
             }
@@ -172,6 +174,7 @@ describe('glass specs', () => {
 
     it('every glass fallback is more opaque than its translucent surface (readable when blur is unsupported)', () => {
         const alpha = (rgba: string): number => Number(rgba.slice(rgba.lastIndexOf(',') + 1, -1));
+
         for (const spec of Object.values(glass)) {
             expect(alpha(spec.fallback)).toBeGreaterThan(alpha(spec.surface));
         }
@@ -179,6 +182,7 @@ describe('glass specs', () => {
 
     it('gives every tier a TRANSLUCENT edge — an opaque border frames the glass instead of edging it', () => {
         const alpha = (rgba: string): number => Number(rgba.slice(rgba.lastIndexOf(',') + 1, -1));
+
         for (const spec of Object.values(glass)) {
             expect(alpha(spec.border)).toBeGreaterThan(0);
             expect(alpha(spec.border)).toBeLessThan(1);
@@ -278,5 +282,41 @@ describe('toWebGlass (CSS surface projection)', () => {
 
         expect(toWebGlass(spec, true)).toEqual(toWebGlass(spec, true));
         expect(JSON.stringify(spec)).toBe(before);
+    });
+});
+
+/**
+ * The page-canvas ramp (`gradient.hero`) must stay a real, correctly-oriented gradient.
+ *
+ * `hero` IS the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on their page — and
+ * both platforms derive their canvas from it (web's `body` rule via `--background-image-hero`, native's
+ * `AppCanvas` via `toNativeGradient`). These are the invariants that keep it from silently degenerating back
+ * into the flat fill the apps used to paint (issue #145).
+ *
+ * VALUE parity against the archive is asserted where the repo already owns mockup parity and has Node's
+ * filesystem available: `@commise/web`'s `tests/mockupContrast.test.ts` compares this token to the
+ * `--gradient-beach-glow` declaration in every one of the nine screens. It cannot live here — this package
+ * deliberately ships no `@types/node`, so a token module's tests cannot read files.
+ */
+describe('gradient specs — the canvas ramp cannot collapse to a flat fill', () => {
+    it('is a real multi-stop ramp, not a flat fill dressed up as a gradient', () => {
+        const distinct = new Set(gradient.hero.stops.map((stop) => stop.color.toLowerCase()));
+
+        expect(gradient.hero.stops.length).toBeGreaterThanOrEqual(3);
+        // A "gradient" whose stops are all one colour renders identically to `background-color` — the exact
+        // regression this whole surface exists to prevent.
+        expect(distinct.size).toBe(gradient.hero.stops.length);
+        expect(gradient.hero.stops[0].position).toBe(0);
+        expect(gradient.hero.stops[gradient.hero.stops.length - 1]?.position).toBe(100);
+    });
+
+    it('runs top-left → bottom-right on BOTH platforms (the wireframes’ 135° diagonal)', () => {
+        const native = toNativeGradient(gradient.hero);
+
+        expect(gradient.hero.angle).toBe(135);
+        // The native projection must agree with the CSS angle, or the two platforms' washes mirror each other.
+        expect(native.start.x).toBeLessThan(native.end.x);
+        expect(native.start.y).toBeLessThan(native.end.y);
+        expect(native.colors).toEqual(gradient.hero.stops.map((stop) => stop.color));
     });
 });

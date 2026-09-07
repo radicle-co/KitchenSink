@@ -12,36 +12,25 @@
  *
  * @implements ARCH-001
  */
-import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
+import { z } from 'zod';
 
-import { FOOD_DB_USERNAME, foodPoolConfig } from '../../database/pool-config.js';
+import { applyMigrations, assertBundleMatches } from '@kitchensink/db-schema-guard';
+import type { MigrateResult } from '@kitchensink/db-schema-guard';
+
+import { FOOD_DB_USERNAME, foodPoolConfig } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
+import { FoodDatabaseCloneError, type FoodDatabaseCloneFailure } from './migrate.errors.js';
 
 const { Pool } = pg;
 
-/** A discovered migration: its tracking `name` (filename without `.sql`) and the `.sql` filename. */
-export interface DiscoveredMigration {
-    /** The `schema_migrations` tracking key (filename without the `.sql` suffix). */
-    readonly name: string;
-    /** The `.sql` filename within the migrations directory. */
-    readonly file: string;
-}
-
-/** The structured result of a migration run (returned to the deploy-time `lambda invoke`). */
-export interface MigrateResult {
-    /** Migrations applied this run, in order. */
-    readonly applied: string[];
-    /** Migrations skipped because already recorded, in order. */
-    readonly skipped: string[];
-    /** Post-run validation counts. */
-    readonly validated: { readonly migrations: number; readonly tables: number };
-}
+export { discoverMigrations } from '@kitchensink/db-schema-guard';
+export type { DiscoveredMigration, MigrateResult } from '@kitchensink/db-schema-guard';
 
 /** Options for {@link runMigrations} — the injectable core (a pool + a migrations directory). */
 export interface RunMigrationsOptions {
@@ -49,6 +38,15 @@ export interface RunMigrationsOptions {
     readonly pool: pg.Pool;
     /** The directory holding the ordered `.sql` migrations. */
     readonly migrationsDir: string;
+    /**
+     * The manifest digest the caller expects this runner to hold.
+     *
+     * ⛔ REQUIRED. ADR-0035 rejects the optional form by name — "an optional expectation is one a caller
+     * forgets, and a forgotten one is indistinguishable from the behaviour it replaces" — and while it was
+     * optional here, the property that decision rests on was enforced by one argument check in one shell
+     * script rather than by the runner.
+     */
+    readonly expectManifestSha: string;
 }
 
 /**
@@ -59,25 +57,8 @@ export interface RunMigrationsOptions {
 const bundledMigrationsDir = (): string => join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations');
 
 /**
- * Discover the ordered `.sql` migrations in a directory — sorted by filename so the numeric prefix
- * (`0000`, `0001`, …) drives a deterministic order. NO hardcoded list: drop a `.sql` file in and it is
- * picked up automatically.
- *
- * @param migrationsDir - The directory to scan.
- * @returns The discovered migrations in apply order.
- * @sideEffect Reads the migrations directory.
- */
-export function discoverMigrations(migrationsDir: string): DiscoveredMigration[] {
-    return readdirSync(migrationsDir)
-        .filter((file) => file.endsWith('.sql'))
-        .sort()
-        .map((file) => ({ name: file.replace(/\.sql$/, ''), file }));
-}
-
-/**
  * The tables every successful migration run must produce — derived from the Drizzle schema (every
- * exported `pgTable`), never hardcoded, so the post-migration validation tracks the schema as it
- * evolves.
+ * exported `pgTable`), never hardcoded, so the post-migration validation tracks the schema as it evolves.
  *
  * @returns The expected table names.
  */
@@ -88,80 +69,27 @@ function expectedTables(): string[] {
 }
 
 /**
- * Apply the ordered migrations idempotently against a pool, then validate the result. The testable
- * core of {@link handler} (the handler only builds the pool from the DB env + an RDS IAM token).
+ * Apply the food migrations idempotently against a pool, then validate the result.
  *
- * @param options - The connected pool + the migrations directory.
- * @returns The applied/skipped lists + validation counts.
- * @throws {Error} when a migration's SQL fails, a discovered migration is not recorded, or an expected
- *   table is missing after the run.
- * @sideEffect Connects to PostgreSQL and executes DDL.
+ * ⛔ The engine is `@kitchensink/db-schema-guard`'s, not a copy. This loop — the advisory lock, the ledger,
+ * the rollback, the post-run validation — used to exist three times over, once per service, and the three
+ * copies had already drifted in their accounts of why. What is genuinely this service's is bound here:
+ * which SQL, and which tables the drizzle schema says must exist afterwards.
+ *
+ * @param options - The connected pool, the migrations directory, and the caller's manifest expectation.
+ * @returns The applied/skipped lists, the validation counts, and the manifest that ran.
+ * @throws {Error} when the expectation names a different migration set, the lock cannot be acquired, a
+ *   migration's SQL fails, a discovered migration is not recorded, or an expected table is missing.
+ * @sideEffect Connects to PostgreSQL, takes a session advisory lock, and executes DDL.
  */
 export async function runMigrations(options: RunMigrationsOptions): Promise<MigrateResult> {
-    const { pool, migrationsDir } = options;
-    const migrations = discoverMigrations(migrationsDir);
-    const applied: string[] = [];
-    const skipped: string[] = [];
-    const client = await pool.connect();
-
-    try {
-        await client.query(
-            'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
-        );
-
-        for (const migration of migrations) {
-            const existing = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [migration.name]);
-
-            if ((existing.rowCount ?? 0) > 0) {
-                skipped.push(migration.name);
-                continue;
-            }
-
-            const sql = readFileSync(join(migrationsDir, migration.file), 'utf8');
-            await client.query('BEGIN');
-
-            try {
-                await client.query(sql);
-                await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migration.name]);
-                await client.query('COMMIT');
-                applied.push(migration.name);
-            } catch (err) {
-                await client.query('ROLLBACK');
-                throw new Error(`Migration ${migration.name} failed`, { cause: err });
-            }
-        }
-
-        // Post-migration validation. Throwing surfaces as a Lambda FunctionError → the deploy's migration
-        // step fails, so a partially-applied or drifted schema never passes silently. Both sides are
-        // derived (migration files + drizzle schema), so nothing here is hardcoded.
-        const recorded = await client.query<{ name: string }>('SELECT name FROM schema_migrations');
-        const recordedNames = new Set(recorded.rows.map((row) => row.name));
-        const missingMigrations = migrations
-            .map((migration) => migration.name)
-            .filter((name) => !recordedNames.has(name));
-
-        if (missingMigrations.length > 0) {
-            throw new Error(
-                `Post-migration validation failed — migrations not recorded: ${missingMigrations.join(', ')}`,
-            );
-        }
-
-        const tables = expectedTables();
-        const present = await client.query<{ table_name: string }>(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])",
-            [tables],
-        );
-        const presentTables = new Set(present.rows.map((row) => row.table_name));
-        const missingTables = tables.filter((table) => !presentTables.has(table));
-
-        if (missingTables.length > 0) {
-            throw new Error(`Post-migration validation failed — tables missing: ${missingTables.join(', ')}`);
-        }
-
-        return { applied, skipped, validated: { migrations: migrations.length, tables: tables.length } };
-    } finally {
-        client.release();
-    }
+    return applyMigrations({
+        pool: options.pool,
+        migrationsDir: options.migrationsDir,
+        label: 'food',
+        expectedTables: expectedTables(),
+        expectManifestSha: options.expectManifestSha,
+    });
 }
 
 /** The single shared base logical database (ADR-0006) — the migration runner never CREATEs this one. */
@@ -169,7 +97,7 @@ export const BASE_FOOD_DATABASE_NAME = 'kitchensink_food';
 
 /**
  * Valid food logical-database names: the base name, or a per-PR name `kitchensink_food_{suffix}` where
- * the suffix is lowercase alphanumerics/underscores (mirrors {@link foodDatabaseNameForStage} in the
+ * the suffix is lowercase alphanumerics/underscores (mirrors `foodDatabaseNameForStage` in the
  * CDK stack). Because the name is validated against this pattern, it is safe to quote directly into a
  * `CREATE DATABASE "<name>"` statement (which cannot be parameterized) with no injection surface.
  */
@@ -194,18 +122,31 @@ export interface EnsureDatabaseOptions {
 }
 
 /** The outcome of an {@link ensureDatabaseExists} call. */
-export type EnsureDatabaseResult = 'skipped-base' | 'exists' | 'created';
+export type EnsureDatabaseResult = 'skipped-base' | 'exists' | 'cloned';
 
 /**
- * Ensure a per-PR food logical database exists, creating it if absent (ADR-0006). The base database
- * (`kitchensink_food`) is provisioned by the platform DataStack bootstrap SQL, so this is a no-op for
- * it. For a per-PR name it validates the identifier, checks `pg_database`, and `CREATE DATABASE`s it if
- * missing. Idempotent and re-invoke-safe: an already-present database returns `'exists'`, and a
- * concurrent creator that wins the `CREATE DATABASE` race (SQLSTATE 42P04) is also treated as `'exists'`.
+ * Ensure a per-PR food logical database exists, CLONING it from the seeded base if absent (ADR-0006,
+ * U38). The base database (`kitchensink_food`) is provisioned by the platform DataStack bootstrap and
+ * seeded once from the USDA bulk download, so this is a no-op for it. For a per-PR name it validates the
+ * identifier, checks `pg_database`, and issues `CREATE DATABASE … TEMPLATE` if missing. Idempotent and
+ * re-invoke-safe: an already-present database returns `'exists'` and is left untouched, and a concurrent
+ * creator that wins the race (SQLSTATE 42P04) is also treated as `'exists'`.
+ *
+ * **Why a clone rather than an empty database.** The per-PR database used to come up migrated but EMPTY,
+ * which degraded every ingredient search in that preview to `catalogAvailability: 'unavailable'` behind
+ * green checks. The clone hands the preview the base's catalog — and its `schema_migrations` history, so
+ * the migration run that follows applies only what the base has not yet seen.
+ *
+ * ⛔ **The clone can be REFUSED, and a refusal is fatal.** PostgreSQL will not copy a database any
+ * session is connected to; the base is expected to have none (there is no persistent non-prod food
+ * service), but that is a premise to GUARD, not assume. A refusal raises `FoodDatabaseCloneError` and
+ * fails the deploy — it is never softened into creating the database empty, which is exactly the silent
+ * failure ADR-0010 exists to prevent.
  *
  * @param options - The maintenance pool + the target database name.
- * @returns `'skipped-base'` for the base DB, `'exists'` if already present, `'created'` if created.
+ * @returns `'skipped-base'` for the base DB, `'exists'` if already present, `'cloned'` if created.
  * @throws {Error} when the database name is not a valid food logical-database name.
+ * @throws {FoodDatabaseCloneError} when the base could not be cloned (held, absent, or not permitted).
  * @sideEffect Connects to the maintenance database and may execute `CREATE DATABASE`.
  */
 export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Promise<EnsureDatabaseResult> {
@@ -225,41 +166,64 @@ export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Prom
         return 'exists';
     }
 
-    // CREATE DATABASE cannot run inside a transaction and cannot be parameterized. The name is
-    // validated above against FOOD_DATABASE_NAME_PATTERN (no quotes/backslashes possible), so quoting
-    // it as an identifier is safe.
+    // CREATE DATABASE cannot run inside a transaction and cannot be parameterized. Both identifiers are
+    // fixed or validated against FOOD_DATABASE_NAME_PATTERN (no quotes/backslashes possible), so quoting
+    // them is injection-safe.
     try {
-        await maintenancePool.query(`CREATE DATABASE "${databaseName}"`);
+        await maintenancePool.query(`CREATE DATABASE "${databaseName}" TEMPLATE "${BASE_FOOD_DATABASE_NAME}"`);
     } catch (err) {
         // The pg_database check above is a TOCTOU window: a concurrent invocation can create the
         // database between our SELECT and this CREATE, making CREATE DATABASE throw `duplicate_database`
         // (SQLSTATE 42P04). The database now exists — the desired end state — so treat that one code as
         // success rather than failing the whole migration run.
-        if (isDuplicateDatabaseError(err)) {
+        if (sqlStateOf(err) === DUPLICATE_DATABASE_SQLSTATE) {
             return 'exists';
         }
 
-        throw err;
+        const reason = CLONE_FAILURE_BY_SQLSTATE[sqlStateOf(err) ?? ''];
+
+        // ⛔ Classified or not, this THROWS. There is deliberately no branch here that creates the
+        // database without the template: a per-PR catalog that is present and empty passes every check
+        // this repo runs and is discovered only by a person whose ingredient search returns nothing.
+        if (reason === undefined) {
+            throw err;
+        }
+
+        throw new FoodDatabaseCloneError(databaseName, BASE_FOOD_DATABASE_NAME, reason, err);
     }
 
-    return 'created';
+    return 'cloned';
 }
 
 /** Postgres SQLSTATE for `duplicate_database`, raised when `CREATE DATABASE` names an existing DB. */
 const DUPLICATE_DATABASE_SQLSTATE = '42P04';
 
 /**
- * Type guard for the Postgres `duplicate_database` error (SQLSTATE {@link DUPLICATE_DATABASE_SQLSTATE}) —
- * raised when `CREATE DATABASE` loses a race to a concurrent creator. `pg` surfaces the SQLSTATE on the
- * error's `code` property.
+ * The SQLSTATEs a refused `CREATE DATABASE … TEMPLATE` arrives as, mapped to the operator-facing reason.
+ * `55006` is `object_in_use` ("source database … is being accessed by other users"), `3D000` is
+ * `invalid_catalog_name` (no such template), `42501` is `insufficient_privilege` (copying a
+ * non-template database requires ownership of the source).
  */
-function isDuplicateDatabaseError(err: unknown): boolean {
-    return (
-        typeof err === 'object' &&
-        err !== null &&
-        'code' in err &&
-        (err as { code?: unknown }).code === DUPLICATE_DATABASE_SQLSTATE
-    );
+const CLONE_FAILURE_BY_SQLSTATE: Readonly<Record<string, FoodDatabaseCloneFailure | undefined>> = {
+    '55006': 'template-in-use',
+    '3D000': 'template-missing',
+    '42501': 'insufficient-privilege',
+};
+
+/**
+ * The SQLSTATE `pg` surfaces on an error's `code` property, when there is one.
+ *
+ * @param err - The caught value.
+ * @returns The SQLSTATE, or `undefined` for anything that is not a Postgres error.
+ */
+function sqlStateOf(err: unknown): string | undefined {
+    if (typeof err !== 'object' || err === null || !('code' in err)) {
+        return undefined;
+    }
+
+    const code = (err as { code?: unknown }).code;
+
+    return typeof code === 'string' ? code : undefined;
 }
 
 /** The outcome of a {@link dropDatabase} call. */
@@ -317,10 +281,34 @@ function requireEnv(name: string): string {
 }
 
 /** The event the migration runner accepts. Absent/`migrate` → apply migrations; `drop` → PR-close teardown. */
-export interface MigrateEvent {
-    /** `migrate` (default) applies migrations; `drop` drops the per-PR database (ADR-0006 cleanup). */
-    readonly action?: 'migrate' | 'drop';
-}
+/**
+ * A migration-manifest digest: 64 lowercase hex, anchored.
+ *
+ * ⛔ VALIDATED AT THE JSON BOUNDARY, not merely typed. A payload that spells the key differently, or one
+ * the CLI mangled, yields `undefined` — and an unchecked `undefined` was a runner reporting a clean run
+ * over whatever SQL it happens to hold, which is the exact state ADR-0035 exists to abolish.
+ */
+const MANIFEST_SHA = z.string().regex(/^[0-9a-f]{64}$/u, 'must be a 64-character lowercase hex sha256');
+
+/**
+ * The event this runner accepts.
+ *
+ * ⛔ `expectManifestSha` is REQUIRED for a MIGRATE, and correctly absent for a DROP — a drop names a
+ * database, not a migration set, so there is nothing for it to expect. ADR-0035 rejects the optional form
+ * by name: "an optional expectation is one a caller forgets, and a forgotten one is indistinguishable from
+ * the behaviour it replaces".
+ *
+ * `action` is the only thing here that selects behaviour. The digest is an ASSERTION.
+ */
+const MigrateEventSchema = z
+    .object({
+        action: z.enum(['migrate', 'drop']).default('migrate'),
+        expectManifestSha: MANIFEST_SHA.optional(),
+    })
+    .refine((event) => event.action === 'drop' || event.expectManifestSha !== undefined, {
+        message: 'a migrate event must carry expectManifestSha — see ADR-0035',
+        path: ['expectManifestSha'],
+    });
 
 /**
  * Lambda entrypoint. With no action (or `migrate`) it builds the pool from the DB env (authenticating as
@@ -328,11 +316,20 @@ export interface MigrateEvent {
  * database first if it is absent (ADR-0006). With `action: 'drop'` it drops the per-PR database (never
  * the base) for PR-close cleanup.
  *
- * @param event - Optional `{ action }` (defaults to `migrate`).
+ * @param event - Optional `{ action, expectManifestSha }` (the action defaults to `migrate`).
  * @returns The migrate result, or the drop result when `action` is `drop`.
  * @sideEffect Connects to PostgreSQL (RDS IAM auth) and executes DDL.
  */
-export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult | { dropped: DropDatabaseResult }> => {
+export const handler = async (event: unknown = {}): Promise<MigrateResult | { dropped: DropDatabaseResult }> => {
+    const parsed = MigrateEventSchema.safeParse(event ?? {});
+
+    if (!parsed.success) {
+        throw new Error(
+            `Food migration runner received a malformed event — ` +
+                parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`).join(', '),
+        );
+    }
+
     const host = requireEnv('FOOD_DB_ENDPOINT');
     const port = Number(requireEnv('FOOD_DB_PORT'));
     const databaseName = requireEnv('FOOD_DB_NAME');
@@ -362,14 +359,29 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
         }
     };
 
-    if (event.action === 'drop') {
+    // ⛔ BEFORE ANY SIDE EFFECT, and before the drop branch below. A `migrate` that will CREATE a per-PR
+    // logical database (ADR-0006) must not create one and only then discover it is the wrong release's
+    // runner: that leaves an empty, unmigrated database behind for the reaper to find. `applyMigrations`
+    // makes the same assertion, and this is the only way its "refuse before touching anything" claim can be
+    // true for a handler that does work in front of it.
+    if (parsed.data.action !== 'drop') {
+        assertBundleMatches({
+            label: 'food',
+            migrationsDir: bundledMigrationsDir(),
+            // Non-null by construction: the schema's refine rejects a migrate event without it.
+            expectManifestSha: parsed.data.expectManifestSha as string,
+        });
+    }
+
+    if (parsed.data.action === 'drop') {
         const dropped = await withMaintenancePool((pool) => dropDatabase({ maintenancePool: pool, databaseName }));
 
         return { dropped };
     }
 
     // Per-PR isolation (ADR-0006): a per-PR stage targets `kitchensink_food_pr_{N}`, which the platform
-    // bootstrap does NOT create. CREATE it (via the maintenance DB) if absent BEFORE migrating into it.
+    // bootstrap does NOT create. CLONE it from the seeded base (via the maintenance DB) if absent BEFORE
+    // migrating into it, so the preview starts with a populated catalog rather than an empty one (U38).
     // The base `kitchensink_food` short-circuits (skipped-base), so the prod/sandbox path is unchanged.
     if (databaseName !== BASE_FOOD_DATABASE_NAME) {
         await withMaintenancePool((pool) => ensureDatabaseExists({ maintenancePool: pool, databaseName }));
@@ -381,7 +393,12 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
     });
 
     try {
-        return await runMigrations({ pool, migrationsDir: bundledMigrationsDir() });
+        return await runMigrations({
+            pool,
+            migrationsDir: bundledMigrationsDir(),
+            // Non-null by construction: the schema's refine rejects a migrate event without it.
+            expectManifestSha: parsed.data.expectManifestSha as string,
+        });
     } finally {
         await pool.end();
     }

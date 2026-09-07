@@ -1,0 +1,54 @@
+{
+    "name": "@kitchensink/infra-alb",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "//exports": [
+        "Like @kitchensink/infra-security (and unlike most @kitchensink/* packages) this one exports BUILT",
+        "JS, not ./src. Its consumers are CDK app entrypoints, and both prod-deploy and sandbox-deploy run",
+        "them as COMPILED JS under plain node (`cdk deploy --app \"node .../infra/dist/bin/app.js\"`). A `main`",
+        "of ./src/index.ts makes that path fail with ERR_MODULE_NOT_FOUND: node type-strips index.ts but",
+        "cannot resolve its `./x.js` relative imports with no built .js beside them. See ADR-0013."
+    ],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "//peerDependencies": [
+        "aws-cdk-lib is a PEER, matching @kitchensink/infra-security: every consumer of this package is a CDK",
+        "app that already owns a copy, and a second one would give SecretValue tokens from a different",
+        "aws-cdk-lib instance than the stack resolving them. It is needed for exactly one thing -",
+        "edgeOriginHeader.ts's `{{resolve:secretsmanager:...}}` dynamic reference (ADR-0020 / U17). Everything",
+        "else here is a pure string resolver with no imports at all, and should stay that way."
+    ],
+    "peerDependencies": {
+        "aws-cdk-lib": "^2.176.0"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "aws-cdk-lib": "*",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

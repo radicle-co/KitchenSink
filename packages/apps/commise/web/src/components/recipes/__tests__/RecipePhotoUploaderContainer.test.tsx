@@ -46,6 +46,8 @@ const { photosQueryMock, deletePhotoMock, reorderPhotoMock, uploadState } = vi.h
 const UPLOAD_FAILED_MESSAGE = 'We couldn’t upload your photo. Please try again.';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipePhotos: photosQueryMock,
     useDeleteRecipePhoto: deletePhotoMock,
     useReorderRecipePhotos: reorderPhotoMock,

@@ -27,10 +27,11 @@
  * the chip's label without a network round-trip to re-resolve the name.
  */
 import type { Locale } from '@commise/i18n';
-import type { Ingredient, RecipeFacetCount, RecipeSearchParams } from '@kitchensink/recipe-core';
+import type { Ingredient, RecipeFacetCount } from '@kitchensink/recipe-core';
+import type { RecipeSearchFacets, RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import { fillTemplate } from '../list/model.js';
-import { meetsIngredientSearchThreshold } from '../hooks/ingredientResolver.model.js';
+import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 /** The facet dimensions the service aggregates (and the bar renders as chip groups). */
 export type FacetDimension = 'dietaryFlags' | 'tags';
@@ -45,7 +46,7 @@ export interface RecipeFilterState {
     readonly dietaryFlags?: readonly string[];
     readonly tags?: readonly string[];
     /**
-     * A single cuisine (S2). The search API filters by ONE exact cuisine (`RecipeSearchParams.cuisine` is a
+     * A single cuisine (S2). The search API filters by ONE exact cuisine (`RecipeSearchQuery.cuisine` is a
      * string, not an array), so this is single-select — never a multi-value array — even though the UI draws
      * cuisine as a facet group.
      */
@@ -58,7 +59,7 @@ export interface RecipeFilterState {
     readonly maxTotalTime?: number;
     /**
      * The selected ingredient filters (id + display name), resolved via the ingredient typeahead. Projects
-     * onto `RecipeSearchParams.ingredientIds` (ids only) for the wire. OR-narrowed, like the other array
+     * onto `RecipeSearchQuery.ingredientIds` (ids only) for the wire. OR-narrowed, like the other array
      * dimensions (a recipe matches if it contains ANY selected ingredient).
      */
     readonly ingredients?: readonly RecipeIngredientFilter[];
@@ -98,16 +99,21 @@ export const TIME_BUCKETS_MINUTES: readonly number[] = [15, 30, 60];
 export const TOTAL_TIME_BUCKETS_MINUTES: readonly number[] = TIME_BUCKETS_MINUTES;
 
 /**
- * The facet counts the bar consumes — structurally the service's `RecipeSearchFacets` wire shape, but
- * declared here (over `RecipeFacetCount` from recipe-core) so this presentational package need not depend on
- * the HTTP client. The composing container passes the search response's `facets` straight in.
+ * The facet counts the FILTER BAR consumes — a deliberately NARROWER view-model DERIVED from the wire shape,
+ * not an independent declaration of it.
+ *
+ * It differs from `RecipeSearchFacets` in two ways that are real, not incidental:
+ *  - it covers only the three dimensions the bar renders as chips, omitting `totalTime` (which the bar offers
+ *    as a bound via {@link TIME_BUCKETS_MINUTES}, not as a facet value list);
+ *  - every dimension is OPTIONAL, because a container may render the bar before a search has resolved, or
+ *    pass a partial block — whereas the wire contract always carries all four (an empty dimension is `[]`).
+ *
+ * `Pick` + `Partial` over the generated wire type is what keeps those differences INTENTIONAL: adding,
+ * removing or renaming a facet dimension in the contract now fails this package's typecheck instead of
+ * silently leaving a stale hand-written copy behind. The previous declaration was structurally independent,
+ * which is how the server and client came to disagree about whether a facet block could be absent at all.
  */
-export interface RecipeFacets {
-    readonly dietaryFlags?: readonly RecipeFacetCount[];
-    readonly tags?: readonly RecipeFacetCount[];
-    /** Distinct cuisines in the match sample (W8-a.9) — drives the single-select Cuisine group (S2). */
-    readonly cuisine?: readonly RecipeFacetCount[];
-}
+export type RecipeFacets = Partial<Pick<RecipeSearchFacets, 'dietaryFlags' | 'tags' | 'cuisine'>>;
 
 /**
  * One rendered facet chip: a value, its match count (absent when the value is selected but the sampled
@@ -338,14 +344,14 @@ export function hasActiveFilters(state: RecipeFilterState): boolean {
 /**
  * The empty filter state (clear-all). Pure.
  *
- * @returns {@link EMPTY_RECIPE_FILTERS}.
+ * @returns `EMPTY_RECIPE_FILTERS`.
  */
 export function clearRecipeFilters(): RecipeFilterState {
     return EMPTY_RECIPE_FILTERS;
 }
 
 /**
- * Project the filter state + search term onto the `RecipeSearchParams` the client forwards to
+ * Project the filter state + search term onto the published `RecipeSearchQuery` the client forwards to
  * `GET /api/v1/search/recipes`. Omits every empty dimension and a blank/whitespace query, so the request is a
  * pure subset — only what is actually constrained. Pure.
  *
@@ -353,8 +359,8 @@ export function clearRecipeFilters(): RecipeFilterState {
  * @param query - The raw search term (trimmed here).
  * @returns The search params to send.
  */
-export function filtersToSearchParams(state: RecipeFilterState, query: string): RecipeSearchParams {
-    const params: RecipeSearchParams = {};
+export function filtersToSearchParams(state: RecipeFilterState, query: string): RecipeSearchQuery {
+    const params: RecipeSearchQuery = {};
     const term = query.trim();
 
     if (term.length > 0) {
@@ -572,13 +578,17 @@ export function formatFacetChipName(
  * states don't apply here — see `hooks/useIngredientFilterSearch.ts` for why that hook (and this view state)
  * is a deliberately separate, read-only composition of the SAME shared search primitives, not a reuse of the
  * full resolver.
- *  - `idle` — no query typed yet, or the query is below {@link meetsIngredientSearchThreshold}'s trigger.
+ *  - `idle` — no query typed yet: the box is untouched, so there is nothing to say about it.
+ *  - `tooShort` — something is typed, but fewer than {@link MIN_SEARCH_QUERY_LENGTH} characters
+ *    (003-FR-010a). Distinct from `idle` for the same reason it is in `IngredientResolverViewState` — see
+ *    that union's doc.
  *  - `searching` — a query is in flight, OR `trimmed` has crossed the threshold but the debounced query
  *    hasn't caught up to it yet (mirrors `deriveViewState`'s same fix — see that function's doc).
  *  - `results` — the search settled, with zero or more catalog matches (or an error).
  */
 export type IngredientFilterSearchViewState =
     | { readonly kind: 'idle' }
+    | { readonly kind: 'tooShort'; readonly minimum: number }
     | { readonly kind: 'searching' }
     | { readonly kind: 'results'; readonly results: readonly Ingredient[]; readonly isError: boolean };
 
@@ -602,8 +612,10 @@ export interface DeriveIngredientFilterSearchViewStateInput {
 export function deriveIngredientFilterSearchViewState(
     input: DeriveIngredientFilterSearchViewStateInput,
 ): IngredientFilterSearchViewState {
-    if (!meetsIngredientSearchThreshold(input.trimmed)) {
-        return { kind: 'idle' };
+    // Checked before the debounce window — see `deriveViewState` for why a below-minimum query must never
+    // reach `searching`.
+    if (!meetsSearchMinimum(input.trimmed)) {
+        return input.trimmed.length === 0 ? { kind: 'idle' } : { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH };
     }
 
     if (input.isLoading || input.trimmed !== input.debouncedTrimmed) {

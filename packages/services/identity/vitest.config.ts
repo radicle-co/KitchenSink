@@ -1,8 +1,20 @@
+import { testTempRootSetup } from '@kitchensink/vitest';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
-        include: ['tests/**/*.test.ts', 'infra/__tests__/**/*.test.ts', 'src/**/__tests__/**/*.test.ts'],
+        // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+        // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+        globalSetup: [testTempRootSetup],
+        include: [
+            'tests/**/*.test.ts',
+            'infra/__tests__/**/*.test.ts',
+            'src/**/__tests__/**/*.test.ts',
+            // The wire-contract drift gates (CODING_STANDARDS §15.2.5). Run in the DEFAULT tier on purpose:
+            // they need no database and no network, and a gate that lives in its own tier is a gate someone
+            // has to remember to add to CI.
+            'contract/__tests__/**/*.test.ts',
+        ],
         exclude: ['tests/e2e/**', '**/*.integration.test.ts', 'node_modules', 'dist'],
         typecheck: {
             enabled: false,

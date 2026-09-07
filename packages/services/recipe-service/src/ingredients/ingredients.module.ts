@@ -9,7 +9,7 @@
  * **Factory (`FoodServiceClients`) over singleton clients — because the credential is per request.** Food's
  * `FoodAuthGuard` verifies a *Clerk* token, so the only credential that can satisfy it is the CALLER's own
  * (issue #120). This module therefore provides no long-lived client at all: it provides one **Factory**, and
- * the controller threads an opaque {@link CallerToken} (a redacting **Value Object**, `auth/caller-token.ts`)
+ * the controller threads an opaque `CallerToken` (a redacting **Value Object**, `auth/CallerToken.ts`)
  * down to it, where it is exchanged for a client bound to that caller and to the ONE config-supplied origin.
  * The alternative — a `Scope.REQUEST` provider — was rejected because request scope bubbles up the whole
  * injection chain (gateway, service, controller) to buy an implicit version of a value that reads better
@@ -34,21 +34,35 @@
  * **Gateway (`FoodCatalogGateway`)** still owns the availability discipline for the blend, and is now the
  * place a caller with NO credential degrades honestly instead of issuing a call that could only 401.
  *
+ * **U14 — the correction route's collaborator.** `IngredientsController` now takes
+ * {@link ResolutionMappingsService} alongside {@link IngredientsService}. It is a second collaborator rather
+ * than a method on the first because it owns its own Unit of Work over a different table and answers a
+ * different question: what a PHRASE means, not which ingredient row exists. Both are provided here, and the
+ * service stays exported so `RecipesModule` and the integration tier reach the same instance.
+ *
  * Configuration comes from the Zod-validated config (`foodServiceConfigSchema`) rather than raw
  * `process.env`, so boot-time validation governs the values used: `FOOD_SERVICE_URL` (origin — REQUIRED, with
  * no default anywhere, so a stage that was not told the food origin fails the boot instead of silently
  * calling `localhost`), `FOOD_CATALOG_BLEND_ENABLED` (Stage-2 rollout switch) and
  * `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` (the per-keystroke bound).
  */
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
+import type pg from 'pg';
 import { ConfigService } from '@nestjs/config';
 
-import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
+import { DrizzleProvider, PgPoolProvider, type RecipeDrizzle } from '../database/database.module.js';
 import { IngredientsController } from './ingredients.controller.js';
 import { IngredientsService } from './ingredients.service.js';
-import { FoodCatalogGateway } from './food-catalog.gateway.js';
-import { FoodServiceClients } from './food-service-clients.factory.js';
+import { FoodCatalogGateway } from './foodCatalog.gateway.js';
+import { FoodServiceClients } from './FoodServiceClients.factory.js';
+import { FoodNutritionGateway } from './foodNutrition.gateway.js';
 import { IngredientsDal } from './dal/ingredients.dal.js';
+import { createResolutionRegistry } from './resolution/resolutionRegistry.js';
+import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
+import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
+import { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
+import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
+import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
 
 /**
  * Default per-keystroke bound on the catalog-blend request (ms).
@@ -88,8 +102,77 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
                     enabled: config.get<boolean>('FOOD_CATALOG_BLEND_ENABLED') !== false,
                 }),
         },
-        IngredientsService,
+        {
+            // The recipe read path's nutrition source (U10). Provided HERE, beside the food client factory
+            // it depends on, and exported so `RecipesModule` consumes it rather than building a second
+            // instance — a second instance would mean a second cache, halving the hit rate and letting the
+            // two disagree about what food last said.
+            provide: FoodNutritionGateway,
+            inject: [FoodServiceClients],
+            useFactory: (clients: FoodServiceClients): FoodNutritionGateway => new FoodNutritionGateway(clients),
+        },
+        {
+            provide: IngredientResolutionsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): IngredientResolutionsDal => new IngredientResolutionsDal(db),
+        },
+        {
+            provide: ResolutionMappingsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): ResolutionMappingsDal => new ResolutionMappingsDal(db),
+        },
+        {
+            provide: ResolutionBandsDal,
+            inject: [PgPoolProvider],
+            useFactory: (pool: pg.Pool): ResolutionBandsDal => new ResolutionBandsDal(pool),
+        },
+        {
+            // The promotion audit's log half goes through Nest's `Logger`, so the identifiers it carries are
+            // scrubbed on the way out; the metric half writes EMF straight to stdout by default.
+            provide: MappingPromotionAudit,
+            useFactory: (): MappingPromotionAudit => {
+                const logger = new Logger(MappingPromotionAudit.name);
+
+                return new MappingPromotionAudit(undefined, undefined, (message, context) =>
+                    logger.log(message, context),
+                );
+            },
+        },
+        ResolutionMappingsService,
+        {
+            provide: IngredientsService,
+            inject: [
+                IngredientsDal,
+                FoodServiceClients,
+                FoodCatalogGateway,
+                ResolutionMappingsDal,
+                IngredientResolutionsDal,
+                ResolutionBandsDal,
+            ],
+            useFactory: (
+                dal: IngredientsDal,
+                clients: FoodServiceClients,
+                catalog: FoodCatalogGateway,
+                mappings: ResolutionMappingsDal,
+                resolutions: IngredientResolutionsDal,
+                bands: ResolutionBandsDal,
+            ): IngredientsService =>
+                new IngredientsService(
+                    dal,
+                    clients,
+                    catalog,
+                    createResolutionRegistry(mappings, catalog),
+                    resolutions,
+                    bands,
+                ),
+        },
     ],
-    exports: [IngredientsService],
+    exports: [
+        IngredientsService,
+        FoodNutritionGateway,
+        ResolutionMappingsService,
+        IngredientResolutionsDal,
+        ResolutionBandsDal,
+    ],
 })
 export class IngredientsModule {}

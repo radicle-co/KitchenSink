@@ -83,8 +83,18 @@ Commit the regenerated context (or confirm CI runs with no stale sandbox entry) 
     npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
 
 # apply schema to the fresh DB via the in-VPC migration Lambda
+#
+# The identity service deploy above ALREADY applies the schema — its stack runs the runner inside the
+# deploy (an `aws-cdk-lib/triggers` Trigger the ECS service depends on), which is why it is listed first.
+# This invocation is the idempotent confirmation, and on a freshly recreated database it is the step that
+# proves the schema landed rather than the one that lands it.
+#
+# ⚠️ The export is named EXACTLY — `contains(Name,'MigrationFunctionName')` used to be unambiguous when
+# identity-webhooks owned the only one; food, recipe and identity each export one now, so a substring match
+# returns three values and `--output text` would hand `aws lambda invoke` all three.
 ! MIGRATION_FN=$(aws cloudformation list-exports \
-    --query "Exports[?contains(Name,'MigrationFunctionName')].Value" --output text)
+    --query "Exports[?Name=='kitchensink-identity-service-sandbox:IdentityMigrationFunctionName'].Value" \
+    --output text)
 ! aws lambda invoke --function-name "$MIGRATION_FN" /tmp/migrate-out.json && cat /tmp/migrate-out.json
 ```
 

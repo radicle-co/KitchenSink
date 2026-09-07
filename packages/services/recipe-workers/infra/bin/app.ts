@@ -3,10 +3,18 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenvConfig({ path: join(__dirname, '../../.env') });
+import { attachSecurityChecks, stampCommitProvenance } from '@kitchensink/infra-security';
 
-import { RecipeWorkersStack } from '../lib/recipe-workers-stack.js';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// ⛔ `quiet: true` IS LOAD-BEARING. This file's STDOUT is a machine-readable channel:
+// `.github/scripts/verify-deployment.sh` runs `cdk ls --long --json --app "<this app>"` and parses the
+// result, so one stray line ahead of the JSON makes the post-deploy verifier report nothing at all.
+// dotenv@17 prints a marketing banner on every `config()` call — measured, even for a path that does
+// not exist. `packages/infra/global/__tests__/cdkAppStdoutPurity.test.ts` asserts this flag on every
+// DISCOVERED CDK app and observes the installed library actually honouring it.
+dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
+
+import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
 
 const app = new App();
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
@@ -21,6 +29,16 @@ const baseStage = stage === 'prod' ? 'prod' : 'sandbox';
 // pr-{N} name prefix with NO denylist, so the safety of every persistent resource depends on this line
 // never tagging a global resource `pr-{N}` (and vice versa). A persistent deploy tags 'global'.
 Tags.of(app).add('Environment', stage.startsWith('pr-') ? stage : 'global');
+
+// U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
+// annotation-only so the synthesized template is unchanged. See @kitchensink/infra-security.
+attachSecurityChecks(app);
+// The COMMIT this deploy was built from, recorded as a CloudFormation STACK tag so
+// `scripts/deploymentDrift.mjs` can answer "is what is running the code we think it is?". A stack
+// tag, never `Tags.of(app)`: the aspect form would rewrite every taggable resource on every commit,
+// breaching the ADR-0002/ADR-0008 no-prod-diff line for a fact about the BUILD rather than about any
+// resource. See @kitchensink/infra-security.
+stampCommitProvenance(app);
 
 const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
 const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];
@@ -42,7 +60,16 @@ const requireEnv = (key: string): string => {
 
 const env = account ? { account, region } : { region };
 
+// ⛔ THIS APP NO LONGER REACHES INTO recipe-service's `dist-lambda/`. It used to resolve that bundle here
+// and pass it in, because this stack shipped a SECOND copy of the migration runner purely so a
+// `triggers.Trigger` could order its eight DB-touching Lambdas behind a schema apply — `DependsOn` cannot
+// leave a stack, so there was no other way. The schema now belongs to `kitchensink-recipe-schema-{stage}`,
+// deployed and migrated by its own pipeline step ahead of this app and ahead of the service, so one runner
+// orders every consumer and this cross-package dependency is gone.
+
 new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
+    // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.
+    alertEmail: process.env['COST_ALERT_EMAIL'],
     env,
     stackName: `kitchensink-recipe-workers-${stage}`,
     stage,

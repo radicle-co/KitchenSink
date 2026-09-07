@@ -3,13 +3,10 @@
  * signed-in viewer's identity profile (`GET`/`PATCH`/`DELETE /api/v1/users/me`), mirroring the web hook
  * (`web/src/hooks/useUserProfile.ts`) so both platforms gate identically (CODING_STANDARDS §14).
  *
- * DA10-c: all three now go through the typed `ProfileServiceClient`, constructed once per render via
- * `useProfileServiceClient`. Its `TokenSource` callback reproduces the EXACT prior per-call token policy:
- * the profile READ always force-refreshes (Clerk session tokens live ~60s; a query that refetches after the
- * app returns from background can otherwise send an expired cached token and 401 — the web server
- * component avoids this by minting a fresh token per SSR request, so this guard is mobile-specific), while
- * the update/delete MUTATIONS allow a cached token. A resolved-but-empty token throws a typed
- * `UnauthorizedError` BEFORE any request is sent — the same fail-fast the old `apiRequest` did.
+ * DA10-c: all three go through the typed `ProfileServiceClient`, built by the shared
+ * {@link useProfileServiceClient} factory (which owns the identity origin and the native token policy, so the
+ * avatar presign cannot drift from these three). The profile READ force-refreshes its token; the update/delete
+ * MUTATIONS accept a cached one.
  *
  * B12: the profile query key + `staleTime` come from `@commise/features-account`'s `profileQueries`
  * factory — the same shared cache policy `useUserProfile` (web) consumes — instead of a locally duplicated
@@ -17,37 +14,10 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth as useIdpAuth } from '@clerk/expo';
-import { ProfileServiceClient, profileQueries, profileServiceKeys, UnauthorizedError } from '@commise/features-account';
-import type { UserUpdateInput } from '@kitchensink/identity-service';
-import { useMemo } from 'react';
+import { profileQueries, profileServiceKeys } from '@commise/features-account';
+import type { UserUpdateInput } from '@kitchensink/schema-identity';
 
-import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
-import { API_BASE_URL } from '../services/api.js';
-
-/** Build (and memoize per Clerk identity) the typed profile client used by every hook below. */
-function useProfileServiceClient(): ProfileServiceClient {
-    const { getToken } = useIdpAuth();
-
-    return useMemo(
-        () =>
-            new ProfileServiceClient({
-                baseUrl: API_BASE_URL,
-                token: async (options) => {
-                    const token = await getToken({
-                        template: NATIVE_JWT_TEMPLATE,
-                        skipCache: options?.forceRefresh ?? false,
-                    });
-
-                    if (!token) {
-                        throw new UnauthorizedError('Not authenticated', 'unauthenticated');
-                    }
-
-                    return token;
-                },
-            }),
-        [getToken],
-    );
-}
+import { useProfileServiceClient } from './useProfileServiceClient.js';
 
 export function useUserProfile() {
     const { isSignedIn } = useIdpAuth();
@@ -80,4 +50,25 @@ export function useDeleteAccount() {
             await signOut();
         },
     });
+}
+
+/**
+ * The ACCOUNT-level ERASURE command (plan U2) — irreversible, and NOT {@link useDeleteAccount}.
+ *
+ * ⛔ Why it exists. The app's "erase my data" control called the RECIPE service and nothing else, so an
+ * erasure destroyed the viewer's recipes and left the identity row, the Clerk account, the avatar object and
+ * food's requester rows intact — the user could sign straight back in to an account they had been told was
+ * destroyed. Identity owns the user and is the only service that can start the cross-service erasure
+ * (it enqueues the message whose worker deletes the Clerk account and fans out to recipe and food).
+ *
+ * Unlike `useDeleteAccount` this does NOT sign out: the erase flow owns the exit, because it must only
+ * leave once BOTH legs are accepted, and it verifies the session actually ended (ADR-0009).
+ *
+ * @returns The TanStack mutation for `POST /api/v1/users/me/erasure`.
+ * @sideEffect Issues an authenticated request that irreversibly destroys the signed-in account.
+ */
+export function useEraseAccount() {
+    const client = useProfileServiceClient();
+
+    return useMutation({ mutationFn: async () => client.eraseMe() });
 }

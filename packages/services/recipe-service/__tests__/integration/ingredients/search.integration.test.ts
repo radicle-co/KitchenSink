@@ -2,7 +2,7 @@
  * T099 — ingredient search integration test (pg_trgm fuzzy + tsvector FTS).
  *
  * Exercises {@link IngredientsDal.search} against REAL Docker Postgres (migrated + seeded by
- * `tests/global-setup.ts`, which enables `pg_trgm` and creates `idx_ingredients_name_trgm` +
+ * `tests/globalSetup.ts`, which enables `pg_trgm` and creates `idx_ingredients_name_trgm` +
  * `idx_ingredients_search_vector`). It proves the two matching paths the picker autocomplete depends on:
  *
  *   - **Full-text search** — a lexeme query (`'flour'`) matches ingredients whose DAL-maintained
@@ -20,7 +20,8 @@ import pg from 'pg';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
-import { SEED_INGREDIENTS } from '../../../tests/global-setup.js';
+import { makeCanonicalName } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
+import { seed } from '../../../src/database/seed.js';
 
 /** The harness Postgres connection string. Unset → the suite skips entirely. */
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -46,14 +47,15 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
         // composition) depend on the baseline existing. Serial file execution (fileParallelism: false)
         // means restoring the seed here guarantees it's present for any spec that runs after this one,
         // regardless of file order.
-        for (const ingredient of SEED_INGREDIENTS) {
-            await pool.query(
-                `INSERT INTO ingredients (id, name, is_user_entered, search_vector)
-                 VALUES ($1, $2, true, to_tsvector('english', $2))
-                 ON CONFLICT (id) DO NOTHING`,
-                [ingredient.id, ingredient.name],
-            );
-        }
+        //
+        // ⚠️ REWRITTEN: this used to re-insert `SEED_INGREDIENTS` row by row, which restored only HALF of
+        // what the `beforeEach` destroys. The wipe starts with `DELETE FROM recipe_ingredients` — and the
+        // seeded recipes now HAVE ingredient lines — so a catalog-only restore left every seeded recipe
+        // composed of nothing, with an `ingredient_names_text` still naming ingredients it no longer
+        // links to. Calling the seed module itself restores the whole seeded world (catalog + lines +
+        // steps + collection), is idempotent by construction (`ON CONFLICT DO NOTHING` on stable ids),
+        // and cannot drift from the fixture the way a hand-rolled copy of one INSERT already had.
+        await seed(pool);
 
         await pool.end();
     });
@@ -65,9 +67,9 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     it('full-text matches a lexeme query regardless of word order', async () => {
-        await dal.createFreeform('All-purpose flour');
-        await dal.createFreeform('Almond flour');
-        await dal.createFreeform('Unsalted butter');
+        await dal.createFreeform(makeCanonicalName('All-purpose flour'));
+        await dal.createFreeform(makeCanonicalName('Almond flour'));
+        await dal.createFreeform(makeCanonicalName('Unsalted butter'));
 
         const results = await dal.search('flour');
         const names = results.map((r) => r.name);
@@ -78,8 +80,8 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     it('fuzzy-matches a misspelled query via pg_trgm similarity', async () => {
-        await dal.createFreeform('All-purpose flour');
-        await dal.createFreeform('Unsalted butter');
+        await dal.createFreeform(makeCanonicalName('All-purpose flour'));
+        await dal.createFreeform(makeCanonicalName('Unsalted butter'));
 
         // 'flor' shares no exact lexeme with 'flour' — only the trigram/ILIKE fallback can match it.
         const results = await dal.search('flor');
@@ -88,18 +90,18 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     it('honors the limit and returns rows ranked by relevance', async () => {
-        await dal.createFreeform('Bread flour');
-        await dal.createFreeform('Cake flour');
-        await dal.createFreeform('Pastry flour');
+        await dal.createFreeform(makeCanonicalName('Bread flour'));
+        await dal.createFreeform(makeCanonicalName('Cake flour'));
+        await dal.createFreeform(makeCanonicalName('Pastry flour'));
 
-        const results = await dal.search('flour', 2);
+        const results = await dal.search('flour', undefined, 2);
 
         expect(results).toHaveLength(2);
     });
 
     it('surfaces food-backed catalog rows with their resolution status', async () => {
         const created = await dal.createFoodBacked({
-            name: 'Basmati rice',
+            name: makeCanonicalName('Basmati rice'),
             foodId: '01J0000000000000000000RICE',
             foodResolutionStatus: FoodResolutionStatus.PENDING,
         });
@@ -111,8 +113,8 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     it('dedups a freeform ingredient on case-insensitive name (no catalog bloat)', async () => {
-        const first = await dal.createFreeform('Saffron threads');
-        const second = await dal.createFreeform('saffron THREADS');
+        const first = await dal.createFreeform(makeCanonicalName('Saffron threads'));
+        const second = await dal.createFreeform(makeCanonicalName('saffron THREADS'));
 
         expect(second.id).toBe(first.id);
 

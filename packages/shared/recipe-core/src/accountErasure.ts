@@ -9,10 +9,10 @@
  *    and a consumer in `@kitchensink/recipe-workers` (the erasure worker, plus the cron sweeper that
  *    re-drains stuck jobs). A message contract with a producer and a consumer in different packages that
  *    each declare their own copy is a contract that WILL drift — exactly the failure
- *    {@link ownerMediaPrefix} exists to prevent (`verticals-8`, where a service and a worker drifted onto
+ *    `ownerMediaPrefix` exists to prevent (`verticals-8`, where a service and a worker drifted onto
  *    different key schemes). One definition, imported by both.
  *  - {@link ACCOUNT_ALREADY_ERASED_CODE} — the `410` wire code, produced by the service and consumed by
- *    `@kitchensink/recipe-service-client`. Like {@link IDENTITY_SYNC_PENDING_CODE}, it is deliberately
+ *    `@kitchensink/recipe-service-client`. Like `IDENTITY_SYNC_PENDING_CODE`, it is deliberately
  *    **not** a `RecipeErrorCode`: it is an account-lifecycle signal, not a recipe-domain error, so it
  *    never enters that enum (and never needs a row in the exception filter's status map — the service
  *    raises it as a framework `GoneException`, which the filter passes through untouched).

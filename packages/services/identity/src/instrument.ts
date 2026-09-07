@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nestjs';
 
-import { scrubEvent, scrubLog } from './observability/sentry-scrubbers.js';
+import { scrubEvent, scrubLog } from './observability/sentryScrubbers.js';
 
 /**
  * Sentry initialization for the identity service (KTD3).

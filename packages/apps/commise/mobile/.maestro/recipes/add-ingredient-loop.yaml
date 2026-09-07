@@ -1,0 +1,118 @@
+appId: io.commise.mobile
+---
+# The add-ingredient LOOP (plan U28). Mobile mirror of the web Playwright `addIngredientLoop.spec.ts`, per
+# the cross-platform mandate — the two form leaves are separate files with no compiler edge between them, so
+# a fix applied to one is not applied to the other.
+#
+# ⛔ WHY THIS FLOW EXISTS. "+ Add ingredient" used to append a blank row with no `ingredientId`.
+# `validateRecipeForm` then refused to advance past step 2 and `toCreateRecipeInput` DROPPED the row on save
+# — so a cook typed into a line that could never be part of their recipe, and `Next` went dead with no
+# obvious cause. The button is now a request that hands them the picker.
+#
+# Three facts, one emulator run, each worthless alone:
+#   1. Pressing it FOCUSES the picker's search field (the affordance lands).
+#   2. Pressing it adds NO row — the empty state survives it, and `Next: Instructions` still works. That is
+#      the dead end being GONE rather than merely moved.
+#   3. Picking a food appends a real line, and the recipe publishes with it.
+#
+# It CREATES its own recipe rather than editing a seeded one, so `Ingredient 1 …` addresses the line this
+# flow itself made — the seeded recipes carry five lines of their own (see `preparation-groups.yaml`).
+#
+# Assumes an authenticated session (the auth flow runs first in CI ordering) and the app pointed at a seeded
+# recipe API. The freeform create is used to resolve (no food-service dependency in this job — same
+# rationale as `create.yaml`).
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
+
+# Step 1 of 4 (Basic). servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Title'
+- tapOn: 'Title'
+- inputText: 'Maestro Add Loop'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+- assertVisible: 'Step 2 of 4'
+# The empty state INVITES the first action rather than showing an empty table.
+- scrollUntilVisible:
+      element:
+          text: 'No ingredients yet. Add your first ingredient.'
+      direction: DOWN
+      timeout: 20000
+
+# ⛔ (1)+(2) THE BUTTON IS A REQUEST, NOT AN APPEND. Pressing it must leave the list EMPTY — the old
+# behaviour appended `{ ingredientId: null, name: '', quantity: 1 }` right here, which is what wedged the
+# wizard. `Ingredient 1 name` is the label that row would have carried, so its continued absence IS the
+# assertion.
+- tapOn: 'Add ingredient'
+- assertNotVisible: 'Ingredient 1 name'
+- assertVisible:
+      text: 'No ingredients yet. Add your first ingredient.'
+# And the step is still advanceable: no row means no UNRESOLVED row means no refusal.
+- assertNotVisible:
+      text: 'Every ingredient needs an item picked from the list.'
+
+# The press put the caret in the search field, so typing goes straight there with NO second tap. That is the
+# honest on-device checkpoint for focus: a flow that tapped the field first would pass either way.
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+# The picker RESETS only after the resolved line is handed up, so this disappearing IS the create resolving
+# (see `edit.yaml`'s note on why this is the honest checkpoint).
+- extendedWaitUntil:
+      notVisible: 'Create .*Tomato.*'
+      timeout: 30000
+
+# ⛔ (3) NOW there is a row, and it carries the food. A resolved row wears no "no food chosen" note.
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+- assertNotVisible:
+      text: 'No food chosen.*'
+
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+
+# Step 3 of 4 (Instructions) — a fresh create has no steps, so this is `Step 1`.
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Slice and serve.'
+# Step 4 of 4 is REVIEW (U33) — photos moved into step 1's Details body, so there is no Photos step to
+# advance to. This flow was the one the U33 rename missed; its ten siblings already say `Next: Review`, and
+# `RecipeEditor.native.test.tsx`'s "no Photos step remains" asserts the label this used to name is gone.
+- scrollUntilVisible:
+      element: 'Next: Review'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Review'
+
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+# Landed on the new recipe's detail — the loop completed. The title regex tolerates this emulator's
+# occasional last-character input duplication (see `create.yaml`).
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Add Loop.*'
+      timeout: 40000

@@ -25,6 +25,24 @@
 !packages/services/food-service/prod.package.json
 !packages/shared/clerk-verify/dist
 !packages/shared/clerk-verify/prod.package.json
+# The shared Nest error-envelope mechanism, imported by all three services' ApiExceptionFilter.
+!packages/shared/nest-error-envelope/dist
+!packages/shared/nest-error-envelope/prod.package.json
+# The shared schema guard, imported by all three services' `main.ts` for the boot-time schema-currency
+# check (ADR-0035) and by their migration-runner Lambdas for the one apply engine.
+!packages/shared/db-schema-guard/dist
+!packages/shared/db-schema-guard/prod.package.json
+
+# ⛔ THIS RELEASE'S ORDERED `.sql`, for the boot-time schema-currency check. The Dockerfiles copy these to
+# the place the compiled `schemaCurrency.js` resolves as its own sibling — and a COPY of a path this file
+# excludes is not a silent no-op, it FAILS THE BUILD, which is how this was found. `.dockerignore` denies
+# everything and allowlists back, so a new COPY needs its source named here or the build context does not
+# contain it.
+!packages/services/identity/src/database/migrations
+!packages/services/food-service/src/db/migrations
+!packages/services/recipe-service/src/database/migrations
+!packages/shared/messaging/dist
+!packages/shared/messaging/prod.package.json
 !packages/clients/usda/dist
 !packages/clients/usda/prod.package.json
 # Recipe service image (feature 001; mirrors the food allowlist): the service dist + prod manifest, plus
@@ -38,3 +56,24 @@
 !packages/shared/recipe-core/prod.package.json
 !packages/clients/food-service/dist
 !packages/clients/food-service/prod.package.json
+!packages/clients/recipe-service/dist
+!packages/clients/recipe-service/prod.package.json
+# The GENERATED wire-contract leaf packages (CODING_STANDARDS §15.2). Each service's `main.ts` imports its
+# schema package's published `CONTRACT_HASH` to run the drift-layer-3 skew assertion as the FIRST thing the
+# process does, so these are runtime imports on the very first line of the boot path: without the dist and a
+# dist-pointing prod manifest in the image, the container crash-loops before it can report why.
+!packages/schemas/food/dist
+!packages/schemas/food/prod.package.json
+!packages/schemas/identity/dist
+!packages/schemas/identity/prod.package.json
+!packages/schemas/recipe/dist
+!packages/schemas/recipe/prod.package.json
+
+# ⛔ The CDK CLI, and nothing else, is re-excluded AFTER the `!node_modules` allowlist above (in
+# .dockerignore the LAST matching line wins). `aws-cdk` is a ROOT `dependencies` entry so that it survives
+# the deploy workflows' `npm prune --omit=dev` — every `cdk deploy` runs after that prune, and as a
+# devDependency it was removed, leaving `npx cdk` to fetch an unpinned CLI from the registry mid-deploy.
+# It is a DEPLOY tool, though: no service runs it, so this line keeps it out of the images and leaves them
+# byte-identical to before that declaration. `serviceImageToolExclusion` in postPruneToolchain.test.ts
+# asserts the pairing, so neither half can be removed on its own.
+node_modules/aws-cdk

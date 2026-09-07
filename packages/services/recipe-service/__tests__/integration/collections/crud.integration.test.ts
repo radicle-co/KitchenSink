@@ -1,5 +1,5 @@
 /**
- * T101 — Collections CRUD + membership integration spec (Docker Postgres via `tests/global-setup.ts`).
+ * T101 — Collections CRUD + membership integration spec (Docker Postgres via `tests/globalSetup.ts`).
  *
  * Drives the real {@link CollectionsService} + {@link CollectionsDal} against a live database to assert
  * the invariants the fake-db unit tests cannot: real ownership rows, `ON CONFLICT` idempotency,
@@ -18,8 +18,9 @@ import { collections, recipeCollections } from '../../../src/database/schema/col
 import { recipes } from '../../../src/database/schema/recipes.js';
 import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
 import { CollectionsService } from '../../../src/collections/collections.service.js';
+import { AnalyticsService } from '../../../src/analytics/analytics.service.js';
 import { isRecipeDomainError } from '../../../src/recipes/recipe.error.js';
-import { AuthorHandlesDal } from '../../../src/authors/dal/author-handles.dal.js';
+import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 const hasDatabaseUrl = Boolean(DATABASE_URL);
@@ -63,7 +64,7 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         db = createRecipeDrizzle(pool);
-        service = new CollectionsService(new CollectionsDal(db), new AuthorHandlesDal(db));
+        service = new CollectionsService(new CollectionsDal(db), new AuthorHandlesDal(db), new AnalyticsService(db));
     });
 
     afterAll(async () => {

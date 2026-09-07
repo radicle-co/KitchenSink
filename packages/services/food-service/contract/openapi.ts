@@ -1,0 +1,786 @@
+/**
+ * THE FOOD (INGREDIENT) API's OpenAPI DOCUMENT — declared from the authored zod, for external consumption.
+ *
+ * This file is the ONE place the service's routes, status codes and security requirements are described for
+ * integrators, and it composes the SAME zod the service validates and the clients import — so a shape cannot
+ * appear in the document that the service does not actually serve.
+ *
+ * WHAT IT IS NOT: a code-generation input, and not the type authority (§15.2.1). Nothing in this repo compiles
+ * against `openapi.yaml`; the authority is the zod exported from `@kitchensink/schema-food`.
+ *
+ * WHY IT IS HAND-DECLARED RATHER THAN SCRAPED FROM THE CONTROLLERS. `@nestjs/swagger` emits no response schema
+ * for a handler returning an `interface` (§15.2.5), and every handler in this service returns one — so a scraped
+ * document would be blind to response changes, which is most of what breaks a client. Declaring the routes costs
+ * a few lines per endpoint and buys a document whose response bodies are real, `$ref`'d component schemas.
+ *
+ * ⚠️ This is the INGREDIENT service (see `foods.schema.ts`). The `food_*` naming is historical and deliberate.
+ *
+ * ADDING AN ENDPOINT: add its schemas to a `*.schema.ts`, register the component here, and declare the path.
+ * `openApiComponents` is typed, so referencing a component that does not exist is a `typecheck` failure, and the
+ * generator prints every response left without a body schema on each run.
+ */
+import { buildOpenApiDocument } from '@kitchensink/contract-gen';
+import type { OpenApiBuildResult } from '@kitchensink/contract-gen';
+import { z } from 'zod';
+
+import { apiErrorSchema } from '../src/common/apiError.schema.js';
+import {
+    foodNutritionBatchResponseSchema,
+    addFoodRequestSchema,
+    authoredMacrosSchema,
+    authoredPortionInputSchema,
+    createAuthoredFoodRequestSchema,
+    updateAuthoredFoodRequestSchema,
+    addResponseSchema,
+    batchAddFoodRequestSchema,
+    batchItemViewSchema,
+    batchResponseSchema,
+    candidatesResponseSchema,
+    candidateViewSchema,
+    foodErrorSchema,
+    foodResponseSchema,
+    liveSearchResponseSchema,
+    liveSearchResultViewSchema,
+    nutrientViewSchema,
+    pendingResponseSchema,
+    portionViewSchema,
+    resolveFoodRequestSchema,
+    resolveResponseSchema,
+    searchResponseSchema,
+    searchResultViewSchema,
+    statusResponseSchema,
+    corroboratedResponseSchema,
+} from '../src/foods/foods.schema.js';
+import {
+    backlogMetricsSchema,
+    operationalMetricsSchema,
+    queueDepthMetricsSchema,
+    sourceWindowMetricsSchema,
+} from '../src/foods/admin/adminMetrics.schema.js';
+import { requeueResponseSchema } from '../src/foods/admin/foodRecovery.schema.js';
+import {
+    approvePromotionResponseSchema,
+    pendingPromotionsResponseSchema,
+    rejectPromotionResponseSchema,
+} from '../src/foods/admin/promotions.schema.js';
+import {
+    foodServiceErasureBeginResponseSchema,
+    foodServiceErasureRequestSchema,
+    foodServiceErasureAcceptedResponseSchema,
+} from '../src/foods/dto/serviceErasure.schema.js';
+import { healthStatusSchema } from '../src/health/health.schema.js';
+
+/**
+ * The named component schemas, keyed by the name the document publishes them under.
+ *
+ * EXPORTED so `contract/__tests__/contract.test.ts` can hold the published document against the authored zod it
+ * came from — specifically, that the document's `additionalProperties` matches what each schema actually does
+ * with an unknown key. Nothing else imports it.
+ *
+ * `GetFoodResult` is intentionally ABSENT: it is a client-side convenience union over the `200`/`202` fork of
+ * `GET /api/v1/foods/{id}`, and OpenAPI already expresses that fork as two separate responses. Publishing the
+ * union as well would describe the same knowledge twice, in a document whose whole purpose is being the single
+ * external description.
+ */
+export const openApiComponents = {
+    ApiError: apiErrorSchema,
+    FoodError: foodErrorSchema,
+    NutrientView: nutrientViewSchema,
+    PortionView: portionViewSchema,
+    FoodResponse: foodResponseSchema,
+    // U8's batch projection — documented late (U18): the shared route predates the doc-parity habit, and
+    // the authored variant needed the component, so both routes are documented together now.
+    FoodNutritionBatchResponse: foodNutritionBatchResponseSchema,
+    PendingResponse: pendingResponseSchema,
+    StatusResponse: statusResponseSchema,
+    CandidateView: candidateViewSchema,
+    CandidatesResponse: candidatesResponseSchema,
+    SearchResultView: searchResultViewSchema,
+    SearchResponse: searchResponseSchema,
+    LiveSearchResultView: liveSearchResultViewSchema,
+    LiveSearchResponse: liveSearchResponseSchema,
+    AddResponse: addResponseSchema,
+    BatchItemView: batchItemViewSchema,
+    BatchResponse: batchResponseSchema,
+    ResolveResponse: resolveResponseSchema,
+    AddFoodRequest: addFoodRequestSchema,
+    CreateAuthoredFoodRequest: createAuthoredFoodRequestSchema,
+    UpdateAuthoredFoodRequest: updateAuthoredFoodRequestSchema,
+    AuthoredMacros: authoredMacrosSchema,
+    AuthoredPortionInput: authoredPortionInputSchema,
+    BatchAddFoodRequest: batchAddFoodRequestSchema,
+    ResolveFoodRequest: resolveFoodRequestSchema,
+    QueueDepthMetrics: queueDepthMetricsSchema,
+    BacklogMetrics: backlogMetricsSchema,
+    SourceWindowMetrics: sourceWindowMetricsSchema,
+    OperationalMetrics: operationalMetricsSchema,
+    RequeueResponse: requeueResponseSchema,
+    CorroboratedResponse: corroboratedResponseSchema,
+    PendingPromotionsResponse: pendingPromotionsResponseSchema,
+    ApprovePromotionResponse: approvePromotionResponseSchema,
+    RejectPromotionResponse: rejectPromotionResponseSchema,
+    FoodServiceErasureAcceptedResponse: foodServiceErasureAcceptedResponseSchema,
+    FoodServiceErasureBeginResponse: foodServiceErasureBeginResponseSchema,
+    FoodServiceErasureRequest: foodServiceErasureRequestSchema,
+    HealthStatus: healthStatusSchema,
+} as const;
+
+/** The `id` path parameter, reused by every by-id route. */
+const idParameter = {
+    name: 'id',
+    in: 'path',
+    description: 'The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.',
+    schema: z.string(),
+} as const;
+
+/** The promotion-queue row id (a 0015 `gen_random_uuid()` UUID, plan U12) — never a food ULID. */
+const promotionIdParameter = {
+    name: 'id',
+    in: 'path',
+    description: 'The promotion queue row id (UUID).',
+    schema: z.string(),
+} as const;
+
+/** `401` — the `FoodAuthGuard` rejected or found no Clerk session / M2M token. */
+const unauthorized = {
+    description:
+        'No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is ' +
+        'valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002).',
+    schema: 'ApiError',
+} as const;
+
+/** `400` — the id or body failed boundary validation. */
+const badRequest = {
+    description: 'Malformed id — `code: INVALID_ID` (FR-006).',
+    schema: 'ApiError',
+} as const;
+
+/** `403` — authenticated but lacking the `food:admin` scope. */
+const forbidden = {
+    description: 'Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039).',
+    schema: 'ApiError',
+} as const;
+
+/** `503` + `Retry-After` — backpressure / flood-shed / resolve cap. NEVER a `429` (FR-051). */
+const shed = {
+    description:
+        'Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. `code: FETCH_UNAVAILABLE`, ' +
+        'with the same seconds in `details.retryAfterSeconds` and in `Retry-After`; this service never answers ' +
+        '`429`.',
+    schema: 'ApiError',
+    headers: {
+        'Retry-After': { description: 'Seconds to wait before retrying.', schema: z.number().int().nonnegative() },
+    },
+} as const;
+
+/** The derived document plus its response-schema coverage report. */
+export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
+    title: 'Commise Food (Ingredient) API',
+    version: '1.0.0',
+    description:
+        'The source-agnostic ingredient catalog. Despite the `food_*` naming, this service holds INGREDIENTS ' +
+        'sourced from the USDA, not dishes: a recipe is a method, not a substance, and is never written back ' +
+        'here (feature 001 T150). Every food is addressed by its internal ULID; no source-native key ' +
+        '(`fdcId`) appears in any public shape (SC-013). EVERY non-2xx body is the shared ' +
+        '`{ code, message, details? }` envelope (`ApiError`, ARCH-PS-2) — there is exactly one error shape, ' +
+        'and `code` is the discriminant a client branches on, NEVER `message`. `FoodError` publishes the ' +
+        'TYPED view of the same bodies: the codes this API emits and the `details` each one carries. A client ' +
+        'must still tolerate a code it has not been taught (a deployed service adds codes ahead of a released ' +
+        'mobile binary), so parse with `ApiError` and narrow with `FoodError`. ' +
+        'Every path is also served under the DEPRECATED `/v1/*` alias held by already-shipped clients ' +
+        '(ADR-0011); only the canonical `/api/v1/*` form is documented.',
+    servers: [
+        { url: 'https://food.commise.app', description: 'production' },
+        { url: 'https://food-pr-{n}.commise.app', description: 'per-PR sandbox preview (ADR-0010)' },
+    ],
+    securitySchemes: {
+        clerkSession: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description:
+                'A Clerk session token (user) or an M2M token, verified in-process by `FoodAuthGuard`. Admin ' +
+                "routes additionally require the `food:admin` scope from the token's `public_metadata`.",
+        },
+        serviceToken: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description:
+                'A signed, single-target service token with the food audience, verified by ' +
+                '`FoodServiceErasureGuard`. The target owner is BOUND IN THE TOKEN — there is no request body ' +
+                'and no `ownerId` to smuggle.',
+        },
+    },
+    defaultSecurity: ['clerkSession'],
+    components: openApiComponents,
+    paths: {
+        '/api/v1/foods/search': {
+            get: {
+                operationId: 'searchFoods',
+                summary: 'Search the local ingredient catalog',
+                description:
+                    'Local fuzzy / barcode-crosswalk search. NEVER calls an upstream source, so a miss is an ' +
+                    'empty result set rather than a fetch (FR-008).',
+                parameters: [
+                    {
+                        name: 'query',
+                        in: 'query',
+                        description: 'The search text. Absent is treated as empty, which yields no results.',
+                        schema: z.string(),
+                    },
+                ],
+                responses: {
+                    '200': { description: 'Ranked hits, possibly empty.', schema: 'SearchResponse' },
+                    '401': unauthorized,
+                },
+            },
+        },
+        '/api/v1/foods/search/live': {
+            get: {
+                operationId: 'searchFoodsLive',
+                summary: 'Search the upstream source on demand (an explicit action, quota-charged)',
+                description:
+                    'The ON-DEMAND live source search behind the ingredient picker\'s "Search USDA for …" ' +
+                    'affordance. Unlike `/search` it LEAVES our database and spends one call against the ' +
+                    "shared per-IP source quota, out of FR-019's reserved interactive lane.\n\n" +
+                    '⛔ It is an explicit action a cook chooses, NOT autocomplete: at 50 concurrent users a ' +
+                    'per-settled-query typeahead would want roughly three times the entire hourly key.\n\n' +
+                    'Three outcomes are deliberately distinguishable: an empty `200` means the source has ' +
+                    'nothing; `503` means our lane is exhausted or the source throttled us (retry); `502` ' +
+                    'means the source did not answer. The route is user-agnostic — the source rate-limits ' +
+                    'our egress IP, so the aggregate limiter is the only quota authority.',
+                parameters: [
+                    {
+                        name: 'query',
+                        in: 'query',
+                        description:
+                            'The search text. Must meet the shared search minimum (003-FR-010a); shorter is ' +
+                            'REJECTED rather than emptied, because an empty page here would be ' +
+                            'indistinguishable from "the source has nothing".',
+                        schema: z.string(),
+                    },
+                ],
+                responses: {
+                    '200': {
+                        description: "The source's hits, possibly EMPTY — which means it has nothing.",
+                        schema: 'LiveSearchResponse',
+                    },
+                    '400': {
+                        description: 'Below the search minimum — `code: VALIDATION_FAILED` (003-FR-010a).',
+                        schema: 'ApiError',
+                    },
+                    '401': unauthorized,
+                    '502': {
+                        description:
+                            'The upstream source did not answer — `code: SOURCE_UNAVAILABLE`. Carries no ' +
+                            '`Retry-After`: the fault is upstream and we know nothing about its recovery.',
+                        schema: 'ApiError',
+                    },
+                    '503': shed,
+                },
+            },
+        },
+        '/api/v1/foods/authored': {
+            post: {
+                operationId: 'createAuthoredFood',
+                summary: 'Create a user-authored food',
+                description:
+                    'The sibling CREATE door (U10/D9a): answers `201` with the COMPLETE entity, born RESOLVED ' +
+                    'and author-PRIVATE. Walking through this door IS the provenance — there is no `source` ' +
+                    'field, the author comes from the verified principal, and the food never syncs against ' +
+                    'any external source. Macros are per-100g (Q3a: macros-only at launch).',
+                requestBody: {
+                    description: 'The name, macros and optional portions.',
+                    schema: 'CreateAuthoredFoodRequest',
+                },
+                responses: {
+                    '201': { description: 'The created food (visibility `private`).', schema: 'FoodResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': {
+                        description: 'A service (`svc_*`) principal — authored foods belong to user accounts.',
+                        schema: 'ApiError',
+                    },
+                    '409': {
+                        description:
+                            'The caller already authored a food with this normalized name — ' +
+                            '`code: DUPLICATE_AUTHORED_NAME`, with the colliding id in `details.existingId`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/foods': {
+            post: {
+                operationId: 'addFoodByName',
+                summary: 'Add an ingredient by name',
+                description:
+                    'Deduplicates against the existing catalog and enqueues a source fetch on a miss. Always ' +
+                    '`202` — resolution is asynchronous (FR-005).',
+                requestBody: { description: 'The display name to resolve.', schema: 'AddFoodRequest' },
+                responses: {
+                    '202': { description: 'Accepted; poll the id for its lifecycle.', schema: 'AddResponse' },
+                    '400': {
+                        description: 'Empty name after trimming — `code: VALIDATION_FAILED` (FR-006).',
+                        schema: 'ApiError',
+                    },
+                    '401': unauthorized,
+                    '503': shed,
+                },
+            },
+        },
+        '/api/v1/foods/batch': {
+            post: {
+                operationId: 'addFoodsByNameBatch',
+                summary: 'Add up to the configured maximum of ingredients by name',
+                description:
+                    'Per-item partial result: inline hits come back `RESOLVED`, misses `PENDING`. The maximum ' +
+                    'name count is the service-configured `FOOD_MAX_BATCH_NAMES` and is reported in the `400` ' +
+                    'body when exceeded, so it is discoverable at runtime rather than pinned in this document ' +
+                    '(FR-045).',
+                requestBody: { description: 'The names to add.', schema: 'BatchAddFoodRequest' },
+                responses: {
+                    '201': { description: 'Per-item partial results.', schema: 'BatchResponse' },
+                    '400': {
+                        description:
+                            'Malformed `names` (`code: VALIDATION_FAILED`), or more names than the configured ' +
+                            'maximum (`code: BATCH_TOO_LARGE`, with the cap in `details.maxNames`).',
+                        schema: 'ApiError',
+                    },
+                    '401': unauthorized,
+                    '503': shed,
+                },
+            },
+        },
+        '/api/v1/foods/nutrition': {
+            get: {
+                operationId: 'getNutritionBatch',
+                summary: 'Batch per-100g nutrition + normalized portions (edge-cached)',
+                description:
+                    'Caller-INDEPENDENT by standing invariant (ADR-0020): the edge caches this on the URL ' +
+                    'alone, so nothing derived from the requester may enter the response — which is exactly ' +
+                    'why private authored foods land in `unknownIds` here and are served by ' +
+                    '`/authored-nutrition` instead. The `ids` list is canonicalized server-side.',
+                parameters: [
+                    {
+                        name: 'ids',
+                        in: 'query',
+                        required: true,
+                        description: 'Comma-separated food ids (canonicalized server-side).',
+                        schema: z.string(),
+                    },
+                ],
+                responses: {
+                    '200': {
+                        description: 'One entry per known id, in the given order.',
+                        schema: 'FoodNutritionBatchResponse',
+                    },
+                    '400': badRequest,
+                    '401': unauthorized,
+                },
+            },
+        },
+        '/api/v1/foods/authored-nutrition': {
+            get: {
+                operationId: 'getAuthoredNutritionBatch',
+                summary: "Batch nutrition for the caller's OWN authored foods (U18's cache split)",
+                description:
+                    'The authenticated, per-caller half of the nutrition read: private authored foods are ' +
+                    'excluded from the edge-cached `/nutrition` route by construction, so their author reads ' +
+                    'them here. Same shape; an id the caller does not own lands in `unknownIds`. Never cached.',
+                parameters: [
+                    {
+                        name: 'ids',
+                        in: 'query',
+                        required: true,
+                        description: 'Comma-separated food ids (canonicalized server-side).',
+                        schema: z.string(),
+                    },
+                ],
+                responses: {
+                    '200': { description: 'One entry per owned id.', schema: 'FoodNutritionBatchResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                },
+            },
+        },
+        '/api/v1/foods/{id}': {
+            delete: {
+                operationId: 'deleteAuthoredFood',
+                summary: 'Delete a user-authored food (tombstone-first, reference-checked)',
+                description:
+                    'R22: the food flips to an internal DELETING state (admission refuses to bind it), the ' +
+                    "cross-service reference check runs with the caller's own authority, and only an " +
+                    'unreferenced food deletes. Referenced → `409 FOOD_REFERENCED` with the live count and ' +
+                    "the caller's OWN referencing recipe ids. Check unavailable → `503`, failed closed. " +
+                    'Orphaning is erasure-only; this route never orphans.',
+                parameters: [idParameter],
+                responses: {
+                    '204': { description: 'Deleted.' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': {
+                        description: 'A stranger deleting a PROMOTED food, or a `svc_*` principal.',
+                        schema: 'ApiError',
+                    },
+                    '404': {
+                        description: 'No such food — or a PRIVATE authored food the caller does not own.',
+                        schema: 'ApiError',
+                    },
+                    '409': {
+                        description:
+                            'Referenced (`code: FOOD_REFERENCED`, count + own recipe ids in `details`), or a ' +
+                            'pipeline food (`code: NOT_EDITABLE`).',
+                        schema: 'ApiError',
+                    },
+                    '503': {
+                        description: 'The reference check could not run (`code: REFERENCE_CHECK_UNAVAILABLE`).',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+            put: {
+                operationId: 'updateAuthoredFood',
+                summary: 'Replace a user-authored food',
+                description:
+                    'Full replacement, author-only (U10): the pure authorship policy answers a stranger on a ' +
+                    'PRIVATE food with the same `404` a missing id gets (existence concealed), a stranger on a ' +
+                    'PROMOTED food with `403`, and ANY caller on a pipeline (catalog) food with `409 ' +
+                    'NOT_EDITABLE` — catalog rows have a single writer.',
+                parameters: [idParameter],
+                requestBody: { description: 'The full replacement body.', schema: 'UpdateAuthoredFoodRequest' },
+                responses: {
+                    '200': { description: 'The updated food.', schema: 'FoodResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': {
+                        description: 'A stranger writing a PROMOTED food, or a `svc_*` principal.',
+                        schema: 'ApiError',
+                    },
+                    '404': {
+                        description: 'No such food — or a PRIVATE authored food the caller does not own.',
+                        schema: 'ApiError',
+                    },
+                    '409': {
+                        description:
+                            "A pipeline food (`code: NOT_EDITABLE`), or a rename colliding with the caller's " +
+                            'other authored food (`code: DUPLICATE_AUTHORED_NAME`).',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+            get: {
+                operationId: 'getFood',
+                summary: 'Read an ingredient golden record',
+                description:
+                    'The lifecycle IS the status code: `200` a golden record, `202` still pending or awaiting ' +
+                    'disambiguation, `404` tombstoned (`NOT_FOUND`) or exhausted (`FAILED`) — with the status ' +
+                    'still in the body (FR-002/FR-003/FR-004).',
+                parameters: [idParameter],
+                responses: {
+                    '200': { description: 'The golden record.', schema: 'FoodResponse' },
+                    '202': {
+                        description: 'PENDING or UNRESOLVED — not yet readable.',
+                        schema: 'PendingResponse',
+                    },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '404': {
+                        description:
+                            'No such food, or NOT_FOUND / FAILED — `code: FOOD_NOT_FOUND`, with the terminal ' +
+                            'status in `details.status` (absent when there is no row at all).',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+            patch: {
+                operationId: 'resolveFood',
+                summary: 'Resolve an UNRESOLVED ingredient from a candidate pick',
+                description: 'Merges the picked candidates into the golden record (FR-RES-2).',
+                parameters: [idParameter],
+                requestBody: { description: 'The picked candidate row ids.', schema: 'ResolveFoodRequest' },
+                responses: {
+                    '200': { description: 'Resolved.', schema: 'ResolveResponse' },
+                    '400': {
+                        description:
+                            'Malformed id (`code: INVALID_ID`) or empty `candidateIds` ' +
+                            '(`code: VALIDATION_FAILED`, DSN-14).',
+                        schema: 'ApiError',
+                    },
+                    '401': unauthorized,
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
+                    '409': {
+                        description:
+                            "A candidate is not in this food's set (`code: CANDIDATE_MISMATCH`), or the food is " +
+                            'not awaiting disambiguation (`code: NOT_RESOLVABLE`). Both are `409`s, so the CODE — ' +
+                            'never the message — is what tells them apart.',
+                        schema: 'ApiError',
+                    },
+                    '503': shed,
+                },
+            },
+        },
+        '/api/v1/foods/{id}/status': {
+            get: {
+                operationId: 'getFoodStatus',
+                summary: 'Poll an ingredient lifecycle status',
+                description: 'Never enqueues a fetch. Includes the golden record once `RESOLVED` (FR-007).',
+                parameters: [idParameter],
+                responses: {
+                    '200': { description: 'The current status.', schema: 'StatusResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
+                },
+            },
+        },
+        '/api/v1/foods/{id}/candidates': {
+            get: {
+                operationId: 'getFoodCandidates',
+                summary: 'Read the disambiguation candidate set',
+                description:
+                    'The non-expired cross-source candidates for an `UNRESOLVED` food; empty for any other ' +
+                    'status (FR-RES-1).',
+                parameters: [idParameter],
+                responses: {
+                    '200': { description: 'The candidate set, possibly empty.', schema: 'CandidatesResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
+                },
+            },
+        },
+        '/api/v1/foods/{id}/corroborated': {
+            post: {
+                operationId: 'corroborateFood',
+                summary: 'Mark a PENDING food complete on corroborated identity (U19).',
+                description:
+                    "The recipe side's corroboration-promotion trigger (R10): a PENDING food completes and " +
+                    'leaves the sync queue — the community agreement IS the identity source for a novel name ' +
+                    'the upstream source will never carry. Every other status no-ops, answering the current ' +
+                    'status: the trigger is an async quality signal, never a command.',
+                parameters: [idParameter],
+                responses: {
+                    '200': { description: 'The (possibly unchanged) status.', schema: 'CorroboratedResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
+                },
+            },
+        },
+        '/api/v1/foods/{id}/refetch': {
+            post: {
+                operationId: 'refetchFood',
+                summary: 'Re-enqueue an ingredient fetch (admin)',
+                description:
+                    'Operational manual re-enqueue. Requires the `food:admin` scope, checked BEFORE id ' +
+                    'validation so `403` precedes `400` (FR-039/FR-051).',
+                parameters: [idParameter],
+                responses: {
+                    '202': { description: 'Re-enqueued.', schema: 'AddResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
+                    '503': shed,
+                },
+            },
+        },
+        '/api/v1/foods/admin/metrics': {
+            get: {
+                operationId: 'getAdminMetrics',
+                summary: 'Read the full operational dashboard signals (admin)',
+                description: 'Queue depths, lifecycle backlog, and per-source rolling-window utilization (FR-039).',
+                responses: {
+                    '200': { description: 'The operational metrics.', schema: 'OperationalMetrics' },
+                    '401': unauthorized,
+                    '403': forbidden,
+                },
+            },
+        },
+        '/api/v1/foods/admin/queue': {
+            get: {
+                operationId: 'getAdminQueueDepths',
+                summary: 'Read the fetch-queue depths (admin)',
+                description: 'The focused queue-depth signals on their own (FR-039).',
+                responses: {
+                    '200': { description: 'The queue depths.', schema: 'QueueDepthMetrics' },
+                    '401': unauthorized,
+                    '403': forbidden,
+                },
+            },
+        },
+        '/api/v1/foods/admin/foods/{id}/requeue': {
+            post: {
+                operationId: 'requeueFood',
+                summary: 'Requeue a blackholed ingredient (admin)',
+                description:
+                    'The operator escape hatch for a food the retry budget tombstoned: it clears the terminal ' +
+                    'lifecycle mark AND the attempt count so the normal drain picks the food up again (U9). ' +
+                    'Requires the `food:admin` scope, checked BEFORE id validation so `403` precedes `400` ' +
+                    '(FR-039/FR-051). Idempotent — requeuing an already-`PENDING` food answers `202`.',
+                parameters: [idParameter],
+                responses: {
+                    '202': { description: 'Requeued; the food is `PENDING` again.', schema: 'RequeueResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
+                    '409': {
+                        description:
+                            'The food is not blackholed — a `RESOLVED`/`UNRESOLVED` food has nothing to clear. ' +
+                            '`code: NOT_REQUEUEABLE`, with the observed status in `details.status` and the ' +
+                            'route that IS applicable (`POST /api/v1/foods/{id}/refetch`) named in the message.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/foods/admin/promotions/pending': {
+            get: {
+                operationId: 'getPendingPromotions',
+                summary: 'List pending food promotions (admin)',
+                description:
+                    'The promotion MODERATION QUEUE (plan U12). Corroboration is the TRIGGER, never the ' +
+                    'PUBLISHER: rows here were queued by cross-author agreement and publish only through the ' +
+                    'approve route. Requires the `food:admin` scope (FR-039/FR-051).',
+                responses: {
+                    '200': { description: 'The pending queue, oldest first.', schema: 'PendingPromotionsResponse' },
+                    '401': unauthorized,
+                    '403': forbidden,
+                },
+            },
+        },
+        '/api/v1/foods/admin/promotions/{id}/approve': {
+            post: {
+                operationId: 'approvePromotion',
+                summary: 'Approve a food promotion (admin)',
+                description:
+                    'Publishes one candidacy (U12 phase 1, atomic): elects the canonical over the STORED ' +
+                    'candidate set and flips it to `promoted`. The recipe-side mapping rewrite (phase 2) is ' +
+                    'driven separately and is idempotent. `food:admin` scope required, checked BEFORE id ' +
+                    'validation so `403` precedes `400` (FR-051).',
+                parameters: [promotionIdParameter],
+                responses: {
+                    '200': {
+                        description: 'Approved; the canonical is world-readable.',
+                        schema: 'ApprovePromotionResponse',
+                    },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                    '404': { description: 'No such promotion — `code: PROMOTION_NOT_FOUND`.', schema: 'ApiError' },
+                    '409': {
+                        description:
+                            'The row is not actionable — already decided, or no contributing food survives. ' +
+                            '`code: PROMOTION_NOT_ACTIONABLE`, with `details.reason`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/foods/admin/promotions/{id}/reject': {
+            post: {
+                operationId: 'rejectPromotion',
+                summary: 'Reject a food promotion (admin)',
+                description:
+                    'Declines one candidacy. The rejected fingerprint bars an IDENTICAL resubmission (0015); ' +
+                    'a new corroborating author or changed macros re-opens the door. `food:admin` scope ' +
+                    'required (FR-051).',
+                parameters: [promotionIdParameter],
+                responses: {
+                    '200': { description: 'Rejected.', schema: 'RejectPromotionResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                    '404': { description: 'No such promotion — `code: PROMOTION_NOT_FOUND`.', schema: 'ApiError' },
+                    '409': {
+                        description: 'The row is already decided — `code: PROMOTION_NOT_ACTIONABLE`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/internal/account/erasure': {
+            post: {
+                operationId: 'eraseAccountFootprint',
+                summary: "Erase the token-bound owner's ingredient footprint (service-to-service)",
+                description:
+                    'Called by the identity deletion-worker / erasure-reconciliation on a `user.deleted` or ' +
+                    'account-closure event. Synchronous and idempotent: an owner with no footprint erases 0 ' +
+                    "rows and still succeeds. The target owner comes ONLY from the verified token's bound " +
+                    "claim. The optional body (U18) carries NO authority: it names which of the owner's " +
+                    "authored foods the worker's reference check found still referenced — those are KEPT as " +
+                    'pseudonymous orphans (Q3b); everything else deletes.',
+                requestBody: {
+                    description: "The worker's referenced-food list (optional).",
+                    required: false,
+                    schema: 'FoodServiceErasureRequest',
+                },
+                security: ['serviceToken'],
+                responses: {
+                    '200': {
+                        description: 'Erased. `deletedRequesterRows` is the reconciliation residue signal.',
+                        schema: 'FoodServiceErasureAcceptedResponse',
+                    },
+                    '401': {
+                        description:
+                            'The service token is absent, malformed, or not bound to the food audience — ' +
+                            '`code: UNAUTHORIZED`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/internal/account/erasure/begin': {
+            post: {
+                operationId: 'beginAccountErasure',
+                summary: "Tombstone the token-bound owner's authored foods (erasure protocol step 1, U18)",
+                description:
+                    'Flips every authored food to an internal DELETING state — admission refuses to bind them ' +
+                    'while the worker runs the cross-service reference check — and returns their ids for that ' +
+                    'check. Idempotent on redelivery.',
+                security: ['serviceToken'],
+                responses: {
+                    '200': {
+                        description: 'The tombstoned authored food ids.',
+                        schema: 'FoodServiceErasureBeginResponse',
+                    },
+                    '401': {
+                        description: 'The service token is absent, malformed, or not food-audience-bound.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/health': {
+            get: {
+                operationId: 'getHealth',
+                summary: 'Liveness probe',
+                description:
+                    'Static. Deliberately does NOT touch the database — a transient RDS blip must not make ECS ' +
+                    'kill an otherwise-healthy container. Deliberately PUBLIC — the ALB target group calls it ' +
+                    'with no credential, and a consumer checking for contract skew must be able to ask before it ' +
+                    'holds one. `contractHash` is that skew signal (§15.2.5): a client whose pinned ' +
+                    '`@kitchensink/schema-food` fingerprint differs WARNS and keeps working.',
+                security: [],
+                responses: { '200': { description: 'The process is up.', schema: 'HealthStatus' } },
+            },
+        },
+        '/health/ready': {
+            get: {
+                operationId: 'getReadiness',
+                summary: 'Readiness probe',
+                description:
+                    'Probes the database pool so the ALB can drain an instance whose database is unreachable ' +
+                    '(ARCH-PS-3).',
+                security: [],
+                responses: {
+                    '200': { description: 'Ready to serve traffic.', schema: 'HealthStatus' },
+                    '503': { description: 'Database not reachable (`NOT_READY`).', schema: 'ApiError' },
+                },
+            },
+        },
+    },
+});

@@ -1,0 +1,66 @@
+appId: io.commise.mobile
+---
+# U14 — the ingredient-CORRECTION happy path on device (plan U14 / R19, R20). The mobile mirror of the web
+# Playwright `ingredientCorrection.spec.ts`.
+#
+# ## What only this tier can prove
+#
+# The native component suite (`tests/components/IngredientPickerCorrection.native.test.tsx`) renders the leaf
+# through react-native-web under jsdom, with the client hooks mocked. Two things it therefore cannot see, and
+# both are ways this feature ships broken to a phone:
+#
+#   1. THE CONTROL IS REACHABLE BY A THUMB. The correction control is a SECOND pressable stacked under a row
+#      that is itself pressable. Under jsdom every element is "visible" and hit-testing is a fiction; on
+#      device an overlapping or zero-height tap target means a cook aiming at "Always use this…" resolves the
+#      ingredient line instead — silently doing the OTHER intent.
+#   2. THE REQUEST LEAVES THE DEVICE. jsdom mocks the hook, so nothing about the real client, the real
+#      network stack, or the real request body is exercised there.
+#
+# Assumes an authenticated session (auth flow runs first in CI ordering) and the app pointed at a seeded
+# recipe API (EXPO_PUBLIC_RECIPE_API_URL) whose ingredient catalog contains a FOOD-BACKED row for the phrase
+# below — the control is deliberately absent for a freeform row, since a mapping's whole content is a
+# `food_id` and a user-entered ingredient has none.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Corrected Soup'
+
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients). Type a phrase that resolves to a food-backed catalog row. `Flour` is in the
+# seeded catalog, so the suggestion list carries at least one row the correction control is offered on.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'flour'
+
+# The control names the phrase the cook typed — NOT the catalog's rendering of the food. That is the whole
+# content of the feature: a curated mapping is only ever consulted under the key the resolution cascade looks
+# up, and that key derives from the typed phrase. A label naming the food instead would be the visible tell
+# that the wrong string is about to be written.
+- scrollUntilVisible:
+      element: 'Always use this for .*flour.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Always use this for .*flour.*'
+
+# The round trip is legible: the notice states the REACH, which is decided server-side from grants the client
+# cannot read. An unprivileged Maestro user is author-scoped, so this is the personal sentence.
+- assertVisible: 'Saved\..*'
+
+# ⚠️ TEACHING IS NOT PICKING. The correction must not append a line the cook did not ask for — on device this
+# is also the assertion that the two stacked tap targets did not swap under the thumb.
+- assertNotVisible: 'Ingredient 1 name'

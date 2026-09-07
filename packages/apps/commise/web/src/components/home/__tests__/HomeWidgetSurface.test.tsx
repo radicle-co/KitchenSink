@@ -84,6 +84,20 @@ const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0]): void => 
 
 const FakeRecipeWidget: FC = () => <div>fake-recipe-widget</div>;
 
+/**
+ * Rewrite every `#RRGGBB` to the `rgb(r, g, b)` form `getComputedStyle` reports.
+ *
+ * ⚠️ jsdom 30 canonicalises CSS colours, so a hex written into `style` reads back as `rgb(...)`. Normalising
+ * BOTH sides means the assertion survives a serialiser change and still catches a genuinely different
+ * colour written in the same notation.
+ */
+const asRgb = (css: string): string =>
+    css.replace(/#([0-9a-f]{6})/giu, (_, hex: string) => {
+        const [r, g, b] = [0, 2, 4].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+
+        return `rgb(${r}, ${g}, ${b})`;
+    });
+
 describe('HomeWidgetSurface (web) — host composition', () => {
     it('renders the accessible page title, the time-of-day greeting header, and the widget-surface region', () => {
         vi.useFakeTimers();
@@ -126,9 +140,15 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         }
 
         expect(hero).not.toBeNull();
-        expect(hero?.style.backgroundImage).toContain('135deg');
-        expect(hero?.style.backgroundImage).toContain('#FAF6F0');
-        expect(hero?.style.backgroundImage).toContain('#E8F4F8');
+        // ⚠️ Asserted as COLOURS, not as the hex spelling. jsdom 30 canonicalises through its CSSOM, so a
+        // `#FAF6F0` written into `style` reads back as `rgb(250, 246, 240)` — the component paints the right
+        // colour either way, and matching the literal was asserting jsdom's serialiser. Normalising the
+        // expectation rather than pinning the new form keeps this working across the next change too.
+        const painted = asRgb(hero?.style.backgroundImage ?? '');
+
+        expect(painted).toContain('135deg');
+        expect(painted).toContain(asRgb('#FAF6F0'));
+        expect(painted).toContain(asRgb('#E8F4F8'));
     });
 
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {

@@ -4,15 +4,20 @@
 #
 # Trigger: Actions → "Food API load test" → Run workflow (or `gh workflow run food-loadtest.yml`).
 # Needs the same repo AWS credentials the deploy workflows use (to read the Clerk secret + CloudWatch).
-name: Food API load test
+name: Food API load test (deployed origin — manual only)
 
 on:
     workflow_dispatch:
         inputs:
-            target_url:
-                description: 'Food API base URL to hit'
+            # ⛔ A STAGE, NOT A URL. This input WAS `target_url`, defaulting to a typed
+            # `food-pr-59` host — a name that stopped resolving the day PR 59 closed, whose failure mode is
+            # a run reporting the target as down rather than the default as stale. The host shape now comes
+            # from `publicServiceOriginForStage` (ADR-0003 / ADR-0006), the same authority the deploy
+            # pipelines use, so this input names the thing a human actually knows.
+            target_stage:
+                description: 'Deploy stage to hit — sandbox, prod, or pr-{N}'
                 required: true
-                default: 'https://food-pr-59.commise.app'
+                default: 'sandbox'
             base_stage:
                 description: 'Clerk instance / secret stage (sandbox or prod)'
                 required: true
@@ -56,20 +61,33 @@ on:
                 default: false
 
 permissions:
-    contents: read
+    contents: read # checkout only — the AWS/Clerk work uses repo secrets, not the GITHUB_TOKEN
+
+# A load test provisions a distinct-user pool against a SHARED Clerk instance and then tears it down, so
+# two concurrent runs would race each other's users and skew both reports. `cancel-in-progress: false`
+# because killing a run mid-flight is what LEAKS those users (teardown never executes) — queue instead.
+concurrency:
+    group: food-loadtest-${{ github.event.inputs.base_stage }}
+    cancel-in-progress: false
 
 env:
     NODE_VERSION: 24
     DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
 
 jobs:
     loadtest:
+        # ⛔ A CONSTANT — the target stage is reported in the job summary, never in the check name.
+        # Pinned by workflowInvariants' invariant 8.
+        name: Run k6 food-API journey (deployed origin)
         runs-on: ubuntu-latest
         timeout-minutes: 30
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
 
-            - uses: actions/setup-node@v6
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
 
@@ -80,12 +98,24 @@ jobs:
               run: npm run k6:install --workspace=@kitchensink/loadtest
 
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
 
+            # ⛔ THE HOST SHAPE IS RESOLVED, NEVER TYPED — see the `target_stage` note above.
+            - name: Build the workspace package the origin resolver imports
+              run: npx turbo run build --filter=@kitchensink/infra-alb
+            - name: Resolve the food origin for this stage
+              id: origin
+              env:
+                  TARGET_STAGE: ${{ inputs.target_stage }}
+              run: |
+                  set -euo pipefail
+                  url=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${TARGET_STAGE}" "${DOMAIN_NAME}")
+                  echo "url=${url}" >>"$GITHUB_OUTPUT"
+                  echo "food load-test target: ${url}"
             - name: Resolve Clerk config (secret, FAPI, azp)
               id: clerk
               env:
@@ -114,7 +144,7 @@ jobs:
                   CLERK_SECRET_KEY: ${{ steps.clerk.outputs.sk }}
                   FAPI: ${{ steps.clerk.outputs.fapi }}
                   ORIGIN: ${{ steps.clerk.outputs.origin }}
-                  FOOD_BASE_URL: ${{ inputs.target_url }}
+                  FOOD_BASE_URL: ${{ steps.origin.outputs.url }}
                   # One distinct user per VU — see the max_vus input note (pool_size was folded in to stay
                   # inside GitHub's 10-input workflow_dispatch limit). This is exactly the harness's own
                   # default: run.mjs resolves `POOL_SIZE ?? MAX_VUS ?? 100`.
@@ -139,7 +169,7 @@ jobs:
 
             - name: Upload artifacts
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: food-loadtest-results
                   path: |

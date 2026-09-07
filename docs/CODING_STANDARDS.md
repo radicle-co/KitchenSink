@@ -4,7 +4,69 @@ Tactical conventions for the KitchenSink monorepo. This document is the authorit
 reference for day-to-day coding decisions. The [Constitution](../.specify/memory/constitution.md)
 defines immutable principles; this document translates them into enforceable rules.
 
-**Version**: 1.3.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-02
+**Version**: 1.8.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+
+> **1.8.0** — **§8 gains the `{@link}` resolution rule** and **§9 gains the static-analysis coverage rule**, both
+> now mechanically enforced. A link must reach a declaration or be written in backticks; the obvious alternative
+> is forbidden with its measured reason, because an import added purely for a docstring passes `tsc` (JSDoc
+> counts as a use for `noUnusedLocals`) and then fails `@typescript-eslint/no-unused-vars`, which has no JSDoc
+> awareness. The gate parses comments, so writing the literal opener in prose reports your own explanation — it
+> did, on the gate's own module. Coverage now spans `.js`/`.jsx`/`.mjs`/`.cjs` as well: the first version was
+> `.ts`/`.tsx` only, which left six links in five files unchecked, and all six already resolved, so extending the
+> subject was free. §9's rule is written down because it was previously encoded only in tooling: measured across
+> 1782 tracked sources, **140 were in no typecheck project and 551 were linted by nothing** — including all 62
+> conformance suites and three deployed Lambda handlers in `packages/infra/global`. Every `lint` script is now
+> the bare `eslint .`, since a glob is a claim about a file tree that only the tree can settle.
+
+> **1.7.0** — **§8 rewritten** to be information-bearing rather than positional, by OWNER RULING 2026-08-12
+> ("don't comment on things that are self explanatory; if a variable isn't self explanatory it needs a good name").
+> "Every exported symbol MUST have a JSDoc block" mandated exactly the noise that ruling forbids — a
+> `/** Max length of a recipe title. */` over `MAX_RECIPE_TITLE_LENGTH = 200` — and floored a constants module at a
+> ~1:1 comment-to-code ratio however much of it was restatement. A block is now required where it carries what the
+> name does not; an exported constant whose name states its meaning takes none; and the ceilings are written down
+> (≤25-line file header, no docstring longer than its body, no historical narration, no near-duplicate comments in
+> one block). Measured driver: 58.9% of the production source lines added by the code-quality PR were comments
+> (12,752 comment / 8,882 code). A `z.infer` alias beside its authoring schema is named as taking no block,
+> because that pairing is how every service-owned contract is written (§15.2) and the schema is the one
+> authoritative description. No gate enforced the old rule — no `eslint-plugin-jsdoc`, no conformance test — so
+> this is prose-for-prose, and a future gate must encode the new shape rather than symbol presence.
+
+> **1.6.0** — **§16 added**: persistent-schema and task-identifier uniqueness. A table name has exactly ONE
+> declarer (across features, between a feature and shipped code, and between two shipped packages — including
+> across different logical databases), a spec declares a table by writing fenced DDL rather than prose, an
+> unshipped feature must not `CREATE TABLE` a name that already ships, and a `tasks.md` defines each task ID once.
+> Written because feature 010 planned a `webhook_events` table that already ships for Clerk/svix dedup with a
+> disjoint column set (resolved by ADR-0018 — one dedup table per sender), feature 011 planned a second
+> `recipe_versions` while the recipe service already ships one, and feature 007 defined eight task IDs twice.
+> §16.3 requires the gates to **parse rather than grep** and to **discover rather than enumerate**, with the four
+> measured reasons tabulated, and makes an exemption's `why` mandatory and its owner set exact.
+
+> **1.5.0** — **§15.5 added**, making §15.2/§15.4 binding on code that does not exist yet and deciding the
+> **failure** side of the boundary parse. A new service owes its authored zod, `contract:generate`, a committed
+> schema package with a derived `openapi.yaml`, a `CONTRACT_HASH` boot assertion, **`nestjs-zod`'s**
+> `ZodValidationPipe`, `z.strictObject()` and validated non-HTTP ingress **from its first commit**; a new client
+> owes zero wire types, receipt validation, outbound validation against the callee's zod, and a contract-skew
+> guard. Every conformance gate must **discover** its subjects from the filesystem — a hardcoded list is the
+> defect. **§15.5.2 closes GR-016 OPEN-GR-016-B** (`z.strictObject()` is the default for mutating bodies) and
+> **§15.5.3 closes OPEN-GR-016-A** (the storage floor is a per-service parity test — and the mechanism,
+> `@kitchensink/contract-gen`'s `auditStorageCapacity`, is **already wired in all three services**, exhaustive
+> over bounded columns in both directions).
+> **§15.5.4**: one rejection path, one shape, one `reason`, one counter, one alarm — with the response **status
+> derived from the `reason` by a single complete lookup**, because "would a redelivery ever succeed?" genuinely
+> differs: a **shape** failure behind a valid signature answers **`2xx`** (svix/Stripe retry on any non-2xx, and
+> a body that cannot parse never will), while a **signature** failure answers **non-2xx** (it may be OUR stale
+> secret, and the sender's retry is the recovery — answering `2xx` there discarded a real `user.created` once
+> already). A rejected event is never written as a row. **§15.5.5**: no sentinel identifiers, id required
+> except on create/upsert. **§15.5.6**: where two principals are asserted, require both and reject on mismatch.
+> Also corrected §15.4(5), which still described the `strictObject` default as OPEN. Portfolio rules: GR-017 –
+> GR-020.
+
+> **1.4.0** — **§15.4 Input validation** added: one boundary parse per service against the service's own
+> authored zod (one mechanism, one `400` path), extended to queue/event consumers and webhooks (a signature
+> proves origin, not shape), with the **database schema as the validation FLOOR** — asserted, never derived
+> from drizzle. Records the `createZodDto`-under-Nest's-own-`ValidationPipe` trap, `z.object` vs
+> `z.strictObject`, the `sql.raw()` prohibition, and the **deliberate deferral of response validation**.
+> Portfolio rule: `specs/governance-rules.md` GR-016. (§15 itself landed 2026-08-11 without a version bump.)
 
 > **1.3.0** — corrected §1a/§1b test-file rows and rewrote §7 Test File Location against the actual repo
 > layout (both regimes, the reserved `.spec` suffix, Maestro/k6 homes). 61 test files were migrated to the
@@ -16,57 +78,107 @@ defines immutable principles; this document translates them into enforceable rul
 
 ## 1. File Naming
 
-> **Enforced, not advisory.** File names are checked in CI by `eslint-plugin-check-file` per package
-> (see `packages/tools/eslint`). A non-conforming name FAILS lint — this is the guardrail that keeps the
-> convention from drifting. There are **two regimes**, because the backend and frontend follow different
-> ecosystem norms; pick by the package the file lives in.
+> **Enforced, not advisory.** File names are checked in CI by `eslint-plugin-check-file`
+> (see `packages/tools/eslint`). A non-conforming name FAILS lint.
 
-### 1a. Backend services — NestJS packages (`packages/services/*`)
+## ⛔ ONE regime, every package. NO HYPHENS IN FILE NAMES.
 
-Follow the **NestJS `name.type.ts` convention**: a **kebab-case** name plus a dot-separated role suffix,
-for **every** file (services, controllers, filters, guards, decorators, modules, DALs, DTOs, and plain
-domain/utility modules) — regardless of whether the file exports a class. This is the framework-idiomatic
-convention the entire backend uses (e.g. `recipes.service.ts` exports `RecipesService`).
+**`camelCase` for everything, except `PascalCase` when the file's subject is a class or a React
+component.** This applies to **every** package — services, apps, shared libraries, clients, infra,
+tools. There is no backend exception, no frontend exception, and no ecosystem carve-out.
 
-| Context                 | Convention                               | Example                                                                  |
-| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------ |
-| Provider / injectable   | `<name>.<role>.ts` (kebab)               | `recipes.service.ts`, `clerk-auth.service.ts`, `api-exception.filter.ts` |
-| Domain / utility module | kebab-case `.ts`                         | `recipe-visibility.ts`, `pool-config.ts`                                 |
-| Unit test               | `<source>.test.ts` in `__tests__/`       | `recipes.service.test.ts`                                                |
-| Integration test        | `<name>.integration.test.ts` in `tests/` | `create-user-flow.integration.test.ts`                                   |
-| E2E test                | `<name>.e2e.test.ts` in `tests/e2e/`     | `users-validation.e2e.test.ts`                                           |
+**Hyphens and underscores are PROHIBITED in file names**, with only the two exception classes listed
+below. Kebab-case is not an alternative convention here; it is a violation.
 
-Directories and the reason `.test` (not `.spec`) is the vitest suffix are in
-[§7 Test File Location](#test-file-location). Integration and E2E tests are wired into their own
-vitest configs and MUST NOT run in the default `test` task.
+| Context                             | Convention                                      | Example                                                                |
+| ----------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
+| Module / util / hook / type / const | `camelCase.ts`                                  | `authState.ts`, `useUserProfile.ts`, `recipeVisibility.ts`             |
+| Class (any kind)                    | `PascalCase.ts`                                 | `RecipeRepository.ts`, `FoodEventEmitter.ts`                           |
+| React component                     | `PascalCase.tsx`                                | `RecipeCard.tsx`, `AccountStateGate.tsx`                               |
+| NestJS provider / injectable        | `camelCase.<role>.ts` or `PascalCase.<role>.ts` | `recipes.service.ts`, `clerkAuth.service.ts`, `apiException.filter.ts` |
+| Mobile (Expo/RN) variant            | `<source>.native.ts(x)`                         | `RecipeCard.native.tsx`, `storage.native.ts`                           |
+| Unit / component test               | `<source>.test.ts(x)`                           | `authState.test.ts`, `RecipeCard.test.tsx`                             |
+| Integration test                    | `<name>.integration.test.ts(x)`                 | `createUserFlow.integration.test.ts`                                   |
+| E2E test (vitest)                   | `<name>.e2e.test.ts` in `tests/e2e/`            | `usersValidation.e2e.test.ts`                                          |
+| E2E (Playwright)                    | `<feature>.spec.ts` in `tests/e2e/`             | `signIn.spec.ts`                                                       |
 
-### 1b. Frontend & shared libraries (`packages/apps/*`, `packages/shared/*`, `packages/clients/*`, `packages/utils/*`)
+The dot-separated role suffix (`.service`, `.controller`, `.filter`, `.dao`, …) is **retained** for
+NestJS providers — it is a _dot_, never a hyphen. `clerkAuth.service.ts` is wrong;
+`clerkAuth.service.ts` is right.
 
-Kebab is **not** allowed here — use camelCase for modules, PascalCase for a file that exports a React
-component or a class (name matching the export).
+> **⛔ Why this section is emphatic.** A prior revision of this document split §1 into a "backend
+> (kebab)" regime and a "frontend (camelCase)" regime, justified as framework-idiomatic for NestJS.
+> The linter implemented that split faithfully. The result: **505 hyphenated files passed lint and read
+> as compliant**, and every audit run against the standard reported clean, because the standard, the
+> linter and the audits were mutually consistent and all wrong. NestJS does **not** require kebab file
+> names — it resolves modules through imports, not filenames. Do not reintroduce a per-package regime.
 
-| Context                             | Convention                                                  | Example                                             |
-| ----------------------------------- | ----------------------------------------------------------- | --------------------------------------------------- |
-| Module / util / hook / type / const | `camelCase.ts`                                              | `authState.ts`, `useUserProfile.ts`, `apiClient.ts` |
-| React component                     | `PascalCase.tsx`                                            | `RecipeCard.tsx`, `AccountStateGate.tsx`            |
-| Non-component class                 | `PascalCase.ts`                                             | `RecipeRepository.ts`                               |
-| Mobile (Expo/RN) variant            | `<source>.native.ts(x)`                                     | `RecipeCard.native.tsx`, `storage.native.ts`        |
-| Unit / component test               | `<source>.test.ts(x)`                                       | `authState.test.ts`, `RecipeCard.test.tsx`          |
-| Integration test                    | `<name>.integration.test.ts(x)` in `tests/__integration__/` | `tailwindTheme.integration.test.ts`                 |
-| E2E (Playwright)                    | `<feature>.spec.ts` in `tests/e2e/`                         | `signIn.spec.ts`                                    |
+### The only two exception classes
 
-**Framework-mandated exceptions (allowed, not renameable):** Next.js special files
-(`page.tsx`, `layout.tsx`, `route.ts`, `not-found.tsx`, `global-error.tsx`, `middleware.ts`,
-`instrumentation-client.ts`, `next-env.d.ts`) and Expo Router route files keep the names those frameworks
-require. The lint config exempts them explicitly.
+1. **Framework-mandated names** (allowed, not renameable): Next.js special files — `page.tsx`,
+   `layout.tsx`, `route.ts`, `not-found.tsx`, `global-error.tsx`, `middleware.ts`,
+   `instrumentation-client.ts`, `next-env.d.ts` — and Expo Router route files (`_layout.tsx`,
+   `+*.tsx`, `[param].tsx`). These frameworks resolve BY FILENAME; renaming them breaks routing.
+2. **Tool-generated artifacts**: Drizzle migrations under `**/database/migrations/**` and
+   `**/db/migrations/**` (e.g. `0005_identity_reset.sql`). `meta/_journal.json` references these
+   **by filename** — renaming them breaks migration. They are generated, not authored.
 
-### Rules (both regimes)
+Both classes are exempted explicitly in the lint config. Nothing else is exempt.
 
-- One class or component per file. No exceptions.
-- The filename matches the exported class/component name (kebab-cased for backend, PascalCase for frontend).
+## One file, one thing
+
+> **Enforced, not advisory.** The class/component half is checked in CI by
+> `packages/infra/global/__tests__/oneFileOneThing.test.ts`, which parses every tracked source with the
+> TypeScript AST and fails a file exporting more than one class or more than one React component. The
+> tree carries **no pending violations**: the nine god files the gate was born recording have been split.
+> The 17 files still listed there are the **ruled exemptions** below, each pinned to its **exact** export
+> counts with a written reason, so a new violation fails and a ruled file may not grow. Core ESLint's
+> `max-classes-per-file` is deliberately not what runs: it counts private classes too, says nothing about
+> components, and cannot express a reason — only a count — for the shapes that are ruled acceptable.
+
+**A file does exactly ONE thing.** One class, or one component, or one cohesive piece of
+functionality — never a mix, never several.
+
+- **One class per file.** A second exported class means a second file, even a small one.
+- **One React component per file.**
+- **No god files.** If a file needs "and" to describe it — an emitter _and_ a console fake _and_
+  builder functions _and_ constants _and_ eight interfaces — it is several files wearing one name.
+- **The filename names the thing.** `FoodEventEmitter.ts` exports `FoodEventEmitter` and nothing that
+  isn't part of it. Types that exist solely to describe that class's inputs/outputs may live beside it;
+  an unrelated implementation may not.
+- Files should be **as simple as possible** and have **one purpose**.
 - Barrel `index.ts` files MUST contain only named re-exports. No logic, no side effects.
+  **`export *` is NOT a named re-export** and is therefore prohibited: it makes a package's public API
+  implicit, re-exports internals by accident, and defeats tree-shaking. List the names.
+
+### What counts as "one thing" — rulings (2026-08-15)
+
+"One class per file" is the rule; these four shapes are **cohesive units** where the class count is
+incidental, and are **exempt**. An exempt file must contain that unit and **nothing else** — the
+exemption covers the shape, not the file. That qualifier does real work: `authState.ts` looked like an
+error taxonomy and was not — it was a state module that happened to declare two error classes, so the
+errors moved to `authState.errors.ts` and the state model stayed put.
+
+| Shape                                           | Ruling        | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Error taxonomy** (`errors.ts`, `*.errors.ts`) | **One thing** | The unit is "the errors this boundary can raise". They share a base, are imported together, and are exhaustively matched together. Splitting 11 classes into 11 files makes the surface harder to read and use, with no isolation gained.                                                                                                                                                                                                                                           |
+| **Icon set** (`icons.tsx`)                      | **One thing** | The unit is "the glyphs this surface draws". Each is a few lines of path data with no behaviour and no independent lifecycle.                                                                                                                                                                                                                                                                                                                                                       |
+| **Test double** mirroring a subject             | **One thing** | A double must present its subject's surface to be substitutable. Splitting it makes the fake harder to use than the real thing, which is how doubles drift out of sync.                                                                                                                                                                                                                                                                                                             |
+| **NestJS zod-DTO adapter** (`*.dto.ts`)         | **One thing** | Only when every class is an EMPTY-BODIED `createZodDto(...)` extension. Such a class holds no knowledge — the authored zod (§15.2 / ADR-0014) does — it is only the runtime metatype Nest resolves a validator from. Splitting yields N files of one `extends` clause each, at a granularity that competes with the `*.schema.ts` files they mirror. A class that grows a BODY (constructor, method, `class-validator` decorator, hand-written field) leaves this shape and splits. |
+
+Everything else splits. In particular a file mixing an implementation with an unrelated second
+implementation is **never** one thing — `FoodEventEmitter` plus `ConsoleEventBus` is two, regardless of
+how small the second is. (That worked example is now history: `FoodEventEmitter.ts` was split into the
+`eventBus.ts` port, the `ConsoleEventBus.ts` adapter, and the emitter itself.)
+
+The gate pins each exempt file to an **exact** count, so an exempted file that grows still fails.
+
 - The `.mobile.ts` / `.mobile.tsx` suffix is **prohibited**. Use `.native.ts(x)` —
   see [§14 Cross-Platform File Conventions](#14-cross-platform-file-conventions).
+
+Directories, and the reason `.test` (not `.spec`) is the vitest suffix, are in
+[§7 Test File Location](#test-file-location). Integration and E2E tests are wired into their own
+vitest configs and MUST NOT run in the default `test` task.
 
 ---
 
@@ -395,6 +507,11 @@ export function registerIngredient(name: string, _metadata: unknown): void {
 ## 7. Testing Conventions
 
 - Test pyramid: >= 70% unit, <= 20% integration, <= 10% E2E.
+- ~~"E2E" in that pyramid means the **hermetic contract** tier.~~ ⚠️ SUPERSEDED (2026-09-05, owner ruling):
+  **"E2E" means a test whose target is a DEPLOYED environment**, and it skips when the PR has none. The
+  pyramid's `<= 10%` band still bounds that tier's SIZE; what it no longer describes is a locally-booted
+  suite. A test that boots its own target is not an end-to-end test of the system, and does not get to run
+  under that name — see [§7.1a](#71a-end-to-end-means-a-deployed-target--and-it-skips-when-there-is-none).
 - Every test file opens with a block comment mapping requirement IDs to test descriptions.
 - Global registries MUST be cleared in `beforeEach`.
 
@@ -404,22 +521,104 @@ export function registerIngredient(name: string, _metadata: unknown): void {
 
 This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this repository — permanently.
 
-| Work under test                                                                                  | REQUIRED tests — write **ALL** of them, test-first. Omitting **any one** = the work is INCOMPLETE.                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **UI code** (components, screens, hooks)                                                         | (1) a **vitest component test** (React Testing Library) for **EVERY** UI path/state — loading, empty, populated, error, gated, disabled, and every other branch — **NOT just the happy path, NOT a representative sample; every single path**; **AND** (2) a **Playwright** test (web) for **EVERY** happy-path / user story — Playwright **IS** the UI's integration test. Mobile parity: a **Maestro** flow per story. |
-| **Non-UI code** (services, DALs, domain logic, controllers, DTOs, workers, libraries, utilities) | **unit tests AND integration tests — BOTH, always.** Integration exercises the **real** dependency (Docker Postgres for the DB, LocalStack for AWS). A unit test alone is a **VIOLATION**.                                                                                                                                                                                                                               |
-| **Services** (deployable HTTP APIs)                                                              | everything above **PLUS end-to-end tests** (boot the service against real Postgres + LocalStack and drive it over HTTP) **AND k6 load/performance tests** (assert the service's latency/throughput SLOs). Unit + integration alone is **NOT SUFFICIENT** for a deployable API.                                                                                                                                           |
+| Work under test                                                                                  | REQUIRED tests — write **ALL** of them, test-first. Omitting **any one** = the work is INCOMPLETE.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **UI code** (components, screens, hooks)                                                         | (1) a **vitest component test** (React Testing Library) for **EVERY** UI path/state — loading, empty, populated, error, gated, disabled, and every other branch — **NOT just the happy path, NOT a representative sample; every single path**; **AND** (2) a **Playwright** test (web) for **EVERY** happy-path / user story — Playwright **IS** the UI's integration test. Mobile parity: a **Maestro** flow per story.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Non-UI code** (services, DALs, domain logic, controllers, DTOs, workers, libraries, utilities) | **unit tests AND integration tests — BOTH, always.** Integration exercises the **real** dependency (Docker Postgres for the DB, LocalStack for AWS). A unit test alone is a **VIOLATION**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Services** (deployable HTTP APIs)                                                              | everything above **PLUS end-to-end tests** that drive the service at a **real deployed origin** — this PR's sandbox or prod, never a backend the job boots ([§7.1a](#71a-end-to-end-means-a-deployed-target--and-it-skips-when-there-is-none), ADR-0032) — **AND k6 load/performance tests** against those same deployed origins (assert the service's latency/throughput SLOs). ⚠️ The integration tier above is what exercises the **real dependency** (Docker Postgres, LocalStack) and carries the fixture-seeded and forced-error paths a deployed suite structurally cannot reach; it is required in its own right and is **not** discharged by the e2e tier, nor it by the integration one. ⚠️ The e2e and k6 tiers **SKIP** when the PR has no live sandbox (§7.1a rule 2) — the test is still **WRITTEN**, and a skip is never reported as a pass. |
 
 **Absolute rules — no interpretation, no exceptions:**
 
 - **EVERY UI path/state gets a vitest component test.** Every branch, every state. Not a sample, not the happy path only — every one.
 - **EVERY happy-path / user story gets a Playwright (web) AND a Maestro (mobile) test.**
 - **EVERY non-UI unit gets BOTH a unit test AND an integration test.** Never one without the other.
-- **EVERY service additionally gets e2e AND k6 tests**, on top of unit + integration.
+- **EVERY service additionally gets deployed end-to-end AND k6 tests**, on top of unit + integration, and both target a **real deployed origin**. A green unit/integration suite is not evidence that anything is deployed, and a green deployed suite is not a licence to thin unit or integration ([§7.1a](#71a-end-to-end-means-a-deployed-target--and-it-skips-when-there-is-none)). ⚠️ Those two tiers **skip** on a PR with no live sandbox; the mandate is that the test EXISTS and is wired to the deployed target, not that it runs on every PR.
 - A feature is **NOT DONE** — not "done pending tests", not "done except CI", not "done, tests to follow" — until **every** category it touches has **passing** tests of **every** required kind.
 - This is a **HARD MERGE GATE.** A change that adds or modifies code without its required tests is incomplete by definition and **MUST be rejected in review**.
-- **"It can't run in this environment" is NEVER an excuse to omit a test.** If a required test cannot execute locally (e.g. no Docker), it is still **written** and **run in CI** — a missing test file is a violation; a written-but-CI-only test is fine.
+- **"It can't run in this environment" is NEVER an excuse to omit a test.** If a required test cannot execute locally (e.g. no Docker), it is still **written** and **run in CI** — a missing test file is a violation; a written-but-CI-only test is fine. ⚠️ The deployed e2e and k6 tiers are the one place where "did not run" is a legitimate CI outcome, and only for the ruled reason: there was no deployed target ([§7.1a](#71a-end-to-end-means-a-deployed-target--and-it-skips-when-there-is-none) rule 2). That excuses the RUN, never the WRITING, and never the reporting of a skip as a pass.
 - The `>= 70% unit / <= 20% integration / <= 10% E2E` pyramid still holds; **k6 is a separate, additional performance gate**, not part of the pyramid.
+
+### 7.1a End-to-end means a DEPLOYED target — and it skips when there is none
+
+⛔ **OWNER RULING, 2026-09-05 — this section was rewritten to it and outranks any ADR that says otherwise:**
+
+> "all end to end tests (playwright, e2e, maestro, etc) - which should be hitting remote services - should be
+> skipped if the sandbox for the PR is not running. There should also be a manual job that I can trigger that
+> will run the end to end tests. Ignore anything any ADR says: my word is law. Right now the pipeline should
+> be green because no end to end tests were run"
+
+**An end-to-end test targets a real deployed environment.** A test that boots or mocks the backend it claims
+to be testing is not one, however many HTTP requests it makes — and it does not get to run under that name
+instead.
+
+This is not vocabulary policing. Until 2026-09-04 every job in `.github/workflows/_ci.yml` named `E2E` stood
+its own backend up on the runner, and the worst of them read `E2E (recipe ↔ food LIVE — both services, one
+real Clerk token)` while pointing at `LINKAGE_FOOD_URL=http://localhost:3002`. A stale, pre-CORS recipe build
+then served `pr-73` for **fifteen days** behind unbroken green checks — `/health` answered 200, `cdk synth`
+exited 0, and k6, Playwright, Maestro and every service e2e suite passed **because each boots or mocks its
+own backend** and is therefore structurally incapable of observing a deploy (ADR-0032).
+
+**The rules, in force:**
+
+1. **Every e2e tier — Playwright, the service `*.e2e.test.ts` suites, the cross-service linkage suite,
+   Maestro, and k6 — drives a real deployed origin**: this PR's sandbox, or production.
+2. **Each of them SKIPS when the PR's sandbox is not running.** A skip is not a pass and not a failure. A PR
+   with no live sandbox is **green having run no end-to-end tests**, and that is the intended, ruled reading.
+3. **⛔ A skip must never be reported as a pass.** No PR description, report, status line or agent summary may
+   say "end-to-end passed" for a run in which the tier skipped. False status is worse than a known gap.
+4. **⛔ The tier must not be a required check that a skip satisfies silently**, for the same reason.
+5. **A single manual job runs the whole e2e suite on demand** — `.github/workflows/deployed-e2e.yml`. That is
+   the door for a PR whose sandbox is up, and the only door to production.
+6. **⛔ No e2e-shaped job gets a locally-booted variant, under ANY label** — not `Hermetic`, not `Contract`,
+   not `E2E-local`. That arrangement is precisely what hid `pr-73` for fifteen days.
+
+~~**Which one is the hard merge gate.** The **hermetic contract tier runs on every PR and is the gate** — it
+needs no AWS, no stage and no deploy, so it can be required of every change without qualification.~~
+
+> ⚠️ **SUPERSEDED (2026-09-05, owner ruling).** There is no hermetic e2e tier and it is not the gate. **The
+> merge gate is unit + integration**, which run on every PR unconditionally. The **deployed e2e tier is owned
+> by [ADR-0032](architecture/decisions/0032-deployed-ecosystem-test-tier.md)**: what it targets, when it runs
+> and when it skips are that ADR's decisions, not this section's.
+
+⛔ **Unit and integration are NOT a survival of the struck tier, and must not be grown into one.** An
+integration test stands up a **dependency** — Docker Postgres, LocalStack — not the _deployment_ of the
+system under test, and it never claims to have observed one. It keeps every property the struck tier was
+valued for: it is fast, it needs no AWS, it runs on every push, and it is where a wrong `SELECT` or a broken
+guard is caught cheaply. What it may never do is be described as end-to-end.
+
+**What each tier can and cannot prove** — unchanged, and the reason rule 3 exists:
+
+| Tier                      | Target                                                                                     | What it can prove                                                                                                                                       | What it CANNOT prove                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Unit + integration**    | in-process code; a real dependency the job stands up — Docker Postgres, LocalStack, a mock | the code honours its contracts: SQL, wire shapes, S3/SQS side effects, seeded fixtures, error/degraded branches, every UI state, authorization refusals | anything at all about the deployed system                              |
+| **End-to-end (deployed)** | a real deployed origin — this PR's sandbox, or prod                                        | the deploy itself: image tag, DNS, listener rule, the schema that actually shipped, cross-service wiring, the origin a client really receives           | anything that needs a fixture, a mock, a forced error, or a seeded row |
+
+- A green unit/integration suite is **NOT** evidence that anything is deployed, reachable, or correctly
+  wired. It never issued a request that left the runner.
+- A green deployed suite is **NOT** a replacement for unit + integration and **MUST NOT** be used to thin or
+  delete them. It cannot seed a fixture, force an error branch, assert a LocalStack side effect, drive a
+  mocked UI path, or run at all on a PR with nothing deployed.
+
+⚠️ **Where coverage falls between the two, it goes to the integration tier — not back to a local e2e job.**
+Fixture-seeded and forced-error paths that a deployed suite structurally cannot reach belong in
+`*.integration.test.ts` against a real Postgres and a real LocalStack. ADR-0032's residual-risk list records
+that no audit of what falls between the two has been done; adding one is welcome, re-creating a local e2e job
+is not.
+
+**Naming is enforced, not advisory.** A CI job's name states its **target**, because the fifteen-day failure
+was a naming failure before it was a testing failure. `E2E` is **RESERVED** for a job whose target is a
+deployed origin. This is asserted by `packages/infra/global/__tests__/workflowInvariants.test.ts`
+**invariant 7**: a job whose displayed name says `E2E` while declaring service containers, naming a
+`localhost`/`127.0.0.1` target, or naming no remote target at all fails the build.
+
+⛔ Read that guard in the correct direction. Under the 2026-09-05 ruling the fix for a flagged e2e job is to
+**re-point it at the deployed origin and let it skip when there is none** — never to strip its Postgres so the
+guard goes quiet, and never to keep it running locally under a different label.
+
+⚠️ The **directories keep their `e2e` names** (`tests/e2e/*.e2e.test.ts`, `vitest.e2e.config.ts`,
+`tests/e2e/*.spec.ts`, `.maestro/`), and so do the CI job **keys** (`GITHUB_JOB` is folded into the
+run-scoped Clerk fixture identity by `deriveRunKey`, so renaming a key silently re-keys every fixture user).
+A suite's tier is decided by **what it targets**, never by the folder it sits in or the key above its name.
 
 ### Test File Location
 
@@ -444,6 +643,11 @@ Two regimes, matching the [§1 File Naming](#1-file-naming) split. Pick by the p
 
 #### Every regime
 
+- **Every `E2E` row above — the backend `*.e2e.test.ts` regime and both frontend rows — is the deployed end-to-end tier** ([§7.1a](#71a-end-to-end-means-a-deployed-target--and-it-skips-when-there-is-none)):
+  the suites live in those directories and their TARGET is a deployed origin, never a backend the job boots.
+  ⚠️ SUPERSEDED (2026-09-05): the 2026-09-04 text called these rows "the hermetic contract tier" — that tier
+  no longer exists. When the PR has no live sandbox these suites do not run at all; when it has one, or on a
+  manual dispatch, they run against it. Their wiring and triggers are ADR-0032's to define.
 - **Load / performance (k6)**: `packages/tools/loadtest/` — scripts are shared across services, not
   colocated per package. Required for every deployable service ([§7.1](#71-test-mandate--absolute-non-negotiable-every-phase-every-feature-every-contributor)).
 - **Mocks**: `__mocks__/` directories co-located with source.
@@ -585,10 +789,54 @@ This rule applies to all testing layers: unit tests (Testing Library), E2E tests
 
 ## 8. Documentation
 
-- Every exported symbol MUST have a JSDoc block.
-- Every source file MUST open with a module-level JSDoc summary.
+> **Amended 2026-08-12 (v1.7.0) by OWNER RULING**: _"don't be verbose with the comments and don't comment on things
+> that are self explanatory — i.e. variables should be self explanatory; if they aren't then they need to have good
+> names. Don't have slightly duplicated comments in the same code block."_ The rules below are therefore
+> **information-bearing, not positional**: a comment earns its place by carrying what the code does not say.
+
+- A JSDoc block is REQUIRED wherever it carries what the name does not — specifically on every exported
+  **function, method, class and type**; on every exported **constant whose unit, consequence or provenance is not
+  in its name**; and on anything **deliberate that looks wrong**, any **measured fact with a consequence**, any
+  **stated precondition**, and any **gate whose shape resists a naive simplification**.
+- An exported **constant whose name fully states its meaning takes NO block**. `MAX_RECIPE_TITLE_LENGTH = 200` is
+  complete, and `/** Max length of a recipe title. */` above it is noise. By contrast
+  `MIN_RECIPE_INGREDIENT_QUANTITY` keeps its block, because "a smaller value rounds to `0.000` and then violates
+  `CHECK (quantity > 0)`" is a consequence no name can carry.
+- ⛔ If a name needs a comment to be understood, **rename the identifier** — that is the fix, not prose.
+- A `z.infer` TYPE ALIAS adjacent to the schema that authors it takes NO block of its own. In the
+  service-owned-contract pattern (§15.2) the zod schema is the single authoritative description of the shape;
+  a second block on `export type X = z.infer<typeof xSchema>` two lines below it is the near-duplicate this
+  section forbids, not the type documentation it looks like.
+- Every source file MUST open with a module-level JSDoc summary, **≤ ~25 lines**. Longer rationale is design
+  material: it belongs in an ADR, with at most a one-line pointer from the code.
+- **No docstring longer than the body it documents.** This governs functions and methods; a one-line
+  `export const` cannot meet it, so the constants rule above governs there instead.
+- **No historical narration in code.** Benchmark changelogs, CI run IDs, "this said X until <date>", and
+  self-corrections of an earlier revision of the same comment belong in the ADR, the task record, or the commit
+  message. Git already stores history.
+- **No near-duplicate comments in one block.** Where the same reason is restated two or three ways, keep the
+  clearest and let the rest point at it.
+- A **`{@link}` MUST resolve to a declaration**; if the target is not in scope, write it in **backticks**
+  instead. An unresolved link is dead plain text — no editor navigates it and nothing warns the author, so it
+  rots exactly like a stale ADR path. ⛔ **Do NOT add an import to make a link resolve**: an import that exists
+  only for a docstring passes `tsc` (JSDoc counts as a use for `noUnusedLocals`) and then FAILS
+  `@typescript-eslint/no-unused-vars`, which has no JSDoc awareness — measured against this repo's config, so
+  nobody re-litigates it. Two further forms never resolve and must not be used: `{@link import('./x.js').Y}`
+  (TypeScript's JSDoc parser stops the entity name at the `(`) and a target wrapped onto the next comment line
+  (the leading `*` is read as the target). Also never write the literal opener sequence in prose — the check
+  parses comments, so an opener in your own explanation is reported as a dead link. Enforced across `.ts`,
+  `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` by
+  `packages/infra/global/__tests__/docLinkResolution.test.ts`, which resolves every target through the
+  compiler rather than by pattern-matching.
 - Non-trivial functions: `@param`, `@returns`, `@throws` tags required.
 - Impure functions: `@sideEffect` tag required.
+- **`@pattern` on a unit that implements a named design pattern.** One tag per pattern; the text is the
+  pattern's name, optionally with what it wraps. A pattern whose intent is already satisfied by a language or
+  library feature is declared the same way, naming the feature that satisfies it. Put it LAST in the block —
+  the JSDoc grammar gives every line after a tag opener to that tag, so a `@pattern` written mid-block
+  swallows the prose below it. ⛔ The tag NEVER restates the orchestration/render layer:
+  `@pattern Presentational Component` is a second copy of what the docblock's layer words already say, it is
+  the near-duplicate this section forbids, and the gate rejects it. Scope and enforcement: §11.2.
 - Inline comments explain _why_, never _what_.
 
 ### Function Comments
@@ -684,6 +932,22 @@ All formatting is enforced by Prettier and ESLint. These are not discretionary:
 - Braces required for all control structures (even single-statement bodies)
 - Blank line after block statements and before `return`
 
+### Every package's `typecheck` and `lint` cover everything it owns
+
+A package's `lint` script is spelled exactly **`eslint .`** — never a glob. A glob is a claim about a file tree
+that only the tree can settle, and `lib/**/*.ts` looked correct beside a `lib/` directory while the 62
+conformance suites in the `__tests__/` next to it were linted by nothing. Correspondingly, the `tsconfig.json`
+a package's `typecheck` runs must `include` every `.ts`/`.tsx` the package owns — tests included, because
+vitest transpiles without typechecking, so a spec outside the project has no static analysis at all. Where the
+emit must be narrower, that belongs in `tsconfig.build.json`, not in the check project.
+
+The two halves are coupled: widening the lint glob without widening the tsconfig makes every newly-matched file
+a **fatal parse error**, which is worse than not linting it — ESLint opens the file, runs no rule on it, and the
+file still appears in a passing run. Directory-level exclusions (build output, workspace-root `*.config.*`) live
+once, in `packages/tools/eslint`. `packages/infra/global/__tests__/staticAnalysisCoverage.test.ts` enforces
+all of this by asking TypeScript's config parser and ESLint's own API for actual project membership, never by
+comparing glob text.
+
 ### Blank Lines After Blocks
 
 ```typescript
@@ -756,7 +1020,7 @@ export type { Recipe, Ingredient } from './types.js';
 
 ## 11. React Components
 
-### No Boolean Flag Props
+### 11.1 No Boolean Flag Props
 
 Never use boolean props to switch between fundamentally different component behaviors
 or render trees. A boolean flag that causes a component to render entirely different
@@ -790,6 +1054,91 @@ function RecipeContainer({ recipe, currentUserId }: Props): ReactElement {
 
 The test: if removing the boolean would split the component into two, it should be
 two components composed by the parent.
+
+### 11.2 Naming the pattern — the `@pattern` tag
+
+CLAUDE.md's design-pattern section requires a unit's JSDoc to name the pattern it implements. This section
+says **where that binds for components**, because a rule that binds everywhere binds nowhere.
+
+**The measurement that produced this section (2026-09-02, over the committed catalogue at
+`docs/generated/components/`).** 224 components carried **zero** `@pattern` tags. That number did not mean
+what it looked like: `@pattern` appeared in eight files repo-wide, all eight inside the generator's own
+package, because nothing had ever asked for a tag. The house convention was PROSE — `DESIGN PATTERN:` in
+**190 files**, `Pattern:` in another 23 — with about twenty component leaves carrying a substantive one
+(`Null Object for the loading phase`, `Decorator over RN's Modal`, `Adapter over
+@radix-ui/react-dropdown-menu`). ⚠️ A keyword scan of that prose suggested 144 of 224 already complied;
+reading the hits in context put the real rate near 11%. Prose is evidence of culture, not compliance —
+"visitor" is a human being in `RedactedAnalytics`, "provider" is a hosting provider in `HomeGreeting`,
+"factory" is a TanStack query factory in four route pages, and "slot" is a visual slot in six components.
+That is the same finding `docgen-components/src/classify.ts` recorded before this section existed, which is
+why it extracts only the explicit tag.
+
+**A component MUST carry at least one `@pattern` tag when any of the following holds:**
+
+1. it belongs to the design system (`@commise/ui`) — the vocabulary the other 217 components are written in;
+2. any of its platform leaves reaches for a **ref API** — CLAUDE.md permits a ref only to wrap a genuinely
+   external, non-declarative system, and that permission is itself a pattern claim, made here where it can
+   be reviewed;
+3. any of its platform leaves has a **boolean prop selecting between two rendered subtrees** — §11.1's
+   composition failure, whose resolution is a named shape (or whose "this is display derivation" defence is
+   argued in the tag);
+4. its docblock states that it is an **orchestration** component — it decides something, and what it decides
+   with is a design choice a reader would otherwise have to re-derive.
+
+⛔ **Clause 2 binds a ref-using MODULE too, not only a component (added 2026-09-03).** Every word of its
+reasoning is about the REF and none of it is about being a component, so a `useRef` moved out of a component
+and into a hook used to take its justification out of the unit entirely — the catalogue discovers components,
+a hook declares none, and the claim survived only as a triage note inside the guard, where no reader of the
+hook meets it. Four hooks sat in exactly that position. Enforcement is the same 100%, over the same
+anti-stamp rule (`@pattern Hook` is a layer restatement and fails), and the enforced set is a component's
+four clauses **plus** every ref-using module under `packages/apps/commise/**`.
+
+**Every other component MAY carry the tag and is encouraged to; its absence is reported as a coverage number
+and is never a build failure.** There is no exclusion list, and that is deliberate: route segments
+(`page`/`layout`/`error`/`loading`/`not-found`.tsx), icon glyphs and one-leaf wrappers are simply not in
+scope. An exclusion list was considered and rejected — it must anticipate every trivial shape in advance and
+gets them wrong by name: `ChromeIcon` reads as a glyph and is a Registry keyed by the shared nav model;
+`LocaleLayout` reads as a framework file and is a Null Object.
+
+⛔ **A tag that only restates the layer is rejected.** `@pattern Presentational Component`,
+`@pattern Container`, `@pattern Orchestration` and the like fail the gate. Without that rule the whole
+register is satisfiable by stamping, which would carry no information while reporting green — the outcome
+this section exists to prevent, delivered by the gate meant to prevent it.
+
+⛔ **Clauses 1-3 are derived from CODE; clause 4 is the only one read out of prose, and that is a hazard.**
+An obligation resting on the docblock can be escaped by deleting a word from the docblock — the gate goes
+green because the documentation got worse, silently, at the hand of the author who did not want to write the
+tag. Clause 4 is kept because clauses 1-3 miss every composition point in the tree, and the escape is closed
+by pinning its members (`DECLARED_ORCHESTRATION`), so a component that stops declaring orchestration fails
+by name. **Do not add a fifth prose-derived clause without pinning it the same way.**
+
+**What the gate proves and what it cannot.** It proves a claim was made and is not a restatement of the
+layer. It cannot prove the claim is TRUE — a `@pattern Adapter` on a component that stopped adapting
+anything is a lie with a machine-readable veneer, and only review catches that.
+
+⚠️ `docs/generated/components/index.json`'s `componentsWithPatternTag` is a **raw census over all 224
+components, not a coverage target.** It reads 49/224 today and will look like a failing coverage metric; the
+target is the gate's empty finding list, not that fraction.
+
+⚠️ **So is `classifiedComponents` — and its complement, the 129 components stating no layer, is a CENSUS and
+NOT a backlog (ruled 2026-09-03).** Measured: 33 of them are Next.js route segments and 16 are icon glyphs —
+the two shapes this section already names as "simply not in scope" — and 15 more declare no props at all.
+Appending "presentational" to `CheckIcon` or `loading.tsx` is the near-duplicate §8's owner ruling forbids.
+No rule can partition the rest either, and that is by design rather than by omission: `classify.ts` derives
+the layer from the docblock's PROSE and refuses to infer one from code shape, so the only evidence for "this
+one should have spoken" is the sentence that is missing. The count is asserted exactly, in both directions,
+so the silence cannot grow unnoticed — but 0 is not the goal, and driving it there would empty the register.
+The ONE part of that population a guard can call a defect is enforced at 100% with no ceiling: a component
+whose `@pattern` tag names a layer its prose does not, which sits outside clause 4 while its own
+documentation contradicts that. ⛔ Do not "fix" that by teaching the classifier to read tags —
+`Humble Object — the pure render half of the orchestration/render split` sits on a presentational leaf and
+contains the word "orchestration", so a tag-reading classifier manufactures the wrong answer.
+
+Enforced by `packages/infra/global/__tests__/patternRegister.test.ts`, over the pure predicates in
+`patternRegister.ts`. The same guard carries the triage of every ref site in the tree — CLAUDE.md's
+"refs are near-forbidden" rule, made checkable — as a set-equality register with a per-site verdict and a
+substantive reason, so a new ref cannot land untriaged and a removed one cannot leave a stale exemption
+behind.
 
 ---
 
@@ -907,3 +1256,509 @@ PR reviewers MUST verify:
    public API.
 4. No `.mobile.*` files introduced.
 5. `tasks.md` (if present) lists paired web + mobile tasks.
+
+---
+
+## 15. API Contracts — the service OWNS its wire types
+
+**The rule:** for every HTTP service in this repo, the **service** is the single authoritative source
+of its wire contract. That contract is expressed as an **OpenAPI document generated from the
+service's own DTOs**, and every client consumes **types the service owns**. A client package MUST NOT
+re-declare a request or response shape it does not own.
+
+### 15.1 Why this is a hard rule, not a preference
+
+A hand-written client type is a **second, independent representation of one piece of knowledge** — the
+wire contract — and it is the most expensive kind of duplication this codebase can carry, because the
+two copies drift _silently_ and the drift surfaces at the worst possible layer.
+
+Measured on 2026-08-11, before this section existed: `@kitchensink/recipe-service-client` declared 276
+lines of types and `@kitchensink/food-service-client` 144, and **neither imported anything from the
+service it speaks to**. No service had `@nestjs/swagger` installed; no service emitted OpenAPI. So a
+backend change that altered a response shape did not break any consumer's `typecheck` — the client
+went on asserting its own beliefs about the server. The only place the mismatch could surface was an
+end-to-end run against a live deployment: a **~50-minute Android emulator job** for mobile, or
+production.
+
+That is the failure this section exists to make structurally impossible. Contract drift must fail at
+**`typecheck`** (~1.6 minutes), not in e2e, and never in production.
+
+> **⚠️ Correction to the paragraph above (2026-08-11), because reading it uncorrected leads you to build
+> the wrong thing.** The "neither imported anything from the service" figure is literally true and
+> materially misleading. `packages/shared/recipe-core` **already owns the recipe DOMAIN types** —
+> `Recipe`, `RecipeDetail`, `CreateRecipeInput`, `PaginatedResponse`, `Collection`, `RecipePhoto`,
+> `RecipeVersion` — with runtime **zod** schemas, and it is imported by 78 recipe-service files and 13
+> client files. The 276 lines are the **residue**: the endpoint envelopes recipe-core does not cover. So
+> the duplication axis is `client types.ts` ↔ the service's own `*.types.ts`/`*-response.dto.ts`
+> (~25 pairs), NOT "client vs service" wholesale.
+>
+> **Therefore: a contract package REUSES recipe-core type-only and never re-declares its types.**
+> Re-declaring `Recipe` or `PaginatedResponse` to achieve a literally-dependency-free package would
+> manufacture the exact drift this section exists to prevent.
+
+### 15.2 The required shape (owner-approved 2026-08-11)
+
+**Zod is AUTHORED IN THE SERVICE. The schema package is a committed COPY of it.**
+
+```
+packages/services/<service>/src/**/*.schema.ts   ← zod authored HERE, beside the
+                                                    controller it serves, and used
+                                                    directly for request validation
+                        │
+                        │  copy  (turbo: $TURBO_ROOT$ inputs — NOT dependsOn; see 15.2.5)
+                        ▼
+packages/schemas/<service>/        @kitchensink/schema-<service>  — GENERATED, committed
+├── src/schemas.ts                 the zod, assembled from the service's *.schema.ts
+├── src/types.ts                   `z.infer` types
+├── src/contractHash.ts           hash of the service's schema sources
+├── src/index.ts                   barrel — named exports only
+└── openapi.yaml                   DERIVED from the zod, for oasdiff / docs / integrators
+                        │
+                        ▼
+packages/clients/<service> → web + mobile    (depend on the leaf, never on the service)
+```
+
+Two constraints drove this shape, and both are non-negotiable:
+
+- **Authoring lives in the service.** A contributor adding an endpoint must not have to edit a second
+  package to describe it — that is how a contract drifts or the practice gets abandoned.
+- **The package lives under `packages/schemas/`.** Not nested in the service, not under
+  `packages/services/`.
+
+Together they force a copy, and the copy is accepted deliberately. Naming it plainly matters: **the
+"generation" of `schemas.ts`/`types.ts` is a file copy**, not a transformation. Zod schemas are runtime
+values, so they cannot be derived from themselves; and every package here exports raw `./src/*.ts`
+(see `recipe-core`, the recipe client), so there is no bundle-into-`dist` path that would let a build
+inline them instead. The alternatives were a client dependency on the service package (drags the server
+graph into web and mobile) or moving the package next to the files (rejected — the location is fixed).
+
+⚠️ **THE COPY'S LOAD-BEARING CONSTRAINT — enforce it in code, not by convention.** A `*.schema.ts` file
+may import **only `zod` and other `*.schema.ts` files**. A single import of a service internal — a DAL
+type, a drizzle schema, a Nest symbol — either breaks the copied package outright or pulls the server
+graph into every client. This WILL be violated: `RecipeSearchResponse.facets` already takes its wire type
+from `../dal/search.dal.js`, which is this exact leak in shipped code. A lint rule and/or a generate-time
+check must fail loudly, naming the file and symbol.
+
+1. **Derivation flows one way: zod → `z.infer` types, and zod → `openapi.yaml`.** Zod is the authored
+   source. `openapi.yaml` is a **derived artifact for external consumption** — `oasdiff`, docs,
+   integrators — and is **NOT a codegen input**. Deriving types _through_ OpenAPI was rejected: JSON
+   Schema cannot express `readonly`, branded types, or template literals, and discriminated unions
+   flatten without explicit `oneOf`/`discriminator`, so it would degrade the strong gate (typecheck) to
+   serve the weak artifact.
+
+    The schema package is a copy of the service's zod and **depends on the service** in turbo — never the
+    reverse. Nothing in the schema package is hand-edited: to change a contract you edit the service's
+    `*.schema.ts` and regenerate. The service consumes its own zod for request validation (via
+    `nestjs-zod`'s `createZodDto`), so server and clients validate against one authored definition.
+
+2. **The schema package exports BOTH the types and runtime zod schemas.** A consumer gets compile-time
+   types and a runtime validator from one place, so a boundary can be checked at both layers without a
+   second representation.
+3. **It carries no runtime dependency on the service's graph** (no NestJS, no drizzle, no aws-sdk), so a
+   client can depend on it without pulling a server in. An `import type` dependency on a shared domain
+   package such as `recipe-core` is fine — it erases at compile time.
+4. **Every client imports its wire types and zod from the schema package.** `types.ts` in a client holds
+   only genuinely client-side types (config, options, its own error shapes) — never a wire shape.
+5. **Three drift layers, each catching what the others cannot. All three are required:**
+    - **Rebuild (turbo): use `inputs`.** `$TURBO_ROOT$`-anchored `inputs` covering the service's
+      `*.schema.ts` sources, so content hashing rebuilds the package automatically.
+
+        `dependsOn` is not forbidden on principle — it is the intuitive spelling, and where the graph
+        permits it, it works. Two things to know before reaching for it. **First, for most services here it
+        is unavailable**: a service that devDepends on its own client (a real contract-test tier driving the
+        published client against the booted app) closes the cycle `client → schema → service → client`, and
+        turbo rejects the graph outright. Measured 2026-08-12: `recipe-service` and `food-service` both do
+        this; `identity` does not, and has no client package at all, so the edge would build there.
+        **Second, ordering was never the requirement** — the generated files are committed and `build` only
+        compiles what is already on disk, so what this layer actually needs is cache INVALIDATION, which
+        `inputs` delivers on its own.
+
+        So `inputs` is the uniform choice: it is sufficient everywhere, and it means the three services do
+        not diverge on mechanism for a reason (the presence of a self-client devDependency) that has nothing
+        to do with contracts. Adding the edge where it happens to build would be a per-service special case
+        whose justification is invisible from the file you are reading. If you need it — a future service
+        with a genuine ordering requirement and no cycle — add it **alongside** `inputs`, never instead, and
+        record why in that package's turbo block.
+
+    - **Correctness (CI):** regenerate and fail on any diff against the committed artifacts. This is the
+      strong gate — it is what catches generated output that someone hand-edited.
+    - **Skew (runtime):** a `CONTRACT_HASH` over the service's `*.schema.ts` sources, embedded in both the service
+      and the schema package and asserted equal at service boot. This catches a **deployed** service
+      running ahead of a consumer's pinned schema — invisible to both layers above, and the live case for
+      mobile, where a released binary cannot be updated in step with a backend deploy.
+    - `oasdiff breaking` against the base branch is worth adding, with a known limit stated honestly:
+      `@nestjs/swagger` emits **no response schema** for a handler returning an `interface`, so until
+      every response type is a decorated class that check is blind to response changes — most of what
+      actually breaks a client.
+
+6. **One document per service, and it REPLACES any hand-written predecessor.** A generated document added
+   alongside a hand-maintained one makes the problem worse.
+    - `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2810 hand-written lines that **57
+      source files cite as their authority**, verified by nothing — is **superseded** by recipe's
+      generated document. Citations get repointed; the old file is marked superseded. Two documents both
+      claiming to be normative is the state this section exists to end.
+
+> **Superseded design note.** An earlier draft of §15.2 put the contract in `packages/contracts/<service>`
+> and linked it to the DTOs with `implements` (contract owns the type, DTO owns the validation). That was
+> replaced by the owner-approved shape above, which generates types **and zod** and points the turbo
+> dependency schema → service. The `implements` draft's one durable finding still applies as a hazard to
+> handle, not a reason to deviate: codegen cannot express a discriminated union (`IngredientSuggestion`)
+> or an intersection (`Collection`) from a decorated class without explicit `oneOf`/`discriminator`
+> handling. Handle those explicitly — a generated schema that silently flattens them to `object` is a
+> contract that lies, which is worse than no contract.
+
+### 15.3 Third-party APIs are the OPPOSITE case — do not "converge" them
+
+For an API we do **not** own (USDA FoodData Central, Clerk, Vercel), there is no service of ours to own
+the type, and the upstream contract cannot be trusted. Those clients **validate at the boundary with a
+runtime schema** (zod) and may legitimately declare their own types.
+
+`packages/clients/usda` is the reference implementation: `schemas.ts` validates the **raw upstream wire
+shape** the moment a body arrives, and deliberately differs from the normalized public type the client
+returns. **Do not delete those schemas in the name of this section, and do not add an OpenAPI contract
+for an API we do not serve.** §15.1's reasoning does not apply: duplication is only wrong when one side
+could have been derived from the other, and here it could not.
+
+### 15.4 Input validation — one parse at the boundary, and the database schema is its FLOOR
+
+**The rule:** every input a service accepts is **parsed at the boundary against the service's own authored
+zod** — the same `*.schema.ts` §15.2 already requires — before any branch, any write, and any outbound call.
+Downstream code receives a parsed type. It never re-checks an `unknown`, and it never hand-writes its own
+error path.
+
+§15.1–15.3 decide **who authors** the contract. This subsection decides **where that contract runs**. A
+service can satisfy every word of §15.2 and still accept anything, so these are separate obligations.
+Portfolio-wide obligation: [`specs/governance-rules.md` GR-016](../specs/governance-rules.md). Reasoning and
+rejected alternatives: [ADR-0015](architecture/decisions/0015-input-validation-at-every-boundary.md).
+
+**Measured 2026-08-11, before this subsection existed** — validation is three different mechanisms and one
+service has none:
+
+| Service                         | `ZodValidationPipe` | `createZodDto` | State                                                                     |
+| ------------------------------- | ------------------- | -------------- | ------------------------------------------------------------------------- |
+| `@kitchensink/recipe-service`   | 18                  | 26             | furthest along, **19 files still on `class-validator`** — two mechanisms  |
+| `@kitchensink/food-service`     | **0**               | **0**          | **no pipe at all** — `@Body() body: unknown` + per-method `safeParse`     |
+| `@kitchensink/identity-service` | 3                   | 4              | smallest surface; `PATCH /users/me` is the wrong-pipe case (15.4.4 below) |
+
+> ⚠️ **Two corrections to that table, measured 2026-08-12 — read these before using its numbers.**
+>
+> 1. **"19 files still on `class-validator`" is a MENTION count, not an importer count.** `grep -rl "from
+'class-validator'"` over service sources (excluding `dist`) returns **one** file:
+>    `packages/services/recipe-service/src/search/dto/searchRecipes.query.dto.ts`. The other 18 mention the
+>    string in JSDoc **about migrating away from it**. Recipe is **one file** from one mechanism, not nineteen —
+>    a difference that changes whether this is a task or a project. **Count importers, not mentions.**
+> 2. **Identity is now 6 / 6**, and **food's fix is in the working tree but uncommitted** (5 / 3). Committed
+>    `main` still has food at 0 / 0, which is what makes food the standing proof that §15.2 and §15.4 are
+>    independent: it has a schema package, a derived `openapi.yaml`, and no validation.
+
+Food's shape is the instructive one: because each method hand-writes its own `safeParse` and its own message,
+a **wrong-typed field**, a **missing field** and an **unknown key** all come back as
+`{ error: 'Empty name' }`. Three different failures, one wrong answer — the caller cannot fix any of them.
+
+1. **One mechanism per service, and it is `createZodDto` + `nestjs-zod`'s `ZodValidationPipe`.** Bodies, path
+   params, query params and any header a handler reads go through it. No second DTO, no `class-validator`
+   decorator set alongside it, no per-method `safeParse`. Two mechanisms in one service means two error
+   contracts and two sets of edge cases, and which one a route gets becomes a per-file accident.
+2. **Validation failure has ONE path per service** — a `400` that names the offending field(s). A
+   hand-written message per method is how three distinct failures collapse into one string.
+3. **`@Body() body: unknown` is banned.** It moves the parse into the method body, where it is optional by
+   construction and gets skipped on the next endpoint someone adds.
+4. ⚠️ **`createZodDto` requires `nestjs-zod`'s `ZodValidationPipe`. Under Nest's own built-in
+   `ValidationPipe` it validates NOTHING while looking correctly wired.** The schema is present, the DTO is
+   referenced, the route reads as validated, and no input is checked. This already bit identity on
+   **`PATCH /users/me`** — a route that writes user data. It is invisible in review by construction, so the
+   only thing that catches it is a test that posts a **known-bad body to a real route** and asserts the
+   `400`. Write that test per controller.
+5. ⚠️ **`z.object()` strips unknown keys silently; `z.strictObject()` rejects them.** **`z.strictObject()` is the
+   portfolio default for every MUTATING request body** (`POST`/`PUT`/`PATCH`/`DELETE`-with-a-body), ruled
+   2026-08-12 — see **§15.5.2**, which closed GR-016 OPEN-GR-016-B. Plain `z.object()` is permitted only where a
+   forward-compatibility reason is **documented at the schema**, which in practice means a **read** surface such
+   as a query string. Inheriting zod's default by accident means a client that misspells a field gets a `200`
+   and no write.
+6. **The surfaces a pipe never sees are in scope.** A Nest pipe covers HTTP only:
+    - **Queue and event consumers** — `packages/services/recipe-workers/src/handlers/*`, food's
+      change-refresh / SQS consumers. An SQS body is a string the producer chose; parse it against an
+      authored zod before it becomes a job.
+    - **Webhooks** — `packages/services/identity-webhooks/src/handlers/*`. `identityWebhook.ts` verifies the
+      **svix signature**, and that stays. **But a signature proves ORIGIN, not SHAPE.** A correctly signed
+      Clerk payload whose fields moved or went null is still an unvalidated body being written to the
+      identity database. Verify the signature **and then** validate the schema — never one instead of the
+      other.
+7. **Nothing reaches a database or another service unvalidated.** A DAL is not where input first meets a
+   constraint. On a service-to-service call — recipe → food, and identity's erasure fan-out
+   (`packages/services/identity-webhooks/src/common/erasureFanout.ts`) →
+   `POST /api/v1/internal/account/erasure` on recipe and food — the **outbound body is validated against the
+   callee's schema-package zod before the call**, and the **inbound response is validated on receipt**.
+   "Internal" is not a synonym for "trusted".
+8. **THE FLOOR: every input field that writes a bounded column is validated at least as strictly as that
+   column can store.** Numeric range, string length, precision/scale, enum domain, nullability. A value the
+   column cannot hold is a **`400` at the boundary**, never a failed `INSERT`.
+
+    The live defect: five int-backed recipe wire fields — `servings`, `prepTimeMinutes`, `cookTimeMinutes`,
+    `totalTimeMinutes`, `timerSeconds` — had **no upper bound** while writing `integer` (`int4`) columns
+    capped at **2,147,483,647**. `servings: 9999999999` **passed validation** and failed at the `INSERT`:
+    **a 500 that should have been a 400**, on a plain user input.
+
+    ⚠️ **This is an ASSERTION about two independently authored artifacts, NOT a derivation between them.**
+    **Zod is never generated from drizzle, and a wire type never imports a storage type** — that coupling is
+    exactly what §15.2 removed when it flagged `RecipeSearchResponse.facets` taking its wire type from
+    `../dal/search.dal.js`. The `*.schema.ts` import constraint is **unchanged** by this subsection. The two
+    artifacts stay independent and must agree in **one direction only**: the wire bound is at least as tight
+    as the column.
+
+    **And a floor is not a target.** Recipe's text columns are `text()` — **unbounded** in PostgreSQL — so a
+    length limit on a title, a step or a note is a **product decision with no storage floor to derive from**.
+    "The column allows it" is not an argument for accepting it.
+
+9. **No request-derived value may reach `sql.raw()`.** `sql.raw` **bypasses parameterisation by design**.
+   Measured 2026-08-11, only three sites pass it a non-literal, and all three take a config value or a module
+   constant, so **none is currently reachable from user input**:
+   `packages/services/recipe-service/src/search/dal/search.dal.ts`, and recipe-workers'
+   `erasureSweeper.ts` / `erasureOrphanSweeper.ts`. Preserve that. Where a request legitimately selects an
+   identifier (a sort column, a partition), the **validated enum maps to a closed allowlist of literals in
+   code** — the request supplies the key, never the SQL fragment.
+10. ⛔ **Response validation is DEFERRED, deliberately — do NOT "complete" it.** No service validates its own
+    responses, and that is an owner decision: TypeScript at the boundary plus client-side validation on
+    receipt (rule 7) were judged sufficient for now. Adding server-side response parsing **undoes a
+    decision** rather than closing a gap. The cost is recorded honestly instead of hidden — §15.2(5)'s
+    `oasdiff` blind spot means response changes are weakly gated — but that is an argument about the drift
+    gates, not a licence to reverse the deferral. Reversing it needs its own proposal.
+
+> **Why rule 7's receipt-validation is not rule 10's response validation.** A **consumer** parsing what it
+> received is defending itself and can do so unilaterally. A **producer** validating what it emits is a
+> different, deferred obligation. Requiring the first does not quietly enact the second.
+
+### 15.5 Conformance for every NEW service, client and app — and what happens when input is REJECTED
+
+§15.2 and §15.4 are written as obligations on **existing** code. This subsection is what makes them binding on
+code that does not exist yet, and it is where the **failure** side of the boundary parse is decided. Portfolio
+obligations: [`specs/governance-rules.md`](../specs/governance-rules.md) **GR-017** (conformance), **GR-018**
+(rejection), **GR-019** (identifiers), **GR-020** (dual-signal principals). GR-017 §17-e carries the fourteen
+things a feature spec must state and marks which of them are mechanically checkable.
+
+#### 15.5.1 A new package owes its obligations on the day it is created, and the gate must DISCOVER it
+
+A **new deployable HTTP service** owes, from its first commit: authored zod at `src/**/*.schema.ts`; a
+`contract:generate` script; a committed `packages/schemas/<service>` with the derived `openapi.yaml`; a
+`CONTRACT_HASH` assertion **at boot**; **`nestjs-zod`'s** `ZodValidationPipe` registered; `z.strictObject()` on
+mutating bodies; a parse on every non-HTTP ingress it owns; and the four test tiers §7.1 requires of a
+deployable. A **new client or app package** owes: zero declared wire shapes, imports of type **and** zod from
+the schema package, **response validation on receipt**, outbound bodies validated against the **callee's** zod,
+and a contract-skew guard (`packages/clients/{food-service,recipe-service}/src/contractSkew.ts` is the pattern).
+
+⚠️ **A conformance test that enumerates services or clients from a hardcoded list is itself the defect.** A list
+is a thing to forget, and the package created next week will not be on it. Every gate discovers its subjects
+from `packages/services/*/package.json`, `packages/clients/*/package.json`, `packages/schemas/*/package.json`
+or `git ls-files` — the pattern already used by
+`packages/infra/global/__tests__/appServiceDependency.test.ts` (discovers services, scans `git ls-files`,
+counts type-only imports as violations) and by `scripts/contractOwners.mjs` `discoverContractOwners`.
+
+⚠️ **`*.schema.ts` is an overloaded suffix — a globbing gate must not treat every match as a wire contract.**
+Each service also has `src/config/env.schema.ts`, its Zod **environment** schema, which is deliberately not
+published. `@kitchensink/contract-gen`'s `discoverAuthoredSchemas` already owns the exclusion (exact relative
+paths, each with a reason, failing on a **stale** entry, and separately rejecting an authored wire schema that
+imports an excluded sibling). A new gate reuses that list rather than inventing a second one.
+
+**The honest state of enforcement is recorded in GR-017 → _Enforcement_, including the gates that do NOT exist**
+(clients-declare-no-wire-types, `z.strictObject()`, and the storage-floor mapping-completeness assertion). Read
+it before assuming a rule here is checked.
+
+#### 15.5.2 `z.strictObject()` for mutating bodies (closes GR-016 OPEN-GR-016-B)
+
+Every mutating request body uses `z.strictObject()`. Plain `z.object()` needs a documented
+forward-compatibility reason at the schema. The trade is genuine in both directions — rejecting unknown keys
+catches a client's typo, accepting them lets a newer client talk to an older service — and the ruling picks the
+direction whose failure is **visible**: on a mutating body a stripped unknown key is a `200` **plus a silent
+partial write**, so the caller is told it succeeded and the stored data is not what it sent.
+
+#### 15.5.3 The storage floor is a per-service parity TEST — and it is ALREADY BUILT (closes GR-016 OPEN-GR-016-A)
+
+§15.4(8)'s floor is enforced by a test, not a review checklist — a checklist cannot survive a migration six
+months from now. ✅ **The mechanism exists**: `@kitchensink/contract-gen`'s `auditStorageCapacity` /
+`collectBoundedColumns` / `formatStorageCapacityFindings`
+(`packages/tools/contract-gen/src/storageCapacity.ts`), wired by a `storageCapacity.test.ts` in **all three**
+services (`recipe-service/src/database/__tests__/`, `food-service/src/db/schema/__tests__/`,
+`identity/src/types/schema/__tests__/`). **A new service copies that pattern; it does not invent one.** Four
+properties are load-bearing:
+
+1. It lives in the **service**, not in the schema package and not in the wire schemas.
+2. **It is an assertion over two independently parsed models, never a derivation.** It takes the drizzle tables
+   as `unknown` and reads them **structurally** through drizzle's registered symbols
+   (`Symbol.for('drizzle:Columns')`), so `contract-gen` carries **no `drizzle-orm` dependency** — it is imported
+   by all three services and must not drag an ORM behind it. It reads zod bounds through the **public**
+   `z.toJSONSchema`, not zod internals, which is what makes `.optional()`/`.nullable()`/`.default()`/`z.coerce`
+   unwrap without a hand-rolled walker. ⛔ Do **not** "tidy" this by adding a `drizzle-orm` dependency or by
+   reaching into zod's internals.
+3. The field→column **mapping is supplied per service by the caller**, because two wire fields may write one
+   column and a column may be written by none — that knowledge is genuinely the service's.
+4. **The audit is exhaustive over COLUMNS.** Every bounded column is either bound to the fields that write it or
+   declared not-client-writable **with a reason**, so a new `varchar(n)` or `smallint` fails the gate the day it
+   is added. `stale-account` and `duplicate-account` findings keep the bookkeeping honest in the other direction.
+
+#### 15.5.4 ONE rejection path, the cause in a `reason`, and an invalid payload is NEVER retried
+
+Every boundary rejection takes **one** code path per ingress and produces **one** structured shape whose
+`reason` names the cause. **A credential/signature failure and a shape failure are equally invalid and MUST NOT
+have two different behaviours** — they differ only in `reason`. An invalid payload is **never retried**: it
+cannot become valid by being sent again, so retrying converts a producer's bug into sustained load. (A
+**transient dependency** failure is a different condition with a different `reason` and MAY retry.)
+
+⚠️ **For a signature-verifying third-party sender, "not retried" means answering `2xx` — but ONLY for a SHAPE
+failure.** svix (Clerk) and Stripe retry on **any** non-2xx (Stripe for 72 hours), so returning `400` for a body
+that cannot parse _requests_ the retry storm this rule forbids. Answer `2xx`, and record the rejection in the
+response body, in structured logs with its `reason`, in a per-`reason` counter, and **alarm on that counter**.
+**Reject the content, accept the delivery.**
+
+⛔ **A SIGNATURE failure on the same endpoint is answered NON-2xx, and collapsing the two onto one status breaks
+something either way.** "Not retried" applies to input that **cannot become valid**. A signature failure has two
+possible causes and both argue against `2xx`: the caller may not be the real sender (and on a public endpoint the
+signature is the _only_ trust boundary, so a `2xx` tells a forger the forgery landed), or the caller **is** the
+real sender and **our** signing secret is stale — a **transient, operator-fixable** condition where the sender's
+retry window is exactly the recovery mechanism. Answering `2xx` there says "delivered" and discards every queued
+real event permanently, behind a green check. **That incident is on record in this repository** (a dropped
+`user.created` left Clerk holding a user the database did not), and an earlier revision of
+`packages/services/identity-webhooks/src/common/handlerPipeline.ts` caused it by returning `2xx` for both.
+
+So the rule is **one path, one shape, one `reason`, one counter** — with the **status derived from the `reason`
+by a single complete lookup**, so adding a reason fails to compile until its retry disposition is decided.
+`WEBHOOK_REJECTION_STATUS` (`shape → 200`, `signature → 401`) in that same file is the reference. The question a
+status answers is **"would a redelivery ever succeed?"**
+
+None of this generalises to our own callers: an endpoint called by our own services or clients returns the
+`400`/`403` §15.4(1) requires (they do not blind-retry, and a `2xx` would hide a fixable bug from the party able
+to fix it), and an ingress with no caller at all (SQS, EventBridge) dead-letters once with the `reason` and
+alarms on DLQ depth.
+
+⛔ **A rejected event is NOT recorded as a row.** An invalid payload has no trustworthy identifier, and a table
+whose identity column is `NOT NULL` forces the writer to invent one — the sentinel §15.5.5 forbids. This is
+live: `webhook_events.identity_id` in the identity database is `text NOT NULL`. The log line, the counter and
+(where applicable) the DLQ entry **are** the record, which makes them load-bearing rather than decorative — a
+rejection nobody can see is indistinguishable from a success.
+
+#### 15.5.5 Identifiers are never sentinels
+
+No identifier — a user id, a producer name, a tenant, a principal — may be `'unknown'`, `'none'`, `''`, `'n/a'`
+or `0`, anywhere it is **stored**, **put on a wire**, used as a **map/cache key**, used as a **metrics
+dimension**, or **compared in a branch**. (A sentinel in a log _message_ is prose; in a structured log _field_
+it is data.) An id is **REQUIRED** wherever one is consumed and is typed as required, never
+optional-with-a-default. The sole exception is a **create/upsert**, where an absent id is **generated** (ULID).
+An identifier that cannot be resolved is a **rejection** (§15.5.4), never a placeholder — a sentinel is silently
+wrong in every aggregate it touches, is indistinguishable from a real value afterwards, and when the id is a
+principal it means an authorization decision was made by a string literal. A legitimately absent relationship
+is `NULL` and `| null`, which is checkable; a magic string is not.
+
+#### 15.5.6 Where two principals are asserted, require BOTH and reject on mismatch
+
+Where a request carries both a **transport-asserted** principal (a token `sub`, an EventBridge `source`) and a
+**payload-asserted** one, both are REQUIRED, the transport signal must **resolve through a version-controlled
+registry to a name** (an allowlist that only answers yes/no cannot attribute a counter or a quota), the two must
+be **equal**, and a mismatch is a **rejection** — never resolved by preferring one signal, and the
+payload-asserted value is **never** trusted on its own. The registry mapping must be **injective, asserted at
+boot**, and must be committed data rather than a table: a runtime write would change a trust boundary with no
+review and no deploy. The transport signal proves **origin**, the payload field states **intent**, and a
+disagreement is real evidence — a misconfigured producer, a payload copied between environments, an attempt to
+spend another principal's quota. Precedent: PR #39 removed the trusted `x-authorizer-context` header from the
+identity service because a client-suppliable header behind a public ALB is forgeable; a payload field the sender
+controls is the same problem one layer in.
+
+### Rules
+
+1. A `packages/clients/*` package MUST NOT declare a type describing a request or response body of a
+   service in `packages/services/*`. Import it from that service's contract package.
+2. Every HTTP service MUST emit an OpenAPI document from its DTOs, committed, with the drift and
+   breaking-change gates wired in CI.
+3. A new endpoint is not complete until its types are reachable from the contract package. "The client
+   will add the type" is a contract fork, not a task.
+4. A third-party API client MUST validate responses at the boundary with a runtime schema, and MUST NOT
+   be given a hand-written OpenAPI document for an API we do not serve.
+5. Where this section and an existing hand-written client type conflict, **this section wins** — the
+   client is the one that changes.
+6. Every service input — HTTP body/params/query, queue message, event, webhook payload — MUST be parsed at
+   the boundary by the service's authored zod, through **one** mechanism per service with **one** `400` path.
+   `@Body() body: unknown` is banned; a signature check is not a schema check.
+7. Every input field writing a **bounded column** MUST be validated at least as strictly as that column can
+   store, **asserted** — never by generating zod from drizzle or importing a storage type into a wire schema.
+8. A request-derived value MUST NOT reach `sql.raw()`. Request-selected identifiers map through a validated
+   enum to a closed allowlist of literals.
+9. Server-side **response** validation MUST NOT be added while §15.4(10)'s deferral stands. Consumer-side
+   validation **on receipt** is required and is a different obligation — do not conflate them.
+10. A **new** service or client package MUST satisfy §15.5.1 from its first commit, and every conformance gate
+    MUST **discover** its subjects from the filesystem. A hardcoded list of services or clients in a
+    conformance test is itself a violation, because it cannot see the next package.
+11. Every **mutating** request body MUST use `z.strictObject()` (§15.5.2). Plain `z.object()` requires a
+    forward-compatibility reason documented at the schema.
+12. Every boundary rejection MUST take **one** path per ingress carrying the cause in a `reason` field, and an
+    **invalid** payload MUST NOT be retried — which for a signature-verifying third-party sender means
+    answering **`2xx`** on a **shape** failure, with the rejection recorded, counted **and alarmed**. A
+    **signature** failure on that same ingress MUST answer **non-2xx**, because it may be our own stale secret
+    and the sender's retry is the recovery (§15.5.4). The status MUST come from **one complete reason→status
+    lookup**, never a second branch. A rejected payload MUST NOT be written as a row.
+13. An identifier MUST NEVER be a sentinel, and MUST be required everywhere it is consumed except on a
+    create/upsert, where it is generated (§15.5.5). Where two principals are asserted, **both** are required
+    and a mismatch is a rejection (§15.5.6).
+
+---
+
+## 16. Persistent-Schema and Task-Identifier Uniqueness
+
+**Normative rule**: [`specs/governance-rules.md` GR-021](../specs/governance-rules.md#gr-021-one-declarer-per-table-name-and-one-definition-per-task-id).
+**Reasoning and rejected alternatives**: [ADR-0018](architecture/decisions/0018-per-sender-webhook-dedup-tables.md).
+
+Two identifiers in this repository are joined on by other documents and by migrations, so a duplicate is a wrong
+answer that reads like a right one. Both were found by accident on 2026-08-12, and both are now gated.
+
+### 16.1 A table name has exactly ONE declarer
+
+Feature 010 planned a `webhook_events` table for Stripe dedup. That name already ships in the same database, for
+Clerk/svix dedup, keyed `svix_id text PRIMARY KEY` with `identity_id text NOT NULL` and a disjoint column set. Two
+tables under one name is a migration that fails at deploy — or one that succeeds and corrupts dedup for **both**
+senders. The same sweep found feature 011 planning a second `recipe_versions` while the recipe service already ships
+one, forking a `(recipe_id, version_number)` sequence that has a single writer.
+
+1. A table name is declared by **one** owner: one feature, or one shipped package. This binds across features,
+   between a feature and shipped code, and between two shipped packages — **including when the two live in
+   different logical databases**, because the name is how humans and tools identify the table.
+2. A spec **declares** a table by writing its DDL in a fenced ` ```sql ` (`CREATE TABLE`) or ` ```ts `
+   (`pgTable('…')`) block. Prose naming a table is a **reference**, which is normal and correct — a feature that
+   reads another's table is not claiming it. A prose-only declaration is **invisible to the gate**, so writing the
+   DDL is the author's obligation, not the tool's problem.
+3. A **not-yet-implemented** feature MUST NOT `CREATE TABLE` a name that already ships: the statement can only fail
+   or clobber. To reuse the table, the **owning service** writes it and the feature calls that service.
+4. A table with more than one writer is a design smell to resolve, not to document. The three ways out, in
+   preference order: **rename** one, **namespace per writer**, or model **one shared table with a discriminator** —
+   and the last is a real migration of a live table, so it needs the constraint analysis ADR-0018 works through,
+   not a hunch.
+
+### 16.2 A task identifier is DEFINED once per `tasks.md`
+
+Feature 007 defined eight IDs twice — 60 checkbox lines for 52 IDs — so a traceability row could be closed by the
+wrong task and `Depends on: T-043` had no single referent.
+
+1. A **definition** is the line carrying the done-state: a checkbox item, or (in a file using no checkboxes at all)
+   a heading. Every other appearance — a `Depends on:` continuation, a matrix row, a node in a fenced dependency
+   graph, prose — is a **reference**, and repeating a reference is correct.
+2. One task serving two user stories is **defined once**, tagged with every story it serves, its second site a
+   **non-checkbox pointer**. Two different deliverables get two identifiers.
+3. An identifier's suffix is part of it: `T001`, `T001a` and `T001-alb` are three different tasks.
+
+### 16.3 The gates PARSE, they do not grep — and they DISCOVER, they do not enumerate
+
+A text-matching gate written in this repository passed against deliberately broken code because the docstring above
+it contained the words the gate searched for. Four more measured reasons, all from this tree:
+
+| A text gate would…                               | Because                                                              |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
+| report ~30 phantom duplicate task IDs in 007     | its dependency graph is a fenced block full of `[T-001]` nodes       |
+| manufacture ~50 more in 001                      | a `T\d+` match truncates `T001-alb` and `T005-core` to `T001`/`T005` |
+| see **3** of this repo's tables, not all of them | drizzle writes `pgTable(` and the name on different lines            |
+| count a commented-out `CREATE TABLE`             | SQL comments and string literals name tables constantly              |
+
+So: markdown is scanned with a CommonMark-correct fence tracker, SQL with comments and literals stripped, and
+TypeScript with the compiler's own parser. Subjects are discovered via `git ls-files` — a hardcoded list of features
+is itself the defect, because the next feature arrives unguarded.
+
+**Exemptions carry a mandatory, substantive `why`** and pin the **exact** owner set, per the precedent of
+`contract-gen`'s `AllowedPackageImport.why` and `ColumnAccount.why`. A blank or one-word reason fails, and a third
+declarer joining an exempted pair fails. Gates:
+`packages/infra/global/__tests__/specTaskIds.test.ts` and `.../specTableCollisions.test.ts`, over the shared
+parser `.../specDeclarations.ts`.

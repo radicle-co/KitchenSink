@@ -37,7 +37,7 @@ Started 2026-07-15 on the resumed Phase 6 run (worktree `.worktrees/001-commise-
    `src/**/__tests__` + `src/**/*.test.ts`, and `npm run lint` runs
    `eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'`. Vitest transpiles without typechecking, so
    nothing checks them. Typechecking them with the exclusion lifted surfaces ~10 pre-existing errors in
-   `versions.service.test.ts`, `load-config.test.ts`, `schema.test.ts`, `auth.middleware.test.ts`.
+   `versions.service.test.ts`, `loadConfig.test.ts`, `schema.test.ts`, `auth.middleware.test.ts`.
    Out of scope for this slice; worth its own task.
 
 ---
@@ -114,7 +114,7 @@ function`) before any implementation existed.
 | --------------------------------- | :-----------: | ------------------------------------------------------------------------------------------------------------------------ |
 | Task-Code correspondence          |      ✅       | 6 flipped (T130-test, T130, T131, T132, T133, T138) → **152/187**.                                                       |
 | Spec AC alignment                 |      ✅       | FR-007b-i satisfied end to end: save records intent → sweeper dispatches → worker archives + prunes → DLQ/backlog alarm. |
-| Unplanned changes                 |    ✅ None    | `version-archive-worker.ts` mutated during verification, restored.                                                       |
+| Unplanned changes                 |    ✅ None    | `versionArchiveWorker.ts` mutated during verification, restored.                                                         |
 | Plan alignment                    | ⚠️ divergence | Worker path is `src/handlers/*.ts` (esbuild entryPoints + CDK handler strings), NOT tasks.md's `src/<name>/handler.ts`.  |
 | Dependency / supply-chain (W5-C2) | ✅ None added | `@kitchensink/recipe-core` added to recipe-workers — a workspace package, not a registry fetch.                          |
 
@@ -175,7 +175,7 @@ converts an inert stub into a false "erased". Full note at the head of tasks.md'
 ### Divergences from tasks.md text (deliberate, verified)
 
 - **Worker location** — tasks.md says `src/version-archive-worker/handler.ts`; reality is
-  `src/handlers/version-archive-worker.ts`, which esbuild's `entryPoints` **and** the CDK handler
+  `src/handlers/versionArchiveWorker.ts`, which esbuild's `entryPoints` **and** the CDK handler
   strings already target. Moving it would break the build for no gain.
 - **`CloneCollectionRequest` DTO** — implemented as a zod schema + `parseOrThrow` (the controller's real
   convention), not a class DTO.

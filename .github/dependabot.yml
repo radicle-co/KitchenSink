@@ -1,11 +1,39 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
+# Dependabot version updates.
+#
+# See https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# ── Why `github-actions` is here ────────────────────────────────────────────────────────────────────
+# Every third-party action under `.github/` is pinned to a full commit SHA (zizmor `unpinned-uses`), which
+# stops a mutable tag from silently repointing at new code. That trade has a cost: a SHA pin never updates
+# itself, so without Dependabot owning this ecosystem the pins rot and CI keeps running known-vulnerable
+# action code forever — the classic pinned-and-forgotten failure. Dependabot rewrites BOTH the SHA and the
+# trailing `# vX.Y.Z` comment, so the pin and its human-readable label cannot drift apart. Removing this
+# entry silently converts the pins from a hardening measure into technical debt.
+#
+# ── Why `cooldown` is here ──────────────────────────────────────────────────────────────────────────
+# A freshly-published version is the highest-risk moment to adopt one: compromised releases of popular npm
+# packages have typically been yanked within hours to days of publication, and a same-day Dependabot PR is
+# how that reaches a repository. `default-days: 7` makes version-update PRs wait out that window.
+#
+# This does NOT slow security fixes. Cooldown applies to VERSION updates only; Dependabot SECURITY updates
+# (the ones raised from an advisory) bypass it and still open immediately. So do not "fix" a slow-looking
+# upgrade cadence by deleting this — check whether the update you are waiting on is a version update, which
+# by design is not urgent.
 version: 2
 updates:
-    - package-ecosystem: 'npm' # See documentation for possible values
-      directory: '/' # Location of package manifests
+    - package-ecosystem: 'npm'
+      directory: '/'
       schedule:
           interval: 'weekly'
+      cooldown:
+          default-days: 7
+
+    - package-ecosystem: 'github-actions'
+      # `/` is correct for this ecosystem even though the manifests live in `.github/workflows/` — Dependabot
+      # interprets the directory as the repository root and discovers `.github/workflows/**` plus
+      # `.github/actions/**/action.yml` from there.
+      directory: '/'
+      schedule:
+          interval: 'weekly'
+      cooldown:
+          default-days: 7

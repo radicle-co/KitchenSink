@@ -186,7 +186,7 @@ const portalSession = await stripe.billingPortal.sessions.create({
 | `customer.subscription.deleted`        | Downgrade to free: set `plan = 'free'`, `subscriptionStatus = 'canceled'`, clear `stripeSubscriptionId`                           |
 | `customer.subscription.trial_will_end` | Send trial-ending notification (fires 3 days before trial end)                                                                    |
 
-**Idempotency is mandatory** — Stripe retries webhooks for 72 hours. Store processed `stripeEventId` in a `webhook_events` table with a unique constraint. Check before processing:
+**Idempotency is mandatory** — Stripe retries webhooks for 72 hours. Store processed `stripeEventId` in a `stripe_webhook_events` table with a unique constraint (⚠️ **not** `webhook_events` — that name already ships for Clerk/svix dedup; ADR-0018). Check before processing:
 
 ```typescript
 @StripeWebhookHandler('customer.subscription.updated')
@@ -358,10 +358,16 @@ This means the `PlanGuard` only gates **write/action** endpoints, not read acces
 
 ## 4. Database Schema Additions
 
-### 4.1 `webhook_events` Table (Idempotency)
+### 4.1 `stripe_webhook_events` Table (Idempotency)
+
+> ⚠️ **SUPERSEDED NAME (2026-08-12).** This research proposed `webhook_events`. That name was already taken by a
+> shipped table in the same database (Clerk/svix dedup, `svix_id text PRIMARY KEY`, `identity_id text NOT NULL`).
+> The ratified name is **`stripe_webhook_events`** — see
+> [ADR-0018](../../docs/architecture/decisions/0018-per-sender-webhook-dedup-tables.md) and `plan.md` §2, which are
+> normative over this file. The columns below are otherwise unchanged.
 
 ```sql
-CREATE TABLE webhook_events (
+CREATE TABLE stripe_webhook_events (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   stripe_event_id  VARCHAR(255) UNIQUE NOT NULL,  -- unique constraint for idempotency
   event_type  VARCHAR(100) NOT NULL,
@@ -370,7 +376,7 @@ CREATE TABLE webhook_events (
   processed_at TIMESTAMPTZ,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_webhook_events_stripe_event_id ON webhook_events(stripe_event_id);
+CREATE INDEX idx_stripe_webhook_events_stripe_event_id ON stripe_webhook_events(stripe_event_id);
 ```
 
 ### 4.2 Account Entity Additions
@@ -386,19 +392,19 @@ CREATE INDEX idx_accounts_stripe_subscription_id ON accounts(stripe_subscription
 
 ## 5. Key Decisions & Recommendations
 
-| Decision          | Recommendation                                     | Rationale                                                        |
-| ----------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| Pricing           | $6.99/mo or $59.99/yr                              | Competitive with Mealime/Sabor; reflects AI feature depth        |
-| Trial             | 14-day free trial                                  | Industry standard; Stripe supports natively                      |
-| Checkout          | Stripe Checkout (hosted)                           | No PCI scope; fastest to ship                                    |
-| Portal            | Stripe Customer Portal                             | Handles plan switch, cancel, payment update without custom UI    |
-| Upgrade proration | `always_invoice`                                   | User pays immediately, gets access immediately                   |
-| Downgrade timing  | End of period (`schedule_at_period_end`)           | Prevents credit exploitation; matches user expectation           |
-| Webhook library   | `@golevelup/nestjs-stripe` v3.0.0                  | Native NestJS DI, auto-signature verification, decorator routing |
-| Idempotency       | `webhook_events` table with unique `stripeEventId` | Stripe retries for 72h; must be idempotent                       |
-| Feature gating    | `@RequirePremium()` decorator + `PlanGuard`        | Composable, testable, consistent across all features             |
-| Grace period      | 7 days `past_due` before locking premium           | Reduces churn from transient payment failures                    |
-| Data retention    | Retain all data on lapse; gate actions not reads   | FR-043 compliance; user trust                                    |
+| Decision          | Recommendation                                        | Rationale                                                              |
+| ----------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| Pricing           | $6.99/mo or $59.99/yr                                 | Competitive with Mealime/Sabor; reflects AI feature depth              |
+| Trial             | 14-day free trial                                     | Industry standard; Stripe supports natively                            |
+| Checkout          | Stripe Checkout (hosted)                              | No PCI scope; fastest to ship                                          |
+| Portal            | Stripe Customer Portal                                | Handles plan switch, cancel, payment update without custom UI          |
+| Upgrade proration | `always_invoice`                                      | User pays immediately, gets access immediately                         |
+| Downgrade timing  | End of period (`schedule_at_period_end`)              | Prevents credit exploitation; matches user expectation                 |
+| Webhook library   | ⚠️ SUPERSEDED — `stripe` SDK in a raw Lambda          | ADR-0017 moved the webhook to `identity-webhooks`, which has no NestJS |
+| Idempotency       | `stripe_webhook_events` table, unique `stripeEventId` | Stripe retries for 72h; must be idempotent (name per ADR-0018)         |
+| Feature gating    | `@RequirePremium()` decorator + `PlanGuard`           | Composable, testable, consistent across all features                   |
+| Grace period      | 7 days `past_due` before locking premium              | Reduces churn from transient payment failures                          |
+| Data retention    | Retain all data on lapse; gate actions not reads      | FR-043 compliance; user trust                                          |
 
 ---
 

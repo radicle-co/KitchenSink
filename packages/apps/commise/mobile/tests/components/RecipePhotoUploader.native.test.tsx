@@ -42,6 +42,8 @@ vi.mock('expo-image-picker', () => ({
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipePhotos: vi.fn(),
     useCreatePhotoUploadUrl: vi.fn(),
     useConfirmPhotoUpload: vi.fn(),
@@ -457,6 +459,7 @@ describe('RecipePhotoUploader — queueing a second pick while uploading (w3/e4)
             expiresIn: number;
             maxBytes: number;
         }) => void = () => {};
+
         const createMutateAsync = vi
             .fn()
             .mockImplementationOnce(

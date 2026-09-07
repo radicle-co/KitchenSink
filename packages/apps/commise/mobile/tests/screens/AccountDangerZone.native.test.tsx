@@ -25,7 +25,7 @@ import { accountDangerMessages } from '@commise/features-account/danger';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
-import { useDeleteAccount } from '../../src/hooks/useUserProfile.js';
+import { useDeleteAccount, useEraseAccount } from '../../src/hooks/useUserProfile.js';
 
 const { signOut, signOutAndVerify } = vi.hoisted(() => ({ signOut: vi.fn(), signOutAndVerify: vi.fn() }));
 vi.mock('@clerk/expo', () => ({
@@ -37,15 +37,22 @@ vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useAllOwnerRecipes: vi.fn(),
     useRequestAccountErasure: vi.fn(),
 }));
 
-vi.mock('../../src/hooks/useUserProfile.js', () => ({ useDeleteAccount: vi.fn() }));
+// `useEraseAccount` is the ACCOUNT-level erasure (plan U2) — a different call from the recipe-side
+// `useRequestAccountErasure` above, and the one that makes an erasure reach identity, Clerk and food.
+// Its default double ACCEPTS, so the tests below exercise the exit path they are about.
+vi.mock('../../src/hooks/useUserProfile.js', () => ({ useDeleteAccount: vi.fn(), useEraseAccount: vi.fn() }));
 
 const useRecipesMock = vi.mocked(useAllOwnerRecipes);
 const useRequestAccountErasureMock = vi.mocked(useRequestAccountErasure);
 const useDeleteAccountMock = vi.mocked(useDeleteAccount);
+const useEraseAccountMock = vi.mocked(useEraseAccount);
+const accountEraseMutate = vi.fn();
 
 const deleteMutate = vi.fn();
 const erasureMutate = vi.fn();
@@ -85,7 +92,21 @@ function setDeleteAccount(state: { isPending?: boolean; isError?: boolean } = {}
     } as unknown as ReturnType<typeof useDeleteAccount>);
 }
 
+/**
+ * The account-erasure double. Defaults to ACCEPTING (invoking `onSuccess`) so the suites below exercise the
+ * exit path they are about; a suite that cares about this leg failing overrides `mutate`.
+ */
+function setEraseAccount(state: { isPending?: boolean; isError?: boolean } = {}): void {
+    useEraseAccountMock.mockReturnValue({
+        mutate: accountEraseMutate,
+        isPending: state.isPending ?? false,
+        isError: state.isError ?? false,
+    } as unknown as ReturnType<typeof useEraseAccount>);
+}
+
 beforeEach(() => {
+    accountEraseMutate.mockReset().mockImplementation((_input, options) => options?.onSuccess?.());
+    setEraseAccount();
     signOut.mockReset().mockResolvedValue(undefined);
     signOutAndVerify.mockReset().mockResolvedValue(undefined);
     deleteMutate.mockReset();
@@ -223,6 +244,34 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         fireEvent.click(eraseButtons[eraseButtons.length - 1] as HTMLElement);
     }
 
+    /**
+     * ⛔ THE REGRESSION (plan U2), pinned on mobile as well as web — the cross-platform rule exists because
+     * a fix applied to one platform is exactly the kind that silently misses the other.
+     *
+     * "Erase my data" used to call the RECIPE service and nothing else, then sign the viewer out. That looks
+     * like success while the identity row, the Clerk account, the avatar and food's rows all survive.
+     */
+    it('ALSO erases the account itself, not only the recipes', () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        confirmErasure();
+
+        expect(erasureMutate).toHaveBeenCalledTimes(1);
+        expect(accountEraseMutate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT sign the viewer out when the account erasure fails — the account still exists', () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        accountEraseMutate.mockImplementation(() => undefined);
+        confirmErasure();
+
+        expect(accountEraseMutate).toHaveBeenCalledTimes(1);
+        expect(signOutAndVerify).not.toHaveBeenCalled();
+    });
+
     it('erases with the typed phrase + donate election, then signs out on success', async () => {
         erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
             options?.onSuccess?.(),
@@ -284,6 +333,47 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Erase my data' }));
 
         expect(screen.getByText('We couldn’t start erasing your data. Please try again.')).toBeTruthy();
+    });
+});
+
+/**
+ * ⛔ THE SECOND LEG'S OWN STATES (plan U2), pinned on mobile as well as web.
+ *
+ * The erasure is TWO calls — recipes, then the account — and the dialog's `submitting`/`submitError` are the
+ * OR of both. Every case above drives only the RECIPE leg, so narrowing
+ * `submitting={erasure.isPending || accountErasure.isPending}` to `submitting={erasure.isPending}` (and the
+ * same for `submitError`) left this whole suite green — verified by mutation, on both platforms. Not cosmetic:
+ *
+ * - Without the busy arm, the destructive confirm is re-enabled the instant the recipe leg resolves, while
+ *   the ACCOUNT erasure is still in flight. A second tap fires a second irreversible request.
+ * - Without the error arm, an account-erasure FAILURE is completely silent: the recipes are gone, the account
+ *   is not, and the dialog says nothing — the "looks like it worked" shape U2 exists to eliminate.
+ */
+describe('AccountDangerZone (native) — the ACCOUNT-erasure leg has its own busy and error states', () => {
+    it('stays busy while the ACCOUNT erasure is in flight, even once the recipe leg has resolved', () => {
+        setErasure({ isPending: false, isError: false });
+        setEraseAccount({ isPending: true });
+        render(<AccountDangerZone />);
+
+        fireEvent.click(screen.getByRole('button', { name: erase.trigger }));
+        // The phrase is typed so the gate itself is SATISFIED — otherwise a disabled confirm would prove
+        // nothing about the busy arm, only that the phrase was missing.
+        fireEvent.change(screen.getByLabelText('Confirmation phrase'), { target: { value: 'ERASE MY DATA' } });
+
+        expect(screen.getByText(erase.busyLabel)).toBeTruthy();
+        const confirms = screen.getAllByRole('button', { name: erase.confirm });
+        const confirm = confirms[confirms.length - 1] as HTMLElement;
+        expect(confirm.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('surfaces a FAILED account erasure, not just a failed recipe erasure (B17)', () => {
+        setErasure({ isPending: false, isError: false });
+        setEraseAccount({ isError: true });
+        render(<AccountDangerZone />);
+
+        fireEvent.click(screen.getByRole('button', { name: erase.trigger }));
+
+        expect(screen.getByText(erase.error)).toBeTruthy();
     });
 });
 

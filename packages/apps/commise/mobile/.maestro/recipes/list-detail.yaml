@@ -17,8 +17,12 @@ appId: io.commise.mobile
 
 # That the list actually SETTLED is a separate claim, and this is what makes it: the "{n} recipes" count
 # label is rendered only by the POPULATED branch. The old settle assertion was `New recipe` (the pinned
-# FAB), which renders while loading and while erroring too — so it passed against the reported
+# FAB), which at the time rendered while loading and while erroring too — so it passed against the reported
 # permanent-loading-skeleton bug, and could never have distinguished an empty library from a stuck one.
+#
+# ⚠ The FAB no longer renders while LOADING (it waited for the library to resolve, after mounting over an
+# unsettled list and then unmounting under a first-run cook's finger). It still renders on ERROR, so it is
+# still not a settle signal, and the count label is still the assertion that makes this claim.
 - extendedWaitUntil:
       visible:
           text: '^3 recipes$'
@@ -42,23 +46,123 @@ appId: io.commise.mobile
 # guard therefore SKIPPED the entire detail leg — silently, and still green — whenever the row happened to
 # sit below the fold. `scrollUntilVisible` brings it into view and fails if the seed really is missing.
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
-# RecipeDetailView sections (header + ingredients + instructions + nutrition).
+- tapOn: '${E2E_RECIPE_LAMB}'
+# RecipeDetailView's first section heading. This is CHROME: a static heading that renders whatever the recipe
+# contains, so on its own it proves the component mounted and NOT that this recipe's data arrived. The content
+# assertions below are the story.
+#
+# ⚠️ `Instructions` and `Nutrition (per serving)` used to be asserted blind, right here. They no longer can be:
+# the seeded lamb now carries five ingredient lines and four steps (see below), which pushes both headings
+# roughly a screen further down. They are still asserted — with `scrollUntilVisible`, in document order, at
+# the point the walk reaches them — because a blind assert on them would now go red for a TALLER FIXTURE
+# rather than for a broken screen, which is the least useful way a flow can fail.
 - assertVisible: 'Ingredients'
-- assertVisible: 'Instructions'
-- assertVisible: 'Nutrition (per serving)'
-# REQ-034 — the USDA-source disclosure is GATED to recipes with a user-entered ingredient; this
-# seeded recipe's ingredients are all food-database-resolved, so the notice must NOT render (the
-# positive case — a freeform ingredient — is covered by `create.yaml`).
-- assertNotVisible: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
-# W2/D4 — per-step cooking-progress checkboxes are interactive (smoke: tapping does not crash).
-- runFlow:
-      when:
-          visible: 'Mark step 1 complete'
-      commands:
-          - tapOn: 'Mark step 1 complete'
+
+# ⛔ THE RECIPE'S OWN SEEDED DATA — the half the headings above cannot prove. Every value here comes from the
+# lamb's row in `packages/services/recipe-service/src/database/seed.ts` (15 prep / 30 cook / 45 total, 4
+# servings, private), so a detail that rendered another recipe, a skeleton, or a partial projection fails.
+# The three durations are asserted as a SET on purpose: any one alone is also produced by a screen that
+# renders a single stat cell and drops the rest.
+#
+# ⚠️ Every value here sits ABOVE the `Ingredients` heading already asserted immediately before it (title band
+# → stat strip → Ingredients), so these additions need nothing from Maestro's visibility rules that this flow
+# was not already relying on. The recipe's footer visibility badge, which sits BELOW the last existing
+# assertion, is deliberately NOT asserted for that reason — it would be the one claim here resting on
+# untested ground, and a flow that cannot be run locally must not add one.
+- assertVisible: 'Herb-marinated grilled lamb.'
+- assertVisible: 'Serves'
+- assertVisible: '15 min'
+- assertVisible: '30 min'
+- assertVisible: '45 min'
+
+# ⛔ THE RECIPE'S COMPOSITION — what this flow could not assert until the shared seed grew it. The seed used
+# to insert rows into `recipes` ONLY (no `recipe_ingredients`, no `recipe_steps`), so every seeded recipe
+# rendered an EMPTY checklist and an EMPTY step list and there was no quantity, ingredient name or
+# instruction text on this screen to name. It now seeds both, and every string below is one of the lamb's own
+# values from `packages/services/recipe-service/src/database/seed.ts` — pinned there by
+# `__tests__/integration/recipes/seededWorld.integration.test.ts`, which reads the same rows back through the
+# service, so this flow and the API corpus cannot drift apart about what the lamb contains.
+#
+# Reached with `scrollUntilVisible` rather than asserted blind: an ingredient row can sit below the fold on a
+# short viewport, and the guard used elsewhere in this suite (`when: visible`) would SKIP the claim instead of
+# failing it. `scrollUntilVisible` still fails when the element genuinely is not there. The walk goes strictly
+# top-to-bottom through the screen so each scroll only ever moves forward.
+#
+# The name and the MEASURE are asserted as a pair: the row renders the quantity and the name as separate
+# elements, so a projection that lost the measure ("Olive oil", no amount) still fails here.
+- scrollUntilVisible:
+      element: 'Lamb loin chops'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Olive oil'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: '3 tbsp'
+      direction: DOWN
+      timeout: 20000
+
+# REQ-034 — the USDA-source disclosure is GATED to recipes carrying a user-entered ingredient
+# (`hasUserEnteredIngredients`), and each such line carries a `Custom` badge. The badge is asserted here and
+# the notice below: the two are the same claim seen from both ends, and neither alone shows the gate agrees
+# with the data.
+#
+# ⚠️ THIS ASSERTION WAS FLIPPED — it was `assertNotVisible`, and the flip is the RULE being applied, not a
+# workaround for it. Two reasons, both structural:
+#   1. The old negative was VACUOUS. It held because the recipe had NO ingredient lines at all — the "no
+#      lines" case, not the "no user-entered lines" the rule is about — so it would have passed against a
+#      screen that had lost the notice entirely.
+#   2. A DB-only seed cannot honestly produce a food-backed line. A `food_id` is minted by resolving a name
+#      against the food service, and no food service is in the loop when the fixture runs; writing
+#      `is_user_entered = false` with a NULL `food_id` would be a state no code path produces. So every
+#      seeded line IS user-entered, and the gate is genuinely open.
+# The negative case — a recipe whose lines are all food-backed — needs a resolved ingredient and belongs to a
+# flow that creates one, not to a fixture that would have to lie to produce it.
+- scrollUntilVisible:
+      element: 'Custom'
+      direction: DOWN
+      timeout: 20000
+
+# The step list, populated from this recipe rather than merely mounted: the heading is chrome, the first
+# step's own instruction text is the proof.
+- scrollUntilVisible:
+      element: 'Instructions'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      # Maestro matches the node's WHOLE text; the step reads "Whisk the olive oil, crushed garlic,
+      # chopped oregano and the juice of the lemon into a marinade." The bare prefix matched nothing, so
+      # this scrolled to the end of the page looking for an element that could not exist.
+      element: 'Whisk the olive oil.*'
+      direction: DOWN
+      timeout: 20000
+
+# W2/D4 — per-step cooking-progress checkboxes are interactive (smoke: tapping does not crash). UNGUARDED
+# now: the `when: visible` wrapper existed only because a seeded recipe had no steps, so the tap SKIPPED
+# silently on every run. Step 1 exists by construction (the seed numbers each recipe's steps contiguously
+# from 1, asserted in `src/database/__tests__/seed.test.ts`), so a missing control is a real failure. The
+# control sits on step 1's own row, which the scroll above just brought on screen.
+- tapOn: 'Mark step 1 complete'
+
+- scrollUntilVisible:
+      element: 'Nutrition (per serving)'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
+      direction: DOWN
+      timeout: 20000
+
+# `Back` lives INSIDE the detail's ScrollView (RecipeDetailScreen), so after the walk above it is off the top
+# of the screen — scroll back UP to it rather than tapping blind (the idiom `visibility.yaml` uses for the
+# same reason).
+- scrollUntilVisible:
+      element: 'Back'
+      direction: UP
+      timeout: 20000
 - tapOn: 'Back'
 - assertVisible: 'Recipes'

@@ -1,6 +1,6 @@
 /**
  * @module components/RootErrorFallback — the localized, recoverable fallback rendered by the mobile root
- * `ErrorBoundary` around {@link import('../screens/AppRoot.js').AppRoot} (B18). Pure `props → JSX`
+ * `ErrorBoundary` around `AppRoot` (B18). Pure `props → JSX`
  * (react-error-boundary's `FallbackProps`): the retry affordance is `resetErrorBoundary`, the boundary's own
  * recovery mechanism — this component does not know about DA9 reporting, which stays in `AppRoot`'s
  * `onError` wiring (mirroring the web root boundary's `RouteErrorState`/`RouteErrorBoundary` split).

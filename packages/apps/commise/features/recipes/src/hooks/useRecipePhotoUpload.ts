@@ -33,6 +33,12 @@
  * Platform-agnostic: no DOM or `expo-*` imports. Each leaf acquires its own file bytes (a web `File` —
  * itself a `Blob` — from the `<input>` change event, or `(await fetch(asset.uri)).blob()` from
  * `expo-image-picker` on mobile) and calls `upload` with the acquired `Blob` + metadata.
+ *
+ * @pattern Headless hook (Template Method) — the presign → PUT → confirm sequence is fixed here and each
+ *     leaf supplies only the bytes and its own localized error copy.
+ * @pattern Adapter over `AbortController`, doing double duty as the single-flight Mutex — a genuinely
+ *     external, non-declarative object is the ref rule's carve-out, and "non-null IS an upload in flight"
+ *     is why the guard and the abort handle are ONE ref rather than a ref plus a boolean.
  */
 import { useConfirmPhotoUpload, useCreatePhotoUploadUrl } from '@kitchensink/recipe-service-client/hooks';
 import { useCallback, useEffect, useRef, useState } from 'react';

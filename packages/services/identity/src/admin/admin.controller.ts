@@ -1,9 +1,11 @@
 import { Controller, Get, Post, Param, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { AdminListUsersQueryDto } from './dto/adminListUsers.query.dto.js';
+import { AdminUserIdParamDto } from './dto/adminUserId.param.dto.js';
 import { AdminService } from './admin.service.js';
-import { CurrentAuthorizerContext } from '../auth/decorators/current-user.decorator.js';
-import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import { CurrentAuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
+import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import { ScopesGuard } from '../auth/guards/scopes.guard.js';
-import { RequireScopes } from '../auth/decorators/require-scopes.decorator.js';
+import { RequireScopes } from '../auth/decorators/requireScopes.decorator.js';
 import {
     AdminSuspendUserResponseDto,
     AdminUnsuspendUserResponseDto,
@@ -26,65 +28,69 @@ import {
 export class AdminController {
     constructor(private readonly adminService: AdminService) {}
 
+    // ⚠️ EVERY `:userId` ROUTE TAKES `@Param() params: AdminUserIdParamDto`, NOT `@Param('userId') userId: string`.
+    // The single-key form has metatype `String`, which the global `ZodValidationPipe`
+    // (`strictSchemaDeclaration: false`) passes straight through — so the five routes below used to hand an
+    // arbitrary caller-supplied string into `eq(users.id, …)` with no format check at all. Annotating the whole
+    // params object with the Zod DTO is what puts the pipe in the path. A new admin action must do the same;
+    // `tests/adminParamValidation.test.ts` discovers every `:userId` route from Nest's own metadata and fails
+    // on one that reverts to a bare string.
+
+    /**
+     * `GET /api/v1/admin/users` — filtered, paginated user list (admin-scoped).
+     *
+     * ONE validated DTO replaces five bare `@Query()` strings plus a hand-rolled `Number.parseInt`. The old form
+     * let `?limit=abc` become `NaN` — which `filters.limit ?? 50` does not catch, since `??` tests only
+     * null/undefined — so `query.limit(NaN).offset(NaN)` reached drizzle and `NaN` came back in the response.
+     * The pipe now coerces and bounds both, and rejects a non-numeric value with a `400` instead.
+     */
     @Get()
-    async listUsers(
-        @Query('email') email?: string,
-        @Query('name') name?: string,
-        @Query('sub') sub?: string,
-        @Query('limit') limit?: string,
-        @Query('offset') offset?: string,
-    ) {
-        return this.adminService.listUsers({
-            email,
-            name,
-            sub,
-            limit: limit ? Number.parseInt(limit, 10) : undefined,
-            offset: offset ? Number.parseInt(offset, 10) : undefined,
-        });
+    async listUsers(@Query() query: AdminListUsersQueryDto) {
+        return this.adminService.listUsers(query);
     }
 
     @Post(':userId/suspend')
     @HttpCode(HttpStatus.OK)
     async suspendUser(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminSuspendUserResponseDto> {
-        return this.adminService.suspendUser(userId, ctx);
+        return this.adminService.suspendUser(params.userId, ctx);
     }
 
     @Post(':userId/unsuspend')
     @HttpCode(HttpStatus.OK)
     async unsuspendUser(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminUnsuspendUserResponseDto> {
-        return this.adminService.unsuspendUser(userId, ctx);
+        return this.adminService.unsuspendUser(params.userId, ctx);
     }
 
     @Post(':userId/reactivate')
     @HttpCode(HttpStatus.OK)
     async reactivateUser(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminReactivateUserResponseDto> {
-        return this.adminService.reactivateUser(userId, ctx);
+        return this.adminService.reactivateUser(params.userId, ctx);
     }
 
     @Post(':userId/impersonation/start')
     @HttpCode(HttpStatus.OK)
     async startImpersonation(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<ImpersonationStartResponseDto> {
-        return this.adminService.startImpersonation(userId, ctx);
+        return this.adminService.startImpersonation(params.userId, ctx);
     }
 
     @Post(':userId/impersonation/stop')
     @HttpCode(HttpStatus.OK)
     async stopImpersonation(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<ImpersonationStopResponseDto> {
-        return this.adminService.stopImpersonation(userId, ctx);
+        return this.adminService.stopImpersonation(params.userId, ctx);
     }
 }

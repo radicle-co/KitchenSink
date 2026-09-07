@@ -33,12 +33,12 @@ _None._
 
 _None._ All four warnings from the 2026-05-12 run are closed:
 
-| Prior | Description                                      | Disposition                                                               |
-| ----- | ------------------------------------------------ | ------------------------------------------------------------------------- |
-| W-001 | FR-014a legal enforcement unresolved             | **Closed** — D-003 defines an operable rule                               |
-| W-002 | OCR rollout timing ambiguous                     | **Closed** — D-001 fixes it at launch scope, consistently across all docs |
-| W-003 | Competitor set divergent                         | **Closed** — canonical set recorded; `research.md` RQ-9 marked superseded |
-| W-004 | V-model review artefacts internally inconsistent | **Closed** — reviews re-run adversarially and now carry findings          |
+| Prior | Description                                      | Disposition                                                                                                                                                                                                                                                                                                                                                                   |
+| ----- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W-001 | FR-014a legal enforcement unresolved             | **Closed** — D-003 defines an operable rule                                                                                                                                                                                                                                                                                                                                   |
+| W-002 | OCR rollout timing ambiguous                     | **Re-closed differently, 2026-08-16** — D-001 was _amended_ on 2026-08-14 and OCR left 004 entirely for 011. The original closure ("fixes it at launch scope, consistently across all docs") was true when written and false the moment the amendment landed, because `tasks.md`, `plan.md` and the `v-model/` chain were never re-synced. Closed by transfer, not by scoping |
+| W-003 | Competitor set divergent                         | **Closed** — canonical set recorded; `research.md` RQ-9 marked superseded                                                                                                                                                                                                                                                                                                     |
+| W-004 | V-model review artefacts internally inconsistent | **Closed** — reviews re-run adversarially and now carry findings                                                                                                                                                                                                                                                                                                              |
 
 ---
 

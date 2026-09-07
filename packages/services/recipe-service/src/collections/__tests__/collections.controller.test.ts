@@ -1,11 +1,13 @@
 /**
  * T041-test — unit tests for {@link CollectionsController}: the pure request→service→response mapping
  * over a mocked {@link CollectionsService}. Pins that the OWNER always comes from `req.principal.userId`
- * (never the body) and that a missing principal is a 401. Body/query validation now runs at the
- * `ZodValidationPipe` framework seam (S-R7) — BEFORE these handlers execute — so malformed-input
- * rejection is no longer observable by calling a handler directly; that coverage lives in
- * `common/pipes/__tests__/zod-validation.pipe.test.ts`. End-to-end behaviour is covered by the
- * integration/e2e tiers.
+ * (never the body) and that a missing principal is a 401. Body/query validation runs at `nestjs-zod`'s
+ * `ZodValidationPipe` framework seam — BEFORE these handlers execute — so malformed-input rejection is
+ * not observable by calling a handler directly; that coverage lives in
+ * `../dto/__tests__/collectionDtos.test.ts`, which drives the real pipe over the DTOs that ARE the
+ * published contract. (It previously lived in `common/pipes/__tests__/zod-validation.pipe.test.ts`,
+ * alongside a hand-rolled pipe that has since been deleted in favour of the library's.) End-to-end
+ * behaviour is covered by the integration/e2e tiers.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';

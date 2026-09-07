@@ -72,3 +72,21 @@ export const getRecipeDb = (): NodePgDatabase<Record<string, never>> => {
 
     return dbInstance;
 };
+
+/**
+ * The raw pool under {@link getRecipeDb}, for the one consumer that needs parameterized TEXT rather than a
+ * drizzle statement: the band-authority store, whose SQL is authored once in `@kitchensink/recipe-core`
+ * over a text-in/rows-out port (see `verification/bandFeedback.ts`). Everything else keeps using the
+ * drizzle handle.
+ *
+ * @sideEffect opens the pooled TLS connection on first call, via {@link getRecipeDb}.
+ */
+export const getRecipePool = (): Pool => {
+    getRecipeDb();
+
+    if (pool === null) {
+        throw new Error('recipe database pool failed to initialise');
+    }
+
+    return pool;
+};

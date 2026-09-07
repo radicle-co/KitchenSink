@@ -21,7 +21,7 @@ networks:
 
 services:
     postgres:
-        image: postgres:16-alpine
+        image: postgres:18
         container_name: commise-postgres-test
         networks:
             - commise-test
@@ -32,8 +32,12 @@ services:
             POSTGRES_PASSWORD: postgres
             POSTGRES_DB: kitchensink_recipes
         # Ephemeral data dir — every `up` starts from a pristine database.
+        # ⚠️ `/var/lib/postgresql`, NOT `/var/lib/postgresql/data`: postgres:18 moved `PGDATA` to
+        # `/var/lib/postgresql/18/docker`. On the old path this tmpfs covered a directory the server never
+        # writes to, so the cluster landed on the container's writable layer instead — losing both the
+        # in-memory speed and the pristine-per-`up` guarantee this line exists for.
         tmpfs:
-            - /var/lib/postgresql/data
+            - /var/lib/postgresql
         volumes:
             - ./infra/docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
         healthcheck:
@@ -54,7 +58,13 @@ services:
             # `sqs` joins `s3` for the account-erasure queue the T137 erasure integration suite drives
             # end to end (service enqueue → worker drain). Mirrors the `integration-recipe` CI job, which
             # already enables it (`_ci.yml`) — without it here, that suite passes in CI and fails locally.
-            SERVICES: s3,sqs
+            #
+            # `dynamodb` joins them for the same reason, in the same direction the comment above warns
+            # about (measured 2026-08-26): `food-service`'s `messageSubstrate.integration.test.ts` fails
+            # here with `Service 'dynamodb' is not enabled` while passing in CI, whose own job sets
+            # `SERVICES: dynamodb` (`_ci.yml`). A suite that CANNOT run locally is a suite whose CI
+            # failure nobody can reproduce, so the harness carries what the suites actually ask for.
+            SERVICES: s3,sqs,dynamodb
             DEFAULT_REGION: us-east-1
             EAGER_SERVICE_LOADING: 1
         healthcheck:

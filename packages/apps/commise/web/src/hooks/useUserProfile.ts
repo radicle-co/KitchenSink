@@ -16,7 +16,7 @@
  */
 import { useAuth } from '@clerk/nextjs';
 import { profileQueries } from '@commise/features-account';
-import type { UserProfile } from '@kitchensink/identity-service';
+import type { UserProfile } from '@kitchensink/schema-identity';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { createProfileServiceClient } from '@/lib/identityServiceClient';

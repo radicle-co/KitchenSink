@@ -1,0 +1,135 @@
+# ⛔ WHY THIS EXISTS: GitHub caps a repository's Actions cache at 10 GB and evicts LRU when it is full —
+# and eviction does not politely wait for a quiet moment. It can drop an entry out from under a RUNNING job.
+#
+# This repo generates ~1.27 GB of cache per `package-lock.json` revision: the extracted `node_modules` tree
+# (~0.49 GB), the npm tarball cache `actions/setup-node` writes (~0.53 GB), and the Playwright browsers
+# (~0.25 GB). Nothing ever removed the entries for superseded lockfiles, so eight revisions had accumulated
+# and the repo sat at 9.77 GB — permanently at the eviction threshold.
+#
+# The consequence was not a slow build, it was a red one. Roughly twenty CI jobs RESTORE `node_modules` and
+# never install, so when their entry was evicted mid-run they had no `node_modules` at all: `sh: 1: tsc: not
+# found`, `npm error code 127`. With eight Playwright shards plus the merged report, one evicted entry meant
+# nine red jobs — and a re-run usually passed, because `install` had re-saved the entry by then. That is
+# precisely why it read as flake for so long and got answered with retries instead of a diagnosis.
+#
+# Two things now hold the line. Every restoring job has an `npm ci` fallback, so a miss is slow rather than
+# fatal. And this workflow keeps total usage well under the cap so misses stay rare in the first place.
+#
+# ⚠️ It deletes ONLY entries whose lockfile hash is no longer referenced by any live ref — never by age. An
+# age rule would delete the entry for a long-running branch that had not pushed recently, which is exactly
+# the branch least able to afford a cold install.
+name: Prune Actions cache
+
+on:
+    schedule:
+        # Daily, after the nightly sandbox shutdown window (ADR-0007) so it never contends with a deploy.
+        - cron: '30 10 * * *'
+    workflow_dispatch:
+
+# One prune at a time. Two concurrent runs would list the same entries and then race each other's DELETEs,
+# so the loser logs warnings for entries that already vanished — noise that is indistinguishable from a real
+# permissions failure. Never `cancel-in-progress`: a half-finished prune has deleted an arbitrary subset,
+# and the run that gets cancelled is as likely to be the one doing useful work.
+concurrency:
+    group: cache-prune
+    cancel-in-progress: false
+
+# Nothing at the workflow level: the single job below declares exactly what it needs, so a job added later
+# starts from zero rather than silently inheriting `actions: write` — the token that can DELETE caches.
+permissions: {}
+
+jobs:
+    prune:
+        name: Delete caches for superseded lockfiles
+        timeout-minutes: 10
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read # read the tree to compute which lockfile hashes are still live
+            actions: write # the cache DELETE scope — no narrower one exists, so it is confined to this job
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+                  # Every branch, so a lockfile still in use on an open PR is recognised as live.
+                  fetch-depth: 0
+
+            - name: Collect the lockfile hashes still in use
+              id: live
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  # ⛔ `hashFiles()` is NOT a plain sha256 of the file — it is sha256(sha256(contents)), and
+                  # getting this wrong is unrecoverable rather than merely wrong. A plain sha256sum matches
+                  # NO real key, so every entry would look unreferenced and this job would delete the entire
+                  # cache, live entries included — the exact outage it exists to prevent. Verified against a
+                  # live key before this workflow was ever committed: HEAD's lockfile single-hashes to
+                  # c3874ec8… (matches nothing) and double-hashes to ddee06d0…, which is a real entry.
+                  : > live-hashes.txt
+                  for ref in $(git for-each-ref --format='%(refname)' refs/remotes/origin | head -100); do
+                      if git cat-file -e "$ref:package-lock.json" 2>/dev/null; then
+                          git show "$ref:package-lock.json" | python3 -c \
+                              'import hashlib,sys; print(hashlib.sha256(hashlib.sha256(sys.stdin.buffer.read()).digest()).hexdigest())' \
+                              >> live-hashes.txt
+                      fi
+                  done
+                  sort -u live-hashes.txt -o live-hashes.txt
+                  echo "live lockfile hashes: $(wc -l < live-hashes.txt)"
+
+            - name: Delete cache entries for hashes nothing references
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  set -euo pipefail
+                  # NO `|| true` here. If the caches API fails, an empty listing is indistinguishable from
+                  # "nothing to prune", and the job would report a tidy success while the cache kept growing
+                  # toward the cap. `set -e` makes that failure loud instead.
+                  gh api --paginate "repos/$REPO/actions/caches?per_page=100" \
+                      --jq '.actions_caches[] | "\(.id)\t\(.size_in_bytes)\t\(.key)"' > all-caches.tsv
+
+                  # ⛔ CIRCUIT BREAKER. If not one live hash appears in any cache key, the hashing above is
+                  # wrong (or the key format changed) — and the loop below would then read every entry as
+                  # unreferenced and wipe the cache. A prune that finds nothing to keep is a bug, never a
+                  # tidy repo, so refuse rather than proceed. Skipped when the cache is genuinely empty.
+                  if [ -s all-caches.tsv ] && grep -qE '[0-9a-f]{64}' all-caches.tsv; then
+                      matched=0
+                      while read -r h; do
+                          if grep -q "$h" all-caches.tsv; then matched=1; break; fi
+                      done < live-hashes.txt
+                      if [ "$matched" -eq 0 ]; then
+                          echo "::error::no live lockfile hash matches ANY cache key — refusing to prune."
+                          exit 1
+                      fi
+                  fi
+
+                  freed=0
+                  deleted=0
+                  kept=0
+                  while IFS=$'\t' read -r id size key; do
+                      [ -z "${id:-}" ] && continue
+                      # A key carries its lockfile hash as a 64-char hex run; keys without one (turbo, codeql)
+                      # are left alone — they are small and self-limiting.
+                      hash=$(printf '%s' "$key" | grep -oE '[0-9a-f]{64}' | head -1 || true)
+                      if [ -z "$hash" ]; then
+                          kept=$((kept + 1))
+                          continue
+                      fi
+                      if grep -qx "$hash" live-hashes.txt; then
+                          kept=$((kept + 1))
+                          continue
+                      fi
+                      echo "deleting $key ($((size / 1048576)) MB)"
+                      gh api -X DELETE "repos/$REPO/actions/caches/$id" >/dev/null 2>&1 || {
+                          echo "::warning::could not delete cache $id ($key)"
+                          continue
+                      }
+                      freed=$((freed + size))
+                      deleted=$((deleted + 1))
+                  done < all-caches.tsv
+
+                  echo "### Cache prune" >> "$GITHUB_STEP_SUMMARY"
+                  echo "" >> "$GITHUB_STEP_SUMMARY"
+                  echo "- deleted: **$deleted** entries" >> "$GITHUB_STEP_SUMMARY"
+                  echo "- freed: **$((freed / 1048576)) MB**" >> "$GITHUB_STEP_SUMMARY"
+                  echo "- kept: **$kept** entries (live lockfiles, or unhashed keys)" >> "$GITHUB_STEP_SUMMARY"

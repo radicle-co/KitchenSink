@@ -6,9 +6,9 @@
  * A COMPOUND COMPONENT modeled on `card/RecipeCard.tsx`'s Root + Context + `useXModel()` accessor-hook +
  * `Object.assign` shape: `Wizard` (Root) carries the wizard's navigation view-model in context — built from
  * the step-extended `useRecipeEditor` (`step`/`goNext`/`goPrev`/`canAdvanceFrom`/`stepErrors`/`saveDraft`/
- * `publish`) plus a small STATECHART this component owns itself (which steps have been ATTEMPTED, whether the
- * preview panel is open, and the discard-guard's pending confirmation) — and its parts —
- * `Wizard.Step`/`Wizard.Rail`/`Wizard.TopBar`/`Wizard.Controls` — each read that context, so no field/step
+ * `publish`) plus a small STATECHART this component owns itself (which steps have been ATTEMPTED, which step's `Next`
+ * was refused, and the discard-guard's pending confirmation) — and its parts —
+ * `Wizard.Step`/`Wizard.Rail`/`Wizard.Header`/`Wizard.Controls` — each read that context, so no field/step
  * body has to thread wizard-navigation props through. Passing no children into a `Wizard.Step` that does not
  * match the active step renders nothing (a closed-union render-map switch, one arm per step, styled after
  * `hooks/ingredientResolver.model.ts`'s `deriveViewState` discriminated-union convention for the RAIL's own
@@ -16,33 +16,70 @@
  *
  * The Wizard is a SHELL: it renders none of `RecipeForm`'s fields itself. The composing container places the
  * SAME extracted `RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/
- * `RecipeVisibilityField` leaves (`../form/RecipeFormSections.js`) — plus the app-owned ingredient picker and
+ * `RecipeVisibilityField` leaves (`../form/`, one file each) — plus the app-owned ingredient picker and
  * photo manager — as children of the matching `Wizard.Step`, so no field is duplicated or rewritten.
  *
  * **Deliberate split from the plan's literal "Wizard.Controls (footer nav + top-bar actions)" wording**: this
- * implementation exposes `Wizard.TopBar` (the persistent header) and `Wizard.Controls` (the per-step footer)
- * as TWO separate parts, not one. The wireframe places these in two visually distinct regions (a page header
- * vs. a per-step footer); a single component could not let the composing container position them independently
- * without an internal portal, which is more machinery than the wireframe calls for. Both parts read the SAME
- * context, so nothing about the wizard's behavior differs — only how the two chrome regions are placed.
+ * implementation exposes `Wizard.Header` (the sticky band) and `Wizard.Controls` (the action bar) as TWO
+ * separate parts, not one — so the native leaf can place the bar outside its own `ScrollView` while the web
+ * leaf places it inside the header band. Both parts read the SAME context, so nothing about the wizard's
+ * behavior differs — only where the chrome is placed.
  *
- * **U6 chrome remediation (plan bullet U6, SHARED with the native leaf).** The header no longer packs four
- * filled buttons (Save Draft / Preview / Cancel / Publish) that wrap to two rows on a phone. Instead:
- *  - `Wizard.Controls` (footer) is the ONE contextual primary: a filled `Next: {name}` on steps 1–3, swapping
- *    to a filled `Publish` on step 4 (so Publish is NO LONGER live on steps 1–3), with a secondary `Prev` on
- *    the left once past step 1. Never more than two footer buttons.
- *  - `Wizard.TopBar` (header) keeps `Preview` as its own icon button and demotes `Save Draft` + `Cancel` into
- *    an overflow ("More actions") disclosure — a kebab trigger opening a `role="menu"` list. Cancel still
- *    routes through `requestCancel` (so the discard guard fires) and Save Draft through `saveDraft`. Publish
- *    is gone from the header entirely (it lives in the footer now).
- * The overflow menu is a small self-contained disclosure (house style, cf. the preview panel below): a trigger
- * with `aria-haspopup`/`aria-expanded`, a `role="menu"` of real `role="menuitem"` buttons, Escape-to-close and
- * an outside-click backdrop — no new dependency, since `@commise/ui` ships no menu primitive.
+ * **U32 — the action model, and the genuinely PINNED bar (owner rulings 2026-08-25).** `Wizard.Controls` is
+ * ONE element carrying `Previous · Save Draft · Next` (`Publish` on the last step), and it is rendered ONCE,
+ * inside `Wizard.Header`'s DOM. Its POSITION is what the breakpoint changes, not its existence:
+ *  - below `lg` it is `fixed inset-x-0 bottom-0` — pinned OUTSIDE every scroll container by construction, and
+ *    padded by `env(safe-area-inset-bottom)` so it clears the gesture bar;
+ *  - at `lg` and above it is `static`, so it sits in the sticky header band, which is where the desktop
+ *    layout wants the Previous / Next row.
  *
- * **The discard guard** (Cancel, and backward step navigation, while dirty) and the **preview panel** are
- * owned entirely by the Root — the composing container does not place or wire either; they render themselves
- * (via the shared `@commise/ui/confirm-dialog` `ConfirmDialog`, house pattern B6) whenever `<Wizard>` is
- * mounted, keyed off `isDirty` (from `useDiscardGuard.js`) and internal `previewOpen`/`pendingAction` state.
+ * ⛔ Rendering the bar TWICE (once hidden per breakpoint) was rejected: both copies would carry the same
+ * accessible names, so every `getByRole('button', { name: 'Save Draft' })` — in tests and in a screen
+ * reader's control list — would find two. One element that moves is the only shape with one accessible name.
+ *
+ * ⚠️ `lg`, not `md`. The mockup's bar is `md:hidden`, so it does not exist at all in the 768–1023px band;
+ * adopting that breakpoint would ship the gap rather than close it, and `lg` is already this app's chrome
+ * cutover (`HomeSidebar`/`HomeTabBar`).
+ *
+ * **U32 — the header.** `Wizard.Header` (which REPLACES `Wizard.TopBar`) is the sticky band: a BACK
+ * affordance below `lg` — routed through the SAME `requestCancel` the overflow menu's `Cancel` used, so the
+ * discard guard still fires — and, at `lg` and above, the overflow ("More actions") disclosure carrying
+ * `Cancel`. Below `lg` that menu is not rendered at all: its only item's job is done by the back arrow.
+ * The disclosure is a small self-contained one (house style): a trigger with `aria-haspopup`/`aria-expanded`,
+ * a `role="menu"` of real `role="menuitem"` buttons, Escape-to-close and an outside-click backdrop — no new
+ * dependency, since `@commise/ui` ships no menu primitive.
+ *
+ * ⛔ **`Save Draft` is NOT in that menu, at any width.** The ruling reads two ways — "Save Draft leaves the
+ * kebab below `lg`" and "the same three [Previous · Save Draft · Next] in the sticky header above it" — and
+ * only one of them can be true at `lg`. Keeping it in both the header row AND the menu would put two
+ * controls named `Save Draft` on one surface, which is the same duplicate-accessible-name failure that
+ * rejected rendering the bar twice (and that renamed meal type's clear option to `No meal type`). The bar
+ * carries it at EVERY width; the menu carries what the bar does not.
+ *
+ * ⛔ **The composing container renders `Wizard.Header` and NOT `Wizard.Controls`** — the header places the
+ * bar itself, so a container that also placed it would ship two. (The native leaf is the mirror image: its
+ * screen owns a `ScrollView`, so IT places `Wizard.Controls` as a sibling BELOW that scroller, which is the
+ * whole point of the fix. Each platform places the bar where "outside the scroll container" actually is.)
+ *
+ * **U33 — Preview is GONE, replaced by the Review step** (owner ruling 2026-08-25). The top-bar `Preview`
+ * button and the `role="dialog"` overlay it opened are DELETED, not kept alongside `Wizard.Step step={4}`'s
+ * new Review body: two surfaces rendering the same draft drift, and each would need its own tests. Accepted
+ * cost, already ruled: a cook can no longer sanity-check from step 1 without walking forward.
+ *
+ * **The discard guard** (the back arrow, the overflow `Cancel`, and backward step navigation while dirty) is
+ * owned entirely by the Root — the composing container does not place or wire it; it renders itself (via the
+ * shared `@commise/ui/confirm-dialog` `ConfirmDialog`, house pattern B6) whenever `<Wizard>` is mounted,
+ * keyed off `isDirty` (from `useDiscardGuard.js`) and internal `pendingAction` state.
+ *
+ * ⚠️ It calls itself a SHELL and renders none of the fields, so it reads as layout — but it is
+ * ORCHESTRATION. Every navigation primitive arrives as a prop and it still DECIDES: `requestGoNext` /
+ * `requestGoPrev` / `requestGoToStep` / `requestCancel` each interpose the attempted-set and the discard
+ * guard between the intent and the prop it eventually calls, so a `Next` can be refused and a `Cancel` can
+ * be deferred until the cook answers. That interposition is the component's own statechart, not the
+ * container's.
+ *
+ * @pattern Compound Component (Root + context + parts) composed with a discard-guard statechart —
+ *     `pendingAction` holds a navigation the cook has not yet confirmed, so no part has to know it was asked.
  */
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -52,8 +89,23 @@ import { createContext, useContext, useEffect, useState, type FC, type ReactNode
 import { fillTemplate } from '../list/model.js';
 import { recipeFormMessages } from '../form/messages.js';
 import type { RecipeFormErrors, RecipeFormValues, RecipeWizardStep } from '../form/model.js';
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, MoreVerticalIcon, SaveIcon, XIcon } from './icons.js';
-import { blockedAdvanceErrors, deriveRailStepState, WIZARD_STEPS, WIZARD_TOTAL_STEPS } from './model.js';
+import {
+    ArrowLeftIcon,
+    CheckIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
+    MoreVerticalIcon,
+    SaveIcon,
+    XIcon,
+} from './icons.js';
+import {
+    blockedAdvanceErrors,
+    deriveRailStepState,
+    nextStep,
+    previousStep,
+    WIZARD_STEPS,
+    WIZARD_TOTAL_STEPS,
+} from './model.js';
 import { wizardMessages } from './messages.js';
 
 /** Props for {@link Wizard} (Root). */
@@ -67,7 +119,8 @@ export interface WizardProps {
     readonly mode: 'create' | 'edit';
     /** The active step (from `useRecipeEditor`'s `step`). */
     readonly step: RecipeWizardStep;
-    /** The current draft — read by the preview panel. */
+    /** The current draft. Threaded to the parts through context; the Review step body reads it from the
+     *  composing container, not from here. */
     readonly values: RecipeFormValues;
     /** Whether `step` has no validation errors (the hook's `canAdvanceFrom`). */
     readonly canAdvanceFrom: (step: RecipeWizardStep) => boolean;
@@ -89,7 +142,9 @@ export interface WizardProps {
     readonly isDirty: boolean;
     /** Whether a save is in flight — busies/disables Save Draft and Publish. */
     readonly submitting: boolean;
-    /** The step bodies — one or more `Wizard.Step` elements, plus wherever the container places `Wizard.Rail`/`Wizard.TopBar`/`Wizard.Controls`. */
+    /** The step bodies — one or more `Wizard.Step` elements, plus wherever the container places
+     *  `Wizard.Rail` and `Wizard.Header`. ⛔ On web the container must NOT place `Wizard.Controls`: the
+     *  header renders it, and a second placement ships two action bars with duplicate accessible names. */
     readonly children: ReactNode;
 }
 
@@ -104,8 +159,6 @@ interface WizardModel extends Omit<WizardProps, 'children'> {
      * inline, so reusing `attempted` here made the wizard say the same sentence twice.
      */
     readonly blockedStep: RecipeWizardStep | null;
-    /** Whether the read-only preview panel is open. */
-    readonly previewOpen: boolean;
     /** Advance, marking the CURRENT step attempted (so an invalid Next click flags it in the rail). */
     readonly requestGoNext: () => void;
     /** Go back one step, through the discard guard when dirty. */
@@ -116,8 +169,6 @@ interface WizardModel extends Omit<WizardProps, 'children'> {
     readonly requestCancel: () => void;
     /** Publish, marking EVERY step attempted (a whole-form validation) before delegating to `publish`. */
     readonly requestPublish: () => void;
-    /** Toggle the preview panel. */
-    readonly togglePreview: () => void;
 }
 
 const WizardContext = createContext<WizardModel | null>(null);
@@ -138,7 +189,6 @@ const WizardRoot: FC<WizardProps> = (props) => {
     const m = useMessages(wizardMessages);
     const [attempted, setAttempted] = useState<ReadonlySet<RecipeWizardStep>>(new Set());
     const [blockedStep, setBlockedStep] = useState<RecipeWizardStep | null>(null);
-    const [previewOpen, setPreviewOpen] = useState(false);
     const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
     const markAttempted = (target: RecipeWizardStep): void =>
@@ -187,107 +237,20 @@ const WizardRoot: FC<WizardProps> = (props) => {
         publish();
     };
 
-    const togglePreview = (): void => setPreviewOpen((open) => !open);
-    const closePreview = (): void => setPreviewOpen(false);
-
-    // Minor a11y gap (opus review): the hand-rolled preview panel is a `role="dialog"` with no Escape/backdrop
-    // dismissal, unlike the Radix `ConfirmDialog` this same file renders below. Escape-to-close needs a
-    // document-level listener (the panel itself never has DOM focus to catch a bubbled keydown), scoped to
-    // exactly the window `previewOpen` is true so it never fires — or leaks a listener — while closed.
-    useEffect(() => {
-        if (!previewOpen) {
-            return undefined;
-        }
-
-        const onKeyDown = (event: KeyboardEvent): void => {
-            if (event.key === 'Escape') {
-                closePreview();
-            }
-        };
-
-        document.addEventListener('keydown', onKeyDown);
-
-        return () => document.removeEventListener('keydown', onKeyDown);
-    }, [previewOpen]);
-
     const model: WizardModel = {
         ...props,
         attempted,
         blockedStep,
-        previewOpen,
         requestGoNext,
         requestGoPrev,
         requestGoToStep,
         requestCancel,
         requestPublish,
-        togglePreview,
     };
 
     return (
         <WizardContext.Provider value={model}>
             {children}
-
-            {previewOpen && (
-                <div
-                    role="dialog"
-                    aria-label={m.previewHeading}
-                    // Backdrop-click-to-close: the click target check keeps a click that STARTS inside the
-                    // card (then bubbles to this backdrop, e.g. a drag that ends outside) from closing it —
-                    // only a click whose target IS the backdrop itself dismisses.
-                    onClick={(event) => {
-                        if (event.target === event.currentTarget) {
-                            closePreview();
-                        }
-                    }}
-                    className="fixed inset-0 z-40 flex items-center justify-center bg-charcoal/40 p-4"
-                >
-                    <div className="flex max-h-[85vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-lg">
-                        <div className="flex items-center justify-between">
-                            <h2 className="font-display text-heading-lg font-semibold text-charcoal">
-                                {m.previewHeading}
-                            </h2>
-                            <button
-                                type="button"
-                                aria-label={m.previewClose}
-                                onClick={togglePreview}
-                                className="rounded-full p-1 text-slate transition hover:bg-pearl"
-                            >
-                                ×
-                            </button>
-                        </div>
-                        <dl className="flex flex-col gap-2 text-body-sm text-charcoal">
-                            <div className="flex justify-between gap-3">
-                                <dt className="font-medium text-slate">{m.previewTitle}</dt>
-                                <dd>{props.values.title}</dd>
-                            </div>
-                            <div className="flex justify-between gap-3">
-                                <dt className="font-medium text-slate">{m.previewDescription}</dt>
-                                <dd>{props.values.description}</dd>
-                            </div>
-                            <div className="flex justify-between gap-3">
-                                <dt className="font-medium text-slate">{m.previewServings}</dt>
-                                <dd>{props.values.servings}</dd>
-                            </div>
-                            <div className="flex justify-between gap-3">
-                                <dt className="font-medium text-slate">{m.previewIngredientCount}</dt>
-                                <dd>{props.values.ingredients.length}</dd>
-                            </div>
-                            <div className="flex justify-between gap-3">
-                                <dt className="font-medium text-slate">{m.previewStepCount}</dt>
-                                <dd>{props.values.steps.length}</dd>
-                            </div>
-                            <div className="flex justify-between gap-3">
-                                <dt className="font-medium text-slate">{m.previewVisibility}</dt>
-                                <dd>
-                                    {props.values.visibility === 'private'
-                                        ? m.previewVisibilityPrivate
-                                        : m.previewVisibilityPublic}
-                                </dd>
-                            </div>
-                        </dl>
-                    </div>
-                </div>
-            )}
 
             <ConfirmDialog
                 open={pendingAction !== null}
@@ -332,7 +295,7 @@ const RAIL_MARKER_CLASS: Record<'completed' | 'current' | 'invalid' | 'upcoming'
     upcoming: 'border-border bg-white text-slate',
 };
 
-/** The step-rail: `[1] Basic → [2] Ingredients → [3] Instructions → [4] Photos`, "Step N of 4" (FR-044). */
+/** The step-rail: `[1] Details → [2] Ingredients → [3] Instructions → [4] Review`, "Step N of 4" (FR-044). */
 const WizardRail: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
@@ -343,8 +306,8 @@ const WizardRail: FC = () => {
                 {fillTemplate(m.stepProgress, { current: model.step, total: WIZARD_TOTAL_STEPS })}
             </p>
             <ol className="flex flex-wrap items-center gap-3">
-                {WIZARD_STEPS.map((s, index) => {
-                    const name = m.stepNames[index] ?? '';
+                {WIZARD_STEPS.map((s) => {
+                    const name = m.stepNames[s];
                     const railState = deriveRailStepState({
                         step: s,
                         currentStep: model.step,
@@ -383,12 +346,17 @@ const WizardRail: FC = () => {
 };
 
 /**
- * The header's overflow ("More actions") disclosure (U6): a kebab trigger opening a `role="menu"` list with
- * `Save Draft` and `Cancel`. Demoting these two off the header is what keeps it from packing four filled
- * buttons that wrap on a phone. Self-contained (no `@commise/ui` menu primitive exists): the trigger carries
- * `aria-haspopup`/`aria-expanded` + a localized `aria-label`; each item is a real `role="menuitem"` button
+ * The header's overflow ("More actions") disclosure: a kebab trigger opening a `role="menu"` list carrying
+ * `Cancel`. Self-contained (no `@commise/ui` menu primitive exists): the trigger carries
+ * `aria-haspopup`/`aria-expanded` + a localized `aria-label`; the item is a real `role="menuitem"` button
  * (keyboard-operable); Escape and an outside-click backdrop both close it. Cancel routes through
- * `requestCancel` so the discard guard still fires; Save Draft through `saveDraft` and busies while submitting.
+ * `requestCancel`, so the discard guard fires exactly as it does for the back arrow that replaces it below
+ * `lg`.
+ *
+ * ⚠️ U32 makes this DESKTOP-ONLY, and one item wide. Below `lg` its job is done by the header's back arrow,
+ * so `Wizard.Header` does not render it there at all rather than disclosing a list of one. `Save Draft` is
+ * deliberately NOT here — see the module doc: it is in the action bar at every width, and putting it in both
+ * would name two controls the same thing on one surface.
  */
 const WizardActionsMenu: FC = () => {
     const model = useWizardModel();
@@ -447,19 +415,6 @@ const WizardActionsMenu: FC = () => {
                             <button
                                 type="button"
                                 role="menuitem"
-                                disabled={model.submitting}
-                                aria-busy={model.submitting || undefined}
-                                onClick={() => runAndClose(model.saveDraft)}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-charcoal transition hover:bg-pearl disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <SaveIcon />
-                                {m.saveDraft}
-                            </button>
-                        </li>
-                        <li role="none">
-                            <button
-                                type="button"
-                                role="menuitem"
                                 onClick={() => runAndClose(model.requestCancel)}
                                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-error-dark transition hover:bg-error/10"
                             >
@@ -475,41 +430,74 @@ const WizardActionsMenu: FC = () => {
 };
 
 /**
- * The persistent header (U6): `Preview` as its own icon button plus the overflow ("More actions") menu that
- * carries Save Draft + Cancel. Two controls, never four — the four-filled-button wrap is gone. Publish is no
- * longer here; it is the footer's step-4 primary.
+ * The sticky wizard header (U32) — and the ONE place the action bar is placed on web.
+ *
+ * Three things live here, and the breakpoint decides which of them a cook sees:
+ *  - **Below `lg`** — the BACK affordance (`lg:hidden`). It replaces the overflow menu's `Cancel` outright
+ *    and routes through the SAME `requestCancel`, so the discard guard fires exactly as it did. The kebab is
+ *    absent here, because both of its items have moved (Save Draft into the bar, Cancel into this arrow).
+ *  - **At `lg` and above** — the overflow menu (`hidden lg:flex`), carrying Save Draft + Cancel.
+ *  - **Always** — `Wizard.Controls`, rendered ONCE. Its own classes move it between `fixed bottom-0` (below
+ *    `lg`) and `static` in this band (at `lg`), so there is exactly one of each control in the document at
+ *    every width. See the module doc for why two breakpoint-hidden copies were rejected.
+ *
+ * `sticky top-0` is safe for the bar's `position: fixed`: a sticky ancestor does not create a containing
+ * block for fixed descendants (only `transform`/`filter`/`contain` do), and this band has none.
  */
-const WizardTopBar: FC = () => {
+const WizardHeader: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
 
     return (
-        <div role="toolbar" aria-label={m.topBarLabel} className="flex items-center justify-end gap-2">
-            <Button variant="secondary" icon={<EyeIcon />} onPress={model.togglePreview}>
-                {m.preview}
-            </Button>
-            <WizardActionsMenu />
+        <div
+            role="toolbar"
+            aria-label={m.headerLabel}
+            className="sticky top-0 z-20 flex flex-col gap-2 border-b border-border bg-card px-4 py-3"
+        >
+            <div className="flex items-center justify-between gap-2">
+                <button
+                    type="button"
+                    aria-label={m.back}
+                    onClick={model.requestCancel}
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-charcoal transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam lg:hidden"
+                >
+                    <ArrowLeftIcon />
+                </button>
+                {/* Keeps the kebab hard right at `lg` once the back arrow is gone. */}
+                <span className="hidden lg:block" />
+                <div className="hidden lg:flex">
+                    <WizardActionsMenu />
+                </div>
+            </div>
+            <WizardControls />
         </div>
     );
 };
 
 /**
- * The footer — the ONE contextual primary (U6). Left: a secondary `Prev: {name}` once past step 1. Right: a
- * single FILLED primary that is `Next: {name}` on steps 1–3 (advances via `requestGoNext`) and swaps to
- * `Publish` on step 4 (submits via `requestPublish`, busies while submitting). Never more than two buttons.
+ * The action bar (U32) — `Previous · Save Draft · Next`, with `Publish` taking Next's slot on the last step.
+ *
+ * ⛔ **Its `position` is the whole unit.** Below `lg` it is `fixed inset-x-0 bottom-0`, which puts it outside
+ * every scroll container BY CONSTRUCTION — the mockup's `sticky bottom-0` only pins because of one exact flex
+ * structure, and drifts back into flow the moment that structure changes. `pb-[env(safe-area-inset-bottom)]`
+ * is what clears the phone's gesture bar. At `lg` it becomes `static` and sits in the sticky header band it
+ * is rendered inside.
+ *
+ * Three controls, never four: `Save Draft` is a real control here (it was an overflow item that a phone user
+ * had to go looking for), and `Publish` stays the last step's primary rather than a duplicate desktop button.
+ *
+ * The blocked-advance notice is voiced HERE, next to the control that refused — see `blockedAdvanceErrors`.
  */
 const WizardControls: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
     const f = useMessages(recipeFormMessages);
-    const index = model.step - 1;
-    const prevName = index > 0 ? m.stepNames[index - 1] : undefined;
-    const nextName = index < WIZARD_TOTAL_STEPS - 1 ? m.stepNames[index + 1] : undefined;
-    // Why the refusal is voiced HERE, next to the control that refused: see `blockedAdvanceErrors`.
+    const prev = previousStep(model.step);
+    const next = nextStep(model.step);
     const blocking = blockedAdvanceErrors(model.blockedStep === model.step, model.stepErrors(model.step));
 
     return (
-        <div className="flex flex-col gap-2">
+        <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-2 border-t border-border bg-card px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0">
             {blocking.length > 0 && (
                 <div role="alert" className="flex flex-col gap-1">
                     {blocking.map((code) => (
@@ -520,16 +508,19 @@ const WizardControls: FC = () => {
                 </div>
             )}
             <div aria-label={m.controlsLabel} className="flex items-center justify-between gap-3">
-                {prevName !== undefined ? (
+                {prev !== null ? (
                     <Button variant="secondary" icon={<ChevronLeftIcon />} onPress={model.requestGoPrev}>
-                        {fillTemplate(m.prevLabel, { name: prevName })}
+                        {fillTemplate(m.prevLabel, { name: m.stepNames[prev] })}
                     </Button>
                 ) : (
                     <span />
                 )}
-                {nextName !== undefined ? (
+                <Button variant="secondary" icon={<SaveIcon />} busy={model.submitting} onPress={model.saveDraft}>
+                    {m.saveDraft}
+                </Button>
+                {next !== null ? (
                     <Button icon={<ChevronRightIcon />} onPress={model.requestGoNext}>
-                        {fillTemplate(m.nextLabel, { name: nextName })}
+                        {fillTemplate(m.nextLabel, { name: m.stepNames[next] })}
                     </Button>
                 ) : (
                     <Button icon={<CheckIcon />} busy={model.submitting} onPress={model.requestPublish}>
@@ -541,10 +532,10 @@ const WizardControls: FC = () => {
     );
 };
 
-/** The 4-step recipe-edit wizard shell: `<Wizard>` plus its `.Step`/`.Rail`/`.TopBar`/`.Controls` parts. */
+/** The 4-step recipe-edit wizard shell: `<Wizard>` plus its `.Step`/`.Rail`/`.Header`/`.Controls` parts. */
 export const Wizard = Object.assign(WizardRoot, {
     Step: WizardStep,
     Rail: WizardRail,
-    TopBar: WizardTopBar,
+    Header: WizardHeader,
     Controls: WizardControls,
 });

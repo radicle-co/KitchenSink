@@ -5,12 +5,12 @@
  * into their recipe create/edit page/screen, wiring validation, ingredient typeahead, and submission.
  */
 export { RecipeForm } from './RecipeForm.js';
-export {
-    RecipeBasicsFields,
-    RecipeIngredientsFields,
-    RecipeInstructionsFields,
-    RecipeVisibilityField,
-} from './RecipeFormSections.js';
+export { RecipeBasicsFields } from './RecipeBasicsFields.js';
+export { RecipeIngredientsFields } from './RecipeIngredientsFields.js';
+export { RecipeInstructionsFields } from './RecipeInstructionsFields.js';
+export { RecipeReviewFields } from './RecipeReviewFields.js';
+export type { RecipeReviewFieldsProps } from './RecipeReviewFields.js';
+export { RecipeVisibilityField } from './RecipeVisibilityField.js';
 export { ChipInput } from './ChipInput.js';
 export type { ChipInputProps } from './ChipInput.js';
 
@@ -30,6 +30,7 @@ export {
 export type {
     RecipeFormErrors,
     RecipeFormIngredient,
+    RecipeFormPhoto,
     RecipeFormStep,
     RecipeFormValues,
     RecipeWizardStep,
@@ -37,22 +38,34 @@ export type {
 
 export {
     addChip,
-    addIngredient,
     addStep,
-    blankIngredient,
+    appendResolvedIngredient,
     blankStep,
     difficultyOptions,
+    mealTypeOptions,
     parseCommaList,
     parseNumericInput,
     removeChipAt,
     removeIngredientAt,
     removeStepAt,
     resolutionStatusLabel,
+    reviewIngredientLabel,
+    reviewRows,
     setDifficulty,
+    setMealType,
     updateIngredientAt,
     updateStepAt,
 } from './props.js';
-export type { DifficultyOption, RecipeFormMode, RecipeFormProps, RecipeFormSectionProps } from './props.js';
+export type {
+    DifficultyOption,
+    MealTypeOption,
+    RecipeFormMode,
+    RecipeFormProps,
+    RecipeFormSectionProps,
+    RecipeIngredientsFieldsProps,
+    RecipeReviewRow,
+    ResolvedRecipeFormIngredient,
+} from './props.js';
 
 export { recipeFormMessages } from './messages.js';
 export type { RecipeFormMessages } from './messages.js';

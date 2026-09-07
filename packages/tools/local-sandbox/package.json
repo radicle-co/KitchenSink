@@ -1,0 +1,27 @@
+{
+    "name": "@kitchensink/local-sandbox",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "audit": "tsx bin/audit.ts",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "up": "tsx bin/up.ts",
+        "seed-food": "tsx bin/seedFood.ts"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "vitest": "^4.0.0",
+        "yaml": "^2.8.1"
+    },
+    "dependencies": {
+        "glob": "^13.0.6"
+    }
+}

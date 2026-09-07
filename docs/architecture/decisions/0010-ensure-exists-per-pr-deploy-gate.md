@@ -3,7 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-29
 - **Drivers**: issue #124 ("the entire ecosystem needs to exist and be deployed and fully working all the way down")
-- **Relates to**: [ADR-0003](0003-shared-alb-per-stage.md) (shared ALB + host rules), [ADR-0005](0005-environment-tagging-and-pr-cleanup.md) (per-PR teardown), [ADR-0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md) (per-PR feature deploys), [ADR-0007](0007-sandbox-cost-controls.md) / [ADR-0008](0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md) (cost posture)
+- **Relates to**: [ADR-0003](0003-shared-alb-per-stage.md) (shared ALB + host rules), [ADR-0005](0005-environment-tagging-and-pr-cleanup.md) (per-PR teardown), [ADR-0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md) (per-PR feature deploys), [ADR-0007](0007-sandbox-cost-controls.md) / [ADR-0008](0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md) (cost posture), [ADR-0028](0028-on-demand-sandbox.md) (the `intent` precondition), [ADR-0032](0032-deployed-ecosystem-test-tier.md) (the deployed-ecosystem test tier)
 
 ## Context — the failure
 
@@ -32,6 +32,13 @@ service is not a working system.
 
 ### 1. Gating semantics: **ensure-exists**, not paths-only and not always-redeploy
 
+⛔ **Every condition below sits behind one PRECONDITION: `intent`.** `deploy-gate.sh decide` takes it as a
+required FIRST parameter and returns `deploy=false` before reaching any of the four rows — including ABSENT
+— when it is false ([ADR-0028](0028-on-demand-sandbox.md) §4). Intent is carried by the `sandbox-up` PR
+label that `sandbox-up.yml` applies and the hourly reconciler removes. So the table is exact for a PR whose
+sandbox is deliberately UP; on every other PR the gate skips unconditionally, and the right reading of an
+absent stack is "deliberately reaped", not "broken".
+
 A service's deploy job runs when **any** of these holds:
 
 | condition                                                    | why                                             |
@@ -51,10 +58,12 @@ Everything else — including a failed `describe-stacks`, which is translated to
 The bias is deliberate: erring towards "deploy" costs one deploy, while erring towards "skip" ships an
 incomplete preview behind a green check, which is the failure being removed.
 
-**Consequence — a fresh docs-only PR gets a complete stack.** On its first `opened` event nothing exists, so
-both jobs deploy food, recipe-workers and recipe-service; every later push skips both (unchanged and serving).
-A preview that was reaped by the daily sweeper, wedged in `ROLLBACK_FAILED`, or lost its tasks **self-heals on
-the next push** — behaviour neither of the alternatives below provides.
+**Consequence — a fresh docs-only PR gets NOTHING, deliberately.** With no `sandbox-up` label `intent` is
+false, so both jobs skip with the reason _"no live sandbox for this PR (it was torn down, or never started)
+— press Run workflow to start one"_. A reaped preview does not self-heal on the next push either, and that
+is the point: ADR-0028's words are that leaving ensure-exists alone would _"rebuild every environment on the
+first push after the reaper ran. Silently. Behind a green check."_ Self-healing still applies WITHIN a live
+sandbox's lifetime (`intent = true`), which is the case the rest of this section describes.
 
 ### 2. Rejected: "always redeploy everything on every PR"
 
@@ -100,22 +109,33 @@ nothing.
 Recipe requires food's origin, so `deploy-recipe` keeps `needs: deploy-food`. A **skipped** dependency skips
 its dependents, so the ordering is protected twice:
 
-1. `deploy-food`'s job-level `if:` stays true for every non-closed `pull_request` event (its gate skips the
-   _work_, per step), so on a PR it always reaches a conclusion.
+1. `deploy-food`'s job-level `if:` stays true **whenever `intent` is true** (its gate skips the _work_,
+   per step), so on a PR with a live sandbox it always reaches a conclusion. ⚠️ NARROWED from "every
+   non-closed `pull_request` event": under ADR-0028 a PR with no `sandbox-up` label has no environment, so
+   an unconditional belt would run `setup-node` + `npm ci` + `configure-aws-credentials` on every push to
+   every PR that deliberately has none — cost with no possible outcome. Belt 2 discharges it, since a
+   `deploy-food` skipped for want of intent is `result == 'skipped'`, which is `!= 'failure'`.
 2. `deploy-recipe`'s `if:` is prefixed with `!cancelled() && needs.deploy-food.result != 'failure'`, which
    _also fixes_ `workflow_dispatch` with `service: recipe` — there `deploy-food` is genuinely skipped, and the
    previous unqualified `if:` skipped the recipe deploy along with it.
 
 A food deploy that **fails** still blocks recipe, on purpose.
 
-**ALB listener priorities are untouched.** The disjoint bands stay as they are (identity 100, food 200, recipe
-300; per-PR food `10000 + N`, per-PR recipe `30000 + N`, named stages in a higher band) — this ADR changes
-_when_ a stack is deployed, never _what_ it allocates.
+**ALB listener priorities are untouched.** The disjoint bands stay as they are (identity 100, food 200, recipe 300) — this ADR changes _when_ a stack is deployed, never _what_ it allocates. ⚠️ Per-PR and named-stage
+priorities are NOT quoted here on purpose: they come from the single allocator
+(`packages/infra/alb/src/listenerPriority.ts`, ADR-0003), which partitions the range into adjacent spans and
+fixed-width bands, and an earlier copy of those numbers in this ADR went stale in both directions at once.
+Read the allocator.
 
-## Cost
+## Consequences
+
+### Cost
 
 Per open PR, the delta is the food service that previously did not exist on a recipe-only PR: **1 API task +
-1 worker task** on Fargate Spot, 24/7.
+1 worker task** on Fargate Spot. ⚠️ The per-task sizes and rates below stand, but the DENOMINATOR does
+not: under [ADR-0028](0028-on-demand-sandbox.md) a preview exists only between a button press and midnight
+ET of that day, so the real figure is per _sandbox-day_ rather than per open PR, and the monthly table below
+is an upper bound rather than an estimate.
 
 | item        | size               | Fargate Spot (us-east-1)     |
 | ----------- | ------------------ | ---------------------------- |
@@ -133,7 +153,7 @@ Two offsets are part of this decision:
 
 CI-minute delta: `setup-node` + `npm ci` + credentials + the gate now run unconditionally in both jobs (~1–2
 min per job per event) so the gate can query CloudFormation and derive the food host by **running**
-`print-food-host.ts` instead of re-typing `food-pr-{N}.<domain>` in YAML. That is far cheaper than what the
+`printFoodHost.ts` instead of re-typing `food-pr-{N}.<domain>` in YAML. That is far cheaper than what the
 gate skips, and it avoids a second copy of a host shape that is a TLS constraint.
 
 ## Teardown (verified, not assumed)
@@ -141,8 +161,13 @@ gate skips, and it avoids a second copy of a host shape that is a TLS constraint
 `.github/scripts/teardown-sandbox-pr.sh` already reclaims a food stack for **any** PR that has one — nothing
 in it is conditional on the PR having touched food:
 
-- §1 drops the `kitchensink_food_pr_{N}` logical DB by looking up `kitchensink-food-service-pr-{N}`'s
-  migration-function output, and prints "nothing to drop" when the stack is absent;
+- §1 drops the per-PR logical databases through ONE platform reaper — invoked as
+  `{"action":"drop","pr":"pr-{N}"}` on the function named by `PerPrDatabaseReaperFunctionName`
+  ([ADR-0031](0031-sandbox-only-per-pr-database-reaper.md)) — not by looking up a per-service
+  migration-function output. ⚠️ That earlier shape is why the change was made: a stack already deleted or
+  resting in `DELETE_FAILED` publishes no outputs, so the per-stack door left recipe previews' databases
+  stranded with no signal. The per-service `action: 'drop'` doors still exist; teardown does not depend on
+  them.
 - §2 deletes stacks matching the `pr-{N}` name rule **or** the `Environment=pr-{N}` tag — and
   `food-service/infra/bin/app.ts` tags `Environment = stage` for any `pr-*` stage at the `App` level, so
   `kitchensink-food-service-pr-{N}` is caught by the tag;
@@ -154,11 +179,14 @@ The only thing that changes is how _often_ that path is exercised. The `pr-{N}` 
 ## Residual risks (known, not fixed here)
 
 1. **Per-PR ECS is NOT in the sandbox nightly-shutdown selector.** `isSandboxClusterArn` matches a cluster
-   whose name contains `sandbox`; per-PR clusters are named `kitchensink-{service}-pr-{N}-…`, so every preview
-   runs Fargate 24/7 even though the shared sandbox RDS is stopped 00:00–09:00 ET (ADR-0007). Widening the
-   selector to `pr-{N}` clusters would cut ~37% off every preview's compute bill and cost nothing in
-   functionality (the database is already down in that window). It needs its own PR: it changes the global
-   infra package and requires a `packages/infra/global` deploy.
+   whose name contains `sandbox`; per-PR clusters are named `kitchensink-{service}-pr-{N}-…`, so a per-PR
+   cluster is not a scheduler subject even though the shared sandbox RDS is stopped 00:00–09:00 ET
+   (ADR-0007). ⚠️ The RISK this once described — a preview standing 24/7 for weeks — is gone:
+   [ADR-0028](0028-on-demand-sandbox.md) starts a preview on a button press, stamps it with an absolute
+   `SandboxExpiresAt`, and has the hourly reconciler DELETE the whole per-PR stack past expiry, which
+   reclaims the tasks outright rather than scaling them to zero. Widening the scheduler's selector would be
+   redundant work on a resource that no longer exists overnight.
+
 2. **An unchanged service can be stale relative to a rebased branch.** `paths-filter` reports the PR's _own_
    diff, so if `main` changes food and a recipe-only PR rebases onto it, food is "unchanged" for that PR and
    the gate keeps the image built at first deploy. The fix is a content-addressed image tag (hash the food
@@ -171,3 +199,79 @@ The only thing that changes is how _often_ that path is exercised. The `pr-{N}` 
    host rule and food's auth; it does not prove the ECS task's own egress path (public subnet → IGW → ALB).
    Closing that would need an unauthenticated recipe endpoint that reports its dependency's state, which does
    not exist today.
+
+## Amendment — the gate closes the deploy GRAPH, and prod gets it first
+
+This ADR's four conditions all ask one question: **should THIS leg run?** They cannot ask the other question a
+per-leg gate owes — **is the leg this one DEPENDS ON running too** — and that gap was live in production.
+
+### The failure
+
+`prod-deploy.yml` gated every leg independently on a `dorny/paths-filter` group, so a change touching only
+`packages/services/identity-webhooks/**` set `deploy_webhooks=true` and `deploy_global=false`. ADR-0028 had
+moved the identity ECS log group into `ServiceLogsStack` — a child of the **global** app — recording that it
+"already deploys before both consumers, so no deploy order changed". That is true of the **order** and false of
+the **gate**: the earlier leg does not run at all.
+
+Measured against the live account on 2026-09-02: **`kitchensink-service-logs-prod` does not exist.** ADR-0028
+added it on 2026-08-30 and prod has had no platform deploy since, so the next webhooks-only merge would have
+died inside `cdk deploy` on `No export named kitchensink-service-logs-prod:IdentityServiceLogGroupName found`.
+`IdentityServiceStack` resolves the same export, so an identity-only merge had the identical hole — a second
+consumer the report never named, and which only a derivation found.
+
+`DependsOn` cannot leave a stack and nothing orders two `cdk deploy` invocations (ADR-0022 §5), so a
+`Fn.importValue` crossing a CDK **app** boundary is the one edge only the pipeline can honour.
+
+### Decision — a fifth condition, DERIVED
+
+> A producer leg also deploys when a leg that IS deploying imports an export the account does not publish.
+
+Three parts, each with one owner:
+
+1. **The edges are read from the CDK source.** `scripts/infrastructureManifest.mjs` (schema 2) collects every
+   `Fn.importValue` by AST, joins each to the app declaring the producing stack, and projects the cross-app
+   ones to `docs/generated/infrastructure/cross-app-imports.tsv` under the manifest's existing
+   regenerate-and-diff staleness gate. ⛔ **Never a hand-maintained table.** A copy of a list cannot detect
+   that the list grew — the ALB priority collision, the stale NAT consumer list and ADR-0025's asset guard all
+   cost this repository the same lesson. A `Fn.importValue` written tomorrow is covered tomorrow.
+2. **Which edges are unmet is I/O.** `deploy-gate.sh unmet-imports` resolves each export through
+   `.github/scripts/cfn-export.sh` — never an open-coded `list-exports --query`, which is wrong per page
+   (ADR-0005).
+3. **Forcing a leg is a pure decision.** `deploy-gate.sh close` takes the unmet edges and the current flags
+   and returns the closed flags, in the same pure/impure split `decide`/`evaluate` already use.
+
+### Three things that look arbitrary and are not
+
+- **The rule is NARROW: only a DEPLOYING consumer forces its producer.** "Force the producer whenever any
+  consumer leg runs" makes every prod deploy a full platform rollout — RDS, VPC and edge — for a webhooks
+  typo. "Force it whenever anything is missing" does the same from an unrelated leg. This fires only where the
+  deploy would otherwise FAIL, so it stops firing the moment the platform is whole.
+- **An unknown CONSUMER is ignored; an unknown PRODUCER is refused.** `@commise/web`'s router imports from the
+  platform and is shipped by Vercel, so erroring on it would red every prod deploy. A missing PRODUCER means a
+  leg IS deploying and what it depends on is not something this workflow can force — a hole no gate can close,
+  which somebody has to decide about. `crossAppImportClosure.test.ts` turns that into a commit-time failure.
+- **`unmet-imports` calls `sts get-caller-identity` first.** `cfn-export.sh --optional` cannot tell "the export
+  is absent" from "the CLI failed" — it answers empty for both. Without the precondition a credentials glitch
+  would mark every cross-app export missing and force a full platform rollout to production as a side effect:
+  the exact blast radius the narrow rule exists to avoid, arriving through the back door.
+
+`Configure AWS credentials` moved above `Compute deploy flags` so the probe can run before the flags every
+later `if:` reads. `sandbox-identity-deploy.yml` already had that order for the same reason.
+
+### Residual risks
+
+5. **Only `prod-deploy.yml` is closed.** `sandbox-identity-deploy.yml` still probes a **hand-written** two-stack
+   list (`kitchensink-network-sandbox`, `kitchensink-alb-sandbox`) to decide `global_missing` — and it is
+   already stale by exactly this defect: `kitchensink-service-logs-sandbox` is imported by two of its own legs
+   and is not probed. Replacing that list with this closure is the obvious follow-up.
+6. **`sandbox-deploy.yml` cannot be closed from inside itself.** Its per-PR food and recipe stacks import from
+   the `sandbox` platform, which a DIFFERENT workflow deploys, so no flag it owns can force the producer. That
+   is a cross-workflow ordering problem this mechanism does not address.
+7. **The probe costs one paginated `list-exports` per distinct export** (~30 on prod, a few seconds each). It
+   runs on every prod deploy. Reading the full export list once would be cheaper and would stand up a second
+   export-resolution mechanism beside `cfn-export.sh`; DRY won.
+8. **A placeholder that is neither `{stage}` nor `{baseStage}` is read as the deploy stage.** The manifest's
+   placeholder is the CDK author's local variable name (`WebhooksStack` alone uses `deployStage` and
+   `identityStage`), which a hermetic AST read cannot classify further. That reading is exact whenever the two
+   stages coincide — every prod deploy — and `deploy_gate_resolve_export` REFUSES rather than guessing when
+   they differ.

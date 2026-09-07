@@ -58,8 +58,14 @@ export interface RdsApi {
 
 /** ECS operations the scheduler needs. */
 export interface EcsApi {
-    /** List all cluster ARNs (the selector filters to sandbox). */
-    listClusterArns(): Promise<string[]>;
+    /**
+     * List every cluster with its `Environment` tag (the selector filters to sandbox + per-PR).
+     *
+     * ⚠️ The tag is REQUIRED here, not a convenience: a per-PR cluster is indistinguishable from any other
+     * by ARN alone under the rule `ecs-quiesce.sh` sets, so a port that returned only ARNs made the
+     * per-PR half unselectable no matter what the selector said.
+     */
+    listClusters(): Promise<EcsClusterSummary[]>;
     /** List the services in a cluster. */
     listServices(clusterArn: string): Promise<EcsServiceSummary[]>;
     /** Set a service's desired count. */
@@ -160,6 +166,68 @@ export function isSandboxClusterArn(clusterArn: string): boolean {
 }
 
 /**
+ * A `pr-{N}` stage token exactly: `pr-` and digits, nothing else.
+ *
+ * Anchored, and digits-only, for the reason `pr-scope.sh` already enforces on the teardown path — a prefix
+ * rule admits `prod` and `preview`, and the action on the other side of this predicate is SCALING A SERVICE
+ * TO ZERO.
+ */
+const PER_PR_ENVIRONMENT = /^pr-\d+$/u;
+
+/** The substring that marks a resource as production. Checked independently of every other rule. */
+const PROD_MARKER = 'prod';
+
+/**
+ * Whether a cluster ARN names a PRODUCTION cluster.
+ *
+ * @param clusterArn - The cluster ARN.
+ * @returns `true` for a prod cluster, which the scheduler must never touch.
+ */
+export function isProdClusterArn(clusterArn: string): boolean {
+    return (clusterArn.split('/').pop() ?? '').toLowerCase().includes(PROD_MARKER);
+}
+
+/** A cluster as the selector sees it: its ARN, and its `Environment` tag when it carries one. */
+export interface EcsClusterSummary {
+    /** The cluster ARN. */
+    readonly arn: string;
+    /** The `Environment` tag's value, when the cluster carries one. */
+    readonly environmentTag?: string | undefined;
+}
+
+/**
+ * Whether the nightly window may scale this cluster's services.
+ *
+ * Two doors, and they are deliberately different in kind:
+ *
+ *   - the SHARED sandbox tier is matched by NAME (`isSandboxClusterArn`), because its `Environment` tag is
+ *     `global` — the same value PRODUCTION carries, so the tag can never be the selector for it;
+ *   - a PER-PR preview is matched by its `Environment` TAG, because `ecs-quiesce.sh` records that the
+ *     per-PR cluster NAME "is deliberately NOT used for matching… loosening that rule is exactly what
+ *     ADR-0005 forbids". The `Environment=pr-{N}` tag is the same authority that licenses
+ *     `teardown-sandbox-pr.sh` to delete whole stacks.
+ *
+ * ⛔ Production is excluded by BOTH doors independently: its name carries no `sandbox`, and `pr-{N}` is a
+ * token CloudFormation only ever stamps on an ephemeral preview (ADR-0005). A false positive here is a
+ * production outage, so neither door is allowed to depend on the other being correct.
+ *
+ * @param cluster - The cluster and its `Environment` tag.
+ * @returns `true` when the scheduler may scale it.
+ */
+export function isScheduledCluster(cluster: EcsClusterSummary): boolean {
+    // ⛔ THE PROD INTERLOCK COMES FIRST and no tag can override it. Without it the rule is a plain OR, and
+    // a production cluster carrying an `Environment=pr-{N}` tag — a mis-tag, a copied stack, a future
+    // refactor — would be scaled to ZERO. ADR-0005 says that tag never lands on prod; this makes the
+    // scheduler correct even when that is violated, because the cost of being wrong here is an outage and
+    // the cost of the extra check is one string comparison.
+    if (isProdClusterArn(cluster.arn)) {
+        return false;
+    }
+
+    return isSandboxClusterArn(cluster.arn) || PER_PR_ENVIRONMENT.test(cluster.environmentTag ?? '');
+}
+
+/**
  * Select the sandbox NAT instances eligible for the given action. A NAT instance is identified by a
  * DISABLED source/destination check AND a `sandbox` marker in its `Name` tag — the tag scope keeps the
  * prod NAT (named `…prod…`) out of range even though both share the NAT characteristic.
@@ -204,11 +272,11 @@ export function priorCountParamName(serviceArn: string): string {
  * @sideEffect Calls ECS `ListClusters`/`ListServices`.
  */
 async function listSandboxServices(ecs: EcsApi): Promise<EcsServiceSummary[]> {
-    const clusterArns = (await ecs.listClusterArns()).filter(isSandboxClusterArn);
+    const clusters = (await ecs.listClusters()).filter(isScheduledCluster);
     const services: EcsServiceSummary[] = [];
 
-    for (const clusterArn of clusterArns) {
-        services.push(...(await ecs.listServices(clusterArn)));
+    for (const cluster of clusters) {
+        services.push(...(await ecs.listServices(cluster.arn)));
     }
 
     return services;

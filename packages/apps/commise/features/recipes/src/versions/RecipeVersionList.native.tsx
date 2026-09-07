@@ -1,8 +1,8 @@
 /**
  * @module @commise/features-recipes — native recipe version-history view (T069 building block).
  *
- * The React Native leaf of {@link import('./RecipeVersionList.js').RecipeVersionList} — same controlled,
- * presentational contract (newest-first, editor/device attribution, computed changed-fields summary, Preview
+ * The React Native leaf of `RecipeVersionList` — same controlled,
+ * presentational contract (newest-first, editor attribution, computed changed-fields summary, Preview
  * action, current version marked and not restorable, busy state on the version being restored with all
  * restore actions disabled, empty state) rendered with RN primitives. `onBack` is intentionally NOT read
  * here — native screens (`RecipeVersionsScreen`) already compose their own back chrome outside this shared
@@ -70,7 +70,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
             {sortVersionsDescending(versions).map((version) => {
                 const isCurrent = version.versionNumber === currentVersion;
                 const isBusy = restoringVersion === version.versionNumber;
-                const attribution = formatVersionAttribution(version.editorHandle, version.deviceLabel, versionList);
+                const attribution = formatVersionAttribution(version.editorHandle, versionList);
                 const { hasPrior, changedFields } = changeSummaryForVersion(versions, version);
 
                 return (

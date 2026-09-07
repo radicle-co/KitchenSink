@@ -113,15 +113,28 @@
  * gained none after it — keeping an unconsumed third statement of "mine is the default" would have been a
  * DRY liability, not a DRY win, so it (and its dedicated test) were removed rather than force-fed an
  * artificial caller.
+ *
+ * @pattern Headless hook (statechart) — the whole edit lifecycle as a `status`-discriminated union with a
+ *     closed set of branches; `RecipeEditContainer` and `RecipeEditor` bind it to their platform shells and
+ *     decide nothing themselves.
+ * @pattern Memento over TanStack's callback timing — `epochRef` is a generation token compared inside
+ *     mutation callbacks the library fires at an arbitrary later time, and `submitDraftRef` is a stable
+ *     handle over a `submitDraft` that closes over every-render state. Both are the ref rule's carve-out
+ *     because the external system is the mutation runtime's schedule, which React does not model; neither
+ *     is read to decide what to render. ⛔ `submitDraftRef` is assigned in an EFFECT, never in the render
+ *     body — a discarded render advanced the old one and submitted through a closure carrying another
+ *     recipe's id.
  */
 import type { Locale } from '@commise/i18n';
 import {
     RecipeStatus,
     type RecipeDetail,
     type RecipeSnapshot,
-    type UpdateRecipeInput,
     type VersionConflictSide,
 } from '@kitchensink/recipe-core';
+// The PATCH envelope, from the contract the service authors — was `recipe-core`'s hand-written
+// `UpdateRecipeInput` twin (§15 rule 4 / ADR-0014).
+import type { UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -180,11 +193,11 @@ export type EditorState =
           /** The in-progress per-field/per-element merge resolution; owned here so `RecipeConflictView` can
            *  be controlled. */
           readonly mergeSelections: RecipeMergeSelections;
-          /** The 409's winning server side verbatim (versionNumber/deviceLabel/updatedAt/snapshot) — the
+          /** The 409's winning server side verbatim (versionNumber/updatedAt/snapshot) — the
            *  enriched W8-a.5 body every resolution's resubmit CAS-tokens against (W7 Task 2). */
           readonly server: VersionConflictSide;
           /** The version the draft was edited from, when still retained in the DB window; ABSENT when
-           *  evicted — see {@link versionsBehind}. */
+           *  evicted — see `versionsBehind`. */
           readonly base?: VersionConflictSide;
           /** The draft projected to a {@link RecipeSnapshot} — the same shape `diff` 3-way-compares against
            *  `server`/`base`. */
@@ -264,6 +277,39 @@ export interface UseRecipeEditorResult {
      * and why the published case is preserved.
      */
     readonly saveDraft: () => void;
+    /**
+     * The UNATTENDED draft save (U34) — what `useRecipeAutoSave` calls, and deliberately NOT {@link saveDraft}.
+     *
+     * ⛔ `saveDraft` is one command bundling THREE concerns — validate-and-record-errors, persist, and
+     * notify-the-container — and a background timer wants only the middle one. Inheriting the other two
+     * produced three defects a cook meets within seconds of typing:
+     *
+     *  1. **It navigated them out of the editor.** `submitDraft`'s `onSuccess` calls `opts.onSaved`, which
+     *     both containers wire to "go to the detail page". Type, pause, and the editor closes underneath you.
+     *  2. **It painted validation errors nobody asked for.** `validateThenSubmit` records errors BEFORE its
+     *     gate, so clearing a title to retype it put "A title is required." under the field on a timer.
+     *  3. **It re-armed forever.** That error write stored a fresh object every time, so the render it caused
+     *     re-armed the (then two-second) timer, which fired, which re-rendered — a permanent loop on any
+     *     draft below the floor.
+     *
+     * So this persists and does nothing else: no `onSaved`, no `setErrors`, and no write at all when the
+     * step-1 floor fails (an unattended save has nothing to say about an incomplete draft — the cook is
+     * mid-sentence). It DOES set the `saved` terminal, deliberately, because the discard guard's baseline has
+     * to move forward or the next tick would write the same content again, forever.
+     *
+     * ⛔ Referentially STABLE across renders **AND across edits** — a façade over an effect-published
+     * implementation, not a `useCallback` over the state it reads. `useRecipeAutoSave` holds this in an
+     * effect dependency, so a fresh function re-creates its interval and restarts the window. Two ways that
+     * bites, one of which shipped: a recipe with a `PENDING` ingredient re-renders on a poller (which is why
+     * this was memoised at all), and — the 2026-09-03 defect — every KEYSTROKE changed `values`, which was
+     * in the old `useCallback` deps, so the ruled five-minute INTERVAL behaved as a debounce from the last
+     * edit and a cook typing continuously was never written. Depending on `values` here is not a small
+     * optimisation miss; it inverts which cook auto-save protects.
+     *
+     * It still writes what the cook has typed AS OF THE TICK: the published implementation comes from the
+     * latest COMMITTED render, so stability costs no freshness.
+     */
+    readonly autoSaveDraft: () => void;
     /** Whether the last submit failed for a reason OTHER than a version conflict (a handled 409 is never this). */
     readonly submitError: boolean;
     /**
@@ -370,6 +416,30 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // inside a callback is a synchronous comparison, not a second invocation of anything.
     const epochRef = useRef(0);
 
+    // ALLOWED REF (§3), and for the same reason `epochRef` is one — but note WHAT it holds: the whole
+    // unattended-save COMMAND, republished on every commit, never the state that command reads. That
+    // distinction is the design, not an implementation detail:
+    //
+    //  - It is what makes `autoSaveDraft` referentially stable with EMPTY `useCallback` deps, which
+    //    `useRecipeAutoSave` needs: `saveDraft` sits in that hook's effect deps, so a callback whose
+    //    identity moves re-creates the interval and restarts the window. Depending on `values` there is
+    //    exactly the 2026-09-03 defect — the ruled five-minute INTERVAL degraded into a debounce from the
+    //    last keystroke, so a cook typing continuously was never written at all.
+    //  - It is NOT state-in-a-ref. Nothing reads it to decide what to render, and — unlike mirroring
+    //    `values`/`query.data` into refs of their own, the other way to reach the same stability — there is
+    //    no second copy of any state that could disagree with the render it came from. One ref, one
+    //    published closure, every fact inside it from the SAME commit.
+    //
+    // ⛔ WRITTEN IN AN EFFECT, NEVER IN THE RENDER BODY — React documents that prohibition and this hook
+    // pays it in data loss, not a warning. A ref write is not part of the render's work, so React never
+    // rolls it back: a render it DISCARDS (a sibling suspends, a transition is interrupted) still advanced
+    // the ref to that abandoned pass's closure, and the committed tree then submitted through a closure
+    // over a `recipeId` the user never landed on — an unattended write of THIS recipe's draft, with THIS
+    // recipe's `expectedVersion`, onto ANOTHER recipe, past every guard in `runAutoSaveDraft` (which reads
+    // the committed `query.data` and passes). An effect runs only for a render that committed. Pinned by
+    // the Suspense case in `useRecipeEditor.test.tsx`, which fails on the render-body assignment.
+    const autoSaveDraftRef = useRef<() => void>(() => undefined);
+
     // Seed the draft from the loaded recipe once; the STATE guard (not a ref, per the coding standards' "refs
     // near-forbidden" rule) keeps a background refetch of the SAME recipe from overwriting in-progress edits —
     // only a genuinely different id (a real navigation to another recipe) reseeds.
@@ -437,8 +507,17 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // 409. `status` (w3) is OPTIONAL and OMITTED by default — `submit()` and the conflict resolutions call
     // this with no status so a routine save/resubmit never touches publication state; `publish`/`saveDraft`
     // are the only callers that pass one.
-    const submitDraft = (draft: RecipeFormValues, expectedVersion: number, status?: RecipeStatus): void => {
-        const input: UpdateRecipeInput = { ...toUpdateRecipeInput(draft, status), expectedVersion };
+    const submitDraft = (
+        draft: RecipeFormValues,
+        expectedVersion: number,
+        status?: RecipeStatus,
+        // UNATTENDED (U34): suppress `opts.onSaved` only. Everything else — the CAS token, the 409-to-conflict
+        // transition, the epoch guard, the `saved` terminal — is identical, because an unattended write must
+        // be exactly as safe as a deliberate one. See `autoSaveDraft` for why the notification is the one
+        // concern a timer must not inherit.
+        options?: { readonly silent?: boolean },
+    ): void => {
+        const input: UpdateRecipeRequest = { ...toUpdateRecipeInput(draft, status), expectedVersion };
         // Captured NOW (this submission's own epoch) — compared against `epochRef.current` inside the
         // callbacks below, whenever THEY eventually fire. `discardAndClose` bumps the ref if the user leaves
         // before this settles; see the ref's own doc above for why a plain ref (not state) is what makes that
@@ -458,7 +537,10 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
 
                     setConflict(null);
                     setTerminal('saved');
-                    opts.onSaved(recipe);
+
+                    if (options?.silent !== true) {
+                        opts.onSaved(recipe);
+                    }
                 },
                 onError: (err) => {
                     // Same neutralization for a late failure — it must not reopen `conflict` (or anything
@@ -514,6 +596,45 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
 
         validateThenSubmit(stepErrorsFor(values, 1), draftStatus);
     };
+
+    // The unattended save's IMPLEMENTATION — a plain function, re-created every render so it closes over
+    // this render's `values`/`query.data`/`seededId`, and published to `autoSaveDraftRef` on commit. See the
+    // `autoSaveDraft` field's own doc for the three concerns this deliberately does not inherit from
+    // `saveDraft`, and the ref's doc for why the closure (not the state) is what gets published.
+    const runAutoSaveDraft = (): void => {
+        if (query.data === undefined) {
+            return;
+        }
+
+        // ⛔ The draft must be SEEDED FROM the recipe this write will land on. A navigation flips
+        // `useRecipe(recipeId)` to the new recipe one commit BEFORE the seed-once effect copies it into
+        // `values`, and for that commit `state.status` is already `'editing'` (`seededId` is non-null from
+        // the previous recipe), so the container's `enabled` gate is open. A tick landing there would write
+        // the PREVIOUS recipe's content under the NEW recipe's `expectedVersion`, to the NEW recipe's id —
+        // a silent cross-recipe overwrite, past every other guard here, because each of them reads one
+        // committed render and each of them passes. `seededId` is set to `query.data.id` by that same seed
+        // effect, so comparing them asks exactly "has `values` been seeded from what I am about to write
+        // to?". A manual save cannot reach this window (the cook is not holding a timer); an unattended one
+        // can, which is why the guard lives here and not in `validateThenSubmit`.
+        if (seededId !== query.data.id) {
+            return;
+        }
+
+        // The SAME relaxed floor `saveDraft` uses — but a failure is a silent no-op here, not a recorded
+        // error: the cook is mid-sentence, and a timer has no standing to interrupt them.
+        if (Object.keys(stepErrorsFor(values, 1)).length > 0) {
+            return;
+        }
+
+        const draftStatus = query.data.status === RecipeStatus.PUBLISHED ? RecipeStatus.PUBLISHED : RecipeStatus.DRAFT;
+
+        submitDraft(values, query.data.currentVersion, draftStatus, { silent: true });
+    };
+
+    // The stable FAÇADE the timer holds. Empty deps on purpose: it forwards to whatever the last COMMITTED
+    // render published, so it never changes identity and `useRecipeAutoSave`'s interval is never re-created
+    // by an edit — while still writing what the cook has typed as of the tick. See the ref's own doc.
+    const autoSaveDraft = useCallback((): void => autoSaveDraftRef.current(), []);
 
     const goToStep = (next: RecipeWizardStep): void => setStep(next);
 
@@ -572,6 +693,11 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         setTerminal('discarded');
     };
 
+    // No dependency array: every commit republishes the current implementation, and only a commit does.
+    useEffect(() => {
+        autoSaveDraftRef.current = runAutoSaveDraft;
+    });
+
     const resolutions: UseRecipeEditorResult['resolutions'] = {
         overwrite: resubmitDraftAsIs,
         keepServer: (): void => {
@@ -626,6 +752,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         submit,
         publish,
         saveDraft,
+        autoSaveDraft,
         submitError: updateRecipe.isError && !isVersionConflictError(updateRecipe.error),
         // Derived the SAME way `submitError` is (straight off `updateRecipe`'s own settled error state, not a
         // separately-tracked flag that could desync from it) — a handled-but-undisplayable 409: it IS a

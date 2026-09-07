@@ -21,8 +21,16 @@ public half is deliberately non-secret.
 
 - **sandbox — DONE** (provisioned 2026-07-26, this session). All four values exist; verified the stored
   public key round-trips and that the secret holds a PKCS#8 PEM under `SIGNING_KEY`.
-- **prod — NOT DONE.** Deliberately left for a human: minting a production signing credential should be a
-  reviewed, audited action. Run the steps below when CR-002 ships to prod.
+- **prod — DONE** (verified 2026-08-16, plan U1). All four values exist AND the halves were checked
+  against each other, not merely counted: the public key derived from the stored PKCS#8 private key
+  (`ed25519`) is byte-identical to **both** the recipe and the food SSM parameter, and those two are
+  identical to each other. Evidence: `docs/reviews/2026-08-16-u1-erasure-diagnosis.md` §Symptom 1.
+
+    ⛔ **Do not re-run the provisioning steps below for prod.** Minting a second keypair over a working
+    one silently invalidates every token the deployed verifiers accept — every in-flight erasure would
+    `401` onto the DLQ until all three services were redeployed. This line previously read "NOT DONE"
+    long after provisioning had happened, which is precisely the trap; if you need to change the prod
+    key, use **Rotation** below, which redeploys the verifiers as part of the procedure.
 
 ## Provisioning a stage (the prod procedure)
 

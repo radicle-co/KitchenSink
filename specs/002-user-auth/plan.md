@@ -161,9 +161,14 @@ This is mandatory for REQ-049 (LocalStack-backed local testing) and supports REQ
 ### `packages/services/identity/src/types`
 
 - **Types-only** boundary (no database dependencies, no Drizzle schemas, no DAOs)
-- Owned by the identity service; canonical TypeScript types consumed by service, lambdas, and clients
-- JWT claims, authorizer context, user/account/profile DTOs, admin actions, webhook payloads
-- Exports: `@kitchensink/identity-service` (root), `@kitchensink/identity-service/types`
+- Owned by the identity service; **service-internal** TypeScript types consumed by the service and its lambdas
+- JWT claims, authorizer context, admin actions
+- ⚠️ **Amended 2026-08-11 (GR-015):** this entry previously read "consumed by service, lambdas, and
+  **clients**", exported as `@kitchensink/identity-service/types`. **Consumers no longer import from here** —
+  they import `@kitchensink/schema-identity`. A consumer dependency on the service package is rejected by
+  ADR-0014 (it drags NestJS/Drizzle/aws-sdk into web and mobile). User/account/profile wire DTOs move to the
+  schema package; the inbound Clerk webhook payload is a **third-party** shape validated at the boundary, not
+  a contract we own. See _API Contracts — ownership and drift (GR-015)_ below.
 - Traceability: REQ-001..REQ-012, REQ-039..REQ-044, NFR-001, NFR-010
 
 ### `packages/services/identity/infra`
@@ -186,6 +191,152 @@ This is mandatory for REQ-049 (LocalStack-backed local testing) and supports REQ
 - REST endpoints for profile/account/admin lifecycle
 - Produces deletion jobs to SQS; consumes authorizer-injected identity context
 - Traceability: REQ-018..REQ-038, FR-018..FR-037
+
+---
+
+## API Contracts — ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states only
+the **bindings for this feature**; the rule lives there and wins on any detail.
+
+| Role                                  | Binding for 002                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)  | `@kitchensink/identity-service` — `packages/services/identity/src/**/*.schema.ts`, beside its controller                                                                                                                                                                                                |
+| Also in scope                         | `@kitchensink/identity-webhooks` — the `POST /api/v1/webhooks/users` **inbound Clerk** shape is third-party (below)                                                                                                                                                                                     |
+| Schema package (generated, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity`. ⚠️ **CORRECTED 2026-08-12: it EXISTS** (this cell said "does not exist yet; being converged now") — 5 copied schema files and a derived `openapi.yaml` of **760 lines / 10 paths**; `wc -l` it rather than quoting, since it is generated |
+| Consuming app / feature packages      | `@commise/features-account` (`ProfileServiceClient`), consumed by `@commise/web` and `@commise/mobile`                                                                                                                                                                                                  |
+| Domain types (a **different** axis)   | `@kitchensink/identity-core` — reused `import type`, never re-declared in the schema package (GR-007)                                                                                                                                                                                                   |
+
+### The service's obligation
+
+- Every request/response shape of `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*`,
+  `/api/v1/admin/*` and `/api/v1/groups/*` (the group model added under 014) is authored as **zod in the
+  identity service** at `src/**/*.schema.ts`, next to its controller.
+- The service **validates its own requests with that same zod** via `nestjs-zod`'s `createZodDto`.
+- `packages/schemas/identity` is **generated and committed** from those sources — `schemas.ts`, `types.ts`,
+  `contractHash.ts`, barrel, plus a **derived** `openapi.yaml`. Nothing in it is hand-edited.
+- A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** — no Drizzle schema, no DAO type, no
+  Nest symbol.
+
+⚠️ **`packages/services/identity/src/types` is NOT the contract package and must not become one.** This plan
+previously described it as the "canonical TypeScript types consumed by service, lambdas, and **clients**",
+exported as `@kitchensink/identity-service/types`. That arrangement is **rejected** by ADR-0014
+(alternative 2): a consumer reaching into the service package drags NestJS, Drizzle and the AWS SDK into web
+and mobile, inverts the build order, and gives a client a legitimate-looking path to a DAO type. Consumers
+import `@kitchensink/schema-identity`. The service's `src/types` keeps only service-internal types.
+
+### The CLIENT's obligation — separately mandatory
+
+002 has **no `packages/clients/identity` package**. Its consumer today is `ProfileServiceClient` in
+`@commise/features-account`, which means the wire shapes land in an **app-feature** package. GR-015 §15-b.4
+binds that identically — the rule is about who authors a wire shape, not which directory it sits in:
+
+- The consumer imports its wire **types and zod** from `@kitchensink/schema-identity`.
+- It **declares no request or response body type of the identity service.** Anything left in its own
+  `types.ts` is genuinely client-side: base URL and fetch config, `TokenSource`, request options, its own
+  error shapes. `DeleteAccountResult` and any profile/account response shape are **wire** shapes and belong
+  to the schema package.
+- A divergent consumer shape (a settings form model, a redacted profile view) is **DERIVED** with
+  `Pick` / `Omit` / `Partial` over the wire type — never independently declared. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new identity endpoint is not complete until its types are reachable from the schema package.**
+
+🟠 **OPEN — where does the identity consumer live?** GR-015 assumes a `packages/clients/<service>` leaf, and
+002 does not have one. Two shapes satisfy 15-b: (a) introduce `packages/clients/identity` and have
+`@commise/features-account` wrap it, or (b) have `@commise/features-account` import
+`@kitchensink/schema-identity` directly and remain the only consumer. **Question for the owner: (a) or (b)?**
+Neither §15 nor an existing ADR decides it, and it is not derivable — so it is not decided here.
+
+### Drift gates — inherited from GR-015 §15-c
+
+All three required: turbo `inputs`-driven rebuild of `schema-identity` from the service's `*.schema.ts`; a
+**regenerate-and-diff CI gate**; and a `CONTRACT_HASH` **boot assertion**. The boot assertion matters most
+here: identity is the one service every already-shipped mobile binary must keep talking to.
+
+### ⚠️ Clerk is a THIRD-PARTY API — the opposite case, do NOT converge it (GR-015 §15-d)
+
+**Clerk is not one of our services.** We do not serve its API, we cannot author its types, and its contract
+can change without telling us. So everything on the Clerk boundary is governed by §15-d, not §15-b:
+
+- **Session-token claims** verified in `packages/shared/clerk-verify` / `ClerkAuthService`, the `azp` guard,
+  and `public_metadata` scope/permission extraction: validate the **raw upstream shape at the boundary** and
+  MAY declare their own types.
+- **The inbound Clerk webhook payload** at `POST /api/v1/webhooks/users` (`user.created` / `user.updated` /
+  `user.deleted`, `svix`-verified) is **Clerk's** shape, not ours. It is validated at the boundary and is
+  **not** put in `@kitchensink/schema-identity` as though we owned it. The webhook's own _response_ is ours.
+- **No OpenAPI document is written for Clerk's API.**
+- Deleting or "converging" a Clerk boundary schema under §15-b replaces a checked parse of an unauthenticated
+  external body with unchecked trust. That is a **security regression** on this feature's most exposed
+  surface. See `packages/clients/usda` for the reference pattern.
+
+### Status — RE-MEASURED 2026-08-12, and the first bullet was WRONG in BOTH halves
+
+- ✅ **`packages/schemas/identity` EXISTS** — 5 copied schema files plus `contractHash.ts` and a derived
+  `openapi.yaml` (**760 lines / 10 paths**) — **and `openapi.yaml` exists for ALL THREE services**: recipe
+  **5,700** lines / 34 paths, food **1,134** / 12, identity **760** / 10. ⚠️ This bullet previously read
+  _"Identity is being converged now. `packages/schemas/identity` does not exist yet, and no `openapi.yaml` exists
+  for any service in this repo."_ ⛔ All three documents are **generated**, so those line counts are timestamps
+  rather than facts — re-measure with `wc -l` instead of quoting them onward, which is exactly how the
+  **4,945 / 922 / 716** figures from 2026-08-11 got laundered into a dozen documents a day after they expired.
+- ⚠️ [`contracts/identity-api.openapi.json`](./contracts/identity-api.openapi.json) and the hand-written TS
+  contract files in [`contracts/`](./contracts/) (`user.ts`, `auth-session.ts`, `authorizer.ts`,
+  `deletion.ts`, `errors.ts`, `post-reg.ts`, `reconciliation.ts`) are **hand-maintained and verified by
+  nothing**. ⚠️ **Corrected 2026-08-12**: this bullet said they were "superseded **in principle** … but the
+  generated document does not exist yet, so they are retained as the only record". The generated document
+  **does** exist, so per §15.2(6) they are **genuinely superseded** and are retained only as the **historical**
+  record until their citations are repointed (`tasks.md` T-089 / T-091). Where they disagree with the
+  service's `*.schema.ts`, **the service's zod wins.** Do not extend them with new surface.
+
+---
+
+## Input validation — where the authored zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). GR-015 decides
+**who authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
+
+**002 holds the case that proves why this rule exists** — a route that looks validated and validates nothing.
+
+- **⛔ `createZodDto` requires `nestjs-zod`'s `ZodValidationPipe`, and identity already got this wrong.**
+  Under Nest's **own** built-in `ValidationPipe` a `createZodDto` DTO **validates nothing while every visible
+  signal says it does**. That happened on **`PATCH /users/me`** — a route that **writes user data**. The
+  identity service registers `nestjs-zod`'s pipe, and because the failure is invisible in review, the proof is
+  a test that posts a **known-bad body to the real route** and asserts the `400`. Write it for `PATCH
+/users/me` first.
+- **One mechanism, one `400`.** Measured 2026-08-11: identity has **3** `ZodValidationPipe` / **4**
+  `createZodDto` — the smallest surface in the portfolio, and the one where converging on a single mechanism
+  is cheapest. Every `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*`, `/api/v1/admin/*` and
+  `/api/v1/groups/*` input — body, path params, query params, and any header a handler reads — goes through
+  it. No second DTO framework, no per-method `safeParse`.
+- **⚠️ WEBHOOKS: the svix signature proves ORIGIN, not SHAPE — and this is 002's highest-exposure surface.**
+  `POST /api/v1/webhooks/users` (`packages/services/identity-webhooks/src/handlers/identityWebhook.ts`)
+  verifies the `svix` signature, and that verification is **required and stays**. But a correctly signed Clerk
+  payload whose fields moved, went null, or gained a member is still an **unvalidated body being written to
+  the identity database**. So: **verify the signature, then validate the schema** — both, in that order,
+  never one instead of the other. The inbound Clerk shape is validated under GR-015 §15-d (it is Clerk's
+  shape, not ours, and does not enter `@kitchensink/schema-identity`); GR-016 is what makes that parse
+  **mandatory rather than a good idea**.
+- **The other Lambda ingress points are in scope too**, because a pipe reaches none of them:
+  `deletionWorker.ts` (SQS retry payload), `reconciliation.ts` / `erasureReconciliation.ts`,
+  `tombstoneSweep.ts`, `logForwarder.ts`, `migrate.ts`. Each parses its event against an authored zod before
+  acting on it. A scheduled invocation's payload is "ours" only until a deploy drifts.
+- **Service-to-service, outbound: identity is the CALLER on the erasure fan-out.**
+  `packages/services/identity-webhooks/src/common/erasureFanout.ts` posts
+  `POST /api/v1/internal/account/erasure` to **recipe and food**. The outbound body is validated against the
+  callee's schema-package zod **before the call**, and each response is **validated on receipt** — a
+  fan-out that silently mis-reads a partial failure is how an erasure is reported complete when it is not.
+- **The floor.** Every profile/account field writing a bounded column — display name, handle, locale,
+  status/role enums, nullability — is validated at least as strictly as that column can store. **Asserted,
+  never derived**: no zod generated from drizzle, and no Drizzle/DAO type imported into a `*.schema.ts` (the
+  constraint this plan already states above is unchanged by GR-016).
+- **Unknown keys are a stated choice per surface** (`z.object` strips silently, `z.strictObject` rejects). On
+  a profile update, silently dropping a misspelled field returns `200` for a write that did not happen.
+  Portfolio default is **OPEN** (GR-016 OPEN-GR-016-B).
+- **⛔ Response validation is DEFERRED (GR-016 §16-g).** Identity validates no responses, deliberately. Do not
+  add it.
 
 ---
 

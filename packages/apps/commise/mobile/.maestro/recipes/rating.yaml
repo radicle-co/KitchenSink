@@ -24,9 +24,18 @@ appId: io.commise.mobile
 - tapOn: 'Discover'
 - assertVisible: 'Discover recipes'
 
+# ⛔ A HARD WAIT, not only the guard below. `when:` does not wait and does not fail: when the fixture was
+# missing it evaluated false, the whole body was SKIPPED, and the flow reported GREEN having asserted
+# nothing. That is exactly what happened in run 101351873536 — every reset had failed, the library was
+# empty, and this flow passed. The seeded world is now guaranteed by `e2e-seed`, so its absence is a
+# failure to report rather than a condition to tolerate. The guard is kept underneath it so the block's
+# structure is unchanged; by the time it runs it can only be true.
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_RISOTTO}'
+      timeout: 30000
 - runFlow:
       when:
-          visible: 'Herb Risotto'
+          visible: '${E2E_RECIPE_RISOTTO}'
       commands:
           # Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row
           # "Clone Herb Risotto" quick-clone button whose label also contains the title.
@@ -39,7 +48,7 @@ appId: io.commise.mobile
           # swipe-ups (swipe-up-from-centre being Android's Home gesture) backgrounded the app to the launcher.
           # Anchoring above the "New" heading selects the fully-visible Trending card.
           - tapOn:
-                text: '^Herb Risotto$'
+                text: '^${E2E_RECIPE_RISOTTO}$'
                 above: 'New'
 
           # The community aggregate (read-only social proof) and the rate call-to-action render. The presence
@@ -69,6 +78,16 @@ appId: io.commise.mobile
 
           # Sc10 — rating reveals the remove affordance; removing it succeeds and withdraws the affordance,
           # restoring the caller's contribution to zero (leaving the shared seed net-unchanged).
-          - assertVisible: 'Remove my rating'
+          # ⚠️ SCROLLED to, not merely asserted. Rating the recipe CHANGES THE LAYOUT ABOVE this control:
+          # the community aggregate goes from the one-line "Not yet rated" to a star row, so everything
+          # below it shifts down by roughly that difference. The scroll above stopped as soon as
+          # `Rate 4 stars` was visible — i.e. near the bottom of the viewport — so the newly revealed
+          # `Remove my rating` lands just off-screen and a bare `assertVisible` passes or fails on where
+          # the scroll increments happened to stop. It is still an assertion that the control APPEARS;
+          # `scrollUntilVisible` fails if it does not exist.
+          - scrollUntilVisible:
+                element: 'Remove my rating'
+                direction: DOWN
+                timeout: 20000
           - tapOn: 'Remove my rating'
           - assertNotVisible: 'Remove my rating'

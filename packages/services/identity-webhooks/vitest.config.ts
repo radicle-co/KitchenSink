@@ -1,10 +1,23 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
-import { baseConfig } from '@kitchensink/vitest';
+import { baseConfig, testTempRootSetup } from '@kitchensink/vitest';
 
+/**
+ * Unit-test config. The shared `baseConfig` include (`**​/__tests__/**​/*.test.{ts,tsx}`) already cannot
+ * match the non-unit tiers, which live under `tests/` — but `tests/**` is excluded EXPLICITLY so the
+ * separation is stated rather than inferred from a glob coincidence: the integration tier
+ * (`tests/**​/*.integration.test.ts`, `vitest.integration.config.ts`) and the e2e tier
+ * (`tests/e2e/**​/*.e2e.test.ts`, `vitest.e2e.config.ts`) each own their config, and both need a real
+ * Postgres/AWS harness a plain `npm run test` must never require. Per CODING_STANDARDS §7.1, `npm run test`
+ * is unit-only.
+ */
 export default mergeConfig(
     baseConfig,
     defineConfig({
         test: {
+            // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+            // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+            globalSetup: [testTempRootSetup],
+            exclude: ['tests/**'],
             passWithNoTests: true,
         },
     }),

@@ -22,7 +22,7 @@
  *   5. The pool must have >= MAX_VUS tokens or the distinct-user invariant breaks under scale-up
  *      (setup() asserts this).
  *
- * Run:  k6 run --env FOOD_BASE_URL=https://food-pr-59.commise.app journey.js
+ * Run:  k6 run --env FOOD_BASE_URL="$(node printPublicOrigin.mjs food pr-73 commise.app)" journey.js
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
@@ -30,7 +30,7 @@ import { SharedArray } from 'k6/data';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
 // ── Config (env with safe smoke-run defaults) ───────────────────────────────────────────────────────
-const BASE_URL = (__ENV.FOOD_BASE_URL || 'https://food-pr-59.commise.app').replace(/\/$/, '');
+const BASE_URL = (__ENV.FOOD_BASE_URL || '').replace(/\/$/, '');
 const POOL_FILE = __ENV.POOL_FILE || './pool.json';
 const CORPUS_FILE = __ENV.CORPUS_FILE || './corpus/food-queries.json';
 
@@ -149,7 +149,16 @@ let handle = null; // this VU's { userId, sessionId, devJwt, cookie, jwt }
 let token = null;
 let mintedAt = 0;
 
-/** Refresh this VU's session token when it is older than REFRESH_AFTER_S (invariant #1). */
+/**
+ * Refresh this VU's session token when it is older than REFRESH_AFTER_S (invariant #1).
+ *
+ * ⛔ DELIBERATELY NOT `k6/session.js`'s `freshBearer`, which does the same thing for the service tiers.
+ * The two diverge on four axes and each divergence is a decision — see that module's header for the full
+ * argument. The two that matter most here: this one accepts a BACKEND-API pool entry, which `session.js`
+ * is guaranteed never to do, and this one KEEPS a stale token on a failed re-mint so the iteration
+ * finishes and `food_token_refresh_fail` carries the verdict, where `session.js` throws. Sharing an
+ * implementation would need a flag for each, and the first of those flags re-opens sign-in.
+ */
 function freshToken() {
     if (token && Date.now() - mintedAt < REFRESH_AFTER_S * 1000) {
         return token;
@@ -231,6 +240,14 @@ const pool = new SharedArray('pool', () => {
 });
 
 export function setup() {
+    // ⛔ No target, no run — never a green run against a default host that no longer exists.
+    if (!BASE_URL) {
+        throw new Error(
+            'FOOD_BASE_URL is required — resolve it with `node printPublicOrigin.mjs food <stage> <apex>`. ' +
+                'It used to default to a typed host that stopped resolving when that PR closed.',
+        );
+    }
+
     // Distinct-user invariant (invariant #5): every concurrent VU needs its own user.
     if (pool.length < MAX_VUS) {
         throw new Error(

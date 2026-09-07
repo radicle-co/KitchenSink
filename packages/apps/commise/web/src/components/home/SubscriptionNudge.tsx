@@ -8,13 +8,19 @@
  * (the seam a future premium-gated widget calls). In Home v1 no live widget is premium-gated, so the
  * mechanism ships ready for the first gated widget (005–009) rather than firing on any current surface.
  *
- * "Once per session" is deliberately **component state** (a ref guard), not persisted — the requirement is
- * per-session, and a page reload legitimately starts a new session.
+ * "Once per session" is deliberately **component state**, not persisted — the requirement is per-session,
+ * and a page reload legitimately starts a new session.
+ *
+ * @pattern Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a
+ *     gated widget asks for the nudge without owning it.
+ * @pattern Adapter over the house Radix `Dialog` for the nudge surface itself — Radix owns the focus trap,
+ *     Escape-to-dismiss and background inert.
  */
 import * as Dialog from '@radix-ui/react-dialog';
-import { createContext, useCallback, useContext, useRef, useState, type JSX } from 'react';
+import { createContext, useCallback, useContext, useState, type JSX } from 'react';
 
 import { useMessages } from '@commise/i18n/react';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 
 import { webMessages } from '@/i18n/messages';
 
@@ -54,26 +60,37 @@ export interface OncePerSessionNudge {
 }
 
 /**
- * Own the once-per-session nudge state. The first {@link OncePerSessionNudge.trigger} shows it; a ref guard
- * makes every later trigger a no-op for the session, so it can appear at most once regardless of how many
- * gated taps occur. Dismissing hides it without re-arming.
+ * The nudge's whole lifecycle, as ONE value.
+ *
+ * ⛔ Not a `visible` flag beside a separate "has fired" latch: that pair can spell two states this feature
+ * does not have — spent-but-visible, and visible-but-not-spent — and keeping them in agreement was the only
+ * thing stopping the nudge appearing twice. Reading the spent-ness out of a ref made it worse, because a ref
+ * is not state React tracks: nothing re-renders on it, and it is exactly the render-affecting bookkeeping
+ * CLAUDE.md §3 rules out. With one value the illegal states are unrepresentable.
+ */
+type NudgePhase =
+    /** Never triggered. The next trigger shows it. */
+    | 'armed'
+    /** On screen. Further triggers are no-ops; a dismissal spends it. */
+    | 'showing'
+    /** Shown and dismissed. Spent for the session — no trigger re-arms it. */
+    | 'spent';
+
+/**
+ * Own the once-per-session nudge state. The first {@link OncePerSessionNudge.trigger} shows it; every later
+ * trigger is a no-op for the session, so it can appear at most once regardless of how many gated taps occur.
+ * Dismissing hides it without re-arming.
+ *
+ * @returns The nudge visibility plus its trigger/dismiss controls.
  */
 export function useOncePerSessionNudge(): OncePerSessionNudge {
-    const [visible, setVisible] = useState(false);
-    const shown = useRef(false);
+    const [phase, setPhase] = useState<NudgePhase>('armed');
 
-    const trigger = useCallback(() => {
-        if (shown.current) {
-            return;
-        }
+    // Functional updaters: two gated widgets tapping in the same batch must not both read `armed`.
+    const trigger = useCallback(() => setPhase((current) => (current === 'armed' ? 'showing' : current)), []);
+    const dismiss = useCallback(() => setPhase((current) => (current === 'showing' ? 'spent' : current)), []);
 
-        shown.current = true;
-        setVisible(true);
-    }, []);
-
-    const dismiss = useCallback(() => setVisible(false), []);
-
-    return { visible, trigger, dismiss };
+    return { visible: phase === 'showing', trigger, dismiss };
 }
 
 /** Props for {@link SubscriptionNudge}. */
@@ -98,24 +115,17 @@ export interface SubscriptionNudgeProps {
  * Focus-return is handled explicitly, NOT left to Radix's default: the gated widget's own control that calls
  * `useHomeNudge().trigger()` (wired in `HomeWidgetSurface`) is a SIBLING elsewhere in the tree, not an owned
  * `Dialog.Trigger`, so Radix's built-in `onCloseAutoFocus` (which only restores an OWNED trigger — see
- * `PullUpdatesDialog`'s module doc) would silently focus nothing. `triggerRef` captures
- * `document.activeElement` at the render where `open` flips true — BEFORE `Dialog.Content` (and its own
- * autofocus-on-mount) ever commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own
- * no-op default.
+ * `PullUpdatesDialog`'s module doc) would silently focus nothing. `useReturnFocusOnClose`
+ * (`@commise/ui/dialog-focus`) owns the repair: it snapshots `document.activeElement` at the render where
+ * `open` flips true — BEFORE `Dialog.Content` (and its own autofocus-on-mount) ever commits — and returns
+ * the `onCloseAutoFocus` handler that restores it.
  */
 export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): JSX.Element | null {
     const { home } = useMessages(webMessages);
 
-    // Capture whatever had focus right before this dialog opened, during render (not an effect) — see the
-    // module doc. Guarded on the false→true edge so it isn't re-captured on every re-render while open.
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this dialog opened, and restore it on close — see the module
+    // doc. The false→true edge guard lives inside the hook.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onDismiss()}>
@@ -123,10 +133,7 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
                 <Dialog.Content
                     aria-modal="true"
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
+                    onCloseAutoFocus={onCloseAutoFocus}
                     // Bottom-pinned sheet: its foot must clear the device home indicator. The bottom padding is
                     // the sheet's `p-8` foot (2rem) PLUS the safe-area inset. `env(...)` is 0 in a normal
                     // viewport, so the base padding equals the foot and only real devices see the extra inset.

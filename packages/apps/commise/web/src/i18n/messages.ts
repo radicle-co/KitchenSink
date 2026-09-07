@@ -71,7 +71,7 @@ export interface WebMessages {
              * {@link ShellSurfaceId} union, so a surface added without copy is a compile error rather than a
              * blank bar. This replaced a single `pageTitle` that was hard-coded 'Home' on all 15 shell routes.
              *
-             * Deliberately NOT shared with {@link destinations} (nav labels) or with a page's own `<h1>` copy:
+             * Deliberately NOT shared with `destinations` (nav labels) or with a page's own `<h1>` copy:
              * the three slots happen to read alike on some routes today, but they change for different reasons
              * (a nav label may shorten to fit a collapsed rail; a page heading may carry context a 56px bar
              * cannot), so they are separate knowledge, not duplication.
@@ -188,8 +188,25 @@ export interface WebMessages {
         readonly form: {
             /** Error shown when persisting a create/edit fails. */
             readonly submitError: string;
-            /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
-            readonly photosAfterCreateNotice: string;
+            /**
+             * Shown after a successful create while chosen photos are still uploading (U33).
+             *
+             * ⛔ REPLACES `photosAfterCreateNotice` ("Save this recipe first — you can add photos from its
+             * edit page"), which was the notice a cook met INSTEAD of an uploader. Photos are a field now;
+             * this sentence exists for the window AFTER the recipe is saved, because a save is two calls and
+             * the cook must not be told it is one.
+             */
+            readonly photosFlushingNotice: string;
+            /** The explicit "leave without the photos that would not upload" action (U33). */
+            readonly photosFinishWithout: string;
+            /**
+             * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`).
+             *
+             * ⛔ The cap can be breached WITHIN a single pick — the add control's own gate only bounds picks
+             * between each other — and the pick is refused WHOLE rather than truncated, so this sentence is
+             * the only thing standing between the cook and silently losing the files that would not fit.
+             */
+            readonly photosOverCap: string;
         };
         /** Copy for the ingredient typeahead the shared form block deliberately omits (the container owns it). */
         readonly picker: {
@@ -337,6 +354,12 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                     recipeDetail: 'Recipe',
                     recipeEdit: 'Edit recipe',
                     recipeVersions: 'Version history',
+                    // Two titles, not one. The first draft shared a single id across both parse routes on
+                    // the reasoning that pasting and reviewing are one act — `appShellRoutes.test.tsx`
+                    // rejected it, and the guard was right: they are two PAGES, a cook can be on either,
+                    // and the bar naming the step is the whole point of a per-surface title.
+                    recipeParse: 'Paste ingredients',
+                    recipeParseReview: 'Review ingredients',
                     discover: 'Discover',
                     collections: 'Collections',
                     collectionNew: 'New collection',
@@ -412,7 +435,9 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             },
             form: {
                 submitError: 'We couldn’t save this recipe. Please try again.',
-                photosAfterCreateNotice: 'Save this recipe first — you can add photos from its edit page.',
+                photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
+                photosFinishWithout: 'Finish without the remaining photos',
+                photosOverCap: 'That’s more photos than this recipe can hold — you can add {count} more.',
             },
             picker: {
                 regionLabel: 'Ingredient search',

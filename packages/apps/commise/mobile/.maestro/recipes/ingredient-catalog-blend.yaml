@@ -19,6 +19,8 @@ appId: io.commise.mobile
 # Recipe list surface, then into the create wizard.
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
 
 - assertVisible: 'Step 1 of 4'
 - tapOn: 'Title'
@@ -77,16 +79,20 @@ appId: io.commise.mobile
 - assertVisible: 'Step 3 of 4'
 - scrollUntilVisible:
       element: 'Add step'
-      direction: UP
+      # ⛔ DOWN, not UP. Advancing a step now returns the scroller to the TOP (`useScrollResetOnChange`,
+      # wired in `RecipeEditor`), so `Add step` — which sits below this step's instruction list — is
+      # ALWAYS downward from here. `UP` was compensating for the wizard's old behaviour of carrying the
+      # previous step's scroll position over, which is the defect that reset fixes.
+      direction: DOWN
       timeout: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 1 instruction'
 - inputText: 'Whisk and rest.'
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 

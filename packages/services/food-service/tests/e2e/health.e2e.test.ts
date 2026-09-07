@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import pg from 'pg';
+import { CONTRACT_HASH } from '../../src/contract/contractHash.js';
 import { resetSchema } from '../support/db.js';
 
 /**
@@ -14,7 +15,8 @@ import { resetSchema } from '../support/db.js';
  *   1. Applies the Phase-1 ordered migration (`src/db/migrations/0000_food_schema.sql`) to a REAL
  *      Postgres (the `infra/localstack/docker-compose.yml` `postgres` service, or any `DATABASE_URL`).
  *   2. Boots the REAL Nest app (`NestFactory.create(AppModule)`) on an ephemeral port and asserts
- *      `GET /health` returns the live `{ status: 'ok', service: 'food' }` body over HTTP.
+ *      `GET /health` returns the live `{ status: 'ok', service: 'food', contractHash }` body over HTTP —
+ *      including the drift-layer-3 skew signal every consumer compares against (§15.2.5).
  *   3. Asserts the harness DB is reachable end to end: the migrated `foods` table exists and accepts
  *      a row, via a direct `pg` query against the same `DATABASE_URL` the app is configured with.
  *
@@ -72,10 +74,23 @@ describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)'
         await pool?.end();
     });
 
-    it('serves GET /health with 200 and the live health body', async () => {
+    it('serves GET /health with 200 and the live health body, carrying the contract fingerprint', async () => {
         const response = await fetch(`${baseUrl}/health`);
         expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toEqual({ status: 'ok', service: 'food' });
+        await expect(response.json()).resolves.toEqual({
+            status: 'ok',
+            service: 'food',
+            contractHash: CONTRACT_HASH,
+        });
+    });
+
+    // Drift layer 3 (§15.2.5) end to end: the fingerprint a CLIENT compares against is only usable if it
+    // survives the real HTTP round-trip on the UNAUTHENTICATED route. A consumer checking for skew has to be
+    // able to ask before it holds a credential, so this probe deliberately sends no `Authorization`.
+    it('publishes the contract fingerprint on the unauthenticated readiness probe too', async () => {
+        const response = await fetch(`${baseUrl}/health/ready`);
+        expect(response.status).toBe(200);
+        expect(((await response.json()) as { contractHash?: unknown }).contractHash).toBe(CONTRACT_HASH);
     });
 
     it('proves the harness DB is reachable end to end: the migrated food table accepts a row', async () => {

@@ -3,11 +3,35 @@
     "extends": "@kitchensink/typescript/base.json",
     "compilerOptions": {
         "target": "ES2022",
+        // `lib` is raised past `target` deliberately. Emit stays ES2022; this only admits the ES2023 built-ins
+        // the runtime actually has (`engines.node` is `24.x`, and the deployed Lambdas are node22+), which is
+        // what `Array.prototype.findLastIndex` needs. Widening the check surface to `__tests__/` surfaced two
+        // TS2551 errors on that method — the code has always run correctly, the type just said it could not.
+        // ES2025 for `RegExp.escape` (TS 6 ships it in lib.es2025.regexp). Scoped to THIS package on purpose:
+        // it runs only on Node 24, where the function exists. The base config stays where it is because web
+        // and mobile ship to browsers and Hermes, and telling them `RegExp.escape` exists would be a lie.
+        "lib": ["ES2025"],
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
-        "outDir": "dist",
-        "rootDir": "."
+        // `allowJs` (with `checkJs` left off) is what gives the four gates that unit-test a repo-root
+        // `scripts/*.mjs` module REAL types for it. Without it those imports are `any` — measured as four TS7016
+        // errors plus a downstream TS7006 the moment this project was widened — which means a gate asserting on
+        // `classifyDrift(...)` or `discoverContractOwners(...)` had no type safety at all and would still
+        // compile if the export it names were renamed or deleted. Reading the JSDoc'd source is strictly better
+        // than hand-written `.d.mts` stubs, which would be a second copy of the signature to drift.
+        //
+        // `outDir`/`rootDir` live in `tsconfig.build.json` and NOT here on purpose: those `.mjs` files sit
+        // outside this package, and a `rootDir` of `.` makes every one of them a TS6059 ("not under rootDir").
+        // Emit options belong to the emit project anyway.
+        "allowJs": true
     },
-    "include": ["bin/**/*.ts", "lib/**/*.ts"],
+    // The CHECK project — everything this package owns. `tsconfig.build.json` re-narrows to `bin` + `lib` for
+    // the emit, so widening here does not add a byte to `dist/`.
+    //
+    // `src/` and `__tests__/` were BOTH outside this list until #91. `src/` holds three DEPLOYED Lambda
+    // handlers that only `esbuild` ever compiled, and esbuild does not typecheck; `__tests__/` holds the
+    // repo-wide conformance layer. A planted `export const probe: number = 'not a number'` in `__tests__/`
+    // produced no output from `tsc --noEmit` at all.
+    "include": ["bin/**/*.ts", "lib/**/*.ts", "src/**/*.ts", "__tests__/**/*.ts", "tests/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

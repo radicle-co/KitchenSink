@@ -41,6 +41,7 @@ import { registerRootComponent } from 'expo';
 import * as Sentry from '@sentry/react-native';
 import { StatusBar } from 'expo-status-bar';
 import type { JSX } from 'react';
+import { AppCanvas } from './src/components/AppCanvas';
 import { AuthGate } from './src/components/AuthGate';
 import { initSentry } from './src/observability/sentry';
 import { installFocusManager, installOnlineManager } from './src/query/connectivity';
@@ -63,9 +64,18 @@ function App(): JSX.Element {
     return (
         <AppProviders>
             <StatusBar style="auto" />
-            <AuthGate>
-                <RootNavigator />
-            </AuthGate>
+            {/*
+             * The brand beach-glow canvas (issue #145) wraps the ENTIRE app — signed-out auth screens
+             * included — so every surface inherits the wireframes' gradient from one place, the way web gets
+             * it from a single `body` rule. It sits inside the providers (it consumes nothing from them, but
+             * this keeps the provider chain outermost) and outside `AuthGate`, because the auth screens need
+             * the wash too. Screen containers must stay transparent or they occlude it.
+             */}
+            <AppCanvas>
+                <AuthGate>
+                    <RootNavigator />
+                </AuthGate>
+            </AppCanvas>
         </AppProviders>
     );
 }

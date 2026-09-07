@@ -23,7 +23,7 @@
  * contracts: a platform-specific hook that the platform which understands it consumes, and the other ignores.
  *
  * NOTE: this returns the SURFACE only. It does not supply the icon slot, the busy spinner, or the press-scale
- * motion — those are behaviour, and behaviour belongs to {@link import('./Button.js').Button}. Reach for the
+ * motion — those are behaviour, and behaviour belongs to `Button`. Reach for the
  * component whenever the control CAN be a `<button>`; reach for this only when it cannot.
  */
 import type { ButtonVariant } from './props.js';

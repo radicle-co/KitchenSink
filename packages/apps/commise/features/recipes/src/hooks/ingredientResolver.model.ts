@@ -1,5 +1,5 @@
 /**
- * Headless-hook seam (CP-6/P2) — pure state-and-transition model for {@link useIngredientResolver}. No
+ * Headless-hook seam (CP-6/P2) — pure state-and-transition model for `useIngredientResolver`. No
  * React, no client hooks: only the status classification, the branch decision, the view derivation, and the
  * projection from a catalog `Ingredient` onto a resolved recipe line. Kept in its own module so the pure
  * logic is unit-testable independent of the stateful hook that wraps it in React state + TanStack mutations.
@@ -8,89 +8,60 @@
  * `web/src/components/recipes/IngredientPicker.tsx`, mobile `mobile/src/components/IngredientPicker.tsx`),
  * which duplicated this exact classification/projection logic — `isTerminalStatus`/`isUnresolvedStatus` were
  * named on web and inlined on mobile; CP-6 unifies both leaves on the named helpers here.
+ *
+ * ⛔ **RETIRED IN PLAN U5 — do not restore.** `rankIngredientResults` and `rankIngredientSuggestions` used
+ * to re-sort the server's page here by `PREFIX > SUBSTRING > FUZZY`, together with the `MatchRank` bucket
+ * classifier behind them.
+ *
+ * **Owner ruling (2026-08-20): the server determines order, on best-quality match.** REQ-057's INTENT —
+ * best match first — is preserved and better served; what was retired is its MECHANISM, a client-side
+ * heuristic that approximated relevance from string shape rather than scoring it. Three reasons it had to
+ * go, not one:
+ *
+ *  1. **It could only ever reorder a page the broken sort key had already selected.** The server truncates
+ *     before the client sees anything — the local table at `DEFAULT_SEARCH_LIMIT = 10`, the catalog at
+ *     `SEARCH_LIMIT = 20` — so a row the server ranked out of the page was unreachable here whatever this
+ *     function did.
+ *  2. **The IMPORTER never ran it.** It reads `suggestions[0]` straight off the API, so the measurement the
+ *     whole plan is denominated in (~900 of 2,432 lines carrying a wrong `food_id`) was taken against the
+ *     SERVER's order. Two rankers meant the product and its own measurement disagreed about every query.
+ *  3. **It masked the defect rather than fixing it.** Re-ranking within each provenance section preserved
+ *     `local` before `catalog`, so a wrong `local` suggestion still outranked a correct `catalog` one
+ *     regardless of match quality — while making the single-token cases look fine in the picker.
+ *
+ * ⚠️ **The sectioning is NOT retired with it**, and it never lived here: `IngredientSuggestion`'s blend on
+ * the server orders `[local text hits] -> [promoted rows] -> [catalog hits]`, and this module now renders
+ * that order untouched. The replacement ranking lives in the two Scoring Policies
+ * (`food-service/src/foods/dao/foodRelevance.ts`, `recipe-service/src/ingredients/dal/ingredientRelevance.ts`)
+ * over the shared ladder in `@kitchensink/recipe-core/resolution/ranking-tiers`, and is proven against a
+ * real database by each service's ranking integration suite plus the shared conformance contract.
  */
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
+import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import type {
     IngredientCandidate,
     IngredientCatalogAvailability,
     IngredientSuggestion,
 } from '@kitchensink/recipe-service-client';
 
-import type { RecipeFormIngredient } from '../form/model.js';
-
-/** The minimum trimmed-query length that triggers an ingredient search (REQ-057). */
-export const MIN_INGREDIENT_QUERY_LENGTH = 2;
+import type { ResolvedRecipeFormIngredient } from '../form/props.js';
 
 /** The debounce window (ms) between a keystroke and the search it triggers (REQ-057). */
 export const INGREDIENT_SEARCH_DEBOUNCE_MS = 300;
 
-/**
- * Whether a trimmed query is long enough to trigger the ingredient typeahead (REQ-057 — at least
- * {@link MIN_INGREDIENT_QUERY_LENGTH} characters). Pure.
+/*
+ * ⛔ `MIN_INGREDIENT_QUERY_LENGTH` (2) and `meetsIngredientSearchThreshold` USED TO LIVE HERE, and were
+ * this package's own. They are DELETED, not renamed: 003-FR-010a (owner ruling 2026-08-24, plan U37)
+ * raised the floor to three characters and made it a rule the SERVER enforces too, so a client-owned copy
+ * of the number is a second authority that can only ever drift. Both surfaces now read
+ * `MIN_SEARCH_QUERY_LENGTH` / `meetsSearchMinimum` from
+ * `@kitchensink/recipe-core/resolution/search-minimum`, which food-service's DAO and service read as well.
  *
- * @param trimmed - The trimmed search-box query.
- * @returns `true` once the query meets the trigger threshold.
+ * ⚠️ The DEBOUNCE stays local. It is a client-only interaction concern with no server counterpart, and it
+ * changes for entirely different reasons than the minimum does — merging the two would be DRY applied to
+ * keystrokes rather than to knowledge.
  */
-export function meetsIngredientSearchThreshold(trimmed: string): boolean {
-    return trimmed.length >= MIN_INGREDIENT_QUERY_LENGTH;
-}
-
-/**
- * REQ-057's three match-quality buckets, in descending rank order (0 = best). A plain `as const` object
- * (not a `const enum`) — this codebase's discriminated-union idiom, and it avoids `const enum`'s
- * isolatedModules fragility (a `const enum` cannot be used across a module boundary once each file is
- * transpiled in isolation, which is exactly this monorepo's TS config).
- */
-const MatchRank = {
-    PREFIX: 0,
-    SUBSTRING: 1,
-    FUZZY: 2,
-} as const;
-
-type MatchRank = (typeof MatchRank)[keyof typeof MatchRank];
-
-/** Classify one ingredient name's match quality against the (already lower-cased) query. Pure. */
-function matchRank(name: string, lowerQuery: string): MatchRank {
-    if (lowerQuery.length === 0) {
-        return MatchRank.PREFIX;
-    }
-
-    const lowerName = name.toLowerCase();
-
-    if (lowerName.startsWith(lowerQuery)) {
-        return MatchRank.PREFIX;
-    }
-
-    if (lowerName.includes(lowerQuery)) {
-        return MatchRank.SUBSTRING;
-    }
-
-    return MatchRank.FUZZY;
-}
-
-/**
- * Rank ingredient search results by match quality (REQ-057): a prefix match beats a substring match beats
- * everything else (a "fuzzy" match — whatever the backend's trigram/FTS search deemed relevant but that
- * does not literally contain the query), with ties broken alphabetically by display name. Returns a NEW
- * array — the input is never mutated. Pure.
- *
- * @param results - The unranked search results (in whatever order the backend returned them).
- * @param query - The raw search-box query the results were matched against.
- * @returns A new array, re-ordered per REQ-057.
- */
-export function rankIngredientResults(results: readonly Ingredient[], query: string): Ingredient[] {
-    const lowerQuery = query.toLowerCase();
-
-    return [...results].sort((a, b) => byMatchQuality(a.name, b.name, lowerQuery));
-}
-
-/** Compare two display names by REQ-057 match quality against an already-lower-cased query. Pure. */
-function byMatchQuality(aName: string, bName: string, lowerQuery: string): number {
-    const rankDiff = matchRank(aName, lowerQuery) - matchRank(bName, lowerQuery);
-
-    return rankDiff !== 0 ? rankDiff : aName.localeCompare(bName);
-}
 
 /** The display name of a blended suggestion, whichever provenance it has. Pure. */
 export function suggestionName(suggestion: IngredientSuggestion): string {
@@ -109,33 +80,6 @@ export function suggestionName(suggestion: IngredientSuggestion): string {
  */
 export function suggestionKey(suggestion: IngredientSuggestion): string {
     return suggestion.provenance === 'local' ? `local:${suggestion.ingredient.id}` : `catalog:${suggestion.foodId}`;
-}
-
-/**
- * Re-rank a blended suggestion list by REQ-057 match quality **WITHIN each provenance section**, preserving
- * the section order the server chose (all `local` before all `catalog`). Returns a NEW array; pure.
- *
- * Ranking per section rather than across the whole list is the point: the server already sections these, and
- * the picker renders them as two labeled lists. A global sort would interleave them and re-create exactly the
- * reorder/layout-shift jank the sectioned design exists to prevent. Within a section, prefix > substring >
- * fuzzy (with alphabetical ties) is applied to BOTH — the catalog's own relevance score is not a match-quality
- * signal, and un-reranked catalog scores are what produce the classic "almonds" → "almond milk" first result.
- *
- * @param suggestions - The blended suggestions as the server returned them.
- * @param query - The raw search-box query they were matched against.
- * @returns A new array, each section internally re-ordered per REQ-057.
- */
-export function rankIngredientSuggestions(
-    suggestions: readonly IngredientSuggestion[],
-    query: string,
-): IngredientSuggestion[] {
-    const lowerQuery = query.toLowerCase();
-    const rankSection = (provenance: IngredientSuggestion['provenance']): IngredientSuggestion[] =>
-        suggestions
-            .filter((suggestion) => suggestion.provenance === provenance)
-            .sort((a, b) => byMatchQuality(suggestionName(a), suggestionName(b), lowerQuery));
-
-    return [...rankSection('local'), ...rankSection('catalog')];
 }
 
 /** Whether a food resolution is terminal — no nutrition will ever arrive (FR-007). */
@@ -166,13 +110,20 @@ export function nextMatchAction(status: FoodResolutionStatus | undefined): 'reso
  * Project a catalog `Ingredient` onto a resolved form line (quantity defaults to 1; the form edits it).
  *
  * Also carries the ingredient's per-100g macros + household-measure portions, when the catalog row has them,
- * onto the form line (w3/e3) — so a picked ingredient's nutrition survives to feed {@link toNutritionLine}
+ * onto the form line (w3/e3) — so a picked ingredient's nutrition survives to feed `toNutritionLine`
  * (`form/model.ts`) for step 2's per-row + running per-serving nutrition (FR-007). A line still `PENDING`
  * resolution, or a freeform ingredient with no catalog nutrition, carries none of these fields — never a
- * fabricated `0` — which is exactly the input {@link toNutritionLine}'s aggregator needs to correctly report
+ * fabricated `0` — which is exactly the input `toNutritionLine`'s aggregator needs to correctly report
  * that line as unaccounted (`isComplete: false`) rather than silently under-counting.
+ *
+ * ⛔ ITS RETURN TYPE IS THE NARROWED {@link ResolvedRecipeFormIngredient}, and that is U28's load-bearing
+ * seam rather than a tidy-up. `ingredient.id` is a `string`, so this function has ALWAYS produced a resolved
+ * line — it merely DECLARED a possibly-unresolved one, and every downstream null-check, every over-wide
+ * callback and (on mobile) a whole lossy re-projection existed to cope with a nullability this adapter
+ * invented. Narrowing here is what makes "an unresolved row cannot be appended" a compile-time fact all the
+ * way from the catalog response to `appendResolvedIngredient`, instead of a filter at the last hop.
  */
-export function toIngredientLine(ingredient: Ingredient): RecipeFormIngredient {
+export function toIngredientLine(ingredient: Ingredient): ResolvedRecipeFormIngredient {
     return {
         ingredientId: ingredient.id,
         name: ingredient.name,
@@ -186,6 +137,28 @@ export function toIngredientLine(ingredient: Ingredient): RecipeFormIngredient {
     };
 }
 
+/**
+ * The one imperative capability an ingredient picker exposes (plan U28): put the caret in its search field.
+ *
+ * DESIGN PATTERN: Facade over an imperative subsystem. Focus is the canonical case CLAUDE.md's
+ * "refs are near-forbidden — permitted only to wrap a genuinely external, non-declarative system with no
+ * alternative" carves out, and this repo has ruled on it once already (`useScrollResetOnChange`, whose
+ * docstring records why a ref is the only way). The picker's own input ref never escapes; a caller sees one
+ * named method, which is also what makes it stubbable in a container test.
+ *
+ * ⛔ NOT a `focusSignal: number` prop. An incrementing epoch carries no intent, still needs a ref and an
+ * effect inside the picker, and makes correctness depend on "did this number differ from last render" — a
+ * comparison React does not promise you observe exactly once. A method says what it does.
+ *
+ * ⚠️ It lives HERE, beside the resolver contract both platform pickers already implement, rather than twice
+ * in the two apps: the interface is three lines but the ruling above is twelve, and two copies of a ruling
+ * is what drifts.
+ */
+export interface IngredientPickerHandle {
+    /** Move keyboard focus to the ingredient search field. @sideEffect Focuses a DOM/native node. */
+    focusSearch: () => void;
+}
+
 /** Pending/error flags for one of the resolver's underlying mutations, exposed to a leaf as plain data. */
 export interface MutationView {
     readonly isPending: boolean;
@@ -195,8 +168,13 @@ export interface MutationView {
 /**
  * The picker's current view — a discriminated union so a leaf renders it with an exhaustive `switch`
  * instead of re-deriving the same implicit state machine from raw query/mutation flags. Kinds:
- *  - `idle` — no query typed yet, the query is below the {@link MIN_INGREDIENT_QUERY_LENGTH} search trigger
- *    (REQ-057), and nothing is being disambiguated.
+ *  - `idle` — no query typed yet (and nothing is being disambiguated). The search box is untouched, so
+ *    there is nothing to say about it.
+ *  - `tooShort` — something is typed, but fewer than {@link MIN_SEARCH_QUERY_LENGTH} characters
+ *    (003-FR-010a). ⛔ DISTINCT FROM `idle` on purpose: collapsing the two either puts "type at least three
+ *    characters" over an untouched box on every open, or drops the explanation and leaves the cook typing
+ *    into a surface that silently does nothing. FR-010a requires the cook to be TOLD. `minimum` rides on
+ *    the state rather than being re-derived by each leaf, so the sentence and the gate cannot disagree.
  *  - `searching` — a query is in flight (no data yet), OR `trimmed` has crossed the search threshold but
  *    the debounced query gating the fetch (REQ-057, ~300ms behind keystrokes) hasn't caught up to it yet
  *    — see {@link DeriveViewStateInput.debouncedTrimmed}. Without this second half, the instant `trimmed`
@@ -223,6 +201,7 @@ export interface MutationView {
  */
 export type IngredientResolverViewState =
     | { readonly kind: 'idle' }
+    | { readonly kind: 'tooShort'; readonly minimum: number }
     | { readonly kind: 'searching' }
     | {
           readonly kind: 'results';
@@ -254,7 +233,7 @@ export interface DeriveViewStateInput {
      * search itself came back empty) — see the `searching` kind's doc on {@link IngredientResolverViewState}.
      */
     readonly debouncedTrimmed: string;
-    /** The blended suggestions (already section-ranked by {@link rankIngredientSuggestions}). */
+    /** The blended suggestions, in the SERVER's order (sectioned `local` before `catalog`, U5). */
     readonly suggestions: readonly IngredientSuggestion[];
     /** Whether the food catalog contributed to this blend (F2). */
     readonly catalogAvailability: IngredientCatalogAvailability;
@@ -294,8 +273,11 @@ export function deriveViewState(input: DeriveViewStateInput): IngredientResolver
         };
     }
 
-    if (!meetsIngredientSearchThreshold(input.trimmed)) {
-        return { kind: 'idle' };
+    // ⛔ The minimum is checked BEFORE the debounce window, not after. `trimmed !== debouncedTrimmed`
+    // normally means `searching`, but below the minimum no request will ever be issued — so falling through
+    // to `searching` would spin a promise that is never kept, on every one of the first two keystrokes.
+    if (!meetsSearchMinimum(input.trimmed)) {
+        return input.trimmed.length === 0 ? { kind: 'idle' } : { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH };
     }
 
     // REQ-057 debounce-flash fix: `trimmed` can cross the search threshold before `debouncedTrimmed` (and

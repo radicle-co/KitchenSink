@@ -12,7 +12,7 @@ import { Global, Module } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { foodPoolConfigFromEnv } from './pool-config.js';
+import { foodPoolConfigFromEnv } from './poolConfig.js';
 import * as schema from '../db/schema/index.js';
 
 const { Pool } = pg;

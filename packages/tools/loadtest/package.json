@@ -3,23 +3,41 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "description": "k6 load-test harness for the food API (provision → k6 journey → observe → report → teardown)",
+    "description": "k6 load-test harness for the food API (provision \u2192 k6 journey \u2192 observe \u2192 report \u2192 teardown)",
     "scripts": {
-        "k6:install": "node install-k6.mjs",
-        "provision": "node auth/provision-users.mjs",
-        "provision:pool": "node provision-pool.mjs",
-        "grant-admin": "node auth/grant-admin.mjs",
         "collect": "node observe/collect-metrics.mjs",
+        "grant-admin": "node auth/grant-admin.mjs",
         "journey": "k6 run journey.js",
+        "k6:install": "node install-k6.mjs",
+        "lint": "eslint .",
         "loadtest": "node run.mjs",
         "loadtest:reuse": "REUSE_POOL=1 node run.mjs",
+        "provision": "node auth/provision-users.mjs",
+        "provision:pool": "npx tsx provisionPool.ts",
         "ratelimit": "node ratelimit.mjs",
-        "sweep": "node sweep.mjs"
+        "sweep": "node sweep.mjs",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@kitchensink/infra-alb": "*",
+        "@kitchensink/e2e-fixtures": "*"
     },
     "devDependencies": {
-        "@types/k6": "^2.0.0"
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/k6": "^2.0.0",
+        "tsx": "^4.20.6",
+        "vitest": "^4.0.0"
     },
     "engines": {
         "node": "24.x"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./pool": "./src/pool.ts",
+        "./load-tier": "./src/loadTier.ts"
     }
 }

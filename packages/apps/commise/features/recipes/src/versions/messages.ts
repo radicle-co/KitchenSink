@@ -31,10 +31,6 @@ export interface RecipeVersionListMessages {
     readonly restoreGenericError: string;
     /** Editor attribution template (contains `{handle}`); rendered ONLY when `editorHandle` is present. */
     readonly byEditor: string;
-    /** Device attribution suffix template (contains `{device}`), appended after {@link byEditor} when
-     *  `deviceLabel` is also present. `deviceLabel` is untrusted free text — always rendered as text, never
-     *  `dangerouslySetInnerHTML`. */
-    readonly fromDevice: string;
     /** Changed-fields summary template (contains `{fields}`, a localized comma-joined field-name list). */
     readonly changedFields: string;
     /** Label shown on the earliest version in the list (which has no prior version to diff against). */
@@ -64,14 +60,9 @@ export interface RecipeConflictMessages {
     /** Explanatory copy describing why the conflict is shown. */
     readonly explanation: string;
     /** The per-side server banner template (W7 Task 3 / X3; contains `{version}` and `{time}`, where `{time}`
-     *  is an already-formatted "N units ago" string — see {@link import('./model.js').formatRelativeTimeAgo}).
+     *  is an already-formatted "N units ago" string — see `formatRelativeTimeAgo`).
      *  Server is ALWAYS the first/left side (X7). */
     readonly serverBanner: string;
-    /** The server banner's device suffix template (contains `{device}`), appended after {@link serverBanner}
-     *  ONLY when the server side carries a `deviceLabel` — mirrors {@link RecipeVersionListMessages.fromDevice}'s
-     *  own optional-suffix split. `deviceLabel` is untrusted free text — always rendered as text, never
-     *  `dangerouslySetInnerHTML`. */
-    readonly serverBannerDevice: string;
     /** The user's own banner line (W7 Task 3 / X3) — the in-progress draft was never persisted, so it carries
      *  no version number of its own; static copy, no template. */
     readonly mineBanner: string;
@@ -84,17 +75,13 @@ export interface RecipeConflictMessages {
      *  {@link serverCardHeading}. */
     readonly yourCardHeading: string;
     /** The same card's heading when `base` was evicted from version history (no version number to show) —
-     *  see {@link import('./model.js').isConflictBaseStale}. */
+     *  see `isConflictBaseStale`. */
     readonly yourCardHeadingUnknown: string;
     /** A card's "Saved: {date}" line template (contains `{time}`, an ABSOLUTE localized date via
-     *  {@link import('./model.js').formatVersionTimestamp}) — deliberately distinct from the prose banner's
-     *  own RELATIVE "N minutes ago" ({@link import('./model.js').formatRelativeTimeAgo}); the wireframe itself
+     *  `formatVersionTimestamp`) — deliberately distinct from the prose banner's
+     *  own RELATIVE "N minutes ago" (`formatRelativeTimeAgo`); the wireframe itself
      *  uses an absolute date for the card. */
     readonly versionCardSavedLabel: string;
-    /** A card's "Device: {device}" line template (contains `{device}`); rendered ONLY when that side carries
-     *  a `deviceLabel` — mirrors {@link serverBannerDevice}'s own optional-suffix pattern. `deviceLabel` is
-     *  untrusted free text — always rendered as text, never `dangerouslySetInnerHTML`. */
-    readonly versionCardDeviceLabel: string;
     /** Shown when a save hit a version conflict this hook could NOT resolve into a side-by-side view (an
      *  un-enriched 409 body, or no cached recipe to project it onto) — `useRecipeEditor`'s
      *  `conflictDataUnavailable` flag. The save did NOT apply; this is the generic actionable fallback so the
@@ -103,13 +90,12 @@ export interface RecipeConflictMessages {
     /** Heading for the changed-only diff panel rendered below the three options (W7 Task 3 → Task 4). */
     readonly changedFieldsHeading: string;
     /** The "was" (base) value line template (contains `{value}`), rendered on a diff row ONLY when its
-     *  {@link import('./conflictDiff.js').ConflictFieldRow.base} is present (W7 Task 4 / X1) — per the
+     *  `ConflictFieldRow.base` is present (W7 Task 4 / X1) — per the
      *  wireframe, absent on the base-evicted 2-way-fallback rows (see `conflictDiff.ts` module docs). */
     readonly wasValueLabel: string;
     /** Per-element STEP row label template (contains `{position}`, 1-based — W7 Task 4 / X1), e.g. "Step 3".
-     *  Reused instead of the plural {@link stepsLabel} for a {@link
-     *  import('./conflictDiff.js').ConflictFieldRow} whose `fieldKind` is `'step'`, so a per-element row is
-     *  never mislabeled with the whole-collection name. */
+     *  Reused instead of the plural {@link stepsLabel} for a `ConflictFieldRow` (`./conflictDiff.ts`) whose
+     *  `fieldKind` is `'step'`, so a per-element row is never mislabeled with the whole-collection name. */
     readonly stepPositionLabel: string;
     /** Per-element INGREDIENT row label template (contains `{value}`, the row's own formatted line — W7
      *  Task 4 / X1), e.g. "Ingredient: 200g Pasta". See {@link stepPositionLabel} for why a per-element row
@@ -183,7 +169,7 @@ export interface RecipeConflictMessages {
      *  per field" error-handling row. */
     readonly mergeNoSelectionHint: string;
     /** The stale-base warning (W7 Task 5 / X6) shown when the 409's base version was evicted from history OR
-     *  the server is more than 10 versions ahead of it ({@link import('./model.js').isConflictBaseStale}) —
+     *  the server is more than 10 versions ahead of it (`isConflictBaseStale`) —
      *  Overwrite and Save-merged both risk discarding changes the changed-fields panel never got to show. */
     readonly staleBaseWarning: string;
     /** Label of the explicit confirm checkbox the {@link staleBaseWarning} case requires before Overwrite or
@@ -220,7 +206,7 @@ export interface RecipeConflictMessages {
 /** Shared copy for the version preview modal (W6 Task 3 / FR-007b). Field labels (title/description/
  *  servings/prep/cook/total) are DELIBERATELY not duplicated here — the component reuses
  *  {@link RecipeConflictMessages}'s field labels, the same reuse the row-level changed-fields summary
- *  already relies on ({@link import('./model.js').formatChangedFieldNames}), so a label is one piece of
+ *  already relies on (`formatChangedFieldNames`), so a label is one piece of
  *  knowledge regardless of which version surface renders it. */
 export interface RecipeVersionPreviewMessages {
     /** Modal heading template (contains `{version}` and `{title}`) — the loaded state. */
@@ -233,9 +219,9 @@ export interface RecipeVersionPreviewMessages {
      *  carries a `userCalories` override — never fabricated for a catalog-resolved line. */
     readonly caloriesLabel: string;
     /** "Changed from current" summary template (contains `{ingredients}` and `{steps}`), derived from
-     *  {@link import('./diff.js').SnapshotDiff} vs. the recipe's CURRENT version. Each token is a
+     *  `SnapshotDiff` vs. the recipe's CURRENT version. Each token is a
      *  PRE-PLURALIZED count string (e.g. "1 ingredient" / "2 ingredients") produced by
-     *  {@link import('./model.js').formatChangedFromCurrent} via the shared `ingredientCount*`/`stepCount*`
+     *  `formatChangedFromCurrent` via the shared `ingredientCount*`/`stepCount*`
      *  templates — this template itself carries no noun, so it never hard-codes a plural. */
     readonly changedFromCurrent: string;
     /** Accessible label + status text shown while the previewed version is being fetched. */
@@ -277,7 +263,7 @@ export interface RecipeVersionCompareMessages {
     readonly modified: string;
     /** Label of the control that reveals each `steps`/`ingredients` row's per-collection Added/Removed/
      *  Modified tally (shown OFF by default so a same-count reorder never reads as a misleading per-line
-     *  explosion — see {@link import('./model.js').buildCompareFieldRows}). */
+     *  explosion — see `buildCompareFieldRows`). */
     readonly showFullDiff: string;
     /** Label of the same control once the tally is showing. */
     readonly hideFullDiff: string;
@@ -316,7 +302,6 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
                 'This recipe changed since you opened its history. Review the refreshed list and try again.',
             restoreGenericError: 'We couldn’t restore that version. Please try again.',
             byEditor: 'by @{handle}',
-            fromDevice: ' (from {device})',
             changedFields: 'Changed: {fields}',
             initialVersion: 'Initial version',
             preview: 'Preview',
@@ -330,13 +315,11 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             heading: 'This recipe changed while you were editing',
             explanation: 'Someone saved a new version while you were making changes. Choose which version to keep.',
             serverBanner: 'Server version (v{version}): Saved {time}',
-            serverBannerDevice: ' on {device}',
             mineBanner: 'Your version: local unsaved changes',
             serverCardHeading: 'Server version (v{version})',
             yourCardHeading: 'Your version (v{version})',
             yourCardHeadingUnknown: 'Your version',
             versionCardSavedLabel: 'Saved: {time}',
-            versionCardDeviceLabel: 'Device: {device}',
             dataUnavailable: 'This recipe was changed elsewhere. Reload and try again.',
             changedFieldsHeading: 'Changed fields',
             wasValueLabel: 'Was: {value}',

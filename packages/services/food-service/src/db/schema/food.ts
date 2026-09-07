@@ -18,6 +18,8 @@ import {
     customType,
     foreignKey,
     index,
+    integer,
+    jsonb,
     numeric,
     pgEnum,
     pgTable,
@@ -26,6 +28,8 @@ import {
     timestamp,
     unique,
     uniqueIndex,
+    uuid,
+    varchar,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -41,7 +45,20 @@ const tsvector = customType<{ data: string; driverData: string }>({
 // ── Controlled enums (DB-7: domain-model controlled sets use pgEnum) ────────────────────────────
 
 /** Food lifecycle status (FR-028 lifecycle R11/R13). */
-export const foodStatusEnum = pgEnum('food_status', ['PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED']);
+export const foodStatusEnum = pgEnum('food_status', [
+    'PENDING',
+    'UNRESOLVED',
+    'RESOLVED',
+    'NOT_FOUND',
+    'FAILED',
+    // U9 — a real source failure has occurred and a retry is scheduled. Distinct from PENDING, which means
+    // "queued, never attempted": a client can tell "we are retrying" from "we have not started", which is
+    // the whole point of putting the state on the wire. Terminal only after the five-attempt budget, at
+    // which point the food becomes FAILED.
+    'AWAITING_RETRY',
+    // U18's tombstone-first refusal window — see 0014.
+    'DELETING',
+]);
 
 /** Generic vs branded food (FR-IDN-3; replaces the USDA data-type enum). */
 export const foodKindEnum = pgEnum('food_kind', ['generic', 'branded']);
@@ -49,7 +66,7 @@ export const foodKindEnum = pgEnum('food_kind', ['generic', 'branded']);
 /** Source enum — additive; new sources append values (R3/FR-IDN-3). */
 export const foodSourceEnum = pgEnum('food_source', ['usda']);
 
-/** Scalar provenance field enum (R5) — no EAV value column. */
+/** Scalar provenance field enum (R5) — no EAV value column. Additive; `aliases` arrived with 0007. */
 export const foodFieldEnum = pgEnum('food_field', [
     'name',
     'description',
@@ -57,6 +74,7 @@ export const foodFieldEnum = pgEnum('food_field', [
     'brand_owner',
     'brand_name',
     'barcode',
+    'aliases',
 ]);
 
 /** Nutrient amount basis; lives on the value row (FR-028/FR-MRG-3). */
@@ -92,11 +110,29 @@ export const food = pgTable(
         brandOwner: text('brand_owner'),
         brandName: text('brand_name'),
         barcode: text('barcode'),
+        // USDA's curated alternate names (brands, regional synonyms, alternate forms) flattened onto
+        // `ALIAS_DELIMITER` by `foods/foodAliases.ts` (0007 migration, plan U2/KTD-2). NULL — never `''`
+        // — when a food has none (GR-019). A single `text` rather than `text[]` because the vector below
+        // is a STORED generated column and `array_to_string` is STABLE, not IMMUTABLE.
+        aliases: text('aliases'),
         status: foodStatusEnum('status').notNull().default('PENDING'),
         // Data provenance class (0003 migration). Defaults to `live` so every pre-existing row — and
         // every future API-admitted food — stays in the live change-refresh scan; only the bulk seed
         // importer sets `bulk` (F-C2).
         origin: foodOriginEnum('origin').notNull().default('live'),
+        /**
+         * The AUTHOR's app-user ULID for a user-authored food (0013, plan U10/D8), or NULL for a catalog
+         * row. This column IS the provenance marker (D9a: provenance is the route, never a wire field) —
+         * an authored food also has NO `food_sources` crosswalk row, keeping it out of both refresh
+         * scans structurally. Swept on erasure by `eraseFoodRows` (R24 — the coverage gate enforces it).
+         */
+        userId: varchar('user_id', { length: 255 }),
+        /**
+         * Q3c: author-PRIVATE until promoted. The 0013 CHECK (`food_visibility_coherent`) makes the
+         * illegal states unrepresentable: catalog rows are exactly 'public'; authored rows are 'private'
+         * or 'promoted', never 'public'.
+         */
+        visibility: text('visibility').notNull().default('public'),
         tombstonedAt: timestamp('tombstoned_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -105,9 +141,64 @@ export const food = pgTable(
         searchVector: tsvector('search_vector').generatedAlwaysAs(
             sql`to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, ''))`,
         ),
+        // A SECOND STORED generated tsvector, over the aliases alone (0007 migration). Deliberately not
+        // folded into `search_vector`: changing that column's expression needs PG 17's
+        // `ALTER COLUMN ... SET EXPRESSION`, and the PG 16 equivalent is DROP + ADD COLUMN — an ACCESS
+        // EXCLUSIVE lock, a rewrite of `food`, and `food_search_vector_idx` dropped with it. See 0007.
+        //
+        // ⚠️ THE CONSTRAINT ABOVE IS LIFTED. The engine moved to PostgreSQL 18 (plan U13), so
+        // `ALTER COLUMN ... SET EXPRESSION` is now available and folding aliases into `search_vector` is no
+        // longer gated on the engine. That does NOT make the fold automatically correct — `SET EXPRESSION`
+        // still rewrites the table under ACCESS EXCLUSIVE, and the two-vector shape lets the ranker weight
+        // an alias hit differently from a name hit, which is a ranking decision (U2/U5), not a schema one.
+        // Recorded so nobody re-derives the old blocker and treats it as still binding.
+        //
+        // ⛔ Whatever shape wins, `STORED` stays EXPLICIT. PG 18 defaults an omitted keyword to VIRTUAL and
+        // a virtual column cannot carry the GIN index this exists for; `generatedColumnStorage.test.ts`
+        // fails any migration that omits it.
+        aliasesSearchVector: tsvector('aliases_search_vector').generatedAlwaysAs(
+            sql`to_tsvector('english', coalesce(aliases, ''))`,
+        ),
+        // ⛔ TWO MORE STORED generated columns (0008 migration, plan U5): the ranking terms the tier ladder
+        // sorts on — the SQL mirror of `foldForRanking(name)` and `rankingTokens(name)` in
+        // `@kitchensink/recipe-core/resolution/ranking-terms`. They are MATERIALIZED because computing them
+        // per row measured 253ms (`broad`) and 357ms (`brand`) at 50,000 rows against SC-007's 200ms budget,
+        // where reading them costs +0.8ms and +5.2ms.
+        //
+        // ⚠️ **`0008_food_rank_terms.sql` is authoritative**; these declarations exist so Drizzle knows the
+        // columns and so a reader sees them here. The expressions are asserted against the TypeScript
+        // reference, value by value, by `tests/rankingTerms.integration.test.ts` — which is the guard that
+        // actually catches drift between the two implementations, in either direction.
+        rankFolded: text('rank_folded').generatedAlwaysAs(
+            sql`btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' ')`,
+        ),
+        rankTokens: text('rank_tokens')
+            .array()
+            .generatedAlwaysAs(
+                sql`array_remove(regexp_split_to_array(regexp_replace(regexp_replace(btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' '), '([[:alnum:]]{2}(s|x|z|ch|sh))es(?![[:alnum:]])', '\1', 'g'), '([[:alnum:]]{2}(?!s)[[:alnum:]])s(?![[:alnum:]])', '\1', 'g'), '[^[:alnum:]]+'), '')`,
+            ),
+        /**
+         * U1's head term — the SQL mirror of `describeRankingName(name).head` (migration 0011): the last
+         * token of a multi-word first comma segment, else the first token. Supersedes `rankTokens[1]` as
+         * the head; `rank_tokens_of()` is the immutable helper 0011 creates.
+         */
+        rankHead: text('rank_head').generatedAlwaysAs(
+            sql`CASE WHEN position(',' in name) > 0 AND cardinality(rank_tokens_of(split_part(name, ',', 1))) > 1 THEN (rank_tokens_of(split_part(name, ',', 1)))[cardinality(rank_tokens_of(split_part(name, ',', 1)))] ELSE (rank_tokens_of(name))[1] END`,
+        ),
     },
     (table) => [
-        uniqueIndex('food_normalized_name_unique').on(table.normalizedName),
+        // 0013's dedup split (KTD-H): catalog-unique where unowned, per-author where owned — so two
+        // authors may own one name, one author may not own it twice, and an authored name may SHADOW a
+        // catalog name (ranking, not uniqueness, decides what a search shows).
+        uniqueIndex('food_normalized_name_catalog_unique')
+            .on(table.normalizedName)
+            .where(sql`${table.userId} IS NULL`),
+        uniqueIndex('food_normalized_name_per_author_unique')
+            .on(table.normalizedName, table.userId)
+            .where(sql`${table.userId} IS NOT NULL`),
+        index('idx_food_user_id')
+            .on(table.userId)
+            .where(sql`${table.userId} IS NOT NULL`),
         index('food_status_idx').on(table.status),
         index('food_barcode_idx')
             .on(table.barcode)
@@ -115,8 +206,21 @@ export const food = pgTable(
         // pg_trgm fuzzy/substring/partial search (FR-008/FR-010); the extension is bootstrapped by the migration.
         index('food_name_trgm_idx').using('gin', sql`${table.name} gin_trgm_ops`),
         index('food_description_trgm_idx').using('gin', sql`${table.description} gin_trgm_ops`),
+        // GiST over the SAME column, for the `name % query` similarity branch only (T-202, 0004 migration).
+        // Not a duplicate of the GIN index above and not interchangeable with it: GIN answers `%` by
+        // admitting any row sharing ceil(0.3 x n_query_trigrams) trigrams — 9,758 candidates for 368 true
+        // matches on a 50,000-food store, each costing a discarded `similarity()` recheck — while GiST
+        // answers it with one candidate per match. GIN stays because it is the better answer for the
+        // `ILIKE '%q%'` branches, which GiST can only serve by scanning its whole index. The planner picks
+        // per branch. An index cannot change which rows match or their order (`%` is rechecked from the
+        // heap), which is why this is a pure access-path change; see 0004 and
+        // `tests/foodSearchAccessPath.integration.test.ts`.
+        index('food_name_trgm_gist_idx').using('gist', sql`${table.name} gist_trgm_ops`),
         // Ranked full-text search (T-180): GIN over the generated tsvector (FR-008/FR-010).
         index('food_search_vector_idx').using('gin', table.searchVector),
+        // The curated-alias vector's own GIN index (0007). Starts EMPTY — an alias-less row generates an
+        // empty tsvector, which costs no index entries — and grows only as aliases are acquired.
+        index('food_aliases_search_vector_idx').using('gin', table.aliasesSearchVector),
     ],
 );
 
@@ -210,7 +314,10 @@ export const foodNutrients = pgTable(
             .references(() => nutrient.id),
         amount: numeric('amount').notNull(),
         basis: nutrientBasisEnum('basis').notNull().default('per_100g'),
-        sourceId: text('source_id').notNull(),
+        // NULLABLE since 0013 (plan U10/KTD-H): NULL means "the food's AUTHOR wrote this value" — an
+        // authored food has no crosswalk row to cite. The composite same-food FK is MATCH SIMPLE, so
+        // enforcement skips NULL exactly as food_category_assignment's has since 0000.
+        sourceId: text('source_id'),
     },
     (table) => [
         unique('food_nutrients_food_nutrient_unique').on(table.foodId, table.nutrientId),
@@ -246,7 +353,8 @@ export const foodPortions = pgTable(
             .references(() => food.id, { onDelete: 'cascade' }),
         label: text('label').notNull(),
         gramWeight: numeric('gram_weight').notNull(),
-        sourceId: text('source_id').notNull(),
+        // NULLABLE since 0013 — see food_nutrients.sourceId above.
+        sourceId: text('source_id'),
     },
     (table) => [
         check('food_portions_gram_weight_pos', sql`${table.gramWeight} > 0`),
@@ -341,3 +449,85 @@ export const foodCategoryAssignment = pgTable(
 export type FoodCategoryAssignmentRow = InferSelectModel<typeof foodCategoryAssignment>;
 /** A `food_category_assignment` row for insert. */
 export type NewFoodCategoryAssignmentRow = InferInsertModel<typeof foodCategoryAssignment>;
+
+/**
+ * The FNDDS/WWEIA consumption prior (plan U5, migration 0012). ⛔ A SIBLING table, never a `food` column
+ * — golden scalars are merge-engine-owned. One writer: the operator-run `seed:fndds-prior` command; the
+ * search ranking LEFT JOINs it (absent row = prior of zero).
+ */
+export const foodPopularity = pgTable('food_popularity', {
+    foodId: text('food_id')
+        .primaryKey()
+        .references(() => food.id, { onDelete: 'cascade' }),
+    /** Raw survey-weighted consumption weight (audit + re-normalization). */
+    consumptionWeight: numeric('consumption_weight').notNull(),
+    /** The fused fraction, normalized into [0, 1] at seed time. */
+    priorFraction: numeric('prior_fraction').notNull(),
+    /** The vintage/cycle the seed derived from. */
+    source: text('source').notNull(),
+    seededAt: timestamp('seeded_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type FoodPopularityRow = InferSelectModel<typeof foodPopularity>;
+export type NewFoodPopularityRow = InferInsertModel<typeof foodPopularity>;
+
+/**
+ * U18 (0014): the authored-food version history — the recipe versioning pattern's TABLE half only (the
+ * S3 archive half is deliberately deferred; see the migration header). `created_by` is NULLABLE because
+ * the erasure sweep NULLs it on KEPT foods — the history survives as other users' recourse, the
+ * attribution does not.
+ */
+export const foodVersions = pgTable(
+    'food_versions',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        foodId: text('food_id')
+            .notNull()
+            .references(() => food.id, { onDelete: 'cascade' }),
+        versionNumber: integer('version_number').notNull(),
+        /** That version's content: { name, description, macros, portions }. */
+        snapshot: jsonb('snapshot').notNull(),
+        createdBy: varchar('created_by', { length: 255 }),
+        createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    },
+    (table) => [
+        unique('food_versions_food_version_unique').on(table.foodId, table.versionNumber),
+        index('idx_food_versions_food').on(table.foodId),
+        index('idx_food_versions_created_by')
+            .on(table.createdBy)
+            .where(sql`${table.createdBy} IS NOT NULL`),
+    ],
+);
+
+/**
+ * U12 (0015): the promotion MODERATION QUEUE — corroboration is the TRIGGER, never the PUBLISHER
+ * (owner ruling 2026-08-30). A pending row is a candidacy awaiting a human; approval elects
+ * `canonical_food_id` and publishes; a rejected row's `data_fingerprint` bars identical resubmission.
+ * No person columns by design — contributing AUTHORS are derivable by join, and the operator's identity
+ * reaches the audit log only (the `requeue` precedent), so this table stays out of the erasure sweep.
+ */
+export const foodPromotions = pgTable(
+    'food_promotions',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        normalizedName: text('normalized_name').notNull(),
+        /** The compatible contributing food ids, ordered by id — one policy evaluation, one unit. */
+        candidateFoodIds: jsonb('candidate_food_ids').notNull(),
+        dataFingerprint: varchar('data_fingerprint', { length: 64 }).notNull(),
+        status: text('status').notNull().default('pending'),
+        canonicalFoodId: text('canonical_food_id'),
+        createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+        decidedAt: timestamp('decided_at', { withTimezone: true }),
+    },
+    (table) => [
+        uniqueIndex('food_promotions_pending_name_unique')
+            .on(table.normalizedName)
+            .where(sql`${table.status} = 'pending'`),
+        index('idx_food_promotions_name').on(table.normalizedName),
+    ],
+);
+
+export type FoodPromotionRow = InferSelectModel<typeof foodPromotions>;
+
+export type FoodVersionRow = InferSelectModel<typeof foodVersions>;
+export type NewFoodVersionRow = InferInsertModel<typeof foodVersions>;

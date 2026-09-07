@@ -40,7 +40,7 @@ export function makeIngredientView(overrides: Partial<RecipeIngredientView> = {}
     return {
         ingredientId: 'ing_1',
         name: 'Olive oil',
-        quantity: 2,
+        quantity: { kind: 'exact', value: 2 },
         unit: 'tbsp',
         isUserEntered: false,
         ...overrides,
@@ -168,7 +168,8 @@ export function makeSearchResponse(
         page: 1,
         pageSize: 20,
         hasMore: false,
-        facets: {},
+        // All four dimensions: the contract requires them (an empty dimension is `[]`, never absent).
+        facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
         ...overrides,
     };
 }

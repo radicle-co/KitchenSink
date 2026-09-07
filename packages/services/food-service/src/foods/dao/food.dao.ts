@@ -7,12 +7,15 @@
  *
  * @implements FR-002 FR-005 FR-013 FR-025 FR-028 FR-028a FR-IDN-1
  */
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 
+import { settingFromEnv } from '../../config/env.schema.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import {
     food,
     foodFieldProvenance,
+    foodNutrientView,
+    foodPopularity,
     foodNutrients,
     foodOriginEnum,
     foodPortions,
@@ -41,8 +44,8 @@ export interface GoldenNutrient {
     amount: string;
     /** Amount basis (`per_100g` by default). */
     basis: string;
-    /** Crosswalk row id that supplied this value (per-value provenance). */
-    sourceId: string;
+    /** Crosswalk row id that supplied this value, or NULL for an author-written one (0013, plan U10). */
+    sourceId: string | null;
 }
 
 /** A household-measure portion in the golden read shape. */
@@ -53,8 +56,8 @@ export interface GoldenPortion {
     label: string;
     /** Gram weight as a string (numeric, strictly positive). */
     gramWeight: string;
-    /** Crosswalk row id that supplied this portion. */
-    sourceId: string;
+    /** Crosswalk row id that supplied this portion, or NULL for an authored one (0013, plan U10). */
+    sourceId: string | null;
 }
 
 /** A crosswalk entry in the golden read shape (no raw payload). */
@@ -102,6 +105,54 @@ export interface GoldenFoodRecord {
     nutrients: GoldenNutrient[];
     portions: GoldenPortion[];
     fieldProvenance: GoldenFieldProvenance[];
+    /** U5: the FNDDS consumption-prior fraction in [0, 1], or `null` when the food has none. */
+    priorFraction: number | null;
+    /** The author's app-user ULID, or `null` for a catalog row (0013, plan U10). */
+    userId: string | null;
+    /** The 0013 visibility state (`public` is catalog-only; the CHECK guarantees coherence). */
+    visibility: 'public' | 'private' | 'promoted';
+}
+
+/**
+ * One stored nutrient value in the batch-read shape — the view's columns, unchanged.
+ *
+ * Structurally the `NutrientRow` that `nutrition/nutrientSelection.ts` selects over, minus the `number`
+ * conversion: `amount` is `numeric`, which node-postgres returns as a STRING (full precision, no float
+ * drift — SC-008). Converting it is the caller's job, at the one seam that already does it.
+ */
+export interface StoredNutrientAmount {
+    /** Nutrient display name, from the dictionary. */
+    readonly nutrient: string;
+    /** Unit the amount is expressed in — part of the nutrient's IDENTITY, not decoration. */
+    readonly unit: string;
+    /** `per_100g` | `per_serving`, carried through unfiltered. */
+    readonly basis: string;
+    /** Arbitrary-precision amount as a string. */
+    readonly amount: string;
+}
+
+/** One stored portion in the batch-read shape (`gram_weight` is `numeric` → string, as above). */
+export interface StoredPortionWeight {
+    /** Human label (e.g. `1 cup chopped`). */
+    readonly label: string;
+    /** Gram weight of the whole label amount, as a string. */
+    readonly gramWeight: string;
+}
+
+/**
+ * One food's nutrition-relevant rows, as returned by {@link FoodDao.readNutritionBatch}. A subset of
+ * {@link GoldenFoodRecord} — no crosswalk, no scalar provenance, no per-value `source_id` — because the
+ * batch-nutrition projection reads none of them and fetching them would put the N+1 back in a new shape.
+ */
+export interface NutritionRecord {
+    /** The internal food id. */
+    readonly id: string;
+    /** The food's lifecycle status, reported whatever it is (a PENDING food still rides the wire). */
+    readonly status: FoodStatus;
+    /** Every stored nutrient value for the food, in no guaranteed order. */
+    readonly nutrients: readonly StoredNutrientAmount[];
+    /** The food's portions, in insertion order. */
+    readonly portions: readonly StoredPortionWeight[];
 }
 
 /** Input for {@link FoodDao.createByName}. */
@@ -118,7 +169,7 @@ export interface CreateByNameResult {
     id: string;
     /** `true` only when this call inserted a fresh row. */
     created: boolean;
-    /** `true` when a terminal-state row past its 30-day TTL was reset to `PENDING` (FR-028a). */
+    /** `true` when a terminal-state row past its configured TTL was reset to `PENDING` (FR-028a). */
     reactivated: boolean;
 }
 
@@ -153,13 +204,36 @@ export interface GoldenScalars {
     brandOwner?: string | null;
     brandName?: string | null;
     barcode?: string | null;
+    /** The flattened curated-alias text (`foodAliases.joinAliases`), or `null` for a food with none. */
+    aliases?: string | null;
+}
+
+/** Narrow the 0013 visibility text column; the CHECK makes anything else a defect worth throwing on. Pure. */
+function narrowVisibility(visibility: string): 'public' | 'private' | 'promoted' {
+    if (visibility === 'public' || visibility === 'private' || visibility === 'promoted') {
+        return visibility;
+    }
+
+    throw new Error(`unknown food visibility '${visibility}'`);
 }
 
 /** Two-int advisory-lock classid for per-name dedup (DSN-15) — distinct from the drainer/limiter classes. */
 const LOCK_CLASS_DEDUP = 2;
 
-/** The 30-day terminal-row / NOT_FOUND TTL window (FR-025/FR-028a). */
-const TERMINAL_TTL = sql`interval '30 days'`;
+/** Options for {@link FoodDao}. */
+export interface FoodDaoOptions {
+    /**
+     * Terminal-row (`NOT_FOUND`/`FAILED`) TTL in days, past which {@link FoodDao.createByName} reactivates
+     * a tombstone to `PENDING` (FR-025/FR-028a). Defaults to the configured `FOOD_NOT_FOUND_TTL_DAYS`
+     * (30 when unset).
+     *
+     * Resolved HERE rather than at each composition root, for the reason recorded on
+     * `FetchQueueDaoOptions.demoteThreshold`: a caller that forgets to pass the configured value falls
+     * back to a built-in one silently. This variable was worse than that — boot-validated and documented,
+     * with NO consumer at all, because the statement carried `interval '30 days'` as a literal.
+     */
+    readonly notFoundTtlDays?: number;
+}
 
 /**
  * Legal status-transition set (FR-028a) expressed as the set of prior statuses from which each
@@ -167,15 +241,44 @@ const TERMINAL_TTL = sql`interval '30 days'`;
  * transition matches no row (`rowCount=0`) and is rejected without mutating the record.
  */
 const LEGAL_PRIORS: Record<FoodStatus, readonly FoodStatus[]> = {
-    PENDING: ['FAILED', 'NOT_FOUND'],
-    RESOLVED: ['PENDING', 'UNRESOLVED'],
-    UNRESOLVED: ['PENDING'],
-    NOT_FOUND: ['PENDING'],
-    FAILED: ['PENDING'],
+    // `AWAITING_RETRY` is a legal prior EVERYWHERE `PENDING` is (U9): a retrying food can still resolve,
+    // still turn out to need disambiguation, still be found absent, and still exhaust its budget. Omitting
+    // it from any of these would make the first failure a dead end — the food would be stuck retrying with
+    // no legal transition out, and `setStatus` rejects an illegal move by matching no row, silently.
+    PENDING: ['FAILED', 'NOT_FOUND', 'AWAITING_RETRY'],
+    RESOLVED: ['PENDING', 'UNRESOLVED', 'AWAITING_RETRY', 'DELETING'],
+    UNRESOLVED: ['PENDING', 'AWAITING_RETRY'],
+    NOT_FOUND: ['PENDING', 'AWAITING_RETRY'],
+    FAILED: ['PENDING', 'AWAITING_RETRY'],
+    // Reached on a real source failure that has NOT exhausted the budget — from a first attempt
+    // (`PENDING`) or from a previous retry (itself).
+    AWAITING_RETRY: ['PENDING', 'AWAITING_RETRY'],
+    // U18's tombstone-first refusal window (Q3b/R22): only a live golden record can begin deleting, and
+    // the ONLY way back is RESOLVED (the referenced/kept outcome) — every other exit is a physical DELETE.
+    DELETING: ['RESOLVED'],
 };
 
 export class FoodDao {
-    public constructor(private readonly db: FoodDrizzle) {}
+    /**
+     * The terminal-row / NOT_FOUND TTL as a SQL interval (FR-025/FR-028a), bound as a parameter so the
+     * configured value reaches Postgres instead of being baked into the statement text.
+     *
+     * Resolved per instance, not at module load: a malformed value must fail where an operator can
+     * attribute it (constructing this DAO), not as an import-time crash in whichever module happens to
+     * pull the file in first — and a frozen module constant made the knob unobservable to any test.
+     */
+    private readonly terminalTtl: SQL;
+
+    /**
+     * @param db - The food-schema Drizzle client.
+     * @param options - Optional tombstone-TTL override (defaults to `FOOD_NOT_FOUND_TTL_DAYS`).
+     */
+    public constructor(
+        private readonly db: FoodDrizzle,
+        options?: FoodDaoOptions,
+    ) {
+        this.terminalTtl = sql`make_interval(days => ${options?.notFoundTtlDays ?? settingFromEnv('FOOD_NOT_FOUND_TTL_DAYS')})`;
+    }
 
     /**
      * Fetch the raw `food` row by internal id.
@@ -194,7 +297,8 @@ export class FoodDao {
      * Add-by-name with normalized-name dedup (FR-005/FR-013/FR-028a). A single
      * `INSERT … ON CONFLICT (normalized_name) DO UPDATE … RETURNING` always returns a row: a fresh add
      * inserts a `PENDING` row; a duplicate collapses to the existing `id`; a terminal-state
-     * (`NOT_FOUND`/`FAILED`) row PAST its 30-day TTL is reactivated to `PENDING` (never a `23505`). A
+     * (`NOT_FOUND`/`FAILED`) row PAST its configured TTL (`FOOD_NOT_FOUND_TTL_DAYS`, default 30 days) is
+     * reactivated to `PENDING` (never a `23505`). A
      * short per-name advisory lock (DSN-15) serializes same-name adds; the `UNIQUE(normalized_name)`
      * index is the durable backstop. `created` distinguishes insert (`xmax=0`) from conflict; the
      * reactivation flag is computed from the row's pre-update state captured in the CTE.
@@ -213,23 +317,31 @@ export class FoodDao {
             const newId = newFoodId();
             const result = await tx.execute<{ id: string; inserted: boolean; reactivated: boolean }>(sql`
                 WITH existing AS (
-                    SELECT id, status, tombstoned_at FROM food WHERE normalized_name = ${normalizedName}
+                    SELECT id, status, tombstoned_at FROM food
+                     WHERE normalized_name = ${normalizedName}
+                       -- ⛔ CATALOG rows only (0013, plan U10). Without this, add-by-name would dedup
+                       -- against another user's PRIVATE authored food — returning its id to a stranger
+                       -- and binding their recipe to a row the author may edit or delete at will.
+                       AND user_id IS NULL
                 ),
                 upserted AS (
                     INSERT INTO food (id, name, normalized_name, status)
                     VALUES (${newId}, ${displayName}, ${normalizedName}, 'PENDING')
-                    ON CONFLICT (normalized_name) DO UPDATE SET
+                    -- ⚠️ The WHERE names the PARTIAL catalog unique as the arbiter (0013 split the old
+                    -- full-table index in two); without it Postgres finds no matching constraint and the
+                    -- whole statement errors. The inserted row's user_id is NULL, so the arbiter applies.
+                    ON CONFLICT (normalized_name) WHERE user_id IS NULL DO UPDATE SET
                         status = CASE
                             WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
+                                 AND food.tombstoned_at < now() - ${this.terminalTtl}
                             THEN 'PENDING'::food_status ELSE food.status END,
                         tombstoned_at = CASE
                             WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
+                                 AND food.tombstoned_at < now() - ${this.terminalTtl}
                             THEN NULL ELSE food.tombstoned_at END,
                         updated_at = CASE
                             WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
+                                 AND food.tombstoned_at < now() - ${this.terminalTtl}
                             THEN now() ELSE food.updated_at END
                     RETURNING id, (xmax = 0) AS inserted
                 )
@@ -237,7 +349,7 @@ export class FoodDao {
                     u.id,
                     u.inserted,
                     COALESCE(
-                        e.status IN ('NOT_FOUND', 'FAILED') AND e.tombstoned_at < now() - ${TERMINAL_TTL},
+                        e.status IN ('NOT_FOUND', 'FAILED') AND e.tombstoned_at < now() - ${this.terminalTtl},
                         false
                     ) AS reactivated
                 FROM upserted u
@@ -334,6 +446,10 @@ export class FoodDao {
             patch.barcode = scalars.barcode;
         }
 
+        if (scalars.aliases !== undefined) {
+            patch.aliases = scalars.aliases;
+        }
+
         const rows = await this.db.update(food).set(patch).where(eq(food.id, scalars.id)).returning();
 
         return rows[0];
@@ -387,7 +503,7 @@ export class FoodDao {
             return null;
         }
 
-        const [sources, nutrients, portions, fieldProvenance] = await Promise.all([
+        const [sources, nutrients, portions, fieldProvenance, popularity] = await Promise.all([
             this.db
                 .select({
                     id: foodSources.id,
@@ -425,6 +541,13 @@ export class FoodDao {
                 .select({ field: foodFieldProvenance.field, sourceId: foodFieldProvenance.sourceId })
                 .from(foodFieldProvenance)
                 .where(eq(foodFieldProvenance.foodId, id)),
+            // U5: the consumption prior (sibling table, KTD-G) — carried on the golden record so the one
+            // consumer that CAPTURES it (recipe-service's ingredient cache) reads it from the same
+            // aggregate it already reads, with no extra endpoint.
+            this.db
+                .select({ priorFraction: foodPopularity.priorFraction })
+                .from(foodPopularity)
+                .where(eq(foodPopularity.foodId, id)),
         ]);
 
         return {
@@ -450,6 +573,199 @@ export class FoodDao {
             nutrients,
             portions,
             fieldProvenance,
+            priorFraction: popularity[0]?.priorFraction === undefined ? null : Number(popularity[0].priorFraction),
+            userId: foodRow.userId,
+            visibility: narrowVisibility(foodRow.visibility),
         };
+    }
+
+    /**
+     * Read the nutrition-relevant rows for MANY foods in **three** statements (KTD-3, plan U8): statuses
+     * from `food`, nutrient values through `food_nutrient_view` (migration 0006), portions from
+     * `food_portions` — each a single `food_id = ANY($1)`.
+     *
+     * This exists because the batch endpoint used to call {@link FoodDao.readGoldenRecord} once per id, and
+     * that runs 1 + 4 statements EACH: a 100-id request — one per recipe-list render — cost ~500 round
+     * trips. No index is added; `food_nutrients_food_id_idx` and `food_portions_food_id_idx` already serve
+     * the predicate.
+     *
+     * ⛔ An **access-path change only**. Nothing here decides which row is a calorie, a protein or a fat —
+     * `basis` and the dictionary name/unit are carried through verbatim for `selectPer100g` to judge
+     * (`nutrition/nutrientSelection.ts`), which is the ONE place that rule lives. Amounts stay STRINGS.
+     *
+     * An id that names no `food` row is simply absent from the result; reporting it is the caller's job,
+     * because "unknown" versus "known but empty" is a wire-contract distinction, not a storage one.
+     *
+     * @param ids - The internal food ids (already canonicalized by the controller).
+     * @returns One record per id that exists, in no guaranteed order.
+     * @sideEffect Reads `food`, `food_nutrient_view` (`food_nutrients` + `nutrient`), `food_portions`.
+     */
+    /**
+     * The stored nutrient rows for a set of foods — the narrow read behind search's opt-in nutrition
+     * enrichment (plan U4b). One batched view scan; the per-100g SELECTION stays in
+     * `nutrition/nutrientSelection.ts`, never here.
+     *
+     * @param ids - The internal food ids.
+     * @returns One row per stored nutrient value, `amount` still the driver's string.
+     * @sideEffect Reads `food_nutrient_view`.
+     */
+    public async nutrientRowsFor(ids: readonly string[]): Promise<(StoredNutrientAmount & { foodId: string })[]> {
+        return this.db
+            .select({
+                foodId: foodNutrientView.foodId,
+                nutrient: foodNutrientView.nutrient,
+                unit: foodNutrientView.unit,
+                basis: foodNutrientView.basis,
+                amount: foodNutrientView.amount,
+            })
+            .from(foodNutrientView)
+            .where(sql`${foodNutrientView.foodId} = ANY(${sql.param([...ids])})`);
+    }
+
+    /**
+     * The AUTHORED variant of {@link readNutritionBatch} (plan U18's cache split): the same three-read
+     * shape, scoped to `user_id = requester` — the caller's own authored foods and NOBODY else's, which
+     * is what makes the authenticated `authored-nutrition` route safe to serve uncached per caller while
+     * the shared route stays caller-independent for the edge (ADR-0020).
+     *
+     * @sideEffect Three reads.
+     */
+    public async readAuthoredNutritionBatch(ids: readonly string[], requesterId: string): Promise<NutritionRecord[]> {
+        const statuses = await this.db
+            .select({ id: food.id, status: food.status })
+            .from(food)
+            .where(sql`${food.id} = ANY(${sql.param(ids)}) AND ${food.userId} = ${requesterId}`);
+        const ownedIds = statuses.map((row) => row.id);
+
+        if (ownedIds.length === 0) {
+            return [];
+        }
+
+        const [nutrients, portions] = await Promise.all([
+            this.db
+                .select({
+                    foodId: foodNutrientView.foodId,
+                    nutrient: foodNutrientView.nutrient,
+                    unit: foodNutrientView.unit,
+                    basis: foodNutrientView.basis,
+                    amount: foodNutrientView.amount,
+                })
+                .from(foodNutrientView)
+                .where(sql`${foodNutrientView.foodId} = ANY(${sql.param(ownedIds)})`),
+            this.db
+                .select({
+                    foodId: foodPortions.foodId,
+                    label: foodPortions.label,
+                    gramWeight: foodPortions.gramWeight,
+                })
+                .from(foodPortions)
+                .where(sql`${foodPortions.foodId} = ANY(${sql.param(ownedIds)})`)
+                .orderBy(foodPortions.id),
+        ]);
+        const nutrientsByFood = new Map<string, StoredNutrientAmount[]>();
+
+        for (const row of nutrients) {
+            const bucket = nutrientsByFood.get(row.foodId);
+            const value = { nutrient: row.nutrient, unit: row.unit, basis: row.basis, amount: row.amount };
+
+            if (bucket === undefined) {
+                nutrientsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        const portionsByFood = new Map<string, StoredPortionWeight[]>();
+
+        for (const row of portions) {
+            const bucket = portionsByFood.get(row.foodId);
+            const value = { label: row.label, gramWeight: row.gramWeight };
+
+            if (bucket === undefined) {
+                portionsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        return statuses.map((row) => ({
+            id: row.id,
+            status: row.status,
+            nutrients: nutrientsByFood.get(row.id) ?? [],
+            portions: portionsByFood.get(row.id) ?? [],
+        }));
+    }
+
+    public async readNutritionBatch(ids: readonly string[]): Promise<NutritionRecord[]> {
+        const [statuses, nutrients, portions] = await Promise.all([
+            this.db
+                .select({ id: food.id, status: food.status })
+                .from(food)
+                // ⛔ CATALOG + PROMOTED rows (0013 U10, 0015 U12). This feeds the EDGE-CACHED nutrition
+                // endpoint, whose response must not vary by caller (ADR-0020) — a PRIVATE authored food
+                // cannot appear here for ANYONE (its id lands in `unknownIds`; U18's cache split serves
+                // the author), while a PROMOTED one is world-readable with caller-invariant nutrition, so
+                // it enters the shared population the moment phase 1 commits.
+                .where(
+                    sql`${food.id} = ANY(${sql.param(ids)})
+                        AND (${food.userId} IS NULL OR ${food.visibility} = 'promoted')`,
+                ),
+            this.db
+                .select({
+                    foodId: foodNutrientView.foodId,
+                    nutrient: foodNutrientView.nutrient,
+                    unit: foodNutrientView.unit,
+                    basis: foodNutrientView.basis,
+                    amount: foodNutrientView.amount,
+                })
+                .from(foodNutrientView)
+                .where(sql`${foodNutrientView.foodId} = ANY(${sql.param(ids)})`),
+            this.db
+                .select({
+                    foodId: foodPortions.foodId,
+                    label: foodPortions.label,
+                    gramWeight: foodPortions.gramWeight,
+                })
+                .from(foodPortions)
+                .where(sql`${foodPortions.foodId} = ANY(${sql.param(ids)})`)
+                // Portion order is NOT cosmetic: `normalizePortions` de-duplicates by unit FIRST-WINS, so
+                // it decides what a `cup` of this food weighs. `food_portions.id` is a ULID, so ordering by
+                // it is insertion order — what the per-food read returned before batching, now guaranteed
+                // rather than inherited from whichever plan the batched scan happens to get.
+                .orderBy(foodPortions.id),
+        ]);
+
+        const nutrientsByFood = new Map<string, StoredNutrientAmount[]>();
+
+        for (const row of nutrients) {
+            const bucket = nutrientsByFood.get(row.foodId);
+            const value = { nutrient: row.nutrient, unit: row.unit, basis: row.basis, amount: row.amount };
+
+            if (bucket === undefined) {
+                nutrientsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        const portionsByFood = new Map<string, StoredPortionWeight[]>();
+
+        for (const row of portions) {
+            const bucket = portionsByFood.get(row.foodId);
+            const value = { label: row.label, gramWeight: row.gramWeight };
+
+            if (bucket === undefined) {
+                portionsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        return statuses.map((row) => ({
+            id: row.id,
+            status: row.status,
+            nutrients: nutrientsByFood.get(row.id) ?? [],
+            portions: portionsByFood.get(row.id) ?? [],
+        }));
     }
 }

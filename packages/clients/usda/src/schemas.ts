@@ -5,7 +5,7 @@
  * so malformed/`undefined` data can never flow downstream into `@kitchensink/food-service`.
  *
  * These schemas model the **raw upstream wire shape** — the body as USDA sends it — NOT the
- * normalized {@link import('./types.js').UsdaFoodDetail} the client returns. The public type
+ * normalized `UsdaFoodDetail` the client returns. The public type
  * carries a synthesized `raw` field and flattened nutrients produced by `UsdaApiClient.toFoodDetail`,
  * neither of which exists on the wire, so the validator and the public interface deliberately differ.
  * The client validates with these schemas first, then normalizes the validated body.
@@ -13,6 +13,26 @@
  * Tolerance: USDA returns many fields we do not model. Every object schema uses `.passthrough()`
  * so unknown extra keys are preserved rather than rejected; only the fields the client actually
  * consumes are constrained.
+ *
+ * ⚠️ DELIBERATE — DO NOT "CONVERGE" THIS FILE ONTO A SCHEMA PACKAGE.
+ *
+ * `docs/CODING_STANDARDS.md` §15 / GR-015 / ADR-0014 require every client of one of OUR services to
+ * import its wire types and zod from `@kitchensink/schema-<service>` and to declare none of its own.
+ * This client is the codified EXCEPTION (§15.3), and applying that rule here would delete a security
+ * boundary rather than remove a duplication:
+ *
+ *   • USDA FoodData Central is a third-party API we do not serve. There is no service of ours whose
+ *     DTOs could own these types, so there is nothing to generate a schema package FROM.
+ *   • The duplication §15 forbids is one representation that COULD have been derived from another.
+ *     Here it could not — this file is the only place the upstream shape is asserted at all, and it
+ *     deliberately differs from the client's public type (see the paragraph above).
+ *   • Deleting or relaxing these schemas removes the check that stops malformed upstream data
+ *     reaching `@kitchensink/food-service`. That is a regression in kind, not a cleanup.
+ *
+ * The same reasoning covers every third-party boundary (Clerk session claims and svix webhook bodies,
+ * Vercel, Stripe): validate the raw shape at the edge, and never publish an OpenAPI document for an
+ * API we do not serve. `packages/clients/usda` is named in §15.3 and ADR-0014 as the reference
+ * implementation of this pattern — keep it that way.
  */
 import { z } from 'zod';
 
@@ -44,11 +64,52 @@ export const RawUsdaNutrientSchema = z
 export type RawUsdaNutrient = z.infer<typeof RawUsdaNutrientSchema>;
 
 /**
+ * USDA's `foodAttributeType.name` for a curated alternate name / regional synonym / brand
+ * (`foodAttributeType.id` 1001). This is FNDDS' alias table, and it is the ONLY attribute type the
+ * client surfaces — `WWEIA Category description`, `WWEIA Category number` and `Adjustments` share the
+ * same array and are not names for the food.
+ *
+ * Compared case-insensitively against the trimmed upstream value, but never as a prefix: `Additional`
+ * alone is not this type.
+ */
+export const ADDITIONAL_DESCRIPTION_ATTRIBUTE = 'additional description';
+
+/**
+ * A single `foodAttributes[]` entry on a food-detail response.
+ *
+ * ⚠️ The 2020 OpenAPI document models this as `FoodAttribute` with `sequenceNumber` and a capitalised
+ * `FoodAttributeType`. The LIVE API (probed 2026-08-21) sends a lower-cased `foodAttributeType` and a
+ * `rank` instead. This schema follows the live shape — every field optional, `.passthrough()` — because
+ * a mismatch here must never fail a food whose nutrients are perfectly good.
+ *
+ * ⛔ `value` IS NOT A STRING, and declaring it one broke exactly the promise above. USDA sends numeric
+ * attribute values — `{ id: 2256462, value: 9, name: 'Added Package Weight' }` sits in the committed
+ * `foods-batch.json` capture — and because `POST /v1/foods` is validated as an ARRAY, one such attribute
+ * on one food failed `fetchByKeys` for every food in the request with `SourceApiError('USDA response
+ * failed schema validation')`. The nutrients were perfectly good; the food carried a package weight.
+ * Widening it is not permission to read a number as a name: `additionalDescriptionsOf` admits string
+ * values only, so a numeric value can never become a catalog alias.
+ */
+export const RawUsdaFoodAttributeSchema = z
+    .object({
+        value: z.union([z.string(), z.number()]).optional(),
+        rank: z.number().optional(),
+        foodAttributeType: z
+            .object({ id: z.number().optional(), name: z.string().optional() })
+            .passthrough()
+            .optional(),
+    })
+    .passthrough();
+
+/** Inferred food-attribute type, kept in lock-step with {@link RawUsdaFoodAttributeSchema}. */
+export type RawUsdaFoodAttribute = z.infer<typeof RawUsdaFoodAttributeSchema>;
+
+/**
  * A raw food-detail object from `GET /v1/food/{fdcId}` and each element of `POST /v1/foods`.
  *
- * Required (the client depends on these): `fdcId` and `description`. `foodNutrients` defaults to
- * an empty array when absent so downstream nutrient extraction always has an array to map over.
- * Everything else is optional and only type-constrained.
+ * Required (the client depends on these): `fdcId` and `description`. `foodNutrients` and
+ * `foodAttributes` default to an empty array when absent so downstream extraction always has an array
+ * to map over. Everything else is optional and only type-constrained.
  */
 export const RawUsdaFoodSchema = z
     .object({
@@ -56,6 +117,10 @@ export const RawUsdaFoodSchema = z
         description: z.string(),
         dataType: z.string().optional(),
         foodNutrients: z.array(RawUsdaNutrientSchema).default([]),
+        // The curated alias table (FNDDS): 9,648 additional descriptions across 5,432 main descriptions.
+        // Only present on the DETAIL endpoints; the search envelope flattens the same knowledge into a
+        // `;`-joined `additionalDescriptions` string instead. See `additionalDescriptionsOf`.
+        foodAttributes: z.array(RawUsdaFoodAttributeSchema).default([]),
         brandOwner: z.string().optional(),
         brandName: z.string().optional(),
         gtinUpc: z.string().optional(),

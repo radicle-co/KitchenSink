@@ -9,7 +9,7 @@
  *
  * The store is platform-agnostic (pure TS, shared by web + native leaves). It exposes an
  * external-store contract (`subscribe` + `getProgress`) so React binds to it via `useSyncExternalStore`
- * (see {@link import('./useCookingProgress.js').useCookingProgress}); `getProgress` returns a
+ * (see `useCookingProgress`); `getProgress` returns a
  * reference-stable snapshot while unchanged (a shared frozen empty for untouched recipes), as that hook
  * requires.
  */

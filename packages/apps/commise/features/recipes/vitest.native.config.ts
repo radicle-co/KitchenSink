@@ -1,3 +1,4 @@
+import { testTempRootSetup, jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -44,8 +45,13 @@ function preferNativeLeaves(): Plugin {
 export default defineConfig({
     plugins: [preferNativeLeaves()],
     test: {
+        // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+        // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+        globalSetup: [testTempRootSetup],
         globals: true,
         environment: 'jsdom',
+        // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
+        setupFiles: [jsdomPolyfillsSetup],
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
     },
@@ -64,6 +70,9 @@ export default defineConfig({
             // the wizard's new `Feather` usage — mirrors `@commise/mobile`'s identical fix, same root cause).
             // Icons are decorative in these tests, so stub the whole module.
             '@expo/vector-icons': path.resolve(import.meta.dirname, 'test-utils/expoVectorIconsStub.tsx'),
+            // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no
+            // `crypto` global); the stub answers Node's own UUIDs.
+            'expo-crypto': path.resolve(import.meta.dirname, 'test-utils/expoCryptoStub.ts'),
             // `expo-linear-gradient` / `expo-blur` back the U8 brand surfaces (`@commise/ui/surface`) the
             // hero native leaves adopt; both bridge to native views absent under jsdom, so stub them. Real
             // gradient/blur rendering is a device/Maestro concern.

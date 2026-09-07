@@ -21,6 +21,7 @@ configure({ asyncUtilTimeout: 5_000 });
 // `__DEV__` is a React Native runtime global that jsdom lacks; some expo/RN modules read it at import time.
 // The vitest config also `define`s it, but set it on globalThis for any module evaluated before that applies.
 (globalThis as typeof globalThis & { __DEV__?: boolean }).__DEV__ = true;
+
 if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).matchMedia = (query: string) => ({

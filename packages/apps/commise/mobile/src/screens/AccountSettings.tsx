@@ -1,7 +1,7 @@
 /**
  * @module screens/AccountSettings — the mobile account hub (security + sign-out + danger zone), U2 rebuild.
  *
- * Reachable from the profile surface's "Account settings" action ({@link import('./AppRoot.js').AppRoot}
+ * Reachable from the profile surface's "Account settings" action (`AppRoot`
  * wires it as a top-level destination). It is the single home for account-level actions: the signed-in
  * identity, the IdP-hosted security note, SIGN OUT, and the shared {@link AccountDangerZone} — which presents
  * CLOSE (recoverable) and ERASE (irreversible) as two DISTINCT actions through the design-system
@@ -75,7 +75,9 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps = {
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     container: {
         flexGrow: 1,
         gap: nativeTokens.spacing[3],

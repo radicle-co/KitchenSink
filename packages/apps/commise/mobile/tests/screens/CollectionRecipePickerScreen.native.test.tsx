@@ -16,6 +16,8 @@ import { CollectionRecipePickerScreen } from '../../src/screens/CollectionRecipe
 import { makeCollectionWithRecipes, makeRecipe, makeRecipePage } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useCollection: vi.fn(),
     useRecipes: vi.fn(),
     useAddRecipeToCollection: vi.fn(),

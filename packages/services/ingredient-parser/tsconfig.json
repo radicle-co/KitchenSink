@@ -1,0 +1,18 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "outDir": "dist",
+        "rootDir": "."
+    },
+    // `infra/smoke` and its suite are here rather than in `infra/tsconfig.json` because the smoke imports
+    // the package's OWN zod from `src/`, which sits outside that project's `rootDir`. See the note there.
+    "include": ["src/**/*.ts", "tests/**/*.ts", "infra/smoke/**/*.ts", "infra/__tests__/deployedSmoke.test.ts"],
+    // ⚠️ `infra` is no longer excluded WHOLESALE — the two entries above must survive the filter, and an
+    // `exclude` beats an `include`. Nothing else under `infra/` is reachable from these roots (the CDK app,
+    // its stack and its packaging suite are their own project), so the program is unchanged apart from them.
+    "exclude": ["node_modules", "dist", "infra/bin", "infra/lib", "build"]
+}

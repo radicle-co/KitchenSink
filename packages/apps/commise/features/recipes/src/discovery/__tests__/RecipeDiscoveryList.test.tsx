@@ -148,6 +148,7 @@ describe('RecipeDiscoveryList (web) — loading state', () => {
         const status = screen.getByRole('status');
         const shimmer = status.querySelectorAll('.animate-pulse');
         expect(shimmer.length).toBeGreaterThanOrEqual(3);
+
         // Every placeholder is decorative — the region's caption alone announces the wait.
         for (const node of Array.from(shimmer)) {
             expect(node.closest('[aria-hidden="true"]')).not.toBeNull();
@@ -161,6 +162,7 @@ describe('RecipeDiscoveryList (web) — loading state', () => {
         // reflows the whole page the moment the first page arrives.
         const skeletonGrid = screen.getByRole('status').querySelector('.grid');
         expect(skeletonGrid).not.toBeNull();
+
         for (const columnClass of ['grid-cols-1', 'sm:grid-cols-2', 'lg:grid-cols-3', 'xl:grid-cols-4']) {
             expect(skeletonGrid?.classList.contains(columnClass)).toBe(true);
         }
@@ -187,6 +189,7 @@ describe('RecipeDiscoveryList (web) — error state', () => {
         // a deliberate state rather than a stray line of text on a blank page.
         const alert = screen.getByRole('alert');
         expect(alert.textContent).toContain('We couldn’t load recipes.');
+
         for (const surfaceClass of ['rounded-2xl', 'bg-card', 'shadow-sm']) {
             expect(alert.classList.contains(surfaceClass)).toBe(true);
         }
@@ -333,7 +336,13 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         expect(screen.queryByText(/From undefined/)).toBeNull();
     });
 
-    it('composes the compound card fields — author handle, cuisine, calories, visibility (S1)', () => {
+    // NARROWED a second time, and the fixture line that made it possible is gone with it. It used to seed
+    // `leadCaloriesPerServing: 320` and assert "320 cal" did not render — but that field has now left the
+    // wire `Recipe` entirely (ADR-0021's "Follow-up owed"), so a search result CANNOT carry a stale figure
+    // and the assertion could no longer fail for any implementation. What still has teeth is asserted
+    // below: the row renders no fabricated `0 cal` while the deferred lookup is unwired. The figure's real
+    // states are covered by `nutrition/__tests__/RecipeCalorieChip.test.tsx`.
+    it('composes the compound card fields — author handle, cuisine, visibility (S1), and no fabricated 0', () => {
         renderDiscovery({
             status: 'ready',
             results: [
@@ -342,7 +351,6 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
                     title: 'Ribollita',
                     authorHandle: 'tuscan_cook',
                     cuisine: 'Tuscan',
-                    leadCaloriesPerServing: 320,
                     visibility: 'public',
                     status: 'published',
                 }),
@@ -351,7 +359,7 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
 
         expect(screen.getByText('by @tuscan_cook')).toBeTruthy();
         expect(screen.getByText('Tuscan')).toBeTruthy();
-        expect(screen.getByText('320 cal')).toBeTruthy();
+        expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByText('Public')).toBeTruthy();
         // Still selectable by title and cloneable — the compound composition keeps the row contract.
         expect(screen.getByRole('button', { name: 'Ribollita' })).toBeTruthy();
@@ -582,6 +590,7 @@ describe('RecipeDiscoveryList (web) — recent searches (U7)', () => {
         await focusSearch(user);
 
         const panel = screen.getByRole('region', { name: 'Recent searches' });
+
         for (const option of within(panel).getAllByRole('button', { name: /^Search for/ })) {
             expect(option.className).toContain('min-h-11');
             expect(option.className).toContain('md:min-h-0');
@@ -645,6 +654,7 @@ describe('RecipeDiscoveryList (web) — touch targets (44px floor)', () => {
         });
 
         const group = screen.getByRole('radiogroup', { name: 'Sort by' });
+
         for (const option of within(group).getAllByRole('radio')) {
             expectTouchFloor(option, `sort option ${option.textContent ?? ''}`);
         }

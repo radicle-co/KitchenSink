@@ -2,7 +2,7 @@
  * T044 — version retention integration test (real Nest app + Docker Postgres).
  *
  * Drives {@link VersionsService.createSnapshot} against the harness (booted by `bootRecipeApp`, migrated
- * + seeded by `tests/global-setup.ts`) to prove the FR-007b / FR-007b-i retention behavior end to end AS
+ * + seeded by `tests/globalSetup.ts`) to prove the FR-007b / FR-007b-i retention behavior end to end AS
  * SHIPPED post-T130: at save time NOTHING is pruned — every version stays in Postgres because the row is
  * the payload the async archive retry replays — and each version beyond the newest 10 is recorded in the
  * `recipe_version_pending_archives` outbox for the version-archive worker to archive-then-prune out of
@@ -40,7 +40,9 @@ const CREATE_PAYLOAD = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000cc', name: 'Water', quantity: 1 }],
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-0000000000cc', name: 'Water', quantity: { kind: 'exact', value: 1 } },
+    ],
     steps: [{ instruction: 'Boil.' }],
 };
 
@@ -93,13 +95,22 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
 
         // Write 12 versions. Retention runs after each write, so versions 1 and 2 go over the limit.
         const total = 12;
+
         for (let versionNumber = 1; versionNumber <= total; versionNumber += 1) {
-            await service.createSnapshot({
-                recipeId: recipe.id,
-                versionNumber,
-                snapshot: snapshotAt(versionNumber),
-                createdBy: OWNER,
-            });
+            // ⚠️ Inside a real transaction now: `createSnapshot` requires one, because a version row and
+            // the recipe write it belongs to commit together (owner ruling 2026-09-06). Driving it in a
+            // transaction here keeps the suite exercising the shape production actually uses.
+            await db.transaction(async (tx) =>
+                service.createSnapshot(
+                    {
+                        recipeId: recipe.id,
+                        versionNumber,
+                        snapshot: snapshotAt(versionNumber),
+                        createdBy: OWNER,
+                    },
+                    tx,
+                ),
+            );
         }
 
         // T130 cutover: NOTHING is pruned at save time. Every version is still here, because the row is
@@ -142,23 +153,36 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
         }
 
         for (let versionNumber = 1; versionNumber <= 12; versionNumber += 1) {
-            await service.createSnapshot({
-                recipeId: recipe.id,
-                versionNumber,
-                snapshot: snapshotAt(versionNumber),
-                createdBy: OWNER,
-            });
+            // ⚠️ Inside a real transaction now: `createSnapshot` requires one, because a version row and
+            // the recipe write it belongs to commit together (owner ruling 2026-09-06). Driving it in a
+            // transaction here keeps the suite exercising the shape production actually uses.
+            await db.transaction(async (tx) =>
+                service.createSnapshot(
+                    {
+                        recipeId: recipe.id,
+                        versionNumber,
+                        snapshot: snapshotAt(versionNumber),
+                        createdBy: OWNER,
+                    },
+                    tx,
+                ),
+            );
         }
 
         // A 13th save re-derives the SAME over-retention set (1 and 2 are still un-archived) and
         // re-enqueues them. UNIQUE(recipe_version_id) + ON CONFLICT DO NOTHING must absorb that —
         // otherwise every subsequent save would pile up duplicate archive work for the same version.
-        await service.createSnapshot({
-            recipeId: recipe.id,
-            versionNumber: 13,
-            snapshot: snapshotAt(13),
-            createdBy: OWNER,
-        });
+        await db.transaction(async (tx) =>
+            service.createSnapshot(
+                {
+                    recipeId: recipe.id,
+                    versionNumber: 13,
+                    snapshot: snapshotAt(13),
+                    createdBy: OWNER,
+                },
+                tx,
+            ),
+        );
 
         const pending = await db
             .select({ versionNumber: recipeVersionPendingArchives.versionNumber })

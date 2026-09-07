@@ -11,24 +11,26 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type pg from 'pg';
 
-import { FoodEventEmitter, type EventBus, type EventBusPutInput } from '../src/events/food-event-emitter.js';
-import { FetchQueueDao } from '../src/foods/dao/fetch-queue.dao.js';
-import { FetchRequestersDao } from '../src/foods/dao/fetch-requesters.dao.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
+import { FoodEventEmitter } from '../src/events/FoodEventEmitter.js';
+import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
+import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
-import { FoodSourcesDao } from '../src/foods/dao/food-sources.dao.js';
-import { SourceCallLogDao } from '../src/foods/dao/source-call-log.dao.js';
+import { FoodSourcesDao } from '../src/foods/dao/foodSources.dao.js';
+import { SourceCallLogDao } from '../src/foods/dao/sourceCallLog.dao.js';
 import { makeMergeCandidate } from '../src/foods/merge/__fixtures__/merge.fixtures.js';
-import { GoldenRecordMergeEngine } from '../src/foods/merge/merge-engine.js';
-import { MergeAndPersistService } from '../src/foods/merge/merge-and-persist.service.js';
+import { GoldenRecordMergeEngine } from '../src/foods/merge/mergeEngine.js';
+import { MergeAndPersistService } from '../src/foods/merge/mergeAndPersist.service.js';
+import { SourceAdapterRegistry } from '../src/sources/SourceAdapterRegistry.js';
 import {
-    SourceAdapterRegistry,
     type CanonicalCandidate,
     type FoodSourceAdapter,
     type SourceCandidate,
-} from '../src/sources/food-source-adapter.js';
-import { RollingWindowLimiter } from '../src/sources/rolling-window-limiter.js';
-import { FoodConsumerService } from '../src/worker/food-consumer.service.js';
-import { SilentWorkerLogger } from '../src/worker/worker-logger.js';
+} from '../src/sources/foodSourceAdapter.js';
+import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
+import { FoodConsumerService } from '../src/worker/foodConsumer.service.js';
+import { SVC_ADMIN_REQUEUE } from '../src/worker/change-refresh/changeRefresh.consumer.js';
+import { SilentWorkerLogger } from '../src/worker/SilentWorkerLogger.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 
 type FakeAdapter = FoodSourceAdapter & {
@@ -61,7 +63,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
     });
 
     /** Build a consumer over a fake adapter; expose the adapter (to assert it is never called) + events. */
-    function build(): { consumer: FoodConsumerService; adapter: FakeAdapter; puts: EventBusPutInput[] } {
+    function build(): { consumer: FoodConsumerService; adapter: FakeAdapter; publisher: InMemoryPublisher } {
         const adapter: FakeAdapter = {
             source: 'usda',
             searchByName: vi.fn(async () => [{ source: 'usda', externalKey: 'k1', name: 'X' }]),
@@ -72,8 +74,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
         registry.register(adapter);
         const limiter = new RollingWindowLimiter(new SourceCallLogDao(db));
         const merge = new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry));
-        const puts: EventBusPutInput[] = [];
-        const bus: EventBus = { putEvent: async (input) => void puts.push(input) };
+        const publisher = new InMemoryPublisher();
         const consumer = new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
@@ -81,11 +82,11 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
             registry,
             limiter,
             merge,
-            events: new FoodEventEmitter(bus),
+            events: new FoodEventEmitter(publisher),
             logger: new SilentWorkerLogger(),
         });
 
-        return { consumer, adapter, puts };
+        return { consumer, adapter, publisher };
     }
 
     /** Create a PENDING food + a pending queue row, with NO requester rows by default. */
@@ -98,7 +99,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
 
     it('refuses to drain a row with NO recorded requester → tombstone, no source call', async () => {
         const id = await seedWithoutRequester('orphan enqueue');
-        const { consumer, adapter, puts } = build();
+        const { consumer, adapter, publisher } = build();
 
         const disposition = await consumer.processNext();
 
@@ -110,7 +111,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
         // No external call was logged against the window, and no completion event fired.
         const { rows } = await pool.query<{ n: string }>(`SELECT count(*) AS n FROM source_call_log`);
         expect(rows[0]?.n).toBe('0');
-        expect(puts).toHaveLength(0);
+        expect(publisher.messages).toHaveLength(0);
     });
 
     it('refuses a row whose recorded requester is the forbidden "system" shortcut', async () => {
@@ -155,5 +156,52 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
 
         expect(await consumer.processNext()).toBe('resolved');
         expect(adapter.searchByName).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * THE OPERATOR-REQUEUE ARM (U9 × FR-048). A blackholed food has zero requesters BY CONSTRUCTION —
+     * `tombstone` prunes them (DSN-10) — so the operator escape hatch could not recover the one population
+     * it exists for: the revived row named no principal, was refused on the next drain, re-tombstoned
+     * `unauthenticated_producer`, and the food stuck at `PENDING`.
+     *
+     * The fix records an accountable principal like every other producer does, rather than teaching this
+     * gate a new accept case: the requeue re-enqueues as the named service principal `svc_admin_requeue`.
+     * The gate is UNCHANGED — which is the point, and what these cases pin.
+     */
+    describe('the U9 operator-requeue principal (svc_admin_requeue)', () => {
+        it('DRAINS a row whose only requester is svc_admin_requeue — the recovery the hatch promises', async () => {
+            const id = await seedWithoutRequester('operator requeued');
+            await requesters.add({ foodId: id, requesterId: SVC_ADMIN_REQUEUE });
+            const { consumer, adapter } = build();
+
+            const disposition = await consumer.processNext();
+
+            expect(disposition).toBe('resolved');
+            expect(adapter.searchByName).toHaveBeenCalledTimes(1);
+            expect((await foodDao.getById(id))?.status).toBe('RESOLVED');
+        });
+
+        it('⛔ still refuses the row if that requester is MISSING — no zero-requester accept case exists', async () => {
+            // The gate was never widened to admit a requester-less row, and must not be. If this ever goes
+            // green, U9 has been "fixed" by weakening an authorization rule instead of naming a principal.
+            const id = await seedWithoutRequester('operator requeued but unattributed');
+            const { consumer, adapter } = build();
+
+            expect(await consumer.processNext()).toBe('rejected_provenance');
+            expect(adapter.searchByName).not.toHaveBeenCalled();
+            expect((await queue.getByFoodId(id))?.lastError).toBe('unauthenticated_producer');
+        });
+
+        it('⛔ still refuses a row where svc_admin_requeue sits ALONGSIDE a "system" requester', async () => {
+            // Every recorded requester must be a real principal — a valid one does not redeem an invalid
+            // one, so a legitimate requeue cannot launder an unauthenticated producer's row.
+            const id = await seedWithoutRequester('operator requeued beside system');
+            await requesters.add({ foodId: id, requesterId: SVC_ADMIN_REQUEUE });
+            await pool.query(`INSERT INTO fetch_requesters (food_id, requester_id) VALUES ($1, 'system')`, [id]);
+            const { consumer, adapter } = build();
+
+            expect(await consumer.processNext()).toBe('rejected_provenance');
+            expect(adapter.searchByName).not.toHaveBeenCalled();
+        });
     });
 });

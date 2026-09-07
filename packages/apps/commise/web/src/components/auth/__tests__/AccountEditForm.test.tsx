@@ -10,14 +10,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { UserId, UserProfile } from '@kitchensink/identity-service';
+import type { UserProfile } from '@kitchensink/schema-identity';
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
 
 import { AccountEditForm } from '../AccountEditForm';
 
-const userId = '01JVXXXXXXXXXXXXXXXXXXXXXXXXX' as UserId;
+// A PLAIN string, with no `as UserId`. The brand was only reachable because this file imported the service
+// package; on the published wire contract an id is an opaque string, so the cast that used to be here was
+// ceremony asserting a server-side invariant a client cannot establish. Removing the edge removed the cast.
+const userId = '01JVXXXXXXXXXXXXXXXXXXXXXXXXX';
 const mockProfile: UserProfile = {
     user: {
         id: userId,

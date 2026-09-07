@@ -15,7 +15,7 @@
  * `docker-compose.test.yml`'s `SERVICES` is `s3,sqs` only), the resolved port is the logging no-op
  * adapter; spying its `invalidate` method still proves the WIRING and the exact paths it is called with,
  * which is the part a real CloudFront distribution cannot be exercised against in this harness anyway.
- * `src/photos/__tests__/cdn-invalidation.test.ts` separately proves the real (`CLOUDFRONT_DISTRIBUTION_ID`
+ * `src/photos/__tests__/cdnInvalidation.test.ts` separately proves the real (`CLOUDFRONT_DISTRIBUTION_ID`
  * SET) adapter branch issues the correct `CreateInvalidationCommand` against a mocked AWS SDK client.
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup
@@ -34,7 +34,7 @@ const OWNER = '01JPHOTODELETEOWNER00000AA';
 /** A REAL, decodable 1×1 PNG (base64) — see `upload.integration.test.ts` for why a genuine image is used. */
 const REAL_PNG_BYTES = new Uint8Array(
     Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         'base64',
     ),
 );
@@ -47,7 +47,9 @@ const RECIPE_PAYLOAD = {
     totalTimeMinutes: 15,
     tags: ['integration'],
     dietaryFlags: [],
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: 1 }],
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: { kind: 'exact', value: 1 } },
+    ],
     steps: [{ instruction: 'Mix.' }],
 };
 

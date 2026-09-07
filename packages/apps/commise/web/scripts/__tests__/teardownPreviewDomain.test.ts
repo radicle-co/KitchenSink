@@ -8,6 +8,7 @@ import {
     prTokenForPreviewRecordName,
     previewHostForPrToken,
     releaseVercelPreviewDomain,
+    requirePreviewHost,
     teardownPreviewDomain,
 } from '../teardownPreviewDomain';
 
@@ -77,6 +78,54 @@ describe('previewHostForPrToken — constructing the ONE hostname a PR owns', ()
     });
 });
 
+describe('requirePreviewHost — the INDEPENDENT guard every adapter re-asserts at its point of action', () => {
+    it('accepts exactly `pr-{N}.<zone>`, normalized', () => {
+        expect(requirePreviewHost('pr-73.sandbox.commise.app', ZONE)).toBe('pr-73.sandbox.commise.app');
+        expect(requirePreviewHost('PR-73.Sandbox.Commise.App.', 'sandbox.commise.app.')).toBe(
+            'pr-73.sandbox.commise.app',
+        );
+    });
+
+    // Its documented promise is that a DIRECT caller — one that bypassed `previewHostForPrToken` — still
+    // cannot aim a write at the apex, the wildcard or the shared identity host. A label-only check kept that
+    // promise for hosts INSIDE the zone and broke it for `pr-{N}` hosts OUTSIDE it: the Route 53 hosted-zone
+    // id constrains what DNS will accept, but nothing constrains the hostname a Vercel domain/alias call is
+    // sent, so `pr-1.attacker.example` walked straight through to the API.
+    it.each([
+        'pr-1.attacker.example',
+        'pr-73.commise.app',
+        'pr-73.evil.sandbox.commise.app',
+        'pr-73.sandbox.commise.app.attacker.example',
+        'sandbox.commise.app',
+        'identity.sandbox.commise.app',
+        '*.sandbox.commise.app',
+        'pr-73x.sandbox.commise.app',
+        '',
+    ])('refuses %j — the host must be `pr-{N}` DIRECTLY under the preview zone', (host) => {
+        expect(() => requirePreviewHost(host, ZONE)).toThrow(PreviewScopeError);
+    });
+
+    it('refuses a malformed zone before comparing anything against it', () => {
+        expect(() => requirePreviewHost('pr-73.sandbox.commise.app', 'commise')).toThrow(PreviewScopeError);
+        expect(() => requirePreviewHost('pr-73.sandbox.commise.app', '')).toThrow(PreviewScopeError);
+    });
+
+    it('is the SAME predicate as the record-name specification — one matcher, not two', () => {
+        // ADR-0005: a second, drifting copy of the scope predicate is the failure mode to avoid.
+        for (const host of ['pr-73.sandbox.commise.app', 'pr-1.attacker.example', 'identity.sandbox.commise.app']) {
+            const owned = prTokenForPreviewRecordName(host, ZONE) !== undefined;
+
+            expect(owned ? requirePreviewHost(host, ZONE) : () => requirePreviewHost(host, ZONE)).toEqual(
+                owned ? host : expect.any(Function),
+            );
+
+            if (!owned) {
+                expect(() => requirePreviewHost(host, ZONE)).toThrow(PreviewScopeError);
+            }
+        }
+    });
+});
+
 describe('prTokenForPreviewRecordName — which PR (if any) owns a Route 53 record', () => {
     it('claims a record whose FIRST LABEL is exactly pr-{N}', () => {
         expect(prTokenForPreviewRecordName('pr-73.sandbox.commise.app.', ZONE)).toBe('pr-73');
@@ -114,7 +163,7 @@ describe('deletePreviewDnsRecord', () => {
         const send = vi.fn().mockResolvedValueOnce({ ResourceRecordSets: [rrset('pr-73.sandbox.commise.app.')] });
 
         await expect(
-            deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, 'pr-73.sandbox.commise.app'),
+            deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, 'pr-73.sandbox.commise.app', ZONE),
         ).resolves.toBe('deleted');
 
         const [listCmd, changeCmd] = send.mock.calls.map((call) => call[0]);
@@ -135,7 +184,7 @@ describe('deletePreviewDnsRecord', () => {
         const send = vi.fn().mockResolvedValueOnce({ ResourceRecordSets: [] });
 
         await expect(
-            deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, 'pr-73.sandbox.commise.app'),
+            deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, 'pr-73.sandbox.commise.app', ZONE),
         ).resolves.toBe('absent');
         expect(send).toHaveBeenCalledTimes(1);
     });
@@ -156,7 +205,7 @@ describe('deletePreviewDnsRecord', () => {
             ],
         });
 
-        await deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, 'pr-73.sandbox.commise.app');
+        await deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, 'pr-73.sandbox.commise.app', ZONE);
 
         const changes = send.mock.calls[1]![0].input.ChangeBatch.Changes;
         expect(changes).toHaveLength(1);
@@ -169,7 +218,7 @@ describe('deletePreviewDnsRecord', () => {
             .mockResolvedValueOnce({ ResourceRecordSets: [rrset('registration.identity.sandbox.commise.app.')] });
 
         await expect(
-            deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, 'pr-73.sandbox.commise.app'),
+            deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, 'pr-73.sandbox.commise.app', ZONE),
         ).resolves.toBe('absent');
         expect(send).toHaveBeenCalledTimes(1);
     });
@@ -183,11 +232,14 @@ describe('deletePreviewDnsRecord', () => {
         '*.sandbox.commise.app',
         '\\052.sandbox.commise.app',
         'pr-73x.sandbox.commise.app',
+        'pr-1.attacker.example',
+        'pr-73.commise.app',
+        'pr-73.evil.sandbox.commise.app',
         '',
     ])('refuses to delete the non-preview host %j without calling AWS', async (host) => {
         const send = vi.fn();
 
-        await expect(deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, host)).rejects.toThrow(
+        await expect(deletePreviewDnsRecord({ send } as never, HOSTED_ZONE_ID, host, ZONE)).rejects.toThrow(
             PreviewScopeError,
         );
         expect(send).not.toHaveBeenCalled();
@@ -198,7 +250,9 @@ describe('releaseVercelPreviewDomain', () => {
     it('DELETEs the project domain with the bearer token and team scope', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse());
 
-        await expect(releaseVercelPreviewDomain(http, VERCEL, 'pr-73.sandbox.commise.app')).resolves.toBe('released');
+        await expect(releaseVercelPreviewDomain(http, VERCEL, 'pr-73.sandbox.commise.app', ZONE)).resolves.toBe(
+            'released',
+        );
 
         const [url, init] = http.mock.calls[0]!;
         expect(url).toBe(
@@ -210,7 +264,12 @@ describe('releaseVercelPreviewDomain', () => {
     it('omits teamId when the project is personal', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse());
 
-        await releaseVercelPreviewDomain(http, { token: 'tok', projectId: 'prj_abc' }, 'pr-73.sandbox.commise.app');
+        await releaseVercelPreviewDomain(
+            http,
+            { token: 'tok', projectId: 'prj_abc' },
+            'pr-73.sandbox.commise.app',
+            ZONE,
+        );
 
         expect(http.mock.calls[0]![0]).toBe(
             'https://api.vercel.com/v9/projects/prj_abc/domains/pr-73.sandbox.commise.app',
@@ -220,27 +279,33 @@ describe('releaseVercelPreviewDomain', () => {
     it('treats a 404 as already released (idempotent)', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse(404, '{"error":{"code":"not_found"}}'));
 
-        await expect(releaseVercelPreviewDomain(http, VERCEL, 'pr-73.sandbox.commise.app')).resolves.toBe('absent');
+        await expect(releaseVercelPreviewDomain(http, VERCEL, 'pr-73.sandbox.commise.app', ZONE)).resolves.toBe(
+            'absent',
+        );
     });
 
     // A silent failure here is the dangerous one — it is what leaves the hostname claimable.
     it('throws with the status and body on any other failure', async () => {
         const http = vi.fn().mockResolvedValueOnce(okResponse(403, '{"error":{"code":"forbidden"}}'));
 
-        await expect(releaseVercelPreviewDomain(http, VERCEL, 'pr-73.sandbox.commise.app')).rejects.toThrow(
+        await expect(releaseVercelPreviewDomain(http, VERCEL, 'pr-73.sandbox.commise.app', ZONE)).rejects.toThrow(
             /403.*forbidden/su,
         );
     });
 
-    it.each(['sandbox.commise.app', 'identity.sandbox.commise.app', '*.sandbox.commise.app'])(
-        'refuses the non-preview host %j without calling Vercel',
-        async (host) => {
-            const http = vi.fn();
+    it.each([
+        'sandbox.commise.app',
+        'identity.sandbox.commise.app',
+        '*.sandbox.commise.app',
+        'pr-1.attacker.example',
+        'pr-73.commise.app',
+        'pr-73.evil.sandbox.commise.app',
+    ])('refuses the non-preview host %j without calling Vercel', async (host) => {
+        const http = vi.fn();
 
-            await expect(releaseVercelPreviewDomain(http, VERCEL, host)).rejects.toThrow(PreviewScopeError);
-            expect(http).not.toHaveBeenCalled();
-        },
-    );
+        await expect(releaseVercelPreviewDomain(http, VERCEL, host, ZONE)).rejects.toThrow(PreviewScopeError);
+        expect(http).not.toHaveBeenCalled();
+    });
 });
 
 describe('teardownPreviewDomain — the order is the safety property', () => {

@@ -99,13 +99,13 @@ describe('HomeTopBar', () => {
         expect(onOpenNav).toHaveBeenCalledOnce();
     });
 
-    it('floors every icon control and the avatar to a 44px touch target at base, reset at md (U5)', () => {
+    it('floors every icon control and the avatar to a 44px touch target at base (U5)', () => {
         renderTopBar();
 
         // A base `min-h-11 min-w-11` (44px) floor guarantees the mobile touch-target minimum regardless of
-        // future icon/padding tweaks, reset to `md:min-h-0 md:min-w-0` so desktop density is untouched. The
-        // floor belongs on the CONTROL box; what it must never sit on is a PAINTED box smaller than 44px —
-        // see the structural suite below, and `tests/e2e/homeTopBarGeometry.spec.ts` for the pixels.
+        // future icon/padding tweaks. The floor belongs on the CONTROL box; what it must never sit on is a
+        // PAINTED box smaller than 44px — see the structural suite below, and
+        // `tests/e2e/homeTopBarGeometry.spec.ts` for the pixels.
         const targets = [
             screen.getByRole('button', { name: chrome.openNav }),
             screen.getByRole('button', { name: chrome.search }),
@@ -116,9 +116,36 @@ describe('HomeTopBar', () => {
         for (const target of targets) {
             expect(target.className).toContain('min-h-11');
             expect(target.className).toContain('min-w-11');
+        }
+    });
+
+    /**
+     * REWRITTEN by U39, which changed the behaviour this covers rather than merely renaming it.
+     *
+     * The `md:` reset exists to restore the mockup's 40px desktop density on controls that are STILL ON
+     * SCREEN at desktop widths. The hamburger is not one of them: it is `lg:hidden` chrome, so at every width
+     * it is visible the viewer is on a narrow or tablet layout and the 44px floor is the whole point. It used
+     * to carry `md:min-h-0 md:min-w-0` too, which was a documented no-op only because the control also hid at
+     * `md` — closing the 768–1023px navigation gap made that dead class LIVE, and it would have shrunk the
+     * one navigation affordance a tablet has to 40px. The previous version of this case asserted the reset on
+     * all four controls uniformly; it now asserts the two groups separately, because they are two rules.
+     */
+    it('releases the touch floor at md ONLY on the controls that survive to desktop', () => {
+        renderTopBar();
+
+        for (const target of [
+            screen.getByRole('button', { name: chrome.search }),
+            screen.getByRole('button', { name: chrome.notifications }),
+            screen.getByRole('link', { name: chrome.account }),
+        ]) {
             expect(target.className).toContain('md:min-h-0');
             expect(target.className).toContain('md:min-w-0');
         }
+
+        // The hamburger keeps its floor for every width it is rendered at — including the tablet band.
+        const hamburger = screen.getByRole('button', { name: chrome.openNav });
+        expect(hamburger.className).not.toContain('min-h-0');
+        expect(hamburger.className).not.toContain('min-w-0');
     });
 });
 

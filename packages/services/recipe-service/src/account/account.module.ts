@@ -13,20 +13,23 @@
  * `AuthMiddleware` populates `req.principal`; the global `ApiExceptionFilter` maps thrown errors to HTTP.
  *
  * `ErasureJobsDal` is ALSO exported (not just `ErasureService`): `AppModule` registers the HAZ-052
- * {@link ErasureLockGuard} as a global `APP_GUARD`, and that guard depends on this DAL directly — a
+ * `ErasureLockGuard` as a global `APP_GUARD`, and that guard depends on this DAL directly — a
  * guard has no HTTP request of its own to route through `ErasureService`'s C-007 state machine, it only
  * needs the read `findActiveJob` already exposes.
  */
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
+import { DrizzleProvider } from '../database/database.module.js';
+import type { RecipeDrizzle } from '../database/client.js';
 
 import { DEFAULT_AWS_REGION } from '../config/config.types.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { AccountController } from './account.controller.js';
-import { ServiceErasureController } from './service-erasure.controller.js';
-import { ErasureJobsDal } from './dal/erasure-jobs.dal.js';
+import { ServiceErasureController } from './serviceErasure.controller.js';
+import { ErasureJobsDal } from './dal/erasureJobs.dal.js';
 import { ErasureService } from './erasure.service.js';
-import { ServicePrincipalErasureMetrics } from './erasure-metrics.js';
+import { ServicePrincipalErasureMetrics } from './erasureMetrics.js';
 import { AccountExportDal } from './dal/export.dal.js';
 import { AccountExportService, ACCOUNT_EXPORT_CONFIG, type AccountExportConfig } from './export.service.js';
 import { createSqsErasureQueue, ERASURE_QUEUE, type ErasureQueuePort } from './erasure.queue.js';
@@ -41,6 +44,12 @@ import { createSqsErasureQueue, ERASURE_QUEUE, type ErasureQueuePort } from './e
         // Provided via a factory (not a bare class) because the emitter is a plain class with defaulted
         // constructor args and no `@Injectable()` — a factory instantiates it unambiguously (defaults: stage
         // from env, sink = console.log) rather than relying on Nest reflecting an empty dependency list.
+        {
+            // U18 — the internal food-references route's read (embedded-DAL pattern; no module import).
+            provide: IngredientsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): IngredientsDal => new IngredientsDal(db),
+        },
         {
             provide: ServicePrincipalErasureMetrics,
             useFactory: (): ServicePrincipalErasureMetrics => new ServicePrincipalErasureMetrics(),

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { semantic } from '../colors.js';
-import { glass } from '../gradients.js';
+import { glass, gradient, gradientCss } from '../gradients.js';
 import { radius } from '../radius.js';
 import { shadows } from '../shadows.js';
 import { size, space } from '../spacing.js';
@@ -140,6 +140,45 @@ describe('web tokens — the glass hairline is emitted, not re-spelled', () => {
 });
 
 /**
+ * The page-canvas gradient must reach the web as a REAL Tailwind utility namespace.
+ *
+ * `gradient.hero` is the wireframes' `--gradient-beach-glow` — the wash every one of the nine screens paints
+ * on `body`. Native consumes it through `GradientSurface`/`toNativeGradient`; the web canvas can only consume
+ * it from STYLESHEET position (`@layer base { body { … } }` — a `<body>` background cannot come from a React
+ * inline style), so unlike the glass fill it has to be emitted here.
+ *
+ * `--background-image-*` is the namespace Tailwind v4 actually uses for `bg-*` image utilities — VERIFIED by
+ * compiling it, not assumed (`web/tests/__integration__/tailwindTheme.integration.test.ts` reads the real
+ * declaration). This is the `--font-size-*`/`--line-height-*` trap: a plausible-looking prefix such as
+ * `--gradient-*` is NOT a namespace, so it would emit a `:root` property that generates NO utility at all —
+ * exactly how the DS type ramp once compiled to nothing across 324 call sites. Adding a NAMED key to a
+ * namespace is also not the `--spacing-*` hijack: it defines `bg-hero` and redefines nothing built-in.
+ */
+describe('web tokens — the page-canvas gradient is emitted into a real namespace', () => {
+    it('emits the hero canvas gradient, valued from the token', () => {
+        expect(themeCss()).toContain(`--background-image-hero: ${gradientCss(gradient.hero)};`);
+    });
+
+    it('emits it under --background-image-* and NOT under a non-namespace prefix', () => {
+        const css = themeCss();
+
+        expect(css).toMatch(/--background-image-[a-z-]+\s*:/);
+        // `--gradient-*` is not a Tailwind namespace: it would round-trip as a custom property and generate
+        // no `bg-*` utility, which is indistinguishable from the token never shipping.
+        expect(css).not.toMatch(/--gradient-[a-z-]+\s*:/);
+    });
+
+    it('emits ONLY the canvas gradient, so the CTA/scrim ramps keep one representation each', () => {
+        const emitted = themeCss().match(/--background-image-[\w-]+/g) ?? [];
+
+        // `brand` already reaches the web as the Button's `from-seafoam to-ocean-dark` classes and `scrim` as
+        // the recipe-detail cover's own classes. Emitting them here too would be a SECOND web path for the
+        // same knowledge — the duplication this module exists to remove.
+        expect(emitted).toEqual(['--background-image-hero']);
+    });
+});
+
+/**
  * Snapshots the REAL generator output. `themeCss` is the single authoritative composition that
  * `scripts/generate-theme.mjs` writes to `dist/theme.css`, so this is the strongest byte-identity proof
  * available without a build step: keys + values + order together, from the same code that ships.
@@ -212,6 +251,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --shadow-glow: 0 0 32px rgba(49,128,122,0.25);
               --color-glass-card-edge: rgba(255, 255, 255, 0.3);
               --color-glass-subtle-edge: rgba(255, 255, 255, 0.3);
+              --background-image-hero: linear-gradient(135deg, #FAF6F0 0%, #F0F7F4 50%, #E8F4F8 100%);
           }
           "
         `);

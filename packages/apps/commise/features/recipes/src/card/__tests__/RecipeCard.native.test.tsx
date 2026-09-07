@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { computedContrast } from '@commise/test-utils';
@@ -31,15 +32,45 @@ describe('RecipeCard (native)', () => {
         expect(screen.getByLabelText('Serves 4')).toBeTruthy();
     });
 
-    it('renders the cover image named by the title', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg' })} />);
+    // #140 — the cover photo used to carry `accessibilityLabel={recipe.title}`, the SAME accessible name as the
+    // pressable that contains it. A screen reader then announced the recipe twice for one card: once for the
+    // control the viewer can activate, once for its own decorative photo. A cover with no alternative text of
+    // its own (the model carries none) is decoration, so it belongs OUT of the accessibility tree entirely.
+    it('keeps the cover photo out of the accessibility tree — it is decoration, not a second name', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })}
+            />,
+        );
 
-        expect(screen.getByRole('img', { name: 'Herb Risotto' })).toBeTruthy();
+        // No image node at all: the cover is the only image this card draws once the rating row is unrated.
+        expect(screen.queryAllByRole('img')).toHaveLength(0);
+        expect(screen.queryByRole('img', { name: 'Herb Risotto' })).toBeNull();
+        // Still PAINTED — hidden from assistive tech, not removed from the card.
+        const cover = container.querySelector('img[src="https://cdn/x.jpg"]');
+        expect(cover).not.toBeNull();
+        expect(cover?.closest('[aria-hidden="true"]'), 'cover is not inside a hidden subtree').not.toBeNull();
+    });
+
+    it('names the actionable card exactly ONCE (the pressable), never twice', () => {
+        renderCard(
+            <RecipeCard
+                recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })}
+                onSelect={() => undefined}
+            />,
+        );
+
+        // Every node in the tree answering to the recipe's name, by any naming mechanism.
+        expect(screen.getAllByRole('button', { name: 'Herb Risotto' })).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Herb Risotto')).toHaveLength(1);
+        expect(screen.queryByAltText('Herb Risotto')).toBeNull();
     });
 
     it('shows a labelled placeholder (no cover image) when the recipe has no photo', () => {
         renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: undefined })} />);
 
+        // The ABSENCE of a photo is information a sighted viewer gets from the empty tile, so unlike the cover
+        // this placeholder stays named — with its own copy, never the recipe's name.
         expect(screen.queryByRole('img', { name: 'Herb Risotto' })).toBeNull();
         expect(screen.getByRole('img', { name: 'No photo yet' })).toBeTruthy();
     });
@@ -90,6 +121,7 @@ describe('RecipeCard (native)', () => {
 
         const pips = screen.getAllByText('★');
         expect(pips).toHaveLength(5);
+
         for (const pip of pips) {
             expect(window.getComputedStyle(pip).color).toBe('rgb(99, 110, 114)');
         }
@@ -218,13 +250,21 @@ describe('RecipeCard (native) — merged fields (CR-002 / L2·L3)', () => {
         expect(screen.queryByText('Mediterranean')).toBeNull();
     });
 
-    it('renders the localized calorie line when present, and none when absent', () => {
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: 420 })} />);
-        expect(screen.getByText('420 cal')).toBeTruthy();
+    // REPLACES "renders the localized calorie line when present, and none when absent" — same reasoning as the
+    // web leaf: calories left the card model with the deferred lookup, and the card now owns only the SLOT.
+    // The figure's own states are covered in `nutrition/__tests__/RecipeCalorieChip.native.test.tsx`.
+    it('renders whatever the nutrition slot supplies, inside the meta row', () => {
+        renderCard(<RecipeCard recipe={model({ totalTimeMinutes: 45 })} nutrition={<Text>420 cal</Text>} />);
 
-        cleanup();
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: undefined, title: 'No Cal' })} />);
+        expect(screen.getByText('420 cal')).toBeTruthy();
+        expect(screen.getByText('45 min')).toBeTruthy();
+    });
+
+    it('renders NO nutrition line at all when the slot is absent — never a placeholder, never a zero', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'No Cal' })} />);
+
         expect(screen.queryByText(/cal$/)).toBeNull();
+        expect(screen.queryByText('0 cal')).toBeNull();
     });
 
     it('renders each tag as a chip', () => {

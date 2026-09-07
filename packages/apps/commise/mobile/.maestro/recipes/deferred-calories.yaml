@@ -1,0 +1,94 @@
+appId: io.commise.mobile
+---
+# Deferred calorie lookup on a real device (ADR-0021, mobile Phase 6). The cards paint FIRST and each card's
+# per-serving figure arrives afterwards, behind its own Suspense boundary — so the one thing this story can
+# never do is leave a placeholder up forever.
+#
+# ⛔ WHAT THIS FLOW CAN AND CANNOT ASSERT, and why (read before "strengthening" it).
+#
+# ⚠️ THE REASON CHANGED, THE ASSERTION DID NOT. This note used to say the job booted recipe-service and
+# deliberately not the food service, so every answer was `unaccounted{food_unavailable}` and no chip could
+# render. That premise died when the tier began driving a DEPLOYED `pr-{N}` stage, which DOES run a food
+# service (ADR-0010) — but the per-PR food catalog is seeded by nothing, so a freeform-created ingredient
+# still resolves to no nutrient data and still renders NO CHIP. The outcome is unchanged; the cause is now
+# an empty catalog rather than an absent service. A flow asserting a number would still fail on every run,
+# and giving this environment a catalog to answer from is a separate change.
+#
+# ⛔ `recipes/ingredient-catalog-blend.yaml` did NOT survive the same shift — its whole subject was the
+# degradation, so a stage that runs a food service cannot produce it. It is recorded in `KNOWN_UNRUN_FLOWS`
+# with that reason. This flow survives because its subject is the INVARIANT below, which holds either way.
+#
+# So what it proves is the INVARIANT the whole design exists for, which is also the only part that can fail
+# silently: the calorie placeholder DISAPPEARS. A skeleton that outlives its own request is a spinner
+# rendering forever on every card of the page — invisible to a unit test that resolves its own promises, and
+# invisible to a reviewer, because it looks exactly like a slow network. It also proves that a FAILED
+# nutrition lookup leaves the rest of the card intact, which is the degradation the ADR promises.
+#
+# ⚠️ AND THE HONEST LIMIT OF THAT CLAIM: "the placeholder is gone" is ALSO satisfied by a surface that never
+# mounted a nutrition slot at all — a card whose `renderNutrition` seam was dropped renders no chip and no
+# placeholder, exactly like a settled `unaccounted`. This environment gives no positive on-screen evidence to
+# distinguish them, because the correct answer here IS blank. That gap is covered by tiers that can see it:
+# `RecipeHomeWidget.test.tsx` asserts `renderNutrition` is invoked once per card, and the two native screen
+# tests below mount the real slot. Do not read a green run here as proof that the feature is WIRED — only as
+# proof that, wherever it is wired, nothing latches.
+#
+# The figure itself (`420 cal`, the stale/approximate variants, the omitted recipe) is proved in the vitest
+# tiers — `nutrition/__tests__/cardSurfaces.nutrition.native.test.tsx` and
+# `mobile/tests/screens/screenNutrition.native.test.tsx`.
+#
+# Read-only: this flow taps nothing destructive and mutates no data, so it is order-independent.
+- runFlow: ../auth/signin.yaml
+
+# The list must SETTLE first — the "{n} recipes" count is rendered only by the populated branch, so it is the
+# one label that distinguishes a loaded list from a hung one (see `list-detail.yaml`'s note).
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 40000
+
+# ⛔ THE ASSERTION. The calorie placeholder must be GONE within a bound. The client puts a hard 12s deadline
+# on the batch (`NUTRITION_BATCH_DEADLINE_MS`) precisely so this promise always settles, and a settled batch —
+# answer, omission or failure — takes every skeleton down with it.
+#
+# ⚠️ THE BUDGET IS 30s BECAUSE THE WORST CASE IS 25s, and 25s therefore had ZERO margin. `withDeadline` is
+# called inside the `queryFn`, so each ATTEMPT gets its own fresh 12s — and `NUTRITION_BATCH_RETRIES` is 1,
+# behind TanStack's default ~1s backoff. A correct app can legitimately take 12 + 1 + 12 = 25s to settle, so a
+# 25s bound failed on the boundary rather than on a defect. (It never binds in THIS environment — nothing
+# listens on `FOOD_SERVICE_URL`, so the connection is refused in milliseconds — but a bound that is only safe
+# because the pathological path is unreachable is a flake waiting for the day it becomes reachable.) 30s keeps
+# 5s of margin and still fails fast on a genuine latch, which never comes down at all.
+#
+# It is asserted as a WAIT, not a bare `assertNotVisible`: the placeholder is legitimately on screen while the
+# request is in flight, so an immediate check would be racing the very state this feature is supposed to show.
+- extendedWaitUntil:
+      notVisible: 'Loading calories'
+      timeout: 30000
+
+# A failed/absent figure must cost the CARD nothing: the row is still complete and still navigable. (Without
+# this, "no skeleton" would also pass on a screen that rendered no cards at all.)
+- assertVisible: 'Recipes'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- assertVisible: 'Ingredients'
+- tapOn: 'Back'
+- assertVisible: 'Recipes'
+
+# The same invariant on DISCOVER, whose default state is the curated browse rails — a second card surface,
+# with its own batch per rail, and the one a viewer meets first.
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover recipes'
+      timeout: 40000
+
+# ⛔ THE RAILS MUST HAVE RENDERED before "no placeholder" means anything here. 'Discover recipes' is the
+# screen's title and renders in the LOADING state too (see `discover-browse.yaml`), so waiting on it alone
+# would have let the placeholder assertion below pass over a screen holding zero cards — the same vacuity the
+# list half avoids by anchoring on a seeded row. 'Trending' is the first rail's static heading, rendered only
+# once the rails have data, and it is seed-drift-immune.
+- assertVisible: 'Trending'
+- extendedWaitUntil:
+      notVisible: 'Loading calories'
+      timeout: 30000

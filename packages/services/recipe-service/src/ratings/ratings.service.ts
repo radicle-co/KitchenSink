@@ -1,7 +1,7 @@
 /**
  * CR-001 / FR-013 — rating write orchestration + authorization.
  *
- * Sits between {@link RatingsController} (which supplies the verified rater ULID — `principal.userId`,
+ * Sits between `RatingsController` (which supplies the verified rater ULID — `principal.userId`,
  * NEVER a body value) and {@link RatingsDal}. It owns the authorization rules the DAL does not, and the
  * ORDER of those rules is a security boundary, not an implementation detail:
  *
@@ -26,10 +26,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { RatingsDal } from './dal/ratings.dal.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { RecipesDal } from '../recipes/dal/recipes.dal.js';
-import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
+import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
 import { cannotRateOwnRecipe, recipeNotFound } from '../recipes/recipe.error.js';
-import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
-import type { SetRatingDto } from './dto/set-rating.dto.js';
+import type { RecipeResponse } from '../recipes/dto/recipeResponse.dto.js';
+import type { SetRatingDto } from './dto/setRating.dto.js';
 
 /** DI token for the ratings DAL — provided by `RatingsModule` via `useFactory` over the Drizzle client. */
 export const RATINGS_DAL = 'RATINGS_DAL';

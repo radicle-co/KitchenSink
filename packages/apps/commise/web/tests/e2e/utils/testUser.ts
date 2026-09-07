@@ -1,4 +1,5 @@
 import { createClerkClient } from '@clerk/backend';
+import { ulid } from 'ulidx';
 import { decodeJwt } from '@clerk/backend/jwt';
 
 import {
@@ -9,11 +10,11 @@ import {
     signInFixtureEmail,
     signInFixtureUsername,
     signUpEmail,
-} from './runFixtureIdentity';
+} from '@kitchensink/e2e-fixtures';
 
 /**
  * This run's identity, derived once per process and pinned into the environment so `globalSetup`, every
- * Playwright worker, and `globalTeardown` agree. See `runFixtureIdentity.ts` for WHY it is per-run: a
+ * Playwright worker, and `globalTeardown` agree. See `@kitchensink/e2e-fixtures` for WHY it is per-run: a
  * fixed, shared fixture on the shared sandbox Clerk instance let two concurrent CI runs delete each
  * other's sign-in user.
  */
@@ -40,7 +41,7 @@ function client() {
 /**
  * Idempotently ensure THIS RUN's sign-in test user exists with a known, verified email + password.
  *
- * @returns the Clerk user id — the caller ({@link globalSetup}) uses it to wait for the `external_id`
+ * @returns the Clerk user id — the caller (`globalSetup`) uses it to wait for the `external_id`
  *   backfill (see {@link waitForTestUserExternalId}) before any owner-gated spec runs.
  * @sideEffect Reads and writes Clerk users via the Backend API.
  */
@@ -90,6 +91,13 @@ export async function ensureSignInTestUser(): Promise<string> {
  * On timeout this throws LOUD, naming the webhook prerequisite — so a genuine sandbox webhook outage surfaces
  * as a clear setup failure rather than a mystery flake, and is never masked.
  *
+ * ⚠️ The message also names the SCHEDULED cause, because the first version did not and that omission cost a
+ * whole diagnosis. ADR-0007 stops the sandbox RDS **and** NAT instance nightly, 00:00–09:00 ET, and the
+ * webhook is a VPC-attached Lambda that needs both — so inside that window the backfill is not slow, it is
+ * impossible. Observed 2026-08-25 01:37 ET on dcf2aaef: all eight CI shards died here in ~1 minute, reading
+ * as a webhook outage. `_ci.yml`'s `e2e-web` job now runs `.github/scripts/sandbox-wake.sh ensure` before the
+ * suite; if this fires in CI anyway, that gate is the first thing to look at.
+ *
  * @sideEffect Polls the Clerk Backend API (`users.getUser`) and sleeps between attempts.
  */
 export async function waitForTestUserExternalId(
@@ -111,7 +119,12 @@ export async function waitForTestUserExternalId(
             throw new Error(
                 `waitForTestUserExternalId: Clerk user ${userId} still has no externalId after ${timeoutMs}ms. ` +
                     'The user.created webhook (identity-webhooks → clerk.users.updateUser) must backfill it; a ' +
-                    'persistent failure here is a sandbox webhook outage, not a test bug.',
+                    'persistent failure here is a sandbox webhook outage, not a test bug. ' +
+                    'FIRST CHECK THE CLOCK: ADR-0007 stops the sandbox RDS and NAT instance nightly, ' +
+                    '00:00–09:00 ET, and this webhook is a VPC-attached Lambda that needs both — so inside ' +
+                    'that window the backfill cannot arrive at all. CI wakes the sandbox first ' +
+                    '(.github/scripts/sandbox-wake.sh ensure, in _ci.yml::e2e-web); locally, run that same ' +
+                    'command or wait for 09:00 ET.',
             );
         }
 
@@ -227,4 +240,50 @@ export async function deleteRunScopedE2EUsers({
     }
 
     return deleted;
+}
+
+/**
+ * Stand in for the sandbox `user.created` webhook, so browser tests need NO cloud infrastructure.
+ *
+ * ## ⛔ WHY THIS EXISTS
+ *
+ * {@link waitForTestUserExternalId} blocks until Clerk's user carries an `external_id` — the app-user ULID
+ * that owner-gated specs read out of the session token. Deployed, that claim is written by a chain of AWS
+ * resources: Clerk fires `user.created`, API Gateway invokes a VPC-attached Lambda, the Lambda reads the
+ * identity database and calls back into Clerk with the ULID it minted.
+ *
+ * ⚠️ The sandbox RDS and NAT that chain needs are ON-DEMAND by design — a deliberate cost measure, so
+ * `stopped` is their correct resting state and not an outage. Waking them to run a browser test that
+ * asserts FOCUS and ROUTING is paying for cloud infrastructure to supply one string.
+ *
+ * ## ⛔ WHAT IT DOES NOT PROVE
+ *
+ * It writes the same claim through the same Backend API, with the secret key this harness already holds.
+ * It does NOT exercise the webhook, the Lambda, or the identity database — so a local run proves nothing
+ * about identity SYNC and must never be read as though it had. That is CI's to prove against real
+ * infrastructure, which is why this is opt-in and never the default.
+ *
+ * ⚠️ The ULID is MINTED HERE and corresponds to no real app user. Every spec that relies on it mocks the
+ * recipe API (`utils/recipeApi`), so nothing downstream resolves it; the moment a spec talks to a real
+ * service this is the wrong tool and the sandbox is the right one.
+ *
+ * @param userId - The Clerk user to backfill.
+ * @returns The ULID now on the user.
+ * @sideEffect Writes `externalId` on a Clerk user via the Backend API.
+ */
+export async function backfillExternalIdLocally(userId: string): Promise<string> {
+    const clerk = client();
+    const existing = await clerk.users.getUser(userId);
+
+    // Idempotent: a re-run against a surviving fixture keeps the id the previous run minted, so a spec that
+    // cached it is never silently handed a different viewer.
+    if (typeof existing.externalId === 'string' && existing.externalId.length > 0) {
+        return existing.externalId;
+    }
+
+    const externalId = ulid();
+
+    await clerk.users.updateUser(userId, { externalId });
+
+    return externalId;
 }

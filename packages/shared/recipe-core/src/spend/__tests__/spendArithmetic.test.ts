@@ -1,0 +1,975 @@
+/**
+ * The spend arithmetic ADR-0024 §2 depends on, exercised as a TRUTH TABLE rather than against AWS.
+ *
+ * Every judgement the reserve-then-settle counter makes lives in `../spendArithmetic.js`, so this file is the
+ * whole proof that the ceiling holds. Three properties are asserted adversarially, because each one is a way
+ * the counter could report green while money leaves:
+ *
+ *  1. **The reservation is never smaller than the settlement.** ADR-0024's bias is deliberately one-way —
+ *     "crashes over-count" is an accepted consequence, and it is only accepted because `worst >= actual` is
+ *     true for EVERY usage within the caps, including the cache-token shapes that cost MORE per token than
+ *     fresh input.
+ *  2. **The period is captured, never recomputed.** A call spanning midnight UTC on the 1st must settle
+ *     against the month it reserved against; ADR-0024 names the alternative as "a real bug".
+ *  3. **An unpriced model cannot be reserved for.** The rate table is the authority for what may be called at
+ *     all — an id it does not know produces no reservation, and the caller fails closed.
+ */
+import { describe, expect, it } from 'vitest';
+import { CDK_SYNTH_TEST_TIMEOUT_MS } from '@kitchensink/vitest';
+
+import {
+    BEDROCK_MODEL_REGISTRY,
+    CHAT_TEMPLATE_BASE_TOKENS,
+    CHAT_TEMPLATE_TOKENS_PER_TURN,
+    NOVA_2_LITE_MODEL_ID,
+    CLAUDE_HAIKU_4_5_MODEL_ID,
+    DEFAULT_MONTHLY_CEILING_MICROS,
+    MICROS_PER_DOLLAR,
+    NOVA_LITE_MODEL_ID,
+    NOVA_MICRO_MODEL_ID,
+    NOVA_PRO_MODEL_ID,
+    UTF8_MAX_BYTES_PER_CODE_POINT,
+    actualCostMicros,
+    headroomMicros,
+    inputTokenBound,
+    inputTokenCeiling,
+    inputTokensBeyondBound,
+    periodKey,
+    planReservation,
+    rateFor,
+    registryEntryFor,
+    residencyClearance,
+    residencyRefusal,
+    settleDeltaMicros,
+    utf8ByteLength,
+    worstCaseMicros,
+    type ModelRegistryEntry,
+    type ResidencyApproval,
+} from '../spendArithmetic.js';
+
+const NOVA = rateFor(NOVA_MICRO_MODEL_ID);
+
+if (NOVA === undefined) {
+    throw new Error('the rate table must price the model the gate ships with');
+}
+
+/** Tokens per "per-1K tokens" quote — the denominator the AWS Price List API's Bedrock dimensions use. */
+const TOKENS_PER_PRICE_LIST_UNIT = 1_000;
+
+/**
+ * The dollars-per-1,000-tokens figure a stored rate asserts, i.e. the number the price list itself prints.
+ *
+ * ⛔ The assertions below compare against the PUBLISHED quote rather than against a recomputation of the
+ * stored integer, so a transcription slip (a dropped zero, a per-1M figure pasted into a per-1K field) fails
+ * here instead of silently under-counting real money for a month.
+ *
+ * @param microsPerMillionTokens - The stored rate.
+ * @returns USD per 1,000 tokens. Pure.
+ */
+function usdPerThousandTokens(microsPerMillionTokens: number): number {
+    return (microsPerMillionTokens / MICROS_PER_DOLLAR) * (TOKENS_PER_PRICE_LIST_UNIT / 1_000_000);
+}
+
+describe('periodKey', () => {
+    it.each([
+        ['2026-08-21T12:00:00.000Z', '2026-08'],
+        ['2026-08-31T23:59:59.999Z', '2026-08'],
+        ['2026-09-01T00:00:00.000Z', '2026-09'],
+        ['2026-01-01T00:00:00.000Z', '2026-01'],
+        ['2026-12-31T23:59:59.999Z', '2026-12'],
+    ])('maps %s to %s', (instant, expected) => {
+        expect(periodKey(new Date(instant))).toBe(expected);
+    });
+
+    it('is computed in UTC, not in the host timezone', () => {
+        // 2026-09-01T00:30Z is still 2026-08-31 in every western timezone. A local-time derivation would
+        // return '2026-08' here on a runner in America/New_York and '2026-09' on one in UTC — i.e. which
+        // period a reservation lands in would depend on where the Lambda's clock thinks it is. AWS bills in
+        // UTC, so the counter and the audit budget must agree on where the boundary is.
+        expect(periodKey(new Date('2026-09-01T00:30:00.000Z'))).toBe('2026-09');
+        // ...and the mirror: 2026-08-31T23:30Z is already 2026-09-01 east of UTC.
+        expect(periodKey(new Date('2026-08-31T23:30:00.000Z'))).toBe('2026-08');
+    });
+
+    it('zero-pads a single-digit month so keys sort lexicographically', () => {
+        expect(periodKey(new Date('2026-03-15T00:00:00.000Z'))).toBe('2026-03');
+    });
+});
+
+describe('rateFor', () => {
+    it('prices Nova Micro at the rates ADR-0024 records as READ from the Pricing API', () => {
+        // $0.035 / 1M input and $0.14 / 1M output, us-east-1, read 2026-08-20 — the only rate in this table
+        // the ADR calls settled.
+        expect(NOVA.inputMicrosPerMillionTokens).toBe(35_000);
+        expect(NOVA.outputMicrosPerMillionTokens).toBe(140_000);
+    });
+
+    it.each([
+        // ⛔ READ 2026-08-23 from the AWS Price List API — `aws pricing get-products --service-code
+        // AmazonBedrock --filters Field=model,Value="Nova Lite" Field=regionCode,Value=us-east-1`, the
+        // `On-demand Inference` feature, publicationDate 2026-08-20 / effectiveDate 2026-08-01. The same
+        // query reproduces Nova Micro's committed $0.035 / $0.14 exactly, which is what makes it the primary
+        // source ADR-0024 asks for rather than a second unverified entry.
+        [NOVA_LITE_MODEL_ID, 'input', 'inputMicrosPerMillionTokens', 60_000, 0.00006],
+        [NOVA_LITE_MODEL_ID, 'output', 'outputMicrosPerMillionTokens', 240_000, 0.00024],
+        [NOVA_LITE_MODEL_ID, 'cache read', 'cacheReadMicrosPerMillionTokens', 15_000, 0.000015],
+        [NOVA_LITE_MODEL_ID, 'cache write', 'cacheWriteMicrosPerMillionTokens', 0, 0],
+        [NOVA_PRO_MODEL_ID, 'input', 'inputMicrosPerMillionTokens', 800_000, 0.0008],
+        [NOVA_PRO_MODEL_ID, 'output', 'outputMicrosPerMillionTokens', 3_200_000, 0.0032],
+        [NOVA_PRO_MODEL_ID, 'cache read', 'cacheReadMicrosPerMillionTokens', 200_000, 0.0002],
+        [NOVA_PRO_MODEL_ID, 'cache write', 'cacheWriteMicrosPerMillionTokens', 0, 0],
+    ] as const)('prices %s %s at the published $%s… rate', (modelId, _label, field, micros, usdPerThousand) => {
+        const rate = rateFor(modelId);
+
+        expect(rate).toBeDefined();
+        expect(rate?.[field]).toBe(micros);
+        expect(usdPerThousandTokens(rate?.[field] ?? Number.NaN)).toBeCloseTo(usdPerThousand, 10);
+    });
+
+    it('records both Nova family additions as READ, not assumed', () => {
+        // ⛔ ADR-0024 already carries ONE entry whose price could not be read from a primary source. A second
+        // would turn the flag into decoration. These two were read; if that ever stops being true the flag
+        // must move, not the comment.
+        for (const modelId of [NOVA_LITE_MODEL_ID, NOVA_PRO_MODEL_ID]) {
+            expect(rateFor(modelId)?.priceVerified, modelId).toBe(true);
+            expect(rateFor(modelId)?.effectiveDate, modelId).toBe('2026-08-23');
+        }
+    });
+
+    it('keys the Nova family on the BARE model id, which is what on-demand inference accepts', () => {
+        // Both report `inferenceTypesSupported: ["ON_DEMAND", "INFERENCE_PROFILE"]`, so unlike Claude Haiku
+        // 4.5 they need no `us.` profile — and the rate table keys on the bare id either way, which is the
+        // distinction the bake-off runner's INVOCATION_IDS map exists to keep.
+        expect(NOVA_LITE_MODEL_ID).toBe('amazon.nova-lite-v1:0');
+        expect(NOVA_PRO_MODEL_ID).toBe('amazon.nova-pro-v1:0');
+    });
+
+    it('returns undefined for a model the table does not price', () => {
+        expect(rateFor('anthropic.claude-opus-4-1-20250805-v1:0')).toBeUndefined();
+        expect(rateFor('')).toBeUndefined();
+    });
+
+    it('carries an effective date and a price-provenance flag on every entry', () => {
+        for (const [modelId, { rate }] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            expect(rate.effectiveDate, `${modelId} must record when its price was read`).toMatch(
+                /^\d{4}-\d{2}-\d{2}$/u,
+            );
+            expect(typeof rate.priceVerified, `${modelId} must state whether its price was READ or assumed`).toBe(
+                'boolean',
+            );
+        }
+    });
+
+    it('does not price Gemini, which is not available on Bedrock at all (ADR-0024 §4)', () => {
+        expect(Object.keys(BEDROCK_MODEL_REGISTRY).some((id) => id.includes('gemini'))).toBe(false);
+    });
+});
+
+describe('actualCostMicros', () => {
+    it('reproduces the ADR-0024 steady-state figure for the measured workload', () => {
+        // ~660 input / ~80 output, ~8,000 calls a month ⇒ ~$0.27.
+        const perCall = actualCostMicros(NOVA, { inputTokens: 660, outputTokens: 80 });
+        const monthlyDollars = (perCall * 8_000) / MICROS_PER_DOLLAR;
+
+        expect(monthlyDollars).toBeGreaterThan(0.25);
+        expect(monthlyDollars).toBeLessThan(0.35);
+    });
+
+    it('rounds UP, so an estimate is never below the real cost', () => {
+        // One token at $0.035/1M is 0.035 micros — a fractional cost that must not floor to zero, or a
+        // runaway made of small calls accumulates real spend against a counter that stays at 0.
+        expect(actualCostMicros(NOVA, { inputTokens: 1, outputTokens: 0 })).toBe(1);
+        expect(actualCostMicros(NOVA, { inputTokens: 0, outputTokens: 1 })).toBe(1);
+    });
+
+    it('is zero for a call that produced no tokens', () => {
+        expect(actualCostMicros(NOVA, { inputTokens: 0, outputTokens: 0 })).toBe(0);
+    });
+
+    it('defaults both cache fields to zero — they are Required: No on the wire', () => {
+        const withoutCacheFields = actualCostMicros(NOVA, { inputTokens: 660, outputTokens: 80 });
+        const withExplicitZeroes = actualCostMicros(NOVA, {
+            inputTokens: 660,
+            outputTokens: 80,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 0,
+        });
+
+        expect(withoutCacheFields).toBe(withExplicitZeroes);
+    });
+
+    it('costs cache-read and cache-write tokens at their OWN rates, not as fresh input', () => {
+        const fresh = actualCostMicros(NOVA, { inputTokens: 100_000, outputTokens: 0 });
+        const read = actualCostMicros(NOVA, { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 100_000 });
+        const write = actualCostMicros(NOVA, { inputTokens: 0, outputTokens: 0, cacheWriteInputTokens: 100_000 });
+
+        // A cached read is cheaper than fresh input; writing the cache is DEARER. Both differ from fresh,
+        // which is the whole content of "at their own rates". ⚠️ This exercises the ARITHMETIC only — the
+        // branch is unreachable in production (ADR-0024 §5), so nothing here claims to have seen a cache hit.
+        expect(read).toBeLessThan(fresh);
+        expect(write).toBeGreaterThan(fresh);
+    });
+});
+
+describe('worstCaseMicros', () => {
+    it('bounds every settleable cost within the caps, including the cache shapes', () => {
+        const maxInput = 1_000;
+        const maxOutput = 200;
+        const worst = worstCaseMicros(NOVA, maxInput, maxOutput);
+
+        const usages = [
+            { inputTokens: maxInput, outputTokens: maxOutput },
+            { inputTokens: 0, outputTokens: maxOutput },
+            { inputTokens: maxInput, outputTokens: 0 },
+            { inputTokens: 660, outputTokens: 80 },
+            // ⛔ The shape that breaks a naive worst case: cache WRITES cost MORE per token than fresh input,
+            // so a bound computed from the input rate alone would be exceeded by a call whose whole input
+            // budget was a cache write — a reservation that is a lie in exactly the direction ADR-0024 says
+            // it must never be.
+            { inputTokens: 0, outputTokens: maxOutput, cacheWriteInputTokens: maxInput },
+            { inputTokens: 0, outputTokens: maxOutput, cacheReadInputTokens: maxInput },
+            { inputTokens: maxInput / 2, outputTokens: maxOutput, cacheWriteInputTokens: maxInput / 2 },
+        ];
+
+        for (const usage of usages) {
+            expect(actualCostMicros(NOVA, usage), JSON.stringify(usage)).toBeLessThanOrEqual(worst);
+        }
+    });
+
+    it('bounds every input-token SPLIT, for EVERY model in the table', () => {
+        // ⛔ THE INVARIANT THE WHOLE CEILING RESTS ON, asserted over the table rather than over one model —
+        // because the way this breaks is somebody ADDING an entry, not somebody editing `worstCaseMicros`.
+        //
+        // Bedrock's prompt-caching reference states the shape the split may take:
+        //   "total input tokens = inputTokens + cacheReadInputTokens + cacheWriteInputTokens"
+        // so layer 1's input cap bounds the SUM of the three, and an admissible usage is any partition of it.
+        // A cache-write rate of ZERO (which the Nova family genuinely publishes) makes the dearest input rate
+        // collapse onto the fresh rate — this is what proves that collapse is still a true bound and not a
+        // reservation that can be exceeded.
+        const maxInput = 1_000;
+        const maxOutput = 200;
+
+        for (const [modelId, { rate }] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            const worst = worstCaseMicros(rate, maxInput, maxOutput);
+
+            for (let fresh = 0; fresh <= maxInput; fresh += 100) {
+                for (let read = 0; read <= maxInput - fresh; read += 100) {
+                    const usage = {
+                        inputTokens: fresh,
+                        outputTokens: maxOutput,
+                        cacheReadInputTokens: read,
+                        cacheWriteInputTokens: maxInput - fresh - read,
+                    };
+
+                    expect(actualCostMicros(rate, usage), `${modelId} ${JSON.stringify(usage)}`).toBeLessThanOrEqual(
+                        worst,
+                    );
+                }
+            }
+        }
+    });
+
+    it('bounds the split that the coarse sweep above misses — per-class rounding, one token from the cap', () => {
+        // ⛔ THE COUNTEREXAMPLE. The reservation rounds the whole input cap ONCE, at the dearest rate;
+        // the settlement rounds EACH class up on its own. At Nova Micro's rates and the gate's 2,000-token
+        // cap: worst input = ceil(2000 × 0.04375) = ceil(87.5) = 88, while 1,999 cache-write tokens cost
+        // ceil(87.456) = 88 and the ONE fresh token beside them costs ceil(0.035) = 1 — total 89. The
+        // sweep above steps by 100 tokens and never lands on it. Found by a review of `worstCaseMicros`'s own
+        // "true for EVERY admissible usage" claim; the bound now carries the per-class rounding overhead.
+        const worst = worstCaseMicros(NOVA, 2_000, 200);
+        const actual = actualCostMicros(NOVA, {
+            inputTokens: 1,
+            outputTokens: 200,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 1_999,
+        });
+
+        expect(actual).toBeLessThanOrEqual(worst);
+    });
+
+    it(
+        'bounds EVERY partition of a small cap, for EVERY model — exhaustively, not by sampling',
+        () => {
+            // Every (fresh, read, write) triple whose sum is at most the cap, at every cap up to 40 tokens. Small
+            // caps are where a ceil-per-class overshoot is proportionally largest, and 40 is enough for the
+            // three-way rounding pattern to appear at every rate in the table.
+            for (const [modelId, { rate }] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+                for (let cap = 1; cap <= 40; cap += 1) {
+                    const worst = worstCaseMicros(rate, cap, 3);
+
+                    for (let fresh = 0; fresh <= cap; fresh += 1) {
+                        for (let read = 0; read <= cap - fresh; read += 1) {
+                            const usage = {
+                                inputTokens: fresh,
+                                outputTokens: 3,
+                                cacheReadInputTokens: read,
+                                cacheWriteInputTokens: cap - fresh - read,
+                            };
+
+                            expect(
+                                actualCostMicros(rate, usage),
+                                `${modelId} cap=${cap} ${JSON.stringify(usage)}`,
+                            ).toBeLessThanOrEqual(worst);
+                        }
+                    }
+                }
+            }
+            // ⛔ EXPLICIT HEADROOM, NOT A SHRUNK PROOF. This case walks every (fresh, read, write) partition of
+            // every cap up to 40 for every model in the registry. Alone it is ~0.3s; on a CI runner under the
+            // parallel `turbo run test` load it measured 5,926ms against vitest's 5,000ms DEFAULT and timed out
+            // (run 33922200293, 2026-09-04) — the same failure, for the same reason, that
+            // `CDK_SYNTH_TEST_TIMEOUT_MS`'s own docstring records at 339ms and 852ms. Shrinking the sweep to fit
+            // would trade the proof for the appearance of one, and this is the file that establishes
+            // `worst >= actual` for EVERY usage, which is the whole reason ADR-0024's "crashes over-count" bias
+            // is acceptable.
+            //
+            // ⚠️ The constant's NAME says CDK, but its reason is parallel-load headroom and it is already used
+            // for a non-synth artifact guard in `recipe-workers`. Reused here rather than restating 30_000, so
+            // the number and the reason keep ONE home; applied per-test rather than as a package-wide
+            // `testTimeout`, so every other case in this file still fails fast on a hang.
+        },
+        CDK_SYNTH_TEST_TIMEOUT_MS,
+    );
+
+    it('carries the rounding overhead as a CONSTANT — never a multiple of the cap', () => {
+        // The allowance pays for two extra `ceil`s and nothing else. If it ever scaled with the cap, the
+        // reservation would start denying calls while real budget remained — ADR-0024 §5a's precision failure
+        // arriving through a second door.
+        const overhead = (cap: number): number =>
+            worstCaseMicros(NOVA, cap, 0) - Math.ceil((cap * NOVA.cacheWriteMicrosPerMillionTokens) / 1_000_000);
+
+        expect(overhead(1)).toBe(overhead(2_000));
+        expect(overhead(2_000)).toBe(overhead(100_000));
+        expect(overhead(2_000)).toBeGreaterThan(0);
+    });
+
+    it('grows with both caps', () => {
+        expect(worstCaseMicros(NOVA, 2_000, 200)).toBeGreaterThan(worstCaseMicros(NOVA, 1_000, 200));
+        expect(worstCaseMicros(NOVA, 1_000, 400)).toBeGreaterThan(worstCaseMicros(NOVA, 1_000, 200));
+    });
+
+    it('is positive for any non-zero cap, so a reservation is never free', () => {
+        expect(worstCaseMicros(NOVA, 1, 0)).toBeGreaterThan(0);
+        expect(worstCaseMicros(NOVA, 0, 1)).toBeGreaterThan(0);
+    });
+});
+
+/**
+ * A small deterministic generator for the property checks below — an LCG, so a failure reproduces from the
+ * seed. Draws code points from every UTF-8 width class, including a lone surrogate, because the whole point
+ * of the byte bound is what it does OUTSIDE ASCII.
+ */
+function* corpus(seed: number, count: number): Generator<string> {
+    const pool = ['a', 'Z', ' ', '\n', 'é', 'ß', '€', '中', '한', '😀', '🍞', '\uD83D', '\uDC00', '٣', 'ﬁ', '㍿'];
+    let state = seed;
+
+    for (let i = 0; i < count; i += 1) {
+        const length = (state = (state * 1_103_515_245 + 12_345) % 2_147_483_648) % 40;
+        let text = '';
+
+        for (let j = 0; j < length; j += 1) {
+            state = (state * 1_103_515_245 + 12_345) % 2_147_483_648;
+            text += pool[state % pool.length];
+        }
+
+        yield text;
+    }
+}
+
+describe('the input-token bound (ADR-0024 layer 1) — bytes, not code points', () => {
+    describe('utf8ByteLength', () => {
+        it.each([
+            ['', 0],
+            ['abc', 3],
+            ['é', 2],
+            ['€', 3],
+            ['中', 3],
+            ['😀', 4],
+            // A lone surrogate is not a character; `TextEncoder` emits U+FFFD (three bytes) for it, and so
+            // must this, or a string the transport will re-encode is priced short.
+            ['\uD83D', 3],
+            ['a😀b', 6],
+        ])('counts %j as %i bytes', (text, bytes) => {
+            expect(utf8ByteLength(text)).toBe(bytes);
+        });
+
+        it('agrees with TextEncoder over a generated corpus — the oracle the code itself may not import', () => {
+            // ⛔ recipe-core is bundled into web and mobile, so the implementation is code-point arithmetic
+            // with no `Buffer` and no `TextEncoder`; the TEST may use the platform encoder to prove it.
+            const encoder = new TextEncoder();
+
+            for (const text of corpus(7, 500)) {
+                expect(utf8ByteLength(text), JSON.stringify(text)).toBe(encoder.encode(text).length);
+            }
+        });
+    });
+
+    describe('inputTokenBound', () => {
+        it('is the UTF-8 byte length of every turn plus the chat-template allowance', () => {
+            const turns = ['system: ' + '中'.repeat(10), 'user: 😀'];
+            const bytes = utf8ByteLength(turns[0]!) + utf8ByteLength(turns[1]!);
+
+            expect(inputTokenBound(turns)).toBe(
+                bytes + CHAT_TEMPLATE_BASE_TOKENS + turns.length * CHAT_TEMPLATE_TOKENS_PER_TURN,
+            );
+        });
+
+        it('prices a non-Latin prompt at more tokens than its code-point count — the claim the old cap rested on', () => {
+            // ⛔ "No tokenizer emits more than one token per code point" was the old cap's whole justification,
+            // and it is false for byte-fallback BPE: a code point can be up to FOUR tokens. Ten CJK characters
+            // are thirty bytes, not ten.
+            const turn = '中'.repeat(10);
+
+            expect(inputTokenBound([turn])).toBeGreaterThan([...turn].length + CHAT_TEMPLATE_BASE_TOKENS);
+        });
+
+        it('grows with the number of turns, so few-shot turns are priced and not merely concatenated', () => {
+            // Every message the request carries costs template tokens of its own. Splitting the same text
+            // across two turns must cost MORE than one turn — a bound that ignored `turns.length` would let
+            // the foodness validator's six few-shot messages ride free.
+            expect(inputTokenBound(['ab', 'cd'])).toBeGreaterThan(inputTokenBound(['abcd']));
+            expect(inputTokenBound(['ab', 'cd']) - inputTokenBound(['abcd'])).toBe(CHAT_TEMPLATE_TOKENS_PER_TURN);
+        });
+
+        it('charges the allowance even for empty turns — the template is sent whether or not we say anything', () => {
+            expect(inputTokenBound([])).toBe(CHAT_TEMPLATE_BASE_TOKENS);
+            expect(inputTokenBound([''])).toBe(CHAT_TEMPLATE_BASE_TOKENS + CHAT_TEMPLATE_TOKENS_PER_TURN);
+        });
+    });
+
+    describe('inputTokenCeiling', () => {
+        it('dominates the per-call bound for EVERY prompt within its code-point cap (property over a corpus)', () => {
+            // The static ceiling is what a caller reserves with when it has no prompt in hand yet (the band
+            // drain sizes a batch before any prompt exists). It must never be smaller than what any admissible
+            // prompt would be bounded at, or the drain over-commits the pool.
+            for (const text of corpus(11, 500)) {
+                const turns = [text, text.slice(0, 5)];
+                const codePoints = [...turns[0]!].length + [...turns[1]!].length;
+
+                expect(inputTokenBound(turns), JSON.stringify(turns)).toBeLessThanOrEqual(
+                    inputTokenCeiling(codePoints, turns.length),
+                );
+            }
+        });
+
+        it('is exactly four bytes per code point plus the allowance — UTF-8’s maximum width, not a ratio', () => {
+            expect(inputTokenCeiling(2_000, 2)).toBe(
+                2_000 * UTF8_MAX_BYTES_PER_CODE_POINT + CHAT_TEMPLATE_BASE_TOKENS + 2 * CHAT_TEMPLATE_TOKENS_PER_TURN,
+            );
+        });
+    });
+
+    describe('inputTokensBeyondBound', () => {
+        it('is zero when the billed input fits the bound', () => {
+            expect(inputTokensBeyondBound(1_000, { inputTokens: 600, outputTokens: 80 })).toBe(0);
+            expect(inputTokensBeyondBound(1_000, { inputTokens: 1_000, outputTokens: 80 })).toBe(0);
+        });
+
+        it('reports the excess when the tokenizer beat the byte bound', () => {
+            expect(inputTokensBeyondBound(1_000, { inputTokens: 1_250, outputTokens: 80 })).toBe(250);
+        });
+
+        it('counts cache reads and writes as input — a warm parse call arrives almost entirely as cache reads', () => {
+            // ⛔ ADR-0024 §5a: the 5,025-token parse prompt is billed as `cacheReadInputTokens` on every warm
+            // call, with `inputTokens` near zero. A detector that read `inputTokens` alone would never fire
+            // on the one consumer whose prompt is large enough to matter.
+            const usage = { inputTokens: 40, outputTokens: 300, cacheReadInputTokens: 5_025, cacheWriteInputTokens: 0 };
+
+            expect(inputTokensBeyondBound(5_000, usage)).toBe(65);
+            expect(inputTokensBeyondBound(5_065, usage)).toBe(0);
+        });
+    });
+});
+
+describe('headroomMicros', () => {
+    it('subtracts the worst case BEFORE the comparison, which is what bounds overshoot', () => {
+        // ⛔ ADR-0024, Consequences: do NOT "simplify" this to the ceiling itself. The reserve statement
+        // compares the value ALREADY in the row against this headroom, so a row sitting exactly at the
+        // headroom may take one more worst-case charge and land exactly ON the ceiling — never above it.
+        expect(headroomMicros(DEFAULT_MONTHLY_CEILING_MICROS, 500)).toBe(DEFAULT_MONTHLY_CEILING_MICROS - 500);
+    });
+
+    it('is negative when one call cannot fit under the ceiling at all', () => {
+        // A ceiling smaller than a single call's worst case must deny EVERY call rather than admit one:
+        // `reserved_micros <= headroom` is false even for a fresh row at 0 when the headroom is below 0.
+        expect(headroomMicros(100, 500)).toBeLessThan(0);
+    });
+
+    it('admits exactly the ceiling at the boundary', () => {
+        const worst = 250;
+
+        // The last admissible reservation starts at the headroom and lands ON the ceiling.
+        expect(headroomMicros(1_000, worst) + worst).toBe(1_000);
+    });
+});
+
+describe('settleDeltaMicros', () => {
+    it('refunds the unused reservation', () => {
+        expect(settleDeltaMicros(36, 500)).toBe(-464);
+    });
+
+    it('refunds in FULL when nothing was billed', () => {
+        // ThrottlingException, ServiceUnavailableException, a client timeout: no billed response, so the
+        // whole reservation comes back. Without this a throttling episode consumes the ceiling at ZERO actual
+        // spend and then closes the gate for the rest of the month.
+        expect(settleDeltaMicros(0, 500)).toBe(-500);
+    });
+
+    it('is zero when the call cost exactly what was reserved', () => {
+        expect(settleDeltaMicros(500, 500)).toBe(0);
+    });
+
+    it('CHARGES MORE when a response somehow exceeded the reservation', () => {
+        // Deliberately unclamped. An over-run means the caps did not hold, and the counter must record the
+        // money that actually left rather than quietly absorb it.
+        expect(settleDeltaMicros(600, 500)).toBe(100);
+    });
+});
+
+describe('planReservation', () => {
+    const NOW = new Date('2026-08-31T23:59:59.000Z');
+
+    const plan = (modelId: string, deployRegion = 'us-east-1'): ReturnType<typeof planReservation> =>
+        planReservation({
+            modelId,
+            ceilingMicros: DEFAULT_MONTHLY_CEILING_MICROS,
+            maxInputTokens: 1_000,
+            maxOutputTokens: 200,
+            nowUtc: NOW,
+            deployRegion,
+        });
+
+    it('captures the period, the rate and the worst case in ONE value', () => {
+        const planned = plan(NOVA_MICRO_MODEL_ID);
+
+        expect(planned.kind).toBe('priced');
+
+        if (planned.kind !== 'priced') {
+            return;
+        }
+
+        expect(planned.period).toBe('2026-08');
+        expect(planned.worstMicros).toBe(worstCaseMicros(NOVA, 1_000, 200));
+        expect(planned.headroomMicros).toBe(headroomMicros(DEFAULT_MONTHLY_CEILING_MICROS, planned.worstMicros));
+        expect(planned.modelId).toBe(NOVA_MICRO_MODEL_ID);
+    });
+
+    it('is the ONLY source of the period a settlement uses', () => {
+        // ⛔ The bug ADR-0024 names: a call beginning at 23:59:59 on the 31st and ending after midnight must
+        // settle against the month it RESERVED against. Because the period is a field of the plan and settle
+        // takes the plan, recomputing it at settle time is not expressible.
+        const planned = plan(NOVA_MICRO_MODEL_ID);
+
+        expect(planned.kind === 'priced' && planned.period).toBe('2026-08');
+        expect(periodKey(new Date('2026-09-01T00:00:01.000Z'))).not.toBe('2026-08');
+    });
+
+    it('refuses to plan for a model the rate table does not price', () => {
+        // Fail-closed by construction: with no rate there is no worst case, so there is nothing to reserve
+        // and the call cannot be made. An unknown model id can only ever cost a DENIAL, never uncounted spend
+        // — which is why an unverified price (Haiku's, per ADR-0024) is safe to carry and an ABSENT one is
+        // safe to omit.
+        expect(plan('meta.llama3-70b-instruct-v1:0')).toEqual({
+            kind: 'unpriced',
+            modelId: 'meta.llama3-70b-instruct-v1:0',
+        });
+    });
+
+    it('seeds the ceiling at the $100 the owner set', () => {
+        expect(DEFAULT_MONTHLY_CEILING_MICROS).toBe(100 * MICROS_PER_DOLLAR);
+    });
+
+    /**
+     * ⛔ THE TWO IDS, CARRIED SEPARATELY OUT OF THE PLAN — the defect U35 exists to close.
+     *
+     * `modelId` is what the model IS: the rate-table key, the `verified_by` on a memo and the `model_id` on a
+     * verdict. `invocationId` is what `Converse` is ADDRESSED with. They coincide for every on-demand model,
+     * which is exactly why one string served both jobs undetected until a profile-only model was rostered.
+     * Carrying the address on the PLAN — beside the captured period and the captured rate — is what makes a
+     * mid-call SSM change unable to split the id that was priced from the id that was called.
+     */
+    it('addresses an on-demand model by the same id it records', () => {
+        const planned = plan(NOVA_MICRO_MODEL_ID);
+
+        expect(planned.kind === 'priced' && planned.invocationId).toBe(NOVA_MICRO_MODEL_ID);
+        expect(planned.kind === 'priced' && planned.modelId).toBe(NOVA_MICRO_MODEL_ID);
+    });
+
+    /**
+     * ⛔ REWRITTEN for the residency wiring (ADR-0024 §4b). It used to assert that Claude Haiku 4.5 planned
+     * `priced`, carrying the U35 two-ids property on the one shipped entry that shows it. That entry is
+     * profile-addressed and carries no `residencyApproval`, so {@link planReservation} now REFUSES it before
+     * any address is derived. The two-ids property did not lose coverage — it moved to the whole-table loop
+     * below, which still proves it on every entry residency clears.
+     */
+    it('refuses a profile-addressed model that reaches beyond the deploy region without a warrant', () => {
+        const entry = registryEntryFor(CLAUDE_HAIKU_4_5_MODEL_ID);
+
+        expect(entry === undefined ? undefined : residencyClearance(entry, 'us-east-1')).toBe('unapproved');
+        expect(plan(CLAUDE_HAIKU_4_5_MODEL_ID)).toEqual({
+            kind: 'residency-unapproved',
+            modelId: CLAUDE_HAIKU_4_5_MODEL_ID,
+            deployRegion: 'us-east-1',
+            reachedRegions: ['us-east-1', 'us-east-2', 'us-west-2'],
+        });
+    });
+
+    it('prices EVERY residency-cleared model off its own registry key, never off its address', () => {
+        // The mutation guard for the pair above: keying the table on the invocation id would make a
+        // profile-addressed entry unpriced, and keying the address on the model id would re-introduce the
+        // ValidationException. Asserted over the whole table so a new entry inherits it.
+        let priced = 0;
+        let refused = 0;
+
+        for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            const planned = plan(modelId);
+
+            if (residencyClearance(entry, 'us-east-1') === 'unapproved') {
+                expect(planned.kind, modelId).toBe('residency-unapproved');
+                refused += 1;
+                continue;
+            }
+
+            expect(planned.kind, modelId).toBe('priced');
+            expect(planned.kind === 'priced' && planned.modelId, modelId).toBe(modelId);
+            expect(planned.kind === 'priced' && planned.invocationId, modelId).toBe(entry.invocation.invocationId);
+            priced += 1;
+        }
+
+        // ⛔ NON-VACUITY ON BOTH ARMS. A table that priced everything, or refused everything, would satisfy
+        // the loop above while proving nothing about the branch it exists to assert.
+        expect(priced, 'the registry prices nothing — the loop proved nothing').toBeGreaterThan(0);
+        expect(refused, 'the registry refuses nothing — the residency branch is unexercised').toBeGreaterThan(0);
+    });
+
+    /**
+     * ⛔ THE RESIDENCY REFUSAL IS NOT THE UNPRICED ONE, AND IT MUST NOT BE TRANSIENT. ADR-0024 §4b's point is
+     * that residency is a decision nobody has taken, not a lookup that failed: an `unpriced` id can be fixed
+     * by pointing SSM somewhere else and retrying, while an `unapproved` one can NEVER succeed on retry until
+     * 016 records a warrant. Sharing a discriminant would let a caller's `unpriced` branch — which THROWS in
+     * `verifyLine.ts` and `gatedLlm.ts`, i.e. redelivers — swallow it and drain the queue to its DLQ for a
+     * reason that will still hold on the twentieth attempt.
+     */
+    it('names the residency refusal apart from the unpriced one, and says where the call would have gone', () => {
+        const refusal = plan(NOVA_2_LITE_MODEL_ID);
+
+        expect(refusal.kind).not.toBe('unpriced');
+        expect(refusal.kind).toBe('residency-unapproved');
+        // The operator's log line: WHICH model, from WHERE, and the regions the profile would have reached.
+        expect(refusal.kind === 'residency-unapproved' && refusal.deployRegion).toBe('us-east-1');
+        expect(refusal.kind === 'residency-unapproved' && refusal.reachedRegions).toEqual([
+            'us-east-1',
+            'us-east-2',
+            'us-west-2',
+        ]);
+    });
+
+    it('still refuses an id the registry does not know, BEFORE residency is consulted at all', () => {
+        // Ordering: an unregistered id has no entry, so there is no reach to judge. Membership first.
+        expect(plan('meta.llama3-70b-instruct-v1:0')).toEqual({
+            kind: 'unpriced',
+            modelId: 'meta.llama3-70b-instruct-v1:0',
+        });
+    });
+
+    it('clears every on-demand entry from ANY region — the sentinel means "wherever this invokes"', () => {
+        // ⚠️ This is what keeps a region literal out of recipe-core: an on-demand entry is in-region BY
+        // CONSTRUCTION, including in a region this repo has never deployed to, so the deploy region can never
+        // make one refuse.
+        for (const region of ['us-east-1', 'eu-west-1', 'ap-southeast-2']) {
+            expect(plan(NOVA_MICRO_MODEL_ID, region).kind, region).toBe('priced');
+            expect(plan(NOVA_LITE_MODEL_ID, region).kind, region).toBe('priced');
+        }
+    });
+});
+
+/**
+ * THE TABLE IS THE MODEL REGISTRY — the invocation id, the reach, and the residency warrant.
+ *
+ * ⛔ The defect this closes: one string served as the rate-table key, the recorded model identity, AND the id
+ * Bedrock is invoked with. For an on-demand model those coincide, so nothing ever caught it. Claude Haiku 4.5
+ * is `INFERENCE_PROFILE`-only — the bare id fails with `ValidationException` and the `us.` profile id is not a
+ * rate-table key — so pointing SSM at it failed every call in either direction.
+ *
+ * ⚠️ These assertions carry what the TYPE cannot. `ModelReach` is a discriminated union precisely so that an
+ * on-demand entry cannot carry a region list and a cross-region entry cannot omit its read date; asserting
+ * those would be asserting the compiler. What remains genuinely assertable is the PAIRING between the two
+ * halves — an entry whose invocation id differs from its model id is exactly an entry that reaches beyond the
+ * calling region — and that no shipped entry is residency-approved.
+ */
+describe('the model registry — invocation id and reach', () => {
+    it('addresses an on-demand model by its own id, reaching only where it is called', () => {
+        const entry = registryEntryFor(NOVA_MICRO_MODEL_ID);
+
+        expect(entry?.invocation.invocationId).toBe(NOVA_MICRO_MODEL_ID);
+        expect(entry?.invocation.reach.kind).toBe('deploy-region');
+    });
+
+    it('addresses Claude Haiku 4.5 through its inference profile, not its bare id', () => {
+        const entry = registryEntryFor(CLAUDE_HAIKU_4_5_MODEL_ID);
+
+        // ⛔ The bare id is REFUSED by Bedrock for this model: "Invocation of model ID … with on-demand
+        // throughput isn't supported". Verified against the live account 2026-08-23.
+        expect(entry?.invocation.invocationId).toBe(`us.${CLAUDE_HAIKU_4_5_MODEL_ID}`);
+        expect(entry?.invocation.reach.kind).toBe('regions');
+
+        const reach = entry?.invocation.reach;
+
+        if (reach?.kind !== 'regions') {
+            throw new Error('a profile-addressed entry must record the regions it reaches');
+        }
+
+        // Read from `aws bedrock get-inference-profile` in us-east-1. ⚠️ The destination set is a property of
+        // the profile AND the source region, which is why the read date travels with it.
+        expect([...reach.regions].sort()).toEqual(['us-east-1', 'us-east-2', 'us-west-2']);
+        expect(reach.readOn).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    });
+
+    /**
+     * ⛔ THE PAIRING INVARIANT, and the one property the union cannot express. A profile id addresses a
+     * ROUTING FAMILY rather than a model, so an entry addressed by something other than its own id is exactly
+     * an entry whose calls can leave the calling region. If those two facts ever disagree, either a profile
+     * reaches somewhere unrecorded, or an on-demand entry claims a reach it does not have.
+     */
+    it('addresses by a different id if and only if it reaches beyond the calling region', () => {
+        for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            const addressedByItself = entry.invocation.invocationId === modelId;
+            const staysHere = entry.invocation.reach.kind === 'deploy-region';
+
+            expect(addressedByItself, `${modelId}: addressing and reach disagree`).toBe(staysHere);
+        }
+    });
+
+    it('still prices every registered model, and still refuses an unregistered one', () => {
+        for (const modelId of Object.keys(BEDROCK_MODEL_REGISTRY)) {
+            expect(rateFor(modelId), modelId).toBeDefined();
+        }
+
+        expect(rateFor('amazon.nova-does-not-exist-v1:0')).toBeUndefined();
+        expect(registryEntryFor('amazon.nova-does-not-exist-v1:0')).toBeUndefined();
+    });
+});
+
+/**
+ * RESIDENCY — the single predicate the runtime gate and the IAM derivation both call.
+ *
+ * ⛔ Two interpreters of one fact is the failure this exists to prevent. If `planReservation` decided residency
+ * at runtime and the CDK stack decided it again at synth time, they would drift — and drift in the dangerous
+ * direction, where IAM grants what the runtime refuses or the reverse. One exported predicate, two callers.
+ *
+ * ⚠️ AWS documents that with cross-region inference "your input prompts and output results may be stored in
+ * the opt-in Regions for abuse detection purposes" — so this is about where user recipe text comes to REST,
+ * not only where it is processed.
+ */
+describe('residencyClearance', () => {
+    const novaEntry = registryEntryFor(NOVA_MICRO_MODEL_ID);
+    const haikuEntry = registryEntryFor(CLAUDE_HAIKU_4_5_MODEL_ID);
+
+    if (novaEntry === undefined || haikuEntry === undefined) {
+        throw new Error('the registry must carry both roster models');
+    }
+
+    it('clears an on-demand entry wherever it is deployed', () => {
+        // The sentinel arm means "wherever this invokes", so it is in-region BY CONSTRUCTION — including in a
+        // region this repo has never deployed to. That is what keeps a region literal out of recipe-core.
+        expect(residencyClearance(novaEntry, 'us-east-1')).toBe('in-deploy-region');
+        expect(residencyClearance(novaEntry, 'eu-west-1')).toBe('in-deploy-region');
+    });
+
+    it('refuses a profile that reaches beyond the deploy region without a warrant', () => {
+        expect(residencyClearance(haikuEntry, 'us-east-1')).toBe('unapproved');
+    });
+
+    it('clears a profile whose recorded reach does not actually leave the deploy region', () => {
+        const homebound = {
+            ...haikuEntry,
+            invocation: {
+                ...haikuEntry.invocation,
+                reach: { kind: 'regions', regions: ['us-east-1'], readOn: '2026-08-23' },
+            },
+        } as const;
+
+        expect(residencyClearance(homebound, 'us-east-1')).toBe('in-deploy-region');
+    });
+
+    it('clears a cross-region profile once it carries an approval', () => {
+        const approved = {
+            ...haikuEntry,
+            invocation: {
+                ...haikuEntry.invocation,
+                reach: {
+                    kind: 'regions',
+                    regions: ['us-east-1', 'us-east-2', 'us-west-2'],
+                    readOn: '2026-08-23',
+                    residencyApproval: { approvedOn: '2026-09-01', reference: 'ADR-0024 §9' },
+                },
+            },
+        } as const;
+
+        expect(residencyClearance(approved, 'us-east-1')).toBe('approved');
+    });
+
+    /**
+     * ⛔ R9 — NO SHIPPED ENTRY IS APPROVED, and this is the assertion that makes approving one a deliberate
+     * act. Flipping a marker fails this test until someone edits it in the same commit, so the diff shows both
+     * the approval and its warrant together. The residency question is open (016); nothing here closes it.
+     */
+    it('ships no residency-approved entry', () => {
+        for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            const { reach } = entry.invocation;
+            const approval = reach.kind === 'regions' ? reach.residencyApproval : undefined;
+
+            expect(approval, `${modelId} ships residency-approved — was that deliberate?`).toBeUndefined();
+        }
+    });
+});
+
+/**
+ * THE MAPPING FROM A CLEARANCE TO A REFUSAL — the seam `planReservation` composes, exported so all THREE
+ * arms can be driven.
+ *
+ * ⛔ WHY IT IS EXPORTED AT ALL, since `residencyClearance` beside it already answers the question. No shipped
+ * entry is `approved` and (R9 above) none may become one by an edit, so a test that reaches this arm through
+ * {@link planReservation} — which reads the FROZEN module registry and takes no table — cannot exist. Without
+ * this seam, `residencyClearance(entry, region) !== 'in-deploy-region'` would refuse an approved entry and
+ * EVERY test would still pass: the mutation is invisible against a table with no approved member. That is the
+ * exact "would this still pass if I broke the logic?" hole, and the seam is what closes it.
+ */
+describe('residencyRefusal — clearance to refusal', () => {
+    const REGIONS = ['us-east-1', 'us-east-2', 'us-west-2'] as const;
+
+    /**
+     * A profile-addressed entry over three regions, optionally warranted.
+     *
+     * @param residencyApproval - The warrant, or absent for an unapproved entry.
+     * @returns A registry entry. Pure.
+     */
+    const crossRegion = (residencyApproval?: ResidencyApproval): ModelRegistryEntry => ({
+        rate: NOVA,
+        invocation: {
+            invocationId: 'us.vendor.model-v1:0',
+            reach: {
+                kind: 'regions',
+                regions: [...REGIONS],
+                readOn: '2026-09-04',
+                ...(residencyApproval === undefined ? {} : { residencyApproval }),
+            },
+        },
+    });
+
+    it('refuses an UNAPPROVED entry, naming the model, the region and the reach', () => {
+        expect(residencyRefusal('vendor.model-v1:0', crossRegion(), 'us-east-1')).toEqual({
+            kind: 'residency-unapproved',
+            modelId: 'vendor.model-v1:0',
+            deployRegion: 'us-east-1',
+            reachedRegions: [...REGIONS],
+        });
+    });
+
+    it('does NOT refuse an APPROVED entry — the warrant is what the marker is for', () => {
+        // ⛔ THE ARM THE SHIPPED TABLE CANNOT REACH. A guard written as `!== 'in-deploy-region'` would refuse
+        // here while every other assertion in this file stayed green.
+        const approved = crossRegion({ approvedOn: '2026-09-04', reference: 'ADR-0024 §9' });
+
+        expect(residencyClearance(approved, 'us-east-1')).toBe('approved');
+        expect(residencyRefusal('vendor.model-v1:0', approved, 'us-east-1')).toBeUndefined();
+    });
+
+    it('does NOT refuse an entry that never leaves the deploy region', () => {
+        const entry = registryEntryFor(NOVA_MICRO_MODEL_ID);
+
+        if (entry === undefined) {
+            throw new Error('the registry must carry the model the gate ships with');
+        }
+
+        expect(residencyRefusal(NOVA_MICRO_MODEL_ID, entry, 'eu-west-1')).toBeUndefined();
+    });
+});
+
+describe('Nova 2 Lite — the shipped parse model', () => {
+    /**
+     * ⛔ Every figure here was READ FROM THE AWS PRICING API on 2026-08-27 (`USE1-Nova2.0Lite-*`, us-east-1),
+     * not derived from the family pattern. The registry's own docstring records that the Nova family's cache
+     * rates differ from the derived ones in BOTH directions, so assuming them would be the exact mistake it
+     * warns about.
+     */
+    it('carries the rates read from the Pricing API, in micro-dollars per million tokens', () => {
+        const { rate } = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+
+        expect(rate.inputMicrosPerMillionTokens).toBe(330_000); // $0.00033/1K
+        expect(rate.outputMicrosPerMillionTokens).toBe(2_750_000); // $0.00275/1K
+        expect(rate.cacheReadMicrosPerMillionTokens).toBe(82_500); // $0.0000825/1K — exactly 0.25x input
+        // ⛔ ZERO IS THE PUBLISHED RATE, as for every other Nova: `USE1-Nova2.0Lite-cache-write-input-token-count`
+        // = $0.0000000000/1K. Verified, not inherited from the Lite v1 entry.
+        expect(rate.cacheWriteMicrosPerMillionTokens).toBe(0);
+        expect(rate.priceVerified).toBe(true);
+    });
+
+    it('is INFERENCE_PROFILE-only, so the bare model id is not the invocation id', () => {
+        // `aws bedrock get-foundation-model` reports inferenceTypesSupported = ["INFERENCE_PROFILE"], so the
+        // bare id is refused at call time exactly as Haiku's is.
+        const { invocation } = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+
+        expect(invocation.invocationId).toBe('us.amazon.nova-2-lite-v1:0');
+        expect(invocation.invocationId).not.toBe(NOVA_2_LITE_MODEL_ID);
+    });
+
+    /**
+     * ⛔ THE ACCURACY WINNER IS NOT CALLABLE, and this test is the record of why. Every inference profile
+     * that exists for this model leaves us-east-1 (`us.` = three regions, `global.` = wider; no
+     * single-region profile, no application profile — `list-inference-profiles`, 2026-08-27). So selecting
+     * it on gold-set accuracy does NOT make it shippable: `residencyClearance` answers `unapproved`. Closing
+     * it is 016's decision, not a config edit.
+     *
+     * ⚠️ UPDATED with the residency wiring. This used to add that the predicate proved only what it ANSWERS,
+     * "not that anything asks it" — true when `residencyClearance` had no caller. It has two now
+     * ({@link planReservation} and `bedrockInvokeStatements`), so the second assertion below is the one that
+     * matters: the refusal REACHES the reservation, which is what makes this model uncallable rather than
+     * merely disapproved of. The parse leg fell back to Nova Lite v1; see the test after it.
+     */
+    it('is REFUSED by the residency gate — the profile leaves the deploy region and 016 has not cleared it', () => {
+        const entry = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+
+        expect(entry.invocation.reach.kind).toBe('regions');
+        expect(residencyClearance(entry, 'us-east-1')).toBe('unapproved');
+        expect(
+            planReservation({
+                modelId: NOVA_2_LITE_MODEL_ID,
+                ceilingMicros: DEFAULT_MONTHLY_CEILING_MICROS,
+                maxInputTokens: 1_000,
+                maxOutputTokens: 200,
+                nowUtc: new Date('2026-09-04T00:00:00.000Z'),
+                deployRegion: 'us-east-1',
+            }).kind,
+        ).toBe('residency-unapproved');
+    });
+
+    it('made Nova Lite v1 the SHIPPED parse model, because it is the best residency-CLEAR option', () => {
+        // Lite v1 is addressed by its bare id and stays in the deploy region, so it needs no warrant. On the
+        // same external gold set it scores 73/41 static and 82/52 with retrieval, against Nova 2 Lite's
+        // 84/53 — the accuracy the residency ruling cost, and it is CHEAPER in every token class.
+        const lite = BEDROCK_MODEL_REGISTRY[NOVA_LITE_MODEL_ID]!;
+        const nova2 = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+
+        expect(residencyClearance(lite, 'us-east-1')).toBe('in-deploy-region');
+        expect(lite.rate.inputMicrosPerMillionTokens).toBeLessThan(nova2.rate.inputMicrosPerMillionTokens);
+        expect(lite.rate.outputMicrosPerMillionTokens).toBeLessThan(nova2.rate.outputMicrosPerMillionTokens);
+        expect(lite.rate.cacheReadMicrosPerMillionTokens).toBeLessThan(nova2.rate.cacheReadMicrosPerMillionTokens);
+    });
+
+    it('prices a cached parse call at HALF on the flex tier, which keeps the cache', () => {
+        // Measured live 2026-08-27: serviceTier flex is accepted, echoed back, and reports the SAME
+        // cacheReadInputTokens as default. Batch cannot do this — AWS documents caching as on-demand only.
+        const { rate } = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+        const cachedRead = 5_025;
+        const fresh = 13;
+        const out = 37;
+        const perMillion = (tokens: number, micros: number): number => (tokens * micros) / 1_000_000;
+        const onDemand =
+            perMillion(cachedRead, rate.cacheReadMicrosPerMillionTokens) +
+            perMillion(fresh, rate.inputMicrosPerMillionTokens) +
+            perMillion(out, rate.outputMicrosPerMillionTokens);
+
+        expect(Math.round(onDemand)).toBe(521); // micro-dollars/line, matching the measured $0.000521
+    });
+});

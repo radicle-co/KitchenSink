@@ -1,3 +1,4 @@
+import { testTempRootSetup, jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -42,8 +43,13 @@ function preferNativeLeaves(): Plugin {
 export default defineConfig({
     plugins: [preferNativeLeaves()],
     test: {
+        // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+        // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+        globalSetup: [testTempRootSetup],
         globals: true,
         environment: 'jsdom',
+        // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
+        setupFiles: [jsdomPolyfillsSetup],
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
     },

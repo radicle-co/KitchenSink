@@ -1,5 +1,7 @@
 # W7 — Edit-Time Conflict Resolution: Changed-Only Diff + A/B/C Cards Implementation Plan
 
+> ⛔ **SUPERSEDED IN PART (owner ruling, 2026-08-26): device attribution is DELETED.** Every instruction below about `deviceLabel` / `device_label` — the version row's ` (from {device})` suffix, the conflict banner's ` on {device}` clause, the per-side card's `Device:` row and their escaping tests — describes a feature that no longer ships. Nothing ever wrote the field, so none of it had ever rendered. The ruling and what it costs are recorded in [`CR-004`](../../../specs/001-commise-recipe-app/change-requests/CR-004-version-compare-and-conflict-diff.md); `editorHandle` attribution is UNAFFECTED and still ships.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild the edit-time version-conflict resolver to its wireframe floor (FR-007c, X1–X7): a per-side banner (version/device/timestamp), a **changed-only** 3-way diff with `[=]`/`[→]`/`[!!]` markers + legend, three **A/B/C option cards** (Keep server / Overwrite with yours / Merge manually), a **per-element** field-by-field merge with selection-gating + a running summary + a >10-versions-behind warning, correct Server-left/Yours-right column order, and a phantom zero-diff fast-path — on **both** web and mobile.

@@ -17,40 +17,39 @@
  */
 import {
     IDENTITY_SYNC_PENDING_CODE,
-    collectionSchema,
     ingredientSchema,
     paginatedResponseSchema,
     recipeDetailSchema,
     recipePhotoSchema,
     recipeSchema,
     recipeVersionSchema,
-    restoreVersionResponseSchema,
     versionConflictDetailsSchema,
 } from '@kitchensink/recipe-core';
 import { z } from 'zod';
 import type {
-    CreateRecipeInput,
     Ingredient,
     PaginatedResponse,
     Recipe,
     RecipeDetail,
     RecipePhoto,
-    RecipeSearchParams,
     RecipeVersion,
     RecipeVisibility,
-    RestoreVersionResponse,
-    SetRecipeRatingInput,
-    UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
+import type { AnalyticsEventBatch } from '@kitchensink/recipe-core/analytics/event-payload';
 import ky, { HTTPError, TimeoutError } from 'ky';
 import type { KyInstance, Options } from 'ky';
 
+import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
     FetchUnavailableError,
+    SourceBusyError,
+    SourceUnavailableError,
     ForbiddenError,
     GoneError,
+    InvalidRequestError,
     NotFoundError,
+    ParseJobExpiredError,
     PullDriftError,
     RecipeServiceClientError,
     UnauthorizedError,
@@ -67,6 +66,7 @@ import type {
     ErasureRequestAcceptedResponse,
     IngredientCandidate,
     IngredientSuggestions,
+    LiveIngredientSearchResponse,
     ListCollectionsParams,
     ListRecipesParams,
     PhotoConfirmRequest,
@@ -78,27 +78,93 @@ import type {
     UploadUrlResponse,
 } from './types.js';
 
-/**
- * The `Collection` response schema, WIDENED (W5 Task 5) from `@kitchensink/recipe-core`'s `collectionSchema`
- * with the recipe service's response-only pull-provenance fields (`./types.js`'s local `Collection`). This
- * MUST stay in sync with that widening: `collectionSchema.parse` alone would silently STRIP these fields
- * (zod drops unrecognized keys by default), so every validated collection-returning method below uses this
- * extended schema, never the bare core one — otherwise the wider TS type would be a lie about what `parse`
- * actually returns. `lastPulledAt` reuses the same `.datetime({ offset: true })` strictness as the core
- * schema's own timestamp fields (its private `isoDateTimeStringSchema` is not exported for reuse here).
- */
-const collectionResponseSchema = collectionSchema.extend({
-    sourceOwnerHandle: z.string().min(1).optional(),
-    sourceCollectionName: z.string().min(1).optional(),
-    lastPulledAt: z.string().datetime({ offset: true }).optional(),
-});
+// Runtime schemas from the GENERATED contract — the same zod the service validates with, so BOTH directions
+// of every boundary are CHECKED rather than trusted. See CODING_STANDARDS §15.2 and ADR-0014.
+//
+// The `*RequestSchema` half is the OUTBOUND direction, and it was missing entirely: every write method
+// serialized whatever it was handed. That is the same unfalsifiable-belief problem as an unparsed response,
+// pointing the other way — a caller that builds a body this client's TYPES accept but the service's zod
+// rejects learned about it from a `400` at runtime, with the service's field message as the only diagnosis,
+// and a body carrying a field the contract does NOT accept (see `visibility` on the PATCH envelope) was sent
+// and silently stripped. Parsing outbound makes the client refuse to send a body the published contract does
+// not describe, at the call site that built it. It also NORMALIZES: zod strips unknown keys, so a stray field
+// never reaches the wire.
+import {
+    foodReferencesResponseSchema,
+    type FoodReferencesResponse,
+    addIngredientByFoodRequestSchema,
+    createAuthoredFoodViaPickerRequestSchema,
+    createAuthoredFoodViaPickerResponseSchema,
+    addRecipeToCollectionRequestSchema,
+    apiErrorSchema,
+    cloneCollectionRequestSchema,
+    collectionListResponseSchema,
+    collectionRecipeMembershipResponseSchema,
+    collectionResponseSchema,
+    collectionWithRecipesResponseSchema,
+    confirmPhotoRequestSchema,
+    createCollectionRequestSchema,
+    createIngredientRequestSchema,
+    createPhotoUploadRequestSchema,
+    createRecipeRequestSchema,
+    erasureRequestAcceptedResponseSchema,
+    erasureRequestSchema,
+    ingredientCandidatesResponseSchema,
+    ingredientSuggestionsResponseSchema,
+    liveIngredientSearchResponseSchema,
+    photoUploadUrlResponseSchema,
+    pullDiffSchema,
+    pullFromSourceRequestSchema,
+    recipeApiErrorSchema,
+    createParseJobRequestSchema,
+    editParseJobLineRequestSchema,
+    parseJobResponseSchema,
+    recipeNutritionRequestSchema,
+    recipeNutritionResponseSchema,
+    pullFromSourceResponseSchema,
+    recipeSearchResponseSchema,
+    reorderPhotosRequestSchema,
+    recordCorrectionRequestSchema,
+    recordCorrectionResponseSchema,
+    resolveIngredientRequestSchema,
+    restoreVersionResponseSchema,
+    setRatingRequestSchema,
+    setRecipeVisibilityRequestSchema,
+    updateCollectionRequestSchema,
+    updateRecipeRequestSchema,
+} from '@kitchensink/schema-recipe';
+import type {
+    ApiErrorBody,
+    CreateParseJobRequest,
+    CreateRecipeRequest,
+    EditParseJobLineRequest,
+    ParseJobResponse,
+    RecipeApiError,
+    RecipeNutritionResponse,
+    RecordCorrectionRequest,
+    RecordCorrectionResponse,
+    RecipeSearchQuery,
+    RestoreVersionResponse,
+    SetRatingRequest,
+    UpdateRecipeRequest,
+    CreateAuthoredFoodViaPickerRequest,
+    CreateAuthoredFoodViaPickerResponse,
+} from '@kitchensink/schema-recipe';
 
-/** Runtime validator for {@link PullDiff} — the response shape of `previewPullFromSource`. */
-const pullDiffSchema = z.object({
-    added: z.array(z.string()),
-    removed: z.array(z.string()),
-    unchanged: z.array(z.string()),
-});
+/**
+ * The base URL with any trailing slashes removed. Deliberately NOT `/\/+$/`: that regex backtracks
+ * quadratically over a long run of slashes (measured at 1.6s for 100k), which is `js/polynomial-redos`. A base
+ * URL comes from configuration rather than a request, so this is defence in depth, not a live exposure. Pure.
+ */
+function withoutTrailingSlashes(url: string): string {
+    let end = url.length;
+
+    while (end > 0 && url.charAt(end - 1) === '/') {
+        end -= 1;
+    }
+
+    return url.slice(0, end);
+}
 
 /**
  * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
@@ -151,9 +217,25 @@ export interface RecipeServiceClientOptions {
      * a few ms) but never disable-able: an unbounded wait is the defect this exists to prevent.
      */
     readonly timeoutMs?: number;
+    /**
+     * Where a contract-skew WARNING goes (drift layer 3, CODING_STANDARDS §15.2.5). Defaults to `console.warn`.
+     *
+     * This package has no logging seam of its own and this is not the place to invent one: a skew warning is
+     * the ONLY thing this client ever emits out-of-band, so it gets one narrowly-named sink rather than a logger
+     * abstraction nothing else would use. Supply it to route the warning into a real logger (Sentry on web, the
+     * RN console on mobile), or to assert on it in a test.
+     */
+    readonly onContractSkew?: (message: string) => void;
 }
 
-/** A normalized response: status and parsed JSON body (or `undefined` for empty/`204`). */
+/**
+ * A normalized response: status and parsed JSON body (or `undefined` for empty/`204`).
+ *
+ * @notWireShape This client's own transport envelope — the recipe service never sends this object. It is what
+ *   `normalizeResponse()` folds both a success `Response` and a thrown ky `HTTPError`'s response into, so one
+ *   `toError` can map either by status; nothing in `@kitchensink/schema-recipe` describes it. (The wire BODIES
+ *   it carries at `.body` are parsed against the published contract.)
+ */
 interface RawResponse {
     readonly status: number;
     readonly body: unknown;
@@ -217,6 +299,30 @@ function safeJson(text: string): unknown {
  *
  * @sideEffect Reads (consumes) the response body stream.
  */
+/**
+ * Fold ky 2's pre-parsed `HTTPError.data` into the body shape {@link RawResponse} carries.
+ *
+ * ⚠️ A STRING IS STILL PARSED, exactly as `safeJson(text)` did before. ky sets `data` to plain text
+ * whenever the content-type is not JSON — including a JSON body served without the header, which is what a
+ * fetch mock produces and what cost 12 tests their domain error code when this discarded strings outright.
+ * An ALB's 502 HTML page reaches the same `undefined` it always did, by failing to parse rather than by
+ * being a string.
+ *
+ * @param data - What ky parsed out of the error response.
+ * @returns The parsed body, or `undefined` when there was none to parse. Pure.
+ */
+function readErrorData(data: unknown): unknown {
+    if (data === undefined || data === null) {
+        return undefined;
+    }
+
+    if (typeof data !== 'string') {
+        return data;
+    }
+
+    return safeJson(data);
+}
+
 async function normalizeResponse(response: Response): Promise<RawResponse> {
     const text = await response.text();
 
@@ -238,24 +344,45 @@ export class RecipeServiceClient {
     private readonly timeoutMs: number;
     /** The configured ky transport: base URL, token attach, JSON body/parse, and typed error throwing. */
     private readonly http: KyInstance;
+    /**
+     * The resolved raw `fetch` — the two off-pipeline paths ride it (renamed from `probeFetch` when the
+     * second one arrived, REVIEW F5): the drift-layer-3 skew probe (§15.2.5) and the analytics ingest
+     * emit. Both deliberately do NOT go through `this.http`: ky's `beforeRequest` hook would attach the
+     * caller's bearer to the unauthenticated `/health` probe (a background diagnostic has no business
+     * minting the viewer's token), and the analytics emit needs `keepalive` + at-most-once with no retry
+     * pipeline. Same instance as ky's, so an injected test double still sees both.
+     */
+    private readonly rawFetch: typeof fetch;
+    /** Where a skew warning goes; `console.warn` unless the consumer supplied a sink. */
+    private readonly onContractSkew: (message: string) => void;
 
     /** @param options - Base URL, optional token, an optional `fetch` double, and identity-sync retry config. */
     public constructor(options: RecipeServiceClientOptions) {
-        this.baseUrl = options.baseUrl.replace(/\/+$/, '');
+        this.baseUrl = withoutTrailingSlashes(options.baseUrl);
         this.token = options.token;
         this.maxIdentitySyncRetries = options.maxIdentitySyncRetries ?? 3;
         this.identitySyncBackoffMs = options.identitySyncBackoffMs ?? [250, 500, 1000];
         this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
         this.timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+        this.rawFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+        this.onContractSkew =
+            options.onContractSkew ??
+            ((message: string): void => {
+                console.warn(message);
+            });
+        // NOTHING skew-related happens here. Constructing a client must not touch the network — a client is
+        // composed wherever the app mounts a provider, and per-request on a server-rendered path. See
+        // `./contractSkew.ts` for where the check fires instead, and why.
         this.http = ky.create({
             // ky appends the single joining slash; input paths are passed without a leading slash.
-            prefixUrl: this.baseUrl,
+            // ⚠️ `prefix`, not `prefixUrl` — renamed in ky 2.
+            prefix: this.baseUrl,
             // The injected `fetch` (a test double) is used as-is; otherwise the platform global, bound to
             // `globalThis`. A BARE `fetch` reference handed to ky is invoked detached, which throws
             // `TypeError: Illegal invocation` in the browser (window.fetch must be called with `window` as
             // its receiver) — breaking every real browser request. Binding fixes it on web and is a no-op
             // in Node/RN. (Test doubles are plain functions and need no binding.)
-            fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
+            fetch: this.rawFetch,
             // Identity-sync retries are owned by `send()` (they inspect the body + re-mint the token), and
             // no other status is retried — so ky's own retry is disabled to preserve behavior.
             retry: 0,
@@ -268,7 +395,9 @@ export class RecipeServiceClient {
             headers: { accept: 'application/json' },
             hooks: {
                 beforeRequest: [
-                    async (request, hookOptions) => {
+                    // ⚠️ ONE STATE ARGUMENT, not `(request, options)` — ky 2 changed the hook signature to
+                    // `(state: BeforeRequestState)`. The fields are the same, they arrive together now.
+                    async ({ request, options: hookOptions }) => {
                         const forceRefresh = hookOptions.context['forceRefresh'] === true;
                         const token = await this.resolveToken(forceRefresh);
 
@@ -291,8 +420,12 @@ export class RecipeServiceClient {
      * @throws {BadRequestError} on validation failure; {@link UnauthorizedError} on auth failure.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async createRecipe(input: CreateRecipeInput): Promise<RecipeDetail> {
-        const res = await this.send('POST', '/api/v1/recipes', input);
+    public async createRecipe(input: CreateRecipeRequest): Promise<RecipeDetail> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/recipes',
+            this.request('createRecipe', createRecipeRequestSchema, input),
+        );
 
         return this.expect(res, 201, recipeDetailSchema);
     }
@@ -338,8 +471,12 @@ export class RecipeServiceClient {
      * @throws {VersionConflictError} on a stale `expectedVersion`; {@link ForbiddenError} when not owner.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async updateRecipe(id: string, input: UpdateRecipeInput): Promise<RecipeDetail> {
-        const res = await this.send('PATCH', `/api/v1/recipes/${encodeURIComponent(id)}`, input);
+    public async updateRecipe(id: string, input: UpdateRecipeRequest): Promise<RecipeDetail> {
+        const res = await this.send(
+            'PATCH',
+            `/api/v1/recipes/${encodeURIComponent(id)}`,
+            this.request('updateRecipe', updateRecipeRequestSchema, input),
+        );
 
         return this.expect(res, 200, recipeDetailSchema);
     }
@@ -381,7 +518,11 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async setRecipeVisibility(id: string, visibility: RecipeVisibility): Promise<RecipeDetail> {
-        const res = await this.send('PATCH', `/api/v1/recipes/${encodeURIComponent(id)}/visibility`, { visibility });
+        const res = await this.send(
+            'PATCH',
+            `/api/v1/recipes/${encodeURIComponent(id)}/visibility`,
+            this.request('setRecipeVisibility', setRecipeVisibilityRequestSchema, { visibility }),
+        );
 
         return this.expect(res, 200, recipeDetailSchema);
     }
@@ -400,8 +541,12 @@ export class RecipeServiceClient {
      *   {@link NotFoundError} when the recipe is absent OR not visible to the caller.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async setRecipeRating(id: string, input: SetRecipeRatingInput): Promise<RecipeDetail> {
-        const res = await this.send('PUT', `/api/v1/recipes/${encodeURIComponent(id)}/rating`, input);
+    public async setRecipeRating(id: string, input: SetRatingRequest): Promise<RecipeDetail> {
+        const res = await this.send(
+            'PUT',
+            `/api/v1/recipes/${encodeURIComponent(id)}/rating`,
+            this.request('setRecipeRating', setRatingRequestSchema, input),
+        );
 
         return this.expect(res, 200, recipeDetailSchema);
     }
@@ -460,7 +605,39 @@ export class RecipeServiceClient {
     public async suggestIngredients(query: string, limit?: number): Promise<IngredientSuggestions> {
         const res = await this.send('GET', '/api/v1/ingredients/suggest', undefined, { q: query, limit });
 
-        return this.expectUnvalidated<IngredientSuggestions>(res, 200);
+        return this.expect(res, 200, ingredientSuggestionsResponseSchema);
+    }
+
+    /**
+     * `GET /api/v1/ingredients/search/live?q=` — the ON-DEMAND live source search (plan U29).
+     *
+     * ⛔ **Never call this from a typeahead.** Unlike {@link suggestIngredients} it reaches past our own data
+     * to an upstream food-data source, and each call spends one request from a SHARED per-IP quota out of a
+     * reserved interactive lane. At 50 concurrent users a per-settled-query autocomplete would want roughly
+     * three times the entire hourly key, so no amount of debouncing makes a live blend affordable — it
+     * exists for a button a cook presses. It is also the acknowledged SLOW path: a multi-second wait is the
+     * expected experience, deliberately outside the 500ms budget that governs the local search.
+     *
+     * Three outcomes a caller must keep apart, because a cook acts differently on each:
+     *  - an EMPTY `hits` array — the source answered and has nothing (stop looking);
+     *  - {@link SourceBusyError} — the rate budget refused (retry; `retryAfterSeconds` when known);
+     *  - {@link SourceUnavailableError} — the source did not answer (retry, but no known window).
+     *
+     * A hit carrying `foodId` is already in our catalog and can be admitted with
+     * {@link addIngredientByFood} at no further source cost; one without must go through
+     * {@link addIngredientByName}, which is slower and may need disambiguation.
+     *
+     * @param query - The search text. Must meet the shared search minimum, or the service answers `400`.
+     * @returns The source's hits, in the source's order.
+     * @throws {BadRequestError} when the query is blank or below the search minimum.
+     * @throws {SourceBusyError} `503`; {@link SourceUnavailableError} `502`; {@link UnauthorizedError} on
+     *   auth failure.
+     * @sideEffect Performs an authenticated HTTP request that causes an upstream source call.
+     */
+    public async searchIngredientsLive(query: string): Promise<LiveIngredientSearchResponse> {
+        const res = await this.send('GET', '/api/v1/ingredients/search/live', undefined, { q: query });
+
+        return this.expect(res, 200, liveIngredientSearchResponseSchema);
     }
 
     /**
@@ -483,9 +660,37 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async addIngredientByFood(foodId: string): Promise<Ingredient> {
-        const res = await this.send('POST', '/api/v1/ingredients/by-food', { foodId });
+        const res = await this.send(
+            'POST',
+            '/api/v1/ingredients/by-food',
+            this.request('addIngredientByFood', addIngredientByFoodRequestSchema, { foodId }),
+        );
 
         return this.expect(res, 200, ingredientSchema);
+    }
+
+    /**
+     * `POST /api/v1/ingredients/authored-food` (plan U16) — the picker's create-and-attach: author a
+     * macros-only food AND admit it as a food-backed ingredient in one round-trip.
+     *
+     * The per-author name collision is the `created: false` union arm carrying the caller's EXISTING
+     * food's id — the reuse affordance's input, never an error to parse copy out of.
+     *
+     * @param input - Display name + per-100g macros (bounds are the food service's own, composed).
+     * @returns The admitted ingredient, or the duplicate arm.
+     * @throws {BadRequestError} on a body outside the published bounds; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async createAuthoredFoodViaPicker(
+        input: CreateAuthoredFoodViaPickerRequest,
+    ): Promise<CreateAuthoredFoodViaPickerResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/ingredients/authored-food',
+            this.request('createAuthoredFoodViaPicker', createAuthoredFoodViaPickerRequestSchema, input),
+        );
+
+        return this.expect(res, 200, createAuthoredFoodViaPickerResponseSchema);
     }
 
     /**
@@ -497,7 +702,11 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async createIngredient(name: string): Promise<Ingredient> {
-        const res = await this.send('POST', '/api/v1/ingredients', { name });
+        const res = await this.send(
+            'POST',
+            '/api/v1/ingredients',
+            this.request('createIngredient', createIngredientRequestSchema, { name }),
+        );
 
         return this.expect(res, 201, ingredientSchema);
     }
@@ -516,7 +725,11 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async addIngredientByName(name: string): Promise<Ingredient> {
-        const res = await this.send('POST', '/api/v1/ingredients/by-name', { name });
+        const res = await this.send(
+            'POST',
+            '/api/v1/ingredients/by-name',
+            this.request('addIngredientByName', createIngredientRequestSchema, { name }),
+        );
 
         return this.expect(res, 202, ingredientSchema);
     }
@@ -526,13 +739,29 @@ export class RecipeServiceClient {
      *
      * The server re-reads the food service, persists the current status (and golden-record nutrition once
      * `RESOLVED`), and returns the refreshed ingredient. Poll while `foodResolutionStatus` is `PENDING`;
-     * stop on any terminal/resolved/unresolved state (see {@link useIngredientStatus}).
+     * stop on any terminal/resolved/unresolved state (see `useIngredientStatus`).
      *
      * @param id - The ingredient id.
      * @returns The refreshed ingredient with its current resolution status.
      * @throws {NotFoundError} when the ingredient is absent; {@link UnauthorizedError} on auth failure.
      * @sideEffect Performs an authenticated HTTP request.
      */
+    /**
+     * `GET /api/v1/ingredients/food-references/{foodId}` (plan U18, R22) — how many live recipes reference
+     * this food, plus the CALLER's own referencing recipe ids. The count spans all users; the ids never
+     * do. Consumed by the food service's authored DELETE flow (with the caller's forwarded bearer) before
+     * it honours or refuses the delete.
+     *
+     * @param foodId - The opaque food id.
+     * @returns The reference count and the caller's own referencing recipe ids.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getFoodReferences(foodId: string): Promise<FoodReferencesResponse> {
+        const res = await this.send('GET', `/api/v1/ingredients/food-references/${encodeURIComponent(foodId)}`);
+
+        return this.expect(res, 200, foodReferencesResponseSchema);
+    }
+
     public async getIngredientStatus(id: string): Promise<Ingredient> {
         const res = await this.send('GET', `/api/v1/ingredients/${encodeURIComponent(id)}/status`);
 
@@ -550,7 +779,7 @@ export class RecipeServiceClient {
     public async getIngredientCandidates(id: string): Promise<readonly IngredientCandidate[]> {
         const res = await this.send('GET', `/api/v1/ingredients/${encodeURIComponent(id)}/candidates`);
 
-        return this.expectUnvalidated<readonly IngredientCandidate[]>(res, 200);
+        return this.expect(res, 200, ingredientCandidatesResponseSchema);
     }
 
     /**
@@ -566,9 +795,153 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async resolveIngredient(id: string, candidateIds: readonly string[]): Promise<Ingredient> {
-        const res = await this.send('POST', `/api/v1/ingredients/${encodeURIComponent(id)}/resolve`, { candidateIds });
+        const res = await this.send(
+            'POST',
+            `/api/v1/ingredients/${encodeURIComponent(id)}/resolve`,
+            this.request('resolveIngredient', resolveIngredientRequestSchema, { candidateIds }),
+        );
 
         return this.expect(res, 200, ingredientSchema);
+    }
+
+    /**
+     * `POST /api/v1/ingredients/corrections` — teach the resolver what an ingredient phrase MEANS (`200`).
+     *
+     * The R19/R20 learning loop's write side. The `phrase` is the text the CALLER SEARCHED — never a raw
+     * recipe line and never the catalog's rendering of the food — because a mapping is only ever consulted
+     * under the key the resolution cascade looks up, and that key is derived from the phrase `addByName`
+     * received.
+     *
+     * ⚠️ `recorded: false` IS A SUCCESS. Re-asserting a binding already in force writes nothing, and a
+     * concurrent correction for the same phrase may have committed first. Neither is an error, and a caller
+     * that renders them as one will tell a user something went wrong on the idempotent happy path.
+     *
+     * ⛔ The response's `scope` is the REACH the server decided from the caller's signed grants — it is not
+     * derivable from the request, and a surface that reports "saved" without it cannot distinguish a binding
+     * that covers one person's own recipes from one that covers every user of the installation.
+     *
+     * @param correction - The searched phrase, the food it should mean, and which affordance produced it.
+     * @returns What the correction did, and how far it reaches.
+     * @throws {BadRequestError} when the phrase carries no usable content or a field is out of bounds;
+     *   {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request that writes to the resolution knowledge base.
+     */
+    public async recordIngredientCorrection(correction: RecordCorrectionRequest): Promise<RecordCorrectionResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/ingredients/corrections',
+            this.request('recordIngredientCorrection', recordCorrectionRequestSchema, correction),
+        );
+
+        return this.expect(res, 200, recordCorrectionResponseSchema);
+    }
+
+    // ─── Parse jobs ─────────────────────────────────────────────────────────────────────────────
+    //
+    // The ASYNC ingredient-parse resource (plan U9, origin D9/R13). Four endpoints, ONE response shape:
+    // `POST` accepts a pasted block and answers `202` with the job view, `GET` polls it, and the two
+    // mutations (`retry`, `lines/{i}`) re-open asynchronous work and therefore also answer `202`.
+    //
+    // ⛔ A PARSE BINDS NOTHING (R19). The proposals this returns carry a food NAME and no id, and the
+    // reviewed draft is created through the ordinary `createRecipe` — which re-validates every food id
+    // through `by-food` admission. Nothing here writes a recipe, and no caller should treat a proposal as
+    // one.
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs` — submit a pasted ingredient block; parsing continues asynchronously
+     * (`202`).
+     *
+     * ⚠️ THE OUTBOUND PARSE IS NOT CEREMONY HERE. `createParseJobRequestSchema` refines with the SHARED
+     * `refuseParseJobLines` — the same splitter the service stores with — so an over-long line, a paste past
+     * the line cap, and a block with no non-empty lines are all refused HERE, at the call site that built
+     * the body, naming the offending index. A caller that wants to show that before the user presses submit
+     * should run `refuseParseJobLines(splitParseJobLines(text))` itself (both are `@kitchensink/recipe-core`
+     * exports); this is the backstop, not the affordance.
+     *
+     * @param input - The pasted text.
+     * @returns The accepted job view — every submitted line, in submission order, all `pending`.
+     * @throws {InvalidRequestError} when the paste is inadmissible per the published contract (no request is
+     *   sent); {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request that creates a job and enqueues one message per line.
+     */
+    public async createParseJob(input: CreateParseJobRequest): Promise<ParseJobResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/recipe-parse-jobs',
+            this.request('createParseJob', createParseJobRequestSchema, input),
+        );
+
+        return this.expect(res, 202, parseJobResponseSchema);
+    }
+
+    /**
+     * `GET /api/v1/recipe-parse-jobs/{id}` — poll the caller's own job (`200`).
+     *
+     * ⚠️ AN EXPIRED JOB IS A `200`, not an error: the service answers the read with `status: 'expired'`.
+     * That is deliberate — a poll must be able to OBSERVE the TTL passing rather than start throwing — so a
+     * surface renders expiry from the data here and only sees {@link ParseJobExpiredError} when it tries to
+     * mutate.
+     *
+     * @param id - The job id.
+     * @returns The job view.
+     * @throws {NotFoundError} when the job is absent OR belongs to another user — one answer on purpose, so
+     *   a stranger cannot learn the id exists; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getParseJob(id: string): Promise<ParseJobResponse> {
+        const res = await this.send('GET', `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}`);
+
+        return this.expect(res, 200, parseJobResponseSchema);
+    }
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs/{id}/retry` — re-drive exactly the `failed_retryable` lines (`202`).
+     *
+     * Narrower than it looks: a line the pipeline could not read is `unparseable` and TERMINAL (the
+     * validator loop exhausted), so this re-drives only the lines whose message was lost or whose parse
+     * failed transiently. Retrying a job with none of those is a no-op that still answers the current view.
+     *
+     * @param id - The job id.
+     * @returns The job view after the re-drive, with the affected lines back to `pending`.
+     * @throws {ParseJobExpiredError} when the TTL has passed (the remedy is a fresh paste, not a retry);
+     *   {@link NotFoundError} for an absent or another user's job.
+     * @sideEffect Performs an authenticated HTTP request that rewrites line statuses and enqueues messages.
+     */
+    public async retryParseJob(id: string): Promise<ParseJobResponse> {
+        const res = await this.send('POST', `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}/retry`);
+
+        return this.expect(res, 202, parseJobResponseSchema);
+    }
+
+    /**
+     * `PATCH /api/v1/recipe-parse-jobs/{id}/lines/{lineIndex}` — replace one line's text and re-drive its
+     * own parse (`202`).
+     *
+     * The stored digest moves WITH the text in one statement (R17), so a landing for the phrase the cook
+     * just replaced matches zero rows and is discarded — which is why this is a line EDIT rather than a
+     * delete-and-add, and why a whitespace-only replacement is refused (an edit is not a delete).
+     *
+     * @param id - The job id.
+     * @param lineIndex - The line's 0-based position within the job — with the job id, its identity.
+     * @param input - The replacement line.
+     * @returns The job view with that line back to `pending`.
+     * @throws {InvalidRequestError} on a blank/over-long replacement (no request is sent);
+     *   {@link ParseJobExpiredError} when the TTL has passed; {@link NotFoundError} for an absent or another
+     *   user's job.
+     * @sideEffect Performs an authenticated HTTP request that rewrites the line and enqueues its message.
+     */
+    public async editParseJobLine(
+        id: string,
+        lineIndex: number,
+        input: EditParseJobLineRequest,
+    ): Promise<ParseJobResponse> {
+        const res = await this.send(
+            'PATCH',
+            `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}/lines/${encodeURIComponent(String(lineIndex))}`,
+            this.request('editParseJobLine', editParseJobLineRequestSchema, input),
+        );
+
+        return this.expect(res, 202, parseJobResponseSchema);
     }
 
     // ─── Versions ───────────────────────────────────────────────────────────────────────────────
@@ -635,9 +1008,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async createPhotoUploadUrl(id: string, request: PhotoUploadUrlRequest): Promise<UploadUrlResponse> {
-        const res = await this.send('POST', `/api/v1/recipes/${encodeURIComponent(id)}/photos/upload-url`, request);
+        const res = await this.send(
+            'POST',
+            `/api/v1/recipes/${encodeURIComponent(id)}/photos/upload-url`,
+            this.request('createPhotoUploadUrl', createPhotoUploadRequestSchema, request),
+        );
 
-        return this.expectUnvalidated<UploadUrlResponse>(res, 200);
+        return this.expect(res, 200, photoUploadUrlResponseSchema);
     }
 
     /**
@@ -650,7 +1027,11 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async confirmPhotoUpload(id: string, request: PhotoConfirmRequest): Promise<RecipePhoto> {
-        const res = await this.send('POST', `/api/v1/recipes/${encodeURIComponent(id)}/photos/confirm`, request);
+        const res = await this.send(
+            'POST',
+            `/api/v1/recipes/${encodeURIComponent(id)}/photos/confirm`,
+            this.request('confirmPhotoUpload', confirmPhotoRequestSchema, request),
+        );
 
         return this.expect(res, 201, recipePhotoSchema);
     }
@@ -696,7 +1077,11 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async reorderRecipePhotos(id: string, photoIds: readonly string[]): Promise<readonly RecipePhoto[]> {
-        const res = await this.send('PATCH', `/api/v1/recipes/${encodeURIComponent(id)}/photos/reorder`, { photoIds });
+        const res = await this.send(
+            'PATCH',
+            `/api/v1/recipes/${encodeURIComponent(id)}/photos/reorder`,
+            this.request('reorderRecipePhotos', reorderPhotosRequestSchema, { photoIds }),
+        );
 
         return this.expect(res, 200, z.array(recipePhotoSchema));
     }
@@ -712,7 +1097,11 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async createCollection(request: CreateCollectionRequest): Promise<Collection> {
-        const res = await this.send('POST', '/api/v1/collections', request);
+        const res = await this.send(
+            'POST',
+            '/api/v1/collections',
+            this.request('createCollection', createCollectionRequestSchema, request),
+        );
 
         return this.expect(res, 201, collectionResponseSchema);
     }
@@ -731,7 +1120,7 @@ export class RecipeServiceClient {
             pageSize: params.pageSize,
         });
 
-        return this.expect(res, 200, paginatedResponseSchema(collectionResponseSchema));
+        return this.expect(res, 200, collectionListResponseSchema);
     }
 
     /**
@@ -745,7 +1134,7 @@ export class RecipeServiceClient {
     public async getCollectionById(id: string): Promise<CollectionWithRecipes> {
         const res = await this.send('GET', `/api/v1/collections/${encodeURIComponent(id)}`);
 
-        return this.expectUnvalidated<CollectionWithRecipes>(res, 200);
+        return this.expect(res, 200, collectionWithRecipesResponseSchema);
     }
 
     /**
@@ -758,7 +1147,11 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async updateCollection(id: string, request: UpdateCollectionRequest): Promise<Collection> {
-        const res = await this.send('PATCH', `/api/v1/collections/${encodeURIComponent(id)}`, request);
+        const res = await this.send(
+            'PATCH',
+            `/api/v1/collections/${encodeURIComponent(id)}`,
+            this.request('updateCollection', updateCollectionRequestSchema, request),
+        );
 
         return this.expect(res, 200, collectionResponseSchema);
     }
@@ -786,9 +1179,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async addRecipeToCollection(id: string, recipeId: string): Promise<CollectionRecipeMembership> {
-        const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/recipes`, { recipeId });
+        const res = await this.send(
+            'POST',
+            `/api/v1/collections/${encodeURIComponent(id)}/recipes`,
+            this.request('addRecipeToCollection', addRecipeToCollectionRequestSchema, { recipeId }),
+        );
 
-        return this.expectUnvalidated<CollectionRecipeMembership>(res, 201);
+        return this.expect(res, 201, collectionRecipeMembershipResponseSchema);
     }
 
     /**
@@ -818,7 +1215,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async cloneCollection(id: string, request?: CloneCollectionRequest): Promise<Collection> {
-        const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/clone`, request);
+        const res = await this.send(
+            'POST',
+            `/api/v1/collections/${encodeURIComponent(id)}/clone`,
+            // `optionalRequest`, not `request(… ?? {})`: `cloneCollectionRequestSchema` carries `.default({})`, so
+            // parsing `undefined` would MATERIALIZE a `{}` body and this endpoint deliberately sends none.
+            this.optionalRequest('cloneCollection', cloneCollectionRequestSchema, request),
+        );
 
         return this.expect(res, 201, collectionResponseSchema);
     }
@@ -856,9 +1259,13 @@ export class RecipeServiceClient {
         id: string,
         body?: { readonly previewedDiff?: PullDiff },
     ): Promise<PullFromSourceResponse> {
-        const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/pull-from-source`, body);
+        const res = await this.send(
+            'POST',
+            `/api/v1/collections/${encodeURIComponent(id)}/pull-from-source`,
+            this.optionalRequest('pullCollectionFromSource', pullFromSourceRequestSchema, body),
+        );
 
-        return this.expectUnvalidated<PullFromSourceResponse>(res, 200);
+        return this.expect(res, 200, pullFromSourceResponseSchema);
     }
 
     // ─── Search & account ───────────────────────────────────────────────────────────────────────
@@ -871,7 +1278,7 @@ export class RecipeServiceClient {
      * @throws {UnauthorizedError} on auth failure.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async searchRecipes(params: RecipeSearchParams = {}): Promise<RecipeSearchResponse> {
+    public async searchRecipes(params: RecipeSearchQuery = {}): Promise<RecipeSearchResponse> {
         const res = await this.send('GET', '/api/v1/search/recipes', undefined, {
             query: params.query,
             cuisine: params.cuisine,
@@ -886,21 +1293,109 @@ export class RecipeServiceClient {
             sortBy: params.sortBy,
         });
 
-        return this.expectUnvalidated<RecipeSearchResponse>(res, 200);
+        return this.expect(res, 200, recipeSearchResponseSchema);
     }
 
     /**
-     * `POST /api/v1/account/erasure` — request GDPR account erasure (`202`, idempotent).
+     * `POST /api/v1/recipes/nutrition-batch` — per-serving nutrition for many recipes in one call (the
+     * deferred calorie lookup).
      *
-     * @param request - Optional confirmation phrase.
+     * ⛔ A recipe the caller may not read is OMITTED from the returned map. A missing key means "not for
+     * you", NEVER an error and never "no data" — do not treat absence as a failure, and do not fill it in.
+     *
+     * Each present entry is a discriminated union: `known` always carries a number (a `0` is a real
+     * measured zero), `unaccounted` carries a reason and no figure at all. Narrow on `state` exhaustively;
+     * there is deliberately no `pending` member, because a state a server can emit is a spinner a server
+     * can pin forever.
+     *
+     * ⚠️ POST for a read. The response varies by caller by construction (the omission above IS the
+     * authorization signal), so unlike food's `GET /api/v1/foods/nutrition` this can never be edge-cached.
+     * It is idempotent in effect and safe for this transport to replay on a `401`.
+     *
+     * @param recipeIds - The recipes to report on. Bounded by `MAX_NUTRITION_RECIPE_IDS`; a longer list is
+     *   refused HERE, before the round trip, by the published request schema.
+     * @param options.signal - Cancels the request. The read seam (`recipeQueries().nutritionBatch`) composes
+     *   the query's own signal with a finite deadline and passes the result here — which is what makes the
+     *   promise a UI skeleton waits on always settle.
+     * @returns Recipe id → nutrition state, for every READABLE recipe named.
+     * @throws {InvalidRequestError} when the id list violates the published contract (empty, over-cap, or a
+     *   malformed id); {@link UnauthorizedError} on auth failure; a `ZodError` if the response has drifted.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getRecipeNutrition(
+        recipeIds: readonly string[],
+        options: { readonly signal?: AbortSignal } = {},
+    ): Promise<RecipeNutritionResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/recipes/nutrition-batch',
+            this.request('getRecipeNutrition', recipeNutritionRequestSchema, { recipeIds }),
+            undefined,
+            options.signal,
+        );
+
+        return this.expect(res, 200, recipeNutritionResponseSchema);
+    }
+
+    /**
+     * `POST /api/v1/account/erasure` — request IRREVERSIBLE GDPR account erasure (`202`, idempotent).
+     *
+     * The `request` argument is REQUIRED, and that is a deliberate tightening: `confirmationPhrase` is the
+     * intent gate on an unrecoverable action, so a call with no argument could only ever have produced a
+     * `400`. It was optional here purely as a leftover from when the phrase itself was optional. Both
+     * production call sites already pass a full body.
+     *
+     * @param request - The confirmation phrase, plus the optional per-recipe donate election.
      * @returns The (possibly pre-existing) erasure job id + status.
+     * @throws {BadRequestError} (`400`) when the phrase is absent, empty, or does not match.
      * @throws {GoneError} (`410`) when the account has already been erased; {@link UnauthorizedError} on auth.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async requestAccountErasure(request?: ErasureRequest): Promise<ErasureRequestAcceptedResponse> {
-        const res = await this.send('POST', '/api/v1/account/erasure', request);
+    public async requestAccountErasure(request: ErasureRequest): Promise<ErasureRequestAcceptedResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/account/erasure',
+            this.request('requestAccountErasure', erasureRequestSchema, request),
+        );
 
-        return this.expectUnvalidated<ErasureRequestAcceptedResponse>(res, 202);
+        return this.expect(res, 202, erasureRequestAcceptedResponseSchema);
+    }
+
+    /**
+     * Emit one analytics batch to the ingest door — `POST /ingest/v1/events` (analytics plan U5).
+     *
+     * ⛔ DELIBERATELY OFF this client's ky pipeline: the route is off the domain contract (its schema is
+     * the `@kitchensink/recipe-core` `analytics/event-payload` subpath, never `@kitchensink/schema-recipe`),
+     * delivery is AT-MOST-ONCE (origin R11 — no retry, no 401 replay: a re-minted send is what the
+     * event id's dedup exists for, and analytics is never worth a second token round-trip), and the
+     * request sets `keepalive` so a web flush survives navigation (KTD4b; React Native ignores the flag).
+     * A raw `Request` through the injected fetch keeps all of that explicit — and throws on any non-2xx,
+     * because the TRANSPORT never hides an outcome; the emitting hook is what swallows.
+     *
+     * @param batch - The validated event batch (the caller builds it from the shared payload module).
+     * @throws {Error} On any non-2xx response or transport failure — callers fire-and-forget.
+     * @sideEffect Performs one authenticated HTTP request, exactly once.
+     */
+    public async emitAnalyticsEvents(batch: AnalyticsEventBatch): Promise<void> {
+        const token = await this.resolveToken(false);
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+
+        if (token !== undefined) {
+            headers['authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await this.rawFetch(
+            new Request(`${this.baseUrl}/ingest/v1/events`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(batch),
+                keepalive: true,
+            }),
+        );
+
+        if (!response.ok) {
+            throw new Error(`Analytics ingest answered ${response.status}.`);
+        }
     }
 
     // ─── Transport ──────────────────────────────────────────────────────────────────────────────
@@ -924,24 +1419,41 @@ export class RecipeServiceClient {
      * @param path - Path beginning with `/`.
      * @param body - Optional JSON body.
      * @param query - Optional query-parameter bag (serialized by ky's `searchParams`).
+     * @param signal - Optional caller cancellation. ⚠️ It bounds the WHOLE call, including the retries
+     *   below — which the per-attempt `timeoutMs` deliberately does not: four attempts plus backoff can
+     *   legitimately outlast any single one of them. A read whose consumer renders a skeleton needs the
+     *   call-level bound, not the attempt-level one.
      * @returns The normalized response.
      * @sideEffect Performs a network request via the injected `fetch`.
      */
-    private async send(method: string, path: string, body?: unknown, query?: QueryParams): Promise<RawResponse> {
-        let res = await this.sendOnce(method, path, body, query, false);
+    private async send(
+        method: string,
+        path: string,
+        body?: unknown,
+        query?: QueryParams,
+        signal?: AbortSignal,
+    ): Promise<RawResponse> {
+        let res = await this.sendOnce(method, path, body, query, false, signal);
 
         for (let attempt = 1; attempt <= this.maxIdentitySyncRetries && isIdentitySyncPending(res); attempt += 1) {
             const backoff = this.identitySyncBackoffMs[Math.min(attempt, this.identitySyncBackoffMs.length) - 1] ?? 0;
             await this.sleep(backoff);
-            res = await this.sendOnce(method, path, body, query, true);
+            res = await this.sendOnce(method, path, body, query, true, signal);
         }
 
         // Ordinary expired-token 401 (NOT the identity-sync-pending case, which is handled — and possibly
         // exhausted — by the loop above): force a fresh token and retry exactly once. Bounded — the result
         // of this single retry (success OR another 401) is returned as-is, never looped.
         if (res.status === 401 && !isIdentitySyncPending(res)) {
-            res = await this.sendOnce(method, path, body, query, true);
+            res = await this.sendOnce(method, path, body, query, true, signal);
         }
+
+        // DRIFT LAYER 3 (Skew), consumer half — CODING_STANDARDS §15.2.5, owner ruling 2026-08-11: a mismatch
+        // WARNS, it does not refuse. Fired HERE, after a response has been received, and deliberately NOT
+        // awaited: it must add no latency, change no response, and never throw. Placed after the retry loops so
+        // one logical call produces at most one probe attempt, and once per ORIGIN per process rather than per
+        // client instance (a client may be constructed per server-rendered request). See `./contractSkew.ts`.
+        reportContractSkewOnce({ baseUrl: this.baseUrl, fetch: this.rawFetch, warn: this.onContractSkew });
 
         return res;
     }
@@ -962,8 +1474,15 @@ export class RecipeServiceClient {
         body: unknown,
         query: QueryParams | undefined,
         forceRefresh: boolean,
+        signal?: AbortSignal,
     ): Promise<RawResponse> {
         const options: Options = { method, context: { forceRefresh } };
+
+        if (signal !== undefined) {
+            // ky composes this with its own timeout signal, so the request is bounded by whichever fires
+            // first — the caller's deadline or the per-attempt one.
+            options.signal = signal;
+        }
 
         if (body !== undefined) {
             options.json = body;
@@ -979,7 +1498,16 @@ export class RecipeServiceClient {
             return await normalizeResponse(await this.http(stripLeadingSlash(path), options));
         } catch (error) {
             if (error instanceof HTTPError) {
-                return normalizeResponse(error.response);
+                // ⛔ `error.data`, NOT `error.response` — ky 2 CONSUMES the body to populate `data`, and its
+                // own docs say so: "The response body is automatically consumed when populating
+                // `error.data`, so `error.response.json()` and other body methods will not work." Re-reading
+                // it throws `TypeError: Body is unusable`, which surfaced as 23 tests mapping auth and
+                // 5xx responses to a raw TypeError instead of a typed client error.
+                //
+                // ⚠️ `data` is ALREADY PARSED: JSON when the content-type says so, plain text otherwise,
+                // and `undefined` when the body is empty or unparseable — which is exactly the three-way
+                // distinction `normalizeResponse` was making by hand, so nothing is lost by not re-reading.
+                return { status: error.response.status, body: readErrorData(error.data) };
             }
 
             // A timeout is NOT a response — there is no status to map — so it cannot be folded into a
@@ -993,6 +1521,20 @@ export class RecipeServiceClient {
                     `Recipe service did not respond within ${this.timeoutMs}ms (${method} ${path})`,
                     error,
                 );
+            }
+
+            // A caller's abort is the same KIND of outcome as a timeout — the service did not answer — and
+            // it must stay a TYPED error rather than leaking a bare `DOMException`, so this transport's
+            // contract ("a typed result or a typed error") holds for a cancelled read too. Thrown, never
+            // returned, so the `401` retry paths above cannot replay a request the caller has abandoned.
+            //
+            // ⚠️ BOTH NAMES, and the second one is not hypothetical: a signal from `AbortSignal.timeout()`
+            // — which is exactly how the deferred-nutrition read imposes its overall deadline — aborts with
+            // `TimeoutError`, NOT `AbortError`. Matching only `AbortError` left the one case this mapping
+            // exists for leaking a bare `DOMException`; the integration tier caught it, the mocked unit tier
+            // could not.
+            if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
+                throw new FetchUnavailableError(`Recipe service request was aborted (${method} ${path})`, error);
             }
 
             throw error;
@@ -1022,6 +1564,12 @@ export class RecipeServiceClient {
      * the runtime shape. Collapses the ~25 repeated `if (status) return body as T; throw toError` blocks
      * into one place (P6).
      *
+     * EVERY success boundary in this client now goes through here or {@link expectNoContent}. Its sibling
+     * `expectUnvalidated` — which returned `res.body as T` for envelopes that had no shared schema — is
+     * DELETED: the four boundaries that still used it (`getCollectionById`, `addRecipeToCollection`,
+     * `pullCollectionFromSource`, `requestAccountErasure`) are described by the generated contract now, so
+     * there is no longer a response body this client trusts without parsing.
+     *
      * @throws the typed error (via {@link toError}) on any non-`status` response, or a `ZodError` when the
      *   `status` body fails the schema.
      */
@@ -1034,16 +1582,60 @@ export class RecipeServiceClient {
     }
 
     /**
-     * Like {@link expect}, but for a client-local wire envelope (`./types.js`) that has no
-     * `@kitchensink/recipe-core` schema yet — returns the body as `T` unparsed. (Follow-up: give the
-     * envelopes client-local zod schemas so these boundaries are parsed too — see DA1 follow-up.)
+     * Parse an OUTBOUND body against the request schema the service publishes, and return the parsed value.
+     *
+     * PARSE, DON'T VALIDATE — in the direction that was missing. Every write method used to hand `send()`
+     * whatever it was given, so this client's only statement about a request body was a TypeScript annotation
+     * that erases at runtime. Three concrete consequences, all of which this closes:
+     *
+     *  - A body that satisfied the client's TYPES but violated the schema's BOUNDS (`title` at 201 characters,
+     *    `servings: 9999999999` against an int4 column) left as a request and came back as the service's
+     *    `400` — or, before those ceilings existed, its `500`. The rule was published; nothing on this side
+     *    ran it.
+     *  - A body carrying a field the contract does NOT accept was sent and silently dropped. `visibility` on
+     *    `PATCH /api/v1/recipes/{id}` is the live case: the editor sent it for as long as it existed and the
+     *    service stripped it, so the client believed it had set something it had not.
+     *  - The failure surfaced a network round-trip away from the code that built the body, described by the
+     *    server's message rather than the field path.
+     *
+     * zod's key-stripping is doing real work here beyond checking: the parsed value is NORMALIZED, so a stray
+     * property on a caller's object literal cannot reach the wire even when structural typing admitted it.
+     *
+     * @param operation - The method name, for the error message.
+     * @param schema - The published request schema for this endpoint.
+     * @param body - The caller's body.
+     * @returns The parsed (and key-stripped) body.
+     * @throws {InvalidRequestError} when the body does not satisfy the published contract — deliberately NOT a
+     *   `BadRequestError`, which means "the server said 400" and is a different fault with a different fix.
      */
-    private expectUnvalidated<T>(res: RawResponse, status: number): T {
-        if (res.status === status) {
-            return res.body as T;
+    private request<S extends z.ZodType>(operation: string, schema: S, body: unknown): z.output<S> {
+        const parsed = schema.safeParse(body);
+
+        if (!parsed.success) {
+            throw new InvalidRequestError(operation, parsed.error);
         }
 
-        throw this.toError(res);
+        return parsed.data as z.output<S>;
+    }
+
+    /**
+     * Like {@link request}, but preserves an ABSENT body as absent.
+     *
+     * Needed because two endpoints (`POST /collections/{id}/clone`, `POST /collections/{id}/pull-from-source`)
+     * legitimately take no body at all, and their published schemas carry `.default({})` — which is what makes a
+     * bodyless `POST` legal server-side. Feeding `undefined` through `parse` would satisfy the default and hand
+     * back `{}`, so the client would start sending `Content-Type: application/json` and a `{}` payload where it
+     * previously sent nothing. That is a wire change dressed as a validation change, which is exactly the kind of
+     * incidental drift this whole exercise exists to stop, so the absent case short-circuits.
+     *
+     * @param operation - The method name, for the error message.
+     * @param schema - The published request schema for this endpoint.
+     * @param body - The caller's body, or `undefined` for a bodyless request.
+     * @returns The parsed body, or `undefined` when none was supplied.
+     * @throws {InvalidRequestError} when a SUPPLIED body does not satisfy the published contract.
+     */
+    private optionalRequest<S extends z.ZodType>(operation: string, schema: S, body: unknown): z.output<S> | undefined {
+        return body === undefined ? undefined : this.request(operation, schema, body);
     }
 
     /** Like {@link expect}, for a no-content (`204`/void) success — throws the typed error otherwise. */
@@ -1055,44 +1647,204 @@ export class RecipeServiceClient {
         throw this.toError(res);
     }
 
-    /** Map a non-success response to the typed error for its status (per the OpenAPI contract). */
+    /**
+     * Map a non-success response to its typed error.
+     *
+     * ── TWO LAYERS, AND BOTH ARE LOAD-BEARING ──
+     *
+     * 1. **`recipeApiErrorSchema` — the published discriminated union — decides the error, keyed on `code`.**
+     *    The `switch` in {@link errorForCode} is EXHAUSTIVE over the published codes, so a code the service adds
+     *    is a `typecheck` failure in this file rather than a silent fall-through at runtime.
+     * 2. **`apiErrorSchema` then the STATUS, for anything the union does not recognise.** A body may
+     *    legitimately be an envelope carrying a code this build has never been taught (a deployed service adds
+     *    codes ahead of a released mobile binary), or not our envelope at all — the shared internet-facing ALB
+     *    serves an HTML page for `502`/`503`/`504` during every deploy (ADR-0003). Both degrade to "map by
+     *    status alone", which {@link errorForStatus} still does correctly.
+     *
+     * ⚠️ THIS REPLACED AN UNCHECKED CAST, and the `@unparsedBoundary` tag that documented it is GONE. The read
+     * was `(res.body ?? {}) as { code?, message?, details? }` because the service published no error envelope, so
+     * there was nothing to parse against; it now publishes one. The `409` branch was the sharp edge — it told a
+     * `PULL_DRIFT` from a `VERSION_CONFLICT` with a bare string compare on an unvalidated field, and anything
+     * that was not the literal fell through to the version-conflict mapping, so a drifted code produced the WRONG
+     * typed error rather than a recognisable failure. Both `409`s are now arms of the union.
+     *
+     * `safeParse` throughout, never `parse`: throwing here would replace a recoverable typed error with a
+     * `ZodError` escaping the error-mapping path itself.
+     *
+     * @param res - The normalized non-success response.
+     * @returns The typed error to throw.
+     */
     private toError(res: RawResponse): RecipeServiceClientError {
-        const body = (res.body ?? {}) as { code?: string; message?: string; details?: Record<string, unknown> };
+        const known = recipeApiErrorSchema.safeParse(res.body);
+
+        if (known.success) {
+            return this.errorForCode(known.data, res);
+        }
+
+        const envelope = apiErrorSchema.safeParse(res.body);
+
+        return this.errorForStatus(res, envelope.success ? envelope.data : undefined);
+    }
+
+    /**
+     * The typed error for a body whose `code` this build knows, narrowed by the published union.
+     *
+     * Every `details` read here is one the union GUARANTEES for that code, which is why there is no optional
+     * chaining and no re-narrowing: `VERSION_CONFLICT` carries `versionConflictDetailsSchema` (composed into the
+     * arm, so the 3-way-merge snapshots arrive typed) and `PULL_DRIFT` carries `details.diff`.
+     *
+     * ⚠️ `details.diff` is the ONE value still narrowed here rather than by the union, and the reason is a real
+     * constraint recorded at the schema: generation flattens the authored schemas, so `apiError.schema.ts` cannot
+     * import `pullDiffSchema` from `collections.schema.ts` to type it, and re-declaring the diff shape would make
+     * a second authority for `PullDiff`. So the arm guarantees `diff` is PRESENT and this parses it with the
+     * published `pullDiffSchema` — the same schema the preview response is parsed with.
+     *
+     * @param body - The narrowed error body.
+     * @param res - The normalized response, for the status the un-classed codes keep.
+     * @returns The typed error to throw. Pure.
+     */
+    private errorForCode(body: RecipeApiError, res: RawResponse): RecipeServiceClientError {
+        switch (body.code) {
+            case 'VERSION_CONFLICT':
+                return new VersionConflictError(
+                    body.details.currentVersion,
+                    body.details.conflictingVersion,
+                    body.message,
+                    { server: body.details.server, base: body.details.base },
+                );
+            case 'PULL_DRIFT':
+                return toPullDrift(body);
+            case 'RECIPE_TOMBSTONED':
+            case 'ACCOUNT_ALREADY_ERASED':
+                return new GoneError(body.message, body.code);
+            case 'RECIPE_NOT_FOUND':
+            case 'NOT_FOUND':
+            case 'PARSE_JOB_NOT_FOUND': // Plan U9: a stranger's job and a missing one are ONE answer on purpose.
+                return new NotFoundError(body.message, body.code);
+            case 'NOT_OWNER':
+            case 'CANNOT_RATE_OWN_RECIPE':
+            case 'FORBIDDEN':
+                return new ForbiddenError(body.message, body.code);
+            case 'UNAUTHORIZED':
+            case 'IDENTITY_SYNC_PENDING':
+                return new UnauthorizedError(body.message, body.code);
+            case 'VALIDATION_FAILED':
+            case 'INVALID_VISIBILITY':
+            case 'COLLECTION_NOT_CLONED':
+            case 'UNKNOWN_INGREDIENT':
+                return new BadRequestError(body.message, body.code);
+            // ⛔ Two codes, two error classes, on purpose. `SOURCE_BUSY` is a RATE refusal that can name when
+            // to come back; `SOURCE_UNAVAILABLE` is an upstream outage we can say nothing about. The picker
+            // renders them as different sentences, so collapsing them here would mislead a cook.
+            case 'SOURCE_BUSY':
+                return new SourceBusyError(body.details?.retryAfterSeconds, body.message);
+            case 'SOURCE_UNAVAILABLE':
+                return new SourceUnavailableError(body.message);
+            // ⛔ MOVED OUT of the un-classed block below, and the reversal is deliberate. U9 shipped this
+            // code with `// Plan U9: the TTL passed — the remedy is a fresh create, not a retry` sitting on
+            // an `UnexpectedResponseError` arm, on the sound premise that NOTHING CONSUMED IT: the resource
+            // and this client's arms landed in one commit with no caller. That premise no longer holds — the
+            // paste/review surface now renders this outcome, and it renders it as its own sentence with its
+            // own control, exactly as the `SOURCE_BUSY`/`SOURCE_UNAVAILABLE` split above. Two further
+            // reasons the old placement had to move rather than merely being inconvenient:
+            // `UnexpectedResponseError` is defined as "a contract drift the caller should surface, not
+            // swallow", and a modelled TTL outcome is not drift; and leaving it there forced the app layer
+            // to string-compare `.code`, which is the knowledge `errorForCode` exists to hold exactly once.
+            case 'PARSE_JOB_EXPIRED':
+                return new ParseJobExpiredError(body.message);
+            // Every remaining code has no dedicated error class, so it keeps the response's OWN status and
+            // carries its code for the caller to read. The status is deliberately taken from the response rather
+            // than from the service's code→status table: that table is the SERVICE's, this client must not
+            // re-declare it, and importing the service package to reach it would drag NestJS and drizzle into
+            // web and mobile (ADR-0014, rejected alternative 2).
+            //
+            // Listing them EXPLICITLY rather than with a `default` is what makes the exhaustiveness gate below
+            // reachable — a `default` would silently absorb a newly published code, which is the whole failure
+            // this gate exists to prevent.
+            case 'MAX_PHOTOS_EXCEEDED':
+            case 'ARCHIVE_PENDING':
+            case 'COLLECTION_LIMIT_REACHED':
+            case 'PHOTO_PROCESSING_FAILED':
+            case 'ARCHIVE_DLQ':
+            case 'ERASURE_IN_PROGRESS':
+            case 'PAYLOAD_TOO_LARGE':
+            case 'UNSUPPORTED_MEDIA_TYPE':
+            case 'TOO_MANY_REQUESTS':
+            case 'NOT_READY':
+            case 'INTERNAL_ERROR':
+                return new UnexpectedResponseError(res.status, body.message, body.code);
+
+            default: {
+                // EXHAUSTIVENESS GATE (§15.1: drift must fail at `typecheck`, not in e2e). Adding a code to the
+                // service's `recipeErrorCodeSchema` breaks this line until this client decides what it means —
+                // and an OLDER client, which cannot have the arm, still degrades correctly because `safeParse`
+                // rejects the unknown code before it ever gets here.
+                const unhandled: never = body;
+
+                return new UnexpectedResponseError(500, (unhandled as { message?: string }).message);
+            }
+        }
+    }
+
+    /**
+     * The typed error for a body this build cannot narrow — an unknown code, or not our envelope at all.
+     *
+     * This is the ONLY place status still decides, and it must stay: it is the correct degradation for a service
+     * deployed ahead of this binary, and for the ALB's HTML error page.
+     *
+     * @param res - The normalized non-success response.
+     * @param envelope - The permissively-parsed envelope, when the body was at least that.
+     * @returns The typed error to throw. Pure.
+     */
+    private errorForStatus(res: RawResponse, envelope: ApiErrorBody | undefined): RecipeServiceClientError {
+        const message = envelope?.message;
+        const code = envelope?.code;
 
         switch (res.status) {
             case 400:
-                return new BadRequestError(body.message, body.code);
+                return new BadRequestError(message, code);
             case 401:
-                return new UnauthorizedError(body.message, body.code);
+                return new UnauthorizedError(message, code);
             case 403:
-                return new ForbiddenError(body.message, body.code);
+                return new ForbiddenError(message, code);
             case 404:
-                return new NotFoundError(body.message, body.code);
+                return new NotFoundError(message, code);
+            // A `409` this build cannot narrow keeps falling through to the version-conflict mapping, which is
+            // the pre-convergence behaviour and remains the right guess: `VERSION_CONFLICT` is the only `409`
+            // whose typed error carries data a caller acts on, and `toVersionConflict` tolerates a body with no
+            // usable `details` by leaving the version numbers undefined.
             case 409:
-                // Two DISTINCT 409s share this status: an optimistic-concurrency VERSION_CONFLICT (recipe
-                // update/restore) and a pull-from-source PULL_DRIFT (commit re-derived a diff that no
-                // longer matches the caller's preview). Dispatch on the body's `code` — the ONLY thing that
-                // tells them apart — so both keep mapping to their own typed error without regressing the
-                // other; anything that is not `PULL_DRIFT` (including a legacy/absent code) falls through
-                // to the version-conflict mapping, preserving today's behavior exactly.
-                return body.code === 'PULL_DRIFT' ? toPullDrift(body) : toVersionConflict(body);
+                return toVersionConflict({ message, details: envelope?.details });
             case 410:
-                return new GoneError(body.message, body.code);
+                return new GoneError(message, code);
             default:
-                return new UnexpectedResponseError(res.status);
+                return new UnexpectedResponseError(res.status, message, code);
         }
     }
 }
 
-/** True when a normalized response is the first-token sync-race `401` (`code: IDENTITY_SYNC_PENDING`). */
+/**
+ * True when a normalized response is the first-token sync-race `401` (`code: IDENTITY_SYNC_PENDING`).
+ *
+ * The body is PARSED against the published envelope rather than cast. The `@unparsedBoundary` tag that used to
+ * sit here is gone: it recorded that the service published no error envelope, so there was no zod for this
+ * `{ code }` read and authoring some here would have made the client a rival authority on a shape the service
+ * owns. The service now publishes `apiErrorSchema`, so this parses.
+ *
+ * Two properties are kept deliberately. The comparison is still against `IDENTITY_SYNC_PENDING_CODE` — the ONE
+ * published constant — rather than a local literal, so the retry trigger cannot drift from what the auth
+ * middleware emits. And the check is still fail-CLOSED: a body that is not the envelope, or carries any other
+ * code, yields `false` and the retry loop does not start, so a malformed `401` can never become an infinite
+ * refresh-and-retry.
+ */
 function isIdentitySyncPending(res: RawResponse): boolean {
     if (res.status !== 401) {
         return false;
     }
 
-    const body = res.body as { code?: unknown } | undefined;
+    const envelope = apiErrorSchema.safeParse(res.body);
 
-    return body?.code === IDENTITY_SYNC_PENDING_CODE;
+    return envelope.success && envelope.data.code === IDENTITY_SYNC_PENDING_CODE;
 }
 
 /**

@@ -38,6 +38,42 @@ export interface ProbeSignals {
 const DNS_ERROR_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'EAI_FAIL']);
 
 /**
+ * The lowercased host of a URL, or `undefined` when it does not parse. Pure.
+ *
+ * @param url - A possibly-malformed absolute URL.
+ */
+function hostOf(url: string): string | undefined {
+    try {
+        return new URL(url).host.toLowerCase();
+    } catch {
+        return undefined;
+    }
+}
+
+/** Whether a host is vercel.com itself or one of its subdomains — anchored at BOTH ends. Pure. */
+function isVercelHost(host: string | undefined): boolean {
+    return host !== undefined && (host === 'vercel.com' || host.endsWith('.vercel.com'));
+}
+
+/**
+ * Whether a final URL is Vercel's own SSO/login page — the tell that the deployment-protection bypass key is
+ * missing or wrong. Compares the parsed host and path rather than substring-matching the whole URL, so a
+ * preview that merely carries `vercel.com/sso` in its own path is not reported as a bypass failure. An
+ * unparseable value is not a Vercel landing. Pure.
+ */
+function isVercelAuthLanding(finalUrl: string): boolean {
+    const host = hostOf(finalUrl);
+
+    if (!isVercelHost(host)) {
+        return false;
+    }
+
+    // A leading anchor, not a whole-segment one: the real bounce is `/sso-api`, so requiring a `/` or
+    // end-of-string after the word would classify the commonest case as "reached the app".
+    return /^\/(sso|login)/u.test(new URL(finalUrl).pathname);
+}
+
+/**
  * Classify a probe's raw signals into a reachability verdict. Pure — all network I/O happens in
  * {@link probe}; this is the decision the report and exit code hang on, so it is unit-tested directly.
  *
@@ -56,8 +92,10 @@ export function classifyReachability(signals: ProbeSignals): ReachabilityResult 
     const finalUrl = signals.finalUrl ?? '';
     const status = signals.status ?? 0;
 
-    // A Vercel SSO/login landing means the protection-bypass key is missing or wrong.
-    if (/vercel\.com\/(sso|login)/i.test(finalUrl)) {
+    // A Vercel SSO/login landing means the protection-bypass key is missing or wrong. Matched against the
+    // PARSED host and path, not the raw URL: an unanchored `vercel.com/(sso|login)` also fires on a preview
+    // that merely carries that text in its own path, which would report a bypass failure that never happened.
+    if (isVercelAuthLanding(finalUrl)) {
         return { ok: false, kind: 'sso', detail: `Vercel deployment protection (bypass missing) → ${finalUrl}` };
     }
 
@@ -65,8 +103,11 @@ export function classifyReachability(signals: ProbeSignals): ReachabilityResult 
         return { ok: false, kind: 'notfound', detail: '404 — route not registered in KVS, or app miss' };
     }
 
-    // Reached the app: a success/redirect that did NOT land on vercel.com.
-    if (status >= 200 && status < 400 && !/(^|\.)vercel\.com/i.test(new URL(finalUrl || 'http://x').host)) {
+    // Reached the app: a success/redirect that did NOT land on vercel.com. `hostOf` rather than a bare
+    // `new URL(...)`, which THROWS on a malformed non-empty value — a probe that follows a redirect to
+    // something unparseable took the whole script down instead of reporting `error`. The host comparison is
+    // also anchored at both ends now: `(^|\.)vercel\.com` alone matches `vercel.com.example.test`.
+    if (status >= 200 && status < 400 && !isVercelHost(hostOf(finalUrl))) {
         return {
             ok: true,
             kind: 'app',

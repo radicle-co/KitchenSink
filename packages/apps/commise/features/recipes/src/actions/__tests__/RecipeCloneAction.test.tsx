@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * Component tests for the web recipe clone action (T075). Covers the clone interaction, both disabled gates
- * (cloning in-flight and not-cloneable), the busy status, and the attribution line — shown only when a
- * source attribution is present.
+ * (cloning in-flight and not-cloneable) and the busy status. Provenance is NOT this control's job — see
+ * the deleted-tests note below.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -60,17 +60,15 @@ describe('RecipeCloneAction (web)', () => {
         expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Clone' }).disabled).toBe(true);
     });
 
-    it('renders the attribution line when a source attribution is present', () => {
-        renderClone({ sourceAttribution: 'Grandma’s cookbook' });
-
-        expect(screen.getByText('Cloned from Grandma’s cookbook')).toBeTruthy();
-    });
-
-    it('omits the attribution line when no source attribution is present', () => {
-        renderClone({ sourceAttribution: undefined });
-
-        expect(screen.queryByText(/Cloned from/)).toBeNull();
-    });
+    /*
+     * ⛔ TWO TESTS WERE DELETED HERE, NOT WEAKENED: "renders the attribution line when a source attribution
+     * is present" and its absent-case twin. `RecipeCloneAction` no longer renders provenance at all.
+     *
+     * Where the coverage went: `detail/__tests__/RecipeSourceLine.test.tsx`, which covers strictly more —
+     * attribution present/absent (as these did) PLUS the `sourceUrl` half that never reached any screen, and
+     * the unsafe-scheme case. The move is the point: rendering provenance from a CLONE control meant only a
+     * viewer who could clone ever saw it, so an imported recipe's own owner never did.
+     */
 
     it('gives the clone control the 44px touch floor, reset for the mouse at md', () => {
         renderClone();

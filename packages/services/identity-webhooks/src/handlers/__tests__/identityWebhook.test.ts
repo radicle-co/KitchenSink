@@ -51,7 +51,7 @@ import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
 import { setExternalId } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
-import { captureProvisioningFailure } from '../../common/observability.js';
+import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
 import { verifyWebhook } from '../../common/svix.js';
 import { resetConfigCacheForTests } from '../../config/env.js';
 
@@ -215,12 +215,12 @@ beforeEach(() => {
     mockRecordOnce.mockResolvedValue(undefined);
     mockSetExternalId.mockResolvedValue(undefined as never);
     mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'usr_ulid' } } as never);
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    process.env.DELETION_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
-    process.env.IDP_WEBHOOK_SECRET = 'whsec_test';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+    process.env['DELETION_QUEUE_URL'] = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
+    process.env['IDP_WEBHOOK_SECRET'] = 'whsec_test';
     // The real webhook Lambda's env always carries at least one Clerk backend secret (IDP_SECRET_KEY
     // via clerkBackendEnv, AUTH_SECRET_ARN via commonEnv) — the schema's either-or refine reflects that.
-    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
+    process.env['AUTH_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
 });
 
 describe('identity-webhook handler', () => {
@@ -273,6 +273,43 @@ describe('identity-webhook handler', () => {
         // External id backfill runs AFTER the complete local unit, and stamps the sync marker on success.
         expect(mockSetExternalId).toHaveBeenCalledWith('user_abc123', 'usr_ulid');
         expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ externalIdSyncedAt: expect.any(Date) }));
+    });
+
+    // ⛔ THE COST GUARD, AT ONE REAL CALL SITE. `emitMetric` publishes
+    // `Dimensions: [['service','metric',...Object.keys(dimensions)]]`, so every key passed becomes a CloudWatch
+    // dimension and every distinct VALUE becomes a separately billed custom metric (~$0.30/mo, 15-month
+    // retention). `{ identityId: data.id }` therefore bought one metric PER USER — ~$3,000/mo at 10k users —
+    // holding a single datapoint each. This asserts BOTH halves of the fix on the same invocation: the metric
+    // carries no per-user dimension, AND the identifier is still emitted, as a structured log attribute (where
+    // `sentryScrubbers.ts` pseudonymizes it; the EMF line goes to raw stdout and passes no scrubber).
+    // `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts` is the repo-wide version of the same rule.
+    it('user.created -> counts the event with NO per-user dimension, and keeps the id on the log line', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+        } as never);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_123' }), makeContext());
+
+        // The counter still fires, and still under exactly one dimension set — the emitter's own
+        // `service`/`metric` literals, which is what the `kitchensink-*` alarms select (W4).
+        expect(vi.mocked(emitMetric)).toHaveBeenCalledWith('UserCreatedWebhook', 1);
+
+        const dimensionArguments = vi
+            .mocked(emitMetric)
+            .mock.calls.filter(([name]) => name === 'UserCreatedWebhook')
+            .map(([, , dimensions]) => dimensions);
+
+        expect(dimensionArguments).toEqual([undefined]);
+
+        // …and nothing was lost: the id is still there, on the structured log line.
+        expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+            'identity-webhook: user.created processed',
+            expect.objectContaining({ identityId: 'user_abc123', userId: 'usr_ulid' }),
+        );
     });
 
     it('user.created with an email owned by another active identity -> skips (no 502), still 200', async () => {
@@ -521,7 +558,7 @@ describe('identity-webhook handler', () => {
         // not `userId`, or every webhook-driven deletion silently no-ops once the worker consumes
         // the queue (U1 / A1 deletion-payload alignment).
         expect(SendMessageCommand).toHaveBeenCalledWith({
-            QueueUrl: process.env.DELETION_QUEUE_URL,
+            QueueUrl: process.env['DELETION_QUEUE_URL'],
             MessageBody: JSON.stringify({ identityId: 'user_abc123' }),
         });
     });
@@ -590,7 +627,14 @@ describe('identity-webhook handler', () => {
         expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_ok', 'user_abc123', 'user.created');
     });
 
-    it('invalid signature -> returns 401', async () => {
+    it('invalid signature -> 401 without processing, so a stale secret is recoverable', async () => {
+        // A signature failure is the ONE rejection that must stay retryable. It briefly returned 200 on the
+        // reasoning that a wrong signing secret "every retry reproduces" — but a wrong secret is a TRANSIENT,
+        // operator-fixable condition, and svix's multi-hour retry window is what rescues it. A 200 says
+        // "delivered" and discards every queued real Clerk event permanently behind a green check (the recorded
+        // dropped-`user.created` incident). It also tells a forger their forgery was accepted, on an endpoint
+        // whose signature is the only trust boundary. The ERROR log + per-reason metric are asserted in
+        // `common/__tests__/handlerPipeline.test.ts`, which owns that path.
         mockVerifyWebhook.mockImplementation(() => {
             throw new Error('Invalid signature');
         });
@@ -598,27 +642,42 @@ describe('identity-webhook handler', () => {
         const result = await handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext());
 
         expect(result.statusCode).toBe(401);
+        expect(JSON.parse(result.body)).toEqual({ ok: false, rejected: 'signature' });
+        // Still never processed, and still never recorded — rejecting is not the same as accepting.
+        expect(mockRecordOnce).not.toHaveBeenCalled();
+    });
+
+    it('unreadable shape behind a VALID signature -> 200, because no redelivery can ever parse it', async () => {
+        // The other half of the pair, asserted HERE too so the two statuses cannot silently converge onto one
+        // value: a shape failure is permanent (the same bytes reparse identically), so acknowledging takes it
+        // off svix's schedule. Reds if `shape` is ever mapped to a non-2xx.
+        mockVerifyWebhook.mockReturnValue({ type: 'user.created', data: {} } as never);
+
+        const result = await handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext());
+
+        expect(result.statusCode).toBe(200);
+        expect(JSON.parse(result.body)).toEqual({ ok: false, rejected: 'shape' });
         expect(mockRecordOnce).not.toHaveBeenCalled();
     });
 
     it('missing IDP_WEBHOOK_SECRET -> fails fast on the typed config, not a 401', async () => {
         // S-I5: an env misconfig is a cold-start failure now, distinct from a genuine bad-signature
         // 401 — it must propagate (reject), not be swallowed into the signature-verification branch.
-        delete process.env.IDP_WEBHOOK_SECRET;
+        delete process.env['IDP_WEBHOOK_SECRET'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();
     });
 
     it('missing DELETION_QUEUE_URL -> fails fast on the typed config before verifying the signature', async () => {
-        delete process.env.DELETION_QUEUE_URL;
+        delete process.env['DELETION_QUEUE_URL'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();
     });
 
     it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN -> fails fast on the typed config', async () => {
-        delete process.env.AUTH_SECRET_ARN;
+        delete process.env['AUTH_SECRET_ARN'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();

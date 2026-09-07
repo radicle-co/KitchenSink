@@ -2,7 +2,7 @@
  * @module @commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 / W7 building
  * block).
  *
- * The React Native leaf of {@link import('./RecipeConflictView.js').RecipeConflictView} — same FULLY
+ * The React Native leaf of `RecipeConflictView` — same FULLY
  * controlled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)
  * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the
  * changed-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row
@@ -32,7 +32,6 @@ import {
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatYourCardHeading,
     isConflictBaseStale,
@@ -90,12 +89,10 @@ const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndC
 const VersionSideCard: FC<{
     readonly heading: string;
     readonly savedLine?: string;
-    readonly deviceLine?: string;
-}> = ({ heading, savedLine, deviceLine }) => (
+}> = ({ heading, savedLine }) => (
     <View style={styles.versionCard}>
         <Text style={styles.versionCardHeading}>{heading}</Text>
         {savedLine !== undefined && <Text style={styles.versionCardLine}>{savedLine}</Text>}
-        {deviceLine !== undefined && <Text style={styles.versionCardLine}>{deviceLine}</Text>}
     </View>
 );
 
@@ -289,7 +286,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <VersionSideCard
                     heading={formatServerCardHeading(server, conflict)}
                     savedLine={formatVersionCardSavedLine(server, locale, conflict)}
-                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
                 />
                 <VersionSideCard
                     heading={formatYourCardHeading(base, conflict)}
@@ -297,7 +293,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         ? {}
                         : {
                               savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                              deviceLine: formatVersionCardDeviceLine(base, conflict),
                           })}
                 />
             </View>

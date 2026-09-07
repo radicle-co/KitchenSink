@@ -528,8 +528,10 @@ FUNCTION saveRecipe(userId: string, recipeDraft: RecipeDraft, source: 'ai' | 'ag
         createdAt: NOW()
     }
 
-    // Step 2: Delegate to 001-commise-recipe-app Recipe repository
-    savedRecipe = RecipeRepository.create(recipe)
+    // Step 2: Delegate to recipe-service ACROSS the service boundary — never a local repository.
+    // 005 owns no `recipes` table (plan.md §1.4), so this MUST go through the published client.
+    // Asserted by SCN-CN-001-A3: "005 never writes the `recipes` table directly".
+    savedRecipe = recipeServiceClient.createRecipe(recipe)
 
     // Step 3: Return persisted entity with generated ID
     RETURN savedRecipe
@@ -547,10 +549,10 @@ N/A — Stateless
 
 #### Error Handling & Return Codes
 
-| Error Condition              | Error Code / Exception | Architecture Contract           | Recovery                     |
-| ---------------------------- | ---------------------- | ------------------------------- | ---------------------------- |
-| RecipeRepository write fails | `DatabaseError`        | ARCH-007 — propagated to caller | Re-throw; caller returns 503 |
-| Invalid recipe shape         | `ValidationError`      | ARCH-007 — data integrity       | Re-throw; caller returns 400 |
+| Error Condition           | Error Code / Exception | Architecture Contract           | Recovery                     |
+| ------------------------- | ---------------------- | ------------------------------- | ---------------------------- |
+| recipe-service call fails | `RecipeServiceError`   | ARCH-007 — propagated to caller | Re-throw; caller returns 503 |
+| Invalid recipe shape      | `ValidationError`      | ARCH-007 — data integrity       | Re-throw; caller returns 400 |
 
 ---
 
@@ -801,7 +803,7 @@ FUNCTION handleGetRecipes(authorizationHeader: string) -> HTTP 200 | 401 | 403:
         RETURN HTTP 403 { error: 'Insufficient scope: recipes:read required' }
 
     // Step 3: Fetch user's recipe collection
-    recipes = RecipeRepository.findByOwner(claims.userId, { isPrivate: null })  // all recipes
+    recipes = recipeServiceClient.listRecipesByOwner(claims.userId, { isPrivate: null })  // all recipes
 
     // Step 4: Return structured JSON
     RETURN HTTP 200 {
@@ -906,7 +908,7 @@ N/A — Stateless
 ```pseudocode
 FUNCTION optimizeInstructions(userId: string, recipeId: string) -> OptimizedInstructions:
     // Step 1: Validate recipe ownership
-    recipe = RecipeRepository.findById(recipeId)
+    recipe = recipeServiceClient.getRecipe(recipeId)
     IF recipe IS NULL:
         THROW NotFoundError('Recipe not found')
     IF recipe.ownerId != userId:
@@ -994,7 +996,7 @@ FUNCTION handleReviewDecision(userId: string, reviewKey: string, accept: boolean
 
     IF accept IS TRUE:
         // Step 2a: Patch recipe instructions in DB
-        RecipeRepository.updateInstructions(review.recipeId, review.optimizedInstructions)
+        recipeServiceClient.updateRecipeInstructions(review.recipeId, review.optimizedInstructions)
         SessionCache.delete(reviewKey)
         RETURN HTTP 200 { message: 'Instructions updated' }
     ELSE:

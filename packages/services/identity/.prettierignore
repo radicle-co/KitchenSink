@@ -1,5 +1,25 @@
+# Prettier resolves ignore files relative to the CWD, and this package's `format:check` is
+# `prettier --check .` run from the package directory — so Prettier reads THIS file, never the repo root's.
+# Anything generated here has to be listed here as well; a path declared only at the root is invisible to
+# this check, and `format:check` then fails on a file nobody wrote.
 node_modules
 dist
 cdk.out
 cdk.context.json
 *.tsbuildinfo
+
+# k6 load-test CREDENTIAL MATERIAL — generated per run by `tests/load/prepareClerkTokens.ts`, and
+# gitignored at the repo root for the reason spelled out there: it is a pool of ~6,000 live Clerk bearer
+# tokens (4.2 MB) and THIS REPO IS PUBLIC. Formatting a generated blob that large is pointless, and failing
+# the build on it is worse — the run that mints the pool would red every unrelated check in the package.
+tests/load/clerk-tokens.json
+tests/load/clerk-public-key.pem
+
+# k6 run summaries (see the root .gitignore for why these are not source).
+k6-*-summary.json
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test
+
+# esbuild Lambda bundles (`npm run bundle:lambda`). Gitignored build output, .gitignore:89.
+dist-lambda

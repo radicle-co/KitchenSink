@@ -1,0 +1,1068 @@
+// @vitest-environment node
+/**
+ * A schema migration can only be applied by a runner that has ALREADY BEEN DEPLOYED with it. That single
+ * fact fixes the order of three steps in `prod-deploy.yml`, and this suite pins all three positionally.
+ *
+ * ## The hazard
+ *
+ * `cdk deploy` returns only once the ECS service has STABILISED. So "deploy, then invoke the migration
+ * runner" puts the new image in front of live traffic for the entire stabilisation window with the OLD
+ * schema underneath it. That window stopped being theoretical when food's read path came to depend on
+ * `food_nutrient_view` (migration `0006`): every nutrition read 500s, and prod is now fronted by
+ * CloudFront, which caches them.
+ *
+ * ## ⛔ Why the obvious repair is FORBIDDEN, and why that is what this file asserts
+ *
+ * The instinct is to move the migrate step above its `cdk deploy`. That is silently WORSE than the hazard.
+ * Each service's `esbuild.mjs` copies `src/**\/migrations/*.sql` into the Lambda bundle at BUILD time, and
+ * the bundle ships WITH `cdk deploy` — so invoking first invokes the PREVIOUS deploy's Lambda carrying the
+ * PREVIOUS migration set. It exits 0, reports nothing pending, applies nothing, and the new tasks still meet
+ * a missing relation. Nothing in the pipeline can tell the difference between "no migrations were needed"
+ * and "the runner had never heard of them".
+ *
+ * The repair ADR-0022 reached for lived INSIDE the deploy — an `aws-cdk-lib/triggers` `Trigger` between the
+ * Lambda's code update and the ECS service's rollout, asserted in each service's own infra suite
+ * (`FoodServiceStack.test.ts`, `RecipeServiceStack.test.ts`, and identity's `stacks.test.ts` — identity's
+ * runner moved OUT of the webhooks app precisely so it could take part). What remains in the pipeline is the safety
+ * net: an idempotent invocation that catches a stage whose schema is behind for a reason no code change
+ * explains (a restore, a newly-created stage, a stack whose asset was never bundled). Both mechanisms
+ * depend on the same ordering, so the ordering is what is pinned here.
+ *
+ * ## Why positional, and why nothing is enumerated
+ *
+ * Same reasoning as `prodDeployBuildOrder.test.ts`, which pins the `npm prune --omit=dev` one-way door in
+ * this same file: the invariant is about WHERE a step sits, so the assertions read STEP INDICES out of the
+ * parsed workflow rather than matching text. Neither the services nor the stacks are listed — the migration
+ * steps are discovered from the workflow, their owning package is derived from the CloudFormation stack
+ * name each one queries, and the set of services that OWN a runner is discovered from the tree. A fourth
+ * service that ships a migration runner is covered the day its handler lands, and cannot opt out by not
+ * being mentioned here.
+ */
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { EPHEMERAL_SLOT_ORDER, cutOverServicesFromEnv } from '@kitchensink/infra-alb';
+import { parse } from 'yaml';
+import { describe, expect, it } from 'vitest';
+
+import { prodDeployLiteralEnvironment } from './prodDeployEnvironment.js';
+import { readRepoFile, runnerDeployingPackages, stackSources } from './migrationRunners.js';
+
+/** Repo root — this file sits at `packages/infra/global/__tests__`, so the root is four levels up. */
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+
+const WORKFLOW = path.join(repoRoot, '.github/workflows/prod-deploy.yml');
+
+/** Where the deployable services live. A runner package is always one of these. */
+const SERVICES_ROOT = 'packages/services';
+
+interface WorkflowStep {
+    readonly name?: string;
+    readonly id?: string;
+    readonly if?: string;
+    readonly run?: string;
+}
+
+/** A step plus the index that every assertion here is actually about. */
+interface IndexedStep extends WorkflowStep {
+    readonly index: number;
+}
+
+/**
+ * The `Deploy Production` job's steps, in file order, each carrying its index.
+ *
+ * @returns The indexed steps.
+ * @sideEffect Reads the workflow from disk.
+ */
+function prodDeploySteps(): readonly IndexedStep[] {
+    const doc = parse(readFileSync(WORKFLOW, 'utf8')) as {
+        jobs: Record<string, { steps?: WorkflowStep[] }>;
+    };
+    const [job] = Object.values(doc.jobs);
+
+    return (job?.steps ?? []).map((step, index) => ({ ...step, index }));
+}
+
+/**
+ * How a workflow step invokes a migration runner.
+ *
+ * ⚠️ TWO spellings, and the second is the current one. The invoke used to be written inline in every
+ * workflow — four call sites, with four different amounts of rigour about the fact that `aws lambda invoke`
+ * exits 0 when the FUNCTION threw — and now goes through `.github/scripts/run-migrations.sh`, which is the
+ * one definition of "did the runner succeed". The inline spelling is kept here rather than deleted because
+ * a step that reverts to it is still a migration step, and it must still be ordered.
+ */
+const MIGRATION_INVOCATION = /aws lambda invoke|run-migrations\.sh/;
+
+/**
+ * Steps that invoke a schema-migration runner Lambda. Both conditions are required: an invocation alone
+ * would also catch an unrelated one, and the migration-function output name alone would catch the step that
+ * merely resolves it.
+ *
+ * @param steps - The job's steps.
+ * @returns The migration-invoking steps.
+ */
+function migrationSteps(steps: readonly IndexedStep[]): readonly IndexedStep[] {
+    return steps.filter(
+        (step) => MIGRATION_INVOCATION.test(step.run ?? '') && /MigrationFunctionName/.test(step.run ?? ''),
+    );
+}
+
+/**
+ * The migrate steps that apply ONE service's database, as command positions in execution order.
+ *
+ * Resolved through the stack each step itself names, so it cannot drift from the step and needs no table.
+ * A job migrates several databases in sequence, and ordering a consumer behind the wrong one is an
+ * assertion that passes for a reason unrelated to the schema that consumer reads.
+ *
+ * @param steps - The job's steps.
+ * @param owner - The service package whose database is being ordered against.
+ * @returns The positions of that database's migrate steps.
+ */
+function migrationStepsFor(steps: readonly IndexedStep[], owner: string): readonly CommandPosition[] {
+    return migrationSteps(steps)
+        .filter((step) => stackTokens(step).some((token) => ownerPackage(token) === owner))
+        .map((step) => ({ step: step.index, offset: 0 }));
+}
+
+/**
+ * The CloudFormation stack a migration step resolves its function name from, reduced to the service token
+ * in `kitchensink-{token}-${STAGE}`.
+ *
+ * Deriving the owning package from the stack the step ITSELF names is the point: it cannot drift from the
+ * step, and it needs no table of services to maintain.
+ *
+ * @param step - A migration-invoking step.
+ * @returns The service tokens named in the step, in order of appearance.
+ */
+function stackTokens(step: IndexedStep): readonly string[] {
+    return [...(step.run ?? '').matchAll(/kitchensink-([a-z0-9-]+)-\$\{STAGE\}/g)].map((match) => match[1] as string);
+}
+
+/**
+ * Stack token → the service package that DECLARES that stack, read out of each service's CDK entrypoint.
+ *
+ * ⚠️ This map used to be the identity function, and that assumption was load-bearing without saying so.
+ * It holds for `food-service` and `recipe-service`, whose stack is `kitchensink-{dir}-{stage}` — and it
+ * does NOT hold for identity, whose ECS stack is `kitchensink-identity-service-{stage}` inside
+ * `packages/services/identity`. While identity's migration runner lived in `identity-webhooks` (where the
+ * token happens to equal the directory) nothing here noticed; the day the runner moved to the stack that
+ * actually owns the ECS service, every assertion below would have failed on a naming coincidence rather
+ * than on a real ordering defect — and the tempting repair is to except identity, which would have
+ * exempted the one service where a schema/code mismatch is a failed SIGN-IN rather than a degraded read.
+ *
+ * So the pairing is DERIVED instead: each service's `infra/bin` CDK entrypoint states its own
+ * `stackName:` template, which is the same string CI passes to `describe-stacks`. Nothing is enumerated,
+ * and a service that renames its stack updates this map by editing the one place the name is written.
+ *
+ * @returns Stack token → the directory under `packages/services/` whose CDK app declares it.
+ * @sideEffect Shells out to git and reads the CDK entrypoints.
+ */
+function stackTokenOwners(): ReadonlyMap<string, string> {
+    const owners = new Map<string, string>();
+    const entrypoints = execFileSync('git', ['ls-files', '--', `${SERVICES_ROOT}/*/infra/bin/*.ts`], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+    })
+        .split('\n')
+        .filter(Boolean);
+
+    for (const file of entrypoints) {
+        const serviceDir = file.split('/')[2] as string;
+        const source = readFileSync(path.join(repoRoot, file), 'utf8');
+
+        for (const match of source.matchAll(/stackName:\s*`kitchensink-([a-z0-9-]+)-\$\{[A-Za-z_]\w*\}`/g)) {
+            owners.set(match[1] as string, serviceDir);
+        }
+    }
+
+    return owners;
+}
+
+/**
+ * The service package a migration step's stack belongs to.
+ *
+ * @param token - The service token from `kitchensink-{token}-${STAGE}`.
+ * @returns The directory under `packages/services/`, or `undefined` when no CDK app declares that stack.
+ * @sideEffect Reads the CDK entrypoints (via {@link stackTokenOwners}).
+ */
+function ownerPackage(token: string): string | undefined {
+    return stackTokenOwners().get(token);
+}
+
+/**
+ * Where a command runs: which step, and how far into that step's script.
+ *
+ * ⚠️ The offset is not fussiness. A step's `run` is a SCRIPT — several commands in written order — and this
+ * job already puts a bundle and a deploy in one such block. Comparing step indices alone reads two commands
+ * in one step as simultaneous, so "bundle, then deploy" and "deploy, then bundle" would be
+ * indistinguishable, and the second is precisely the mistake being guarded against.
+ */
+interface CommandPosition {
+    /** The step's index within the job. */
+    readonly step: number;
+    /** The match offset within that step's `run` script. */
+    readonly offset: number;
+}
+
+/**
+ * Compare two command positions in execution order.
+ *
+ * @param a - The earlier candidate.
+ * @param b - The later candidate.
+ * @returns Negative when `a` runs first, positive when `b` does, zero when they are the same command.
+ */
+const runsBefore = (a: CommandPosition, b: CommandPosition): number => a.step - b.step || a.offset - b.offset;
+
+/**
+ * Where the first command matching a pattern runs, or `undefined`.
+ *
+ * @param steps - The job's steps.
+ * @param pattern - The command pattern.
+ * @param requiredText - Text the step's script must also contain (the subject the command acts on).
+ * @returns The position, or `undefined` when no step matches.
+ */
+function commandPosition(
+    steps: readonly IndexedStep[],
+    pattern: RegExp,
+    requiredText?: readonly string[],
+): CommandPosition | undefined {
+    for (const step of steps) {
+        const run = shellCode(step.run ?? '');
+
+        if (requiredText !== undefined && !requiredText.some((text) => run.includes(text))) {
+            continue;
+        }
+
+        const offset = run.search(pattern);
+
+        if (offset !== -1) {
+            return { step: step.index, offset };
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * A step's script with its full-line `#` comments blanked out — the EXECUTABLE half of it.
+ *
+ * ⛔ Every question this file asks is about where a command RUNS, and a comment does not run. Reading prose
+ * was wrong in both directions. It produced a false positive the moment a step explained the ordering it
+ * participates in: `Compute deploy flags` mentions the `cdk deploy … --app` steps below it while naming three
+ * service entrypoints, and was read as deploying all three at step 4 — ahead of every bundle. Worse, it left
+ * a false NEGATIVE standing: a commented-out deploy naming a service path satisfied 'resolves every migration
+ * step to a cdk deploy step that actually exists', so deleting a real deploy while leaving its comment behind
+ * would have passed.
+ *
+ * Comment lines are BLANKED rather than removed so every offset this file compares stays exactly where it
+ * was — the ordering assertions are positional. Only a line whose first non-whitespace character is `#`
+ * counts, so a `#` inside an expansion such as `"${#items[@]}"` is untouched; same rule as
+ * `sandboxReclamationReachability.test.ts`'s `shellLines`, which exists for the same reason.
+ *
+ * @param run - A step's `run:` body.
+ * @returns The body with comment lines blanked, same length. Pure.
+ */
+function shellCode(run: string): string {
+    return run
+        .split('\n')
+        .map((line) => (/^\s*#/u.test(line) ? ' '.repeat(line.length) : line))
+        .join('\n');
+}
+
+/**
+ * Where the `cdk deploy` of a service package's CDK app runs, or `undefined`.
+ *
+ * @param steps - The job's steps.
+ * @param serviceDir - The directory name under `packages/services/`.
+ * @returns The position, or `undefined` when no step deploys that app.
+ */
+function cdkDeployPosition(steps: readonly IndexedStep[], serviceDir: string): CommandPosition | undefined {
+    return commandPosition(steps, /cdk deploy/, [`${SERVICES_ROOT}/${serviceDir}/infra`]);
+}
+
+/**
+ * Service packages that ship a schema-migration runner Lambda handler, discovered from the working tree.
+ *
+ * `git ls-files` rather than a directory walk, so build output (`dist/`, `dist-lambda/`) — which contains a
+ * COMPILED copy of every one of these handlers — can never contribute a phantom service.
+ *
+ * ⚠️ `--others --exclude-standard` as well as the index, and the `existsSync` filter below, because a
+ * plain `git ls-files` describes the INDEX rather than the tree: a runner added but not yet staged is
+ * invisible to it, and one deleted but not yet staged is still listed. A change that MOVES a runner from
+ * one package to another is BOTH at once, so the unadjusted guard would have been wrong in both directions
+ * for exactly the change it most needs to police — and a guard that only tells the truth after `git add`
+ * is a guard that gets run too late to stop anything. `--exclude-standard` keeps the build output out.
+ *
+ * @returns The service directory names, sorted.
+ * @sideEffect Shells out to git and stats the results.
+ */
+/**
+ * A migration runner's source path, under a service's `src/`.
+ *
+ * ⚠️ An earlier form read `/\/src\/.*(^|\/)migrate(\/handler)?\.ts$/`. The `^` branch is unmatchable
+ * mid-pattern without the `m` flag (CodeQL `js/regex/unmatchable-caret`), which collapsed the alternation to
+ * a REQUIRED `/` — so `src/migrate.ts` did not match at all and a service placing its runner one level up
+ * from the `src/lambdas/migrate/handler.ts` shape the three current services happen to share would be
+ * silently invisible to this guard, and no pipeline step would be demanded for it. That is precisely the
+ * under-discovery this file exists to prevent, so the pattern is asserted directly below.
+ */
+const RUNNER_SOURCE = /\/src\/(?:.*\/)?migrate(?:\/handler)?\.ts$/;
+
+describe('migration runner discovery', () => {
+    it('matches a runner wherever a service puts it, and never a test beside one', () => {
+        expect(
+            [
+                'packages/services/food-service/src/lambdas/migrate/handler.ts',
+                'packages/services/a/src/migrate.ts',
+                'packages/services/b/src/lambdas/migrate.ts',
+                'packages/services/c/src/deep/nested/migrate/handler.ts',
+            ].every((file) => RUNNER_SOURCE.test(file)),
+        ).toBe(true);
+
+        expect(
+            [
+                'packages/services/food-service/src/lambdas/migrate/__tests__/handler.test.ts',
+                'packages/services/d/src/migrations/0001_initial.sql',
+                'packages/services/e/src/lambdas/migrateSomethingElse.ts',
+            ].some((file) => RUNNER_SOURCE.test(file)),
+        ).toBe(false);
+    });
+});
+
+function runnerPackages(): readonly string[] {
+    const tracked = execFileSync(
+        'git',
+        ['ls-files', '--cached', '--others', '--exclude-standard', '--', SERVICES_ROOT],
+        { cwd: repoRoot, encoding: 'utf8' },
+    )
+        .split('\n')
+        .filter(Boolean);
+
+    return [
+        ...new Set(
+            tracked
+                .filter((file) => RUNNER_SOURCE.test(file))
+                // `git ls-files` reads the INDEX, which still lists a file that has been deleted in the
+                // working tree but not yet staged. Without this the guard would demand a pipeline step for a
+                // runner that no longer exists — which is exactly the state a change that MOVES a runner
+                // between packages passes through, and a guard that is wrong mid-change is a guard people
+                // learn to run after committing.
+                .filter((file) => existsSync(path.join(repoRoot, file)))
+                .map((file) => file.split('/')[2] as string),
+        ),
+    ].sort();
+}
+
+/** A service's manifest, reduced to what the assertions below read out of it. */
+interface ServiceManifest {
+    /** The declared package name — the identifier `turbo run … --filter=` uses. */
+    readonly name: string;
+    /** Its npm scripts. */
+    readonly scripts?: Readonly<Record<string, string>>;
+}
+
+/**
+ * A service's manifest.
+ *
+ * @param serviceDir - The directory name under `packages/services/`.
+ * @returns The parsed manifest.
+ * @sideEffect Reads the manifest from disk.
+ */
+function manifest(serviceDir: string): ServiceManifest {
+    return JSON.parse(
+        readFileSync(path.join(repoRoot, SERVICES_ROOT, serviceDir, 'package.json'), 'utf8'),
+    ) as ServiceManifest;
+}
+
+/**
+ * The npm scripts that actually produce a service's Lambda BUNDLE — the esbuild script itself, plus any
+ * script that chains to it.
+ *
+ * ⚠️ Naming the general-purpose `build` script here would be the whole gate's blind spot, which is why the
+ * set is derived from the manifest instead of assumed. The two feature services bundle under
+ * `bundle:lambda` while `build` is `nest build`, so accepting `build` for them would let a pipeline that
+ * NEVER bundles the runner pass — and an unbundled runner deploys as the inline placeholder. The identity
+ * webhooks package is the opposite case: its `build` IS `tsc … && npm run package`, so `turbo run build`
+ * genuinely bundles it. Both facts come from the same read, so neither can drift from the manifest.
+ *
+ * @param serviceDir - The directory name under `packages/services/`.
+ * @returns The script names that reach the bundler, or an empty list when the service has no bundler.
+ * @sideEffect Reads the manifest from disk.
+ */
+function bundlingScripts(serviceDir: string): readonly string[] {
+    const scripts = manifest(serviceDir).scripts ?? {};
+    const bundler = Object.entries(scripts).find(([, command]) => /esbuild/.test(command))?.[0];
+
+    if (bundler === undefined) {
+        return [];
+    }
+
+    const chains = Object.entries(scripts)
+        .filter(([, command]) => command.includes(`npm run ${bundler}`))
+        .map(([name]) => name);
+
+    return [bundler, ...chains];
+}
+
+describe('prod-deploy.yml — a migration runner is invoked only AFTER the deploy that ships its SQL', () => {
+    it('discovers migration steps at all, and one per package that DEPLOYS a runner', () => {
+        // Anchors everything below. If the discovery predicate stops matching — a step renamed, the AWS CLI
+        // call reshaped — the positional assertions would pass vacuously over an empty list rather than
+        // fail, which is the single way a guard like this rots.
+        //
+        // ⚠️ The count is against packages that DEPLOY a runner, not `runnerPackages()` — which is the set
+        // that AUTHORS one (`src/**\/migrate/handler.ts`). Those were the same set until `recipe-workers`
+        // grew a safety net: it deploys recipe-service's bundle deliberately ("the runner has to be
+        // deployed WITH the SQL it applies"), so it authors no handler while owning a real pipeline step.
+        // Counting against the authoring set would have made the correct pipeline look like a defect —
+        // and the two sets are stated ONCE, in `migrationRunners.ts`, so they cannot drift independently.
+        const steps = migrationSteps(prodDeploySteps());
+
+        expect(steps.length, 'expected one migration invocation per package that deploys a runner').toBe(
+            runnerDeployingPackages(readRepoFile, stackSources()).length,
+        );
+    });
+
+    it('resolves every migration step to the service package whose CDK app declares that stack', () => {
+        // Anchors the pairing itself. Every assertion below turns a stack token into a package directory;
+        // if a token resolves to nothing, those assertions would compare against `undefined` and could only
+        // fail with a confusing message — or, worse, be "fixed" by excepting the service that broke.
+        const steps = prodDeploySteps();
+        const unowned = migrationSteps(steps)
+            .flatMap((step) => stackTokens(step))
+            .filter((token) => ownerPackage(token) === undefined);
+
+        expect(unowned, 'no packages/services/*/infra/bin CDK app declares these stacks').toEqual([]);
+    });
+
+    it('places every migration step AFTER the cdk deploy of the app that owns its runner', () => {
+        const steps = prodDeploySteps();
+        const violations = migrationSteps(steps).flatMap((step) =>
+            stackTokens(step).flatMap((token) => {
+                const deploy = cdkDeployPosition(steps, ownerPackage(token) ?? token);
+                const invoke = commandPosition([step], MIGRATION_INVOCATION);
+
+                return deploy === undefined || (invoke !== undefined && runsBefore(deploy, invoke) < 0)
+                    ? []
+                    : [`${step.name ?? '(unnamed)'} (step ${step.index}) runs before ${token}'s cdk deploy`];
+            }),
+        );
+
+        expect(
+            violations,
+            'moving a migrate step above its deploy invokes the PREVIOUS bundle: exit 0, nothing applied, ' +
+                'and the new tasks still meet a missing relation',
+        ).toEqual([]);
+    });
+
+    it('resolves every migration step to a cdk deploy step that actually exists', () => {
+        // The complement of the rule above: satisfying "after the deploy" by DELETING the deploy — or by
+        // renaming the app path so the two can no longer be paired — must not read as compliance.
+        const steps = prodDeploySteps();
+        const unpaired = migrationSteps(steps)
+            .flatMap((step) => stackTokens(step))
+            .filter((token) => cdkDeployPosition(steps, ownerPackage(token) ?? token) === undefined);
+
+        expect(unpaired, 'these migration steps name a stack no cdk deploy step in this job deploys').toEqual([]);
+    });
+
+    it('keeps a migration step for EVERY service that ships a runner', () => {
+        // The other complement: satisfying the ordering by deleting the migration step. This is discovered
+        // from the tree, so a service that grows a runner and no pipeline step fails here — which is how
+        // the recipe service's schema came to be missing entirely on a preview that was otherwise green.
+        const steps = prodDeploySteps();
+        const invoked = new Set(
+            migrationSteps(steps).flatMap((step) => stackTokens(step).map((token) => ownerPackage(token) ?? token)),
+        );
+        const missing = runnerPackages().filter((service) => !invoked.has(service));
+
+        expect(missing, 'these services ship a migration runner that prod-deploy never invokes').toEqual([]);
+    });
+
+    it('builds every runner bundle BEFORE the deploy that ships it', () => {
+        // The failure this catches is the quietest of the lot. Both feature-service stacks fall back to an
+        // inline placeholder when `dist-lambda/` is absent, so a deploy whose bundle step was moved,
+        // renamed or dropped ships a Lambda that is not the migration runner at all — and the migration
+        // step then invokes THAT, successfully.
+        const steps = prodDeploySteps();
+        const violations = runnerPackages().flatMap((service) => {
+            const deploy = cdkDeployPosition(steps, service);
+            const identifiers = [`${SERVICES_ROOT}/${service}`, manifest(service).name];
+            const scripts = bundlingScripts(service);
+
+            if (scripts.length === 0) {
+                return [`${service}: ships a migration runner but its manifest has no esbuild script`];
+            }
+
+            // `npm run <script> --workspace=…` and `turbo run <script> --filter=…` are the only two forms
+            // this workflow uses; both are matched against the SAME derived script set.
+            const invokesBundler = new RegExp(
+                `(?:npm|turbo) run (?:${scripts.map((script) => script.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w:-])`,
+            );
+            const build = commandPosition(steps, invokesBundler, identifiers);
+
+            if (build === undefined) {
+                return [`${service}: no step builds its Lambda bundle`];
+            }
+
+            return deploy !== undefined && runsBefore(build, deploy) > 0
+                ? [`${service}: bundled at ${JSON.stringify(build)}, deployed at ${JSON.stringify(deploy)}`]
+                : [];
+        });
+
+        expect(violations, 'an unbundled runner deploys as a placeholder and migrates nothing').toEqual([]);
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for `EDGE_CUTOVER_SERVICES` in the production pipeline.
+ *
+ * ## The outage this exists to prevent, which was one merge away
+ *
+ * U17's cutover was run BY HAND, with `EDGE_CUTOVER_SERVICES` exported into a shell. The pipeline never
+ * learned it. `publicRecordOwnerFor` treats an unset variable as "nobody has cut over" — the correct and
+ * deliberate default — so the next CI deploy to prod would have synthesized the PRE-cutover template for
+ * all three services: each re-creating the `{service}.commise.app` A-record that `EdgeStack` now owns, and
+ * re-adding the public host to its ALB listener rule.
+ *
+ * Both failure modes are documented in `publicRecordOwner.ts` and both are bad: Route 53 refuses a
+ * duplicate record, so the deploy either fails outright, or — if EdgeStack's copy loses a race — the apex
+ * services come off CloudFront entirely and land back on a load balancer that no longer accepts them.
+ *
+ * A shell variable is not a deploy. This asserts the pipeline carries the same fact the operator did.
+ */
+describe('the production pipeline knows which services are cut over to the edge', () => {
+    // ⚠️ Read through `prodDeployLiteralEnvironment` rather than a regex over the file. The value is not
+    // this suite's alone any more: `nagRulesAtZero.integration.test.ts` synthesizes its whole cdk-nag census
+    // under it, having first measured what happens when it does NOT (three phantom `AwsSolutions-CFR4`
+    // findings, written into ADR-0013's table as production's posture). One reader, so the two guards cannot
+    // disagree about what the pipeline declares.
+
+    it('⛔ declares EDGE_CUTOVER_SERVICES at all — unset means "nobody cut over"', () => {
+        expect(prodDeployLiteralEnvironment()).toHaveProperty('EDGE_CUTOVER_SERVICES');
+    });
+
+    it('⛔ names EVERY service whose public record EdgeStack owns', () => {
+        // Derived from the shared registry, not a literal list, so a fourth service added to the edge is a
+        // failure HERE rather than a missing record in production.
+        const named = cutOverServicesFromEnv(prodDeployLiteralEnvironment());
+
+        expect([...named].sort()).toStrictEqual([...EPHEMERAL_SLOT_ORDER].sort());
+    });
+
+    it('parses through the SAME resolver the stacks use, so a typo cannot pass here and fail there', () => {
+        // `cutOverServicesFromEnv` throws on an unknown name. Running the workflow's literal value through
+        // it is what makes this test an equivalence check rather than a spelling check.
+        expect(() => cutOverServicesFromEnv(prodDeployLiteralEnvironment())).not.toThrow();
+    });
+
+    it('reads the value the workflow actually declares, not a default', () => {
+        // Anti-vacuity on the reader: `cutOverServicesFromEnv` answers `[]` for a missing key, and `[]` is
+        // indistinguishable from "the parser broke" in the two assertions above until the registry is empty.
+        // ⚠️ The expectation is a NON-EMPTY declaration, not a specific one — the value itself stays derived.
+        expect(prodDeployLiteralEnvironment()['EDGE_CUTOVER_SERVICES']).not.toBe('');
+    });
+});
+
+/**
+ * ⛔ THE SECOND HALF OF THE SAME INVARIANT: a Lambda that talks to a service's database is CODE, governed by
+ * the same rule as that service's ECS tasks — it may not be updated ahead of the schema it reads.
+ *
+ * ## The window this was written for
+ *
+ * The recipe **workers** are eight DB-touching Lambdas in a DIFFERENT CDK app
+ * (`kitchensink-recipe-workers-{stage}`), applied by a SEPARATE `cdk deploy`, and both pipelines run that
+ * deploy FIRST. Under ADR-0022 the schema was applied by a `triggers.Trigger` inside the recipe SERVICE's
+ * deploy, so every release shipped new worker code over the old schema and left it there until the service
+ * deploy caught up — and an SQS-driven worker (archive, erasure, handle-sync) is fed by the STILL-RUNNING
+ * previous release for that whole window, so it is not idle time. On a first-ever `pr-{N}` deploy it was
+ * worse than skew: the per-PR logical database is created BY the migration run (ADR-0006), so until then
+ * the workers addressed a database that did not exist.
+ *
+ * ## Why it is a guard over the pipeline, and no longer a choice of two routes
+ *
+ * No CloudFormation primitive spans two CDK apps run as two CLI invocations. ADR-0022 could therefore only
+ * offer two routes — be deployed after the migration-owning app, or carry your OWN in-deploy barrier — and
+ * recipe took the second, which cost a SECOND runner for one database shipping the first's bundle.
+ *
+ * ⛔ Reordering the pipeline to reach the first route was considered and REJECTED then, for a reason that
+ * still stands: the workers-first order is not an SSM accident (`RecipeWorkersStack` publishes the
+ * `account-erasure-queue-{url,arn}` parameters `RecipeServiceStack` resolves at deploy time) — it is the
+ * CORRECT order for a queue, because the CONSUMER must upgrade before the PRODUCER. Deploying the service
+ * first would trade schema skew for message-contract skew on a right-to-erasure request.
+ *
+ * ADR-0035 dissolves the dilemma instead of choosing a side: the schema is applied by a step ahead of BOTH
+ * apps, so the workers keep their position and are ordered behind the migration anyway. There is one route
+ * now, and this suite asserts it over the workflow text — which is the only place it exists, since the
+ * ordering is no longer expressible in any single template.
+ *
+ * ## What this guard can and cannot see
+ *
+ * It reads STEP ORDER in the workflows. That a schema stack holds only its runner, that no stack ships a
+ * second one, and that none re-introduces an in-deploy Trigger are properties of the CDK sources, asserted
+ * in `dbTouchingStackBarrier.test.ts`. That a schema deploy runs under the conditions that BUILT its asset
+ * is `schemaDeployGating.test.ts`'s. Neither of those gates can see step order, and this one cannot see a
+ * template — which is why all three exist.
+ *
+ * ## Nothing is enumerated
+ *
+ * "Addresses the same database" is DERIVED, from the TWO authorities a logical database has in this repo:
+ *
+ *   1. a `…/database-name` module — `recipe-service` and `recipe-workers` both import
+ *      `@kitchensink/recipe-core/database-name`, which is what pairs them; and
+ *   2. the `kitchensink-data-{stage}` export that names the database or the credentials that carry it
+ *      (`DatabaseSecretArn`, `DatabaseName`) — identity's authority, because its runner resolves host,
+ *      database and credentials from the secret at RUNTIME rather than from a name module.
+ *
+ * ⚠️ (2) is not a widening for its own sake — while only (1) was read, `identity` and `identity-webhooks`
+ * were NOT DISCOVERED AS A PAIR AT ALL, so the gate below said nothing about the five DB-touching Lambdas
+ * in `WebhooksStack`. They are safe today only because both pipelines happen to `cdk deploy` them AFTER the
+ * identity service (the deploy that applies the schema), and nothing asserted that. Hoisting that one step
+ * would have put new webhook code — the read-through user create, the deletion worker, the erasure
+ * reconciler — on the previous release's schema, silently, with every gate green. See ADR-0022.
+ *
+ * Food's name authority is private to its single stack, so it has no peer and is correctly not asserted
+ * over. A future second stack on an existing database is covered the day it imports either authority.
+ */
+
+/**
+ * The workflows that deploy a whole stage.
+ *
+ * ⚠️ `sandbox-identity-deploy.yml` belongs here for the same reason (2) above belongs in the pairing: it is
+ * the ONLY workflow that deploys the shared sandbox identity service and its webhooks, so leaving it out
+ * asserted the ordering in prod and left sandbox — the stage every PR preview signs in against — unguarded.
+ */
+const DEPLOY_WORKFLOWS = [
+    '.github/workflows/prod-deploy.yml',
+    // ⚠️ `_sandbox-preview.yml`, not `sandbox-deploy.yml`. The per-PR deploy jobs moved to a REUSABLE
+    // workflow so `_ci.yml` can run them as one branch of its own graph — GitHub Actions has no
+    // cross-workflow `needs`, so while they sat on their own `pull_request` trigger nothing could wait for
+    // them. `sandbox-deploy.yml` keeps the teardown jobs and the hand-dispatch door, neither of which
+    // deploys a schema.
+    '.github/workflows/_sandbox-preview.yml',
+    '.github/workflows/sandbox-identity-deploy.yml',
+] as const;
+
+/** One job's steps, carrying enough identity for a failure message to name where it came from. */
+interface WorkflowJob {
+    /** Repo-relative workflow path. */
+    readonly workflow: string;
+    /** The job's key under `jobs:`. */
+    readonly id: string;
+    /** Its steps, in file order, each carrying its index. */
+    readonly steps: readonly IndexedStep[];
+}
+
+/**
+ * Every job of every deploy workflow.
+ *
+ * ⚠️ Ordering is only ever compared WITHIN a job, and that is not a simplification: steps in a job run in
+ * file order, whereas jobs run in `needs:` order, so indices from two jobs are not comparable at all. Both
+ * recipe deploys already live in one job in each workflow.
+ *
+ * @returns The jobs.
+ * @sideEffect Reads the workflows from disk.
+ */
+function deployJobs(): readonly WorkflowJob[] {
+    return DEPLOY_WORKFLOWS.flatMap((workflow) => {
+        const doc = parse(readFileSync(path.join(repoRoot, workflow), 'utf8')) as {
+            jobs: Record<string, { steps?: WorkflowStep[] }>;
+        };
+
+        return Object.entries(doc.jobs).map(([id, job]) => ({
+            workflow,
+            id,
+            steps: (job.steps ?? []).map((step, index) => ({ ...step, index })),
+        }));
+    });
+}
+
+/**
+ * A service package's CDK infra sources (`infra/bin` + `infra/lib`).
+ *
+ * Tracked-plus-untracked and `existsSync`-filtered for the reason {@link runnerPackages} records: a guard
+ * that only tells the truth after `git add` is run too late to stop anything.
+ *
+ * @param serviceDir - The directory name under `packages/services/`.
+ * @returns Repo-relative paths.
+ * @sideEffect Shells out to git and stats the results.
+ */
+function infraSources(serviceDir: string): readonly string[] {
+    return execFileSync(
+        'git',
+        [
+            'ls-files',
+            '--cached',
+            '--others',
+            '--exclude-standard',
+            '--',
+            `${SERVICES_ROOT}/${serviceDir}/infra/bin`,
+            `${SERVICES_ROOT}/${serviceDir}/infra/lib`,
+        ],
+        { cwd: repoRoot, encoding: 'utf8' },
+    )
+        .split('\n')
+        .filter((file) => file.endsWith('.ts') && existsSync(path.join(repoRoot, file)));
+}
+
+/**
+ * Every service package under `packages/services/`.
+ *
+ * @returns The directory names, sorted.
+ * @sideEffect Shells out to git.
+ */
+function serviceDirs(): readonly string[] {
+    return [
+        ...new Set(
+            execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', SERVICES_ROOT], {
+                cwd: repoRoot,
+                encoding: 'utf8',
+            })
+                .split('\n')
+                .filter(Boolean)
+                .map((file) => file.split('/')[2] as string),
+        ),
+    ].sort();
+}
+
+/** An infra source paired with the database authorities it names. */
+interface DatabaseAddressingSource {
+    /** Repo-relative path. */
+    readonly file: string;
+    /** The database authorities it names — a `…/database-name` module, or a `kitchensink-data-*` export. */
+    readonly authorities: readonly string[];
+    /** The file's text, so a caller can ask what else it declares. */
+    readonly source: string;
+}
+
+/**
+ * A service's infra sources that name a logical database, with the authority each one names.
+ *
+ * Two forms, because this repo has two — and reading only the first is what left `identity` and
+ * `identity-webhooks` undiscovered as a pair (see the block comment above):
+ *
+ *   - `from '….../database-name'` — the module that DERIVES a per-stage database name (food's is private to
+ *     its own stack; recipe's is shared, which is what pairs its two apps);
+ *   - `kitchensink-data-${stage}:DatabaseSecretArn` / `:DatabaseName` — the data stack's export naming the
+ *     database, or the credentials that carry it. Normalized to drop the stage token, since the pairing is
+ *     about WHICH database, not which stage.
+ *
+ * ⚠️ The stage token is matched as `${…}`, not `.*`: `kitchensink-data-` is also a stack-name prefix, and a
+ * looser pattern would pair every service that merely reads an unrelated export off the same stack.
+ *
+ * @param serviceDir - The directory name under `packages/services/`.
+ * @returns One entry per infra source that names a database authority.
+ * @sideEffect Reads the infra sources.
+ */
+function databaseAddressingSources(serviceDir: string): readonly DatabaseAddressingSource[] {
+    return infraSources(serviceDir).flatMap((file) => {
+        const source = readFileSync(path.join(repoRoot, file), 'utf8');
+        const authorities = [
+            ...[...source.matchAll(/from\s+'([^']*\/database-name)'/g)].map((match) => match[1] as string),
+            ...[...source.matchAll(/kitchensink-data-\$\{[A-Za-z_]\w*\}:(DatabaseSecretArn|DatabaseName)/g)].map(
+                (match) => `kitchensink-data:${match[1] as string}`,
+            ),
+        ];
+
+        return authorities.length === 0 ? [] : [{ file, authorities, source }];
+    });
+}
+
+/**
+ * The OTHER service packages whose infra addresses the same logical database as `serviceDir`.
+ *
+ * @param serviceDir - The migration-owning service.
+ * @returns The peer directory names, sorted.
+ * @sideEffect Reads every service's infra sources.
+ */
+function servicesSharingDatabaseWith(serviceDir: string): readonly string[] {
+    const owned = new Set(databaseAddressingSources(serviceDir).flatMap((entry) => entry.authorities));
+
+    if (owned.size === 0) {
+        return [];
+    }
+
+    return serviceDirs()
+        .filter((candidate) => candidate !== serviceDir)
+        .filter((candidate) =>
+            databaseAddressingSources(candidate).some((entry) =>
+                entry.authorities.some((authority) => owned.has(authority)),
+            ),
+        );
+}
+
+/**
+ * Every step in which a command matching `pattern` runs — one position per matching step, unlike
+ * {@link commandPosition}, which stops at the first.
+ *
+ * @param steps - The job's steps.
+ * @param pattern - The command pattern.
+ * @param requiredText - Text the step's script must also contain.
+ * @returns Every matching position, in execution order.
+ */
+function commandPositions(
+    steps: readonly IndexedStep[],
+    pattern: RegExp,
+    requiredText: readonly string[],
+): readonly CommandPosition[] {
+    return steps.flatMap((step) => {
+        // Code, not prose — see `shellCode` above. Its singular sibling reads the same way, and a divergence
+        // here would make one assertion see a deploy the other does not.
+        const run = shellCode(step.run ?? '');
+
+        if (!requiredText.some((text) => run.includes(text))) {
+            return [];
+        }
+
+        const offset = run.search(pattern);
+
+        return offset === -1 ? [] : [{ step: step.index, offset }];
+    });
+}
+
+/** A migration-owning service paired with a peer stack that addresses the same database, within one job. */
+interface SharedDatabaseDeploy {
+    readonly job: WorkflowJob;
+    readonly owner: string;
+    readonly peer: string;
+    readonly ownerDeploy: CommandPosition;
+    readonly peerDeploys: readonly CommandPosition[];
+}
+
+/**
+ * Every (migration-owning service, peer stack) pair that a single job deploys BOTH of.
+ *
+ * @returns The pairs.
+ * @sideEffect Reads the workflows and every service's sources.
+ */
+function sharedDatabaseDeploys(): readonly SharedDatabaseDeploy[] {
+    return deployJobs().flatMap((job) => {
+        const owners = new Set(
+            migrationSteps(job.steps).flatMap((step) =>
+                stackTokens(step)
+                    .map((token) => ownerPackage(token))
+                    .filter((owner): owner is string => owner !== undefined),
+            ),
+        );
+
+        return [...owners].flatMap((owner) => {
+            const ownerDeploy = cdkDeployPosition(job.steps, owner);
+
+            if (ownerDeploy === undefined) {
+                return [];
+            }
+
+            return servicesSharingDatabaseWith(owner).flatMap((peer) => {
+                const peerDeploys = commandPositions(job.steps, /cdk deploy/, [`${SERVICES_ROOT}/${peer}/infra`]);
+
+                return peerDeploys.length === 0 ? [] : [{ job, owner, peer, ownerDeploy, peerDeploys }];
+            });
+        });
+    });
+}
+
+describe('every stack that reads a service database deploys AFTER that schema is applied', () => {
+    /**
+     * ⛔ WHAT REPLACED WHAT.
+     *
+     * ADR-0022 ordered a database's consumers with an in-deploy `triggers.Trigger`, which compiles to
+     * `DependsOn` and therefore cannot leave its own stack. For a database read from two CDK apps — recipe,
+     * whose workers deploy FIRST because they publish the SSM parameters the service resolves — that forced
+     * a SECOND runner into the peer's stack purely so it had something to be ordered behind. This block used
+     * to assert exactly that: "a peer deployed before the migration must carry its own barrier".
+     *
+     * The schema is now applied by a stack of its own, deployed and invoked by its own pipeline step. So the
+     * rule became the simpler thing the Trigger form could not express: **every `cdk deploy` of a stack that
+     * reads a database runs AFTER that database's migrate step, in every workflow, in both apps.** No
+     * exemption for a peer, no second runner, and nothing that depends on which app a consumer lives in.
+     *
+     * ⚠️ The SCHEMA stack's own deploy is the exception, and it must run BEFORE — it is what ships the
+     * bundle the migrate step invokes. Discriminated by the stack name (`kitchensink-*-schema-`), which is
+     * what the pipeline actually types, rather than by the package, since both live in the same CDK app.
+     */
+    it('discovers a shared-database pair at all, in every workflow that deploys one', () => {
+        // Anchors the assertions below, exactly as the first test in this file anchors its own: a discovery
+        // predicate that quietly stops matching turns them into assertions over an empty list.
+        //
+        // ⚠️ FOUR ENTRIES, DOWN FROM SIX. The two that went were the recipe pair read in the REVERSE
+        // direction — `recipe-workers+recipe-service` — which existed only because the workers stack owned a
+        // migration runner of its own. One runner per database is the change; losing those entries is what
+        // that looks like from here.
+        const discovered = sharedDatabaseDeploys().map((pair) => `${pair.job.workflow}:${pair.owner}+${pair.peer}`);
+
+        expect(
+            [...discovered].sort(),
+            'expected recipe-service + recipe-workers, and identity + identity-webhooks, in every workflow ' +
+                'that deploys both halves of the pair',
+        ).toStrictEqual([
+            // ⚠️ `_sandbox-preview.yml` sorts first: the per-PR deploy jobs moved to a REUSABLE workflow so
+            // `_ci.yml` can run them as one branch — GitHub Actions has no cross-workflow `needs`.
+            '.github/workflows/_sandbox-preview.yml:recipe-service+recipe-workers',
+            '.github/workflows/prod-deploy.yml:identity+identity-webhooks',
+            '.github/workflows/prod-deploy.yml:recipe-service+recipe-workers',
+            '.github/workflows/sandbox-identity-deploy.yml:identity+identity-webhooks',
+        ]);
+    });
+
+    it('⛔ deploys every PEER that reads the database after THAT DATABASE\u2019s migrate step', () => {
+        const violations = sharedDatabaseDeploys().flatMap((pair) => {
+            // ⛔ THE PAIR'S OWN MIGRATE STEP, resolved through the stack the step itself names — never
+            // simply the first migrate step in the job. `prod-deploy.yml` runs identity's, then food's,
+            // then recipe's, so taking the first would order recipe-workers behind IDENTITY's schema and
+            // pass for a reason that has nothing to do with the database it reads.
+            const migrate = migrationStepsFor(pair.job.steps, pair.owner)[0];
+
+            if (migrate === undefined) {
+                return [
+                    `${pair.job.workflow} (${pair.job.id}): no migrate step for ${pair.owner}'s database to ` +
+                        `order ${pair.peer} behind`,
+                ];
+            }
+
+            const early = pair.peerDeploys.filter((position) => runsBefore(position, migrate) < 0);
+
+            return early.length === 0
+                ? []
+                : [
+                      `${pair.job.workflow} (${pair.job.id}): ${pair.peer} deploys at step ` +
+                          `${early.map((position) => position.step).join(', ')}, before the schema is applied at ` +
+                          `step ${migrate.step}`,
+                  ];
+        });
+
+        expect(
+            violations,
+            'a DB-touching Lambda updated ahead of the migration runs the NEW code against the OLD schema, ' +
+                'and its SQS producers are the still-running previous release',
+        ).toStrictEqual([]);
+    });
+
+    it('⛔ deploys the SCHEMA stack before the migrate step that invokes it, in every workflow', () => {
+        // The other half, and the one ADR-0022 said could not be got right by hoisting a pipeline step: the
+        // runner's SQL ships WITH its bundle, so invoking before the deploy that ships it runs the PREVIOUS
+        // release's migration set — exit 0, nothing applied. What makes hoisting safe now is that the deploy
+        // immediately above the invoke ships exactly that bundle, and that the invoke states which set it
+        // expects. Both halves have to hold; this asserts the first.
+        const violations = deployJobs().flatMap((job) => {
+            const schemaDeploys = commandPositions(job.steps, /cdk deploy/, ['-schema-']);
+            const migrates = migrationSteps(job.steps).map((step) => ({ step: step.index, offset: 0 }));
+
+            if (migrates.length === 0) {
+                return [];
+            }
+
+            if (schemaDeploys.length === 0) {
+                return [
+                    `${job.workflow} (${job.id}): invokes a migration runner but never deploys a schema stack, ` +
+                        'so the bundle it invokes is whatever the previous release left',
+                ];
+            }
+
+            const firstSchema = schemaDeploys[0] as CommandPosition;
+            const firstMigrate = migrates[0] as CommandPosition;
+
+            return runsBefore(firstSchema, firstMigrate) < 0
+                ? []
+                : [
+                      `${job.workflow} (${job.id}): the schema stack deploys at step ${firstSchema.step}, at or ` +
+                          `after the migrate step at ${firstMigrate.step}`,
+                  ];
+        });
+
+        expect(
+            violations,
+            'invoking a runner the current deploy did not ship runs the PREVIOUS migration set and exits 0 ' +
+                'having applied nothing — the silent no-op ADR-0022 was written about',
+        ).toStrictEqual([]);
+    });
+
+    it('builds the migration bundle before the SCHEMA deploy that ships it', () => {
+        // The bundle is copied into the asset at BUILD time, so an unbundled schema deploy synthesizes a
+        // THROWING placeholder. That failure is loud rather than silent, which is exactly why it is worth
+        // pinning: a loud failure in a pipeline is still a red deploy discovered at the worst moment.
+        const violations = deployJobs().flatMap((job) => {
+            const schemaDeploys = commandPositions(job.steps, /cdk deploy/, ['-schema-']);
+
+            return schemaDeploys.flatMap((deploy) => {
+                const owner = [...new Set(migrationSteps(job.steps).flatMap((step) => stackTokens(step)))]
+                    .map((token) => ownerPackage(token))
+                    .find((candidate): candidate is string => candidate !== undefined);
+
+                if (owner === undefined) {
+                    return [];
+                }
+
+                const scripts = bundlingScripts(owner);
+
+                if (scripts.length === 0) {
+                    return [`${job.workflow}: ${owner} has no esbuild script to build its runner`];
+                }
+
+                const invokesBundler = new RegExp(
+                    `(?:npm|turbo) run (?:${scripts
+                        .map((script) => script.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+                        .join('|')})(?![\\w:-])`,
+                );
+                const build = commandPosition(job.steps, invokesBundler, [
+                    `${SERVICES_ROOT}/${owner}`,
+                    manifest(owner).name,
+                ]);
+
+                return build !== undefined && runsBefore(build, deploy) < 0
+                    ? []
+                    : [
+                          `${job.workflow} (${job.id}): the schema stack deploys at step ${deploy.step} but ` +
+                              `${owner}'s Lambda bundle is built at ${JSON.stringify(build)}`,
+                      ];
+            });
+        });
+
+        expect(violations, 'a schema stack deployed without its bundle ships a throwing placeholder').toStrictEqual([]);
+    });
+});
+
+/**
+ * Every position in this file is "where a command RUNS", and a comment does not run. Reading prose was wrong
+ * in BOTH directions, so both are pinned here rather than only the one that happened to bite.
+ */
+describe('the position readers read code, not prose', () => {
+    const step = (index: number, run: string): IndexedStep => ({ index, run });
+
+    it('does not read a step that MENTIONS a deploy as one that performs it', () => {
+        // The false positive. `Compute deploy flags` explains the `cdk deploy … --app` steps below it while
+        // naming three service entrypoints, and was read as deploying all three at step 4 — ahead of every
+        // Lambda bundle, which made three genuine orderings look violated.
+        const mentioned = [
+            step(0, '# the cdk deploy of packages/services/identity/infra happens later\necho hello'),
+            step(1, 'npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all'),
+        ];
+
+        expect(commandPosition(mentioned, /cdk deploy/u, ['packages/services/identity/infra'])?.step).toBe(1);
+    });
+
+    it('does not accept a COMMENTED-OUT deploy as proof that one exists', () => {
+        // The false negative, which stood unnoticed and is the more dangerous half: deleting a real deploy
+        // while leaving its comment behind would have satisfied 'resolves every migration step to a cdk
+        // deploy step that actually exists'.
+        const commentedOut = [step(0, '# npx cdk deploy --app "node packages/services/food-service/infra/x.js"')];
+
+        expect(commandPosition(commentedOut, /cdk deploy/u, ['packages/services/food-service/infra'])).toBeUndefined();
+    });
+
+    it('preserves offsets, because the ordering assertions are positional', () => {
+        // Blanking rather than deleting: a comment line that shortened the body would shift every offset
+        // after it and silently reorder two commands inside one step.
+        const body = '# a comment\nnpx cdk deploy --app "packages/services/identity/infra/bin/app.ts"';
+
+        expect(commandPosition([step(0, body)], /cdk deploy/u)?.offset).toBe(body.indexOf('cdk deploy'));
+    });
+
+    it('leaves a `#` that is not a comment alone', () => {
+        // `"${#items[@]}"` is an expansion, not a comment. Only a line whose first non-whitespace character
+        // is `#` is blanked.
+        expect(shellCode('echo "${#items[@]}"')).toBe('echo "${#items[@]}"');
+    });
+});

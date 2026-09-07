@@ -1,0 +1,32 @@
+appId: io.commise.mobile
+---
+# U13 — the batched ambiguity-review story (mobile). Mirror of the web Playwright `ambiguityReview.spec.ts`
+# per the cross-platform mandate: the surface's decision layer is shared, so what this flow proves on a
+# device is the native markup and the real tap path — badge → entry → open → pick → saved.
+#
+# Assumes an authenticated session against the live sandbox services AND a recipe in the viewer's library
+# carrying at least one gate-AMBIGUOUS line (the seeded review fixture — see the CI seeding step; the flow
+# self-skips by assertion failure when the fixture recipe is absent, which is the honest outcome: the
+# ambiguity state is produced by the verification worker, not constructible from the app).
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Ambiguity Probe'
+
+# The badge and the entry render from the detail's own resolutionStatus.
+- scrollUntilVisible:
+      element: 'Needs a pick'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Review ingredient matches'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Review ingredient matches'
+
+# The row's shortlist is the LIVE suggest's — pick the first candidate offered.
+- assertVisible: 'apple sauce'
+- tapOn:
+      below: 'apple sauce'
+      index: 0
+- assertVisible: 'Saved — future recipes will use this match.'

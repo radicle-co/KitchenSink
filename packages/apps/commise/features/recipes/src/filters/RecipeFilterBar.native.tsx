@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe filter bar (FR-006 / W4 S2).
  *
- * The React Native leaf of {@link import('./RecipeFilterBar.js').RecipeFilterBar} — the same P9
+ * The React Native leaf of `RecipeFilterBar` — the same P9
  * descriptor-driven contract (facets are DATA dispatched through a `kind → renderer` map), rendered with RN
  * primitives. Dietary + Tags are multi-select chips, Cuisine is single-select (the search API filters by ONE
  * cuisine), Prep-time + Cook-time (REQ-030f) + Total-time are bucket ladders, and Ingredients (FR-006 gap #3)
@@ -20,6 +20,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { filterMessages, type FilterMessages } from './messages.js';
 import {
     TIME_BUCKETS_MINUTES,
@@ -95,6 +96,8 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     onClearAll,
 }) => {
     const m = useMessages(filterMessages);
+    // The FR-010a minimum copy is shared by all four ingredient-search surfaces — see its message doc.
+    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const locale = useLocale();
     const countLabels = { one: m.chipCountOne, other: m.chipCountOther };
 
@@ -204,6 +207,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                     {/* The label is the region's CONTENT, not only its `aria-label`: an empty live region has
                         nothing to render and nothing to announce (a live region announces content CHANGES).
                         Same doctrine as the web leaf and the mobile `LoadingState`. */}
+                    {/* 003-FR-010a — see the web leaf for why this is not the no-matches copy and not
+                        a live region. */}
+                    {viewState.kind === 'tooShort' && (
+                        <Text style={styles.groupLabel}>
+                            {fillTemplate(minimumCopy.tooShort, { minimum: viewState.minimum })}
+                        </Text>
+                    )}
+
                     {viewState.kind === 'searching' && (
                         <View role="status" aria-label={m.ingredientSearching}>
                             <Text style={styles.groupLabel}>{m.ingredientSearching}</Text>

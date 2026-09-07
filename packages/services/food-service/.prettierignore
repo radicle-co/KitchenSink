@@ -11,3 +11,27 @@ dist-lambda
 cdk.out
 cdk.context.json
 *.tsbuildinfo
+
+# k6 load-test CREDENTIAL MATERIAL — generated per run by `tests/load/prepareClerkTokens.ts` and
+# `tests/load/prepareErasureTokens.ts`, and gitignored at the repo root for the reason spelled out there:
+# each is a pool of LIVE bearer credentials and THIS REPO IS PUBLIC. Listing them here as well is required,
+# not belt-and-braces: this package's `format:check` is `prettier --check .` run with CWD = the package, so
+# Prettier reads THIS file and never the repo root's — and a minted pool would otherwise red every
+# unrelated check in the package. Mirrors packages/services/identity/.prettierignore.
+tests/load/clerk-tokens.json
+tests/load/clerk-public-key.pem
+tests/load/erasure-tokens.json
+tests/load/erasure-public-key.pem
+
+# The generated performance-store fixture (`tests/load/preparePerfFixture.ts` → the id + search-probe
+# lists the k6 scripts `open()`). Not credential material, but not source either: it is a ~180 KB machine-
+# written blob whose contents are a function of the seeded row counts, reproducible in ~15s from the prepare
+# step, and gitignored for the same reason as a k6 summary — committing one machine's fixture invites the
+# next reader to treat it as the agreed shape. The RULES that produce it live in `tests/load/perfFixture.ts`.
+tests/load/perf-fixture.json
+
+# k6 run summaries (see the root .gitignore for why these are not source).
+k6-*-summary.json
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test

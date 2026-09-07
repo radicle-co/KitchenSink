@@ -8,11 +8,15 @@
  */
 import { Inject, Injectable } from '@nestjs/common';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import type { RecipeSearchParams } from '@kitchensink/recipe-core';
 
 import { toPageEnvelope } from '../common/pagination.js';
 import { SearchDal, DEFAULT_SEARCH_PAGE_SIZE } from './dal/search.dal.js';
-import type { RecipeSearchResponse } from './dto/search-response.dto.js';
+// The service's input type is THIS SERVICE'S OWN authored wire contract. It used to be `recipe-core`'s
+// hand-written `RecipeSearchParams` — a second, looser declaration of the same knowledge (no bounds, no
+// coercion, MUTABLE arrays) which widened the parsed query back to a shape the boundary had already refused.
+// That interface has since been DELETED, along with its never-called zod twin; the published
+// `RecipeSearchQuery` is the only representation left, and it is what the pipe actually produces.
+import type { RecipeSearchQuery, RecipeSearchResponse } from './search.schema.js';
 
 /** DI token for the search DAL — provided by `SearchModule` via `useFactory` over the Drizzle client. */
 export const SEARCH_DAL = 'SEARCH_DAL';
@@ -25,10 +29,10 @@ export class SearchService {
      * Run a ranked, faceted, paginated recipe search visible to `ownerId` (public recipes + their own).
      *
      * @param ownerId - The caller's app-user ULID (widens visibility beyond `public`).
-     * @param params - The validated search parameters (a subset of `RecipeSearchParams`).
+     * @param params - The parsed search query, exactly as `recipeSearchQuerySchema` produced it.
      * @returns The ranked results, facet counts, and pagination envelope.
      */
-    public async searchRecipes(ownerId: string, params: RecipeSearchParams): Promise<RecipeSearchResponse> {
+    public async searchRecipes(ownerId: string, params: RecipeSearchQuery): Promise<RecipeSearchResponse> {
         const page = params.page ?? 1;
         const pageSize = params.pageSize ?? DEFAULT_SEARCH_PAGE_SIZE;
         const sortBy = params.sortBy ?? RecipeSearchSortBy.RELEVANCE;

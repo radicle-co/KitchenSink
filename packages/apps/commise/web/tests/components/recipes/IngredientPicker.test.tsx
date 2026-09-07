@@ -444,7 +444,7 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         vi.useRealTimers();
     });
 
-    it('never calls the search endpoint below the 2-character trigger', async () => {
+    it('never calls the search endpoint below the FR-010a minimum', async () => {
         const client = createFakeRecipeServiceClient();
         const searchSpy = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
 
@@ -464,7 +464,12 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
     // action row renders only inside the non-idle view-state kinds), but the mobile leaf gated the same row
     // on `trimmed.length > 0` and so offered both affordances at ONE character. Pinning the affordance-level
     // contract — not just the absent network call — keeps the two leaves from drifting on it again.
-    it('offers neither query-keyed affordance below the 2-character trigger', async () => {
+    //
+    // ⚠️ plan U37 makes this case load-bearing a SECOND time: `tooShort` is a new non-idle view-state kind,
+    // so a leaf that gates its action row on `kind !== 'idle'` would start offering "Find nutrition for “s”"
+    // at one character again — the exact regression this case was written for, re-opened by the fix for a
+    // different requirement.
+    it('offers neither query-keyed affordance below the FR-010a minimum', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
 
@@ -492,7 +497,10 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
-        fireEvent.change(screen.getByRole('searchbox', { name: 'Search ingredients' }), { target: { value: 'zz' } });
+        // ⚠️ The needle moved from 'zz' to 'zzz' with plan U37: at two characters the query is now below
+        // the FR-010a minimum and can never reach `searching`, so the old needle asserted a spinner for a
+        // search that no longer fires. The debounce-flash invariant is unchanged.
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Search ingredients' }), { target: { value: 'zzz' } });
         // Flush React's state update WITHOUT advancing the debounce timer.
         await act(async () => {
             await Promise.resolve();
@@ -514,6 +522,64 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         });
 
         expect(screen.getByText('No matching ingredients found.')).toBeInTheDocument();
+    });
+
+    /**
+     * The FR-010a empty state, on WEB (003-FR-010a, plan U37).
+     *
+     * ⛔ Asserted as visible TEXT, not as "no results region". Before this unit a one- or two-character
+     * query rendered nothing at all and the picker looked broken; the requirement is that the cook is TOLD
+     * why and invited to keep going, so a test that only checks for absence would pass on the behaviour it
+     * exists to reject.
+     */
+    it('explains the three-character minimum instead of rendering nothing', async () => {
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Search ingredients' }), { target: { value: 'eg' } });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+
+        expect(
+            screen.getByText('Keep typing — 3 characters or more. Anything shorter matches half the pantry.'),
+        ).toBeInTheDocument();
+        // ⛔ NOT the no-matches copy: that asserts the catalog was searched and came back empty, which is
+        // precisely what did not happen.
+        expect(screen.queryByText('No matching ingredients found.')).not.toBeInTheDocument();
+        expect(searchSpy).not.toHaveBeenCalled();
+    });
+
+    it('says nothing at all while the search box is untouched', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+
+        expect(screen.queryByText(/characters or more/)).not.toBeInTheDocument();
+    });
+
+    it('searches `egg` — the three-character foods are not casualties of the minimum', async () => {
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Search ingredients' }), { target: { value: 'egg' } });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(searchSpy).toHaveBeenCalledWith('egg', undefined);
+        expect(screen.queryByText(/characters or more/)).not.toBeInTheDocument();
     });
 
     it('debounces rapid keystrokes into exactly ONE search call, on the settled (final) query', async () => {
@@ -542,22 +608,31 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         expect(searchSpy).toHaveBeenCalledWith('spin', undefined);
     });
 
-    // Real timers (no `vi.useFakeTimers()`) for this one — it asserts the RENDERED ranking order, not the
-    // debounce timing itself (already pinned above), and mixing fake timers with TanStack Query's own
-    // internal (micro)task scheduling for a full fetch→render round trip is exactly the kind of brittle
-    // interaction the rest of this file avoids by using real timers + `findBy*`.
-    it('renders results ranked prefix > substring > fuzzy, ties broken alphabetically', async () => {
+    // Real timers (no `vi.useFakeTimers()`) for this one — it asserts the RENDERED order, not the debounce
+    // timing itself (already pinned above), and mixing fake timers with TanStack Query's own internal
+    // (micro)task scheduling for a full fetch→render round trip is exactly the kind of brittle interaction
+    // the rest of this file avoids by using real timers + `findBy*`.
+    //
+    // ⚠️ REWRITTEN for plan U5 — the SAME case, asserting the opposite. It used to assert the picker
+    // re-ranked the server's page `prefix > substring > fuzzy`. That client-side mechanism is retired (owner
+    // ruling 2026-08-20: the server determines order, on best-quality match), so this asserts the property
+    // that replaced it — the picker is a faithful renderer of the server's order. Where the retired coverage
+    // went is recorded in `@commise/features-recipes`'s
+    // `src/hooks/__tests__/ingredientResolver.model.test.ts`; the ordering itself is now proven against a
+    // real database by each service's ranking integration suite.
+    it("renders the server's order UNMODIFIED — the picker no longer re-ranks (U5)", async () => {
         vi.useRealTimers(); // override this block's fake timers — see comment above
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        // Deliberately unordered: the picker must re-rank this, not merely display it as returned.
+        // Deliberately the exact order the retired client sort would have INVERTED: the fuzzy match first
+        // and the prefix match third. If any re-ranking creeps back in, this fails.
         vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
             blended(
                 own([
-                    makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }), // fuzzy — neither prefix nor substring
-                    makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }), // substring
-                    makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }), // prefix
-                    makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }), // substring (alphabetically first)
+                    makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }),
+                    makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }),
+                    makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }),
+                    makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }),
                 ]),
             ),
         );
@@ -567,12 +642,16 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'apple');
 
         const list = await screen.findByRole('list');
-        await vi.waitFor(() => expect(within(list).getAllByRole('button')).toHaveLength(4));
+        await vi.waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(4));
+        // ⚠️ THE FIRST button of each row, not every button in the list. Since U14 a food-backed row also
+        // carries a correction control ("Always use this for …"), so a flat `getAllByRole('button')` returns
+        // two per row. Narrowing to the row's PICK button keeps this assertion about what it has always been
+        // about — the RANKING ORDER — rather than about how many controls a row happens to have.
         const names = within(list)
-            .getAllByRole('button')
-            .map((button) => button.textContent);
+            .getAllByRole('listitem')
+            .map((row) => within(row).getAllByRole('button')[0]?.textContent);
 
-        expect(names).toEqual(['Apple pie spice', 'Banana apple', 'Zucchini apple', 'Aplpe']);
+        expect(names).toEqual(['Aplpe', 'Zucchini apple', 'Apple pie spice', 'Banana apple']);
     });
 });
 

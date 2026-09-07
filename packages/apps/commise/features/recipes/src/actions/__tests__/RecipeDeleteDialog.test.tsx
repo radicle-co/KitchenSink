@@ -172,6 +172,7 @@ describe('RecipeDeleteDialog (web) \u2014 Radix a11y machinery (B6/CR-003)', () 
 
         function Harness() {
             const [open, setOpen] = useState(false);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>
@@ -211,6 +212,7 @@ describe('RecipeDeleteDialog (web) \u2014 Radix a11y machinery (B6/CR-003)', () 
 
         function Harness() {
             const [open, setOpen] = useState(true);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>

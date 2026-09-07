@@ -1,9 +1,30 @@
+import { testTempRootSetup } from '@kitchensink/vitest';
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+    resolve: {
+        alias: {
+            // `@kitchensink/infra-security` exports BUILT js (`dist/`), because prod-deploy runs the CDK
+            // entrypoints as compiled JS under plain `node` — see ADR-0013. Resolving the bare specifier to
+            // `dist/` in tests too would mean the suites assert against whatever was last built, so an edit
+            // to the Aspect could pass a stale-dist run: exactly the false green a template-parity guard
+            // must not have. Tests therefore run the SOURCE, and the compiled artifact gets its own,
+            // explicit coverage in `cdkNagSynth.integration.test.ts`, which shells out to
+            // `cdk synth --app "node dist/bin/app.js"`.
+            '@kitchensink/infra-security': fileURLToPath(new URL('../security/src/index.ts', import.meta.url)),
+        },
+    },
     test: {
+        // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+        // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+        globalSetup: [testTempRootSetup],
         include: ['__tests__/**/*.test.ts'],
-        exclude: ['node_modules', 'dist', 'cdk.out'],
+        // `tests/**` is the INTEGRATION tier (`vitest.integration.config.ts`) — excluded by path AND
+        // by suffix so a `*.integration.test.ts` left in `__tests__/` cannot rejoin the unit run,
+        // which is exactly how six process-spawning specs ended up racing the unit tests.
+        exclude: ['tests/**', '**/*.integration.test.ts', 'node_modules', 'dist', 'cdk.out'],
         typecheck: {
             enabled: false,
         },

@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
     postgres:
-        image: postgres:16-alpine
+        image: postgres:18
         container_name: kitchensink-identity-postgres
         environment:
             POSTGRES_USER: identity_app
@@ -11,7 +11,11 @@ services:
         ports:
             - '5432:5432'
         volumes:
-            - postgres_data:/var/lib/postgresql/data
+            # ⚠️ `/var/lib/postgresql`, NOT `/var/lib/postgresql/data` — postgres:18 moved `PGDATA` to
+            # `/var/lib/postgresql/18/docker` and declares its VOLUME at `/var/lib/postgresql`. On the old
+            # path this named volume holds nothing and the cluster goes to an anonymous volume, so local data
+            # vanishes on recreate. ⛔ Drop a pre-existing 16-era `postgres_data` volume before first run.
+            - postgres_data:/var/lib/postgresql
         healthcheck:
             test: ['CMD-SHELL', 'pg_isready -U identity_app -d kitchensink_identity']
             interval: 5s

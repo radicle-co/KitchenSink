@@ -1,31 +1,24 @@
 /**
  * CR-001 / FR-013 — the `/api/v1/recipes/{id}/rating` REST surface (rating write).
  *
- * A thin controller sharing the `v1/recipes` base path with {@link RecipesController} (distinct method +
+ * A thin controller sharing the `v1/recipes` base path with `RecipesController` (distinct method +
  * sub-path, so no route collision). The `@OwnerId()` decorator resolves the verified caller ULID from
  * `req.principal` (set by the fail-closed `AuthMiddleware`) — here that caller is the RATER, never taken
  * from the body. Both routes are WRITES, so both carry `@WriteRateLimit()`. Domain failures thrown by the
  * service (`RECIPE_NOT_FOUND` → 404, `CANNOT_RATE_OWN_RECIPE` → 403) are mapped to HTTP by the global
- * `ApiExceptionFilter`; the controller-scoped `ValidationPipe` enforces the DTO (and, with
- * `whitelist: true`, strips any spoofed body `userId`).
+ * `ApiExceptionFilter`; the controller-scoped `ZodValidationPipe` enforces the DTO — which IS the authored
+ * wire contract (`ratings.schema.ts` → recipe-core's one rating rule), per CODING_STANDARDS §15.2 — and
+ * REFUSES any spoofed body `userId` with a `400`, because the schema is `z.strictObject` (GR-017 §17-c).
+ * It used to STRIP the key; the rater was never read from the body under either behaviour, so what the ruling
+ * changes is that the caller is told their field was rejected rather than receiving a `200`.
  */
-import {
-    Body,
-    Controller,
-    Delete,
-    HttpCode,
-    HttpStatus,
-    Param,
-    ParseUUIDPipe,
-    Put,
-    UsePipes,
-    ValidationPipe,
-} from '@nestjs/common';
+import { Body, Controller, Delete, HttpCode, HttpStatus, Param, ParseUUIDPipe, Put, UsePipes } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 import { RatingsService } from './ratings.service.js';
-import { SetRatingDto } from './dto/set-rating.dto.js';
-import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
-import { OwnerId } from '../auth/current-principal.decorator.js';
+import { SetRatingDto } from './dto/setRating.dto.js';
+import type { RecipeResponse } from '../recipes/dto/recipeResponse.dto.js';
+import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
@@ -33,7 +26,7 @@ import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/recipes', 'v1/recipes'])
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+@UsePipes(ZodValidationPipe)
 export class RatingsController {
     public constructor(private readonly ratingsService: RatingsService) {}
 

@@ -264,12 +264,14 @@ describe('Button (native)', () => {
  */
 function withMinHeight(root: HTMLElement, minHeight: string): HTMLElement | null {
     const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
     return candidates.find((el) => getComputedStyle(el).minHeight === minHeight) ?? null;
 }
 
 /** The sibling of {@link withMinHeight} for the tier's bordered surface (RNW compiles borders the same way). */
 function withBorderWidth(root: HTMLElement, borderWidth: string): HTMLElement | null {
     const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
     return candidates.find((el) => getComputedStyle(el).borderTopWidth === borderWidth) ?? null;
 }
 

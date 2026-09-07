@@ -2,11 +2,14 @@
  * @module @commise/ui/press-scale — the native design-system {@link PressScale} press-feedback primitive.
  *
  * Owns the interaction: it renders the `Pressable` and drives a `transform: [{ scale }]` from that
- * `Pressable`'s `pressed` state, so a held control shrinks to {@link PRESS_SCALE} and springs back on
+ * `Pressable`'s `pressed` state, so a held control shrinks to `PRESS_SCALE` and springs back on
  * release. The scale is suppressed when the control is disabled and — crucially — when the OS "reduce
  * motion" setting is on (non-essential motion is gated), mirroring the web leaf's `motion-safe:` gate. The
  * branch itself lives in the pure {@link pressedScale} so it is provable without a renderer, and the
  * preference is read through the design system's single {@link useReduceMotion} reader.
+ *
+ * @pattern Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable
+ *     and drives the scale from its `pressed` state, which is why the web leaf decorates and this one adapts.
  */
 import type { FC } from 'react';
 import { Pressable, type StyleProp, type ViewStyle } from 'react-native';

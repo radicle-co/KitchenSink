@@ -6,13 +6,18 @@
  * (the seam a future premium-gated widget calls). In Home v1 no live widget is premium-gated, so the
  * mechanism ships ready for the first gated widget (005–009) rather than firing on any current surface.
  *
- * "Once per session" is deliberately **component state** (a ref guard), not persisted — the requirement is
- * per-session, and an app relaunch legitimately starts a new session. Mirrors the web nudge's hook logic
- * exactly; only the presentation swaps to a React Native `Modal`.
+ * "Once per session" is deliberately **component state**, not persisted — the requirement is per-session,
+ * and an app relaunch legitimately starts a new session. Mirrors the web nudge's hook logic exactly; only
+ * the presentation swaps to a React Native `Modal`.
+ *
+ * @pattern Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a
+ *     gated widget asks for the nudge without owning it.
+ * @pattern Adapter over React Native `Modal`, presenting the nudge as a bottom sheet — the platform expression of the
+ *     web leaf's Radix dialog.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
-import { createContext, useCallback, useContext, useRef, useState, type JSX } from 'react';
+import { createContext, useCallback, useContext, useState, type JSX } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
@@ -54,28 +59,37 @@ export interface OncePerSessionNudge {
 }
 
 /**
- * Own the once-per-session nudge state. The first {@link OncePerSessionNudge.trigger} shows it; a ref guard
- * makes every later trigger a no-op for the session, so it can appear at most once regardless of how many
- * gated taps occur. Dismissing hides it without re-arming.
+ * The nudge's whole lifecycle, as ONE value — the native mirror of the web nudge's `NudgePhase`.
+ *
+ * ⛔ Not a `visible` flag beside a separate "has fired" latch: that pair can spell two states this feature
+ * does not have — spent-but-visible, and visible-but-not-spent — and keeping them in agreement was the only
+ * thing stopping the nudge appearing twice. Reading the spent-ness out of a ref made it worse, because a ref
+ * is not state React tracks: nothing re-renders on it, and it is exactly the render-affecting bookkeeping
+ * CLAUDE.md §3 rules out. With one value the illegal states are unrepresentable.
+ */
+type NudgePhase =
+    /** Never triggered. The next trigger shows it. */
+    | 'armed'
+    /** On screen. Further triggers are no-ops; a dismissal spends it. */
+    | 'showing'
+    /** Shown and dismissed. Spent for the session — no trigger re-arms it. */
+    | 'spent';
+
+/**
+ * Own the once-per-session nudge state. The first {@link OncePerSessionNudge.trigger} shows it; every later
+ * trigger is a no-op for the session, so it can appear at most once regardless of how many gated taps occur.
+ * Dismissing hides it without re-arming.
  *
  * @returns The nudge visibility plus its trigger/dismiss controls.
  */
 export function useOncePerSessionNudge(): OncePerSessionNudge {
-    const [visible, setVisible] = useState(false);
-    const shown = useRef(false);
+    const [phase, setPhase] = useState<NudgePhase>('armed');
 
-    const trigger = useCallback(() => {
-        if (shown.current) {
-            return;
-        }
+    // Functional updaters: two gated widgets tapping in the same batch must not both read `armed`.
+    const trigger = useCallback(() => setPhase((current) => (current === 'armed' ? 'showing' : current)), []);
+    const dismiss = useCallback(() => setPhase((current) => (current === 'showing' ? 'spent' : current)), []);
 
-        shown.current = true;
-        setVisible(true);
-    }, []);
-
-    const dismiss = useCallback(() => setVisible(false), []);
-
-    return { visible, trigger, dismiss };
+    return { visible: phase === 'showing', trigger, dismiss };
 }
 
 /** Props for {@link SubscriptionNudge}. */

@@ -34,6 +34,7 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         totalTimeMinutes: 30,
         servings: 4,
         difficulty: null,
+        mealType: null,
         averageRating: null,
         ratingCount: 0,
         visibility: 'public',
@@ -46,8 +47,6 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         cuisine: 'italian',
         dietaryFlags: [],
         tags: ['dinner'],
-        hasPartialNutrition: false,
-        leadCaloriesPerServing: null,
         authorHandle: null,
         currentVersion: 1,
         ingredientNamesText: 'flour water salt',
@@ -78,8 +77,26 @@ export function makeRecipeIngredientRow(overrides: Partial<RecipeIngredientRow> 
         recipeId: '00000000-0000-4000-8000-00000000a001',
         ingredientId: '00000000-0000-4000-8000-0000000000ff',
         quantity: '1',
+        /** `null` = "this line states one value, not two" — the shape of every row 0020 did not touch. */
+        quantityHigh: null,
         unit: 'unit',
         displayText: null,
+        /** `null` = "this line was AUTHORED, not transcribed" — the shape of every row 0024 did not touch. */
+        sourceLine: null,
+        sourcePhrase: null,
+        /**
+         * All three `null` = "this line's quantity and unit are what the SOURCE said" — the shape of every
+         * row 0027 did not touch, and of every line that stated a modern unit.
+         */
+        statedQuantity: null,
+        statedQuantityHigh: null,
+        statedUnit: null,
+        /**
+         * Both `null` = "this line states no preparation and belongs to no section" — the shape of every row
+         * 0030 did not touch, and of the overwhelming majority of lines a cook will ever write.
+         */
+        preparation: null,
+        groupLabel: null,
         sortOrder: 0,
         ingredientName: 'Test Ingredient',
         isUserEntered: false,
@@ -102,7 +119,6 @@ export function makeVersionRow(overrides: Partial<RecipeVersionRow> = {}): Recip
         s3Key: null,
         createdBy: '01J000000000000000000FREE0',
         changeSummary: null,
-        deviceLabel: null,
         editorHandle: null,
         createdAt: BASE_DATE,
         ...overrides,
@@ -115,6 +131,7 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         id: '00000000-0000-4000-8000-00000000a001',
         ownerId: '01J000000000000000000FREE0',
         title: 'Test Recipe',
+        // Derived, not stored (U10). The fixture states the honest default: not accounted for.
         description: 'A recipe used in tests.',
         prepTimeMinutes: 10,
         cookTimeMinutes: 20,
@@ -127,7 +144,6 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         cuisine: 'italian',
         dietaryFlags: [],
         tags: ['dinner'],
-        hasPartialNutrition: false,
         currentVersion: 1,
         ratingCount: 0,
         usesPremiumCapability: false,

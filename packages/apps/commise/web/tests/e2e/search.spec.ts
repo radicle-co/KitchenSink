@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { E2E_INGREDIENT_IDS, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -178,15 +178,22 @@ test.describe('recipe search (T110)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                // Default ingredients (`utils/recipeApi.ts`'s `makeRecipeDetail`) carry the catalog id `ing_salt`
-                // ("Salt") the mocked `/api/v1/ingredients/search` always returns, regardless of the typed query.
+                // Default ingredients (`utils/recipeApi.ts`'s `makeRecipeDetail`) carry the catalog id
+                // `E2E_INGREDIENT_IDS.salt` ("Salt") the mocked `/api/v1/ingredients/search` always returns,
+                // regardless of the typed query.
                 makeRecipeDetail({ id: 'rec_soup', ownerId: 'usr_other', title: 'Weeknight Ramen Bowl' }),
                 makeRecipeDetail({
                     id: 'rec_salad',
                     ownerId: 'usr_other',
                     title: 'Tropical Fruit Salad',
                     ingredients: [
-                        { ingredientId: 'ing_mango', name: 'Mango', quantity: 1, unit: 'each', isUserEntered: false },
+                        {
+                            ingredientId: E2E_INGREDIENT_IDS.mango,
+                            name: 'Mango',
+                            quantity: { kind: 'exact', value: 1 },
+                            unit: 'each',
+                            isUserEntered: false,
+                        },
                     ],
                 }),
             ],
@@ -199,7 +206,7 @@ test.describe('recipe search (T110)', () => {
 
         // FILTER — typing an ingredient name surfaces the catalog match; picking it narrows the set. The
         // non-matching salad disappearing is the assertion that matters: it can only happen if
-        // `ingredientIds=ing_salt` actually reached the API.
+        // the salt ingredient id actually reached the API as a filter.
         // The option is addressed by its ACTION name ("Filter by Salt"), which is what makes it distinguishable
         // from the search box that now holds the typed query — a bare "Salt" would also match the field.
         await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('sal');
@@ -214,7 +221,7 @@ test.describe('recipe search (T110)', () => {
         // The picked ingredient renders as a removable chip, and the URL now carries it (shareable / reload-safe).
         const chip = page.getByRole('button', { name: 'Remove Salt' });
         await expect(chip).toBeVisible();
-        await expect(page).toHaveURL(/ingredientId=ing_salt/);
+        await expect(page).toHaveURL(new RegExp(`ingredientId=${E2E_INGREDIENT_IDS.salt}`, 'u'));
 
         // Removing the chip clears the last criterion, so the surface returns to the curated browse default
         // (rails over the full public set), not a flat list — hence `.first()` again.

@@ -29,7 +29,9 @@ const CREATE_PAYLOAD = {
     prepTimeMinutes: 1,
     cookTimeMinutes: 1,
     totalTimeMinutes: 2,
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Salt', quantity: 1 }],
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Salt', quantity: { kind: 'exact', value: 1 } },
+    ],
     steps: [{ instruction: 'Season.' }],
 };
 

@@ -18,9 +18,10 @@ import type {
 } from '@kitchensink/recipe-core';
 
 import { formatCalories } from '../card/model.js';
-import { formatQuantity } from '../detail/model.js';
+import { formatIngredientLine } from '../detail/model.js';
 import {
     computeTotalTime,
+    draftQuantity,
     type RecipeFormIngredient,
     type RecipeFormStep,
     type RecipeFormValues,
@@ -43,7 +44,7 @@ import type {
 /**
  * Which honest error a failed restore surfaces (localized copy lives in the list, keyed by this discriminant —
  * the B20/B15 code pattern, so the composing container never reaches into the block's message dictionary).
- * - `conflict` — the recipe changed underneath (409 {@link VersionConflictError}); the container refetches the
+ * - `conflict` — the recipe changed underneath (409 `VersionConflictError`); the container refetches the
  *   history + current version and the copy tells the viewer to review the refreshed list and retry.
  * - `generic` — any other failed restore write.
  */
@@ -98,7 +99,7 @@ export interface RecipeVersionListProps {
  * merge both read `diff.rows` instead).
  */
 export interface RecipeConflictViewProps {
-    /** The 409's winning server side (version/device/updatedAt/snapshot, W8-a.5) — the view's LEFT/FIRST side
+    /** The 409's winning server side (version/updatedAt/snapshot, W8-a.5) — the view's LEFT/FIRST side
      *  everywhere (X7). Drives the per-side banner (X3). */
     readonly server: VersionConflictSide;
     /** The version the draft was edited from, when still retained in the DB window; ABSENT when evicted (the
@@ -189,9 +190,10 @@ export const findPriorVersion = (
 
     return versions
         .filter((version) => version.versionNumber < versionNumber)
-        .reduce<
-            RecipeVersion | undefined
-        >((latest, candidate) => (laterThanLatest(latest, candidate) ? candidate : latest), undefined);
+        .reduce<RecipeVersion | undefined>(
+            (latest, candidate) => (laterThanLatest(latest, candidate) ? candidate : latest),
+            undefined,
+        );
 };
 
 /** One version row's changed-fields summary relative to its immediately-prior version. */
@@ -267,36 +269,31 @@ export const formatChangedFieldNames = (
 // ─── Row-level editor/device attribution (W6 Task 2) ────────────────────────────────────────────────
 
 /**
- * Render a version row's editor/device attribution line — `by @{handle}`, with a device suffix appended
- * when a device is also known. `undefined` when `editorHandle` is ABSENT (a pre-feature version, or one
- * whose editor could not be resolved) — the caller renders no attribution line at all, never
- * `by @undefined`. `deviceLabel` is untrusted free text: this returns a plain string for the caller to
- * render as TEXT (React escapes it) — NEVER via `dangerouslySetInnerHTML`. Pure.
+ * Render a version row's editor attribution line — `by @{handle}`. `undefined` when `editorHandle` is
+ * ABSENT (a pre-feature version, or one whose editor could not be resolved) — the caller renders no
+ * attribution line at all, never `by @undefined`. `editorHandle` is untrusted free text: this returns a
+ * plain string for the caller to render as TEXT (React escapes it) — NEVER via `dangerouslySetInnerHTML`.
+ * Pure.
+ *
+ * ⚠️ This took a device label and appended a ` (from {device})` suffix until the owner ruling of
+ * **2026-08-26** deleted device attribution outright. The suffix branch is gone, not disabled — do not
+ * reintroduce a device parameter here (see the `recipeVersions` table docstring in `recipe-service`).
  *
  * @param editorHandle - The version's editor handle, if known.
- * @param deviceLabel - The version's device label, if known.
  * @param messages - The localized attribution templates.
  * @returns The formatted attribution line, or `undefined` when there is nothing to attribute.
  */
 export const formatVersionAttribution = (
     editorHandle: string | undefined,
-    deviceLabel: string | undefined,
     messages: RecipeVersionListMessages,
-): string | undefined => {
-    if (editorHandle === undefined) {
-        return undefined;
-    }
-
-    const byEditor = fillTemplate(messages.byEditor, { handle: editorHandle });
-
-    return deviceLabel === undefined ? byEditor : byEditor + fillTemplate(messages.fromDevice, { device: deviceLabel });
-};
+): string | undefined =>
+    editorHandle === undefined ? undefined : fillTemplate(messages.byEditor, { handle: editorHandle });
 
 // ─── Per-side banner (W7 Task 3 / X3) ────────────────────────────────────────────────────────────────
 //
 // The conflict view's top banner names each side plainly: the server's winning version (its version number,
-// when it was saved, and — when known — which device saved it) and the user's own in-progress draft (which
-// was never persisted, so it carries no version number of its own). Server is ALWAYS first (X7).
+// and when it was saved) and the user's own in-progress draft (which was never persisted, so it carries no
+// version number of its own). Server is ALWAYS first (X7).
 
 /**
  * Format an ISO 8601 instant as a localized "N units ago" relative-time string via `Intl.RelativeTimeFormat`
@@ -332,12 +329,11 @@ export const formatRelativeTimeAgo = (isoDateTime: string, now: Date, locale: Lo
 };
 
 /**
- * Render the server-side banner line: "Server version (v{n}): Saved {time}", with " on {device}" appended
- * ONLY when `server.deviceLabel` is present — mirroring {@link formatVersionAttribution}'s own
- * base-template-plus-optional-device-suffix split, the same reuse pattern for the same reason (a
- * caller-supplied device label is optional free text, never fabricated). `deviceLabel` is untrusted: this
- * returns a plain string for the caller to render as TEXT (React/RN escape it) — NEVER via
- * `dangerouslySetInnerHTML`. Pure — the caller supplies `now`.
+ * Render the server-side banner line: "Server version (v{n}): Saved {time}". Pure — the caller supplies
+ * `now`.
+ *
+ * ⚠️ A ` on {device}` suffix hung off this line until the owner ruling of **2026-08-26** deleted device
+ * attribution. There is now exactly ONE rendering; do not reintroduce the optional suffix.
  *
  * @param server - The 409's winning server side.
  * @param now - The current instant, supplied by the caller.
@@ -350,25 +346,24 @@ export const formatServerBanner = (
     now: Date,
     messages: RecipeConflictMessages,
     locale: Locale,
-): string => {
-    const relative = formatRelativeTimeAgo(server.updatedAt, now, locale);
-    const base = fillTemplate(messages.serverBanner, { version: server.versionNumber, time: relative });
-
-    return server.deviceLabel === undefined
-        ? base
-        : base + fillTemplate(messages.serverBannerDevice, { device: server.deviceLabel });
-};
+): string =>
+    fillTemplate(messages.serverBanner, {
+        version: server.versionNumber,
+        time: formatRelativeTimeAgo(server.updatedAt, now, locale),
+    });
 
 // ─── Two-column per-side summary cards (wireframe gap #2 — `conflict-resolution.md:46-50`) ──────────
 //
 // Below the prose banner above, the wireframe ALSO shows two dedicated cards — "SERVER VERSION (v6)" /
 // "YOUR VERSION (v5)", each with a "Saved:" and (when known) a "Device:" row. This is a SEPARATE rendering
-// of the same underlying data (versionNumber/updatedAt/deviceLabel), not a replacement for the banner: the
+// of the same underlying data (versionNumber/updatedAt), not a replacement for the banner: the
 // banner reads as a sentence with a RELATIVE time ("Saved 2 minutes ago"); the cards are a structured,
-// scannable ABSOLUTE-date summary, matching the wireframe's own two distinct blocks. "Your version"'s data
-// is `base` (the version the draft was edited from) — the wireframe's own `client_version`/`client_recipe`,
-// NOT a fabricated "current device" the hook has no way to know; `base` is ABSENT when evicted from version
-// history, in which case the card falls back to a version-less heading with no Saved/Device rows (mirroring
+// scannable ABSOLUTE-date summary, matching the wireframe's own two distinct blocks. ⚠️ The wireframe's
+// per-card "Device:" row went with the 2026-08-26 owner ruling on device attribution; what is left on a
+// card is its heading and its Saved line. "Your version"'s data
+// is `base` (the version the draft was edited from) — the wireframe's own `client_version`/`client_recipe`;
+// `base` is ABSENT when evicted from version
+// history, in which case the card falls back to a version-less heading with no Saved row (mirroring
 // `mineBanner`'s own "local unsaved changes" framing for the same case).
 
 /**
@@ -413,24 +408,6 @@ export const formatVersionCardSavedLine = (
     messages: RecipeConflictMessages,
 ): string => fillTemplate(messages.versionCardSavedLabel, { time: formatVersionTimestamp(side.updatedAt, locale) });
 
-/**
- * A side's card "Device: {device}" line, or `undefined` when that side carries no `deviceLabel` — the caller
- * renders NOTHING for an absent device (never a fabricated "Device: unknown"), mirroring
- * {@link formatServerBanner}'s own optional-device-suffix pattern. `deviceLabel` is untrusted free text: the
- * caller renders the returned string as TEXT, never `dangerouslySetInnerHTML`. Pure.
- *
- * @param side - The card's own side (`server` or `base`).
- * @param messages - The localized conflict copy.
- * @returns The formatted "Device: {device}" line, or `undefined`.
- */
-export const formatVersionCardDeviceLine = (
-    side: VersionConflictSide,
-    messages: RecipeConflictMessages,
-): string | undefined =>
-    side.deviceLabel === undefined
-        ? undefined
-        : fillTemplate(messages.versionCardDeviceLabel, { device: side.deviceLabel });
-
 // ─── Changed-field labeling (W7 Task 1 → Task 3) ─────────────────────────────────────────────────────
 
 /**
@@ -453,7 +430,7 @@ const CONFLICT_FIELD_KIND_LABEL_KEY: Readonly<Record<ConflictFieldKind, keyof Re
 
 /**
  * The localized field label (see {@link CONFLICT_FIELD_KIND_LABEL_KEY}) for one
- * {@link ./conflictDiff.js!ConflictFieldRow}'s `fieldKind` — a `ConflictFieldRow` carries no `label` of its
+ * `ConflictFieldRow`'s `fieldKind` — a `ConflictFieldRow` carries no `label` of its
  * own (`fieldKind` is an ENUM; localization is this function's job, not the row's), mirroring
  * {@link snapshotFieldLabel}'s own row→label indirection for the two-way diff. Pure.
  *
@@ -553,7 +530,7 @@ export const conflictRowLabel = (row: ConflictFieldRow, messages: RecipeConflict
 // builds on. There is deliberately no `buildRecipeMergeFields`-style "every editable field, whole-record"
 // panel-building helper here (a pre-W7 shape, removed by W7 Task 5): the merge panel now renders ONLY the
 // CHANGED fields/elements — `ConflictDiff.rows` (W7 Task 1), each row already labelled by
-// {@link conflictRowLabel} (Task 4) — so a second, whole-field label/format registry would be a second,
+// `conflictRowLabel` (Task 4) — so a second, whole-field label/format registry would be a second,
 // drifting representation of the same "what does this field look like" knowledge the diff row already
 // carries.
 
@@ -606,20 +583,20 @@ export const composeMergedRecipe = (
 //
 // The 409's enriched body (`VersionConflictError.server`/`.base`, W8-a.5) carries `RecipeSnapshot`-shaped
 // sides; `useRecipeEditor`'s draft is `RecipeFormValues`-shaped. These two projections bridge that gap
-// WITHOUT a refetch: {@link draftToSnapshot} turns the in-progress draft into the same `RecipeSnapshot`
-// shape `computeConflictDiff` (W7 Task 1) compares against, and {@link applyServerSnapshotToRecipeDetail}
+// WITHOUT a refetch: `draftToSnapshot` turns the in-progress draft into the same `RecipeSnapshot`
+// shape `computeConflictDiff` (W7 Task 1) compares against, and `applyServerSnapshotToRecipeDetail`
 // turns the server's snapshot into a displayable `RecipeDetail` by overlaying it onto the last-known
 // recipe (the query cache's `RecipeDetail`, used purely as a SHELL for fields a snapshot doesn't carry —
 // id, ownerId, visibility, photos, nutrition, etc.).
 
 /**
- * Project the in-progress draft to a {@link RecipeSnapshot} — the shape {@link ./conflictDiff.js!computeConflictDiff} (W7
+ * Project the in-progress draft to a {@link RecipeSnapshot} — the shape `computeConflictDiff` (W7
  * Task 1) 3-way-compares against the 409's `server`/`base` sides. `id`/`recipeId` on the synthesized
  * `RecipeStep`/`RecipeIngredient` rows are placeholders (never persisted, never read by
- * {@link ./conflictDiff.js!computeConflictDiff}'s content comparisons — see `diff.ts`'s module docs on why those fields are
+ * `computeConflictDiff`'s content comparisons — see `diff.ts`'s module docs on why those fields are
  * structural, not authored content); `sortOrder` is the line's array position, mirroring how the service
  * assigns it on save. An unresolved ingredient line (no `ingredientId` yet) is dropped, matching every
- * other draft→wire projection ({@link ../form/model.js!toCreateRecipeInput}) — an
+ * other draft→wire projection (`toCreateRecipeInput` (`../form/model.ts`)) — an
  * unresolved line was never going to reach the server, so it cannot appear in what the server sees either.
  * `isUserEntered` defaults to `false` (the draft carries no provenance flag). Pure.
  *
@@ -635,34 +612,40 @@ export const draftToSnapshot = (values: RecipeFormValues, version: number): Reci
     servings: values.servings,
     prepTimeMinutes: values.prepTimeMinutes,
     cookTimeMinutes: values.cookTimeMinutes,
-    steps: values.steps.map(
-        (step, index): RecipeStep => ({
-            id: `draft-step-${index}`,
-            recipeId: '',
-            stepNumber: index + 1,
-            instruction: step.instruction,
-            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
-        }),
-    ),
+    steps: values.steps.map((step, index): RecipeStep => ({
+        id: `draft-step-${index}`,
+        recipeId: '',
+        stepNumber: index + 1,
+        instruction: step.instruction,
+        ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+    })),
     ingredients: values.ingredients
         .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
-        .map(
-            (line, index): RecipeIngredient => ({
-                id: `draft-ingredient-${index}`,
-                recipeId: '',
-                ingredientId: line.ingredientId,
-                quantity: line.quantity,
-                unit: line.unit ?? '',
-                ...(line.notes === undefined || line.notes === '' ? {} : { displayText: line.notes }),
-                sortOrder: index,
-                ingredientName: line.name,
-                isUserEntered: false,
-                ...(line.userCalories === undefined ? {} : { userCalories: line.userCalories }),
-                ...(line.userProteinG === undefined ? {} : { userProteinG: line.userProteinG }),
-                ...(line.userCarbsG === undefined ? {} : { userCarbsG: line.userCarbsG }),
-                ...(line.userFatG === undefined ? {} : { userFatG: line.userFatG }),
-            }),
-        ),
+        .map((line, index): RecipeIngredient => ({
+            id: `draft-ingredient-${index}`,
+            recipeId: '',
+            ingredientId: line.ingredientId,
+            quantity: draftQuantity(line),
+            unit: line.unit ?? '',
+            ...(line.notes === undefined || line.notes === '' ? {} : { displayText: line.notes }),
+            // U26/U27 — the DRAFT side of the conflict comparison. `computeConflictDiff` compares this
+            // projection against the server's snapshot through `ingredientContentChanged`, so a field
+            // missing here is a field the merge believes the local edit never touched: the cook's
+            // preparation would be silently discarded in favour of the server's, with no conflict shown.
+            ...(line.preparation === undefined || line.preparation.trim() === ''
+                ? {}
+                : { preparation: line.preparation.trim() }),
+            ...(line.groupLabel === undefined || line.groupLabel.trim() === ''
+                ? {}
+                : { groupLabel: line.groupLabel.trim() }),
+            sortOrder: index,
+            ingredientName: line.name,
+            isUserEntered: false,
+            ...(line.userCalories === undefined ? {} : { userCalories: line.userCalories }),
+            ...(line.userProteinG === undefined ? {} : { userProteinG: line.userProteinG }),
+            ...(line.userCarbsG === undefined ? {} : { userCarbsG: line.userCarbsG }),
+            ...(line.userFatG === undefined ? {} : { userFatG: line.userFatG }),
+        })),
 });
 
 /**
@@ -688,32 +671,33 @@ export const applyServerSnapshotToRecipeDetail = (base: RecipeDetail, side: Vers
         prepTimeMinutes: snapshot.prepTimeMinutes,
         cookTimeMinutes: snapshot.cookTimeMinutes,
         totalTimeMinutes: computeTotalTime(snapshot.prepTimeMinutes, snapshot.cookTimeMinutes),
-        ingredients: snapshot.ingredients.map(
-            (ingredient): RecipeIngredientView => ({
-                ingredientId: ingredient.ingredientId,
-                name: ingredient.ingredientName,
-                quantity: ingredient.quantity,
-                ...(ingredient.unit === '' ? {} : { unit: ingredient.unit }),
-                ...(ingredient.displayText === undefined || ingredient.displayText === ''
-                    ? {}
-                    : { notes: ingredient.displayText }),
-                isUserEntered: ingredient.isUserEntered,
-            }),
-        ),
-        steps: snapshot.steps.map(
-            (step): RecipeStepView => ({
-                stepNumber: step.stepNumber,
-                instruction: step.instruction,
-                ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
-            }),
-        ),
+        ingredients: snapshot.ingredients.map((ingredient): RecipeIngredientView => ({
+            ingredientId: ingredient.ingredientId,
+            name: ingredient.ingredientName,
+            quantity: ingredient.quantity,
+            ...(ingredient.unit === '' ? {} : { unit: ingredient.unit }),
+            ...(ingredient.displayText === undefined || ingredient.displayText === ''
+                ? {}
+                : { notes: ingredient.displayText }),
+            // U26/U27 — carried onto the conflict shell too, so the three-way merge's "server" and
+            // "base" sides can differ on them at all. A side that cannot REPRESENT a field can never
+            // report a conflict about it.
+            ...(ingredient.preparation === undefined ? {} : { preparation: ingredient.preparation }),
+            ...(ingredient.groupLabel === undefined ? {} : { groupLabel: ingredient.groupLabel }),
+            isUserEntered: ingredient.isUserEntered,
+        })),
+        steps: snapshot.steps.map((step): RecipeStepView => ({
+            stepNumber: step.stepNumber,
+            instruction: step.instruction,
+            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+        })),
     };
 };
 
-/** Matches a per-element STEP selection key from {@link ./conflictDiff.js!computeConflictDiff} (W7 Task 1), e.g. `steps[2]`. */
+/** Matches a per-element STEP selection key from `computeConflictDiff` (W7 Task 1), e.g. `steps[2]`. */
 const STEP_SELECTION_KEY = /^steps\[\d+\]$/;
 
-/** Matches a per-element INGREDIENT selection key from {@link ./conflictDiff.js!computeConflictDiff} (W7 Task 1), e.g.
+/** Matches a per-element INGREDIENT selection key from `computeConflictDiff` (W7 Task 1), e.g.
  *  `ingredients:ing_1`. */
 const INGREDIENT_SELECTION_KEY = /^ingredients:/;
 
@@ -794,7 +778,7 @@ const mergeIngredientsByElement = (
  * Compose the merged draft for the W7 per-element conflict resolution (FR-007c option c): top-level fields
  * resolve via {@link composeMergedRecipe} (unchanged — absent key defaults to `'mine'`), then `steps`/
  * `ingredients` are RE-COMPOSED element-wise whenever `selections` carries any per-element key
- * ({@link ./conflictDiff.js!computeConflictDiff}'s `steps[N]`/`ingredients:<id>` row keys, W7 Task 1) — the finer-grained
+ * (`computeConflictDiff`'s `steps[N]`/`ingredients:<id>` row keys, W7 Task 1) — the finer-grained
  * resolution the per-row radio offers. A collection with NO per-element selection at all keeps
  * {@link composeMergedRecipe}'s own (whole-array, default-mine) result untouched, so a caller that only
  * ever sets top-level keys sees IDENTICAL behavior to before this change. Pure.
@@ -953,7 +937,8 @@ export interface VersionPreviewModalProps {
 export interface VersionPreviewIngredientLine {
     /** Stable key for React reconciliation — the snapshot row's own (frozen) id. */
     readonly key: string;
-    /** The formatted "{quantity}{unit} {name}" text, with any `displayText` override appended. */
+    /** The formatted "{quantity}{unit} {name}" text, with any `displayText` override and any
+     *  `preparation` clause appended. ⛔ The preparation is a trailing CLAUSE, never part of the name. */
     readonly text: string;
     /** The formatted "{calories} cal" chip. OMITTED (never fabricated) when the ingredient carries no
      *  `userCalories` override — a catalog-resolved line's per-serving calories are not captured in a
@@ -963,7 +948,7 @@ export interface VersionPreviewIngredientLine {
 
 /**
  * Project a version snapshot's ingredient lines into the pre-formatted rows the preview modal renders.
- * Reuses {@link formatQuantity} (the detail view's own quantity/unit formatter) and {@link formatCalories}
+ * Reuses `formatIngredientLine` (the SHARED line formatter `conflictDiff.ts` also calls) and {@link formatCalories}
  * (the card's calorie formatter) rather than re-deriving either — one authoritative formatting per piece of
  * knowledge, so the preview can never render a quantity or a calorie count differently than the rest of the
  * app. A line's calorie chip renders ONLY when the snapshot ingredient itself carries `userCalories` (a
@@ -979,24 +964,21 @@ export const toVersionPreviewIngredientLines = (
     messages: RecipeVersionPreviewMessages,
     locale: Locale,
 ): readonly VersionPreviewIngredientLine[] =>
-    ingredients.map((ingredient) => {
-        const name =
-            ingredient.displayText !== undefined
-                ? `${ingredient.ingredientName} (${ingredient.displayText})`
-                : ingredient.ingredientName;
-
-        return {
-            key: ingredient.id,
-            text: `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`,
-            ...(ingredient.userCalories !== undefined
-                ? {
-                      calories: fillTemplate(messages.caloriesLabel, {
-                          calories: formatCalories(ingredient.userCalories, locale),
-                      }),
-                  }
-                : {}),
-        };
-    });
+    ingredients.map((ingredient) => ({
+        key: ingredient.id,
+        // ⚠️ The SHARED formatter (`detail/model.ts`), not a local copy — this projection and
+        // `conflictDiff.ts`'s merge row were byte-identical copies of the same formatting, so a field
+        // added to one and forgotten in the other made a version's history and its conflict merge
+        // disagree about the same line.
+        text: formatIngredientLine(ingredient, locale),
+        ...(ingredient.userCalories !== undefined
+            ? {
+                  calories: fillTemplate(messages.caloriesLabel, {
+                      calories: formatCalories(ingredient.userCalories, locale),
+                  }),
+              }
+            : {}),
+    }));
 
 /**
  * Compute the "Changed from current: {n} ingredients, {m} steps" counts from a {@link SnapshotDiff}: each
@@ -1125,18 +1107,18 @@ export const resolveVersionPreview = ({
 // ─── Version compare (W6 Task 4 / FR-007b, FR-007c) ─────────────────────────────────────────────────
 //
 // The wireframe's "Compare Versions" right sidebar: pick two versions (selection UI lives in the composing
-// container, Task 5) and show the Diff Summary (Added/Removed/Modified rollup, {@link SnapshotDiff.summary})
+// container, Task 5) and show the Diff Summary (Added/Removed/Modified rollup, `SnapshotDiff.summary`)
 // plus a CHANGED-ONLY field-by-field A/B display — only `diff.changedFields` are rendered, each with both
 // versions' values side by side. `steps`/`ingredients` render as a compact count (never a per-line
-// explosion — see {@link buildCompareFieldRows}'s module docs on the reorder sanity note from Task 1).
+// explosion — see `buildCompareFieldRows`'s module docs on the reorder sanity note from Task 1).
 
 /**
  * Props for the two-version compare panel (W6 Task 4) — a FULLY controlled, presentational component. It
  * renders the Diff Summary + changed-only A/B display for two ALREADY-SELECTED versions; it computes no
  * diff itself (`diff` is `diffSnapshots(versionA.snapshot, versionB.snapshot)`, computed by the composing
  * container, Task 5) and fetches nothing. `versionA`/`versionB`/`diff` are OPTIONAL together — while `open`
- * is true but fewer than two versions have been chosen yet, the view shows {@link
- * RecipeVersionCompareMessages.selectTwoVersions} instead of a broken partial render.
+ * is true but fewer than two versions have been chosen yet, the view shows
+ * {@link RecipeVersionCompareMessages.selectTwoVersions} instead of a broken partial render.
  */
 export interface VersionCompareViewProps {
     /** Whether the panel (web right-side panel) / sheet (native full-screen) is open. */
@@ -1281,9 +1263,10 @@ export const buildCompareFieldRows = (
 
 /**
  * Render a `steps`/`ingredients` row's own Added/Removed/Modified tally for the `showFullDiff` opt-in detail
- * — reuses the SAME localized templates the Diff Summary rollup renders ({@link
- * RecipeVersionCompareMessages.added}/`removed`/`modified`), applied to this ONE collection's tally instead
- * of the overall summary, so "Added: N" is one piece of knowledge regardless of which tally it's reporting.
+ * — reuses the SAME localized templates the Diff Summary rollup renders
+ * ({@link RecipeVersionCompareMessages.added}/`removed`/`modified`), applied to this ONE collection's tally
+ * instead of the overall summary, so "Added: N" is one piece of knowledge regardless of which tally it is
+ * reporting.
  * Pure.
  *
  * @param tally - The collection's own Added/Removed/Modified tally.

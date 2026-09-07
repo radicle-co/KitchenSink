@@ -174,7 +174,7 @@ export interface MobileMessages {
         readonly signOutFailed: string;
         /**
          * Alert shown when an account ERASURE was accepted (202) but the follow-up sign-out failed.
-         * Deliberately distinct from {@link signOutFailed} and from the erasure dialog's own submit error: the
+         * Deliberately distinct from `signOutFailed` and from the erasure dialog's own submit error: the
          * erasure DID succeed server-side, so telling the viewer to retry it would be a lie — the only
          * outstanding action is leaving the (now-destroyed) account's session.
          */
@@ -205,10 +205,20 @@ export interface MobileMessages {
         readonly visibilityUpgradeReason: string;
         /** Alert shown when creating a recipe fails. */
         readonly createError: string;
+        /**
+         * Shown after a successful create while chosen photos are still uploading (U33). A save is create-THEN-
+         * upload, and the cook must not be told it is one call.
+         */
+        readonly photosFlushingNotice: string;
+        /** The explicit "leave without the photos that would not upload" action (U33). */
+        readonly photosFinishWithout: string;
+        /**
+         * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`). The pick
+         * is refused WHOLE rather than truncated — see the web dictionary's twin for why.
+         */
+        readonly photosOverCap: string;
         /** Alert shown when saving recipe edits fails. */
         readonly saveError: string;
-        /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
-        readonly photosAfterCreateNotice: string;
         /** Title of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
         readonly createGuidanceTitle: string;
         /** Body of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
@@ -251,11 +261,15 @@ export interface MobileMessages {
         /** Badge next to the search box naming the ingredient database it searches (C5, wireframe
          *  recipe-edit.md:56 "[USDA database]"). */
         readonly usdaBadge: string;
-        /** Styled (not-yet-wired) "Search USDA for …" seam label (U6; a separate USDA-autocomplete CR wires it;
-         *  contains `{query}`). */
-        readonly searchUsdaFor: string;
-        /** Short "coming soon" tag on the USDA-search seam (U6). */
-        readonly searchUsdaSoon: string;
+        /*
+         * ⛔ `searchUsdaFor` / `searchUsdaSoon` USED TO LIVE HERE, and are DELETED rather than renamed
+         * (plan U29). They were the U6 seam's copy — a label plus a "Soon" tag for a control that did
+         * nothing. U29 wires the control, so the tag describes nothing, and the label now belongs to
+         * `IngredientLiveSearchMessages` in the SHARED feature package: BOTH pickers render it, and the two
+         * app dictionaries have already drifted on every string they share (`noMatches` vs `empty`,
+         * `addFreeform` vs `create`). A cook must be told the same thing about a shared external rate limit
+         * on both platforms, because it IS the same limit.
+         */
         /** Empty-state copy shown when a search returns no catalog matches. */
         readonly empty: string;
         /** Heading of the "your own previously-used ingredients" section of the blended typeahead (Stage 2). */
@@ -437,9 +451,10 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             versionsAction: 'Version history',
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
+            photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
+            photosFinishWithout: 'Finish without the remaining photos',
+            photosOverCap: 'That’s more photos than this recipe can hold — you can add {count} more.',
             saveError: 'We couldn’t save your changes. Please try again.',
-            photosAfterCreateNotice:
-                'Publish your recipe to add photos — tap Publish below, then add photos from its page. Nothing here to do yet.',
             createGuidanceTitle: 'Let’s build your recipe',
             createGuidanceBody:
                 'Start with a title and the basics. You’ll add ingredients, steps, and photos as you go — tap Next when a step is ready.',
@@ -463,8 +478,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             searchPlaceholder: 'e.g. olive oil',
             searchClear: 'Clear search',
             usdaBadge: 'USDA database',
-            searchUsdaFor: 'Search USDA for “{query}”',
-            searchUsdaSoon: 'Soon',
             empty: 'No matching ingredients. Create a new one below.',
             ownSectionTitle: 'Your ingredients',
             catalogSectionTitle: 'Food catalog',

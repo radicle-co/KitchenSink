@@ -5,7 +5,7 @@
  *
  * The composition root of the three-layer Home surface:
  *  - **discovery** — features register their widget descriptors into the ditox {@link homeContainer}
- *    ({@link import('./homeContainer.js').createHomeContainer}); resolved here via `resolveHomeWidgets`.
+ *    (`createHomeContainer`); resolved here via `resolveHomeWidgets`.
  *  - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the
  *    viewer's subscription **tier**, applying personalization order/hidden (owned by identity 002, absent in
  *    v1). In Home v1 the recipe widget is the only **live** widget; the unshipped 005–009 cohort is present
@@ -137,7 +137,7 @@ export function HomeWidgetSurface({
                             // A widget with a bespoke host slot (the live recipe widget, which needs its data
                             // prop wired) renders through that slot. B23/DA9 — a render throw / chunk-load
                             // reject is reported through the injected reporter (never swallowed) and shows the
-                            // localized {@link HomeWidgetErrorNotice} instead of vanishing. That notice is a
+                            // localized `HomeWidgetErrorNotice` instead of vanishing. That notice is a
                             // component, not inline JSX, because the recipe slot's inner boundary renders the
                             // SAME stand-in: one piece of knowledge ("what a broken widget looks and sounds
                             // like"), so it gets one representation — and it is ANNOUNCED (`role="status"`),

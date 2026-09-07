@@ -18,12 +18,25 @@ const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
 
 vi.mock('@clerk/nextjs', () => ({ useAuth: useAuthMock }));
 
+import { makeUserProfile, makeUserProfileAccount, makeUserProfileUser } from '@commise/features-account/testing';
+
 import { useUserProfile } from '@/hooks/useUserProfile';
 
-const premiumProfile = {
-    user: { id: 'usr_1', displayName: 'Ada', email: 'ada@example.com', status: 'active' },
-    account: { subscriptionTier: 'premium' },
-};
+/**
+ * A COMPLETE `UserProfile`, because `ProfileServiceClient` now PARSES its response against
+ * `@kitchensink/schema-identity`'s `userProfileSchema` instead of casting it.
+ *
+ * It used to be `{ user: { id, displayName, email, status }, account: { subscriptionTier } }` — four of seven
+ * `user` fields and one of five `account` fields — and it passed only because the client ended in
+ * `JSON.parse(text) as T`. So this suite asserted the outgoing `fetch` against a body the identity service
+ * cannot send, and would have gone on passing had the response shape changed. Built from
+ * `@commise/features-account`'s `makeUserProfile` factory, so there is one representation of a valid profile
+ * rather than a literal per test file; `premium` is the one field these cases actually care about.
+ */
+const premiumProfile = makeUserProfile({
+    user: makeUserProfileUser({ id: 'usr_1', displayName: 'Ada', email: 'ada@example.com' }),
+    account: makeUserProfileAccount({ subscriptionTier: 'premium' }),
+});
 
 function wrapper({ children }: { children: ReactNode }) {
     // A fresh, retry-free client per render so an errored/absent query resolves fast and deterministically.

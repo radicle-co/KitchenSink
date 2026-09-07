@@ -13,6 +13,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import {
+    recipeIngredients,
     recipeSteps,
     recipeVersions,
     recipes,
@@ -21,11 +22,17 @@ import {
     type RecipeStepRow,
     type RecipeVersionRow,
 } from '../../database/schema/index.js';
-import { type Writer } from '../../database/unit-of-work.js';
-import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
-import type { RecipeListSortBy } from '../dto/list-recipes.query.dto.js';
-import { activeRecipe } from './recipe-predicates.js';
-import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipe-ingredients.dal.js';
+import { type RecipeTx, type Writer } from '../../database/unitOfWork.js';
+import type {
+    RecipeDifficulty,
+    RecipeMealType,
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
+import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
+import { activeRecipe, readableBy } from './recipePredicates.js';
+import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipeIngredients.dal.js';
 
 /** A single instruction line to persist (the DAL assigns 1-based `stepNumber` from array order). */
 export interface StepInput {
@@ -53,6 +60,12 @@ export interface CreateRecipeInput {
      */
     difficulty?: RecipeDifficulty;
     /**
+     * Author-stated meal type (plan U34). OMITTED (undefined) when the author states none — the column is
+     * nullable with no default, so an unstated meal type stays NULL. There is no `null` on create, for the
+     * same reason there is none for `difficulty` above: nothing exists yet to clear.
+     */
+    mealType?: RecipeMealType;
+    /**
      * Publication status (W8-a.3). OMITTED → the column defaults to `published` (a normal create publishes);
      * the wizard's Save-Draft passes `draft`. A clone omits it (a clone is a new published recipe).
      */
@@ -78,12 +91,6 @@ export interface CreateRecipeInput {
      * backfill fills it later. Kept current thereafter by the consumer.
      */
     authorHandle?: string;
-    /**
-     * Denormalized headline per-serving calories (W8-a.1), recomputed by the service from the resolved
-     * lines. OMITTED when the recipe has no accounted nutrition, so the column stays NULL (the projection
-     * then omits the field — never a misleading 0). No `null` on create (clearing is an update-only concern).
-     */
-    leadCaloriesPerServing?: number;
     /** Resolved `recipe_ingredients` link rows, persisted in the same transaction as the recipe. */
     ingredients: ResolvedIngredientLine[];
     steps: StepInput[];
@@ -114,6 +121,12 @@ export interface UpdateRecipeInput {
      */
     difficulty?: RecipeDifficulty | null;
     /**
+     * Author-stated meal type (plan U34) — the three-state update field, mirroring `difficulty` above.
+     * `undefined` (absent) leaves the stored value unchanged; a VALUE sets it; an explicit `null` CLEARS it
+     * back to "not stated". Treating `null` as "absent" would make a set meal type unclearable.
+     */
+    mealType?: RecipeMealType | null;
+    /**
      * Publication status (W8-a.3). `undefined` (absent) leaves it UNCHANGED; a value SETS it (`published` =
      * the Publish action, `draft` = re-draft). Two-state (never `null` — status is NOT NULL).
      */
@@ -121,12 +134,6 @@ export interface UpdateRecipeInput {
     tags?: string[];
     dietaryFlags?: string[];
     ingredientNamesText?: string;
-    /**
-     * Denormalized headline per-serving calories (W8-a.1). `undefined` (absent) leaves the stored value
-     * UNCHANGED; a number SETS it; explicit `null` CLEARS it to NULL (the recipe lost all accounted
-     * nutrition). The service recomputes and passes this only when an input (lines/servings) changed.
-     */
-    leadCaloriesPerServing?: number | null;
     /**
      * Flip the substantive-edit flag (C-004 / FR-005). The service sets this to `true` on a
      * content (ingredients/steps) change; it is monotonic (never reset to `false` on update).
@@ -151,6 +158,20 @@ export interface RecipeAggregate {
  */
 export interface ListRecipeAggregate extends RecipeAggregate {
     coverPhotoKey?: string;
+}
+
+/**
+ * One recipe's nutrition inputs, as {@link RecipesDal.findNutritionInputs} returns them: the serving count
+ * the per-serving figure is divided by, plus the recipe's ingredient link rows in author order.
+ *
+ * Deliberately NOT a {@link RecipeAggregate} — the deferred read needs neither steps nor the recipe row's
+ * ~30 other columns, and selecting them would widen a batch read that runs over up to
+ * `MAX_NUTRITION_RECIPE_IDS` recipes at once.
+ */
+export interface RecipeNutritionInput {
+    recipeId: string;
+    servings: number;
+    lines: RecipeIngredientRow[];
 }
 
 /** Pagination + sort inputs for {@link RecipesDal.findAll}. */
@@ -187,12 +208,33 @@ export class RecipesDal {
     public constructor(private readonly db: RecipeDrizzle) {}
 
     /**
+     * Run `fn` as one Postgres Unit-of-Work over this DAL's client (S-R1).
+     *
+     * The seam that lets `RecipesService` commit a recipe and its `recipe_versions` row together — the
+     * same shape `CollectionsDal.transaction` already exposes for a clone plus its membership rows.
+     *
+     * ⛔ A collaborator enlisted in the returned handle must NEVER call `this.db.transaction` itself.
+     * Drizzle's `db.transaction` on a pool-backed client takes a SECOND CONNECTION rather than opening a
+     * savepoint, so it cannot see the outer transaction's uncommitted rows and does not roll back with
+     * it — and against this service's pool (no `max`, so 10; no `connectionTimeoutMillis`, so waiters
+     * block forever) that shape deadlocks permanently at ten concurrent saves. Real nesting is
+     * `tx.transaction`.
+     *
+     * @sideEffect Opens a transaction; every write `fn` performs commits or rolls back together.
+     */
+    public async transaction<T>(fn: (tx: RecipeTx) => Promise<T>): Promise<T> {
+        return this.db.transaction(fn);
+    }
+
+    /**
      * Insert a golden recipe row and its ordered steps in one transaction.
      *
+     * @param input - The recipe to insert.
+     * @param enlistIn - An open transaction to join; omitted, this opens its own.
      * @sideEffect Inserts one `recipes` row and 0..n `recipe_steps` rows.
      */
-    public async create(input: CreateRecipeInput): Promise<RecipeAggregate> {
-        return this.db.transaction(async (tx) => {
+    public async create(input: CreateRecipeInput, enlistIn?: RecipeTx): Promise<RecipeAggregate> {
+        const run = async (tx: RecipeTx): Promise<RecipeAggregate> => {
             const [recipe] = await tx
                 .insert(recipes)
                 .values({
@@ -208,6 +250,7 @@ export class RecipesDal {
                     // Difficulty is set only when the author stated one; omitted otherwise so the column
                     // stays NULL ("not stated"). No default is ever fabricated (FR-001b).
                     ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
+                    ...(input.mealType !== undefined ? { mealType: input.mealType } : {}),
                     // Publication status (W8-a.3) — omitted → the column defaults to 'published'.
                     ...(input.status !== undefined ? { status: input.status } : {}),
                     tags: input.tags,
@@ -215,11 +258,6 @@ export class RecipesDal {
                     ingredientNamesText: input.ingredientNamesText,
                     // Denormalized author handle (W8-a.2) — omitted → NULL until the fan-out/backfill fills it.
                     ...(input.authorHandle !== undefined ? { authorHandle: input.authorHandle } : {}),
-                    // Denormalized lead calories (W8-a.1) — the `numeric` column takes a string; omitted when
-                    // absent so it defaults NULL (recipe has no accounted nutrition).
-                    ...(input.leadCaloriesPerServing !== undefined
-                        ? { leadCaloriesPerServing: input.leadCaloriesPerServing.toString() }
-                        : {}),
                     // Provenance is only present when cloning; omit otherwise so the column defaults apply.
                     ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
                     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
@@ -237,7 +275,9 @@ export class RecipesDal {
             const ingredients = await this.linkDal.replaceForRecipe(tx, recipe.id, input.ingredients);
 
             return { recipe, steps, ingredients };
-        });
+        };
+
+        return enlistIn ? run(enlistIn) : this.db.transaction(run);
     }
 
     /**
@@ -268,8 +308,8 @@ export class RecipesDal {
      * so the current server aggregate and the two version rows are read from a single coherent snapshot — a
      * third concurrent writer cannot make the returned `server` a version ahead of the `currentVersion` this
      * reports. Returns the current aggregate plus the `recipe_versions` rows for the client's `expectedVersion`
-     * (the conflict base — absent when evicted past the DB retention window) and the current version (whose
-     * `device_label` labels the server side).
+     * (the conflict base — absent when evicted past the DB retention window) and the current version, which
+     * is the one the returned `server` side reports.
      *
      * @returns The conflict material, or `undefined` when the recipe is missing/tombstoned (→ a 404, not a 409).
      * @sideEffect Read-only (reads `recipes`, `recipe_steps`, `recipe_ingredients`, `recipe_versions`).
@@ -315,6 +355,59 @@ export class RecipesDal {
                 ...(serverVersion !== undefined ? { serverVersion } : {}),
             };
         });
+    }
+
+    /**
+     * Load the nutrition inputs for MANY recipes in ONE query, scoped to what `viewerId` may read.
+     *
+     * ⛔ **AUTHORIZATION IS THE `WHERE` CLAUSE.** The filter is the shared {@link readableBy} predicate, so a
+     * recipe the caller may not read is never loaded, and therefore cannot be answered for — which is the
+     * deferred-nutrition contract's authorization signal (a recipe absent from the response map means "not
+     * yours", never "no data"). Composing the predicate rather than re-listing its three terms is what keeps
+     * the W8-a.3 draft boundary in force here: a free-tier draft is `visibility='public'`, so a visibility
+     * term alone would leak it.
+     *
+     * ⛔ **LEFT join, not inner.** A recipe with no ingredient lines is a real state the endpoint reports as
+     * `unaccounted{no_resolved_ingredients}`. An inner join would drop it from the result set, where absence
+     * means "not visible to you" — turning a data fact into an authorization answer.
+     *
+     * ONE round trip for the whole batch is the point of the endpoint: the surface asking is a card grid, and
+     * a per-recipe read would reintroduce exactly the N+1 the deferred lookup exists to remove.
+     *
+     * @param recipeIds - The recipes to load (already capped by the request schema).
+     * @param viewerId - The requesting principal's app-user ULID.
+     * @returns One entry per READABLE recipe, in no guaranteed order; unreadable and unknown ids are absent.
+     * @sideEffect Reads `recipes` and `recipe_ingredients`.
+     */
+    public async findNutritionInputs(recipeIds: readonly string[], viewerId: string): Promise<RecipeNutritionInput[]> {
+        if (recipeIds.length === 0) {
+            return [];
+        }
+
+        const rows = await this.db
+            .select({ recipe: recipes, line: recipeIngredients })
+            .from(recipes)
+            .leftJoin(recipeIngredients, eq(recipeIngredients.recipeId, recipes.id))
+            .where(and(inArray(recipes.id, [...recipeIds]), readableBy(viewerId)))
+            .orderBy(asc(recipes.id), asc(recipeIngredients.sortOrder));
+
+        const byRecipe = new Map<string, RecipeNutritionInput>();
+
+        for (const row of rows) {
+            const existing = byRecipe.get(row.recipe.id);
+            const input = existing ?? { recipeId: row.recipe.id, servings: row.recipe.servings, lines: [] };
+
+            if (existing === undefined) {
+                byRecipe.set(row.recipe.id, input);
+            }
+
+            // `null` is the LEFT JOIN's "this recipe has no lines" row, not a line to account for.
+            if (row.line !== null) {
+                input.lines.push(row.line);
+            }
+        }
+
+        return [...byRecipe.values()];
     }
 
     /**
@@ -420,8 +513,12 @@ export class RecipesDal {
      * @returns The updated aggregate, or `undefined` when no active recipe has that id.
      * @sideEffect Updates the `recipes` row and (optionally) rewrites `recipe_steps`.
      */
-    public async update(id: string, input: UpdateRecipeInput): Promise<RecipeAggregate | undefined> {
-        return this.db.transaction(async (tx) => {
+    public async update(
+        id: string,
+        input: UpdateRecipeInput,
+        enlistIn?: RecipeTx,
+    ): Promise<RecipeAggregate | undefined> {
+        const run = async (tx: RecipeTx): Promise<RecipeAggregate | undefined> => {
             const [recipe] = await tx
                 .update(recipes)
                 .set({
@@ -436,23 +533,13 @@ export class RecipesDal {
                     // explicit `null` → written as NULL (cleared). The `!== undefined` guard is what keeps
                     // "clear" (null) distinct from "leave unchanged" (absent) — do not collapse them.
                     ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
+                    ...(input.mealType !== undefined ? { mealType: input.mealType } : {}),
                     // Publication status (W8-a.3) — absent leaves it unchanged; a value sets it (publish/re-draft).
                     ...(input.status !== undefined ? { status: input.status } : {}),
                     ...(input.tags !== undefined ? { tags: input.tags } : {}),
                     ...(input.dietaryFlags !== undefined ? { dietaryFlags: input.dietaryFlags } : {}),
                     ...(input.ingredientNamesText !== undefined
                         ? { ingredientNamesText: input.ingredientNamesText }
-                        : {}),
-                    // Denormalized lead calories (W8-a.1), three-state like difficulty: absent → unchanged;
-                    // a number → set (numeric column takes a string); explicit `null` → cleared to NULL when
-                    // the recipe lost all accounted nutrition. `!== undefined` keeps clear distinct from unchanged.
-                    ...(input.leadCaloriesPerServing !== undefined
-                        ? {
-                              leadCaloriesPerServing:
-                                  input.leadCaloriesPerServing === null
-                                      ? null
-                                      : input.leadCaloriesPerServing.toString(),
-                          }
                         : {}),
                     ...(input.hasSubstantiveEdit !== undefined ? { hasSubstantiveEdit: input.hasSubstantiveEdit } : {}),
                     currentVersion: sql`${recipes.currentVersion} + 1`,
@@ -486,7 +573,9 @@ export class RecipesDal {
                     : await this.linkDal.loadByRecipeIds(tx, [id]);
 
             return { recipe, steps, ingredients };
-        });
+        };
+
+        return enlistIn ? run(enlistIn) : this.db.transaction(run);
     }
 
     /**
@@ -509,7 +598,7 @@ export class RecipesDal {
     /**
      * Set an active recipe's visibility WITHOUT bumping `current_version` or touching content — a
      * visibility toggle is a metadata change, not a content revision (C-004 / T050). Authorization and
-     * the C-004 policy decision live in {@link RecipesService}.
+     * the C-004 policy decision live in `RecipesService`.
      *
      * @returns The updated aggregate, or `undefined` when no active recipe has that id.
      * @sideEffect Updates the `recipes` row's `visibility` + `updated_at`.

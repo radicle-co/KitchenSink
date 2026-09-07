@@ -15,6 +15,8 @@ import {
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
+
 export interface SandboxRouterStackProps extends StackProps {
     /** Deploy stage — `sandbox` (the shared sandbox env owns this singleton). */
     readonly stage: string;
@@ -106,6 +108,13 @@ export class SandboxRouterStack extends Stack {
                 ],
             },
         });
+
+        // AwsSolutions-CFR1 + -CFR2 accepted: geo restriction is not a control this product needs (no
+        // licensing/export constraint, and it would block legitimate viewers of a developer preview), and a
+        // WAFv2 web ACL is not proportionate for a NON-PRODUCTION router that ADR-0001 records as being
+        // retired for previews. Justification in @kitchensink/infra-security. CFR3 (access logging) is
+        // deliberately left REPORTING — see ADR-0013's remaining-backlog list.
+        acceptNagFindings(distribution, AcceptedNagFindings.CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE);
 
         new route53.ARecord(this, 'RouterAliasRecord', {
             zone: hostedZone,

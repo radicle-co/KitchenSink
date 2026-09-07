@@ -1,0 +1,12 @@
+/**
+ * Imports the contract's TYPES and nothing else, so it has the contract's shape and no way to check it. This
+ * is exactly the state `ProfileServiceClient` shipped in: three `import type` names and `JSON.parse(t) as T`.
+ */
+import type { ThingResponse } from '@kitchensink/schema-thing';
+
+export async function getThing(fetchImpl: typeof fetch): Promise<ThingResponse> {
+    const response = await fetchImpl('/api/v1/things/1');
+    const body: unknown = await response.json();
+
+    return body as ThingResponse;
+}

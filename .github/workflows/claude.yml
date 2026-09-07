@@ -1,50 +1,136 @@
+# Claude Code, invoked by mentioning `@claude` in an issue, a PR review, or a comment.
+#
+# ⛔ WHY THE `author_association` GUARD IS LOAD-BEARING (do not remove it, do not widen the set).
+#
+# THIS REPOSITORY IS PUBLIC. `issue_comment`, `pull_request_review_comment`, `pull_request_review` and
+# `issues` are not `pull_request`: they always run in the BASE repository's context on the DEFAULT
+# branch, with full read/write access to `secrets` — that is precisely why they are the standard
+# comment-bot triggers, and precisely why they are dangerous. Unguarded, ANY GitHub user on the
+# internet could comment `@claude` and start a job that (a) materialises a long-lived credential
+# (`CLAUDE_CODE_OAUTH_TOKEN`) in a third-party action's environment, (b) spends this account's API
+# quota and Actions minutes on demand, and (c) feeds attacker-authored prose to an agent with a
+# checkout of the repository. Three separate risks, one missing condition.
+#
+# ⚠️ THE PAYLOAD PATH DIFFERS PER EVENT, and a guard on the wrong path is no guard at all — it
+# evaluates to `''`, which is falsy, so the branch it protects would simply never fire (a silent
+# outage) while the OTHER branches stayed wide open. The four this workflow handles:
+#
+#   issue_comment                → github.event.comment.author_association   (the COMMENTER)
+#   pull_request_review_comment  → github.event.comment.author_association   (the COMMENTER)
+#   pull_request_review          → github.event.review.author_association    (the REVIEWER)
+#   issues                       → github.event.issue.author_association     (the ISSUE AUTHOR)
+#
+# Every `github.event_name` branch below carries the association check for ITS OWN path, conjoined
+# with (never or'd beside) its trigger-phrase check. `packages/infra/global/__tests__/
+# commentTriggerGuard.test.ts` asserts that property structurally for every workflow in the tree —
+# it EVALUATES each job's `if:` with the association atom forced false and requires the job to become
+# unreachable, so it catches a guard added to three of four branches, and it catches a future
+# secret-bearing comment-triggered workflow that ships with none at all.
+#
+# THE ALLOWED SET IS `OWNER`, `MEMBER`, `COLLABORATOR` — the three associations that mean somebody with
+# admin rights GRANTED this person access. `CONTRIBUTOR` is deliberately EXCLUDED: it only means "has
+# had a commit merged", it is retained forever, it is reachable by anyone whose one-line typo fix was
+# accepted, and it is not a grant of anything. `FIRST_TIME_CONTRIBUTOR`, `FIRST_TIMER`, `MANNEQUIN` and
+# `NONE` are strangers. The membership test uses `contains(fromJSON('[…]'), …)` — an ARRAY, so it is an
+# exact element match; `contains('OWNER MEMBER …', …)` would be a SUBSTRING match, which is the
+# `unsound-contains` class and would admit anything that happens to be a substring of the list.
+#
+# ON `issues`, the guard checks the issue AUTHOR, not whoever assigned it. That is stricter than the
+# trigger strictly needs (assigning requires triage rights) and it is the intended reading: on this
+# event the issue BODY is the prompt, so a stranger's issue must not become an agent instruction even
+# if a maintainer later assigns it.
+#
+# ⚠️ THE ACTION'S OWN CHECK IS NOT A SUBSTITUTE. `anthropics/claude-code-action` does verify that the
+# triggering user has write access (docs/security.md) and rejects bots by default. That check runs
+# INSIDE the action — after the runner is provisioned, after the secret is in the job environment, and
+# after third-party code has begun executing. It also lives in a SHA-pinned dependency whose behaviour
+# can change on the next bump, and it can be switched off from this file (`allowed_non_write_users`).
+# The job-level `if:` is the control THIS repository owns, and it is the only one that prevents the
+# credential from ever being materialised. Both, not either.
+#
+# ⚠️ ZIZMOR DOES NOT CATCH THIS CLASS — verified against 1.29.0, and worth knowing before trusting the
+# gate here. Its `dangerous-triggers` audit covers only `pull_request_target` and `workflow_run`, not
+# the comment triggers, and no audit models "secret-bearing job reachable by an untrusted actor". The
+# closest is `secrets-outside-env`, which fires on this file — but ONLY under `--persona auditor`, and
+# the gate in `zizmor.yml` runs the default `regular` persona, where 61 findings are suppressed
+# REGARDLESS of `--min-severity`. Persona and severity are orthogonal filters; `--min-severity low`
+# tightens one of them and does nothing for the other. See the note in `zizmor.yml`.
+#
+# NO `id-token: write`. It was requested here and was DEAD privilege: in the pinned action it is needed
+# only for workload-identity federation (`anthropic_federation_rule_id` + `anthropic_organization_id`)
+# or the Bedrock/Vertex/Foundry OIDC paths, none of which this job uses — it authenticates with
+# `claude_code_oauth_token`. Same reasoning that removed it from prod-deploy / sandbox-deploy /
+# sandbox-identity-deploy during the zizmor burn-down.
 name: Claude Code
 
 on:
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
-  issues:
-    types: [opened, assigned]
-  pull_request_review:
-    types: [submitted]
+    issue_comment:
+        types: [created]
+    pull_request_review_comment:
+        types: [created]
+    issues:
+        types: [opened, assigned]
+    pull_request_review:
+        types: [submitted]
+
+# Default-deny baseline; the job widens it to exactly what it needs.
+permissions:
+    contents: read
+
+concurrency:
+    # One invocation per conversation at a time. Comment triggers are the cheapest denial-of-wallet
+    # surface in the repo, so an unbounded fan-out of runs is a cost bug even from a trusted author.
+    # NOT `cancel-in-progress`: two `@claude` asks on one thread are usually two real requests, and
+    # cancelling the first would silently drop work.
+    group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.ref }}
+    cancel-in-progress: false
 
 jobs:
-  claude:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
-      actions: read # Required for Claude to read CI results on PRs
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+    claude:
+        name: Claude Code
+        # Trigger phrase AND author association, per event — see the header for why the path differs.
+        if: |
+            (github.event_name == 'issue_comment' &&
+                contains(github.event.comment.body, '@claude') &&
+                contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+            (github.event_name == 'pull_request_review_comment' &&
+                contains(github.event.comment.body, '@claude') &&
+                contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+            (github.event_name == 'pull_request_review' &&
+                contains(github.event.review.body, '@claude') &&
+                contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association)) ||
+            (github.event_name == 'issues' &&
+                (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
+                contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
+        runs-on: ubuntu-latest
+        # Bounds the worst case of a run that hangs or is driven into a loop. Matches the review workflow.
+        timeout-minutes: 20
+        permissions:
+            contents: read # read the checkout the agent reasons over
+            pull-requests: read # read PR metadata/diffs it is asked about
+            issues: read # read the issue/comment thread that invoked it
+            actions: read # required for Claude to read CI results on PRs (see additional_permissions)
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              with:
+                  persist-credentials: false
+                  fetch-depth: 1
 
-      - name: Run Claude Code
-        id: claude
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+            - name: Run Claude Code
+              id: claude
+              uses: anthropics/claude-code-action@6b082c41935b4c8a3b8b0ef85ba4ba4d9eeb8975 # v1.0.189
+              with:
+                  claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          # This is an optional setting that allows Claude to read CI results on PRs
-          additional_permissions: |
-            actions: read
+                  # This is an optional setting that allows Claude to read CI results on PRs
+                  additional_permissions: |
+                      actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+                  # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
+                  # prompt: 'Update the pull request description to include a summary of changes.'
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
-
+                  # Optional: Add claude_args to customize behavior and configuration
+                  # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+                  # or https://code.claude.com/docs/en/cli-reference for available options
+                  # claude_args: '--allowed-tools Bash(gh pr *)'

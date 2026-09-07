@@ -26,7 +26,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 
 import { RecipesDal } from '../recipes.dal.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
-import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/make-fake-drizzle.js';
+import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
 import { makeRecipeRow, makeRecipeStepRow } from '../../../__fixtures__/index.js';
 
 /** A chainable, thenable query stub: builder methods return `this`; awaiting shifts one queued result. */

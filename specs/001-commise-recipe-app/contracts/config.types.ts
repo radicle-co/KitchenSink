@@ -143,7 +143,7 @@ export const DEFAULT_AWS_REGION = 'us-east-1';
 
 /**
  * Database CONNECTION config — passwordless **RDS-IAM**, mirroring the shipped food service
- * (`packages/services/food-service/src/database/pool-config.ts`). There is deliberately **no**
+ * (`packages/services/food-service/src/database/poolConfig.ts`). There is deliberately **no**
  * database password secret and **no** `secret: true` `DATABASE_URL` fetched from SSM.
  *
  * Either/or, exactly like the food service's `EnvironmentSchema`:

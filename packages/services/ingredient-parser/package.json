@@ -1,0 +1,69 @@
+{
+    "name": "@kitchensink/ingredient-parser",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "//runtime": [
+        "This is the repository's FIRST non-Node deployable: a zip-packaged PYTHON Lambda running the",
+        "ingredient-parser-nlp CRF engine. The TypeScript here is its CDK stack, its packaging guard and the",
+        "zod its callers parse its response with -- never its runtime. See",
+        "docs/architecture/decisions/0025-ingredient-parser-python-deployable.md."
+    ],
+    "//recipe-import-core": [
+        "@kitchensink/recipe-import-core is TYPE-ONLY, and a devDependency on purpose (plan U22). This",
+        "package's parsed row and cookbook-import's JSONL row are the SAME six fields in two different",
+        "envelopes, and CrfReading is the shared row U22's promotion layer reads. The assertion that this",
+        "zod still satisfies it lives beside the zod (src/__tests__/engine.schema.test.ts) rather than in",
+        "the shared package, because a shared library must never import a service's. Nothing in this",
+        "package's deployed asset is TypeScript, so nothing here reaches the Lambda.",
+        "-- A comment key must sit at the TOP LEVEL, never inside dependencies/devDependencies: turbo",
+        "refuses to parse a non-string value there ('Incorrect type, expected a string, but received an",
+        "array'), which takes down every turbo-driven guard in packages/infra/global."
+    ],
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "bundle:lambda": "tsx infra/bin/buildAsset.ts",
+        "infra:build": "tsc -p infra/tsconfig.json",
+        "infra:synth": "npm run bundle:lambda && cdk synth --app 'npx tsx infra/bin/app.ts'",
+        "infra:deploy": "npm run bundle:lambda && cdk deploy --app 'npx tsx infra/bin/app.ts'",
+        "smoke:deployed": "tsx infra/smoke/deployedSmoke.ts",
+        "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "kitchensink": {
+        "localSandbox": {
+            "skipSynth": "its `infra:synth` runs `bundle:lambda` first, which shells out to `python3 -m pip` for ~90 MB of arm64 wheels plus the 1.6 MB CRF model (ADR-0025). A local sandbox must not require a Python toolchain or network to START, and this stack contributes nothing a local run stands up: `awsResources.ts` creates no `AWS::Lambda::Function`, and `localCrfEngine.ts` runs `src/handler.py` directly. Set LOCAL_SANDBOX_SYNTH_ALL=1 to include it."
+        }
+    },
+    "dependencies": {
+        "aws-cdk-lib": "*",
+        "constructs": "*",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/infra-security": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/recipe-import-core": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "aws-cdk": "^2.1134.0",
+        "dotenv": "^17.4.2",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

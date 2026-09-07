@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native collection-list view (T071 building block).
  *
- * The React Native leaf of {@link import('./CollectionList.js').CollectionList} — same controlled,
+ * The React Native leaf of `CollectionList` — same controlled,
  * presentational contract and the same four states (loading, error, empty, populated), plus the server-paged
  * `[Load more]` control (W5/C7), rendered with RN primitives.
  *

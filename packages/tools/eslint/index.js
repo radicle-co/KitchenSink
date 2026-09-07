@@ -1,38 +1,33 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import checkFile from 'eslint-plugin-check-file';
+import importX from 'eslint-plugin-import-x';
 
 import { nativeA11yPlugin } from './nativeA11y.js';
 
 /**
  * Picks the file-naming regime for a package from its root directory (§1 of
- * docs/CODING_STANDARDS.md). The two regimes follow different ecosystem norms:
+ * docs/CODING_STANDARDS.md). There is exactly ONE regime, applied to every package:
  *
- *  - `backend`  — NestJS/Lambda services under `packages/services/*`: kebab-case
- *                 `name.<role>.ts` for every file (§1a).
- *  - `frontend` — app/shared/client/util libraries under `packages/apps/*`,
- *                 `packages/shared/*`, `packages/clients/*`, `packages/utils/*`:
- *                 camelCase modules / PascalCase components & classes, NO hyphens (§1b).
- *  - `none`     — anything else (tooling configs, CDK infra apps): the filename
- *                 rule is not applied because §1 defines no convention for them.
+ *  - `standard` — camelCase modules; PascalCase for a file whose subject is a class or a React
+ *                 component. **Hyphens are prohibited in file names**, everywhere, without exception
+ *                 beyond the framework-mandated names listed in the ignore globs below.
+ *  - `none`     — paths outside `packages/` only.
+ *
+ * ⛔ **Do NOT reintroduce a per-package regime.** A prior revision applied `KEBAB_CASE` to
+ * `packages/services/*` on the grounds that it was "framework-idiomatic" for NestJS. That is the
+ * failure this comment exists to prevent: the linter, `CODING_STANDARDS §1a`, and every audit run
+ * against them were mutually consistent and all wrong, so 505 hyphenated files read as COMPLIANT and
+ * no check could ever surface them. NestJS does not require kebab file names — it resolves modules
+ * through imports, not filenames. One regime, no ecosystem carve-outs.
  *
  * @param {string} rootDir - Absolute package root (the caller's `import.meta.dirname`).
- * @returns {'backend' | 'frontend' | 'none'}
+ * @returns {'standard' | 'none'}
  */
 function namingRegimeForRoot(rootDir) {
     const normalized = String(rootDir).replaceAll('\\', '/');
 
-    if (normalized.includes('/packages/services/')) {
-        return 'backend';
-    }
-
-    const frontendSegments = ['/packages/apps/', '/packages/shared/', '/packages/clients/', '/packages/utils/'];
-
-    if (frontendSegments.some((segment) => normalized.includes(segment))) {
-        return 'frontend';
-    }
-
-    return 'none';
+    return normalized.includes('/packages/') ? 'standard' : 'none';
 }
 
 /**
@@ -45,64 +40,275 @@ function namingRegimeForRoot(rootDir) {
  * (`.service`, `.middleware`, `.integration`, `.test`, `.native`, `.spec`, `.config`)
  * and platform variants are transparently ignored.
  *
- * @param {'backend' | 'frontend' | 'none'} regime
+ * @param {'standard' | 'none'} regime
  * @returns {import('eslint').Linter.Config[]}
  */
 function filenameConventionConfig(regime) {
-    if (regime === 'backend') {
-        return [
-            {
-                files: ['**/*.{ts,tsx,js,jsx}'],
-                ignores: [
-                    // Drizzle migration artifacts are tool-generated and numbered/snake_case
-                    // (e.g. `0005_identity_reset.*`) — they mirror generated SQL, not source we name.
-                    '**/database/migrations/**',
-                ],
-                plugins: { 'check-file': checkFile },
-                rules: {
-                    // §1a — kebab-case name + dot-separated role suffix for EVERY file.
-                    'check-file/filename-naming-convention': [
-                        'error',
-                        { '**/*.{ts,tsx,js,jsx}': 'KEBAB_CASE' },
-                        { ignoreMiddleExtensions: true },
-                    ],
-                },
-            },
-        ];
+    if (regime !== 'standard') {
+        return [];
     }
 
-    if (regime === 'frontend') {
-        return [
-            {
-                files: ['**/*.{ts,tsx,js,jsx}'],
-                ignores: [
-                    // Config files — `<tool>.config.*` (§1, both regimes).
-                    '**/*.config.*',
-                    // Next.js framework-mandated file names (§1b — allowed, not renameable).
-                    '**/next-env.d.ts',
-                    '**/{page,layout,route,not-found,global-error,template,loading,error,default,middleware,instrumentation,instrumentation-client,sitemap,robots,manifest,opengraph-image,twitter-image,icon,apple-icon}.{ts,tsx,js,jsx}',
-                    // Expo Router route files — special prefixes/dynamic segments the router requires.
-                    '**/_layout.{ts,tsx,js,jsx}',
-                    '**/+*.{ts,tsx,js,jsx}',
-                    '**/[[]*[]]*.{ts,tsx,js,jsx}',
+    return [
+        {
+            files: ['**/*.{ts,tsx,js,jsx}'],
+            ignores: [
+                // Config files — `<tool>.config.*`.
+                '**/*.config.*',
+                // Drizzle migration artifacts are TOOL-GENERATED and numbered/snake_case
+                // (e.g. `0005_identity_reset.*`). They mirror generated SQL, not source we name, and
+                // `meta/_journal.json` references them BY FILENAME — renaming them breaks migration.
+                '**/database/migrations/**',
+                '**/db/migrations/**',
+                // Next.js framework-mandated file names — allowed, not renameable.
+                '**/next-env.d.ts',
+                '**/{page,layout,route,not-found,global-error,template,loading,error,default,middleware,instrumentation,instrumentation-client,sitemap,robots,manifest,opengraph-image,twitter-image,icon,apple-icon}.{ts,tsx,js,jsx}',
+                // Expo Router route files — special prefixes/dynamic segments the router requires.
+                '**/_layout.{ts,tsx,js,jsx}',
+                '**/+*.{ts,tsx,js,jsx}',
+                '**/[[]*[]]*.{ts,tsx,js,jsx}',
+            ],
+            plugins: { 'check-file': checkFile },
+            rules: {
+                // §1 — camelCase modules; PascalCase when the file's subject is a class or a React
+                // component. The glob accepts a leading letter followed by alphanumerics only, which
+                // admits camelCase and PascalCase while rejecting BOTH kebab-case and snake_case.
+                // `ignoreMiddleExtensions` keeps role/variant tags (`.service`, `.native`, `.test`,
+                // `.integration`, `.e2e`, `.spec`) transparent to the check.
+                'check-file/filename-naming-convention': [
+                    'error',
+                    { '**/*.{ts,tsx,js,jsx}': '[a-zA-Z]*([a-zA-Z0-9])' },
+                    { ignoreMiddleExtensions: true },
                 ],
-                plugins: { 'check-file': checkFile },
-                rules: {
-                    // §1b — camelCase modules / PascalCase components & classes; NO hyphens.
-                    // The custom glob accepts a leading letter (upper or lower) followed by
-                    // alphanumerics only, which admits both camelCase and PascalCase while
-                    // rejecting kebab-case and snake_case.
-                    'check-file/filename-naming-convention': [
-                        'error',
-                        { '**/*.{ts,tsx,js,jsx}': '[a-zA-Z]*([a-zA-Z0-9])' },
-                        { ignoreMiddleExtensions: true },
-                    ],
-                },
             },
-        ];
+        },
+    ];
+}
+
+/**
+ * §14.2: an APP may import only *types* from a deployable service package. A value import drags the
+ * service's runtime — NestJS, Drizzle, `pg` — into a browser or React Native bundle, and worse, couples
+ * a client to server internals that are free to change without a wire-contract change.
+ *
+ * Uses the `@typescript-eslint` variant rather than the base rule because only it understands
+ * `allowTypeImports`; the base rule cannot tell `import type` from `import`, so it could only ban the
+ * specifier outright and there are six legitimate type imports today.
+ *
+ * Applied only to app packages, detected from the package root the caller passes — the services
+ * themselves and the shared libraries import each other's runtimes legitimately. Measured at ZERO
+ * violations before enabling (all six existing app→service imports are `import type` or `export type`),
+ * so it lands as a pure ratchet with no baseline.
+ *
+ * @param {string} rootDir - Absolute package root (the caller's `import.meta.dirname`).
+ * @returns {import('eslint').Linter.Config[]}
+ */
+function appServiceTypeOnlyConfig(rootDir) {
+    if (!String(rootDir).replaceAll('\\', '/').includes('/packages/apps/')) {
+        return [];
     }
 
-    return [];
+    return [
+        {
+            files: ['**/*.{ts,tsx}'],
+            rules: {
+                '@typescript-eslint/no-restricted-imports': [
+                    'error',
+                    {
+                        patterns: [
+                            {
+                                group: ['@kitchensink/*-service', '@kitchensink/*-service/**'],
+                                allowTypeImports: true,
+                                message:
+                                    'An app may import only TYPES from a deployable service (§14.2). A value ' +
+                                    'import pulls the service runtime (NestJS/Drizzle/pg) into the client ' +
+                                    'bundle. Use `import type`, or go through the service CLIENT package.',
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+    ];
+}
+
+/**
+ * The ONE package-internals allow-list — which `@kitchensink/*` subpaths are a DECLARED entry point and
+ * which are somebody else's internals.
+ *
+ * ⛔ Lifted to module scope, and exported through {@link restrictedImportsRule}, because a flat-config
+ * rule entry REPLACES the earlier one rather than merging with it. A package that redefines
+ * `no-restricted-imports` to add its own `paths` therefore switches this allow-list OFF for every file
+ * its block matches — silently, with a green lint run. Measured: `recipe-service`’s credential
+ * restriction (`files: ['src/**\/*.ts']`) had disabled it across that service's entire `src` tree, so a
+ * deep import of another package's internals was reported under `contract/` and clean under `src/`.
+ *
+ * The repair is composition, never a second copy: a copy of this list cannot tell that the original has
+ * grown, which is the exact failure the ⚠️ note below already records once.
+ */
+const PACKAGE_INTERNALS_PATTERN = {
+    // Block reaching into another package's internals, but allow its
+    // *declared* granular export barrels (database/*, types/*, hooks, testing,
+    // users/handle-sync-publisher). Consumers such as the webhook Lambdas import
+    // those directly so they don't pull the whole package (e.g. the NestJS
+    // service) in via the top barrel; the `hooks` subpath likewise keeps React
+    // out of non-React consumers of a client package (e.g.
+    // `recipe-service-client/hooks`); the `testing` subpath is the declared home
+    // for a package's shared Object Mother fixtures (e.g. `recipe-core/testing`,
+    // T1) so downstream tests import fixtures without pulling the runtime
+    // barrel's full surface; `users/handle-sync-publisher` is identity-service's
+    // declared export for the SNS handle-sync publisher that identity-webhooks
+    // consumes to publish rename events (W8-a.2).
+    // `ignore` (gitignore semantics) refuses to un-ignore a deep path whose
+    // enclosing directory is still ignored, so `users/handle-sync-publisher`
+    // needs the 3-line un-ignore/re-ignore/un-ignore dance below rather than a
+    // single negation like the shallower subpaths above.
+    //
+    // ⚠️ THIS LIST IS A COPY OF THE MANIFESTS' `exports` MAPS, and a copy cannot
+    // tell that the original has grown. It had: `recipe-core`'s
+    // `./database-name` and `recipe-workers`' `./infra` were declared exports
+    // that this list did not name, so the rule fired on five imports of a
+    // PUBLISHED entry point — false positives against its own stated intent,
+    // invisible until `infra/**` entered the lint subject. `__tests__/subpath-
+    // exports.test.js` now discovers every declared `@kitchensink/*` subpath and
+    // fails when one is missing here, so the divergence cannot recur silently.
+    group: [
+        '@kitchensink/*/*',
+        '!@kitchensink/*/database',
+        '!@kitchensink/*/database/*',
+        '!@kitchensink/*/database-name',
+        // `recipe-core` publishes three modules as their own entry points,
+        // deliberately kept OFF its barrel: `scaling` (display-only serving
+        // scaling), `external-url` (the outbound-link trust boundary) and
+        // `food-name` (the canonical form of a shared catalog name, used by BOTH
+        // services). The barrel is inside the recipe service's contract corpus,
+        // so anything re-exported from it lands in `CONTRACT_HASH` — see that
+        // barrel's note, and `food-name`'s own header for why a Unicode-hygiene
+        // fix must not move a wire fingerprint. (`ingredient-quantity` was a
+        // fourth until U8 promoted it TO the barrel in the same commit that put
+        // it on the wire, which is when moving the hash was already the point.)
+        '!@kitchensink/*/scaling',
+        '!@kitchensink/*/external-url',
+        '!@kitchensink/*/food-name',
+        // `resolution/normalized-key` (plan U10) — the PERSISTED match grain of
+        // the ingredient-resolution knowledge base. It is a subpath for the same
+        // reason `food-name` is, and the reason is stronger here: TWO processes
+        // derive it (recipe-service's correction write and tier-1 read, and from
+        // U11 the verification gate inside recipe-workers, which cannot import
+        // recipe-service's `src`), and a one-character divergence between two
+        // copies would partition the tables into key-spaces that never intersect
+        // with nothing failing anywhere. Kept OUT of the barrel because the
+        // barrel is inside the recipe service's contract corpus.
+        '!@kitchensink/*/resolution',
+        '!@kitchensink/*/resolution/normalized-key',
+        // The verification gate's three pure modules (plan U11, ADR-0024). Same
+        // reasoning one step further: the gate's DECISION runs at both ends — the
+        // recipe service decides whether to enqueue at all (ADR-0024 layer 0: the
+        // cheapest control is the message never sent) and the worker re-runs it on
+        // the parsed message, because a producer bug must not be able to skip an
+        // identity check silently. `confidence` is the verdict-to-publish mapping
+        // the worker WRITES and the service READS, and `verification-key` is a
+        // PERSISTED key derivation, so a second copy of either drifts exactly as
+        // `normalized-key` would. All three stay OUT of the barrel because the
+        // barrel is inside the recipe service's contract corpus.
+        '!@kitchensink/*/resolution/verification-gate-policy',
+        '!@kitchensink/*/resolution/verification-key',
+        '!@kitchensink/*/resolution/confidence',
+        // `parsing/parse-key` (plan U20 / KTD-13) — the PERSISTED key of the
+        // ingredient parse cache, and `normalized-key`'s reasoning verbatim: TWO
+        // processes derive it (recipe-service's DAL and U22's pipeline inside
+        // recipe-workers, which cannot import recipe-service's `src`), and a
+        // one-character divergence between two copies would partition the cache
+        // into key-spaces that never intersect — no error, no failing test, the
+        // cache simply stops hitting and both engines are re-invoked for every
+        // line. Kept OUT of the barrel because the barrel is inside the recipe
+        // service's contract corpus.
+        '!@kitchensink/*/parsing',
+        '!@kitchensink/*/parsing/parse-key',
+        // `analytics/event-payload` (analytics plan U4 / KTD3) — the client
+        // analytics door's ONE shared payload contract. TWO ends validate it (the
+        // web/mobile emitters and the recipe service's ingest controller), and it
+        // must stay OUT of the barrel because the barrel is inside the recipe
+        // service's contract corpus while this route is OFF the domain contract
+        // by design — a barrel export would put an off-contract wire shape inside
+        // the contract's demanded-symbol reach.
+        '!@kitchensink/*/analytics',
+        '!@kitchensink/*/analytics/event-payload',
+        // `spend/spend-arithmetic` (ADR-0024 §2) — the rate table, worst case,
+        // headroom, period key and settle delta. Arithmetic over MONEY with no I/O
+        // in it, i.e. exactly the kind of thing that gets quietly re-derived at a
+        // second call site, and where a second derivation means a ceiling that
+        // does not hold.
+        '!@kitchensink/*/spend',
+        '!@kitchensink/*/spend/spend-arithmetic',
+        // `parsing/parse-prompt` and `parsing/parse-answer` (plan U18) — the LLM
+        // parse leg's half of the model contract. The prompt is a MEASURED
+        // ARTIFACT: every figure in the 2026-08-23 model comparison is denominated
+        // in its exact 511 bytes, and THREE packages read it — the worker that
+        // ships the parse, the harness that measured it, and (through
+        // `PARSE_PROMPT_VERSION`) the parse cache, whose key must move the day the
+        // wording does. A second copy drifts invisibly in both directions: the
+        // harness keeps reporting figures for a prompt the worker no longer sends.
+        // `parse-answer` is its inverse and must move with it — it is where the
+        // model's `null`-vs-`""` measure collapses to ONE value, and two copies of
+        // that rule would partition the cache on a distinction carrying no
+        // meaning. Both stay OUT of the barrel because the barrel is inside the
+        // recipe service's contract corpus.
+        '!@kitchensink/*/parsing/parse-prompt',
+        '!@kitchensink/*/parsing/parse-answer',
+        // `food-service` spells the same barrel `db/schema`, not `database/*`. It
+        // has no importer yet, which is exactly why the omission was invisible.
+        '!@kitchensink/*/db',
+        '!@kitchensink/*/db/*',
+        '!@kitchensink/*/infra',
+        '!@kitchensink/*/types',
+        '!@kitchensink/*/types/*',
+        '!@kitchensink/*/hooks',
+        '!@kitchensink/*/testing',
+        '!@kitchensink/*/users',
+        '@kitchensink/*/users/*',
+        '!@kitchensink/*/users/handle-sync-publisher',
+        // The k6 harness publishes its pure helpers as subpaths so the load tier and its
+        // guards can import them without reaching into `src/`; `e2e-fixtures` does the same
+        // for the Clerk session handle. All three are DECLARED exports, and their absence
+        // here was invisible for the reason `db` above was: turbo hashes this package's test
+        // task over this package's own files, while the test reads every OTHER workspace's
+        // `package.json` — so a new export elsewhere never invalidated the cached pass.
+        '!@kitchensink/*/session',
+        '!@kitchensink/*/pool',
+        '!@kitchensink/*/load-tier',
+        // The four shared TOOLING packages, allowed per-package rather than
+        // per-name: each declares a wildcard `"./*"` export, so subpath import IS
+        // their entire API (`@kitchensink/eslint/nativeA11y`,
+        // `@kitchensink/esbuild/library`, `@kitchensink/vitest/base`,
+        // `@kitchensink/typescript/fix-declaration-paths`). There is no "internal"
+        // to protect, and naming each subpath would rebuild the copy above.
+        '!@kitchensink/esbuild/*',
+        '!@kitchensink/eslint/*',
+        '!@kitchensink/typescript/*',
+        '!@kitchensink/vitest/*',
+    ],
+    message:
+        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, or any subpath of the shared tooling packages) — don't reach into other internals.",
+};
+
+/**
+ * The shared `no-restricted-imports` rule entry, extended with a package’s own restricted `paths`.
+ *
+ * A package with a module to confine (a credential accessor, a single-caller factory) declares it here
+ * instead of writing its own rule entry, so the shared `patterns` allow-list survives the override that
+ * would otherwise replace it. Called with no argument by {@link createConfig} itself.
+ *
+ * @param {import("eslint").Linter.RuleEntry[]} [paths] - Package-specific restricted paths, in the
+ *   `no-restricted-imports` `paths` shape (`{ name, importNames, message }`).
+ * @returns {import("eslint").Linter.RuleEntry} The complete rule entry.
+ */
+export function restrictedImportsRule(paths = []) {
+    return [
+        'error',
+        {
+            patterns: [PACKAGE_INTERNALS_PATTERN],
+            paths,
+        },
+    ];
 }
 
 /**
@@ -118,7 +324,7 @@ function filenameConventionConfig(regime) {
  *    - Enforces strict rules: no unused variables (ignoring _ prefixed), always use braces, padding between statements
  * 5. Relaxes rules for test files (__tests__/**\/*.ts, \*.test.ts) to allow 'any' types and non-null assertions
  * 6. Machine-enforces the §1 file-naming convention via `eslint-plugin-check-file`, picking the
- *    backend (kebab) or frontend (camel/Pascal) regime from `tsconfigRootDir`.
+ *    single camelCase/PascalCase regime -- there is no per-package variant (see §1).
  *
  * Platform-agnostic (no node/browser globals) for code that runs on web, node, and react native.
  *
@@ -129,7 +335,67 @@ function filenameConventionConfig(regime) {
 export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir = process.cwd()) {
     return [
         {
-            ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.ts', '**/*.mjs'],
+            /**
+             * ⚠️ These are the ONLY thing standing between `eslint .` and a package's build output.
+             *
+             * Every package's `lint` script is the bare `eslint .` (pinned by
+             * `packages/infra/global/__tests__/staticAnalysisCoverage.test.ts`) because a per-package glob is a
+             * claim about a file tree that only the tree can settle — `lib/**\/*.ts` looked correct beside a
+             * `lib/` directory while 62 conformance suites in the `__tests__/` next to it were linted by nothing.
+             * Handing ESLint the directory removes the glob, and moves the whole exclusion decision HERE, where
+             * it is written once.
+             *
+             * The generated-output entries are not speculative tidiness: measured before they were added,
+             * `eslint .` in `packages/infra/global` picked up 9 files from `cdk.out/` and 3 from `dist-lambda/`.
+             * They are all gitignored, so they are invisible to the coverage guard and would have failed the
+             * lint run instead — a synthesized CDK asset or an esbuild bundle is not source and is in no
+             * tsconfig project, so type-aware parsing reports it as a fatal error rather than a rule violation.
+             *
+             * ⚠️ EVERY output entry is `**\/`-prefixed, and that prefix is load-bearing. A flat-config `ignores`
+             * pattern with no slash-prefix is anchored at the config's directory, so a bare `dist/**` matches
+             * `<pkg>/dist` and NOT `<pkg>/infra/dist` — measured: 35 compiled `infra/dist/**` files became fatal
+             * parse errors in four services the first time `eslint .` ran.
+             *
+             * The `*.config.*` entry is the one that is deliberately NOT recursive: the exemption is for a
+             * workspace-ROOT tool manifest (`vitest.config.ts`, `playwright.config.ts`, `metro.config.cjs`),
+             * which most packages cannot put in a project rooted at `src` anyway (TS6059) and which fails loudly
+             * when its own tool runs it. A nested `src/sentry.server.config.ts` is ordinary application code and
+             * stays linted — `@commise/web` used a `**\/*.config.*` ignore and hid exactly that.
+             */
+            ignores: [
+                '**/node_modules/**',
+                // Compiler / bundler / framework output.
+                '**/dist/**',
+                '**/dist-lambda/**',
+                // The Lambda@Edge verifier bundle (ADR-0020) — a separate output root from `dist-lambda`
+                // because CDK packages the directory it is given, and the viewer-request code limit is 1 MB.
+                '**/dist-edge/**',
+                '**/.next/**',
+                '**/.expo/**',
+                '**/build/**',
+                '**/out/**',
+                // ⛔ Test-created temp directories. `@kitchensink/vitest`'s globalSetup points TMPDIR at a
+                // gitignored `.tmp-test/` INSIDE the repo, so CDK synth output and fixture scratch land
+                // somewhere findable and removable instead of accumulating invisibly in /tmp (95,827
+                // directories and 110 GB, measured 2026-08-27). Being inside the repo is the POINT — a leak
+                // is one `du` away rather than a full disk — but it also means every path-walking tool now
+                // sees it, and ESLint tried to parse a synthesised Lambda asset's `.d.ts`.
+                //
+                // ⚠️ ESLint flat config does NOT read .gitignore, so being gitignored is not enough here.
+                '**/.tmp-test/**',
+                // Tool caches and reports.
+                '**/cdk.out/**',
+                '**/.turbo/**',
+                '**/coverage/**',
+                '**/playwright-report/**',
+                '**/test-results/**',
+                // Workspace-ROOT tool manifests only — see the note above on why this one is not recursive.
+                '*.config.js',
+                '*.config.cjs',
+                '*.config.mjs',
+                '*.config.ts',
+                '**/*.mjs',
+            ],
         },
         eslint.configs.recommended,
         ...tseslint.configs.recommended,
@@ -159,6 +425,31 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                 ],
             },
         },
+        {
+            /**
+             * Plain-JS sources are parsed WITHOUT a project — and are therefore LINTED rather than skipped.
+             *
+             * `tseslint.configs.recommended` spreads its `base` block with no `files` restriction, so the
+             * TypeScript parser is applied to `.js` as well, and the `project` set above then makes every `.js`
+             * file outside a tsconfig a FATAL parse error. Measured when `eslint .` first ran: the 17 k6 load
+             * scripts under `packages/services/*\/tests/load/`, which the k6 BINARY (not Node) executes and which
+             * no tsconfig covers, plus `metro.config.cjs`.
+             *
+             * Adding them to `ignores` was the easy answer and the wrong one: they are real code, and
+             * `no-unused-vars`, `curly`, `no-irregular-whitespace` and the bracket-notation `process.env` rule
+             * all apply to them without needing a type. Clearing `project` costs nothing here because this config
+             * enables `recommended`, NOT `recommendedTypeChecked` — no enabled rule asks for type information.
+             *
+             * ⚠️ MUST come AFTER the block that sets `project`: flat config resolves later matching objects over
+             * earlier ones, so an override placed above the block it overrides does nothing.
+             */
+            files: ['**/*.js', '**/*.cjs', '**/*.jsx'],
+            languageOptions: {
+                parserOptions: {
+                    project: null,
+                },
+            },
+        },
         ...filenameConventionConfig(namingRegimeForRoot(tsconfigRootDir)),
         {
             // Web/native accessibility PARITY (#123). `accessibilityState` reaches no DOM attribute on
@@ -175,6 +466,84 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
             },
         },
         {
+            // §4: a relative path may never leave its own workspace. `eslint-plugin-import-x` was already
+            // installed and a declared peer dependency here, but was never REGISTERED — so the rule that
+            // encodes the convention has been shipping as prose only.
+            //
+            // This is the AST-level half of a pair: `turbo boundaries` (see scripts/boundariesRatchet.mjs)
+            // catches a bare specifier that the manifest does not declare, and this catches the other
+            // evasion — reaching into a sibling package by relative path, which needs no declaration at
+            // all and therefore slips past the manifest check entirely. Neither rule sees what the other
+            // sees.
+            //
+            // Measured at ZERO violations across the tree before being enabled, so it lands as a pure
+            // ratchet with no baseline. (A grep for `../../../` is NOT how you measure this: 215 such
+            // imports exist and every one is intra-package, which the rule correctly permits — it flags
+            // only relative paths that resolve into a DIFFERENT package.)
+            plugins: { 'import-x': importX },
+            settings: {
+                // WITHOUT a resolver the rule is a NO-OP: import-x cannot map the specifier to a target
+                // package.json, so it bails silently and every violation passes. Verified by mutation —
+                // a genuine cross-package relative import produced zero output until this was added.
+                // `createNodeResolver` ships inside import-x v4, so this needs no extra dependency.
+                'import-x/resolver-next': [
+                    importX.createNodeResolver({
+                        extensionAlias: { '.js': ['.ts', '.tsx', '.js'], '.jsx': ['.tsx', '.jsx'] },
+                        extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+                    }),
+                ],
+            },
+            rules: {
+                'import-x/no-relative-packages': 'error',
+            },
+        },
+        ...appServiceTypeOnlyConfig(tsconfigRootDir),
+        {
+            /**
+             * The k6 load tier runs in the k6 BINARY's own JS runtime, not Node, so its four injected globals
+             * exist in no `globals` package: `__ENV` (the CLI's `-e` map), `__VU` / `__ITER` (the virtual-user and
+             * iteration counters) and `open()` (k6's synchronous init-context file read).
+             *
+             * Declared rather than silenced: measured at 79 `no-undef` errors across the three services' load
+             * tiers the first time those files were linted, and every one was this. Turning `no-undef` off for the
+             * directory instead would also stop it catching a genuine typo, which is the only reason to run it.
+             *
+             * Scoped by PATH because that is where the k6 tier lives: `docs/CODING_STANDARDS.md` §7 puts each
+             * service's scripts under `tests/load/`, and the shared harness's own k6 modules sit in
+             * `packages/tools/loadtest/k6/`. Those are the only places these globals are legitimate.
+             */
+            files: ['**/tests/load/**/*.js', '**/k6/**/*.js'],
+            languageOptions: {
+                globals: {
+                    __ENV: 'readonly',
+                    __ITER: 'readonly',
+                    __VU: 'readonly',
+                    open: 'readonly',
+                },
+            },
+            rules: {
+                /**
+                 * ⛔ A MODULE-SCOPE USE-BEFORE-DECLARE IS FATAL HERE, AND ONLY HERE IS IT INVISIBLE.
+                 *
+                 * These files are executed by the k6 binary and by nothing else: no typecheck reads them, no
+                 * unit tier imports them, and the only thing that runs them is a deployed load run costing
+                 * ~20 minutes of sandbox. So a temporal-dead-zone reference — a `const` read above its own
+                 * declaration — surfaces as `ReferenceError: Cannot access a variable before initialization`
+                 * at INIT, killing every scenario in the tier, and it surfaces there first.
+                 *
+                 * ⚠️ MEASURED: moving one `export const` below its readers took all eight recipe scenarios
+                 * down on both profiles, and lint, typecheck and a source-reading guard were all green over
+                 * it. This rule reports it in milliseconds.
+                 *
+                 * `functions: false` because function declarations ARE hoisted and calling one above its
+                 * definition is both legal and idiomatic; `classes: false` for the same reason the repo does
+                 * not otherwise forbid it. Only `variables` is a real runtime hazard, and the k6 tier is
+                 * clean under it today.
+                 */
+                'no-use-before-define': ['error', { variables: true, functions: false, classes: false }],
+            },
+        },
+        {
             files: ['**/__tests__/**/*.ts', '**/*.test.ts'],
             rules: {
                 '@typescript-eslint/no-explicit-any': 'off',
@@ -183,45 +552,77 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
         },
         {
             rules: {
-                'no-restricted-imports': [
+                'no-restricted-imports': restrictedImportsRule(),
+                'no-restricted-syntax': [
                     'error',
                     {
-                        patterns: [
-                            {
-                                // Block reaching into another package's internals, but allow its
-                                // *declared* granular export barrels (database/*, types/*, hooks, testing,
-                                // users/handle-sync-publisher). Consumers such as the webhook Lambdas import
-                                // those directly so they don't pull the whole package (e.g. the NestJS
-                                // service) in via the top barrel; the `hooks` subpath likewise keeps React
-                                // out of non-React consumers of a client package (e.g.
-                                // `recipe-service-client/hooks`); the `testing` subpath is the declared home
-                                // for a package's shared Object Mother fixtures (e.g. `recipe-core/testing`,
-                                // T1) so downstream tests import fixtures without pulling the runtime
-                                // barrel's full surface; `users/handle-sync-publisher` is identity-service's
-                                // declared export for the SNS handle-sync publisher that identity-webhooks
-                                // consumes to publish rename events (W8-a.2).
-                                // `ignore` (gitignore semantics) refuses to un-ignore a deep path whose
-                                // enclosing directory is still ignored, so `users/handle-sync-publisher`
-                                // needs the 3-line un-ignore/re-ignore/un-ignore dance below rather than a
-                                // single negation like the shallower subpaths above.
-                                group: [
-                                    '@kitchensink/*/*',
-                                    '!@kitchensink/*/database',
-                                    '!@kitchensink/*/database/*',
-                                    '!@kitchensink/*/types',
-                                    '!@kitchensink/*/types/*',
-                                    '!@kitchensink/*/hooks',
-                                    '!@kitchensink/*/testing',
-                                    '!@kitchensink/*/users',
-                                    '@kitchensink/*/users/*',
-                                    '!@kitchensink/*/users/handle-sync-publisher',
-                                ],
-                                message:
-                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*, hooks, testing, users/handle-sync-publisher) — don't reach into other internals.",
-                            },
-                        ],
+                        selector: 'ImportDeclaration[source.value=/\\.tsx?$/]',
+                        message:
+                            'Do not use .ts or .tsx extensions in import paths. Use .js or .jsx extensions instead.',
+                    },
+                    {
+                        // CODING_STANDARDS: environment variables are read with BRACKET notation. The rule was
+                        // prose only, so it drifted — 47 dot-access sites had accumulated across tests, CDK
+                        // entry points and config modules with nothing to catch them.
+                        //
+                        // Worth enforcing rather than relaxing: under TypeScript's
+                        // `noPropertyAccessFromIndexSignature`, `process.env.FOO` is a type error while
+                        // `process.env['FOO']` is not, so bracket access is what keeps the index-signature
+                        // discipline honest — and it makes every environment read greppable as ONE shape,
+                        // which matters for a repo whose worst outages have all been misconfiguration.
+                        //
+                        // The one real exception (bundler inlining in a frontend `runtimeEnv` map) is granted
+                        // by PATH in the final config object below, not by an inline disable.
+                        selector:
+                            "MemberExpression[computed=false][object.type='MemberExpression'][object.object.name='process'][object.property.name='env']",
+                        message:
+                            "Read environment variables with bracket notation: process.env['KEY'], not process.env.KEY (CODING_STANDARDS). The sole exception is a bundler-inlined `runtimeEnv` map in a frontend src/config/env.ts, allowed by path in the shared ESLint config.",
+                    },
+                    {
+                        // `sql.raw` SPLICES ITS ARGUMENT INTO THE STATEMENT TEXT, bypassing parameterisation by
+                        // design — so the value's provenance is the only thing between it and SQL injection.
+                        //
+                        // Banned outright rather than reviewed case-by-case, because the audit that motivated
+                        // this found the repo's three `sql.raw` sites were all safe *by virtue of their
+                        // callers* (each argument was a module constant or a construction default), with
+                        // nothing in the build that would notice when a later refactor turned one of those
+                        // constants into a request value. Safety that has to be re-derived by hand on every
+                        // future edit is not safety. All three were rewritten to bound parameters — an interval
+                        // as `${VALUE}::interval`, a row cap as `LIMIT ${value}` — which is both injection-proof
+                        // AND fails closed on a malformed value (Postgres rejects the cast) instead of
+                        // executing it. That left ZERO call sites, so this rule costs nothing to keep.
+                        //
+                        // The parameterising `sql` tag and its `${}` interpolations are untouched: those ARE
+                        // the correct form, and every DAL should keep using them.
+                        selector:
+                            "CallExpression[callee.type='MemberExpression'][callee.object.name='sql'][callee.property.name='raw']",
+                        message:
+                            'Do not use sql.raw() — it splices its argument into the statement text and bypasses parameterisation. Use a bound parameter instead: `${value}` for a LIMIT/OFFSET, `${value}::interval` for an interval. If an identifier really must be dynamic, map it through a hard-coded allow-list first.',
                     },
                 ],
+            },
+        },
+        {
+            /**
+             * The ONE exception to bracket-notation environment reads, granted by path so it stays visible and
+             * bounded instead of being disabled inline at each site.
+             *
+             * Next and Metro inline `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` at BUILD time by substituting a literal
+             * `process.env.X` member expression. A computed lookup (`process.env['X']`) is NOT substituted, so
+             * bracket notation in these `runtimeEnv` maps compiles to `undefined` in the browser — the variable
+             * silently vanishes from the shipped bundle. That is the very silent-misconfiguration class these
+             * modules exist to prevent, so here the convention yields to the bundler.
+             *
+             * Scoped to the config modules themselves. Everywhere else in the frontend packages — components,
+             * hooks, tests, scripts — the rule still applies, because nothing else is read through inlining.
+             *
+             * ⚠️ MUST remain the LAST object in this array. Flat config resolves later matching objects over
+             * earlier ones, so an exception placed above the object that defines the rule is silently
+             * overridden. That happened on the first attempt here, and an automated fix then rewrote these
+             * exact files and broke inlining — caught only by reading the diff.
+             */
+            files: ['**/src/config/env.ts'],
+            rules: {
                 'no-restricted-syntax': [
                     'error',
                     {

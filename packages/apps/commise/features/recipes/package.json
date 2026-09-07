@@ -10,12 +10,12 @@
         "./hooks": "./src/hooks/index.ts",
         "./widget/web": "./src/widget/RecipeHomeWidget.tsx",
         "./widget/mobile": "./src/widget/RecipeHomeWidget.native.tsx",
-        "./source-tabs/mobile": "./src/list/RecipeSourceTabs.native.tsx"
+        "./source-tab/mobile": "./src/list/RecipeSourceTab.native.tsx"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run && vitest run --config vitest.native.config.ts",
-        "lint": "eslint 'src/**/*.{ts,tsx}' --ignore-pattern '**/*.test.{ts,tsx}'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -26,12 +26,17 @@
         "@commise/ui": "*",
         "@kitchensink/recipe-core": "*",
         "@kitchensink/recipe-service-client": "*",
+        "@kitchensink/schema-recipe": "*",
         "@radix-ui/react-alert-dialog": "^1.1.15",
-        "@radix-ui/react-dialog": "^1.1.20"
+        "@radix-ui/react-dialog": "^1.1.20",
+        "@radix-ui/react-dropdown-menu": "^2.1.24",
+        "react-error-boundary": "^6.1.2"
     },
     "peerDependencies": {
         "@expo/vector-icons": ">=15.0.0",
         "@shopify/flash-list": ">=2.0.0",
+        "@tanstack/react-query": "^5.62.0",
+        "expo-crypto": ">=57.0.0 <58.0.0",
         "expo-image": ">=57.0.0 <58.0.0",
         "next": ">=15.0.0",
         "react": "^19.0.0",
@@ -63,19 +68,20 @@
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@shopify/flash-list": "~2.3.2",
+        "@tanstack/react-query": "^5.62.0",
         "@testing-library/react": "^16.3.0",
         "@types/react": "^19.0.0",
         "eslint": "^10.0.3",
         "expo-image": "~57.0.1",
-        "jsdom": "^24.1.0",
-        "next": "^15.0.0",
+        "jsdom": "^30.0.1",
+        "next": "^16.3.3",
         "prettier": "^3.0.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "react-native": "0.86.0",
         "react-native-safe-area-context": "~5.7.0",
         "react-native-web": "^0.20.0",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },
     "engines": {

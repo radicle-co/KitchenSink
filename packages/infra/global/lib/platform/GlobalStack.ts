@@ -1,0 +1,106 @@
+import { Stack, type StackProps } from 'aws-cdk-lib';
+import type { Construct } from 'constructs';
+
+import { DataStack } from './DataStack.js';
+import { DomainStack } from './DomainStack.js';
+import { MessageSubstrateStack } from './MessageSubstrateStack.js';
+import { NetworkStack } from './NetworkStack.js';
+import { SandboxSchedulerStack } from './SandboxSchedulerStack.js';
+import { ServiceLogsStack } from './ServiceLogsStack.js';
+import { SharedAlbStack } from './SharedAlbStack.js';
+
+export interface GlobalStackProps extends StackProps {
+    readonly stage: string;
+    readonly domainName: string;
+    /** Email that receives platform alarms (R3.2 / plan U11); per-stage config, never a committed literal. */
+    readonly alertEmail?: string;
+}
+
+/**
+ * Orchestrates shared identity infrastructure: VPC, subnets, security groups,
+ * RDS PostgreSQL, S3 buckets, SQS queues, SSL certificates, and Route53.
+ *
+ * Deployed once per environment. Service-specific stacks reference the
+ * CloudFormation exports produced by child stacks instead of duplicating resources.
+ */
+export class GlobalStack extends Stack {
+    public readonly network: NetworkStack;
+    public readonly data: DataStack;
+    public readonly domain: DomainStack;
+    public readonly alb: SharedAlbStack;
+    /** The message substrate — BASE stages only; a `pr-{N}` table lives in the producer's own stack (U5). */
+    public readonly messaging: MessageSubstrateStack;
+    /** Log groups that outlive the reclaimable stacks writing to them (ADR-0028, 2026-08-30). */
+    public readonly serviceLogs: ServiceLogsStack;
+    /** The sandbox nightly-shutdown scheduler — created ONLY for `stage === 'sandbox'` (ADR-0007). */
+    public readonly sandboxScheduler?: SandboxSchedulerStack;
+    public readonly stage: string;
+
+    public constructor(scope: Construct, id: string, props: GlobalStackProps) {
+        super(scope, id, props);
+
+        const { stage, domainName } = props;
+
+        this.stage = stage;
+
+        this.network = new NetworkStack(this, `Network-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-network-${stage}`,
+            stage,
+        });
+
+        this.data = new DataStack(this, `Data-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-data-${stage}`,
+            network: this.network,
+            stage,
+        });
+
+        this.domain = new DomainStack(this, `Domain-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-domain-${stage}`,
+            domainName,
+            stage,
+        });
+
+        this.alb = new SharedAlbStack(this, `SharedAlb-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-alb-${stage}`,
+            network: this.network,
+            domain: this.domain,
+            stage,
+        });
+
+        // ADR-0028 (2026-08-30): the identity service's ECS log group lives HERE, not in the identity
+        // service stack, because that stack is now reclaimable and `WebhooksStack` — which must survive —
+        // drains this group. A persistent stack may not import from a reclaimable one; CloudFormation
+        // refuses the delete outright. Asserted by `reclaimableStackImports.test.ts`.
+        this.serviceLogs = new ServiceLogsStack(this, `ServiceLogs-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-service-logs-${stage}`,
+            stage,
+        });
+
+        // The durable per-group message substrate (R1, plan U5). This app only ever deploys BASE stages
+        // (`prod`/`sandbox`) — `bin/app.ts` tags the whole app `Environment=global` and sandbox-deploy
+        // never runs it with `stage=pr-{N}` — so a per-PR table is created in the PRODUCER's stack instead,
+        // where it is already tagged `Environment=pr-{N}` and torn down with the preview.
+        this.messaging = new MessageSubstrateStack(this, `Messaging-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-messaging-${stage}`,
+            stage,
+            alertEmail: props.alertEmail,
+        });
+
+        // ADR-0007: the nightly stop/start scheduler exists ONLY for the sandbox stage. Guarding the
+        // instantiation (not just the schedule expressions) means prod/dev synthesize NOTHING here, so
+        // the prod template is unchanged (ADR-0002 no-prod-diff discipline).
+        if (stage === 'sandbox') {
+            this.sandboxScheduler = new SandboxSchedulerStack(this, `SandboxScheduler-${stage}`, {
+                env: props.env,
+                stackName: `kitchensink-sandbox-scheduler-${stage}`,
+                stage,
+            });
+        }
+    }
+}

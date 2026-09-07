@@ -1,1 +1,1 @@
-export * from './fixtures.js';
+export { makeCollection, makeIngredient, makeRecipe, makeRecipeDetail, makeRecipeVersion } from './fixtures.js';

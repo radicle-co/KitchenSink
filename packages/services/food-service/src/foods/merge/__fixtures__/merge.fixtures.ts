@@ -4,8 +4,8 @@
  * the source-id type (`S extends string`) so its source-priority rules are unit-testable with synthetic
  * multi-source inputs even though the wired `food_source` enum currently lists only `usda`.
  */
-import type { FoodSourceId } from '../../../sources/food-source-adapter.js';
-import type { MergeCandidate } from '../merge-engine.js';
+import type { FoodSourceId } from '../../../sources/foodSourceAdapter.js';
+import type { MergeCandidate } from '../mergeEngine.js';
 
 /**
  * Build a {@link MergeCandidate} for a given source, overriding any field. `source` is passed
@@ -29,6 +29,7 @@ export function makeMergeCandidate<S extends string = FoodSourceId>(
         brandName: null,
         description: null,
         barcode: null,
+        aliases: [],
         nutrients: [],
         portions: [],
         itemVersion: null,

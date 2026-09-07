@@ -4,9 +4,10 @@
     "private": true,
     "type": "module",
     "exports": {
-        "./infra": "./infra/lib/recipe-workers-stack.ts"
+        "./infra": "./infra/lib/RecipeWorkersStack.ts"
     },
     "scripts": {
+        "dev": "tsx --env-file=.env.development src/local/main.ts",
         "build": "tsc -p tsconfig.build.json && npm run package",
         "package": "node esbuild.mjs",
         "infra:build": "tsc -p infra/tsconfig.json",
@@ -14,7 +15,7 @@
         "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",
         "test": "npm run build && vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
-        "lint": "eslint 'src/**/*.ts' '__tests__/**/*.ts'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -22,31 +23,40 @@
     "dependencies": {
         "@aws-lambda-powertools/logger": "^2.33.1",
         "@aws-sdk/client-cloudfront": "^3.935.0",
+        "@aws-sdk/client-lambda": "^3.935.0",
         "@aws-sdk/client-s3": "^3.935.0",
         "@aws-sdk/client-sqs": "^3.935.0",
+        "@aws-sdk/client-ssm": "^3.1116.0",
         "@aws-sdk/rds-signer": "^3.935.0",
+        "@kitchensink/bedrock-client": "*",
+        "@kitchensink/ingredient-parser": "*",
         "@kitchensink/recipe-core": "*",
-        "ulidx": "^2.4.1",
+        "@kitchensink/recipe-import-core": "*",
         "aws-cdk-lib": "^2.0.0",
         "constructs": "^10.0.0",
         "drizzle-orm": "^0.45.2",
-        "pg": "^8.16.3"
+        "pg": "^8.16.3",
+        "ulidx": "^2.4.1",
+        "zod": "^4.4.3"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
+        "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
-        "eslint": "^10.0.3",
-        "prettier": "^3.0.0",
-        "typescript": "^5.9.3",
-        "vitest": "^4.0.0",
         "@types/aws-lambda": "^8.10.0",
-        "@types/node": "^24.0.0",
+        "@types/node": "^24.13.3",
         "@types/pg": "^8.11.10",
         "aws-cdk": "^2.1134.0",
-        "esbuild": "^0.24.0",
-        "tsx": "^4.0.0"
+        "esbuild": "^0.28.1",
+        "eslint": "^10.0.3",
+        "p-limit": "^7.1.1",
+        "prettier": "^3.0.0",
+        "pure-rand": "^8.4.2",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
     },
     "engines": {
         "node": "24.x"

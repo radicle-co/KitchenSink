@@ -154,7 +154,7 @@ export interface WebGlass {
 /**
  * Project a neutral {@link GlassSpec} to the CSS declarations the web paints (web leg) — the mirror of
  * {@link toNativeGlass}. This is the ONE place a glass tier becomes a web surface, so every consumer converges
- * on it: the {@link import('../surface/GlassCard.js').GlassCard} primitive (whose own element IS the glass) and
+ * on it: the `GlassCard` primitive (whose own element IS the glass) and
  * any component whose shell must stay a specific element — an `<article>`, a `<button>` — and therefore cannot
  * be wrapped in the primitive without changing its DOM semantics.
  *

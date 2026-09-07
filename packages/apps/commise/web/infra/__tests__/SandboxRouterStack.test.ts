@@ -4,9 +4,33 @@ import { fileURLToPath } from 'node:url';
 
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { SandboxRouterStack } from '../lib/SandboxRouterStack.js';
+
+// The entrypoint's `App` is not exported (deliberately — its six siblings do not export theirs either), and
+// the only handle on it from outside is the argument it already hands to `stampCommitProvenance`. Spying
+// there reaches the REAL tree `bin/app.ts` builds, instead of this file re-assembling a lookalike whose
+// tagging could then agree with itself while the entrypoint's drifted.
+//
+// `importOriginal` keeps every other export genuine and still calls through: `SandboxRouterStack` itself
+// imports `acceptNagFindings` from this package, so a bare factory mock would break the suite above.
+// That the call site EXISTS is not assumed here — `packages/infra/global/__tests__/commitProvenanceCoverage
+// .test.ts` asserts it from the AST for every CDK app in the repository, so this seam cannot silently
+// vanish and leave these assertions unreachable.
+const { capturedApps } = vi.hoisted(() => ({ capturedApps: [] as App[] }));
+
+vi.mock('@kitchensink/infra-security', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@kitchensink/infra-security')>();
+
+    return {
+        ...actual,
+        stampCommitProvenance: (app: App): void => {
+            capturedApps.push(app);
+            actual.stampCommitProvenance(app);
+        },
+    };
+});
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const bundleDir = path.join(here, '../../router/dist');
@@ -146,6 +170,107 @@ describe('SandboxRouterStack', () => {
         template.hasOutput('RouterKvsArn', {
             Value: { 'Fn::GetAtt': [kvsId, 'Arn'] },
             Export: { Name: 'kitchensink-sandbox-router-sandbox:KvsArn' },
+        });
+    });
+});
+
+/**
+ * ⛔ ADR-0005: the `Environment` tag is the PRIMARY teardown signal, and this app was the only one of the
+ * repository's eight CDK apps that set none.
+ *
+ * `teardown-sandbox-pr.sh` deletes a closed PR's resources with NO denylist. It decides ownership two ways —
+ * a `pr-{N}` NAME (a delimiter-aware PREFIX rule, `pr-scope.sh`) or an `Environment=pr-{N}` TAG — and the
+ * tag is the only one of those that generalises: §2 reads it back per stack from `describe-stacks`, and §3
+ * sweeps `resourcegroupstaggingapi get-resources` for anything tagged `Environment=$PR` that no stack owned.
+ * An untagged app is invisible to BOTH halves of that, which is a defect in both directions: nothing would
+ * reclaim a per-PR router, and nothing states in the account that the singleton is persistent.
+ *
+ * ## Why `global`, and why it is DERIVED rather than written down
+ *
+ * `sandbox-router-deploy.yml` — the ONLY deployer of this app — pins `STAGE: sandbox`, so the tag's value at
+ * every real deploy is `global`, which is correct: this is a persistent SINGLETON. Its out-of-band deletion
+ * once left `sandbox.commise.app` NXDOMAIN for ~3 weeks with every web preview broken, which is exactly the
+ * outcome a PR-close sweep must never be able to cause.
+ *
+ * The value is still resolved FROM the stage, matching the four feature apps that can run per-PR, because
+ * the stage is a parameter (`--context stage=` / `STAGE`) rather than a constant, and the two ways of being
+ * wrong are not symmetric. A hardcoded `global` on a per-PR deploy would make that stack IMMORTAL — and the
+ * name rule could not save it, since `kitchensink-sandbox-router-pr-{N}` does not START with `pr-{N}` and so
+ * is not matched by `pr_scope_belongs`, leaving the tag as the only signal that could ever reclaim it.
+ *
+ * ## Why `Tags.of(app)` here, when the commit stamp beside it is forbidden from using it
+ *
+ * That prohibition is about VOLATILITY, not about the aspect form: `CommitSha` changes on every commit, so
+ * the aspect form would rewrite every taggable resource's template on every deploy and breach the
+ * ADR-0002/ADR-0008 no-prod-diff line for a fact about the build. `Environment` is invariant for a given
+ * stack — it can only change when the stage does, which is a different stack — so it costs one bounded,
+ * one-time template change and never moves again. This app also synthesizes only the sandbox router and no
+ * prod stack at all, so that line is not on this path. And the aspect form is REQUIRED, not merely
+ * tolerated: `stack.tags.setTag` alone would leave individual resources untagged and therefore invisible to
+ * the §3 tag sweep.
+ */
+describe('the sandbox router CDK app (infra/bin/app.ts) — ADR-0005 Environment tag', () => {
+    /**
+     * Import the real entrypoint for a stage and hand back the stack it synthesizes.
+     *
+     * @param stage - The `STAGE` the deploy runs under.
+     * @returns The synthesized stack artifact's tags and template.
+     * @sideEffect Resets the module registry, stubs the environment and synthesizes a CDK app.
+     */
+    async function synthesizeEntrypoint(stage: string): Promise<{
+        readonly tags: Readonly<Record<string, string>>;
+        readonly template: Template;
+    }> {
+        vi.resetModules();
+        capturedApps.length = 0;
+        vi.stubEnv('STAGE', stage);
+        vi.stubEnv('DOMAIN_NAME', 'commise.app');
+        vi.stubEnv('CDK_DEFAULT_ACCOUNT', '123456789012');
+
+        await import('../bin/app.js');
+
+        const app = capturedApps.at(-1);
+
+        if (app === undefined) {
+            throw new Error('infra/bin/app.ts did not hand its App to stampCommitProvenance — the spy saw nothing');
+        }
+
+        // By DEPLOYED stack name, not by construct id: that is the identity `describe-stacks` reports and
+        // `teardown-sandbox-pr.sh` matches on, so looking it up this way pins the name convention too.
+        const artifact = app.synth().getStackByName(`kitchensink-sandbox-router-${stage}`);
+
+        return { tags: artifact.tags, template: Template.fromJSON(artifact.template) };
+    }
+
+    afterAll(() => {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+    });
+
+    it('tags the deployed router Environment=global — the value every real deploy produces', async () => {
+        // `sandbox-router-deploy.yml` sets STAGE: sandbox, so this is the tag that actually reaches the
+        // account. `global` is what keeps the singleton out of every per-PR teardown match (ADR-0005).
+        const { tags } = await synthesizeEntrypoint('sandbox');
+
+        expect(tags['Environment']).toBe('global');
+    });
+
+    it('DERIVES the tag from the stage, so a pr-{N} deploy is reclaimable rather than immortal', async () => {
+        // The negative direction, and the reason the value is not a literal. Nothing else could reclaim such
+        // a stack: `kitchensink-sandbox-router-pr-9` does not start with `pr-9`, so the name rule misses it.
+        const { tags } = await synthesizeEntrypoint('pr-9');
+
+        expect(tags['Environment']).toBe('pr-9');
+    });
+
+    it('tags the RESOURCES too, not just the stack — what the §3 resourcegroupstaggingapi sweep reads', async () => {
+        // Distinguishes `Tags.of(app)` from `stack.tags.setTag`. The commit stamp uses the latter (it must:
+        // its value changes every commit); this tag must use the former, or a per-PR deploy's resources
+        // would be untagged and survive a sweep that found nothing to delete.
+        const { template } = await synthesizeEntrypoint('sandbox');
+
+        template.hasResourceProperties('AWS::CloudFront::Distribution', {
+            Tags: Match.arrayWith([{ Key: 'Environment', Value: 'global' }]),
         });
     });
 });

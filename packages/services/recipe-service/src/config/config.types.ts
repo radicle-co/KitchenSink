@@ -9,6 +9,7 @@
 
 import { z } from 'zod';
 import { hasExactlyOneAzpMode } from '@kitchensink/clerk-verify';
+import { RATE_LIMIT_DEFAULTS } from '../common/throttle/throttleDefaults.js';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -144,7 +145,7 @@ export const DEFAULT_AWS_REGION = 'us-east-1';
 
 /**
  * Database CONNECTION config — passwordless **RDS-IAM**, mirroring the shipped food service
- * (`packages/services/food-service/src/database/pool-config.ts`). There is deliberately **no**
+ * (`packages/services/food-service/src/database/poolConfig.ts`). There is deliberately **no**
  * database password secret and **no** `secret: true` `DATABASE_URL` fetched from SSM.
  *
  * Either/or, exactly like the food service's `EnvironmentSchema`:
@@ -264,7 +265,7 @@ export const clerkConfigMeta: Record<keyof ClerkConfig, ConfigFieldMeta> = {
  * this public-ALB service, no network round-trip).
  *
  * `RECIPE_SERVICE_PRINCIPAL_JWT_KEY` is OPTIONAL: a stage that has not yet provisioned the key (or local
- * dev) simply has no service-principal path — {@link import('../auth/service-erasure-auth.service.js').ServiceErasureAuthService}
+ * dev) simply has no service-principal path — `ServiceErasureAuthService`
  * fails CLOSED (rejects every service token) rather than failing to boot. This lets U4b provision the key
  * without a lockstep deploy. Non-secret: it is a PUBLIC verification key, not a signing secret.
  */
@@ -310,7 +311,7 @@ export const storageConfigSchema = z.object({
      * (HAZ-051/067/039). OPTIONAL: no `Distribution` construct exists in this repo's CDK (the
      * distribution is provisioned outside it), so a stage without one yet — or local/dev — simply omits
      * this. When unset, invalidation degrades to a logged no-op rather than failing to boot or failing a
-     * delete request; see `photos/cdn-invalidation.ts`.
+     * delete request; see `photos/cdnInvalidation.ts`.
      */
     CLOUDFRONT_DISTRIBUTION_ID: z.string().min(1).optional(),
 
@@ -358,16 +359,16 @@ export const rateLimitConfigSchema = z.object({
      * Home widget's reads. This is the default throttler's limit: any route without a category override
      * inherits it, so it is deliberately the most generous. Defaults to 120.
      */
-    RATE_LIMIT_READ: z.coerce.number().int().positive().default(120),
+    RATE_LIMIT_READ: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_READ),
 
     /** Write endpoint limit (req/min per user). Defaults to 30. */
-    RATE_LIMIT_WRITE: z.coerce.number().int().positive().default(30),
+    RATE_LIMIT_WRITE: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_WRITE),
 
     /** Photo upload limit (req/min per user). Defaults to 10. */
-    RATE_LIMIT_PHOTO_UPLOAD: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_PHOTO_UPLOAD: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_PHOTO_UPLOAD),
 
     /** Search endpoint limit (req/min per user). Defaults to 60. */
-    RATE_LIMIT_SEARCH: z.coerce.number().int().positive().default(60),
+    RATE_LIMIT_SEARCH: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_SEARCH),
 
     /**
      * GDPR account-export limit (req/min per user). Defaults to 10 — the tightest category. The export
@@ -375,7 +376,10 @@ export const rateLimitConfigSchema = z.object({
      * data-egress surface; a portability download is issued rarely, so a low cap curbs abuse/exfiltration
      * without impeding a genuine "download my data" request.
      */
-    RATE_LIMIT_EXPORT: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_EXPORT: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_EXPORT),
+
+    /** Analytics ingest door requests/min per user (plan U4, R13). */
+    RATE_LIMIT_ANALYTICS: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_ANALYTICS),
 });
 
 /** Typed rate limiting configuration. */
@@ -403,7 +407,7 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
  * **There is deliberately NO `FOOD_SERVICE_TOKEN`.** Food's `FoodAuthGuard` verifies a *Clerk* token, and a
  * long-lived static env string cannot satisfy that verifier (session tokens live ~60s) — the variable was
  * read as a static bearer and was never set anywhere in the repo. Recipe now forwards the CALLER's own
- * verified token instead (`auth/caller-token.ts` → `ingredients/food-service-clients.factory.ts`), so there
+ * verified token instead (`auth/CallerToken.ts` → `ingredients/FoodServiceClients.factory.ts`), so there
  * is no service credential to configure here.
  */
 export const foodServiceConfigSchema = z.object({
@@ -476,6 +480,68 @@ export const accountErasureConfigMeta: Record<keyof AccountErasureConfig, Config
 };
 
 // ---------------------------------------------------------------------------
+// Ingredient Verification Config
+// ---------------------------------------------------------------------------
+
+/**
+ * Config for the LLM verification gate's hand-off (plan U11 / ADR-0024): the `recipe-verification` SQS queue
+ * this service enqueues onto after a recipe save, drained by `verifyLine` in `@kitchensink/recipe-workers`.
+ *
+ * ⛔ `INGREDIENT_VERIFICATION_QUEUE_URL` is REQUIRED, and the reason is this unit's own history rather than
+ * symmetry with the erasure queue. U11 shipped the gate's consumer — a Lambda, its queue, its DLQ, its IAM
+ * grant, its alarms and its spend ledger — with NOTHING producing a message, and every check in the
+ * repository stayed green while the gate verified nothing. An optional URL is exactly how that state comes
+ * back: the service would boot, save recipes, and silently ask nobody. This is ADR-0010's lesson applied
+ * (`RECIPE_FOOD_SERVICE_URL`'s conditional passthrough is what left a preview with no food service at all),
+ * and it is what `FOOD_SERVICE_URL` already does for the same reason.
+ *
+ * ⚠️ The SQS ENDPOINT override is deliberately NOT redeclared here — it is one client setting for one
+ * process, and both queue adapters read the same `SQS_ENDPOINT` from `accountErasureConfigSchema`. Two
+ * endpoint variables would be two ways to point the same process at two different LocalStacks.
+ */
+export const ingredientVerificationConfigSchema = z.object({
+    /** URL of the `recipe-verification` SQS queue (published per stage by `RecipeWorkersStack`). */
+    INGREDIENT_VERIFICATION_QUEUE_URL: z.string().url(),
+});
+
+/** Typed ingredient-verification configuration. */
+export type IngredientVerificationConfig = z.infer<typeof ingredientVerificationConfigSchema>;
+
+/** Secret/non-secret metadata. A queue URL is not a secret. */
+export const ingredientVerificationConfigMeta: Record<keyof IngredientVerificationConfig, ConfigFieldMeta> = {
+    INGREDIENT_VERIFICATION_QUEUE_URL: {
+        secret: false,
+        description: 'ingredient-verification SQS queue URL (plan U11, ADR-0024)',
+    },
+};
+
+/**
+ * Config for the parse-job hand-off (plan U9, origin D9/R13): the `recipe-parse-line` SQS queue this
+ * service enqueues one message per pasted line onto, drained by `parseLine` in
+ * `@kitchensink/recipe-workers`.
+ *
+ * ⛔ REQUIRED for the same historical reason `INGREDIENT_VERIFICATION_QUEUE_URL` is (see above): an
+ * optional URL is how a consumer ships with nothing producing — the service would boot, accept parse
+ * jobs, and silently enqueue nowhere, leaving every line `pending` until the TTL sweep expired the job.
+ * Published per stage by `RecipeWorkersStack` (`/kitchensink/{stage}/recipe/parse-queue-url`).
+ */
+export const parseJobConfigSchema = z.object({
+    /** URL of the `recipe-parse-line` SQS queue (published per stage by `RecipeWorkersStack`). */
+    RECIPE_PARSE_QUEUE_URL: z.string().url(),
+});
+
+/** Typed parse-job configuration. */
+export type ParseJobConfig = z.infer<typeof parseJobConfigSchema>;
+
+/** Secret/non-secret metadata. A queue URL is not a secret. */
+export const parseJobConfigMeta: Record<keyof ParseJobConfig, ConfigFieldMeta> = {
+    RECIPE_PARSE_QUEUE_URL: {
+        secret: false,
+        description: 'recipe-parse-line SQS queue URL (plan U9)',
+    },
+};
+
+// ---------------------------------------------------------------------------
 // Composite: Full API Config
 // ---------------------------------------------------------------------------
 
@@ -497,6 +563,8 @@ export const apiConfigSchema = baseConfigSchema
     .merge(rateLimitConfigSchema)
     .merge(foodServiceConfigSchema)
     .merge(accountErasureConfigSchema)
+    .merge(ingredientVerificationConfigSchema)
+    .merge(parseJobConfigSchema)
     // The DB connection is an either/or (URL vs discrete IAM parts), so it is intersected in rather
     // than merged — a union is not a ZodObject and cannot be `.merge()`d.
     .and(databaseConnectionSchema)

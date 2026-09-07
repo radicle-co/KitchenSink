@@ -1,7 +1,7 @@
 import { Module, Global } from '@nestjs/common';
 
 import { AuthMiddleware } from './middleware/auth.middleware.js';
-import { ClerkAuthService } from './clerk-auth.service.js';
+import { ClerkAuthService } from './clerkAuth.service.js';
 import { UsersModule } from '../users/users.module.js';
 
 @Global()

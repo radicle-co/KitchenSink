@@ -7,6 +7,11 @@ origin: docs/brainstorms/2026-07-03-food-api-load-test-requirements.md
 target: worktree .worktrees/003-usda-food-data (branch infra/sandbox-cost-and-per-pr-db)
 ---
 
+> ⚠️ **Superseded as a description of current state** by [`docs/architecture/2026-08-28-ingredient-pipeline-state.md`](../architecture/2026-08-28-ingredient-pipeline-state.md) (2026-08-28, PR 91).
+>
+> The decisions and reasoning below remain valid and this document is deliberately NOT deleted. Where it
+> and the state addendum disagree about **what exists today**, the addendum wins.
+
 # feat: Food API load-test harness (k6, sandbox pr-59)
 
 ## Summary
@@ -37,13 +42,13 @@ Constraints established during research that shape this plan:
 - **Auth is strict and networkless.** `FoodAuthGuard` → `verifyClerkToken` accepts a JWT only if it is
   signed by the sandbox Clerk key (`CLERK_JWT_KEY`), carries a `sub`, and its `azp` is in
   `CLERK_AUTHORIZED_PARTIES`. Forged headers are ignored — real Clerk-signed tokens are mandatory
-  (`packages/shared/clerk-verify/src/clerk-verify.ts`, `packages/services/food-service/src/auth/food-auth.guard.ts`).
+  (`packages/shared/clerk-verify/src/clerk-verify.ts`, `packages/services/food-service/src/auth/foodAuth.guard.ts`).
 - **Scopes come only from `public_metadata`.** The admin observation endpoints require the `food:admin`
   scope (`FOOD_ADMIN_SCOPE`), which must be granted on a user via Clerk `public_metadata` — a
   _separately privileged_ token from the VU pool
-  (`packages/services/food-service/src/auth/authenticated-principal.ts`).
+  (`packages/services/food-service/src/auth/authenticatedPrincipal.ts`).
 - **An `AuthLoadShedder` (FR-052) fronts the guard** and returns `503` under a 401-rate cap
-  (`packages/services/food-service/src/auth/auth-load-shedder.ts`). Valid-token traffic should not trip
+  (`packages/services/food-service/src/auth/AuthLoadShedder.ts`). Valid-token traffic should not trip
   it, but the harness must observe and distinguish shedder `503`s from other failures.
 - **Ingestion is throttle-bound.** Single worker (FR-022), `FOOD_MAX_QUEUE_DEPTH=25`, USDA
   rolling-window limiter, real paid USDA (~500 foods/hr ceiling). "Max we support" is what we _measure_,
@@ -150,7 +155,7 @@ packages/tools/loadtest/
 
 > **U1 spike finding (2026-07-03) — a hard blocker surfaced before any token work.** The deployed
 > `food-pr-59` service has **no `CLERK_JWT_KEY` / `CLERK_AUTHORIZED_PARTIES`** — the food stack never
-> wires them (the identity stack does, `identity-service-stack.ts:200`). With no JWT key,
+> wires them (the identity stack does, `IdentityServiceStack.ts:200`). With no JWT key,
 > `verifyClerkToken` fail-closes, so **every `/v1/foods/*` request returns 401 regardless of token**
 > (verified: `/health` = 200, `/v1/foods/search` = 401). No token — however minted — can authenticate
 > until this is fixed. This is broader than load testing: the per-PR food preview is non-functional for
@@ -165,14 +170,14 @@ packages/tools/loadtest/
   `CLERK_AUTHORIZED_PARTIES` on the food task definitions, mirroring the identity service.
 - **Requirements:** FR-3 (prerequisite).
 - **Dependencies:** none — must land and redeploy before U1 can be validated.
-- **Files:** `packages/services/food-service/infra/lib/food-service-stack.ts`,
-  `packages/services/food-service/infra/__tests__/food-service-stack.test.ts`.
+- **Files:** `packages/services/food-service/infra/lib/FoodServiceStack.ts`,
+  `packages/services/food-service/infra/__tests__/FoodServiceStack.test.ts`.
 - **Approach:** Add both env vars to the API task definition (and the worker/change-refresh defs if they
-  authenticate), resolved from SSM exactly as `identity-service-stack.ts:200` does:
+  authenticate), resolved from SSM exactly as `IdentityServiceStack.ts:200` does:
   `CLERK_JWT_KEY` ← `/kitchensink/${prod?prod:sandbox}/clerk/jwt-public-key`, `CLERK_AUTHORIZED_PARTIES`
   ← `/kitchensink/${...}/clerk/authorized-parties`. Redeploy `food-pr-59`. This is a food-service infra
   fix that also unblocks the preview for real use, independent of the load test.
-- **Patterns to follow:** `packages/services/identity/infra/lib/identity-service-stack.ts` (the exact
+- **Patterns to follow:** `packages/services/identity/infra/lib/IdentityServiceStack.ts` (the exact
   SSM wiring) and its stack tests asserting the env vars exist (`stacks.test.ts:101-106`).
 - **Test scenarios:**
     - The synthesized food API task definition carries `CLERK_JWT_KEY` and `CLERK_AUTHORIZED_PARTIES` env
@@ -269,8 +274,8 @@ packages/tools/loadtest/
   per-PR database were never created. Rather than sync a password, the food DB moved to **RDS IAM auth**
   (no password anywhere; token minted per connection), with a master-connected bootstrap custom resource
   provisioning `food_app` + `rds_iam` + the base DB, and the asset-path bugs fixed. TLS is still on
-  (`rejectUnauthorized: false`) — IAM auth requires it. See `src/database/pool-config.ts`,
-  `packages/infra/global/.../data-stack.ts` + `food-db-bootstrap/`. `GET /v1/foods/search → 200` confirmed
+  (`rejectUnauthorized: false`) — IAM auth requires it. See `src/database/poolConfig.ts`,
+  `packages/infra/global/.../DataStack.ts` + `food-db-bootstrap/`. `GET /v1/foods/search → 200` confirmed
   end-to-end on `food-pr-59`. **The whole DB-backed surface the load test exercises is now unblocked.**
 
 ### U2. Admin observation token + server-side metric collector
@@ -286,7 +291,7 @@ packages/tools/loadtest/
   the pr-59 ECS service (CPU/mem), the shared RDS instance (CPU/connections), and the shared ALB (5xx /
   target 5xx), writing a timestamped series for correlation.
 - **Patterns to follow:** admin surface in
-  `packages/services/food-service/src/foods/admin/foods-admin.controller.ts`; the AWS CLI/metrics access
+  `packages/services/food-service/src/foods/admin/foodsAdmin.controller.ts`; the AWS CLI/metrics access
   already used in this repo's ops flows.
 - **Test scenarios:**
     - Happy path: the observer token returns `200` (not `403`) from `/v1/foods/admin/queue`, proving the
@@ -328,7 +333,7 @@ packages/tools/loadtest/
   and a distinct counter/tag for `503`s attributable to the auth load-shedder vs. other 5xx. Encode
   SC-hold as k6 `thresholds` (tunable defaults; final numbers set at run time).
 - **Patterns to follow:** the journey semantics proven in
-  `packages/services/food-service/tests/e2e/usda-adapter-http-contract.e2e.test.ts` and the
+  `packages/services/food-service/tests/e2e/usdaAdapterHttpContract.e2e.test.ts` and the
   `@kitchensink/food-service-client` request shapes.
 - **Test scenarios:**
     - Smoke: a 1-VU / short run completes a full search→add→poll iteration against `food-pr-59` with no
@@ -433,10 +438,10 @@ observation path, the food-query corpus, out-of-band server-side metric correlat
 
 - Origin: `docs/brainstorms/2026-07-03-food-api-load-test-requirements.md`.
 - Auth contract: `packages/shared/clerk-verify/src/clerk-verify.ts`,
-  `packages/services/food-service/src/auth/food-auth.guard.ts`,
-  `packages/services/food-service/src/auth/authenticated-principal.ts`,
-  `packages/services/food-service/src/auth/auth-load-shedder.ts`.
-- Observation surface: `packages/services/food-service/src/foods/admin/foods-admin.controller.ts`.
+  `packages/services/food-service/src/auth/foodAuth.guard.ts`,
+  `packages/services/food-service/src/auth/authenticatedPrincipal.ts`,
+  `packages/services/food-service/src/auth/AuthLoadShedder.ts`.
+- Observation surface: `packages/services/food-service/src/foods/admin/foodsAdmin.controller.ts`.
 - Journey semantics + client shapes:
-  `packages/services/food-service/tests/e2e/usda-adapter-http-contract.e2e.test.ts`,
+  `packages/services/food-service/tests/e2e/usdaAdapterHttpContract.e2e.test.ts`,
   `@kitchensink/food-service-client`.

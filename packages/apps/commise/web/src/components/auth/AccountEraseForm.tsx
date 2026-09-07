@@ -4,7 +4,7 @@
  * @module auth/AccountEraseForm — the account ERASURE control + orchestration (web; CR-002 / U4b).
  *
  * ERASURE is the IRREVERSIBLE action: `POST /api/v1/account/erasure` permanently destroys the account and its
- * personal data. Distinct from CLOSURE ({@link import('./AccountCloseForm.js').AccountCloseForm}). This is
+ * personal data. Distinct from CLOSURE (`AccountCloseForm`). This is
  * the orchestrational half of the orchestration/render split: it owns the recipe fetch (the donate-election
  * source), the erasure mutation ("Command"), and the ephemeral form state, and hands them to the pure,
  * cross-platform `AccountEraseDialog` (`@commise/features-account/danger`) which owns the render + the phrase
@@ -15,7 +15,7 @@
  * `confirmsErasurePhrase`); the server re-validates it. `publishRecipeIds` carries the donate election.
  *
  * Leaving the app after erasure goes through the app's one sign-out command,
- * {@link import('./useSignOutAndLeave.js').useSignOutAndLeave}. `signOut({ redirectUrl })` leaves via the
+ * `useSignOutAndLeave`. `signOut({ redirectUrl })` leaves via the
  * Next router, which re-renders the authenticated shell from a client-side payload that was resolved for a
  * session — and an account — that no longer exists; observed end-to-end, the viewer was left sitting on the
  * authenticated Home route after erasing. So the command awaits the revoke (session cookies gone) and then
@@ -31,6 +31,9 @@
  * the message, and the surface renders a distinct alert plus the ordinary {@link LogoutButton} as the recovery.
  * The copy is deliberately NOT the dialog's `submitError` — the erasure DID succeed, so inviting a retry of it
  * would be a lie; the only outstanding action is leaving the session.
+ *
+ * @pattern Orchestration half of the orchestration/render split — it owns the deferred recipe fetch and the erasure
+ *     Command, and hands both to the pure cross-platform `AccountEraseDialog`, which owns the phrase gate.
  */
 import { useState } from 'react';
 import { useMessages } from '@commise/i18n/react';
@@ -44,6 +47,7 @@ import { authMessages } from '@/components/auth/messages';
 import { errorText } from '@/components/auth/authChrome';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
+import { useEraseAccount } from '@/components/auth/useEraseAccount';
 
 /**
  * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. Mounted only
@@ -62,6 +66,14 @@ function AccountEraseFlow({
     const { signOutAndLeave } = useSignOutAndLeave();
     const recipes = useAllOwnerRecipes();
     const erasure = useRequestAccountErasure();
+
+    /**
+     * The ACCOUNT-level erasure — the second half of the flow, and the half that was missing. The recipe
+     * mutation above erases RECIPES and reaches no other service; this is what erases the identity row,
+     * deletes the Clerk account and fans the erasure out to food. See `useEraseAccount`.
+     */
+    const accountErasure = useEraseAccount();
+
     const [phrase, setPhrase] = useState('');
     const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
 
@@ -94,7 +106,14 @@ function AccountEraseFlow({
     const handleConfirm = () => {
         erasure.mutate(
             { confirmationPhrase: phrase, publishRecipeIds: selectedRecipeIds },
-            { onSuccess: () => void leaveSignedOut() },
+            {
+                onSuccess: () => {
+                    // Only leave once the ACCOUNT erasure is accepted too. Signing out after the recipe leg
+                    // alone is what made the old flow look successful while the account still existed — the
+                    // viewer was returned to a sign-in page they could sign straight back in through.
+                    accountErasure.mutate(undefined, { onSuccess: () => void leaveSignedOut() });
+                },
+            },
         );
     };
 
@@ -108,8 +127,8 @@ function AccountEraseFlow({
             onToggleRecipe={toggleRecipe}
             phrase={phrase}
             onPhraseChange={setPhrase}
-            submitting={erasure.isPending}
-            submitError={erasure.isError}
+            submitting={erasure.isPending || accountErasure.isPending}
+            submitError={erasure.isError || accountErasure.isError}
             onConfirm={handleConfirm}
             onCancel={onClose}
         />

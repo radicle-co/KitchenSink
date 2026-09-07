@@ -254,7 +254,31 @@ A client that received a `202 Accepted` + `id` from add-by-name can poll the rea
 
 ---
 
-### User Story 9 - WebSocket Real-Time Notifications (Priority: P3)
+### User Story 9 - Real-Time Resolution Notification (Priority: P3) — **RETIRED AS SPECIFIED, 2026-08-10**
+
+> **This story's OUTCOME stands; its MECHANISM is withdrawn.** Notification transport is owned by feature
+> **014 (Notification Service)** under governance rule GR-011 — producers publish through 014 rather than
+> building their own delivery. The API Gateway WebSocket API, the `$connect` Lambda authorizer and the
+> `{type:"food_ready", id}` payload described below are **not to be built**, for three reasons found on
+> 2026-08-10 that are properties of the system as built rather than opinions:
+>
+> 1. **The apps never call this service.** They have no food endpoint configured and do not import the food
+>    client; every ingredient call goes to the recipe service. A socket here has no client to serve.
+> 2. **The payload cannot address client state.** Clients hold _ingredient_ ids; the food↔ingredient link
+>    (`ingredients.food_id`) exists only in the recipe service, so a food-keyed push is unusable.
+> 3. **API Gateway was chosen only because this service had no long-lived connection host.** That premise is
+>    moot once delivery moves to 014.
+>
+> Replacement path: this service continues to publish `FoodFetchCompleted` to EventBridge (FR-034), which it
+> already does; the recipe service consumes it, resolves recipients and publishes one envelope to 014
+> (014 T-042, T-044). Note this service **cannot** be the recipient source — `FetchQueueDao.resolve` deletes
+> every `fetch_requesters` row in the same transaction that completes the food, so reading recipients here is
+> a race by construction. `fetch_requesters` keeps its other purposes (FR-043/043a demotion, FR-044 demand
+> counting, FR-048 provenance, CR-002 erasure), all of which happen while a request is PENDING.
+>
+> **The schema comment on `fetch_requesters` naming "WebSocket targeting" as a purpose is therefore wrong
+> and is what first pointed this design at the wrong service** — it describes an intent the DSN-10 pruning
+> rule makes impossible.
 
 When a food resolution completes asynchronously, the system pushes a real-time notification to connected clients via API Gateway WebSocket API. This eliminates the need for client polling and provides instant UI updates when food data becomes available.
 
@@ -355,7 +379,8 @@ Operations teams can monitor the health of the food data pipeline via CloudWatch
 
 - **FR-008**: System MUST provide a `GET /v1/foods/search?query=...` endpoint that searches the local PostgreSQL store using name / substring / partial / full-text or trigram-based fuzzy matching (`pg_trgm`) and returns canonical `id`s. Lookup by barcode or a source's `external_key` (via the `food_sources` crosswalk) MUST also be supported. (R20)
 - **FR-009**: System MUST NOT call any external source for search queries. Search operates exclusively on locally-stored food data; bringing in a missing food is done by adding it by name (FR-005).
-- **FR-010**: Search results MUST be ranked by relevance and returned within 200ms for a local store of up to 50,000 foods.
+- **FR-010**: Search results MUST be ranked by relevance and returned within the SC-007 budget (**500ms p95**) for a local store of up to 50,000 foods. _(Budget revised 2026-08-24 with SC-007; see there for the history and for what the widening does NOT resolve.)_
+- **FR-010a** _(added 2026-08-24, owner ruling)_: Search MUST require a minimum query length of **three characters**. Below it the system returns no results and says so, explaining the minimum and inviting the cook to keep typing. A one-character query matches **51% of the catalog** and a two-character query 23%, against a surface that displays ten to twenty rows — so a short query cannot discriminate, and returning an arbitrary slice of it is worse than returning nothing. Three is the safe floor: no food name of two characters exists, while fifteen genuine three-character foods do (`egg`, `ham`, `rye`, `cod`, `soy`, `oat`, `fig`, `yam`, `nut`, `tea`, `pie`, `elk`, `gin`, `rum`, `poi`), so a four-character floor would break real searches.
 
 **Async Resolution (Write Path)**
 
@@ -454,7 +479,7 @@ Operations teams can monitor the health of the food data pipeline via CloudWatch
 - **FR-038**: The authenticated caller's identity MUST be derived **solely** from the cryptographically-verified token (Clerk `sub`). The service MUST NOT trust any client-suppliable identity header (e.g., `x-authorizer-context`, `x-user-id`, **`x-debug-sub`**); such headers MUST be ignored. There MUST be **no** debug/trusted-header identity path (`x-debug-sub` and any equivalent are removed, not merely unused) — because the service is fronted by a public ALB, any client-suppliable identity header is forgeable. (Mirrors the identity service's PR #39 decision: a client-forgeable identity header is a bypass.)
 - **FR-039**: All authenticated Commise users MUST be authorized to read food data — foods are shared reference data, not user-owned, so no per-record ownership checks apply. Any operational or administrative endpoint (e.g., manual re-fetch or refresh triggers, if exposed) MUST additionally require an elevated scope/permission read from the verified token's `public_metadata`.
 - **FR-040**: Authentication MUST **fail closed**: any error in token verification — missing/invalid `CLERK_JWT_KEY` config, malformed token, or a verification exception — MUST result in `401`, never in an unauthenticated request proceeding.
-- **FR-041**: The WebSocket API (US-9) MUST authenticate the Clerk token at `$connect` and reject unauthenticated connections before establishment. To make per-recipient delivery implementable despite fetch deduplication (FR-013/FR-014 collapse a food to one row/one event), the system MUST persist an authenticated **subscription set** mapping each requester `sub` → the food `id`s it requested (recorded at request time and/or `$connect`). On a `FoodFetchCompleted` event, the notifier MUST resolve recipients from that set and MUST NOT broadcast the completion signal to connections that did not request the `id`. _(Closes RT F-012.)_
+- **FR-041**: **⚠️ WITHDRAWN as specified (2026-08-10).** The requirement — a resolution reaches only the users who asked for it, never a broadcast — STANDS and is satisfied by publishing through feature 014, whose FR-005/FR-021 enforce per-recipient delivery. The `$connect` authentication and the persisted `sub`→`id` subscription set described here are not to be built in this service: recipients are resolved by the recipe service (014 T-044), because `FetchQueueDao.resolve` deletes `fetch_requesters` in the same transaction that completes the food. The WebSocket API (US-9) MUST authenticate the Clerk token at `$connect` and reject unauthenticated connections before establishment. To make per-recipient delivery implementable despite fetch deduplication (FR-013/FR-014 collapse a food to one row/one event), the system MUST persist an authenticated **subscription set** mapping each requester `sub` → the food `id`s it requested (recorded at request time and/or `$connect`). On a `FoodFetchCompleted` event, the notifier MUST resolve recipients from that set and MUST NOT broadcast the completion signal to connections that did not request the `id`. _(Closes RT F-012.)_
 - **FR-042**: The service MUST read `CLERK_JWT_KEY` (public PEM verification key) and `CLERK_AUTHORIZED_PARTIES` (allowlist of permitted `azp` values) from configuration; both are non-secret. No Clerk secret key or client secret is required for **user-session** request authentication. (The **secondary M2M service-token path** of FR-047 is the **one bounded exception**: verifying Clerk's opaque machine tokens requires a networked Backend API call with the Clerk **secret key**, stored in Secrets Manager; this never touches the user-session edge — A-012/DSN-12.) Each external source's API key, e.g. the USDA key, remains a secret stored in Secrets Manager per A-009.
 
 **Authentication & Authorization — Red Team hardening (RT-003-usda-food-data-2026-06-19)**
@@ -467,8 +492,8 @@ Operations teams can monitor the health of the food data pipeline via CloudWatch
 - **FR-046** _(queue backpressure + enforced circuit breaker — closes RT F-014)_: The system MUST enforce a maximum `fetch_queue` depth of **10,000 entries** (configurable). When the queue depth reaches that ceiling, or when a source's circuit breaker is **open** (e.g. during a source outage), new enqueue attempts MUST fail closed with `503 Service Unavailable` rather than growing the queue unbounded. The circuit breaker is a normative requirement, not an operational footnote; recovery MUST avoid a thundering-herd burst (e.g. jittered drain).
 - **FR-047** _(service-to-service auth — closes RT F-006)_: Server-initiated callers that have no end-user session token — downstream services (001 recipes, 006 meal-planning, 007 grocery, 009 nutrition) and internal jobs (recipe import per FR-012, change-driven refresh per FR-032) — MUST authenticate as a distinct **machine/service principal**, and the spec MUST classify each endpoint as user-token, service-token, or both. **The M2M token is a different token class from the user session JWT and MUST be verified on its own path:** a Clerk **machine (M2M) token** (`mt_`-class) is an **opaque** credential, **not** a session JWT — it is **not** verifiable via the session JWKS / `CLERK_JWT_KEY` and does **not** carry an `azp` claim. It MUST therefore be verified via Clerk's **machine-token verification** (a Clerk Backend API verify call authorized by the instance **secret key**), and authorization MUST allowlist the **verified machine identity** (the token's machine/`subject` id) against a configured `FOOD_AUTHORIZED_MACHINES` list **in place of** the session-token `azp` check. **Conflict surfaced (DSN-12):** this M2M verification is **networked and uses the Clerk secret key**, which is a **bounded, deliberate exception** to the otherwise-networkless mandate (FR-036) and to FR-042's "no Clerk secret key on the request path" — the exception is scoped **only** to the service-token path; the user-session path (the overwhelming majority of traffic) stays strictly networkless and secret-key-free. (If a fully-networkless service path is later mandated, the alternative is a Clerk **OAuth-application JWT access token** verified via JWKS — also `azp`-less, allowlisted by `client_id` — and that substitution MUST be made consistently across FR-036/FR-042/A-012 before T-046/T-047 are built.) This does NOT relax verification on the user-session edge.
 - **FR-048** _(async producer authorization — closes RT F-005)_: Only named, least-privilege IAM principals MAY publish `FoodRequested`/`IngestionScheduled` events to EventBridge or insert into `fetch_queue`. The consumer MUST validate producer provenance against the **`fetch_requesters` set** (the `(food_id, sub)` rows recording who requested the food) and/or the **named service principal** carried by the enqueue (e.g. `svc_change_refresh` for FR-032) — **not** a per-row `requested_by` column on `fetch_queue`, which **does not exist**: the canonical `fetch_queue` row carries no requester identity (requesters live one-row-per-`(food_id, sub)` in `fetch_requesters`, FR-014/FR-044, and are reflected in the `FetchQueueRow` entity). "Valid provenance" for a many-requester food means **every** recorded requester `sub` is an authenticated principal (a verified user `sub` or an allowlisted service/machine identity per FR-047); the consumer MUST refuse to drain a row with no valid recorded requester. US-0's guarantee ("no unauthenticated path may drive external source consumption") MUST hold for async/internal producers, not only the synchronous HTTP edge.
-- **FR-049** _(WebSocket auth mechanics — closes RT F-008)_: The WebSocket auth contract MUST specify: (a) how the token is presented at `$connect` (query parameter or `Sec-WebSocket-Protocol` subprotocol, since browsers cannot set an `Authorization` header on WebSocket); (b) behavior on **mid-connection token expiry** (`exp` passes during a long-lived connection) — the connection MUST be closed (or require re-auth on next message); (c) the reconnect/re-auth flow after the 10-minute idle close (US-9); (d) a single, pinned `$connect` rejection status (`403`, per API Gateway WebSocket authorizers).
-- **FR-050** _(authorizer fail-closed hardening — closes RT F-003)_: For the HTTP read API (`/v1/foods/*`), auth is the in-process NestJS `FoodAuthGuard` (A-011); it has **no authorizer result cache**, so there is no cache to poison — the guard MUST verify every request and MUST be wired ahead of **every route** (no route may bypass it), and a denied request MUST return `401`/`403`, never a default-open response. The API Gateway REQUEST-authorizer caching rules apply **only** to the deferred WebSocket `$connect` (US-9): there, authorizer result caching MUST be disabled (TTL = 0) or keyed solely on the verified token (never on a client-controlled value), the authorizer MUST be attached to **every WebSocket route AND method** (including `$connect` and `$default`), and a denied authorization MUST return `401`/`403`, never a default-open Gateway response.
+- **FR-049** _(WebSocket auth mechanics — closes RT F-008)_: **⚠️ WITHDRAWN (2026-08-10).** These are WebSocket `$connect` auth mechanics for a socket this service will not host (see US-9). 014 owns the subscriber auth boundary (its FR-010/FR-020/FR-021). Nothing here survives, because none of it describes a guarantee — it describes the plumbing of a withdrawn mechanism. The WebSocket auth contract MUST specify: (a) how the token is presented at `$connect` (query parameter or `Sec-WebSocket-Protocol` subprotocol, since browsers cannot set an `Authorization` header on WebSocket); (b) behavior on **mid-connection token expiry** (`exp` passes during a long-lived connection) — the connection MUST be closed (or require re-auth on next message); (c) the reconnect/re-auth flow after the 10-minute idle close (US-9); (d) a single, pinned `$connect` rejection status (`403`, per API Gateway WebSocket authorizers).
+- **FR-050** _(authorizer fail-closed hardening — closes RT F-003)_: **⚠️ PARTIALLY WITHDRAWN (2026-08-10).** The HTTP half STANDS unchanged and is the load-bearing one: `FoodAuthGuard` has no authorizer cache, MUST verify every request, MUST be wired ahead of every route, and MUST fail closed. The API Gateway REQUEST-authorizer caching rules apply only to the deferred WebSocket `$connect`, which is withdrawn — so that half is void, not merely deferred. For the HTTP read API (`/v1/foods/*`), auth is the in-process NestJS `FoodAuthGuard` (A-011); it has **no authorizer result cache**, so there is no cache to poison — the guard MUST verify every request and MUST be wired ahead of **every route** (no route may bypass it), and a denied request MUST return `401`/`403`, never a default-open response. The API Gateway REQUEST-authorizer caching rules apply **only** to the deferred WebSocket `$connect` (US-9): there, authorizer result caching MUST be disabled (TTL = 0) or keyed solely on the verified token (never on a client-controlled value), the authorizer MUST be attached to **every WebSocket route AND method** (including `$connect` and `$default`), and a denied authorization MUST return `401`/`403`, never a default-open Gateway response.
 - **FR-051** _(response-status precedence + 403 — closes RT F-007, F-010)_: The service MUST apply a normative response precedence: **authentication (`401`) → authorization scope (`403`) → input validation (`400`) → business logic (`404`/`202`/`200`)**. Authenticated-but-insufficient-scope requests (FR-039) MUST receive `403 Forbidden`. FR-002/FR-003/FR-004/FR-005/FR-006 are subject to this ordering (their `200`/`202`/`404`/`400` outcomes occur only after `401`/`403` checks pass).
 - **FR-052** _(auth-layer DoS protection — closes RT F-015)_: The auth layer MUST bound verification concurrency and apply a per-source `401`-rate cap (load-shed) so that a flood of well-formed-but-invalid tokens (each forcing a CPU-bound signature verification before the fail-closed `401`) cannot saturate the verifier and breach SC-009 availability. SC-011's ≤10ms p95 MUST be validated under an invalid-token flood, not only the happy path.
 - **FR-053** _(auth is a first-class architecture component — closes RT F-002)_: The Clerk verification + authorization layer MUST be represented as a **named component — `FoodAuthGuard`** (the in-process NestJS guard of A-011/FR-050) — in the architecture and module designs, positioned in front of every food data entry point (HTTP routes and WebSocket `$connect`), with traceability rows binding FR-035–FR-052 to it. The auth design MUST NOT exist only as spec prose unmapped to any module (the failure this requirement prevents: an implementer following the architecture ships an unauthenticated service that still "traces" to the design).
@@ -512,6 +537,235 @@ Operations teams can monitor the health of the food data pipeline via CloudWatch
 
 - **AuthenticatedCaller**: The verified principal behind a request. Derived per-request from the validated Clerk session token — never persisted by this service and never sourced from a client-supplied header. Key attributes: `sub` (Clerk user identifier), `azp` (authorized party / originating Commise client, checked against `CLERK_AUTHORIZED_PARTIES`), and `scopes`/`permissions` (read from the token's `public_metadata`, used only to gate operational/admin endpoints per FR-039). Produced by the NestJS `FoodAuthGuard` (in-process, on ECS/Fargate behind the ALB) and surfaced to handlers via `req.user`. For the deferred WebSocket notifier (US-9), the equivalent principal is produced by the API Gateway WebSocket `$connect` REQUEST authorizer and surfaced via the trusted `$context.authorizer`; that `$context.authorizer` path applies only to the WebSocket `$connect`, not to the HTTP read API.
 
+## API Contract & Input Validation (GR-015 / GR-016)
+
+> This section **applies existing portfolio rules to 003's own packages** and **mints no new FR numbers**
+> (GR-003), the way 011/012/013/014 do. Where [`plan.md`](./plan.md) already decided something, the decision is
+> cited rather than re-made. Every count was measured against the tree on **2026-08-12**; where the plan's
+> status notes have gone stale, the measured state is given and the staleness is named.
+>
+> \_(Read every `food__`identifier here as`ingredient\__`— the service holds ingredients, not dishes. The name
+> is a deliberate non-rename; see`CLAUDE.md`.)\_
+
+**003 sits on BOTH sides of GR-015 at once, and confusing them is the failure mode to avoid.** Our food
+service's own API is governed by §15-a/§15-b — converge it. **USDA FoodData Central's API is governed by §15-d
+— never converge it.** One feature, two opposite obligations, and 003 owns the portfolio's reference
+implementation of the second.
+
+### Contract ownership (GR-015)
+
+_The service authors it; clients declare nothing — except at the USDA boundary, where the rule inverts._
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Full bindings:
+[`plan.md` → _3.0 Contract ownership and drift_](./plan.md#30-contract-ownership-and-drift-gr-015--and-the-third-party-exception-this-feature-owns).
+
+| Role                                                            | Binding for 003                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)                            | `@kitchensink/food-service` — `packages/services/food-service/src/**/*.schema.ts` (5 wire files: foods, admin-metrics, service-erasure, api-error, health)                                                                                                                                                                               |
+| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-food` — `packages/schemas/food`. ⚠️ **It now EXISTS** (5 copied schema files; `openapi.yaml` **1,134 lines, 12 paths** — re-measured 2026-08-12, correcting **922** from the day before; the document is generated, so `wc -l` it rather than quoting), so the plan's "does not exist yet" status note is **stale** |
+| Consuming client                                                | `@kitchensink/food-service-client` — `packages/clients/food-service`                                                                                                                                                                                                                                                                     |
+| Consuming service                                               | `@kitchensink/recipe-service` — ingredient resolution, via that client. **A service consuming another service is bound by §15-b identically.**                                                                                                                                                                                           |
+| Bound identically, **no dependency declared yet**               | `@commise/web`, `@commise/mobile`. ⚠️ Measured 2026-08-12 the **only** dependents of `@kitchensink/food-service-client` are `recipe-service` and food's own contract tier — the apps reach the catalog **through** recipe. The plan's role table lists them as consumers; correct that to "bound the day they depend on it".             |
+| **Third-party boundary (§15-d — EXEMPT, inverted)**             | `@kitchensink/usda-client` — `packages/clients/usda`, whose `src/schemas.ts` is the **portfolio's reference implementation** and must never be "converged"                                                                                                                                                                               |
+
+**The service MUST** author every request/response shape of `/api/v1/foods/*` — add-by-name, read, status,
+candidates, resolve, search, batch, refetch — plus the admin metrics surface and the inbound
+`POST /api/v1/internal/account/erasure`, as **zod in the food service** at `src/**/*.schema.ts` beside the
+controller it serves; **validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto`, so the
+batch endpoint's ≤100-name bound (FR-045) and the candidate-set membership check (FR-RES-2) are visible to the
+caller instead of buried in a service method; and keep every `*.schema.ts` importing **only `zod` and other
+`*.schema.ts` files** — no drizzle schema, no DAO type, no Nest symbol, and **nothing from
+`@kitchensink/usda-client`**. The upstream USDA shape and our wire shape are **different contracts** and must
+not be joined by an import.
+
+`@kitchensink/schema-food` is a committed **COPY** of that zod — not a transformation, because zod schemas are
+runtime values and cannot be derived from themselves, and every package here exports raw `./src/*.ts` so there
+is no bundle-into-`dist` path. It exports the **zod**, the **`z.infer` types**, a **`CONTRACT_HASH`**, a
+**barrel**, and a **DERIVED `openapi.yaml`** — outbound only, for `oasdiff`, docs and integrators, and **never a
+codegen input** (routing types through JSON Schema loses `readonly`, branded and template-literal types and
+flattens discriminated unions).
+
+**The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client
+half got skipped portfolio-wide: `@kitchensink/food-service-client` shipped **144 lines** of independently
+declared wire types and imported nothing from the food service, behind green builds.
+
+- Every consumer imports its wire **types AND its runtime zod** from `@kitchensink/schema-food` and **declares
+  no request or response body shape of the food service** — including **type-only**, and including inside
+  `packages/apps/**` feature packages (GR-015 §15-b.4, GR-017 §17-b.1). The client's own `types.ts` keeps only
+  genuinely client-side concerns: base URL and fetch config, retry and polling options, its own error shapes.
+- A divergent consumer shape (an ingredient-picker view model, a resolution-status badge model) is **DERIVED**
+  with `Pick` / `Omit` / `Partial`, never independently declared. Reference implementation:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **Responses are validated ON RECEIPT by the consumer**, at the moment the body arrives (GR-016 §16-c.3).
+- **A new food endpoint is not complete until its types are reachable from `@kitchensink/schema-food`.** "Recipe
+  will add the type" is a **contract fork**, not a task.
+
+**CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): the schema package, the typed
+client, receipt validation, and a **contract-skew guard** are tasks in [`tasks.md`](./tasks.md) — not
+consequences of finishing the service. ✅ Measured 2026-08-12 the guard exists:
+`packages/clients/food-service/src/contractSkew.ts`.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required, none reinvented here:
+
+1. **Rebuild (turbo):** `$TURBO_ROOT$`-anchored **`inputs`** covering
+   `packages/services/food-service/src/**/*.schema.ts`. ⚠️ **`inputs`, NOT `dependsOn`** — a `dependsOn` edge
+   closes the cycle `client → schema → service → client` (`recipe-service` devDepends on its own client) and
+   turbo rejects the graph. Ordering was never the requirement: the generated files are committed, so `build`
+   only compiles what is on disk. What is needed is **cache invalidation** when an authored schema changes.
+2. **Correctness (CI):** regenerate and fail on any diff against the committed artifacts — the strong gate, and
+   the only one that catches a hand-edited generated file.
+3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion** (`src/main.ts` + `src/contract/contractSkew.ts`,
+   ordered by `src/contract/__tests__/mainBootOrder.test.ts`). This is load-bearing for 003 specifically
+   because the food service is consumed by a **separately deployed** recipe service — the one skew case neither
+   the turbo layer nor CI can see.
+
+⚠️ `oasdiff breaking` is worth adding with its blind spot stated: `@nestjs/swagger` emits **no response
+schema** for a handler returning an `interface`, so until every response type is zod-derived that check cannot
+see response changes — most of what actually breaks a client.
+
+⛔ **THE THIRD-PARTY EXCEPTION (GR-015 §15-d) — 003 OWNS the exemplar, and converging it is a security
+regression.** `packages/clients/usda` is the reference implementation for the whole portfolio, and
+`packages/clients/usda/src/schemas.ts` **must never be "converged"** under §15-b.
+
+- We do **not** serve USDA's API. There is **no service of ours to own its type**, and its contract can change
+  without telling us.
+- So `@kitchensink/usda-client` **validates the raw upstream wire shape at the boundary with its own zod**, the
+  moment a body arrives, and **legitimately declares its own types**. The normalized public type it returns
+  **deliberately differs** from the raw upstream shape — that difference is the **normalization, not drift**.
+- The same holds for **every other source adapter** this feature adds: each gets its own boundary schema, and
+  **none** is folded into `@kitchensink/schema-food`.
+- **No OpenAPI document is written for USDA or any other upstream source**, and none for **Clerk**, whose
+  session-token claims, `azp` and `public_metadata` scopes gate this service's endpoints (FR-039) and are
+  likewise validated at the boundary under §15-d rather than modelled as ours.
+- **Why deletion would be a security regression, not a cleanup:** that parse is what stands between an external
+  party's JSON and our golden-record write path, provenance fields and nutrient values. §15-b's reasoning does
+  not reach here at all — duplication is only wrong when **one side could have been derived from the other**,
+  and this side belongs to someone else. Applying §15-b mechanically replaces a **checked parse** with
+  **unchecked trust**.
+
+✅ `packages/clients/usda`'s boundary schemas are **correct as-is**, need no change under GR-015, and **must not
+be touched** by convergence work.
+
+### Input validation — where that zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[`GR-018`](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`plan.md` → _3.0a Input validation_](./plan.md#30a-input-validation-gr-016--and-003s-service-is-the-portfolios-worst-case).
+The section above decides **who authors** the contract; this one is where it **runs**. It adds no FR (GR-003).
+
+- **⛔ 003 IS THE PROOF THAT GR-015 AND GR-016 ARE SEPARATE OBLIGATIONS.** Measured 2026-08-11 and re-measured
+  in GR-016's own status table, `@kitchensink/food-service` had **`ZodValidationPipe` = 0 and
+  `createZodDto` = 0** — **no validation pipe at all** — while satisfying GR-015 **in full** (5 authored schema
+  files, a committed `@kitchensink/schema-food`, a derived `openapi.yaml` **1,134 lines** long — ⚠️ re-measured
+  2026-08-12, correcting the **922** recorded here a day earlier; it is generated, so `wc -l` it). It took
+  `@Body() body: unknown` and hand-wrote a `safeParse` per method, and the consequence was neither hypothetical
+  nor cosmetic: a **wrong-typed field**, a **missing field** and an **unknown key** all reported
+  `{ error: 'Empty name' }` — three different caller mistakes, one answer that fixes none of them — and
+  `/foods/search` was not validated at all. **A reviewer looking only at the contract artifacts would have seen
+  a conformant service.**
+- ✅ **Status, re-measured 2026-08-12: the remediation is COMMITTED — this bullet's "NOT YET COMMITTED / working
+  tree / untracked" framing is CORRECTED.** It landed in **`49a1df7f`** ("feat(security): bind food's validation
+  pipe, escape LIKE wildcards, gate future services"). `AppModule` binds **`nestjs-zod`'s** `ZodValidationPipe`
+  through the **`APP_PIPE`** token; **`src/foods/dto/foods.dto.ts` is TRACKED** — `git ls-files` lists it with its
+  own `__tests__/foods.dto.test.ts` and `serviceErasure.schema.ts` beside it — and declares **4 `createZodDto`
+  DTOs** (`AddFoodBodyDto`, `BatchAddFoodBodyDto`, `ResolveFoodBodyDto`, `SearchFoodQueryDto`) over **4
+  `z.strictObject` schemas** in `foods.schema.ts`; all three `@Body() body: unknown` parameters are gone; and the
+  controllers' `safeParse` count is **0**. ⛔ **Do not read the bullet above as the current state, and do not
+  re-schedule this work** — the "committed state is still the violation" sentence it used to end on is no longer
+  true. The invariant is now held by a gate rather than by prose: **G5** in
+  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts` requires a `ZodValidationPipe` over every
+  HTTP controller in every discovered deployable, with **no exception list**.
+- **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates, resolve,
+  search, **batch**, refetch, plus the admin surface — is parsed by the service's own `*.schema.ts` zod via
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **`@Body() body: unknown` is removed, not wrapped**:
+  it relocates the parse into the method body, where it is **optional by construction** and gets skipped on the
+  next endpoint. Validation failure takes **one** path producing a `400` that names the offending field.
+- **⚠️ Three binding details, each with a failure attached, and none visible from the route.** (i) The pipe must
+  be registered on **`APP_PIPE`**, not the bare class token — bound to the class token nothing injects it and
+  validation never runs. (ii) It must be **`nestjs-zod`'s** pipe: a `createZodDto` class carries **no
+  `class-validator` metadata**, so under Nest's **own** `ValidationPipe` every body passes straight through —
+  **validating nothing while looking correctly wired**, on routes that enqueue source fetches and spend a
+  rate-limit budget. (iii) The pipe is left **non-strict** on purpose, so it passes through any parameter whose
+  metatype is not a zod DTO — every `@Param('id')` here is a bare `string` narrowed by the controller's ULID
+  check, and turning strictness on would `500` all of them. The **only** thing that catches (i) and (ii) is a
+  test that posts a **known-bad body to a real route** and asserts the `400`.
+- **`z.strictObject()` for every mutating request body** — the portfolio default, ruled 2026-08-12 in GR-017
+  §17-c, which **closes OPEN-GR-016-B** (the plan still records it as OPEN; it is not). Plain `z.object()`
+  survives only on a **read** surface with a **documented forward-compatibility reason at the schema**. The
+  ruling picks the failure that is **visible**: on add-by-name, a silently stripped misspelled field is how a
+  caller gets a `202` for a request that did not say what they meant. ⚠️ **Unknown-key rejection rides on
+  `z.strictObject` in the schema, not on a pipe option** — there is no such flag here, so the strictness must
+  live with the rule rather than be assumed from the binding.
+- **⛔ THE STORAGE FLOOR.** Every input field writing a bounded column is validated at least as strictly as that
+  column can store — id/name lengths, the `status` enum domain
+  (`PENDING | UNRESOLVED | RESOLVED | NOT_FOUND | FAILED`), the `source` enum, and nullability. A value the
+  column cannot hold is a **`400` at the boundary**, never a failed `INSERT`.
+    - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
+      **not** generated from drizzle, and a `*.schema.ts` imports **no drizzle schema, no DAO type, and nothing
+      from `@kitchensink/usda-client`** — GR-015 §15-a.5 is unchanged by this rule. The two artifacts agree in
+      **one direction only**: the wire bound is at least as tight as the column. Enforcement is the per-service
+      parity test GR-017 §17-d requires, and it **exists**:
+      `packages/services/food-service/src/db/schema/__tests__/storageCapacity.test.ts`, over shared machinery in
+      `@kitchensink/contract-gen` (`src/storageCapacity.ts`). It **may** import both artifacts because a test is
+      not a wire schema; it **derives** the bounded-column set from the drizzle tables via
+      `collectBoundedColumns`, so a `varchar(n)` / `smallint` / `numeric(p,s)` column added tomorrow fails the
+      test until it is either bound to the wire field that writes it or **exempted with a stated `why`**.
+    - ⚠️ **A floor is not a target, and 003's nutrient columns prove it.** Measured 2026-08-12, food's only
+      bounded columns are three **server-managed** ones (`fetch_queue.request_count`, `fetch_queue.attempts` and
+      a `bigserial` key) — all exempted with recorded reasons, because no wire field writes them. Meanwhile
+      `food_nutrients.amount` and `food_portions.gram_weight` are declared `numeric(...)` **without precision or
+      scale**, i.e. PostgreSQL **arbitrary precision** — so there is **no floor to derive** for a nutrient amount
+      or a gram weight, and any bound on them is a **product decision 003 owns**. The plan's "where a nutrient
+      writes a `numeric(p,s)` column, its precision and scale" phrasing anticipates a constraint the schema does
+      not currently declare.
+- **Non-HTTP ingress this feature owns, enumerated** (a Nest pipe reaches none of them):
+    - the **Postgres-as-queue demand path** — a `fetch_queue` row plus `pg_notify('fetch_queued')` (FR-011 /
+      FR-014 / FR-017), drained by the Fargate consumer (`src/worker/**`);
+    - the **change-refresh** consumer (`src/worker/change-refresh/changeRefresh.consumer.ts`, FR-032);
+    - **EventBridge events** — `IngestionScheduled`, `FoodFetchCompleted`, `FetchFailed`
+      (`src/events/FoodEventEmitter.ts`, FR-034); a **scheduled** producer parses its event too, because "ours"
+      is an assumption about a deploy;
+    - the **API-Gateway WebSocket `$connect` REQUEST authorizer** (FR-049, US-9 — **deferred P3 and retired as
+      specified**, so this binds when it is built, not today).
+
+    Each parses its payload against an **authored zod** before it becomes a job, because the resolution pipeline
+    writes **golden records**. **An invalid payload is NEVER retried** (GR-018 §18-b): these consumers have no
+    caller to answer, so a shape rejection is recorded with its `reason` and the message is **completed or
+    dead-lettered once**, with an alarm on DLQ depth. The legitimate retry is a **transient dependency** failure —
+    a database timeout, a source `5xx` — which is a different condition with a different `reason`.
+
+- **003 is CALLED by another service and by identity's Lambdas.** `@kitchensink/recipe-service` resolves
+  ingredients here, and identity's fan-out posts `POST /api/v1/internal/account/erasure`
+  (`packages/services/identity-webhooks/src/common/erasureFanout.ts`) into
+  `src/foods/serviceErasure.controller.ts`. Both inbound bodies are validated like any other — **"internal" is
+  not a synonym for "trusted"**, and because these are **our own** callers an invalid body gets the `400`/`403`
+  GR-016 §16-a.3 requires, **not** the `2xx` GR-018 §18-c reserves for signature-verifying third-party webhook
+  senders.
+- **✅ The USDA boundary parse is REQUIRED by GR-016, not merely PERMITTED by §15-d — the two rules agree.**
+  §15-d says the client **may** declare its own types and **must** validate the raw upstream shape; GR-016 is
+  what makes that parse **mandatory** for every source adapter, because a USDA response is **input to a write
+  path**. Nothing in GR-016 licenses converging those schemas away.
+- **Identifiers are never sentinels (GR-019).** The internal food `id` (ULID), `externalKey`, `source` and the
+  requester `sub` are typed **required** wherever consumed — never optional-with-a-default, never `'unknown'`,
+  `''` or `0`, including as a map key, a metrics dimension or a branch condition. **All path params are the
+  internal food `id`, never a source key.** The **only** path where an absent id is permitted is
+  **create/upsert** — `POST /api/v1/foods` add-by-name, where the canonical row and its **ULID are generated up
+  front** — and the idempotent `INSERT … ON CONFLICT` enqueue. An unresolvable id is a **rejection**, never a
+  placeholder row.
+- **No request-derived value reaches `sql.raw()`.** A request-selected sort or filter maps through a validated
+  enum to a **closed allowlist of literals in code** — the request supplies the key, never the SQL fragment.
+- **⛔ Server-side RESPONSE validation is DEFERRED by owner decision (GR-016 §16-g) and MUST NOT be
+  "completed".** The food service validates none of the bodies it **emits**, deliberately. Say which one you
+  mean (GR-017 §17-f): a **consumer** parsing what it **received** — recipe, and the apps behind it — is
+  REQUIRED and is what the client half above mandates; a **producing service** parsing what it **emits** is the
+  deferred one. Reversing the deferral needs its own proposal under the governance amendment process.
+
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
@@ -519,11 +773,14 @@ Operations teams can monitor the health of the food data pipeline via CloudWatch
 - **SC-001**: Food reads for locally-`RESOLVED` items MUST return within 50ms at p95 latency.
 - **SC-002**: The system MUST make ≤1,000 USDA API calls in ANY rolling 60-minute window (and ≤ each additional source's limit, per source). Per-source rolling-window compliance MUST be verifiable via CloudWatch metrics — no rolling-hour window ever exceeds a source's cap and zero `429` responses occur under normal operation.
 - **SC-003**: Background food resolutions (from `202 Accepted` to `RESOLVED` available) MUST complete within 60 seconds at p95 when the `fetch_queue` pending-row depth is under 100 rows (excluding `UNRESOLVED` foods awaiting a human pick).
+    - **Variance allowance (owner ruling 2026-08-12), and its cost to this criterion, stated rather than buried.** The ruling — _"I think we have to account for and allow variations with plus/minus 15% on perf metrics"_ — is the **general form** of the SC-007 ruling of 2026-08-10 below, and it applies to **every** perf metric, at **every** depth, including the depth-100 point where SC-003 actually binds. The consequence is concrete: the drain-claim gate derived from this criterion (`tests/load/drainDemotion.perf.ts`, 60ms p95 = 10% of the 600ms-per-item slot) now enforces **69ms**, i.e. the claim is allowed **11.5% of the per-item drain slot rather than 10%**. That is a small but genuine loosening of a contract gate and is recorded here, next to the criterion it loosens, so it is visible to whoever reads SC-003 next.
+    - **The alternative reading, flagged for the owner rather than assumed away:** hold depth 100 at a hard 60ms and apply the ±15% only ABOVE it (where a breach is an FR-046/DSN-11 scaling finding, not an SC-003 one). That is a different decision, and it is a defensible one — depth 100 is the only depth where a product promise is at stake. The uniform reading is what is implemented, because "perf metrics" was stated generally; **changing to the split reading needs one more owner call and no code beyond a depth predicate.**
+    - **What the allowance does NOT do, so nobody mistakes it for the fix.** It would not have prevented the red that prompted it: run 31608073724 measured 90.23ms against this gate — 50% over the 60ms budget, not 15% — and what removed that false red was correcting the probe's p95 estimator (30 → 300 samples; the worst contaminated p95 at n=300 measured 32.28ms). The allowance is a stated margin on top of an honest estimator, never a substitute for one. Full evidence in `packages/services/food-service/tests/load/README.md` "Finding 2" and tasks.md T-203.
 - **SC-004**: The **local-store serve rate** (reads served from the local store without any source call) MUST exceed 80% once the local store contains 5,000+ unique `RESOLVED` foods (measured over a rolling 24-hour window).
 - **SC-005** _(read/serve throughput)_: The read API MUST sustain a high **local-store serve throughput** — reads of already-`RESOLVED` golden records that make **no** source call — comfortably exceeding 5,000 served reads per hour (bounded by DB/API capacity, not by any source budget). This is the steady-state path once the store has warmed and is the metric the system optimizes for.
 - **SC-014** _(first-time NEW-food resolution rate)_: The first-time resolution of **NEW** foods (those not yet in the local store, requiring a source fetch) is **bounded by the per-source budget (SC-002)**. Because name-search is ~1 non-batchable source call per NEW food under USDA's ≤1,000-calls/rolling-60-min cap, the realistic first-time resolution rate is **~500–900 NEW foods/hour**. The system MUST NOT claim a flat ≥5,000 NEW-food resolution rate (physically impossible under SC-002); batch ID fetches (FR-023) accelerate only the fetch-by-key leg, not the per-name search leg.
 - **SC-006**: Zero data loss from queue processing failures. All persistently failing foods MUST be tombstoned (`FAILED`/`NOT_FOUND`, `status='tombstone'`) after the FR-016 retry budget (5 cumulative **failed** attempts for `FAILED`). The **`FAILED`-tombstone count** MUST be trackable via a CloudWatch alarm; the **`NOT_FOUND` backlog** is tracked as a (non-paging) metric, since no-source-has-it is a normal outcome (DSN-9). The durable `fetch_queue` row is the audit record; there is no DLQ.
-- **SC-007**: Food search queries against a local store of up to 50,000 foods MUST return results (canonical `id`s) within 200ms at p95.
+- **SC-007** _(revised 2026-08-24, owner ruling — _"Less than 500ms is good for now"_)_: Food search queries against a local store of up to 50,000 foods MUST return results (canonical `id`s) within **500ms at p95**. ⛔ **The ±15% tolerance does NOT stack on top of this**, and that is not a revocation of the general allowance of 2026-08-12: the tolerance existed because 250ms was MARGINAL against a measured 145–158ms average, where only the p95 tail crossed and run-to-run variance decided the gate. 500ms against the same measurements is roughly 3× headroom, which absorbs that variance in the budget itself; applying both would gate at 575ms and admit a p95 this ruling calls too slow. **History:** 200ms (validated on a developer workstation) → 250ms ±15%, enforced 287.5ms (2026-08-10, when CI-class hardware measured this endpoint 2.5–3.8× slower) → 500ms. ⚠️ **This is the second widening, and it resolves the 2026-08-23 breach by moving the bar.** That is legitimate as an owner ruling and is recorded as such — but it does **not** make the load fixture truthful. `tests/load/perfFixture.ts` charges a median query tail cost (real head-term selectivity is 1.89% at p50 against the fixture's uniform 9.09%), while the real catalog's worst realistic head term (`beef`, 13.75%) is broader than the fixture's. A benchmark measuring the wrong distribution will mislead the next decision at any ceiling; see the entry in `tasks.md`. Raising this again requires a new owner ruling plus measurement. **Update (2026-08-25, plan U30) — the fixture half is now FIXED, and the sentence above stands as the record of why.** `tests/load/perfFixture.ts` draws every head-bearing word from a Zipf ladder solved against both measured anchors, so generated head-term selectivity now reads tail **13.64–13.72%** / p50 **1.85–1.88%** across the three head axes (was a flat 4.35% / 9.09% / 5.88%, ratio 1.00x). The 500ms budget is unchanged and the `rank_tokens` retrieval branch is untouched. ⚠️ Every SC-007 p95 recorded before that date is a measurement of a DIFFERENT population — not a wrong measurement — and the re-baseline against the corrected instrument is owed on the `heavy-e2e` CI runner.
 - **SC-008**: Stored nutrient values MUST be faithful to their source after the documented normalization (per-100g basis conversion is permitted and recorded via `basis`); no lossy rounding or transformation at ingestion beyond basis normalization. This supports Commise SC-010 ("Nutritional calculations accurate to within 5% of source database values").
 - **SC-009**: The food data API (`/v1/foods/*` endpoints) targets 99.9% availability measured monthly, excluding scheduled maintenance windows communicated 48 hours in advance. Availability is defined as successful responses (2xx/3xx/4xx) divided by total requests; only 5xx responses and timeouts count as downtime. **Lean-launch caveat (per A-002/A-013):** the API tier is stateless (multi-task ECS/Fargate, multi-AZ-capable), but the reused shared database is **single-AZ (`multiAz: false`)**, which caps DB availability below 99.9% during an AZ outage or DB maintenance. For lean launch this single-AZ posture is an **accepted risk**; the 99.9% guarantee is contingent on the **multi-AZ upgrade** of the shared `kitchensink-data-{stage}` instance (deferred — see Assumptions A-013). Until then, SC-009 is the _target_, not a contractual SLA.
 - **SC-010**: 100% of food data endpoints — every `/v1/foods/*` route and the WebSocket `$connect` — MUST reject unauthenticated, expired, malformed, and wrong-`azp`/wrong-instance requests with `401`, verified by automated tests covering each endpoint. No rejected request may create a canonical row, enqueue a fetch, or trigger any external source call.
@@ -539,7 +796,7 @@ Operations teams can monitor the health of the food data pipeline via CloudWatch
 - **A-004**: The USDA API remains publicly available with a free tier and the current `POST /v1/foods` batch endpoint supporting up to 20 IDs per request. USDA is the only wired source adapter at launch; the multi-source machinery is built now but a second concrete live source is out of scope (see Scope Boundaries in the requirements doc).
 - **A-005**: This feature deploys as an AWS-hosted backend service in `us-east-1`. The **read API** (`/v1/foods/*`) is a NestJS service on ECS/Fargate fronted by the single shared internet-facing per-stage ALB (owned by the global infra) via a host-based listener rule — not its own ALB — same topology as the identity service; the async resolution pipeline uses the durable Postgres `fetch_queue` table (Postgres-as-queue with `LISTEN/NOTIFY`) drained by a single Fargate consumer worker — **no SQS** — with EventBridge only for scheduled producers (change-driven refresh) and the `FoodFetchCompleted` completion event, on the shared RDS. It serves both the web and mobile Commise clients via the shared ALB. The only API Gateway surface is the deferred WebSocket notifier (US-9). **No new RDS or cluster is provisioned** — the food tables live in a separate logical database `kitchensink_food` on the existing shared instance `kitchensink-data-{stage}` (the global DataStack provisions that database + its role/secret).
 - **A-006**: This feature adds **four** packages to the KitchenSink monorepo, all following Constitution Principle V workspace rules: `@kitchensink/food-service` (`packages/services/food-service` — the deployable service + its CDK, hosting the canonical model, DAOs, fan-out/merge, and the source-adapter interface), `@kitchensink/usda-client` (`packages/clients/usda` — the **USDA source adapter**, the only place `fdcId` and USDA terms appear), `@kitchensink/food-service-client` (`packages/clients/food-service` — our API client), and `@kitchensink/clerk-verify` (`packages/shared/clerk-verify` — shared Clerk verification). `packages/clients/*` packages are added to the root `workspaces` array as explicit paths (grouping folder, not a glob).
-- **A-007**: Client-side polling (not WebSocket) is the launch notification mechanism. WebSocket (US-9) is deferred until UX testing validates the need.
+- **A-007** _(revised 2026-08-10)_: Client-side polling remains the launch notification mechanism AND the permanent fallback — push is a latency optimisation and MUST NOT become load-bearing for correctness, so a lost notification degrades to the poll. The original assumption deferred a **self-built WebSocket** (US-9) pending UX testing; that mechanism is now **withdrawn** rather than deferred, because notification transport is owned by feature 014 (GR-011). Real-time delivery arrives by publishing through 014, not by building a socket here.
 - **A-008**: The canonical food schema is purpose-built for this feature. Integration with Commise's `ingredients` entity (linking recipe ingredients to a Food's `id`) is a downstream concern handled by the Commise recipe management feature, not by this specification.
 - **A-009**: Each external source's API key (e.g. the USDA API key) is stored in AWS Secrets Manager and rotated per AWS best practices; keys are never exposed in client-facing responses or logged. All food data API endpoints share the Commise application's authentication boundary by verifying the same **Clerk** session token (via the public `CLERK_JWT_KEY` and `CLERK_AUTHORIZED_PARTIES`, provided by 002); no separate auth mechanism, user store, or Auth0/Cognito authorizer is introduced. Each external source's API key is a required secret; the **only** additional secret is the Clerk **secret key** used **solely** on the FR-047 M2M service-token verification path (never on the networkless user-session edge — A-012/FR-042/DSN-12).
 - **A-011**: Clerk token verification for the food **read** API (`/v1/foods/*`) is implemented **in-process** by a NestJS guard, **`FoodAuthGuard`** (the food service's own component — the analogue of, and same topology/pattern as, the identity service's `AuthMiddleware`), running on ECS/Fargate behind a public ALB, using the shared `ClerkAuthService` (`@clerk/backend` `verifyToken`, networkless) to validate signature, expiry, and `azp` via the public `CLERK_JWT_KEY`. There is **no API Gateway and no Lambda authorizer for the HTTP API**; the verified `sub`/claims are populated on `req.user` and surfaced to handlers in-process. The **only** Lambda-authorizer / `$context.authorizer` surface is the **deferred WebSocket** notifier (US-9): an API Gateway WebSocket API whose `$connect` REQUEST authorizer performs the same networkless Clerk verification and passes the verified claims via API Gateway's trusted `$context.authorizer` (set by API Gateway, not the client). Identity is taken **only** from the verified token — never from a client-supplied header (no `x-authorizer-context` trust), mirroring the identity service's PR #39 decision (FR-038).

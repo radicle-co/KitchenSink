@@ -5,17 +5,423 @@
  * package exports; the building blocks re-exported here resolve per platform.
  */
 
-export * from './descriptor.js';
-export * from './card/index.js';
-export * from './components/index.js';
-export * from './list/index.js';
-export * from './detail/index.js';
-export * from './rating/index.js';
-export * from './form/index.js';
-export * from './actions/index.js';
-export * from './versions/index.js';
-export * from './collections/index.js';
-export * from './discovery/index.js';
-export * from './photos/index.js';
-export * from './filters/index.js';
-export * from './wizard/index.js';
+export {
+    RECIPE_HOME_WIDGET_CAPABILITY,
+    RECIPE_HOME_WIDGET_DEFAULT_WEIGHT,
+    RECIPE_HOME_WIDGET_ID,
+    recipeHomeWidgetDescriptor,
+} from './descriptor.js';
+export { RecipeCardGridSkeleton } from './card/RecipeCardGridSkeleton.js';
+export type { RecipeCardGridSkeletonProps } from './card/RecipeCardGridSkeleton.js';
+// The feature's own copy dictionary. Exported so a HOST that paints a recipe surface outside the feature's
+// own components — the web route-level `loading.tsx` grid skeleton — says the SAME "Loading recipes" the
+// in-page skeleton does, instead of minting a second string for the same wait.
+export { recipeMessages } from './messages.js';
+export type { IngredientSearchMessages } from './messages.js';
+export type { IngredientCreateFoodMessages } from './messages.js';
+export type { RecipeMessages } from './messages.js';
+
+export {
+    RecipeCard,
+    STAR_COUNT,
+    difficultyTone,
+    formatAverageRating,
+    formatRatingCount,
+    formatRelativeTime,
+    toRecipeCardModel,
+    toStarFills,
+} from './card/index.js';
+export type { DifficultyTone, RatingCountLabels, RecipeCardModel, RecipeCardProps } from './card/index.js';
+export { recipeCorrectionMessages, toCorrectionNoticeModel, toCorrectionViewState } from './correction/index.js';
+export type {
+    CorrectionNoOutcome,
+    CorrectionNoticeModel,
+    CorrectionNoticeTone,
+    CorrectionScope,
+    CorrectionViewState,
+    RecipeCorrectionMessages,
+} from './correction/index.js';
+export {
+    NUTRITION_FOOD_UNAVAILABLE,
+    RecipeCalorieChip,
+    RecipeCalorieSkeleton,
+    RecipeNutritionBoundary,
+    RecipeNutritionSlot,
+    recipeNutritionMessages,
+    toCalorieChipModel,
+    unaccountedReasonText,
+} from './nutrition/index.js';
+export type {
+    RecipeCalorieChipModel,
+    RecipeCalorieChipProps,
+    RecipeCaloriePending,
+    RecipeCalorieReading,
+    RecipeCalorieSkeletonProps,
+    RecipeCalorieState,
+    RecipeCalorieUnaccounted,
+    RecipeCalorieUnaccountedReason,
+    RecipeNutritionBoundaryProps,
+    RecipeNutritionMessages,
+    RecipeNutritionSlotProps,
+    RecipeNutritionViewState,
+    RenderRecipeNutrition,
+} from './nutrition/index.js';
+export {
+    MAX_RECENT_RECIPES,
+    RecentRecipeGrid,
+    RecentRecipeItem,
+    RecipeWidgetCard,
+    RecipeWidgetEmptyState,
+    RecipeWidgetLoadingCard,
+    RecipeWidgetSkeleton,
+    toRecipeSummary,
+} from './components/index.js';
+export type {
+    RecentRecipeGridProps,
+    RecentRecipeItemProps,
+    RecipeSummary,
+    RecipeWidgetCardProps,
+    RecipeWidgetEmptyStateProps,
+    RecipeWidgetSkeletonProps,
+} from './components/index.js';
+export {
+    QUICK_TIME_FACET,
+    QUICK_TIME_THRESHOLD_MINUTES,
+    RECIPE_SOURCE_TABS,
+    RecipeList,
+    RecipeListCard,
+    RecipeSourceTabs,
+    fillTemplate,
+    filterChipLabel,
+    formatDurationMinutes,
+    formatRecipeCount,
+    isListNarrowed,
+    isQuickRecipe,
+    matchesListFacet,
+    sourceTabLabel,
+    toRecipeListItem,
+} from './list/index.js';
+export type {
+    RecipeCountLabels,
+    RecipeFacetSource,
+    RecipeListCardProps,
+    RecipeListItem,
+    RecipeListStatus,
+    RecipeListTab,
+    RecipeListTabControl,
+    RecipeListViewProps,
+    RecipeSourceTabsProps,
+} from './list/index.js';
+export {
+    RecipeDetailView,
+    RecipeSourceLine,
+    ServingScaleControl,
+    formatQuantity,
+    resetServingScale,
+    useCookingProgress,
+    useServingScale,
+} from './detail/index.js';
+export type {
+    CookingProgressBinding,
+    RecipeDetailBodyProps,
+    RecipeDetailViewProps,
+    RecipeSourceLineNativeProps,
+    RecipeSourceLineProps,
+    ServingScaleBinding,
+    ServingScaleControlProps,
+} from './detail/index.js';
+export {
+    RecipeRatingDisplay,
+    RecipeRatingInput,
+    STAR_VALUES,
+    formatStarOptionLabel,
+    ratingModeFor,
+    recipeRatingMessages,
+} from './rating/index.js';
+export type {
+    RecipeRatingAggregate,
+    RecipeRatingDisplayProps,
+    RecipeRatingError,
+    RecipeRatingInputProps,
+    RecipeRatingMessages,
+    RecipeRatingMode,
+    StarOptionLabels,
+} from './rating/index.js';
+export {
+    ChipInput,
+    RecipeBasicsFields,
+    RecipeForm,
+    RecipeIngredientsFields,
+    RecipeInstructionsFields,
+    RecipeReviewFields,
+    RecipeVisibilityField,
+    addChip,
+    addStep,
+    appendResolvedIngredient,
+    blankStep,
+    canAdvanceFromStep,
+    computeTotalTime,
+    defaultRecipeFormValues,
+    difficultyOptions,
+    mealTypeOptions,
+    parseCommaList,
+    parseNumericInput,
+    pendingIngredientIds,
+    recipeFormMessages,
+    removeChipAt,
+    removeIngredientAt,
+    removeStepAt,
+    resolutionStatusLabel,
+    reviewIngredientLabel,
+    reviewRows,
+    setDifficulty,
+    setIngredientStatusById,
+    setMealType,
+    stepErrorsFor,
+    toCreateRecipeInput,
+    toNutritionLine,
+    toRecipeFormValues,
+    toUpdateRecipeInput,
+    updateIngredientAt,
+    updateStepAt,
+    validateRecipeForm,
+} from './form/index.js';
+export type {
+    ChipInputProps,
+    DifficultyOption,
+    MealTypeOption,
+    RecipeFormErrors,
+    RecipeFormIngredient,
+    RecipeFormMessages,
+    RecipeFormMode,
+    RecipeFormPhoto,
+    RecipeFormProps,
+    RecipeFormSectionProps,
+    RecipeFormStep,
+    RecipeFormValues,
+    RecipeIngredientsFieldsProps,
+    RecipeReviewFieldsProps,
+    RecipeReviewRow,
+    RecipeWizardStep,
+    ResolvedRecipeFormIngredient,
+} from './form/index.js';
+export {
+    MoreActionsMenu,
+    RecipeCloneAction,
+    RecipeDeleteDialog,
+    RecipeVisibilityToggle,
+    recipeActionMessages,
+} from './actions/index.js';
+export type {
+    MoreActionsMenuProps,
+    RecipeActionMessages,
+    RecipeCloneActionMessages,
+    RecipeCloneActionProps,
+    RecipeDeleteDialogMessages,
+    RecipeDeleteDialogProps,
+    RecipeMoreMenuMessages,
+    RecipeVisibilityToggleMessages,
+    RecipeVisibilityToggleProps,
+} from './actions/index.js';
+export {
+    RecipeConflictView,
+    RecipeVersionList,
+    VersionCompareView,
+    VersionPreviewModal,
+    applyServerSnapshotToRecipeDetail,
+    buildCompareFieldRows,
+    changedFromCurrentCounts,
+    compareViewState,
+    composeConflictMerge,
+    composeMergedRecipe,
+    computeConflictDiff,
+    conflictFieldKindLabel,
+    conflictMarkerGlyph,
+    conflictMarkerLabel,
+    conflictRowLabel,
+    countMergeSelections,
+    diffSnapshots,
+    draftToSnapshot,
+    formatChangedFromCurrent,
+    formatCollectionTally,
+    formatMergeSummary,
+    formatRelativeTimeAgo,
+    formatServerBanner,
+    formatVersionTimestamp,
+    isConflictBaseStale,
+    recipeVersionMessages,
+    resolveVersionPreview,
+    snapshotFieldLabel,
+    sortVersionsDescending,
+    toVersionPreviewIngredientLines,
+} from './versions/index.js';
+export type {
+    CompareFieldRow,
+    ConflictDiff,
+    ConflictFieldKind,
+    ConflictFieldRow,
+    ConflictMarker,
+    DiffTally,
+    MergeSelectionCounts,
+    MergeSide,
+    RecipeConflictMessages,
+    RecipeConflictViewProps,
+    RecipeMergeSelections,
+    RecipeVersionCompareMessages,
+    RecipeVersionListMessages,
+    RecipeVersionListProps,
+    RecipeVersionMessages,
+    RecipeVersionPreviewMessages,
+    RecipeVersionRestoreError,
+    SnapshotDiff,
+    SnapshotFieldKey,
+    VersionCompareState,
+    VersionCompareViewProps,
+    VersionPreviewIngredientLine,
+    VersionPreviewModalProps,
+    VersionPreviewSource,
+    VersionPreviewState,
+} from './versions/index.js';
+export {
+    CloneInfoPanel,
+    CollectionActions,
+    CollectionDetail,
+    CollectionForm,
+    CollectionHeader,
+    CollectionList,
+    CollectionMemberRow,
+    CollectionRecipePicker,
+    PullUpdatesDialog,
+    collectionMessages,
+    formatCollectionDate,
+} from './collections/index.js';
+export type {
+    CloneInfoPanelMessages,
+    CloneInfoPanelProps,
+    CollectionActionsProps,
+    CollectionDetailError,
+    CollectionDetailViewProps,
+    CollectionFormMode,
+    CollectionFormProps,
+    CollectionHeaderViewProps,
+    CollectionListLoadMore,
+    CollectionListStatus,
+    CollectionListViewProps,
+    CollectionMemberRecipe,
+    CollectionMemberRowProps,
+    CollectionMessages,
+    CollectionRecipePickerProps,
+    CollectionWithRecipes,
+    PullUpdatesDialogMessages,
+    PullUpdatesDialogProps,
+    RecipePickerStatus,
+} from './collections/index.js';
+export {
+    DISCOVERY_SEARCH_DEBOUNCE_MS,
+    DISCOVERY_SORTS,
+    MAX_RECENT_SEARCHES,
+    RECENT_SEARCHES_STORAGE_KEY,
+    RECIPE_BROWSE_RAILS,
+    RECIPE_BROWSE_RAIL_PAGE_SIZE,
+    RecipeBrowseRails,
+    RecipeDiscoveryCard,
+    RecipeDiscoveryList,
+    addRecentSearch,
+    discoveryMessages,
+    mergeRecentSearches,
+    parseRecentSearches,
+    serializeRecentSearches,
+} from './discovery/index.js';
+export type {
+    DiscoveryMessages,
+    RecentSearchStore,
+    RecipeBrowseCuisineShortcut,
+    RecipeBrowseRailDefinition,
+    RecipeBrowseRailId,
+    RecipeBrowseRailView,
+    RecipeBrowseRailsProps,
+    RecipeDiscoveryCardProps,
+    RecipeDiscoveryListProps,
+    RecipeDiscoverySortControl,
+    RecipeDiscoveryStatus,
+    RecipeRecentSearchesControl,
+} from './discovery/index.js';
+export {
+    MAX_RECIPE_PHOTOS,
+    RecipePhotoManager,
+    isAtPhotoCap,
+    photoMessages,
+    visibleQueueItems,
+} from './photos/index.js';
+export type { PhotoMessages, RecipePhotoManagerProps } from './photos/index.js';
+export {
+    EMPTY_RECIPE_FILTERS,
+    RecipeFilterBar,
+    TIME_BUCKETS_MINUTES,
+    TOTAL_TIME_BUCKETS_MINUTES,
+    addIngredientFilter,
+    buildFacetChips,
+    clearRecipeFilters,
+    countActiveFilters,
+    deriveIngredientFilterSearchViewState,
+    filterMessages,
+    filtersFromQueryString,
+    filtersToQueryString,
+    filtersToSearchParams,
+    formatFacetChipName,
+    hasActiveFilters,
+    removeIngredientFilter,
+    setCuisine,
+    setMaxCookTime,
+    setMaxPrepTime,
+    setMaxTotalTime,
+    toggleFacetValue,
+} from './filters/index.js';
+export type {
+    DeriveIngredientFilterSearchViewStateInput,
+    FacetDimension,
+    FilterMessages,
+    IngredientFilterSearchViewState,
+    RecipeFacetChip,
+    RecipeFacets,
+    RecipeFilterBarProps,
+    RecipeFilterState,
+    RecipeIngredientFilter,
+    RecipeIngredientSearchState,
+} from './filters/index.js';
+export {
+    WIZARD_STEPS,
+    WIZARD_TOTAL_STEPS,
+    Wizard,
+    deriveRailStepState,
+    recipeFormValuesEqual,
+    useDiscardGuard,
+    wizardMessages,
+} from './wizard/index.js';
+export type { UseDiscardGuardOptions, WizardMessages, WizardProps, WizardRailStepState } from './wizard/index.js';
+export {
+    PARSE_JOB_STALL_BOUND_MS,
+    ParseJobReview,
+    ParsePasteForm,
+    recipeParseMessages,
+    toParseJobProgress,
+    toParseJobViewState,
+    toParseLineModel,
+    toParseSubmissionModel,
+} from './parse/index.js';
+export type {
+    ParseJobProgress,
+    ParseJobReviewProps,
+    ParseJobViewState,
+    ParseJobViewStateInput,
+    ParseLineCorrectionRenderer,
+    ParseLineCountLabels,
+    ParseLineEditControl,
+    ParseLineModel,
+    ParseLineRowProps,
+    ParseLineTone,
+    ParsePasteFormProps,
+    ParseRetryControl,
+    ParseSubmissionModel,
+    RecipeParseMessages,
+} from './parse/index.js';

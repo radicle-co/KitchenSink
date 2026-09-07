@@ -119,7 +119,7 @@ test.describe('recipe-detail owner actions', () => {
         await openOwnRecipe(page);
 
         // The secondary actions are behind the overflow trigger — which is itself a DS surface, not bare text.
-        const more = page.getByRole('button', { name: 'More' });
+        const more = page.getByRole('button', { name: 'More', exact: true });
         await expectDesignSystemSurface(more);
         // The trigger announces that it discloses a menu, and starts collapsed.
         await expect(more).toHaveAttribute('aria-expanded', 'false');
@@ -140,7 +140,7 @@ test.describe('recipe-detail owner actions', () => {
     test('Delete confirms in an alertdialog, then deletes and returns to the recipes list', async ({ page }) => {
         await openOwnRecipe(page);
 
-        await page.getByRole('button', { name: 'More' }).click();
+        await page.getByRole('button', { name: 'More', exact: true }).click();
 
         const deleteTrigger = page.getByRole('menu', { name: 'More' }).getByRole('button', { name: 'Delete recipe' });
         await expectDesignSystemSurface(deleteTrigger);
@@ -195,7 +195,7 @@ test.describe('recipe-detail owner actions', () => {
 
         // Every owner control is ABSENT — not disabled, not hidden-but-clickable.
         await expect(page.getByRole('link', { name: 'Edit recipe' })).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'More' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'More', exact: true })).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Delete recipe' })).toHaveCount(0);
         await expect(page.getByRole('link', { name: 'Version history' })).toHaveCount(0);
     });

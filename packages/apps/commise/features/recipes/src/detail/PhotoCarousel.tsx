@@ -15,6 +15,9 @@
  * B7: offscreen slides are `loading="lazy"` so a 10-photo recipe does not eagerly paint ~50 MB of
  * full-size originals; the lightbox image is eager (the user asked to see it). A service-side gallery
  * thumbnail rendition remains the fuller fix (tracked with the gallery projection) — out of scope here.
+ *
+ * @pattern Adapter over the house Radix `Dialog` for the lightbox — Radix owns the focus trap, Escape-to-dismiss,
+ *     background inert and focus-return to the activating slide; the open slide is local view state, not data.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { RecipePhoto } from '@kitchensink/recipe-core';

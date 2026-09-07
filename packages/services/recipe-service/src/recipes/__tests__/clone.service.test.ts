@@ -14,14 +14,28 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import { RecipesService } from '../recipes.service.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
-import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
-import { fakeRatingsDal } from '../__fixtures__/ratings-dal.fixture.js';
+import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photosDal.fixture.js';
+import { fakeRatingsDal } from '../__fixtures__/ratingsDal.fixture.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
 import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { Principal } from '../../auth/principal.js';
+import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
+import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
+import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
+
+/**
+ * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
+ *
+ * It answers `absent` — the honest degrade shape — rather than fabricating numbers, so a suite that starts
+ * depending on nutrition fails loudly here instead of quietly asserting invented values.
+ */
+const nutritionGatewayDouble = {
+    lookup: async () => ({ byFoodId: new Map(), degraded: true }),
+} as never;
 
 const SOURCE_OWNER = '01J0000000000000000000PRO0';
 const CLONER = '01J000000000000000000FREE0';
@@ -63,23 +77,25 @@ function sourceAggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]>
 
 function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create: ReturnType<typeof vi.fn> } {
     // The DAL echoes back a created aggregate built from the create input so the response maps cleanly.
-    const create = vi.fn().mockImplementation(
-        async (input: {
-            ownerId: string;
-            visibility: string;
-            clonedFromId?: string | null;
-        }): Promise<RecipeAggregate> => ({
-            recipe: makeRecipeRow({
-                id: 'clone-1',
-                ownerId: input.ownerId,
-                visibility: input.visibility,
-                clonedFromId: input.clonedFromId ?? null,
-                hasSubstantiveEdit: false,
+    const create = vi
+        .fn()
+        .mockImplementation(
+            async (input: {
+                ownerId: string;
+                visibility: string;
+                clonedFromId?: string | null;
+            }): Promise<RecipeAggregate> => ({
+                recipe: makeRecipeRow({
+                    id: 'clone-1',
+                    ownerId: input.ownerId,
+                    visibility: input.visibility,
+                    clonedFromId: input.clonedFromId ?? null,
+                    hasSubstantiveEdit: false,
+                }),
+                steps: [],
+                ingredients: [],
             }),
-            steps: [],
-            ingredients: [],
-        }),
-    );
+        );
     const dal = {
         create,
         findById: vi.fn().mockResolvedValue(source),
@@ -87,6 +103,7 @@ function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create
         update: vi.fn(),
         softDelete: vi.fn(),
         setVisibility: vi.fn(),
+        transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 
     return { dal, create };
@@ -107,6 +124,9 @@ function service(dal: RecipesDal): RecipesService {
         fakePhotosDal(),
         RECIPE_PHOTOS_CDN,
         fakeRatingsDal(),
+        nutritionGatewayDouble,
+        fakeVerificationQueue(),
+        fakeLineVerificationsDal(),
     );
 }
 
@@ -155,6 +175,7 @@ describe('RecipesService.clone', () => {
                 hasSubstantiveEdit: false,
                 title: 'Original Dish',
             }),
+            FAKE_TX,
         );
         // Content is carried over: the source's single step + ingredient line.
         const input = create.mock.calls[0]?.[0] as { steps: unknown[]; ingredients: { ingredientId: string }[] };
@@ -180,6 +201,7 @@ describe('RecipesService.clone', () => {
                 sourceUrl: 'https://example.com/x',
                 sourceAttribution: 'Chef A',
             }),
+            FAKE_TX,
         );
     });
 
@@ -221,11 +243,88 @@ describe('RecipesService.clone', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
+            fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         // The CLONER (not the source author) is the editor of the clone's first version.
         await svc.clone({ ...CLONER_PRINCIPAL, firstName: 'Rose', lastName: 'Tyler' }, 'src-1');
 
-        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Rose Tyler' }));
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ editorHandle: 'Rose Tyler' }),
+            FAKE_TX,
+        );
+    });
+});
+
+describe('RecipesService.clone — the source line survives (U11)', () => {
+    it('⛔ carries the raw SOURCE LINE onto the clone', async () => {
+        // ⛔ THE DATA LOSS THIS PINS. `toResolvedIngredientLine` preserved `displayText` and all four per-line
+        // nutrition overrides and silently dropped `source_line`, which `0024_ingredient_source_line.sql`
+        // added later. A clone therefore lost the one fact the verification gate needs, permanently: the
+        // cloned recipe could never be verified, and U14's correction surface would have nothing to show the
+        // cook the source said.
+        //
+        // It is a fact about the SOURCE, not about the author — a clone of an imported recipe was transcribed
+        // from the same book — so it travels with the line exactly as `display_text` does.
+        const SOURCE_LINE = '2 heaping cups of well-sifted pastry flour';
+        const source = sourceAggregate();
+        const withSourceLine: typeof source = {
+            ...source,
+            ingredients: source.ingredients.map((row) => ({ ...row, sourceLine: SOURCE_LINE })),
+        };
+        const { dal, create } = fakeDal(withSourceLine);
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+
+        const input = create.mock.calls[0]?.[0] as { ingredients: { sourceLine?: string }[] } | undefined;
+
+        expect(input?.ingredients[0]?.sourceLine).toBe(SOURCE_LINE);
+    });
+});
+
+describe('RecipesService.clone — the preparation and the section survive (U26/U27)', () => {
+    /**
+     * ⛔ THE SAME DATA LOSS THE SUITE ABOVE PINS, one migration later. `toResolvedIngredientLine` is a
+     * POSITIVE field-by-field enumeration built from conditional spreads, so a column added to
+     * `recipe_ingredients` is invisible to it and NOTHING FAILS TO COMPILE. That is exactly how `source_line`
+     * was dropped from every clone for as long as it existed.
+     *
+     * Both are facts about THIS LINE that the cloner is copying wholesale — how the onion is chopped, and
+     * which section of the list it sits in — so they travel with the line exactly as `display_text` does.
+     */
+    it('⛔ carries the PREPARATION and the GROUP LABEL onto the clone', async () => {
+        const source = sourceAggregate();
+        const withBoth: typeof source = {
+            ...source,
+            ingredients: source.ingredients.map((row) => ({
+                ...row,
+                preparation: 'finely chopped',
+                groupLabel: 'For the marinade',
+            })),
+        };
+        const { dal, create } = fakeDal(withBoth);
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+
+        const input = create.mock.calls[0]?.[0] as
+            { ingredients: { preparation?: string; groupLabel?: string; ingredientName?: string }[] } | undefined;
+
+        expect(input?.ingredients[0]?.preparation).toBe('finely chopped');
+        expect(input?.ingredients[0]?.groupLabel).toBe('For the marinade');
+        // ⛔ And neither is folded into the name on the way through.
+        expect(input?.ingredients[0]?.ingredientName).not.toContain('finely chopped');
+    });
+
+    it('OMITS both on the clone when the source line carried neither, rather than sending `""`', async () => {
+        const { dal, create } = fakeDal(sourceAggregate());
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+
+        const input = create.mock.calls[0]?.[0] as { ingredients: Record<string, unknown>[] } | undefined;
+
+        expect(input?.ingredients[0]).not.toHaveProperty('preparation');
+        expect(input?.ingredients[0]).not.toHaveProperty('groupLabel');
     });
 });

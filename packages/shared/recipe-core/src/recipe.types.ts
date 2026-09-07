@@ -2,12 +2,33 @@
 
 import { z } from 'zod';
 
+import { ingredientQuantitySchema, type IngredientQuantity } from './ingredientQuantity.js';
+
 const idSchema = z.string().min(1);
 const isoDateTimeStringSchema = z.string().datetime({ offset: true });
 const nonNegativeNumberSchema = z.number().finite().nonnegative();
-// Strictly-positive quantity validator: the `recipe_ingredients` DB CHECK is `quantity > 0`,
-// so 0 must be rejected (a zero-quantity ingredient line is meaningless).
+// A strictly-positive measure. ⚠️ This USED to be the ingredient-quantity validator, named for the
+// `recipe_ingredients` `CHECK (quantity > 0)` it mirrored; U8 moved that job to `ingredientQuantitySchema`
+// and its only remaining caller is `ingredientPortionSchema.gramsPerUnit` — a portion weighing nothing is
+// not a portion.
 const positiveNumberSchema = z.number().finite().positive();
+
+/*
+ * ⛔ A LEGACY-TOLERANT QUANTITY SCHEMA STOOD HERE AND WAS MOVED OUT. Do not reintroduce one.
+ *
+ * Pre-U8 `recipe_versions.snapshot` JSONB holds `quantity: 2` — a bare number — and a version is immutable
+ * by design, so no migration will ever rewrite it. The first attempt at that problem accepted BOTH forms
+ * here, via `z.union([ingredientQuantitySchema, z.number().transform(…)])`. The contract generator refused
+ * it, correctly and by design: *"Transforms cannot be represented in JSON Schema … server-side
+ * normalization is not part of the shape a caller must satisfy — move it out of the published schema and
+ * into the handler."*
+ *
+ * It was right on the merits, not just mechanically. A caller has exactly ONE way to spell a quantity; the
+ * old form is a fact about rows this system wrote years ago, and it is the SERVER's job to upgrade one on
+ * the way out. That upgrade now lives at the persistence boundary where the blob enters the system —
+ * `recipe-service`'s `versions/snapshotUpgrade.ts` — beside `dal/quantityColumns.ts`, which does the same
+ * job for the two `numeric` columns.
+ */
 const positiveIntSchema = z.number().int().positive();
 const nonNegativeIntSchema = z.number().int().nonnegative();
 
@@ -110,6 +131,55 @@ export type RecipeDifficulty = (typeof RecipeDifficulty)[keyof typeof RecipeDiff
 export const recipeDifficultySchema = z.enum([RecipeDifficulty.EASY, RecipeDifficulty.MEDIUM, RecipeDifficulty.HARD]);
 
 /**
+ * When in the day a recipe is eaten (plan U34, owner ruling 2026-08-25).
+ *
+ * ⛔ **This is the one recipe-classification axis that is a CLOSED vocabulary, and the reason is the axis,
+ * not a preference for enums.** "When do you eat this" has a finite, stable answer; the neighbouring axes do
+ * not, which is why {@link CUISINES} is a display list behind a `z.string()` wire type and why `tags` and
+ * `dietaryFlags` are `z.array(z.string().min(1))` — a cuisine nobody curated, a tag a cook invents and a diet
+ * that emerges next year all have to be expressible. Closing meal type buys a filter facet that cannot rot
+ * into seventeen spellings of "dinner"; closing any of the others would reject data that is simply new.
+ *
+ * ⛔ It is deliberately NOT "course". A dish can be a starter and a side at once and the boundary moves by
+ * cuisine, so course is not a closed set and modelling it as one would force a wrong answer on the cook.
+ *
+ * OPTIONAL wherever it appears, exactly like {@link RecipeDifficulty}: "the author did not say" is a real
+ * state and there is no honest default. Consumers render an absent meal type as no chip — never as a guess.
+ */
+export const RecipeMealType = {
+    BREAKFAST: 'breakfast',
+    BRUNCH: 'brunch',
+    LUNCH: 'lunch',
+    DINNER: 'dinner',
+    SNACK: 'snack',
+    DESSERT: 'dessert',
+    DRINK: 'drink',
+} as const;
+
+/** One member of the {@link RecipeMealType} vocabulary. */
+export type RecipeMealType = (typeof RecipeMealType)[keyof typeof RecipeMealType];
+
+/**
+ * The vocabulary in DISPLAY order — roughly the order of a day, which is the order a cook scans for.
+ *
+ * DERIVED from {@link RecipeMealType} rather than written out a second time, and asserted equal to it in both
+ * directions: a hand-written copy of a list cannot detect that the list is incomplete. `satisfies` pins the
+ * membership at compile time; the test pins the completeness at run time.
+ */
+export const RECIPE_MEAL_TYPES = [
+    RecipeMealType.BREAKFAST,
+    RecipeMealType.BRUNCH,
+    RecipeMealType.LUNCH,
+    RecipeMealType.DINNER,
+    RecipeMealType.SNACK,
+    RecipeMealType.DESSERT,
+    RecipeMealType.DRINK,
+] as const satisfies readonly RecipeMealType[];
+
+/** Runtime validator for {@link RecipeMealType}. */
+export const recipeMealTypeSchema = z.enum(RECIPE_MEAL_TYPES);
+
+/**
  * Curated cuisine choices offered by the recipe editor's cuisine dropdown (w3/e5). UNLIKE
  * {@link RecipeDifficulty}/{@link RecipeStatus}, this is deliberately NOT a closed enum on the wire: `cuisine`
  * stays `string | undefined` on every recipe/create/update type and schema (`z.string().min(1).optional()`,
@@ -187,6 +257,13 @@ export interface Recipe {
      * no badge rather than substituting a default. Never fabricated, never computed.
      */
     difficulty?: RecipeDifficulty;
+    /**
+     * Author-stated meal type (plan U34). ABSENT when the author did not state one — consumers render no
+     * chip rather than substituting a default, exactly as for {@link Recipe.difficulty}. Unlike `tags` and
+     * `dietaryFlags` beside it, this is a CLOSED vocabulary; see {@link RecipeMealType} for why that is
+     * defensible for this axis and for no other.
+     */
+    mealType?: RecipeMealType;
     visibility: RecipeVisibility;
     /**
      * Publication status (W8-a.3 / decision 5). `draft` recipes are owner-only regardless of `visibility`
@@ -204,17 +281,20 @@ export interface Recipe {
     cuisine?: string;
     dietaryFlags: string[];
     tags: string[];
-    hasPartialNutrition: boolean;
-    /**
-     * Headline per-serving calories for card display (FR-007 / W8-a.1) — a DENORMALIZED value recomputed at
-     * write time from the recipe's ingredient lines (single source: the service's `leadCaloriesPerServing`),
-     * so the LIST, SEARCH, and collection-embed projections render it WITHOUT the N+1 a full nutrition read
-     * would cost. On detail it agrees with `nutrition.calories`.
+    /*
+     * ⛔ THERE IS DELIBERATELY NO `leadCaloriesPerServing` HERE, AND ADDING ONE BACK IS THE DRIFT.
      *
-     * ABSENT when the recipe has no accounted nutrition — never reported as `0` (which would read as a
-     * genuine zero-calorie figure), mirroring {@link averageRating}.
+     * It was the W8-a.1 denormalization: per-serving calories recomputed at write time into
+     * `recipes.lead_calories_per_serving` so list/search/collection-embed cards rendered a figure without an
+     * N+1. Migration 0019 dropped the column (U10), and ADR-0021 replaced the card's figure with a DEFERRED
+     * lookup — `POST /api/v1/recipes/nutrition-batch`, whose three-state union distinguishes a MEASURED zero
+     * from an unaccounted recipe in a way an optional `number | undefined` structurally cannot.
+     *
+     * The field then survived on the DETAIL read alone, where it was `nutrition.calories` a second time
+     * under a second name — two representations of one fact, with no rule for which wins and no mechanism
+     * keeping them in step. That is ADR-0021's recorded "Follow-up owed", and this is it being paid: the
+     * detail's figure is `RecipeDetail.nutrition`, a card's is the batch endpoint, and there is no third.
      */
-    leadCaloriesPerServing?: number;
     /**
      * The recipe author's display name (W8-a.2 / decision 6) — the "by @handle" cards render. DENORMALIZED
      * from the identity service's `profiles.displayName` at write time (no cross-service read); kept current
@@ -303,6 +383,7 @@ export const recipeSchema = z.object({
     totalTimeMinutes: nonNegativeIntSchema,
     servings: positiveIntSchema,
     difficulty: recipeDifficultySchema.optional(),
+    mealType: recipeMealTypeSchema.optional(),
     visibility: recipeVisibilitySchema,
     // Publication status (W8-a.3) — NOT NULL, default 'published'; a draft is owner-only (security boundary).
     status: recipeStatusSchema,
@@ -314,9 +395,8 @@ export const recipeSchema = z.object({
     cuisine: z.string().min(1).optional(),
     dietaryFlags: z.array(z.string().min(1)),
     tags: z.array(z.string().min(1)),
-    hasPartialNutrition: z.boolean(),
-    // Denormalized headline per-serving calories (W8-a.1); absent (not 0) when no accounted nutrition.
-    leadCaloriesPerServing: nonNegativeNumberSchema.optional(),
+    // ⛔ No `leadCaloriesPerServing` — see the `Recipe` interface above. A card's calorie figure comes from
+    // `POST /api/v1/recipes/nutrition-batch`; the detail's comes from `RecipeDetail.nutrition`.
     authorHandle: z.string().min(1).optional(),
     currentVersion: positiveIntSchema,
     // 1..5 mean; absent (not 0) when ratingCount is 0 — see the Recipe.averageRating docstring.
@@ -328,6 +408,123 @@ export const recipeSchema = z.object({
     createdAt: isoDateTimeStringSchema,
     updatedAt: isoDateTimeStringSchema,
 });
+
+/**
+ * Async resolution state of an ingredient's backing food record in the
+ * source-agnostic food service (003). Values mirror the shipped food client's
+ * `FoodStatus` (`@kitchensink/food-service-client`), including the terminal
+ * `NOT_FOUND` / `FAILED` states. A just-added food may report `PENDING` or
+ * `UNRESOLVED` (nutrition not ready yet, or awaiting disambiguation) and
+ * transition to `RESOLVED` later; consumers must tolerate partial nutrition in
+ * the interim (FR-007). `NOT_FOUND` / `FAILED` are terminal — the picker UX
+ * surfaces an error, offers a freeform fallback, and allows removal. Whether an
+ * ingredient is freeform is a SEPARATE concern tracked by
+ * {@link Ingredient.isUserEntered}, never a resolution-status value.
+ *
+ * ## ⛔ `NEEDS_REVIEW` IS OURS, AND IT IS PER RECIPE LINE — NEVER PER CATALOG ROW
+ *
+ * The sixth member is the ONE value food-service does not emit: it means the U11 verification gate read a
+ * recipe line's raw source text against the food we resolved it to and CONTRADICTED the match (plan U14 /
+ * R15). It is derived at read time from `recipe_ingredient_verifications` and it is never persisted.
+ *
+ * `0023_line_verifications.sql` forbids writing a gate verdict into `ingredients.food_resolution_status` for
+ * three independent reasons — blast radius on a SHARED, ownerless catalog deduped one row per `food_id`;
+ * that column being a MIRROR of a lifecycle food-service owns; and `UNRESOLVED` already meaning "several
+ * candidates, ask the user to pick". So the two audiences get two schemas, and the split is STRUCTURAL:
+ * {@link foodResolutionStatusSchema} (the catalog `Ingredient`, five values) cannot carry `NEEDS_REVIEW`,
+ * and {@link lineResolutionStatusSchema} (one recipe line, six) can. A picker row therefore has no dead
+ * branch, and no code path can widen one recipe's disagreement into every recipe that shares the food.
+ */
+export const FoodResolutionStatus = {
+    PENDING: 'PENDING',
+    UNRESOLVED: 'UNRESOLVED',
+    RESOLVED: 'RESOLVED',
+    NOT_FOUND: 'NOT_FOUND',
+    FAILED: 'FAILED',
+    /** ⛔ RECIPE-LINE ONLY — see this block's header. Never written to a catalog row. */
+    NEEDS_REVIEW: 'NEEDS_REVIEW',
+    /**
+     * ⛔ RECIPE-LINE ONLY, and DERIVED at read (plan U4c, KTD-A): a zero-authority lexical bind whose
+     * verification verdict has not landed yet. The line is bound and visible, its macros are withheld from
+     * the recipe figure, and the verdict's arrival flips it with no write anywhere. ⛔ NOT `UNRESOLVED`,
+     * which means "several candidates, pick one" and drives the disambiguation picker — a pending line has
+     * exactly one proposed food and nothing for a picker to do.
+     */
+    PENDING_VERIFICATION: 'PENDING_VERIFICATION',
+    /**
+     * ⛔ RECIPE-LINE ONLY, and DERIVED at read (plan U13, D7/R9): the gate ABSTAINED (`inconclusive`) over
+     * a shortlist whose candidates differ MATERIALLY on nutrition — the pick changes the figure, so the
+     * AUTHOR is asked. Renders the pick affordance (re-derived shortlist; one pick binds every matching
+     * sibling and writes ONE correction). ⛔ NOT `UNRESOLVED`: that drives the CANDIDATE picker over a
+     * catalog row's own candidate set; this is the verification gate's abstention over a ranked shortlist.
+     * Publish stays allowed with ambiguous lines (R23).
+     */
+    AMBIGUOUS: 'AMBIGUOUS',
+    /**
+     * ⛔ RECIPE-LINE ONLY, DERIVED at read, and VIEWER-DEPENDENT (plan U13, R20): the line IS bound, but
+     * its food is a PRIVATE authored one whose author is not THIS viewer (a private food on a public
+     * recipe — a clone, or a promoted-then-reverted edge). The viewer gets the line's NAME and a
+     * "details unavailable" treatment: no pick affordance, never an error, and the recipe total reports
+     * the line as unaccounted for this viewer (the food service does not serve them the nutrition).
+     */
+    RESOLVED_UNAVAILABLE: 'RESOLVED_UNAVAILABLE',
+} as const;
+
+/**
+ * Resolution lifecycle status for an ingredient's {@link Ingredient.foodId}, INCLUDING the recipe-line-only
+ * `NEEDS_REVIEW`. The two audiences narrow it through {@link foodResolutionStatusSchema} (catalog) and
+ * {@link lineResolutionStatusSchema} (recipe line).
+ */
+export type FoodResolutionStatus = (typeof FoodResolutionStatus)[keyof typeof FoodResolutionStatus];
+
+/**
+ * Runtime validator for a CATALOG ingredient's food-resolution status — the five values that mirror
+ * food-service's `FoodStatus`, and no more.
+ *
+ * ⛔ `NEEDS_REVIEW` IS DELIBERATELY ABSENT and adding it here is the change to refuse. This schema validates
+ * `Ingredient.foodResolutionStatus`, which is one row of a shared, ownerless catalog; admitting a gate
+ * verdict here is how ONE recipe line's disagreement would withdraw nutrition from every recipe referencing
+ * that food. Asserted in both directions by `lineResolutionStatus.test.ts`.
+ */
+export const foodResolutionStatusSchema = z.enum([
+    FoodResolutionStatus.PENDING,
+    FoodResolutionStatus.UNRESOLVED,
+    FoodResolutionStatus.RESOLVED,
+    FoodResolutionStatus.NOT_FOUND,
+    FoodResolutionStatus.FAILED,
+]);
+
+/**
+ * A CATALOG ingredient's food-resolution status — the five mirror values, and never `NEEDS_REVIEW`.
+ *
+ * ⛔ Use this, not the six-member {@link FoodResolutionStatus}, wherever the value describes an `ingredients`
+ * ROW. It is what makes 0023's blast-radius rule a compile error rather than a docstring: a gate verdict
+ * assigned to a catalog row does not type-check.
+ */
+export type CatalogFoodResolutionStatus = z.infer<typeof foodResolutionStatusSchema>;
+
+/**
+ * Runtime validator for ONE RECIPE LINE's food-resolution status: every mirror value above, PLUS the
+ * gate-derived {@link FoodResolutionStatus.NEEDS_REVIEW}.
+ *
+ * Spelled out member by member rather than spread from {@link foodResolutionStatusSchema}'s `options`: a
+ * spread would make the two enums one declaration whose members are decided by whichever list happens to be
+ * edited, and the whole point is that the catalog list is CLOSED against exactly one value.
+ */
+export const lineResolutionStatusSchema = z.enum([
+    FoodResolutionStatus.PENDING,
+    FoodResolutionStatus.UNRESOLVED,
+    FoodResolutionStatus.RESOLVED,
+    FoodResolutionStatus.NOT_FOUND,
+    FoodResolutionStatus.FAILED,
+    FoodResolutionStatus.NEEDS_REVIEW,
+    FoodResolutionStatus.PENDING_VERIFICATION,
+    FoodResolutionStatus.AMBIGUOUS,
+    FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+]);
+
+/** One recipe line's food-resolution status — the catalog mirror widened by the gate's own verdict. */
+export type LineResolutionStatus = z.infer<typeof lineResolutionStatusSchema>;
 
 /**
  * A recipe instruction step as returned on the wire (the read projection of {@link RecipeStep} — no
@@ -357,22 +554,61 @@ export const recipeStepViewSchema = z.object({
 export interface RecipeIngredientView {
     ingredientId: string;
     name: string;
-    quantity: number;
+    /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
+    quantity: IngredientQuantity;
     unit?: string;
     notes?: string;
+    /**
+     * How this recipe prepares the food (plan U26) — `finely chopped`, `at room temperature`.
+     *
+     * ⛔ NEVER concatenated into {@link RecipeIngredientView.name}. The name is what the catalog says the
+     * food IS; this is what this recipe does to it. Absent means the line states no preparation.
+     */
+    preparation?: string;
+    /**
+     * The section this line belongs to (plan U27) — `For the marinade`, `Dry ingredients`.
+     *
+     * ABSENT means ungrouped, and most recipes are: an ungrouped list renders FLAT, with no section chrome
+     * at all. Sections are folded from CONSECUTIVE RUNS of equal labels in the stored order, so the order a
+     * reader sees is always the order the author stored.
+     */
+    groupLabel?: string;
     isUserEntered: boolean;
+    /**
+     * How this LINE's food link stands (plan U14 / R15). `NEEDS_REVIEW` means the verification gate read the
+     * line's raw source text against the food we resolved it to and disagreed, so this line's catalog
+     * nutrition is WITHHELD from the recipe's figure.
+     *
+     * ⚠️ OPTIONAL, and absent is a real state rather than a default: a freeform line has no food link to
+     * report on, and `0023_line_verifications.sql` is explicit that ABSENCE OF A VERDICT MEANS PUBLISH — the
+     * gate runs off a queue, so an unjudged line must behave exactly as it did before the gate existed.
+     *
+     * ⛔ PER LINE, never the shared catalog row's status — see {@link foodResolutionStatusSchema}.
+     */
+    resolutionStatus?: LineResolutionStatus;
 }
 
 /**
  * Runtime validator for {@link RecipeIngredientView}.
+ *
+ * ⚠️ NOT `.strict()`, and `resolutionStatus` was added to it as an OPTIONAL key on purpose: a non-strict
+ * object lets a client built before this field STRIP it rather than reject the whole recipe, so widening the
+ * line view is backward compatible in a way that widening a `.strict()` member never is.
  */
 export const recipeIngredientViewSchema = z.object({
     ingredientId: idSchema,
     name: z.string().min(1),
-    quantity: z.number().positive(),
+    quantity: ingredientQuantitySchema,
     unit: z.string().min(1).optional(),
     notes: z.string().min(1).optional(),
+    // U26/U27 — `.min(1)` and NO maximum, matching `notes` above and for the same two reasons: `''` would be
+    // a response no client can read back, and a response must be able to carry a value persisted before the
+    // request-side bound existed (the `recipeIngredientNotesSchema` precedent). The bounds live on the
+    // REQUEST schemas in `recipeRequestBounds.ts`.
+    preparation: z.string().min(1).optional(),
+    groupLabel: z.string().min(1).optional(),
     isUserEntered: z.boolean(),
+    resolutionStatus: lineResolutionStatusSchema.optional(),
 });
 
 /**
@@ -394,6 +630,27 @@ export interface RecipeNutrition {
     carbsG: number;
     fatG: number;
     isComplete: boolean;
+    /**
+     * Present when at least one contributing line stated a RANGE, naming the bound the figure was taken
+     * from (R38) — the sibling of R35's historical-unit marker, `HistoricalUnitConversion` in
+     * `@kitchensink/cookbook-import`'s `unitEquivalence.ts`.
+     *
+     * ⚠️ A sibling in SHAPE, not in placement, and the reason has been CORRECTED. That marker is produced at
+     * IMPORT time by a tool and is deliberately NOT on this RESPONSE wire — but it is not, as this note used
+     * to claim, absent from every wire and every column. Migration 0027 persists the pair the source printed
+     * on `recipe_ingredients`, and it rides the CREATE request, because U11's verification gate reads it: a
+     * gate shown `0.5 cup` beside a source reading `one gill of milk` disagrees with a line we parsed
+     * correctly. See `RangeDerivedBound` in `nutrition.ts` for the full correction — and note that the
+     * conclusion for THIS type is unchanged: do not add a historical-unit provenance field here to "match"
+     * it. `RecipeIngredient` carries no `sourceLine` either; both are write-side provenance, and the
+     * disclosure a cook gets is the sentence in the recipe's description.
+     *
+     * ⚠️ Load-bearing honesty, not decoration. A total computed from `2 cups` when the line read
+     * `2 to 3 cups` is up to a third under and is otherwise indistinguishable from an exact one. Absent
+     * means no range was collapsed; there is no "not applicable" value, because the presence of the field
+     * IS the disclosure.
+     */
+    rangeDerivedBound?: 'low' | 'high';
 }
 
 /**
@@ -405,6 +662,28 @@ export const recipeNutritionSchema = z.object({
     carbsG: nonNegativeNumberSchema,
     fatG: nonNegativeNumberSchema,
     isComplete: z.boolean(),
+    rangeDerivedBound: z.enum(['low', 'high']).optional(),
+});
+
+/**
+ * The recipe's folded lifetime action counts (ADR-0030 §8's count-serving arm; owner instruction
+ * 2026-09-01) — read from `recipe_impact_signals`, the delta-fold projection 015's recognition will
+ * also consume. LIFETIME and never-decrementing by construction (KD6): not on unsave, not on account
+ * erasure, not on retention. Author self-actions COUNT (KD6 as written; OQ2's revision path, if ever
+ * wanted, is capture-time filtering — the folded table is deliberately actor-blind, 012-FR-024).
+ * `cookCount` is deliberately absent until 015 ships the affordance — a new field then is additive.
+ */
+export interface RecipeImpact {
+    /** Distinct new collection memberships, lifetime (the created-flag rule: replays never count). */
+    saveCount: number;
+    /** Detail reads, lifetime (server-observed at the detail handler only). */
+    viewCount: number;
+}
+
+/** Runtime validator for {@link RecipeImpact}. */
+export const recipeImpactSchema = z.object({
+    saveCount: nonNegativeIntSchema,
+    viewCount: nonNegativeIntSchema,
 });
 
 export interface RecipeDetail extends Recipe {
@@ -426,6 +705,20 @@ export interface RecipeDetail extends Recipe {
      * list/search {@link Recipe} projection, which carries only the community score.
      */
     viewerRating?: number;
+    /**
+     * U13 (R20): on a CLONE response only — how many source lines arrived UNBOUND because they referenced
+     * another author's private food (each became a user-entered line, re-resolvable through the picker).
+     * The one-time "N ingredients need re-matching" banner's number. Absent on every other read and on a
+     * clone that unbound nothing.
+     */
+    cloneUnboundLineCount?: number;
+    /**
+     * The folded lifetime counts (ADR-0030 §8) — DETAIL reads only. ABSENT means UNKNOWN (an analytics
+     * read failure, degraded rather than failing the detail; or a pre-counts server) — a fresh recipe
+     * is `{ saveCount: 0, viewCount: 0 }`, never an absent field. ⚠️ The served figure typically
+     * excludes the very view that fetched it: view capture is fire-and-forget AFTER the read.
+     */
+    impact?: RecipeImpact;
 }
 
 // NB: `recipeDetailSchema` is defined AFTER `recipePhotoSchema` (below) — it references it, and a `const`
@@ -455,47 +748,11 @@ export const recipeStepSchema = z.object({
 });
 
 /**
- * Async resolution state of an ingredient's backing food record in the
- * source-agnostic food service (003). Values mirror the shipped food client's
- * `FoodStatus` (`@kitchensink/food-service-client`), including the terminal
- * `NOT_FOUND` / `FAILED` states. A just-added food may report `PENDING` or
- * `UNRESOLVED` (nutrition not ready yet, or awaiting disambiguation) and
- * transition to `RESOLVED` later; consumers must tolerate partial nutrition in
- * the interim (FR-007). `NOT_FOUND` / `FAILED` are terminal — the picker UX
- * surfaces an error, offers a freeform fallback, and allows removal. Whether an
- * ingredient is freeform is a SEPARATE concern tracked by
- * {@link Ingredient.isUserEntered}, never a resolution-status value.
- */
-export const FoodResolutionStatus = {
-    PENDING: 'PENDING',
-    UNRESOLVED: 'UNRESOLVED',
-    RESOLVED: 'RESOLVED',
-    NOT_FOUND: 'NOT_FOUND',
-    FAILED: 'FAILED',
-} as const;
-
-/**
- * Resolution lifecycle status for an ingredient's {@link Ingredient.foodId}.
- */
-export type FoodResolutionStatus = (typeof FoodResolutionStatus)[keyof typeof FoodResolutionStatus];
-
-/**
- * Runtime validator for {@link FoodResolutionStatus}.
- */
-export const foodResolutionStatusSchema = z.enum([
-    FoodResolutionStatus.PENDING,
-    FoodResolutionStatus.UNRESOLVED,
-    FoodResolutionStatus.RESOLVED,
-    FoodResolutionStatus.NOT_FOUND,
-    FoodResolutionStatus.FAILED,
-]);
-
-/**
  * Canonical ingredient definition, optionally enriched with nutrition per 100g.
  *
  * Nutrition is backed by the source-agnostic food service (003) via its typed
  * client (`@kitchensink/food-service-client`); foods are referenced by the food
- * service's internal id ({@link foodId}), and resolution is asynchronous. The
+ * service's internal id (`foodId`), and resolution is asynchronous. The
  * food↔ingredient link is owned by 001.
  */
 /**
@@ -533,8 +790,11 @@ export interface Ingredient {
      * Async resolution state of {@link foodId} in the food service. Present only
      * for database-backed ingredients (a {@link foodId} is set); absent for
      * user-entered ingredients that carry no food reference.
+     *
+     * ⛔ The CATALOG subset, so `NEEDS_REVIEW` cannot be assigned here — a verification verdict is about ONE
+     * recipe line, and this is a shared, ownerless row. See {@link CatalogFoodResolutionStatus}.
      */
-    foodResolutionStatus?: FoodResolutionStatus;
+    foodResolutionStatus?: CatalogFoodResolutionStatus;
     isUserEntered: boolean;
     caloriesPer100g?: number;
     proteinGPer100g?: number;
@@ -574,10 +834,21 @@ export interface RecipeIngredient {
     id: string;
     recipeId: string;
     ingredientId: string;
-    quantity: number;
+    /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
+    quantity: IngredientQuantity;
     unit: string;
-    /** Free-form display override (wire field: `notes`). */
+    /** Free-form display override (wire field: `notes`). ⛔ Not a preparation — see {@link preparation}. */
     displayText?: string;
+    /**
+     * How this recipe prepares the food (plan U26; wire field: `preparation`, column `preparation`).
+     *
+     * Carried on the SNAPSHOT shape as well as the view, because a version that cannot restore a
+     * preparation silently strips it on restore — the same data loss `sourceLine` had before it was noticed
+     * in `toResolvedIngredientLine`.
+     */
+    preparation?: string;
+    /** The section this line belongs to (plan U27; wire field + column: `groupLabel` / `group_label`). */
+    groupLabel?: string;
     sortOrder: number;
     /** Canonical ingredient label (wire field: `name`). */
     ingredientName: string;
@@ -595,7 +866,7 @@ export const recipeIngredientSchema = z.object({
     id: idSchema,
     recipeId: idSchema,
     ingredientId: idSchema,
-    quantity: positiveNumberSchema,
+    quantity: ingredientQuantitySchema,
     // NOT `.min(1)`: `recipe_ingredients.unit` is a NOT NULL column whose "unitless" value is the EMPTY
     // STRING ("2 eggs", "1 lemon" — the create/update DTO's `unit` is optional and the service persists
     // `line.unit ?? ''`), and the version snapshot copies the column verbatim. A non-empty constraint here
@@ -603,6 +874,9 @@ export const recipeIngredientSchema = z.object({
     // any recipe carrying a unitless line — see `recipe.types.test.ts`'s version-contract suite.
     unit: z.string(),
     displayText: z.string().min(1).optional(),
+    // U26/U27 — same `.min(1)`, no-maximum reasoning as the view schema above.
+    preparation: z.string().min(1).optional(),
+    groupLabel: z.string().min(1).optional(),
     sortOrder: nonNegativeIntSchema,
     ingredientName: z.string().min(1),
     isUserEntered: z.boolean(),
@@ -696,6 +970,10 @@ export const recipeDetailSchema = recipeSchema.extend({
     // 1..5 whole stars; absent (never 0) when the viewer has not rated — see the RecipeDetail.viewerRating
     // docstring. The schema is non-strict, so without this line the client would silently STRIP the field.
     viewerRating: z.number().int().min(1).max(5).optional(),
+    // U13 — see the interface docstring. Non-strict schema: without this line a client would STRIP it.
+    cloneUnboundLineCount: nonNegativeIntSchema.optional(),
+    // ADR-0030 §8 — same stripping hazard as the two lines above; absent = UNKNOWN, zeros = never.
+    impact: recipeImpactSchema.optional(),
 });
 
 /**
@@ -745,13 +1023,6 @@ export interface RecipeVersion {
      * the editor is `createdBy` (the ULID), always the authoritative identity.
      */
     editorHandle?: string;
-    /**
-     * The device that authored this version (W8-a.6 / FR-007b) — bounded free text captured from the write
-     * request. ABSENT for versions written before the field existed (or when the client sent none); the UI
-     * renders "unknown device" rather than a fabricated value. User-controlled → ALWAYS escaped at render
-     * (both the version-history attribution and the conflict banner), never `dangerouslySetInnerHTML`.
-     */
-    deviceLabel?: string;
     createdAt: IsoDateTimeString;
 }
 
@@ -767,8 +1038,6 @@ export const recipeVersionSchema = z.object({
     s3Key: z.string().min(1).optional(),
     createdBy: idSchema,
     changeSummary: z.string().min(1).optional(),
-    // Device attribution (W8-a.6) — bounded free text; absent for pre-feature versions / when unsent.
-    deviceLabel: z.string().min(1).max(80).optional(),
     editorHandle: z.string().min(1).optional(),
     createdAt: isoDateTimeStringSchema,
 });
@@ -781,8 +1050,6 @@ export const recipeVersionSchema = z.object({
 export interface VersionConflictSide {
     /** The version number this snapshot is at. */
     versionNumber: number;
-    /** The device that authored this version (W8-a.6), when known. */
-    deviceLabel?: string;
     /** When this version was written (ISO-8601). */
     updatedAt: IsoDateTimeString;
     /** The full recipe content at this version. */
@@ -794,7 +1061,6 @@ export interface VersionConflictSide {
  */
 export const versionConflictSideSchema = z.object({
     versionNumber: positiveIntSchema,
-    deviceLabel: z.string().min(1).max(80).optional(),
     updatedAt: isoDateTimeStringSchema,
     snapshot: recipeSnapshotSchema,
 });
@@ -829,24 +1095,17 @@ export const versionConflictDetailsSchema = z.object({
     base: versionConflictSideSchema.optional(),
 });
 
-/**
- * Response to a version restore (`POST /api/v1/recipes/{id}/versions/{versionNumber}/restore`): the recipe
- * after the restore, the version it was restored FROM, and the recipe's new current version number.
- */
-export interface RestoreVersionResponse {
-    recipe: RecipeDetail;
-    restoredFromVersion: number;
-    currentVersion: number;
-}
-
-/**
- * Runtime validator for {@link RestoreVersionResponse}.
- */
-export const restoreVersionResponseSchema = z.object({
-    recipe: recipeDetailSchema,
-    restoredFromVersion: positiveIntSchema,
-    currentVersion: positiveIntSchema,
-});
+// ⛔ `RestoreVersionResponse` / `restoreVersionResponseSchema` USED TO BE HERE and were MOVED to
+// `packages/services/recipe-service/src/versions/versions.schema.ts`, published as `@kitchensink/schema-recipe`.
+//
+// It is an endpoint RESPONSE ENVELOPE — the body of exactly one route — not a domain entity, so it belongs to
+// the service that serves it (ADR-0014 / §15). The tell is in its own shape: it is `{ recipe, restoredFromVersion,
+// currentVersion }`, a description of what ONE operation returns, and nothing in the recipe DOMAIN has that
+// shape. `RecipeDetail` and `RecipeVersion` — the entities it is assembled from — stay here, which is the line
+// GR-007 and GR-015 draw between them.
+//
+// It is also the reason the line is worth drawing: while it lived here, a change to the restore response moved
+// no `CONTRACT_HASH`, so drift layer 3 could not see it.
 
 /**
  * One user's star rating of one recipe (CR-001 / FR-013).
@@ -878,24 +1137,15 @@ export const recipeRatingSchema = z.object({
     updatedAt: isoDateTimeStringSchema,
 });
 
-/**
- * Body of the idempotent `PUT /api/v1/recipes/{id}/rating` upsert (FR-013).
- *
- * The rater is taken from the authenticated token, never from the body — a client-supplied rater id
- * would let any caller rate as anyone else. The schema is non-strict (unknown keys are stripped), so a
- * body carrying a spoofed `userId` parses to `{ stars }` only.
- */
-export interface SetRecipeRatingInput {
-    /** Whole stars, 1–5 inclusive. */
-    stars: number;
-}
-
-/**
- * Runtime validator for {@link SetRecipeRatingInput}.
- */
-export const setRecipeRatingInputSchema = z.object({
-    stars: z.number().int().min(1).max(5),
-});
+// ⛔ `SetRecipeRatingInput` / `setRecipeRatingInputSchema` USED TO BE HERE and are GONE. The request ENVELOPE is
+// authored by the service in `packages/services/recipe-service/src/ratings/ratings.schema.ts`
+// (`setRatingRequestSchema`, now `z.strictObject` per GR-017 §17-c); the VALUE constraint it composes is
+// `recipeRatingStarsSchema` in `./recipeRequestBounds.ts`, which is where a bounded domain value belongs.
+//
+// Keeping a whole request body here is what `recipeRequestBounds.ts`'s header forbids, and it had a concrete
+// cost: the rating body could not be made strict without changing a schema every other consumer of the domain
+// type shares. The docstring it carried is also the record of why the ruling changed — it explained that a
+// spoofed `userId` "parses to `{ stars }` only", i.e. the caller was told `200`.
 
 /**
  * User-owned collection used to organize recipes.
@@ -1033,176 +1283,64 @@ export const recipeVersionPendingArchiveSchema = z.object({
     updatedAt: isoDateTimeStringSchema,
 });
 
-/**
- * Input payload for a single ingredient when creating or updating a recipe draft.
- */
-export interface CreateRecipeIngredientInput {
-    /**
-     * The catalog `ingredients` row this line references — REQUIRED. Both food-backed and freeform
-     * (user-entered) ingredients are first created in the catalog, so a recipe line always points at an
-     * existing id; the server rejects an unknown id with `UNKNOWN_INGREDIENT` (400).
-     */
-    ingredientId: string;
-    /** The client's display label. The server re-resolves the CANONICAL name from the catalog (ADV-2). */
-    name: string;
-    quantity: number;
-    unit?: string;
-    /** Free-form display override (wire field `notes`; persisted as `displayText`). */
-    notes?: string;
-    /** Per-line user-entered nutrition override (FR-007a) — absolute for this line's quantity. */
-    userCalories?: number;
-    userProteinG?: number;
-    userCarbsG?: number;
-    userFatG?: number;
-}
-
-/**
- * Runtime validator for {@link CreateRecipeIngredientInput}.
- */
-export const createRecipeIngredientInputSchema = z.object({
-    ingredientId: idSchema,
-    name: z.string().min(1),
-    quantity: positiveNumberSchema,
-    unit: z.string().min(1).optional(),
-    notes: z.string().min(1).optional(),
-    userCalories: nonNegativeNumberSchema.optional(),
-    userProteinG: nonNegativeNumberSchema.optional(),
-    userCarbsG: nonNegativeNumberSchema.optional(),
-    userFatG: nonNegativeNumberSchema.optional(),
-});
-
-/**
- * Input payload for a single instruction step when creating or updating a recipe
- * draft. The server assigns `stepNumber` from array order; the client sends only
- * the instruction text and an optional inline timer.
- */
-export interface CreateRecipeStepInput {
-    instruction: string;
-    timerSeconds?: number;
-}
-
-/**
- * Runtime validator for {@link CreateRecipeStepInput}.
- */
-export const createRecipeStepInputSchema = z.object({
-    instruction: z.string().min(1),
-    timerSeconds: nonNegativeIntSchema.optional(),
-});
-
-/**
- * Input payload to create a new recipe.
- *
- * `servings` and all three timings are REQUIRED — the server's create contract requires them, and
- * `totalTimeMinutes` is an independent value (not derived from prep + cook: a recipe may have inactive
- * time — rest, marinate, chill — that belongs in the total but in neither prep nor cook). Making them
- * required here means the typed client can only build an accepted create body (resolves divergence #5).
- */
-export interface CreateRecipeInput {
-    title: string;
-    description?: string;
-    ingredients: CreateRecipeIngredientInput[];
-    steps: CreateRecipeStepInput[];
-    servings: number;
-    prepTimeMinutes: number;
-    cookTimeMinutes: number;
-    totalTimeMinutes: number;
-    /** Author-stated difficulty (FR-001b). Omit when the author states none — there is no default. */
-    difficulty?: RecipeDifficulty;
-    cuisine?: string;
-    dietaryFlags?: string[];
-    tags?: string[];
-    visibility?: RecipeVisibility;
-    /**
-     * Publication status (W8-a.3). OPTIONAL: absent leaves it unchanged on update (the server defaults a
-     * create to `published` when omitted). The wizard's Save Draft sends `draft`; Publish sends `published`;
-     * the plain (non-wizard) "Save changes" path omits it entirely so it never flips an existing recipe's
-     * publication state as a side effect of an unrelated edit.
-     */
-    status?: RecipeStatus;
-}
-
-/**
- * Runtime validator for {@link CreateRecipeInput}.
- */
-export const createRecipeInputSchema = z.object({
-    title: z.string().min(1),
-    description: z.string().optional(),
-    ingredients: z.array(createRecipeIngredientInputSchema),
-    steps: z.array(createRecipeStepInputSchema),
-    servings: positiveIntSchema,
-    prepTimeMinutes: nonNegativeIntSchema,
-    cookTimeMinutes: nonNegativeIntSchema,
-    totalTimeMinutes: nonNegativeIntSchema,
-    difficulty: recipeDifficultySchema.optional(),
-    cuisine: z.string().min(1).optional(),
-    dietaryFlags: z.array(z.string().min(1)).optional(),
-    tags: z.array(z.string().min(1)).optional(),
-    visibility: recipeVisibilitySchema.optional(),
-    status: recipeStatusSchema.optional(),
-});
-
-/**
- * Input payload to update an existing recipe with optimistic concurrency protection.
- *
- * Standard semantic: an OMITTED field is left unchanged. `difficulty` is the deliberate exception (it
- * is three-state — see below), so it is excluded from the inherited `Partial<CreateRecipeInput>` and
- * re-declared with the `| null` clear sentinel.
- */
-export interface UpdateRecipeInput extends Omit<Partial<CreateRecipeInput>, 'difficulty'> {
-    expectedVersion: number;
-    /**
-     * Author-stated difficulty (FR-001b). Three distinct meanings, and they are not interchangeable:
-     * omitted = leave unchanged; a value = set it; explicit `null` = CLEAR it back to "not stated".
-     *
-     * `null` is required because FR-001b makes "no difficulty" a first-class state: without an
-     * explicit clear sentinel, `Partial<>`'s omitted-means-unchanged rule would make that state
-     * reachable only at create time, so a user who ever set a difficulty could never remove it.
-     */
-    difficulty?: RecipeDifficulty | null;
-}
-
-/**
- * Runtime validator for {@link UpdateRecipeInput}.
- */
-export const updateRecipeInputSchema = createRecipeInputSchema.partial().extend({
-    expectedVersion: positiveIntSchema,
-    // .nullable().optional() — the three-state field above: absent | value | null (clear).
-    difficulty: recipeDifficultySchema.nullable().optional(),
-});
-
-/**
- * Query parameters for recipe catalog search.
- */
-export interface RecipeSearchParams {
-    query?: string;
-    cuisine?: string;
-    dietaryFlags?: string[];
-    tags?: string[];
-    maxPrepTime?: number;
-    maxCookTime?: number;
-    maxTotalTime?: number;
-    ingredientIds?: string[];
-    page?: number;
-    pageSize?: number;
-    sortBy?: RecipeSearchSortBy;
-}
-
-/**
- * Runtime validator for {@link RecipeSearchParams}.
- */
-export const recipeSearchParamsSchema = z.object({
-    query: z.string().min(1).optional(),
-    cuisine: z.string().min(1).optional(),
-    dietaryFlags: z.array(z.string().min(1)).optional(),
-    tags: z.array(z.string().min(1)).optional(),
-    maxPrepTime: nonNegativeIntSchema.optional(),
-    maxCookTime: nonNegativeIntSchema.optional(),
-    maxTotalTime: nonNegativeIntSchema.optional(),
-    ingredientIds: z.array(idSchema).optional(),
-    page: positiveIntSchema.optional(),
-    pageSize: positiveIntSchema.optional(),
-    sortBy: recipeSearchSortBySchema.optional(),
-});
+// ── Recipe write inputs: TYPES here, the BOUNDS in `recipeRequestBounds.ts`, the ENVELOPE in the service ──
+//
+// ⚠️ The four whole-BODY request schemas that used to sit alongside these interfaces —
+// `createRecipeInputSchema`, `updateRecipeInputSchema`, `createRecipeIngredientInputSchema` and
+// `createRecipeStepInputSchema` — HAVE BEEN REMOVED, and must not be reinstated here. They were a strictly
+// LOOSER second representation of rules the recipe service enforces: no `title` maximum against the
+// service's 200, no `ingredientId` UUID check, no ingredient-quantity bounds, no array caps, and no upper
+// bound on any of the five int4-backed numbers. The looser twin is the trap, not the convenience — the
+// published OpenAPI document was generated from it and therefore told integrators that `title` had no
+// maximum while the service rejected at 201.
+//
+// Note precisely WHAT was wrong with them, because the fix is not "no zod in recipe-core": it is that there
+// were TWO representations of one rule and the weaker one got published. Ownership now splits so that each
+// rule exists exactly once —
+//
+//   • the BOUNDS (how long a title may be, how large a serving count may be) live in
+//     `./recipeRequestBounds.ts`, per the owner's ruling, so both apps and the service inherit ONE number;
+//   • the ENVELOPE (which fields a create body has, which are optional, the `visibility` omit, the
+//     three-state `difficulty`) is AUTHORED BY THE SERVICE in
+//     `packages/services/recipe-service/src/recipes/recipes.schema.ts` and published as
+//     `@kitchensink/schema-recipe` — CODING_STANDARDS §15.2, "the service OWNS its wire types".
+//
+// ⛔ So a whole request BODY schema still does not belong in this package. A single bounded FIELD does, and
+// the service composes it by reference (asserted by identity in that service's `recipes.schema.test.ts`).
+//
+// ⛔ AND NEITHER DOES A WHOLE REQUEST BODY INTERFACE. `CreateRecipeInput`, `UpdateRecipeInput`,
+// `CreateRecipeIngredientInput` and `CreateRecipeStepInput` lived here and are GONE (ADR-0014 / §15 rule 4),
+// as is `SetRecipeRatingInput` further down.
+//
+// They were the TYPE half of a twin whose ZOD half had already been removed, and the argument that kept them —
+// "a z.infer of the service schema is asserted mutually assignable, so they cannot drift in silence" — was
+// weaker than it read. Mutual assignability is not identity, and TypeScript's excess-property check does not
+// apply to a SPREAD: a projection annotated with one of these interfaces could send a field the wire schema
+// does not accept and still compile.
+//
+// That is not hypothetical. `toUpdateRecipeInput` was sending `visibility` on the PATCH body,
+// `updateRecipeRequestSchema` does not accept it, the service silently STRIPPED it, and a test PINNED the
+// resulting behaviour as correct. Two representations plus an assignability check is what let that live.
+//
+// The replacements are the published wire types, and there is exactly one of each: `CreateRecipeRequest`,
+// `UpdateRecipeRequest`, `RecipeIngredientInput`, `RecipeStepInput` and `SetRatingRequest` from
+// `@kitchensink/schema-recipe`. A consumer whose shape genuinely differs DERIVES it (`Pick`/`Omit`/`Partial`)
+// rather than declaring it — see `packages/apps/commise/features/recipes/src/filters/model.ts`.
+//
+// ⛔ AND THE SAME NOW GOES FOR THE SEARCH QUERY. `RecipeSearchParams` and `recipeSearchParamsSchema` sat five
+// lines below this banner while describing exactly what it forbids, which is why the rule is restated rather
+// than assumed: the note above says "request BODY", and a query bag read as a different category kept the pair
+// alive through the create/update convergence. `GET /api/v1/search/recipes` accepts a request either way.
+//
+// The zod half had ZERO callers anywhere — never parsed, never inferred from — while the interface half was the
+// client's request type, so the only representation in USE was the one nothing validated. It was also strictly
+// LOOSER than the contract it shadowed (mutable arrays, no integer/range bounds, no `max` on `pageSize`, no
+// blank-as-absent), so a caller could type-check against a shape the service refuses. The replacement is
+// `RecipeSearchQuery` / `recipeSearchQuerySchema` from `@kitchensink/schema-recipe`, authored at
+// `packages/services/recipe-service/src/search/search.schema.ts`.
+//
+// `RecipeSearchSortBy` below STAYS here and is not affected: it is a domain value object (GR-007), the authored
+// wire schema COMPOSES it by reference, and there is one declaration of it.
 
 /**
  * Single ranked hit in a recipe search response. An object-per-hit envelope (not a bare `Recipe`) so
@@ -1300,6 +1438,16 @@ export const RecipeErrorCode = {
      * Here the caller owns the recipe, so they already know it exists and there is nothing to leak.
      */
     CANNOT_RATE_OWN_RECIPE: 'CANNOT_RATE_OWN_RECIPE',
+    /**
+     * Plan U9 — no parse job with that id owned by the caller (or no such line index on it). Always a 404
+     * for a stranger, never a 403: a 403 would confirm another user's job id exists.
+     */
+    PARSE_JOB_NOT_FOUND: 'PARSE_JOB_NOT_FOUND',
+    /**
+     * Plan U9 — the parse job passed its TTL and the sweep closed it; retry and line edits are refused
+     * (409). The remedy is a fresh `POST /recipe-parse-jobs` with the same text.
+     */
+    PARSE_JOB_EXPIRED: 'PARSE_JOB_EXPIRED',
 } as const;
 
 /**
@@ -1337,6 +1485,8 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.ERASURE_IN_PROGRESS,
     RecipeErrorCode.UNKNOWN_INGREDIENT,
     RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,
+    RecipeErrorCode.PARSE_JOB_NOT_FOUND,
+    RecipeErrorCode.PARSE_JOB_EXPIRED,
 ]);
 
 /**

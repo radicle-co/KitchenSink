@@ -1,0 +1,1511 @@
+{
+    "schemaVersion": 1,
+    "group": "design-system",
+    "packageName": "@commise/ui",
+    "layer": "design-system",
+    "coverage": {
+        "components": 7,
+        "implementations": 13,
+        "props": 86,
+        "documentedComponents": 7,
+        "implementationsWithModuleDoc": 13,
+        "implementationsWithComponentDoc": 11,
+        "documentedProps": 86,
+        "classifiedComponents": 4,
+        "componentsWithPatternTag": 7,
+        "crossPlatformComponents": 6
+    },
+    "components": [
+        {
+            "id": "design-system/button/Button",
+            "name": "Button",
+            "group": "design-system",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/button",
+            "kind": "unclassified",
+            "patterns": [
+                "The same `ButtonProps` contract rendered with a `StyleSheet`, composing `PressScale` — which owns the\n    `Pressable`, so the accessible button is ONE element rather than a nested pair.",
+                "Value Object contract (`ButtonProps`) rendered as a pure `props → JSX` leaf, composed with the\n    `PressScale` Decorator — the tier is a discriminated `variant`, never a boolean that switches behaviour."
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "Button",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/button/Button.tsx",
+                    "dir": "packages/apps/commise/ui/src/button",
+                    "moduleDoc": "@commise/ui/button — the web design-system {@link Button}.\n\nA labelled action control styled to the Commise mockups: a pill with an icon + text and a real visible\nsurface for every tier (filled primary CTA, bordered secondary, bordered error-toned destructive) — never\nnaked text. Consumes the shared {@link ButtonProps} contract; the native leaf (`Button.native.tsx`)\nmirrors it. Classes reference `@commise/ui` design tokens exposed as Tailwind utilities by the consuming\napp's theme.\n\nThe icon is wrapped `aria-hidden`, so it is always decorative and the visible label (`children`) owns the\naccessible name — keeping name-based selection (RTL / Playwright / Maestro) stable regardless of glyph.\n\nTwo behaviours are shared with the native leaf but expressed in the web idiom:\n - **Touch target** — a `min-h-11` (44px) floor at base for comfortable touch, RESET at `md:` so the\n   mouse density (`py-2.5`, ~40px) is unchanged on desktop. (The WCAG-AA bar 2.5.8/24px is already met;\n   this is a comfort bump for touch, not a desktop change.)\n - **Busy** — the `busy` prop swaps the icon slot for a real spinner in place (no layout shift) and\n   disables the control; and the whole button is wrapped in {@link PressScale} for a motion-safe\n   press-scale.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/button — the web design-system {@link Button}."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Value Object contract (`ButtonProps`) rendered as a pure `props → JSX` leaf, composed with the\n    `PressScale` Decorator — the tier is a discriminated `variant`, never a boolean that switches behaviour."
+                        }
+                    ],
+                    "description": "The Commise design-system button — icon + label, one visible surface per tier.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Overrides the label-derived accessible name. Use only when the visible label is not a plain string\nor is insufficient on its own; prefer letting {@link children} own the name.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Marks an in-flight action: the control is disabled (so it cannot be double-fired) and exposes a busy\nstate to assistive tech (`aria-busy` on web, `accessibilityState.busy` on native).",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visible label. Also the accessible name unless {@link accessibilityLabel} overrides it.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Disables interaction and dims the control.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "REQUIRED decorative icon, supplied by the caller in the platform's idiom (an inline `<svg>` on web,\na vector-icon element on native). The primitive hides it from the accessibility tree, so it never\ncontributes to the button's accessible name.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Tap / click handler.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "type",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"button\"",
+                                "\"submit\""
+                            ],
+                            "required": false,
+                            "defaultValue": "button",
+                            "description": "Web form semantics — `submit` makes the control submit its enclosing `<form>`. Ignored on native\n(there is no form element); native submit buttons wire {@link onPress} instead. Defaults to `button`.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "variant",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"primary\"",
+                                "\"secondary\"",
+                                "\"destructive\""
+                            ],
+                            "required": false,
+                            "defaultValue": "primary",
+                            "description": "Visual tier. Defaults to `primary`.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "Button",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/button/Button.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/button",
+                    "moduleDoc": "@commise/ui/button — the native design-system {@link Button} (React Native).\n\nMirrors the web leaf's contract and visual language with a RN `StyleSheet`: an icon + label pill with a\nreal surface for every tier (filled primary, bordered secondary, bordered error-toned destructive). The\naccessible button is the {@link PressScale} `Pressable` this leaf composes — one accessibility element\n(`accessibilityRole=\"button\"` + a label-derived name) that also gives the pill its motion-safe\npress-scale. The caller's icon is wrapped so it is hidden from assistive tech, so the label alone is the\naccessible name (keeping RN/Maestro name selection stable).\n\nTwo touch/loading behaviours mirror the web leaf in the native idiom:\n - **Touch target** — the pill carries `minHeight: 44` (comfortable touch) with vertical padding from\n   `nativeTokens`, so short labels still hit a 44pt target.\n - **Busy** — the `busy` prop swaps the icon slot for a real `ActivityIndicator` in place (no layout\n   shift) and disables the control (so an in-flight action cannot be double-fired).\n\nThe `primary` tier paints the SAME `gradient.brand` (seafoam → ocean-dark) the web leaf carries as the\nTailwind `from-seafoam to-ocean-dark` utility — projected through `toNativeGradient` into\n`expo-linear-gradient` — so the two platforms' primary CTA converge on one single-sourced gradient\n(round-2 R7). Secondary/destructive stay flat surfaces: `secondary` is the mockups' CORAL-outlined glass\ndegraded to `glass.subtle`'s own solid fallback (RN has no `backdrop-filter`), `destructive` an\nerror-toned outline.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/button — the native design-system {@link Button} (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "The same `ButtonProps` contract rendered with a `StyleSheet`, composing `PressScale` — which owns the\n    `Pressable`, so the accessible button is ONE element rather than a nested pair."
+                        }
+                    ],
+                    "description": "The native design-system button — icon + label, one visible surface per tier.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Overrides the label-derived accessible name. Use only when the visible label is not a plain string\nor is insufficient on its own; prefer letting {@link children} own the name.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Marks an in-flight action: the control is disabled (so it cannot be double-fired) and exposes a busy\nstate to assistive tech (`aria-busy` on web, `accessibilityState.busy` on native).",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visible label. Also the accessible name unless {@link accessibilityLabel} overrides it.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Disables interaction and dims the control.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "REQUIRED decorative icon, supplied by the caller in the platform's idiom (an inline `<svg>` on web,\na vector-icon element on native). The primitive hides it from the accessibility tree, so it never\ncontributes to the button's accessible name.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Tap / click handler.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "type",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"button\"",
+                                "\"submit\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web form semantics — `submit` makes the control submit its enclosing `<form>`. Ignored on native\n(there is no form element); native submit buttons wire {@link onPress} instead. Defaults to `button`.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "variant",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"primary\"",
+                                "\"secondary\"",
+                                "\"destructive\""
+                            ],
+                            "required": false,
+                            "defaultValue": "primary",
+                            "description": "Visual tier. Defaults to `primary`.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "design-system/confirmDialog/ConfirmDialog",
+            "name": "ConfirmDialog",
+            "group": "design-system",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/confirmDialog",
+            "kind": "unclassified",
+            "patterns": [
+                "Adapter over React Native's `Modal` — the platform expression of the web leaf's Radix adapter, with\n    `onRequestClose` mapped to the same cancel path so the hardware back button cannot diverge from the control.",
+                "Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop\n    dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language and\n    the sibling-trigger focus-return Radix cannot infer."
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ConfirmDialog",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.tsx",
+                    "dir": "packages/apps/commise/ui/src/confirmDialog",
+                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog} (house pattern B6).\n\nA controlled `AlertDialog` built on `@radix-ui/react-alert-dialog` — Radix owns focus-trapping, Escape-to-\ndismiss, backdrop-click dismiss, and the `role=\"alertdialog\"` + `aria-labelledby`/`aria-describedby` wiring\nfrom its `Title`/`Description` parts, so this leaf only supplies the Commise visual language and maps\nRadix's `onOpenChange(false)` (covers Escape + backdrop + the built-in Cancel action) onto the same\n`onCancel` callback the explicit Cancel button uses — one exit path, not two.\n\n⛔ Focus-return is EXPLICIT, not Radix's default. `AlertDialog.Content` wraps `Dialog.Content`, which\nrestores focus on close only to an OWNED `*.Trigger`; every caller of this dialog (`Wizard`,\n`AccountCloseForm`, `AccountDangerZone`) opens it from a SIBLING control, so that default focused nothing\nand dropped a keyboard user at the top of the document. `useReturnFocusOnClose` is the one repair the six\nother surfaces in this position already share — this leaf was the seventh, and adding it here was a\nbehaviour change rather than the mechanical extraction that produced the hook.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog} (house pattern B6)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop\n    dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language and\n    the sibling-trigger focus-return Radix cannot infer."
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "cancelLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Label for the cancel (\"keep going\") action.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "confirmLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Label for the confirm action.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The dialog's body copy, explaining the consequence of confirming.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "destructive",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Styles the confirm action as a destructive (error-toned) action. Defaults to `false`.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "onCancel",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the user cancels (including a backdrop dismiss / Escape on web).",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the user confirms.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the dialog is shown. When `false` the component renders nothing.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The dialog's accessible title (also the visible heading).",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ConfirmDialog",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/confirmDialog",
+                    "moduleDoc": "@commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6).\n\nThe React Native leaf of `ConfirmDialog` — an RN `Modal` (transparent,\nfade) hosting the same card layout/visual language as `@commise/features-recipes`'s\n`RecipeDeleteDialog.native` (accessible `alert` role naming the dialog, cancel + confirm `Pressable`s).\n`onRequestClose` (the Android hardware back-button / platform dismiss path) maps to `onCancel`, so there\nis one exit path, not two, mirroring the web leaf's `onOpenChange(false) -> onCancel` mapping.\n\nRenders NOTHING while `open` is false — an explicit early return, not just `Modal`'s own `visible` prop:\n`react-native-web`'s `Modal` keeps its portal content mounted in the DOM across a `visible` toggle (it\nanimates/hides rather than unmounts), so a component test that opens then closes the dialog would still\nfind the \"closed\" content via `queryByLabelText`. Gating the whole `<Modal>` behind `open` keeps this\nleaf's contract identical to every other controlled dialog in this codebase (e.g.\n`RecipeDeleteDialog.native`'s `if (!open) return null`) and genuinely testable either way.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native's `Modal` — the platform expression of the web leaf's Radix adapter, with\n    `onRequestClose` mapped to the same cancel path so the hardware back button cannot diverge from the control."
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "cancelLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Label for the cancel (\"keep going\") action.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "confirmLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Label for the confirm action.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The dialog's body copy, explaining the consequence of confirming.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "destructive",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Styles the confirm action as a destructive (error-toned) action. Defaults to `false`.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "onCancel",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the user cancels (including a backdrop dismiss / Escape on web).",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the user confirms.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the dialog is shown. When `false` the component renders nothing.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The dialog's accessible title (also the visible heading).",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "design-system/input/Input",
+            "name": "Input",
+            "group": "design-system",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/input",
+            "kind": "presentational",
+            "patterns": [
+                "Facade over the RN text-field primitives — it wires the label association, the `alert`-role error slot and\n    every metric from `nativeTokens` at the primitive level, so no caller can drift by wiring them itself."
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "Input",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/input/Input.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/input",
+                    "moduleDoc": "@commise/ui/input — the native design-system {@link Input} (React Native).\n\nA tokenized, controlled, label-associated text field. Every metric comes from `nativeTokens` and every\ncolour from the shared palette, so it cannot drift from the design system the way the hand-rolled\n`.native` inputs did. Accessibility is wired at the primitive level, not left to each caller:\n - the label `Text` carries a `nativeID` and the field references it via `aria-labelledby`, so the label\n   text IS the field's accessible name;\n - when `error` is present, the field is marked `aria-invalid` and points at an `alert`-role error slot\n   via `aria-describedby`, so assistive tech announces the message with the field.\n\nPresentational only — it owns no state; the composing form supplies `value` and handles `onChangeText`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/input — the native design-system {@link Input} (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Facade over the RN text-field primitives — it wires the label association, the `alert`-role error slot and\n    every metric from `nativeTokens` at the primitive level, so no caller can drift by wiring them itself."
+                        }
+                    ],
+                    "description": "The native design-system text field — label + input + optional error slot, tokenized and a11y-wired.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Overrides the label-derived accessible name. Prefer letting {@link label} own the name; use this only\nwhen the field needs a name distinct from its visible label.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "autoCapitalize",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"none\"",
+                                "\"sentences\"",
+                                "\"words\"",
+                                "\"characters\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Auto-capitalisation behaviour. Defaults to the platform default.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "autoComplete",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"url\"",
+                                "\"2fa-app-otp\"",
+                                "\"additional-name\"",
+                                "\"address-line1\"",
+                                "\"address-line2\"",
+                                "\"birthdate-day\"",
+                                "\"birthdate-full\"",
+                                "\"birthdate-month\"",
+                                "\"birthdate-year\"",
+                                "\"cc-csc\"",
+                                "\"cc-exp\"",
+                                "\"cc-exp-day\"",
+                                "\"cc-exp-month\"",
+                                "\"cc-exp-year\"",
+                                "\"cc-number\"",
+                                "\"cc-name\"",
+                                "\"cc-given-name\"",
+                                "\"cc-middle-name\"",
+                                "\"cc-family-name\"",
+                                "\"cc-type\"",
+                                "\"country\"",
+                                "\"current-password\"",
+                                "\"email\"",
+                                "\"email-otp\"",
+                                "\"flight-confirmation-code\"",
+                                "\"flight-number\"",
+                                "\"family-name\"",
+                                "\"gender\"",
+                                "\"gift-card-number\"",
+                                "\"gift-card-pin\"",
+                                "\"given-name\"",
+                                "\"honorific-prefix\"",
+                                "\"honorific-suffix\"",
+                                "\"loyalty-account-number\"",
+                                "\"name\"",
+                                "\"name-family\"",
+                                "\"name-given\"",
+                                "\"name-middle\"",
+                                "\"name-middle-initial\"",
+                                "\"name-prefix\"",
+                                "\"name-suffix\"",
+                                "\"new-password\"",
+                                "\"nickname\"",
+                                "\"one-time-code\"",
+                                "\"organization\"",
+                                "\"organization-title\"",
+                                "\"password\"",
+                                "\"password-new\"",
+                                "\"postal-address\"",
+                                "\"postal-address-country\"",
+                                "\"postal-address-dependent-locality\"",
+                                "\"postal-address-extended\"",
+                                "\"postal-address-extended-postal-code\"",
+                                "\"postal-address-locality\"",
+                                "\"postal-address-region\"",
+                                "\"postal-address-unit\"",
+                                "\"postal-code\"",
+                                "\"promo-code\"",
+                                "\"street-address\"",
+                                "\"sms-otp\"",
+                                "\"tel\"",
+                                "\"tel-country-code\"",
+                                "\"tel-national\"",
+                                "\"tel-device\"",
+                                "\"upi-vpa\"",
+                                "\"wifi-password\"",
+                                "\"username\"",
+                                "\"username-new\"",
+                                "\"off\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Autofill hint (e.g. `email`, `password`, `one-time-code`).",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "editable",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "true",
+                            "description": "Whether the field is editable. Defaults to `true`; `false` dims and locks it.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "error",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "An optional validation message. When present, an alert-role error slot renders below the field and is\nwired to it (`aria-describedby`), and the field is marked `aria-invalid`.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "keyboardType",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"number-pad\"",
+                                "\"decimal-pad\"",
+                                "\"numeric\"",
+                                "\"email-address\"",
+                                "\"phone-pad\"",
+                                "\"url\"",
+                                "\"visible-password\"",
+                                "\"ascii-capable\"",
+                                "\"numbers-and-punctuation\"",
+                                "\"name-phone-pad\"",
+                                "\"twitter\"",
+                                "\"web-search\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The on-screen keyboard layout (e.g. `email-address`, `numeric`).",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visible field label, associated with the input for assistive tech (`aria-labelledby`).",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "onChangeText",
+                            "type": "(text: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Reports each edit to the field's text.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "onSubmitEditing",
+                            "type": "((e: TextInputSubmitEditingEvent) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Invoked when the return key is pressed.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "placeholder",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Placeholder shown when the field is empty.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "returnKeyType",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"none\"",
+                                "\"done\"",
+                                "\"go\"",
+                                "\"next\"",
+                                "\"search\"",
+                                "\"send\"",
+                                "\"previous\"",
+                                "\"google\"",
+                                "\"join\"",
+                                "\"route\"",
+                                "\"yahoo\"",
+                                "\"emergency-call\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The return-key label/behaviour (e.g. `next`, `done`).",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "secureTextEntry",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Masks input for passwords.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "textContentType",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"none\"",
+                                "\"name\"",
+                                "\"nickname\"",
+                                "\"password\"",
+                                "\"username\"",
+                                "\"URL\"",
+                                "\"addressCity\"",
+                                "\"addressCityAndState\"",
+                                "\"addressState\"",
+                                "\"countryName\"",
+                                "\"creditCardNumber\"",
+                                "\"creditCardExpiration\"",
+                                "\"creditCardExpirationMonth\"",
+                                "\"creditCardExpirationYear\"",
+                                "\"creditCardSecurityCode\"",
+                                "\"creditCardType\"",
+                                "\"creditCardName\"",
+                                "\"creditCardGivenName\"",
+                                "\"creditCardMiddleName\"",
+                                "\"creditCardFamilyName\"",
+                                "\"emailAddress\"",
+                                "\"familyName\"",
+                                "\"fullStreetAddress\"",
+                                "\"givenName\"",
+                                "\"jobTitle\"",
+                                "\"location\"",
+                                "\"middleName\"",
+                                "\"namePrefix\"",
+                                "\"nameSuffix\"",
+                                "\"organizationName\"",
+                                "\"postalCode\"",
+                                "\"streetAddressLine1\"",
+                                "\"streetAddressLine2\"",
+                                "\"sublocality\"",
+                                "\"telephoneNumber\"",
+                                "\"newPassword\"",
+                                "\"oneTimeCode\"",
+                                "\"birthdate\"",
+                                "\"birthdateDay\"",
+                                "\"birthdateMonth\"",
+                                "\"birthdateYear\"",
+                                "\"cellularEID\"",
+                                "\"cellularIMEI\"",
+                                "\"dateTime\"",
+                                "\"flightNumber\"",
+                                "\"shipmentTrackingNumber\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "iOS content-type hint for autofill (e.g. `oneTimeCode`, `emailAddress`).",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The controlled text value.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "design-system/motion/EnterTransition",
+            "name": "EnterTransition",
+            "group": "design-system",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/motion",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over React Native's imperative `Animated` driver — it owns the animation so consuming leaves stay\n    pure `props → JSX`, and the reduce-motion decision is a pure Strategy in `enterMotionMode`.",
+                "Decorator over a CSS keyframe — it adds the section-enter gesture to whatever it wraps and nothing else,\n    so every consuming leaf stays a pure `props → JSX` surface."
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "EnterTransition",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/motion/EnterTransition.tsx",
+                    "dir": "packages/apps/commise/ui/src/motion",
+                    "moduleDoc": "@commise/ui/motion — the web design-system {@link EnterTransition} primitive.\n\nA presentational wrapper: it renders a block carrying the design-system section-enter utility (the same\nrise + fade the Home gradient hero uses), optionally delayed so a run of sections staggers in.\n\nTwo deliberate properties:\n - **No JavaScript in the gesture.** The keyframe is pure CSS, so the content is visible in the server\n   render and never depends on hydration — a mount-toggle implementation would hide the section until JS\n   landed, which is a worse failure than having no animation.\n - **The gate, not an override.** The animation utility sits behind `motion-safe:`, so under\n   `prefers-reduced-motion: reduce` no animation (and therefore no hidden from-state) is emitted at all.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/motion — the web design-system {@link EnterTransition} primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator over a CSS keyframe — it adds the section-enter gesture to whatever it wraps and nothing else,\n    so every consuming leaf stays a pure `props → JSX` surface."
+                        }
+                    ],
+                    "description": "The Commise enter-transition wrapper — a section that rises + fades in when motion is safe.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The content that enters.",
+                            "declaredIn": "packages/apps/commise/ui/src/motion/props.ts"
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Extra utility classes for the wrapper. WEB only — the native leaf has no class names.",
+                            "declaredIn": "packages/apps/commise/ui/src/motion/props.ts"
+                        },
+                        {
+                            "name": "delayMs",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "Milliseconds to hold before this section enters, for staggering a list of sections. Defaults to `0`\n(enter immediately).",
+                            "declaredIn": "packages/apps/commise/ui/src/motion/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "EnterTransition",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/motion/EnterTransition.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/motion",
+                    "moduleDoc": "@commise/ui/motion — the native design-system {@link EnterTransition} primitive (React Native).\n\nMirrors the web leaf's gesture — a short rise + fade — with an `Animated.Value` instead of a CSS keyframe,\nbecause React Native has no CSS. It OWNS the animation, so consuming leaves stay pure `props → JSX`.\n\nThe reduce-motion gate is the delicate part. RN can only read the preference asynchronously, so the\nthree-way decision lives in the pure {@link enterMotionMode}:\n - `pending` — hold the from-state and start nothing. This costs a frame or two of invisibility, and that\n   is the deliberate trade: the alternative (assume motion is allowed, then correct) plays the first slice\n   of the animation at a reduce-motion user before snapping, which is precisely what the setting forbids.\n - `instant` — `setValue(1)`: settled, with no animation object ever created.\n - `animate` — run the timing, and CANCEL it on unmount / on a preference change (an animation left\n   running against an unmounted view is a leak).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/motion — the native design-system {@link EnterTransition} primitive (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native's imperative `Animated` driver — it owns the animation so consuming leaves stay\n    pure `props → JSX`, and the reduce-motion decision is a pure Strategy in `enterMotionMode`."
+                        }
+                    ],
+                    "description": "The Commise enter-transition wrapper — a section that rises + fades in when motion is safe.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The content that enters.",
+                            "declaredIn": "packages/apps/commise/ui/src/motion/props.ts"
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Extra utility classes for the wrapper. WEB only — the native leaf has no class names.",
+                            "declaredIn": "packages/apps/commise/ui/src/motion/props.ts"
+                        },
+                        {
+                            "name": "delayMs",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "Milliseconds to hold before this section enters, for staggering a list of sections. Defaults to `0`\n(enter immediately).",
+                            "declaredIn": "packages/apps/commise/ui/src/motion/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "design-system/pressScale/PressScale",
+            "name": "PressScale",
+            "group": "design-system",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/pressScale",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable\n    and drives the scale from its `pressed` state, which is why the web leaf decorates and this one adapts.",
+                "Decorator over its child's press state — CSS puts an activated element's ANCESTORS into `:active`, so\n    wrapping is enough and the child keeps all of the press semantics."
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PressScale",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/pressScale/PressScale.tsx",
+                    "dir": "packages/apps/commise/ui/src/pressScale",
+                    "moduleDoc": "@commise/ui/press-scale — the web design-system {@link PressScale} press-feedback primitive.\n\nA presentational wrapper: it renders an `inline-flex` span carrying the design-system press-scale\nutility. CSS places an activated element's ANCESTORS into the `:active` state, so wrapping an\ninteractive child (a `<button>`, a linked card, the FAB) makes that child's press shrink the span — the\nchild keeps ALL press semantics and accessibility, this leaf contributes only the motion. The scale is\ngated behind `motion-safe:`, so under `prefers-reduced-motion: reduce` no transition or transform is\nemitted at all (a clean gate, not a specificity fight with an override utility).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/press-scale — the web design-system {@link PressScale} press-feedback primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator over its child's press state — CSS puts an activated element's ANCESTORS into `:active`, so\n    wrapping is enough and the child keeps all of the press semantics."
+                        }
+                    ],
+                    "description": "The Commise press-feedback wrapper — the wrapped child's `:active` scales this span (motion-safe).",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Accessible name for the native `Pressable`. Native-only (the web child owns its own name).",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "accessibilityRole",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"button\"",
+                                "\"none\"",
+                                "\"link\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Accessibility role for the native `Pressable`. Defaults to `button`. Native-only.",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Exposes an in-flight state to assistive tech on the native `Pressable`. Native-only.",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The content that scales on press (native) / the interactive child that drives the scale (web).",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disables the press feedback (both) and the underlying `Pressable` (native). Defaults to `false`.",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Press handler. Consumed by the NATIVE leaf, which owns the `Pressable`. On WEB the wrapped child owns\nthe press, so this is ignored there — attach your handler to the child.",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PressScale",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/pressScale/PressScale.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/pressScale",
+                    "moduleDoc": "@commise/ui/press-scale — the native design-system {@link PressScale} press-feedback primitive.\n\nOwns the interaction: it renders the `Pressable` and drives a `transform: [{ scale }]` from that\n`Pressable`'s `pressed` state, so a held control shrinks to `PRESS_SCALE` and springs back on\nrelease. The scale is suppressed when the control is disabled and — crucially — when the OS \"reduce\nmotion\" setting is on (non-essential motion is gated), mirroring the web leaf's `motion-safe:` gate. The\nbranch itself lives in the pure {@link pressedScale} so it is provable without a renderer, and the\npreference is read through the design system's single {@link useReduceMotion} reader.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/press-scale — the native design-system {@link PressScale} press-feedback primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable\n    and drives the scale from its `pressed` state, which is why the web leaf decorates and this one adapts."
+                        }
+                    ],
+                    "description": "The Commise press-feedback wrapper — a `Pressable` that scales its content while held (motion-safe).",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Accessible name for the native `Pressable`. Native-only (the web child owns its own name).",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "accessibilityRole",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"button\"",
+                                "\"none\"",
+                                "\"link\""
+                            ],
+                            "required": false,
+                            "defaultValue": "button",
+                            "description": "Accessibility role for the native `Pressable`. Defaults to `button`. Native-only.",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Exposes an in-flight state to assistive tech on the native `Pressable`. Native-only.",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The content that scales on press (native) / the interactive child that drives the scale (web).",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Disables the press feedback (both) and the underlying `Pressable` (native). Defaults to `false`.",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Press handler. Consumed by the NATIVE leaf, which owns the `Pressable`. On WEB the wrapped child owns\nthe press, so this is ignored there — attach your handler to the child.",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "design-system/surface/GlassCard",
+            "name": "GlassCard",
+            "group": "design-system",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/surface",
+            "kind": "unclassified",
+            "patterns": [
+                "Strategy over one capability probe — `blurSupported` selects the translucent surface or the opaque\n    `fallback`, both projected from the single-source `glass` tokens rather than assumed.",
+                "Strategy over the same capability probe, with an Adapter projecting the single-source `glass` spec onto\n    `expo-blur`'s `intensity`/`tint` — so the two platforms cannot drift on the spec, only on the primitive."
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "GlassCard",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/surface/GlassCard.tsx",
+                    "dir": "packages/apps/commise/ui/src/surface",
+                    "moduleDoc": "@commise/ui/surface — the web {@link GlassCard} brand primitive.\n\nA frosted-glass card: a translucent white surface over a `backdrop-filter` blur (both from the\nsingle-source `glass` tokens), with an opaque solid `fallback` when the host cannot blur. The blur is\nNOT a hardcoded assumption — `blurSupported` defaults to the host capability probe ({@link isBlurSupported})\nand a caller may override it; when it is `false` the card renders the readable solid surface with no blur.\nLayout is the consumer's via `className`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/surface — the web {@link GlassCard} brand primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy over one capability probe — `blurSupported` selects the translucent surface or the opaque\n    `fallback`, both projected from the single-source `glass` tokens rather than assumed."
+                        }
+                    ],
+                    "description": "The Commise frosted-glass card — translucent-over-blur when supported, opaque solid fallback when not.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Optional accessible label for the card region.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "blurSupported",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "isBlurSupported()",
+                            "description": "Whether the host supports backdrop blur. Defaults to the platform capability probe\n(`isBlurSupported()` — a static `Platform.OS` / baseline-CSS read, not a runtime measurement), so the\nhonest treatment is the DEFAULT rather than something each caller must remember to detect. When\n`false`, the card renders the tier's more-opaque solid `fallback` instead of the\ntranslucent-surface-over-blur treatment, so content stays readable where blur is unavailable\n(notably Android, where `expo-blur` renders a translucent UNBLURRED view) or too expensive. Pass it\nexplicitly only to override that default.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The card content.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web-only layout/positioning classes for the card element. Ignored on native.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "style",
+                            "type": "SurfaceStyle",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native-only style for the card element. Ignored on web.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "tier",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"card\"",
+                                "\"subtle\""
+                            ],
+                            "required": false,
+                            "defaultValue": "card",
+                            "description": "Which glass tier to render. Defaults to `card` (the standard frosted card).",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "GlassCard",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/surface/GlassCard.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/surface",
+                    "moduleDoc": "@commise/ui/surface — the native {@link GlassCard} brand primitive (React Native).\n\nMirrors the web leaf using `expo-blur`'s `BlurView`: the single-source `glass` spec is projected\n(`toNativeGlass`) to a blur `intensity` + `tint`, with the translucent surface tint layered over the\nblur. When `blurSupported` is `false` the card renders the opaque solid `fallback` in a plain `View` so the\ncontent stays readable.\n\n`blurSupported` DEFAULTS to the host capability probe ({@link isBlurSupported}) rather than to `true`. That\nmatters here specifically: `expo-blur` blurs for real on iOS, but on Android its `blurMethod` defaults to\n`'none'` and it renders a plain translucent `View` — so a `true` default would have every Android consumer\nsilently shipping a washed-out, UNBLURRED panel instead of the solid fallback designed for exactly that case.\nA caller can still override (e.g. to force the cheap surface on a low-power path).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/surface — the native {@link GlassCard} brand primitive (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy over the same capability probe, with an Adapter projecting the single-source `glass` spec onto\n    `expo-blur`'s `intensity`/`tint` — so the two platforms cannot drift on the spec, only on the primitive."
+                        }
+                    ],
+                    "description": "The Commise frosted-glass card — translucent-over-blur when supported, opaque solid fallback when not.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Optional accessible label for the card region.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "blurSupported",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "isBlurSupported()",
+                            "description": "Whether the host supports backdrop blur. Defaults to the platform capability probe\n(`isBlurSupported()` — a static `Platform.OS` / baseline-CSS read, not a runtime measurement), so the\nhonest treatment is the DEFAULT rather than something each caller must remember to detect. When\n`false`, the card renders the tier's more-opaque solid `fallback` instead of the\ntranslucent-surface-over-blur treatment, so content stays readable where blur is unavailable\n(notably Android, where `expo-blur` renders a translucent UNBLURRED view) or too expensive. Pass it\nexplicitly only to override that default.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The card content.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web-only layout/positioning classes for the card element. Ignored on native.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "style",
+                            "type": "SurfaceStyle",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native-only style for the card element. Ignored on web.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "tier",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"card\"",
+                                "\"subtle\""
+                            ],
+                            "required": false,
+                            "defaultValue": "card",
+                            "description": "Which glass tier to render. Defaults to `card` (the standard frosted card).",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "design-system/surface/GradientSurface",
+            "name": "GradientSurface",
+            "group": "design-system",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/surface",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter projecting the same single-source `gradient` spec onto `expo-linear-gradient`'s\n    `colors`/`locations`/`start`/`end`, so both legs paint the identical brand gradient from one definition.",
+                "Adapter projecting the single-source `gradient` tokens onto a CSS `linear-gradient` — the projection is\n    the whole unit, so the web and native legs cannot drift on colour or direction."
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "GradientSurface",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/surface/GradientSurface.tsx",
+                    "dir": "packages/apps/commise/ui/src/surface",
+                    "moduleDoc": "@commise/ui/surface — the web {@link GradientSurface} brand primitive.\n\nPaints a brand gradient (from the single-source `gradient` tokens) behind its children via a CSS\n`linear-gradient` inline background, so the web and native (`expo-linear-gradient`) legs can never drift\non colour or direction. Presentational: it owns no state and applies no motion (a gradient background is\nstatic), so there is nothing to gate on reduced motion. Layout is the consumer's via `className`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/surface — the web {@link GradientSurface} brand primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter projecting the single-source `gradient` tokens onto a CSS `linear-gradient` — the projection is\n    the whole unit, so the web and native legs cannot drift on colour or direction."
+                        }
+                    ],
+                    "description": "The Commise gradient background surface — a brand gradient painted behind arbitrary hero content.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Optional accessible label for the surface region (e.g. a hero banner).",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The surface content, painted over the gradient.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web-only layout/positioning classes for the surface element. Ignored on native.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "gradient",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"brand\"",
+                                "\"hero\"",
+                                "\"scrim\""
+                            ],
+                            "required": false,
+                            "defaultValue": "hero",
+                            "description": "Which brand gradient to paint. Defaults to `hero` (the beach-glow background).",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "style",
+                            "type": "SurfaceStyle",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native-only style for the surface element. Ignored on web.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "GradientSurface",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/surface/GradientSurface.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/surface",
+                    "moduleDoc": "@commise/ui/surface — the native {@link GradientSurface} brand primitive (React Native).\n\nMirrors the web leaf using `expo-linear-gradient`: the single-source `gradient` spec is projected\n(`toNativeGradient`) to the `colors`/`locations`/`start`/`end` the library consumes, so the native and\nweb (`linear-gradient`) legs paint the identical brand gradient. Presentational and static (a gradient\nbackground carries no motion), so there is nothing to gate on reduced motion.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/surface — the native {@link GradientSurface} brand primitive (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter projecting the same single-source `gradient` spec onto `expo-linear-gradient`'s\n    `colors`/`locations`/`start`/`end`, so both legs paint the identical brand gradient from one definition."
+                        }
+                    ],
+                    "description": "The Commise gradient background surface — the brand gradient painted behind arbitrary hero content.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Optional accessible label for the surface region (e.g. a hero banner).",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The surface content, painted over the gradient.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web-only layout/positioning classes for the surface element. Ignored on native.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "gradient",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"brand\"",
+                                "\"hero\"",
+                                "\"scrim\""
+                            ],
+                            "required": false,
+                            "defaultValue": "hero",
+                            "description": "Which brand gradient to paint. Defaults to `hero` (the beach-glow background).",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        },
+                        {
+                            "name": "style",
+                            "type": "SurfaceStyle",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native-only style for the surface element. Ignored on web.",
+                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        }
+    ]
+}

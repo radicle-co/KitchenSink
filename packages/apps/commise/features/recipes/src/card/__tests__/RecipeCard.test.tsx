@@ -39,16 +39,30 @@ describe('RecipeCard (web)', () => {
         expect(screen.getByLabelText('Serves 4')).toBeTruthy();
     });
 
-    it('renders the cover photo with the title as its alt text', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg' })} />);
+    // #140 — the cover carried `alt={recipe.title}`, the same accessible name as the `<article>`/`<button>`
+    // shell wrapping it, so one card offered two nodes with an identical name. The model has no alternative
+    // text for the photo, so the photo is decoration: `alt=""` (role `presentation`) is the HTML statement of
+    // that, and it takes the image out of the accessibility tree without hiding it visually.
+    it('renders the cover photo as DECORATIVE (empty alt), not as a second copy of the card’s name', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })}
+            />,
+        );
 
-        const img = screen.getByRole('img', { name: 'Herb Risotto' });
-        expect(img.getAttribute('src')).toBe('https://cdn/x.jpg');
+        const cover = container.querySelector('img[src="https://cdn/x.jpg"]');
+        expect(cover, 'the cover photo is still painted').not.toBeNull();
+        expect(cover?.getAttribute('alt')).toBe('');
+        // Not merely un-named: absent from the accessibility tree, so it is never announced or navigated to.
+        expect(screen.queryAllByRole('img')).toHaveLength(0);
+        expect(screen.queryByAltText('Herb Risotto')).toBeNull();
     });
 
     it('shows a labelled placeholder (no img) when the recipe has no photo', () => {
         renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: undefined })} />);
 
+        // The ABSENCE of a photo is information a sighted viewer reads off the empty tile, so unlike the cover
+        // this placeholder keeps a name — its own copy, never the recipe's.
         expect(screen.queryByRole('img', { name: 'Herb Risotto' })).toBeNull();
         expect(screen.getByLabelText('No photo yet')).toBeTruthy();
     });
@@ -223,13 +237,27 @@ describe('RecipeCard (web) — merged fields (CR-002 / L2·L3)', () => {
         expect(screen.queryByText('Mediterranean')).toBeNull();
     });
 
-    it('renders the localized calorie line when present, and none when absent', () => {
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: 420 })} />);
-        expect(screen.getByText('420 cal')).toBeTruthy();
+    // REPLACES "renders the localized calorie line when present, and none when absent". The card no longer
+    // KNOWS about calories: `leadCaloriesPerServing` left the card model with the deferred lookup, and has
+    // since left the wire `Recipe` entirely, because a figure that arrives after the card does cannot be a
+    // field on the card's own view-model. The card now
+    // owns only the SLOT; what goes in it (chip, skeleton, or nothing) is the nutrition layer's decision and
+    // is covered by `nutrition/__tests__/RecipeCalorieChip.test.tsx` and `RecipeNutritionBoundary.test.tsx`.
+    it('renders whatever the nutrition slot supplies, inside the meta row', () => {
+        renderCard(<RecipeCard recipe={model({ totalTimeMinutes: 45 })} nutrition={<span>420 cal</span>} />);
 
-        cleanup();
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: undefined, title: 'No Cal' })} />);
+        const slotted = screen.getByText('420 cal');
+        expect(slotted).toBeTruthy();
+        // In the META row, beside the time — not appended somewhere else in the card.
+        expect(slotted.closest('div')?.textContent).toContain('45 min');
+    });
+
+    it('renders NO nutrition line at all when the slot is absent — never a placeholder, never a zero', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'No Cal' })} />);
+
         expect(screen.queryByText(/cal$/)).toBeNull();
+        expect(screen.queryByText('0 cal')).toBeNull();
+        expect(screen.queryByRole('status')).toBeNull();
     });
 
     it('renders each tag as a chip', () => {
@@ -348,6 +376,7 @@ describe('RecipeCard (web) — non-text graphics stay legible (WCAG 2.1 AA)', ()
         const pips = [...screen.getByRole('img', { name: /out of 5/ }).querySelectorAll('svg')];
 
         expect(pips).toHaveLength(5);
+
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
                 utilityContrast(classListOf(pip)),

@@ -1,13 +1,19 @@
 # 0004 — Minimize NAT: one t4g.nano NAT instance, Fargate egress via the IGW
 
-- **Status:** Accepted — _implemented_ (`NetworkStack` uses `NatProvider.instanceV2`; the identity Fargate service moved to public subnets with `assignPublicIp`). Food's equivalent (API + worker to public subnets; batch jobs as Fargate, not Lambdas) lands with feature 003.
+- **Status:** Accepted
 - **Date:** 2026-06-21
 - **Area:** AWS network topology · cost · `NetworkStack` NAT · ECS subnet placement · VPC Lambda egress
-- **Related:** issue #46, `packages/infra/global/lib/platform/network-stack.ts`, `packages/services/identity/infra/lib/identity-service-stack.ts`, `packages/infra/global/__tests__/network-stack.test.ts`, ADR-0002 (VPC/CIDR — the replacement trap)
+- **Related:** issue #46, `packages/infra/global/lib/platform/NetworkStack.ts`, `packages/services/identity/infra/lib/IdentityServiceStack.ts`, `packages/infra/global/__tests__/NetworkStack.test.ts`, `packages/infra/global/__tests__/natEgressConsumers.test.ts`, ADR-0002 (VPC/CIDR — the replacement trap), ADR-0022 (a migration runner per DB-touching stack), ADR-0024 (the LLM gate whose endpoint this update dropped)
 
 ## ⚠️ Before you change this — the trap
 
-- **Do not move the webhook lambdas (`webhook`, `deletion-worker`, `reconciliation`, `migrate`) off the NAT, and do not "simplify" by deleting the NAT.** They are VPC-attached for exactly one reason: the RDS is `publiclyAccessible: false` (PRIVATE_ISOLATED), so they can only reach it from inside the VPC — and a VPC Lambda's only outbound paths are a NAT or VPC endpoints. `assignPublicIp` does **not** give a Lambda internet/AWS egress (that works only for Fargate/EC2). Removing the NAT silently breaks their Secrets Manager / CloudWatch Logs / SQS / Clerk access.
+- **Do not move the DB-bound lambdas off the NAT, and do not "simplify" by deleting the NAT.** The
+  consumer set is no longer the three webhook handlers plus a migration runner this ADR was written around;
+  it has grown several times over, across six stacks. Its members are the marked table below and its size is
+  whatever that table says — `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts the table
+  against the infra tree by exact set equality, in both directions, so an addition that skips the table and a
+  table entry with no construct both fail. Do not restate the count in prose; that copy has rotted three
+  times.
 - **Do not open the NAT instance security group beyond the VPC CIDR.** It is `OUTBOUND_ONLY` by default with inbound restricted to the VPC range so only the private subnets route through it.
 - **The single NAT instance is a deliberate single-AZ SPOF + ~5 Gbps cap.** Fine at this scale; revisit (HA NAT instances per-AZ, or back to a managed Gateway) when uptime/throughput demands grow.
 - **Tasks now get public IPs.** That is _egress-only_ — inbound is locked to the ALB security group. Do not relax the service SG's inbound rules thinking the task is "already public."
@@ -23,7 +29,68 @@
 
 1. **NAT Gateway → NAT instance.** `NatProvider.instanceV2` on a `t4g.nano` (`OUTBOUND_ONLY`; inbound opened only to the VPC CIDR). ~$3–4/mo/stage. The `cdk diff` swap is a route **modification** (`NatGatewayId → InstanceId`) — no VPC/subnet/RDS replacement (ADR-0002 gate clean).
 2. **Fargate egresses via the IGW, not the NAT.** The identity service moves to **public subnets + `assignPublicIp`**, inbound still locked to the ALB SG; it reaches the private RDS intra-VPC by SG. (Food's API + worker do the same in 003.)
-3. **Minimize NAT membership to the irreducible set.** After (1)+(2), the NAT serves **only** the four DB-bound webhook lambdas — the "no alternative because the DB is private" case. A guard test asserts `NetworkStack` has 0 NAT Gateways and a `t4g.nano` instance.
+3. **Minimize NAT membership to the irreducible set.** After (1)+(2), the NAT serves **only** Lambdas that are VPC-attached because the RDS is private — the "no alternative" case. Nothing joins it for convenience. ⚠️ The RULE is what this decision fixes; the MEMBERSHIP is not frozen, and it has since grown well past the four functions named when this was written — see the 2026-08-20 update. A guard test asserts `NetworkStack` has 0 NAT Gateways and a `t4g.nano` instance.
+
+## Amendment — the consumer list grew, and is now asserted
+
+**The rule in Decision 3 held. The list under it did not, and nothing failed, because a prose list cannot go
+red.** Written in June around three webhook handlers plus a migration runner, the set was by then **17
+VPC-attached Lambdas across six stacks**: ADR-0022 gave every DB-touching stack its own in-deploy migration
+runner, `recipe-workers` shipped seven Lambdas of its own, `DataStack` grew two database-bootstrap Lambdas,
+and identity-webhooks gained two erasure sweepers. (2026-08-31: plan U3's `BandDrainFunction` —
+recipe-workers' eighth — makes it **18**, and plan U8's `RecipeParseLineFunction` — the ninth, database-bound for the parse cache/corrections/job tables and sharing the gate's role — **19**; it is VPC-attached solely to read the band tables and the spend
+counter in the recipe database, and its role carries no bedrock permission.)
+
+⛔ **This matters because a stale premise gets REUSED.** Feature 004's LLM verification gate was designed
+around a `com.amazonaws.<region>.bedrock-runtime` **VPC interface endpoint** whose entire justification was
+that a Bedrock call from `recipe-workers` would otherwise "widen ADR-0004's four-consumer list". It would
+not: `recipe-workers` Lambdas sit in `PRIVATE_WITH_EGRESS` and have routed through this NAT since they
+shipped. The endpoint would not have prevented a widening — it would have bought a second egress path for a
+consumer that was already there, at **$0.01 per endpoint-hour per AZ** (AWS Pricing API, us-east-1), which
+at this VPC's `maxAzs: 2` is **$14.60/month/stage** to carry **$0.27/month** of inference, or roughly four
+times the entire `t4g.nano` NAT instance it was avoiding. Declared in a per-service stack it would also have
+been created once per open PR against the shared sandbox VPC. **The endpoint was dropped; the call rides the
+NAT.** AWS's own PrivateLink documentation is the reason the privacy argument does not rescue it: of the
+NAT→IGW path to an AWS service, _"while this traffic traverses the internet gateway, it does not leave the
+AWS network."_
+
+**Still true, and unchanged:** every function below is VPC-attached for exactly one reason — the RDS is
+`publiclyAccessible: false`. Fargate still egresses via the IGW and is not on this list. `log-forwarder` is
+still deliberately non-VPC.
+
+**One consumer exists at NON-PROD STAGES ONLY.** `PerPrDatabaseReaperFunction` joins the `DataStack` row. It is VPC-attached for the same single reason as
+everything else here: it reads `pg_database` and issues `DROP DATABASE` against the `PRIVATE_ISOLATED`
+instance, and `assignPublicIp` gives a VPC Lambda no egress (Fargate only). It makes no other network call —
+Secrets Manager is its only AWS API, on the NAT like its two `DataStack` siblings — so it needs **no**
+interface endpoint, and the no-interface-endpoint rule above continues to bind: at `maxAzs: 2` an endpoint
+would cost $14.60/month/stage to carry a handful of invocations a month against a $3–4 NAT instance.
+
+⚠️ **The table is stage-agnostic and the construct is not.** `DataStack` creates the reaper only when the
+stage is not `prod` (ADR-0031), so on prod this row overstates the live consumer set by one. That is
+deliberate rather than sloppy: `natEgressConsumers.test.ts` discovers consumers from the **infra tree** by
+AST, not from a synthesized template, so a conditional construct is discovered unconditionally — and the
+alternative, a per-stage table, would put the reader one step further from the source. The NAT cost
+consequence is nil either way (a NAT instance is billed by the hour, not per consumer).
+
+<!-- nat-consumers:start -->
+
+| Stack               | VPC-attached Lambdas                                                                                                                                                                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DataStack (global)  | `FoodDbBootstrapFunction`, `RecipeDbBootstrapFunction`, `PerPrDatabaseReaperFunction`                                                                                                                                                                                                                 |
+| WebhooksStack       | `WebhookFunction`, `DeletionWorkerFunction`, `ReconciliationFunction`, `TombstoneSweepFunction`, `ErasureReconciliationFunction`                                                                                                                                                                      |
+| IdentitySchemaStack | `IdentityMigrationFunction`                                                                                                                                                                                                                                                                           |
+| FoodSchemaStack     | `FoodMigrationFunction`                                                                                                                                                                                                                                                                               |
+| RecipeSchemaStack   | `RecipeMigrationFunction`                                                                                                                                                                                                                                                                             |
+| RecipeWorkersStack  | `VersionArchiveWorkerFunction`, `ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`, `ErasureOrphanSweeperFunction`, `IngredientVerificationFunction`, `BandDrainFunction`, `RecipeParseLineFunction`, `AnalyticsRetentionSweeperFunction` |
+
+<!-- nat-consumers:end -->
+
+`packages/infra/global/__tests__/natEgressConsumers.test.ts` discovers that set from the infra tree and
+asserts **exact equality** with the table above — in both directions, so a function the table has not heard
+of and a name the table still claims after deletion fail identically. The same suite asserts that **no
+interface VPC endpoint exists anywhere in the tree**, which is what makes "VPC-attached" and "NAT consumer"
+the same set rather than two that happen to coincide. Adding one is a cost decision that belongs in this
+ADR first, then in the guard. Gateway endpoints (S3, DynamoDB) are free and deliberately **not** gated.
 
 ## Consequences
 
@@ -47,5 +114,8 @@
 
 ## Implementation guards
 
-- `packages/infra/global/__tests__/network-stack.test.ts` asserts `AWS::EC2::NatGateway` count 0 and a `t4g.nano` NAT instance — fails if a Gateway is reintroduced.
-- The NAT instance SG is VPC-CIDR-scoped (`network-stack.ts`), not `0.0.0.0/0`.
+- `packages/infra/global/__tests__/NetworkStack.test.ts` asserts `AWS::EC2::NatGateway` count 0 and a `t4g.nano` NAT instance — fails if a Gateway is reintroduced.
+- `packages/infra/global/__tests__/natEgressConsumers.test.ts` asserts the consumer table above matches the
+  infra tree exactly, and that no interface VPC endpoint exists — the two facts every later decision about
+  "what is on the NAT" is made against.
+- The NAT instance SG is VPC-CIDR-scoped (`NetworkStack.ts`), not `0.0.0.0/0`.

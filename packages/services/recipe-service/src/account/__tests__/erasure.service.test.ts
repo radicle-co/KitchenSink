@@ -34,13 +34,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BadRequestException, GoneException, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ACCOUNT_ALREADY_ERASED_CODE } from '@kitchensink/recipe-core';
 
-import type { ErasureJobsDal } from '../dal/erasure-jobs.dal.js';
+import type { ErasureJobsDal } from '../dal/erasureJobs.dal.js';
 import type { ErasureQueuePort } from '../erasure.queue.js';
 import { ErasureService, MAX_ERASURE_REQUEST_ATTEMPTS } from '../erasure.service.js';
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, type ErasureRequestDto } from '../dto/erasure.dto.js';
 import { makeActiveErasureJob } from '../__fixtures__/erasure.fixtures.js';
 
-import type { ServicePrincipalErasureMetrics } from '../erasure-metrics.js';
+import type { ServicePrincipalErasureMetrics } from '../erasureMetrics.js';
 
 type DalMock = { [K in keyof ErasureJobsDal]: ReturnType<typeof vi.fn> };
 type QueueMock = { [K in keyof ErasureQueuePort]: ReturnType<typeof vi.fn> };

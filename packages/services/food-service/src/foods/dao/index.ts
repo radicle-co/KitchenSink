@@ -14,6 +14,9 @@ export type {
     GoldenPortion,
     GoldenSource,
     GoldenFieldProvenance,
+    NutritionRecord,
+    StoredNutrientAmount,
+    StoredPortionWeight,
     CreateByNameInput,
     CreateByNameResult,
     SetStatusInput,
@@ -21,35 +24,35 @@ export type {
 } from './food.dao.js';
 
 // Crosswalk.
-export { FoodSourcesDao } from './food-sources.dao.js';
-export type { BackingItem, FoodSource, UpsertSourceInput } from './food-sources.dao.js';
+export { FoodSourcesDao } from './foodSources.dao.js';
+export type { BackingItem, FoodSource, UpsertSourceInput } from './foodSources.dao.js';
 
 // Nutrient dictionary + values.
 export { NutrientDao } from './nutrient.dao.js';
 export type { ResolveNutrientInput } from './nutrient.dao.js';
-export { FoodNutrientsDao } from './food-nutrients.dao.js';
-export type { NutrientBasis, UpsertNutrientValueInput } from './food-nutrients.dao.js';
+export { FoodNutrientsDao } from './foodNutrients.dao.js';
+export type { NutrientBasis, UpsertNutrientValueInput } from './foodNutrients.dao.js';
 
 // Portions, scalar provenance, categories.
-export { FoodPortionsDao } from './food-portions.dao.js';
-export type { InsertPortionInput } from './food-portions.dao.js';
-export { FoodFieldProvenanceDao } from './food-field-provenance.dao.js';
-export type { FoodField, RecordFieldProvenanceInput, SourceField } from './food-field-provenance.dao.js';
-export { FoodCategoryDao } from './food-category.dao.js';
-export type { AssignCategoryInput } from './food-category.dao.js';
+export { FoodPortionsDao } from './foodPortions.dao.js';
+export type { InsertPortionInput } from './foodPortions.dao.js';
+export { FoodFieldProvenanceDao } from './foodFieldProvenance.dao.js';
+export type { FoodField, RecordFieldProvenanceInput, SourceField } from './foodFieldProvenance.dao.js';
+export { FoodCategoryDao } from './foodCategory.dao.js';
+export type { AssignCategoryInput } from './foodCategory.dao.js';
 
 // Demand-weighted queue + distinct-requester demand.
-export { FetchQueueDao } from './fetch-queue.dao.js';
-export { FetchRequestersDao } from './fetch-requesters.dao.js';
-export type { AddRequesterInput } from './fetch-requesters.dao.js';
+export { FetchQueueDao } from './fetchQueue.dao.js';
+export { FetchRequestersDao } from './fetchRequesters.dao.js';
+export type { AddRequesterInput } from './fetchRequesters.dao.js';
 
 // Per-source rolling-window limiter.
-export { SourceCallLogDao } from './source-call-log.dao.js';
-export type { CheckAndRecordInput, WindowCheckResult } from './source-call-log.dao.js';
+export { SourceCallLogDao } from './sourceCallLog.dao.js';
+export type { CheckAndRecordInput, SourceCallChannel, WindowCheckResult } from './sourceCallLog.dao.js';
 
 // Disambiguation candidate set.
-export { CandidateStore } from './food-candidates.dao.js';
-export type { CandidateInput, PersistCandidatesInput, IsMemberInput } from './food-candidates.dao.js';
+export { CandidateStore } from './foodCandidates.dao.js';
+export type { CandidateInput, PersistCandidatesInput, IsMemberInput } from './foodCandidates.dao.js';
 
 // Typed errors + guards.
 export {

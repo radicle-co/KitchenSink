@@ -3,11 +3,11 @@ import type { Request, Response, NextFunction } from 'express';
 import * as Sentry from '@sentry/nestjs';
 
 import type { AuthorizerContext, UserId } from '../../types/index.js';
-import { ClerkAuthService } from '../clerk-auth.service.js';
+import { ClerkAuthService } from '../clerkAuth.service.js';
 import { UsersService } from '../../users/users.service.js';
-import { createServiceLogger } from '../../observability/sentry-logging.js';
-import { scrubText } from '../../observability/sentry-scrubbers.js';
-import { traceAuth } from '../../observability/auth-trace.js';
+import { createServiceLogger } from '../../observability/sentryLogging.js';
+import { scrubText } from '../../observability/sentryScrubbers.js';
+import { traceAuth } from '../../observability/authTrace.js';
 
 // `/health` (liveness) and `/health/ready` (readiness) are the only unauthenticated routes — the ALB
 // and ECS probe them with no bearer token, so both must bypass auth (ARCH-PS-3).
@@ -19,12 +19,25 @@ function getPath(req: Request): string {
     return req.originalUrl?.split('?')[0]?.replace(/\/$/, '') || '/';
 }
 
+/**
+ * Extract the bearer token from an `Authorization` header value, or `undefined` when absent/malformed.
+ *
+ * The credential group is `\S.*`, not `.+`: `.` matches a space, so `.+` and the preceding `\s+` overlap,
+ * and for a header the pattern REJECTS the engine retries every split of the whitespace run between them —
+ * quadratic in the header's length (CodeQL `js/polynomial-redos`; measured 270ms at 40KB on the old
+ * pattern), on the credential path of every request. Requiring the credential to start with a non-space
+ * leaves exactly one candidate split, so the parse is linear. It also makes `'Bearer    '` yield
+ * `undefined` rather than `''` — the honest answer for "no credential".
+ *
+ * @param authorization - The raw `Authorization` header value, if any.
+ * @returns The trimmed token, or `undefined`. Pure.
+ */
 function extractBearerToken(authorization: string | undefined): string | undefined {
     if (typeof authorization !== 'string') {
         return undefined;
     }
 
-    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    const match = authorization.match(/^Bearer\s+(\S.*)$/i);
 
     return match ? match[1]!.trim() : undefined;
 }

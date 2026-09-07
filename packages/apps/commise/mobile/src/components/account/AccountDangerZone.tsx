@@ -25,10 +25,14 @@
  * deliberately NOT the dialog's `submitError`: the erasure has ALREADY succeeded server-side (202) by then, so
  * inviting a retry of it would be a lie — the only outstanding action is leaving the session. A failed CLOSURE
  * likewise now reports `close.error` instead of stopping with no feedback.
+ *
+ * @pattern Orchestration half of the orchestration/render split for both danger actions — it owns the recipe fetch
+ *     and the close and erasure Commands, and hands each to the shared cross-platform render half.
  */
 import { useMessages } from '@commise/i18n/react';
 import { selectDonatableRecipes } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
+import { useEraseAccount } from '../../hooks/useUserProfile.js';
 import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -63,6 +67,17 @@ function AccountEraseFlow({
     const { signOutAndVerify } = useSignOutAndVerify();
     const recipes = useAllOwnerRecipes();
     const erasure = useRequestAccountErasure();
+
+    /**
+     * The ACCOUNT-level erasure — the half that was missing on BOTH platforms (plan U2).
+     *
+     * ⛔ The recipe mutation above erases RECIPES and reaches no other service, so while it was the whole
+     * flow, "erase my data" left the identity row, the Clerk account, the avatar object and food's requester
+     * rows intact — the viewer could sign straight back in. Identity owns the user and is the only service
+     * that can start the cross-service erasure. Mirrors the web `AccountEraseForm` exactly, per the
+     * cross-platform rule: a fix to one platform must not silently miss the other.
+     */
+    const accountErasure = useEraseAccount();
     const [phrase, setPhrase] = useState('');
     const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
 
@@ -95,7 +110,13 @@ function AccountEraseFlow({
     const handleConfirm = () => {
         erasure.mutate(
             { confirmationPhrase: phrase, publishRecipeIds: selectedRecipeIds },
-            { onSuccess: () => void leaveSignedOut() },
+            {
+                // Only leave once the ACCOUNT erasure is accepted too — signing out after the recipe leg
+                // alone is what made the old flow look successful while the account still existed.
+                onSuccess: () => {
+                    accountErasure.mutate(undefined, { onSuccess: () => void leaveSignedOut() });
+                },
+            },
         );
     };
 
@@ -109,8 +130,8 @@ function AccountEraseFlow({
             onToggleRecipe={toggleRecipe}
             phrase={phrase}
             onPhraseChange={setPhrase}
-            submitting={erasure.isPending}
-            submitError={erasure.isError}
+            submitting={erasure.isPending || accountErasure.isPending}
+            submitError={erasure.isError || accountErasure.isError}
             onConfirm={handleConfirm}
             onCancel={onClose}
         />

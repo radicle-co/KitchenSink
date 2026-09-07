@@ -14,8 +14,8 @@
  * panel is opened by a sibling control (the version list's "Compare" action, W6 Task 5), not an owned
  * `Dialog.Trigger`.
  *
- * A three-way state ({@link import('./model.js').compareViewState}, discriminated, matching
- * {@link import('./model.js').VersionCompareViewProps}'s JSDoc): (1) `'selecting'` — `open` but fewer than
+ * A three-way state (`compareViewState`, discriminated, matching
+ * `VersionCompareViewProps`'s JSDoc): (1) `'selecting'` — `open` but fewer than
  * two versions (or no `diff`) supplied yet, showing "Select two versions to compare." rather than a broken
  * partial render (the two-version SELECTION UI itself lives in the composing container, Task 5); (2)
  * `'unchanged'` — both versions supplied but their snapshots are identical, showing the (all-zero) Diff
@@ -25,10 +25,14 @@
  * note); their own Added/Removed/Modified tally is opt-in detail behind "Show full diff", a single toggle
  * shared by every collection row (local UI state — pure navigation, not data the caller needs, matching
  * `RecipeConflictView`'s merge-panel-visible precedent).
+ *
+ * @pattern Adapter over the house Radix `Dialog`, mirroring `VersionPreviewModal.tsx` structurally and behaviourally
+ *     — Radix owns the focus trap, Escape-to-dismiss and background inert.
  */
 import { useMessages } from '@commise/i18n/react';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useRef, useState, type FC } from 'react';
+import { useState, type FC } from 'react';
 
 import { recipeVersionMessages } from './messages.js';
 import {
@@ -50,16 +54,9 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
     const { compare, conflict, versionList } = useMessages(recipeVersionMessages);
     const [showFullDiff, setShowFullDiff] = useState(false);
 
-    // Capture whatever had focus right before this panel opened, during render (not an effect) — see module
-    // docs; guarded on the false→true edge so it isn't re-captured on every re-render while open.
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this panel opened, and restore it on close — see module docs
+    // and `@commise/ui/dialog-focus`; the false→true edge guard lives inside the hook.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     const state = compareViewState(versionA, versionB, diff);
     const heading =
@@ -77,10 +74,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
                 <Dialog.Content
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
+                    onCloseAutoFocus={onCloseAutoFocus}
                     className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto bg-card p-6 shadow-lg"
                 >
                     <div className="flex items-center justify-between gap-3">

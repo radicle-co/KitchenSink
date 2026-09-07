@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { noopHandleSyncPublisher } from '../src/users/handle-sync.publisher.js';
+import { noopHandleSyncPublisher } from '../src/users/handleSync.publisher.js';
 
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(),
     SendMessageCommand: vi.fn(),
+}));
+
+const reportDeletionEnqueueFailure = vi.fn();
+vi.mock('../src/queue/deletionEnqueue.error.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../src/queue/deletionEnqueue.error.js')>()),
+    reportDeletionEnqueueFailure: (input: unknown) => reportDeletionEnqueueFailure(input),
 }));
 
 vi.mock('pg', () => {
@@ -69,6 +75,12 @@ describe('UsersService', () => {
             update: vi.fn().mockReturnValue({
                 set: () => ({ where: () => Promise.resolve() }),
             }),
+            // Raw-statement escape hatch. Needed because `provisionCompleteUser` opens its transaction with a
+            // per-identity `pg_advisory_xact_lock` — the fix for the `40P01` speculative-insertion deadlock
+            // between the `identity_id` arbiter and `users_email_unique` (see
+            // `packages/utils/identity/src/provisioning.ts`). Swallowed here; the lock's presence and its
+            // position BEFORE the upsert are asserted in that package's own unit suite.
+            execute: vi.fn().mockResolvedValue([]),
             // Delegate the transaction callback to mockDb so per-test insert/select/delete stubs apply,
             // and RETURN its result (upsertUserRecord returns the created row from inside the tx).
             transaction: vi.fn((cb: (tx: any) => unknown) => cb(mockDb)),
@@ -187,6 +199,25 @@ describe('UsersService', () => {
         expect(mockSqs.enqueueDeletion).toHaveBeenCalled();
     });
 
+    // ⛔ THE BAN IS THE SECURITY CONTROL, NOT A NICETY. The transaction has already tombstoned the row, so the
+    // database says the account is closed — but the Clerk session is untouched until the deletion-worker bans
+    // the identity, and only that Lambda holds the Clerk secret. A swallowed enqueue therefore leaves an
+    // account the user believes is closed still minting fresh JWTs, with nothing recorded anywhere. This used
+    // to be `logger.warn('Failed to enqueue closure ban')`, which is how it went unnoticed that the deployed
+    // task role had no `sqs:SendMessage` grant at all and EVERY enqueue was failing.
+    it('deleteUserMe PAGES when the closure ban cannot be enqueued, instead of warning about it', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+        mockSqs.enqueueDeletion.mockRejectedValueOnce(new Error('AccessDenied'));
+
+        await expect(usersService.deleteUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
+
+        expect(reportDeletionEnqueueFailure).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'closure', userId: userCtx.userId, identityId: 'user_abc123' }),
+        );
+    });
+
     it('deleteUserMe throws when user missing', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([]));
 
@@ -222,6 +253,98 @@ describe('UsersService', () => {
         const result = await usersService.patchUserMe(userCtx, { displayName: 'New Name' });
 
         expect(result.user.displayName).toBe('New Name');
+    });
+
+    /**
+     * Account ERASURE (plan U2) — the irreversible sibling of `deleteUserMe`'s recoverable closure.
+     *
+     * ⛔ Why this endpoint has to exist at all. The app's "erase my data" control reached the RECIPE
+     * service and nothing else, so an erasure left the identity row, the Clerk account, the avatar object
+     * and food's requester rows all intact — the user could sign straight back in to an account they had
+     * been told was destroyed. Recipe cannot fix this from its side: it holds no Clerk secret and does not
+     * own the user. Identity does, so identity is where the account-level erasure is initiated.
+     *
+     * Identity still cannot call Clerk itself (it runs behind a public ALB and holds no secret — the same
+     * reason closure hands the BAN to the deletion-worker), so the Clerk delete is the worker's job. What
+     * identity owns is: scrub its own row, write the R8 audit, drop the avatar, and enqueue the one message
+     * that drives everything downstream.
+     */
+    it('eraseUserMe scrubs the row to erased, writes an erasure audit row, and enqueues the erasure event', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        const setMock = vi.fn().mockReturnValue({ where: () => Promise.resolve() });
+        mockDb.update = vi.fn().mockReturnValue({ set: setMock });
+        const insertValues = vi.fn().mockResolvedValue(undefined);
+        mockDb.insert = vi.fn().mockReturnValue({ values: insertValues });
+
+        await usersService.eraseUserMe(userCtx);
+
+        // ERASED, not tombstoned — the distinction is what brings the row under the R10 anti-resurrection
+        // guard, so a token minted before the Clerk delete cannot read-through-create the user again.
+        const userSet = setMock.mock.calls.map((c: any[]) => c[0]).find((s: any) => s.status === 'erased');
+        expect(userSet).toBeDefined();
+        expect(userSet.email).not.toBe(mockUser.email);
+        expect(userSet.picture).toBeNull();
+
+        expect(insertValues).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'erasure', triggerSource: 'user', userId: userCtx.userId }),
+        );
+        expect(mockAvatarStore.deleteAllForUser).toHaveBeenCalledWith(userCtx.userId);
+        expect(mockSqs.enqueueDeletion).toHaveBeenCalledWith(
+            expect.objectContaining({ identityId: 'user_abc123', userId: userCtx.userId, event: 'erasure' }),
+        );
+    });
+
+    // ⛔ THE ENQUEUE IS THE WHOLE ERASURE, NOT A NOTIFICATION. Identity has scrubbed its own row by this
+    // point, so the DB says "erased" — but the Clerk account still exists, and recipe and food still hold
+    // the user's data. Every one of those is destroyed by the worker this message wakes. A swallowed
+    // failure here is therefore a user who was told their data was erased while their account still signs
+    // in and two services still hold their content, with nothing recorded anywhere. Page, exactly as
+    // closure does for its ban.
+    it('eraseUserMe PAGES when the erasure event cannot be enqueued', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+        mockSqs.enqueueDeletion.mockRejectedValueOnce(new Error('AccessDenied'));
+
+        await expect(usersService.eraseUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
+
+        expect(reportDeletionEnqueueFailure).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'erasure', userId: userCtx.userId, identityId: 'user_abc123' }),
+        );
+    });
+
+    it('eraseUserMe is idempotent for an already-erased user and writes NO second audit row', async () => {
+        // R9: the audit log is append-only, so a repeat call (a retry, a double-tap, the fan-out re-driving)
+        // must not manufacture a second erasure event for one erasure.
+        mockDb.select = vi.fn().mockReturnValue(makeChain([{ ...mockUser, status: 'erased' }]));
+        const insertValues = vi.fn().mockResolvedValue(undefined);
+        mockDb.insert = vi.fn().mockReturnValue({ values: insertValues });
+        const setMock = vi.fn().mockReturnValue({ where: () => Promise.resolve() });
+        mockDb.update = vi.fn().mockReturnValue({ set: setMock });
+
+        await expect(usersService.eraseUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
+
+        expect(insertValues).not.toHaveBeenCalled();
+        expect(setMock).not.toHaveBeenCalled();
+    });
+
+    it('eraseUserMe still enqueues when the avatar delete fails, and does not report success quietly', async () => {
+        // S3 is not transactional and the row is already scrubbed, so a failed object delete cannot roll the
+        // erasure back — but it leaves a real orphaned image of a user who asked to be erased, so it is an
+        // ERROR, not the `warn` closure uses for its recoverable tombstone.
+        mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+        mockAvatarStore.deleteAllForUser.mockRejectedValue(new Error('s3 down'));
+
+        await expect(usersService.eraseUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
+        expect(mockSqs.enqueueDeletion).toHaveBeenCalledWith(expect.objectContaining({ event: 'erasure' }));
+    });
+
+    it('eraseUserMe throws when the user is missing', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([]));
+
+        await expect(usersService.eraseUserMe(userCtx)).rejects.toThrow('User not found');
     });
 });
 

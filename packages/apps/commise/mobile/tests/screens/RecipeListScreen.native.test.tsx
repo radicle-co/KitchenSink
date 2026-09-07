@@ -16,8 +16,19 @@ import { RecipeListScreen } from '../../src/screens/RecipeListScreen.js';
 import { makeRecipe, makeRecipePage } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipes: vi.fn(),
     useRecipe: vi.fn(),
+}));
+
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
 }));
 
 const useRecipesMock = vi.mocked(useRecipes);
@@ -42,14 +53,26 @@ beforeEach(() => {
 });
 
 describe('RecipeListScreen — chrome', () => {
-    it('always renders the heading, search field, and create action', () => {
+    it('renders the heading and search field while the library is still loading', () => {
+        // NARROWED. This used to also assert the create dial from the LOADING state. It no longer mounts
+        // there — see the assertion below and `shouldShowCreateDial`'s JSDoc.
         useRecipesMock.mockReturnValue(listResult({ isLoading: true }));
 
         render(<RecipeListScreen onSelectRecipe={noop} />);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByLabelText('Search recipes')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+    });
+
+    it('mounts NO create control while the library is loading, so none can vanish as it settles', () => {
+        // The container-level half of the fix: this screen is what actually feeds `useRecipes`' flags into
+        // the leaf, so a leaf-only assertion could not catch a screen that mapped `isLoading` to `ready`.
+        useRecipesMock.mockReturnValue(listResult({ isLoading: true }));
+
+        render(<RecipeListScreen onSelectRecipe={noop} />);
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
     });
 
     it('forwards create requests to the onCreateRecipe prop', () => {

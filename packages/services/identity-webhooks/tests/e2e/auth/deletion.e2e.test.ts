@@ -1,4 +1,4 @@
-import type { Context, ScheduledEvent, SQSEvent } from 'aws-lambda';
+import type { Context, ScheduledEvent, SQSBatchResponse, SQSEvent, SQSRecord } from 'aws-lambda';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
@@ -37,9 +37,20 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     banUser: vi.fn(),
     unbanUser: vi.fn(),
 }));
-vi.mock('../../../src/common/erase-identity.js', () => ({ eraseIdentityRow: mockEraseIdentityRow }));
-vi.mock('../../../src/common/erasure-fanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
-vi.mock('@kitchensink/identity-db', () => ({
+vi.mock('../../../src/common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
+
+// ⛔ ONE `vi.mock` for this module, and it must stay one. This file briefly carried TWO — a partial mock
+// adding `eraseIdentityRow` (plan U2 moved that function into this package) and, thirty lines below, the
+// full replacement that has always been here. Vitest hoists every `vi.mock` for a path and the LAST one
+// registered wins, so the partial was silently discarded and the suite died on
+// `No "eraseIdentityRow" export is defined on the "@kitchensink/identity-db" mock`. Nothing about that is
+// visible at the first call site, and it reds only in CI's e2e tier — the unit tier mocks a different seam.
+//
+// `importOriginal` is spread first because this package also exports the Drizzle SCHEMA the handlers
+// import; a bare replacement would drop it. The doubles then override exactly the members under test.
+vi.mock('@kitchensink/identity-db', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@kitchensink/identity-db')>()),
+    eraseIdentityRow: mockEraseIdentityRow,
     UserDAO: vi.fn(function () {
         return {
             findByIdentityId: mockFindByIdentityId,
@@ -72,12 +83,12 @@ beforeEach(() => {
     // below — so a "missing env" test isn't masked by a valid config an earlier test in this file
     // already warmed.
     resetConfigCacheForTests();
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:000:secret:db';
-    process.env.AUTH_SECRET_ARN = 'sk_test_dummy';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:000:secret:db';
+    process.env['AUTH_SECRET_ARN'] = 'sk_test_dummy';
     // The KTD-2 webhook fan-out config (the fan-out itself is mocked; getErasureFanoutConfig must resolve).
-    process.env.SERVICE_ERASURE_SIGNING_KEY = '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----';
-    process.env.RECIPE_SERVICE_BASE_URL = 'https://recipe.example.test';
-    process.env.FOOD_SERVICE_BASE_URL = 'https://food.example.test';
+    process.env['SERVICE_ERASURE_SIGNING_KEY'] = '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----';
+    process.env['RECIPE_SERVICE_BASE_URL'] = 'https://recipe.example.test';
+    process.env['FOOD_SERVICE_BASE_URL'] = 'https://food.example.test';
     mockRunErasureFanout.mockResolvedValue({
         recipe: { service: 'recipe', ok: true, jobStatus: 'queued' },
         food: { service: 'food', ok: true, deletedRequesterRows: 0 },
@@ -90,7 +101,14 @@ beforeEach(() => {
 
 afterEach(() => vi.clearAllMocks());
 
-const makeSqsRecord = (body: object, id = 'msg-1') => ({
+/**
+ * `attributes` was `{} as Record<string, string>`, which is NOT an `SQSRecordAttributes`: that type requires
+ * `ApproximateReceiveCount`, `SentTimestamp`, `SenderId` and `ApproximateFirstReceiveTimestamp`. The record was
+ * therefore not assignable to `SQSRecord` (7 x TS2322) and this tier had no typecheck project to say so. Filled
+ * in with the same four fields `src/handlers/__tests__/deletionWorker.test.ts` already supplies, and the return
+ * type is annotated so a future omission fails here rather than being absorbed by inference.
+ */
+const makeSqsRecord = (body: object, id = 'msg-1'): SQSRecord => ({
     messageId: id,
     body: JSON.stringify(body),
     receiptHandle: `rh-${id}`,
@@ -99,8 +117,35 @@ const makeSqsRecord = (body: object, id = 'msg-1') => ({
     awsRegion: 'us-east-1',
     messageAttributes: {},
     md5OfBody: '',
-    attributes: {} as Record<string, string>,
+    attributes: {
+        ApproximateReceiveCount: '1',
+        SentTimestamp: '1234567890',
+        SenderId: 'sender-1',
+        ApproximateFirstReceiveTimestamp: '1234567890',
+    },
 });
+
+/**
+ * `aws-lambda`'s `Handler` declares three parameters and returns `void | Promise<TResult>`, so invoking it the
+ * way the runtime does — two arguments, then reading the resolved value — is a type error. Narrowed through the
+ * same alias shape the typechecked unit specs in `src/handlers/__tests__/` use.
+ */
+type SqsTestHandler = (event: SQSEvent, context: Context) => Promise<SQSBatchResponse>;
+type ScheduledTestHandler = (event: ScheduledEvent, context: Context) => Promise<unknown>;
+
+/** @sideEffect Dynamically imports the deletion-worker module. */
+const loadDeletionWorker = async (): Promise<SqsTestHandler> => {
+    const { handler } = await import('../../../src/handlers/deletionWorker.js');
+
+    return handler as unknown as SqsTestHandler;
+};
+
+/** @sideEffect Dynamically imports the reconciliation module. */
+const loadReconciliation = async (): Promise<ScheduledTestHandler> => {
+    const { handler } = await import('../../../src/handlers/reconciliation.js');
+
+    return handler as unknown as ScheduledTestHandler;
+};
 
 describe('e2e: deletion-worker Lambda (user.deleted webhook = KTD-2 full erasure)', () => {
     it('erases the resolved identity (status=erased) and fans out recipe + food when the user is found', async () => {
@@ -109,7 +154,7 @@ describe('e2e: deletion-worker Lambda (user.deleted webhook = KTD-2 full erasure
             identityId: 'user_delete_e2e',
             status: 'active',
         });
-        const { handler } = await import('../../../src/handlers/deletion-worker.js');
+        const handler = await loadDeletionWorker();
 
         const event: SQSEvent = { Records: [makeSqsRecord({ identityId: 'user_delete_e2e' })] };
         await handler(event, ctx);
@@ -125,7 +170,7 @@ describe('e2e: deletion-worker Lambda (user.deleted webhook = KTD-2 full erasure
 
     it('is idempotent when the identity is unknown (no erase, no fan-out, no error)', async () => {
         mockFindByIdentityId.mockResolvedValueOnce(undefined);
-        const { handler } = await import('../../../src/handlers/deletion-worker.js');
+        const handler = await loadDeletionWorker();
 
         const event: SQSEvent = { Records: [makeSqsRecord({ identityId: 'user_missing_e2e' })] };
         await expect(handler(event, ctx)).resolves.toBeUndefined();
@@ -139,7 +184,7 @@ describe('e2e: deletion-worker Lambda (user.deleted webhook = KTD-2 full erasure
             .mockResolvedValueOnce({ id: 'u1', identityId: 'user_a', status: 'active' })
             .mockResolvedValueOnce({ id: 'u2', identityId: 'user_b', status: 'active' })
             .mockResolvedValueOnce({ id: 'u3', identityId: 'user_c', status: 'active' });
-        const { handler } = await import('../../../src/handlers/deletion-worker.js');
+        const handler = await loadDeletionWorker();
 
         const event: SQSEvent = {
             Records: [
@@ -156,8 +201,8 @@ describe('e2e: deletion-worker Lambda (user.deleted webhook = KTD-2 full erasure
     });
 
     it('fails fast at cold start with a typed coded ConfigError when DB_SECRET_ARN is missing', async () => {
-        delete process.env.DB_SECRET_ARN;
-        const { handler } = await import('../../../src/handlers/deletion-worker.js');
+        delete process.env['DB_SECRET_ARN'];
+        const handler = await loadDeletionWorker();
 
         const event: SQSEvent = { Records: [makeSqsRecord({ identityId: 'user_x' })] };
         const rejection = handler(event, ctx);
@@ -205,7 +250,7 @@ describe('e2e: reconciliation Lambda', () => {
             .mockResolvedValueOnce(null)
             .mockResolvedValueOnce({ id: 'existing-internal-id', identityId: 'user_drift_existing' });
 
-        const { handler } = await import('../../../src/handlers/reconciliation.js');
+        const handler = await loadReconciliation();
         const result = await handler(makeScheduledEvent(), ctx);
 
         expect(result).toEqual({ inserted: 1, updated: 1, failed: 0, skipped: 0, total: 2 });
@@ -228,7 +273,7 @@ describe('e2e: reconciliation Lambda', () => {
             },
         ]);
 
-        const { handler } = await import('../../../src/handlers/reconciliation.js');
+        const handler = await loadReconciliation();
         const result = await handler(makeScheduledEvent(), ctx);
 
         expect(result).toEqual({ inserted: 0, updated: 0, failed: 0, skipped: 0, total: 0 });
@@ -237,7 +282,7 @@ describe('e2e: reconciliation Lambda', () => {
 
     it('returns zero counts when IdP has no users', async () => {
         mockListUsers.mockResolvedValueOnce([]);
-        const { handler } = await import('../../../src/handlers/reconciliation.js');
+        const handler = await loadReconciliation();
 
         const result = await handler(makeScheduledEvent(), ctx);
 
@@ -246,10 +291,10 @@ describe('e2e: reconciliation Lambda', () => {
     });
 
     it('fails fast at cold start with a typed coded ConfigError when required env is missing', async () => {
-        delete process.env.DB_SECRET_ARN;
-        delete process.env.AUTH_SECRET_ARN;
-        delete process.env.IDP_SECRET_KEY;
-        const { handler } = await import('../../../src/handlers/reconciliation.js');
+        delete process.env['DB_SECRET_ARN'];
+        delete process.env['AUTH_SECRET_ARN'];
+        delete process.env['IDP_SECRET_KEY'];
+        const handler = await loadReconciliation();
 
         const rejection = handler(makeScheduledEvent(), ctx);
 

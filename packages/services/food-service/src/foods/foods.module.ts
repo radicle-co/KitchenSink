@@ -14,28 +14,36 @@
  * @implements FR-001 FR-IDN-1
  */
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
-import { UsdaApiClient } from '@kitchensink/usda-client';
 
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
-import { FoodAuthGuard } from '../auth/food-auth.guard.js';
-import { FoodServiceErasureAuthService } from '../auth/food-service-erasure-auth.service.js';
-import { FoodServiceErasureGuard } from '../auth/food-service-erasure.guard.js';
-import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
-import { RollingWindowLimiter, sourceCapsFromEnv } from '../sources/rolling-window-limiter.js';
-import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
+import { FoodMetrics } from '../observability/emfMetrics.js';
+import { FoodAuthGuard } from '../auth/foodAuth.guard.js';
+import { FoodServiceErasureAuthService } from '../auth/foodServiceErasureAuth.service.js';
+import { FoodServiceErasureGuard } from '../auth/foodServiceErasure.guard.js';
+import { SourceAdapterRegistry } from '../sources/SourceAdapterRegistry.js';
+import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
+import { createUsdaSourceRegistry } from '../sources/usda/usdaRegistry.js';
 import { AdmissionService } from './admission.service.js';
-import { AdminMetricsDao } from './admin/admin-metrics.dao.js';
-import { AdminMetricsService } from './admin/admin-metrics.service.js';
-import { FoodsAdminController } from './admin/foods-admin.controller.js';
-import { CandidateStore, FoodDao, FoodSourcesDao, SourceCallLogDao } from './dao/index.js';
-import { FoodSearchDao } from './dao/food-search.dao.js';
+import { AdminMetricsDao } from './admin/adminMetrics.dao.js';
+import { AdminMetricsService } from './admin/adminMetrics.service.js';
+import { PromotionsService } from './promotions/promotions.service.js';
+import { PromotionsDao } from './dao/promotions.dao.js';
+import { FoodRecoveryService } from './admin/foodRecovery.service.js';
+import { FoodsAdminController } from './admin/foodsAdmin.controller.js';
+import { CandidateStore, FetchQueueDao, FoodDao, FoodSourcesDao, SourceCallLogDao } from './dao/index.js';
+import { FoodSearchDao } from './dao/foodSearch.dao.js';
 import { EnqueueEmitter } from './enqueue.emitter.js';
 import { FoodsController } from './foods.controller.js';
 import { FoodsService } from './foods.service.js';
-import { ServiceErasureController } from './service-erasure.controller.js';
-import { GoldenRecordMergeEngine } from './merge/merge-engine.js';
-import { MergeAndPersistService } from './merge/merge-and-persist.service.js';
-import { UserErasureService } from './user-erasure.service.js';
+import { LiveFoodSearchService } from './liveSearch.service.js';
+import { ServiceErasureController } from './serviceErasure.controller.js';
+import { GoldenRecordMergeEngine } from './merge/mergeEngine.js';
+import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
+import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
+import { createRecipeReferenceCheck } from './recipeReferences.client.js';
+import { FOOD_REFERENCE_CHECK, PROMOTIONS_SERVICE } from './foods.service.js';
+import { UserErasureService } from './userErasure.service.js';
+import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
 
 @Module({
     controllers: [FoodsController, FoodsAdminController, ServiceErasureController],
@@ -51,12 +59,61 @@ import { UserErasureService } from './user-erasure.service.js';
         // so the machine-auth path is structurally distinct from the Clerk user path.
         FoodServiceErasureAuthService,
         FoodServiceErasureGuard,
+        // U9's write side. A FACTORY, not a class provider: its structured audit sink is the `WorkerLogger`
+        // INTERFACE, which erases to `Object` in `design:paramtypes`, so Nest's DI cannot resolve it and the
+        // module would fail to instantiate at boot (the failure mode the `FetchQueueDao` note below records).
+        {
+            provide: FoodRecoveryService,
+            inject: [FoodDao, EnqueueEmitter],
+            useFactory: (foodDao: FoodDao, enqueue: EnqueueEmitter): FoodRecoveryService =>
+                new FoodRecoveryService(foodDao, enqueue, new ConsoleWorkerLogger('food-admin')),
+        },
         {
             provide: AdminMetricsDao,
             inject: [DrizzleProvider],
             useFactory: (db: FoodDrizzle): AdminMetricsDao => new AdminMetricsDao(db),
         },
         { provide: FoodDao, inject: [DrizzleProvider], useFactory: (db: FoodDrizzle): FoodDao => new FoodDao(db) },
+        // U10 — the authored-foods write path, its own repository (the single-writer disciplines must not
+        // share a class; see the DAO's docstring).
+        {
+            // U18 — the delete flow's reference check, from `RECIPE_SERVICE_URL` (absent ⇒ undefined,
+            // and `FoodsService.deleteAuthored` fails CLOSED with 503).
+            provide: FOOD_REFERENCE_CHECK,
+            useFactory: (): ReturnType<typeof createRecipeReferenceCheck> =>
+                createRecipeReferenceCheck(process.env['RECIPE_SERVICE_URL']),
+        },
+        {
+            provide: AuthoredFoodsDao,
+            inject: [DrizzleProvider],
+            useFactory: (db: FoodDrizzle): AuthoredFoodsDao => new AuthoredFoodsDao(db),
+        },
+        // U12 — the promotion moderation queue: repository + orchestration. The service is a FACTORY for
+        // the same reason FoodRecoveryService is (its audit sink is the WorkerLogger INTERFACE, which
+        // erases to `Object` in design:paramtypes); PROMOTIONS_SERVICE aliases it so FoodsService can
+        // take it @Optional-ly without a class-reference cycle in its constructor metadata.
+        {
+            provide: PromotionsDao,
+            inject: [DrizzleProvider],
+            useFactory: (db: FoodDrizzle): PromotionsDao => new PromotionsDao(db),
+        },
+        {
+            provide: PromotionsService,
+            inject: [PromotionsDao],
+            useFactory: (dao: PromotionsDao): PromotionsService =>
+                new PromotionsService(dao, new ConsoleWorkerLogger('food-promotions')),
+        },
+        { provide: PROMOTIONS_SERVICE, useExisting: PromotionsService },
+        // ⛔ NOT optional, and its absence did not fail a unit test: `FoodRecoveryService` takes this in its
+        // constructor (U9), so without the provider Nest cannot instantiate the module AT ALL — the API
+        // process aborts at boot. It went unnoticed because the unit tests construct that service directly,
+        // and because Nest reports a DI failure through `process.abort()`, which vitest surfaces only as
+        // "Worker exited unexpectedly" (see `tests/foodsApi.integration.test.ts`'s boot call).
+        {
+            provide: FetchQueueDao,
+            inject: [DrizzleProvider],
+            useFactory: (db: FoodDrizzle): FetchQueueDao => new FetchQueueDao(db),
+        },
         {
             provide: CandidateStore,
             inject: [DrizzleProvider],
@@ -72,16 +129,14 @@ import { UserErasureService } from './user-erasure.service.js';
             inject: [DrizzleProvider],
             useFactory: (db: FoodDrizzle): FoodSearchDao => new FoodSearchDao(db),
         },
-        {
-            provide: SourceAdapterRegistry,
-            useFactory: (): SourceAdapterRegistry => {
-                const registry = new SourceAdapterRegistry();
-                const apiKey = process.env['USDA_API_KEY'] ?? '';
-                registry.register(new UsdaSourceAdapter(new UsdaApiClient({ apiKey })));
-
-                return registry;
-            },
-        },
+        // T-199b — the EMF recorder the read path publishes the SC-004/SC-005 local-store serve rate
+        // through. A factory rather than a bare class provider because its only constructor parameter is
+        // the injectable line sink (defaulting to `console.log`), which Nest's DI cannot resolve.
+        { provide: FoodMetrics, useFactory: (): FoodMetrics => new FoodMetrics() },
+        // The ONE registry factory, shared with both Fargate entrypoints. It replaces a local `?? ''`
+        // fallback that would have built a client with an EMPTY api key, and it is what finally gives
+        // `USDA_API_BASE_URL` a consumer.
+        { provide: SourceAdapterRegistry, useFactory: createUsdaSourceRegistry },
         {
             provide: GoldenRecordMergeEngine,
             inject: [SourceAdapterRegistry],
@@ -97,8 +152,19 @@ import { UserErasureService } from './user-erasure.service.js';
         {
             provide: RollingWindowLimiter,
             inject: [DrizzleProvider],
-            useFactory: (db: FoodDrizzle): RollingWindowLimiter =>
-                new RollingWindowLimiter(new SourceCallLogDao(db), { caps: sourceCapsFromEnv() }),
+            useFactory: (db: FoodDrizzle): RollingWindowLimiter => new RollingWindowLimiter(new SourceCallLogDao(db)),
+        },
+        // The ON-DEMAND live source search (plan U29) — the only read path in the API process that leaves our
+        // own database. It charges FR-019's RESERVED interactive lane, which the API process can only do
+        // because the limiter and the adapter registry are already providers here.
+        {
+            provide: LiveFoodSearchService,
+            inject: [SourceAdapterRegistry, RollingWindowLimiter, FoodSourcesDao],
+            useFactory: (
+                registry: SourceAdapterRegistry,
+                limiter: RollingWindowLimiter,
+                foodSources: FoodSourcesDao,
+            ): LiveFoodSearchService => new LiveFoodSearchService(registry, limiter, foodSources),
         },
     ],
     exports: [FoodsService, EnqueueEmitter, UserErasureService],

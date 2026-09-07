@@ -70,31 +70,35 @@ describe('CollectionMemberRow (web) — by @handle', () => {
 });
 
 describe('CollectionMemberRow (web) — composes RecipeCard (not a hand-rolled duplicate)', () => {
-    it('renders the title, version badge past v1, visibility, and calories via the shared RecipeCard', () => {
+    // The calorie assertion MOVED with the deferred lookup: the figure is no longer a card-model field, so a
+    // member row renders none until this surface passes a `nutrition` slot (its own wiring task). Coverage of
+    // the figure's states lives in `nutrition/__tests__/RecipeCalorieChip.test.tsx`.
+    it('renders the title, version badge past v1, and visibility via the shared RecipeCard', () => {
         renderRow({
             member: makeCollectionMemberRecipe({
                 title: 'Chicken Alfredo',
                 currentVersion: 3,
                 visibility: 'private',
                 status: 'published',
-                leadCaloriesPerServing: 520,
             }),
         });
 
         expect(screen.getByText('Chicken Alfredo')).toBeTruthy();
         expect(screen.getByLabelText('Version 3').textContent).toBe('v3');
         expect(screen.getByText('Private')).toBeTruthy();
-        expect(screen.getByText('520 cal')).toBeTruthy();
+        // No fabricated figure of any kind while the deferred lookup is unwired on this surface.
+        expect(screen.queryByText(/\d+ cal/)).toBeNull();
     });
 
-    it('hides the version badge at v1 and renders no calorie line when calories are absent (never 0)', () => {
-        renderRow({
-            member: makeCollectionMemberRecipe({ currentVersion: 1, leadCaloriesPerServing: undefined }),
-        });
+    // NARROWED from "…and renders no calorie line when calories are absent (never 0)". With the figure gone
+    // from the card model entirely, the calorie half could no longer fail for ANY implementation — coverage
+    // theatre under a title that still advertised it. Its `leadCaloriesPerServing: 520` fixture line has now
+    // gone too: the field left the wire `Recipe` (ADR-0021's "Follow-up owed"), so a member CANNOT carry a
+    // figure to leak. The test above asserts no calorie text renders at all, which still has teeth.
+    it('hides the version badge at v1', () => {
+        renderRow({ member: makeCollectionMemberRecipe({ currentVersion: 1 }) });
 
         expect(screen.queryByLabelText(/Version/)).toBeNull();
-        expect(screen.queryByText(/cal$/)).toBeNull();
-        expect(screen.queryByText('0 cal')).toBeNull();
     });
 });
 

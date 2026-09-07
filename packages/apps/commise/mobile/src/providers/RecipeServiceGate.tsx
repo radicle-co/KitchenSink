@@ -8,6 +8,14 @@
  * to `getToken({ skipCache })` on any 401 retry it drives internally — the first-token identity-sync-pending
  * backoff, AND (B22) a bounded single retry after an ordinary expired-token 401 — so a token that expired
  * while backgrounded gets one chance to self-heal before the request fails.
+ *
+ * ⚠️ The name promises a conditional render and there is none — it renders `children` unconditionally, so
+ * "does it choose a subtree?" answers no and a reader can land on the render half. It is ORCHESTRATION: it
+ * reads the Clerk session and binds it to the recipe client every hook in the subtree calls through, which
+ * is the authorization seam for every recipe request the app makes.
+ *
+ * @pattern Adapter over the Clerk session — turns `getToken` into the per-request bearer (and the
+ *     `forceRefresh` → `skipCache` retry) the recipe client's token seam asks for, and nothing else.
  */
 import { useAuth } from '@clerk/expo';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';

@@ -5,9 +5,12 @@
         "target": "ES2022",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
-        "outDir": "dist",
-        "rootDir": "src"
+        "outDir": "dist"
     },
-    "include": ["src/**/*.ts"],
+    // The CHECK project. `tests/` (the LocalStack integration + e2e tier) and the package-root `__tests__/`
+    // were in no project at all — vitest transpiles without typechecking, so 11 files had no static
+    // analysis. `tsconfig.build.json` re-narrows `include` to `src`, so this adds nothing to the Lambda
+    // asset; `rootDir` moved there too, because a root-level `tests/` cannot sit under a `src` root (TS6059).
+    "include": ["src/**/*.ts", "tests/**/*.ts", "__tests__/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

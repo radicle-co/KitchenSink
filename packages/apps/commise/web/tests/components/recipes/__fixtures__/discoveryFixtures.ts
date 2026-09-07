@@ -1,3 +1,4 @@
+import type { RecipeSearchFacets } from '@kitchensink/recipe-service-client';
 /**
  * Typed `make*` fixture factories for the web public-discovery container tests (T076). Each accepts
  * `Partial<T>` overrides over sensible defaults (constitution fixture convention) and builds on the shared
@@ -15,6 +16,17 @@ import { makeRecipe } from './recipeFixtures';
  * @param overrides - Fields to override on the default search result.
  * @returns A complete `RecipeSearchResult`.
  */
+/**
+ * Build a complete {@link RecipeSearchFacets} block, defaulting every dimension to empty.
+ *
+ * The wire contract requires ALL FOUR dimensions (an empty dimension is `[]`, never an absent key), so a test
+ * that cares about one dimension must still supply the rest. This factory keeps that requirement in ONE place
+ * instead of forcing every call site to spell out three empty arrays it does not care about.
+ */
+export function makeSearchFacets(overrides: Partial<RecipeSearchFacets> = {}): RecipeSearchFacets {
+    return { dietaryFlags: [], tags: [], cuisine: [], totalTime: [], ...overrides };
+}
+
 export function makeSearchResult(overrides: Partial<RecipeSearchResult> = {}): RecipeSearchResult {
     return {
         recipe: makeRecipe(),
@@ -39,7 +51,7 @@ export function makeSearchResponse(
         page: 1,
         pageSize: 20,
         hasMore: false,
-        facets: {},
+        facets: makeSearchFacets(),
         ...overrides,
     };
 }

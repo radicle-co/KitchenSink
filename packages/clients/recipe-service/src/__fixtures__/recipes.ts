@@ -1,8 +1,21 @@
 /**
- * `make*` fixture factories for the {@link RecipeServiceClient} tests (CODING_STANDARDS `__fixtures__`).
+ * `make*` fixture factories for the `RecipeServiceClient` tests (CODING_STANDARDS `__fixtures__`).
  * Each accepts a `Partial<T>` of overrides and returns a fully-defined, JSON-safe value so a fixture can
  * be round-tripped through a fake fetch (`JSON.stringify` → `JSON.parse`) and still `toEqual` the input.
  * Optional domain fields are omitted (not set to `undefined`) so the serialized wire shape is exact.
+ *
+ * ── RESPONSE fixtures vs REQUEST fixtures ─────────────────────────────────────────────────────────
+ *
+ * Most factories here build RESPONSES, whose ids are deliberately loose on the wire
+ * (`idSchema` = `z.string().min(1)`, because the document mixes app-user ULIDs with row UUIDs), so
+ * readable `'rec_1'`/`'pho_1'` tokens are legal values there and stay.
+ *
+ * {@link makeCreateRecipeRequest} and the `FIXTURE_*_UUID` constants below build REQUESTS, which are held to
+ * the published request schemas the client now validates its OUTBOUND bodies against
+ * (`createRecipeRequestSchema`, `reorderPhotosRequestSchema`, `addRecipeToCollectionRequestSchema`,
+ * `erasureRequestSchema`). Those schemas bound ids to real UUIDs and both recipe content arrays to
+ * `.min(1)`, so a `'photo-1'`-style token or an empty `ingredients` array is a body the service answers
+ * `400` to — never something a test should assert the client transmits.
  */
 import type {
     Ingredient,
@@ -12,8 +25,8 @@ import type {
     RecipePhoto,
     RecipeSearchResult,
     RecipeVersion,
-    RestoreVersionResponse,
 } from '@kitchensink/recipe-core';
+import type { CreateRecipeRequest, RestoreVersionResponse } from '@kitchensink/schema-recipe';
 
 import type {
     Collection,
@@ -26,6 +39,62 @@ import type {
     RecipeSearchResponse,
     UploadUrlResponse,
 } from '../types.js';
+
+// ── Request-side ids: UUIDs, because the published request schemas bound them to UUIDs ─────────────
+//
+// Every literal below is v4-shaped (version nibble `4`, variant nibble `8`) — the STRICTEST form any
+// request field demands (`reorderPhotosRequestSchema.photoIds` is `z.uuid({ version: 'v4' })`), so one
+// family of literals satisfies both it and the any-version `z.uuid()` fields. None is the nil UUID, which
+// `photoIds` rejects outright because it names no row.
+
+/**
+ * The catalog `ingredients` row an ingredient line references.
+ *
+ * `recipeIngredientInputSchema.ingredientId` is `recipeIngredientIdSchema` — `z.uuid()`, matching the
+ * `recipe_ingredients.ingredient_id uuid` column, and deliberately NOT the looser `idSchema`. An `'ing_1'`
+ * token here is rejected before it reaches the wire.
+ */
+export const FIXTURE_INGREDIENT_UUID = '00000000-0000-4000-8000-00000000a001';
+
+/** A `recipe_photos` row id — `reorderPhotosRequestSchema.photoIds` demands a **v4** UUID per entry. */
+export const FIXTURE_PHOTO_UUID = '00000000-0000-4000-8000-00000000b001';
+
+/** A second photo id, so a reorder fixture can express an actual change of order. */
+export const FIXTURE_OTHER_PHOTO_UUID = '00000000-0000-4000-8000-00000000b002';
+
+/**
+ * A `recipes` row id as a REQUEST carries it — `addRecipeToCollectionRequestSchema.recipeId` and every
+ * entry of `erasureRequestSchema.publishRecipeIds` are `z.uuid()`.
+ */
+export const FIXTURE_RECIPE_UUID = '00000000-0000-4000-8000-00000000c001';
+
+/** A second recipe id, for bodies that carry more than one (the erasure donate election). */
+export const FIXTURE_OTHER_RECIPE_UUID = '00000000-0000-4000-8000-00000000c002';
+
+/**
+ * Build the MINIMAL create-recipe body the service actually accepts.
+ *
+ * "Minimal" is bounded by `createRecipeRequestSchema`, not by what typechecks: `ingredients` and
+ * `steps` are both `.min(1)` there (a recipe with neither is not a recipe, and the service answers `400`),
+ * and `servings` plus all three timings are required. Every optional field is omitted so the serialized
+ * body is exactly the required set.
+ *
+ * @param overrides - Fields to replace on the body.
+ * @returns A complete, contract-valid create-recipe request. Pure.
+ */
+export function makeCreateRecipeRequest(overrides: Partial<CreateRecipeRequest> = {}): CreateRecipeRequest {
+    return {
+        title: 'Tomato Soup',
+        // Non-empty on purpose: both arrays are `.min(1)` on the published request schema.
+        ingredients: [{ ingredientId: FIXTURE_INGREDIENT_UUID, name: 'Tomato', quantity: { kind: 'exact', value: 6 } }],
+        steps: [{ instruction: 'Simmer the tomatoes.' }],
+        servings: 4,
+        prepTimeMinutes: 10,
+        cookTimeMinutes: 20,
+        totalTimeMinutes: 30,
+        ...overrides,
+    };
+}
 
 /** Build a light {@link Recipe} (list/search/collection projection — no cookable content). */
 export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
@@ -44,7 +113,6 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         hasSubstantiveEdit: false,
         dietaryFlags: ['vegan'],
         tags: ['soup'],
-        hasPartialNutrition: false,
         currentVersion: 1,
         // CR-001 aggregate: an unrated recipe (ratingCount 0, no averageRating). Both are now REQUIRED on
         // the `Recipe` contract (FR-013a); a rating fixture overrides them.
@@ -62,7 +130,9 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
 export function makeRecipeDetail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     return {
         ...makeRecipe(),
-        ingredients: [{ ingredientId: 'ing_1', name: 'Tomato', quantity: 6, isUserEntered: false }],
+        ingredients: [
+            { ingredientId: 'ing_1', name: 'Tomato', quantity: { kind: 'exact', value: 6 }, isUserEntered: false },
+        ],
         steps: [{ stepNumber: 1, instruction: 'Simmer the tomatoes.' }],
         photos: [],
         nutrition: { calories: 120, proteinG: 4, carbsG: 20, fatG: 2, isComplete: true },
@@ -229,7 +299,16 @@ export function makeRecipeSearchResponse(overrides: Partial<RecipeSearchResponse
         page: 1,
         pageSize: 20,
         hasMore: false,
-        facets: { dietaryFlags: [{ value: 'vegan', count: 1 }], tags: [{ value: 'soup', count: 1 }] },
+        // All FOUR dimensions, because the contract requires them: the service always aggregates every
+        // dimension over the match sample and sends `[]` for an empty one, never an absent key. This
+        // fixture previously supplied only two, which typechecked while the client's own type declared
+        // them optional -- the drift the generated contract now makes impossible.
+        facets: {
+            dietaryFlags: [{ value: 'vegan', count: 1 }],
+            tags: [{ value: 'soup', count: 1 }],
+            cuisine: [],
+            totalTime: [],
+        },
         ...overrides,
     };
 }

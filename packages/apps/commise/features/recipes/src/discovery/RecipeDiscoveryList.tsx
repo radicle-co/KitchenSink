@@ -8,7 +8,7 @@
  * shown is public; each row offers a Clone action that copies it into the viewer's collection. It fetches
  * nothing; the composing app wires the search query + clone mutation to these props.
  *
- * The loading body is the shared {@link import('../card/RecipeCardGridSkeleton.js').RecipeCardGridSkeleton} —
+ * The loading body is the shared `RecipeCardGridSkeleton` —
  * ONE authoritative card-skeleton grid, also used by `RecipeList`, so the two card-grid surfaces cannot drift
  * (it previously rendered a blank body while the query was in flight). The error body is a styled card
  * surface, matching how `CollectionRecipePicker` renders a settled failure.
@@ -65,6 +65,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     onExitToBrowse,
     recentSearches,
     tab,
+    renderNutrition,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -161,6 +162,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                                 isCloning={cloningId === result.recipe.id}
                                 onSelect={onSelectRecipe}
                                 onClone={onClone}
+                                nutrition={renderNutrition?.(result.recipe.id)}
                             />
                         </li>
                     ))}

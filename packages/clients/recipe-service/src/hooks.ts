@@ -16,20 +16,28 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { createContext, createElement, useContext, useEffect } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
+import type { RecipeDetail, RecipeVisibility } from '@kitchensink/recipe-core';
+// The two recipe WRITE envelopes, from the contract the service authors. They were `recipe-core`'s
+// `CreateRecipeInput` / `UpdateRecipeInput` — hand-written twins of these schemas (§15 rule 4 / ADR-0014).
 import type {
-    CreateRecipeInput,
-    RecipeDetail,
-    RecipeSearchParams,
-    RecipeVisibility,
-    SetRecipeRatingInput,
-    UpdateRecipeInput,
-} from '@kitchensink/recipe-core';
+    CreateParseJobRequest,
+    CreateRecipeRequest,
+    EditParseJobLineRequest,
+    ParseJobResponse,
+    RecipeSearchQuery,
+    RecordCorrectionRequest,
+    SetRatingRequest,
+    UpdateRecipeRequest,
+    CreateAuthoredFoodViaPickerRequest,
+} from '@kitchensink/schema-recipe';
 
 import { RecipeServiceClient } from './client.js';
 import {
     DEFAULT_INGREDIENT_POLL_INTERVAL_MS,
+    DEFAULT_PARSE_JOB_POLL_INTERVAL_MS,
     collectionQueries,
     ingredientQueries,
+    parseJobQueries,
     recipeProjections,
     recipeQueries,
     recipeServiceKeys,
@@ -49,7 +57,7 @@ import type {
 // Re-exported so every existing `import { recipeServiceKeys } from '../hooks.js'` (and the public
 // `@kitchensink/recipe-service-client/hooks` subpath) keeps resolving unchanged — P5 moved the factory's
 // SOURCE to `./queries.js` (the module the read-seam factories below build on), not its public location.
-export { DEFAULT_INGREDIENT_POLL_INTERVAL_MS, recipeServiceKeys };
+export { DEFAULT_INGREDIENT_POLL_INTERVAL_MS, DEFAULT_PARSE_JOB_POLL_INTERVAL_MS, recipeServiceKeys };
 
 // ─── Provider / context ───────────────────────────────────────────────────────────────────────────
 
@@ -197,6 +205,32 @@ export function useRecipeVersion(id: string, versionNumber: number, options: Que
     });
 }
 
+/**
+ * `POST /api/v1/recipes/nutrition-batch` — per-serving nutrition for a page of recipes, fetched AFTER the
+ * cards render (the deferred calorie lookup).
+ *
+ * ⛔ HOW TO READ THE RESULT. `data.nutrition` is keyed by recipe id, and a recipe the viewer may not read is
+ * simply ABSENT — a missing key means "not for you", never an error and never "no data". A present entry is
+ * a discriminated union: narrow on `state`, render the figure for `known` (a `0` there is a real measured
+ * zero), and render nothing/a caveat for `unaccounted`. There is no `pending` on the wire; the pending state
+ * is this hook's own `isPending`, and it is bounded by a real deadline, so a skeleton cannot become
+ * permanent. An `isError` result means the same thing to a card as `unaccounted`: show it without a figure.
+ *
+ * @param recipeIds - The recipes on screen. Bounded by the published cap; the query is idle for an empty list.
+ * @param options.enabled - Gate the read (e.g. until the card list itself has loaded).
+ */
+export function useRecipeNutrition(recipeIds: readonly string[], options: QueryEnableOptions = {}) {
+    const client = useRecipeServiceClient();
+    const query = recipeQueries(client).nutritionBatch(recipeIds);
+
+    return useQuery({
+        ...query,
+        // AND-ed with the factory's own empty-list gate rather than replacing it: a caller passing
+        // `enabled: true` must not be able to fire a request the service is guaranteed to reject.
+        enabled: (options.enabled ?? true) && query.enabled,
+    });
+}
+
 /** `GET /api/v1/recipes/{id}/photos` — a recipe's photos. */
 export function useRecipePhotos(id: string, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
@@ -243,7 +277,7 @@ export function useCollection(id: string, options: QueryEnableOptions = {}) {
 // ─── Search queries ─────────────────────────────────────────────────────────────────────────────
 
 /** `GET /api/v1/search/recipes` — full-text recipe search with facets. */
-export function useSearchRecipes(params: RecipeSearchParams = {}) {
+export function useSearchRecipes(params: RecipeSearchQuery = {}) {
     const client = useRecipeServiceClient();
 
     return useQuery(recipeQueries(client).search(params));
@@ -258,7 +292,7 @@ export function useSearchRecipes(params: RecipeSearchParams = {}) {
  *
  * @param params - The search criteria (query/filters/sort). The `page` field is managed by the pager.
  */
-export function useInfiniteSearchRecipes(params: RecipeSearchParams = {}) {
+export function useInfiniteSearchRecipes(params: RecipeSearchQuery = {}) {
     const client = useRecipeServiceClient();
 
     return useInfiniteQuery(recipeQueries(client).searchInfinite(params));
@@ -300,6 +334,39 @@ export function useSuggestIngredients(query: string, limit?: number, options: Qu
 export interface IngredientStatusOptions extends QueryEnableOptions {
     /** Poll cadence (ms) while the food is `PENDING`. Defaults to {@link DEFAULT_INGREDIENT_POLL_INTERVAL_MS}. */
     readonly pollIntervalMs?: number;
+}
+
+/**
+ * `GET /api/v1/ingredients/search/live?q=` — the ON-DEMAND live source search (plan U29).
+ *
+ * ⛔ **A MUTATION, not a query, and that is the point of the whole hook.** A `useQuery` keyed on the search
+ * text would REFETCH whenever the key changed — which is exactly a per-keystroke live search, the one shape
+ * the quota arithmetic forbids: the source allows 1,000 requests/hour PER IP, FR-019 reserves the top 10%
+ * for user-facing work, and at 50 concurrent cooks a per-settled-query autocomplete would want roughly three
+ * times the entire key. Modelling it as a Command that runs ONLY when `mutate()` is called makes "never
+ * fires on a keystroke" a property of the type rather than of every caller's discipline.
+ *
+ * ⚠️ It is also the SLOW path — a multi-second wait is the expected experience, not a defect, and it sits
+ * deliberately outside the 500ms budget that governs the local `useSuggestIngredients`.
+ *
+ * ⚠️ **No retry.** TanStack retries mutations never by default, and that default must not be changed here:
+ * a retry would double the quota cost of exactly the failure (`SourceBusyError`) that means the quota is
+ * already spent.
+ *
+ * Three outcomes a caller must keep apart: an EMPTY `hits` array (the source has nothing — stop looking),
+ * `SourceBusyError` (the rate budget refused — retry, `retryAfterSeconds` when known) and
+ * `SourceUnavailableError` (the source did not answer — retry, no known window).
+ *
+ * ⚠️ Nothing is invalidated on success: a live search READS an upstream source and writes nothing here, so
+ * no cached query became stale. The catalog only changes when a hit is actually picked, and the admit
+ * mutations own that invalidation.
+ */
+export function useSearchIngredientsLive() {
+    const client = useRecipeServiceClient();
+
+    return useMutation({
+        mutationFn: (query: string) => client.searchIngredientsLive(query),
+    });
 }
 
 /**
@@ -356,7 +423,7 @@ export function useCreateRecipe() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (input: CreateRecipeInput) => client.createRecipe(input),
+        mutationFn: (input: CreateRecipeRequest) => client.createRecipe(input),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
@@ -380,7 +447,7 @@ export function useUpdateRecipe() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (vars: { id: string; input: UpdateRecipeInput }) => client.updateRecipe(vars.id, vars.input),
+        mutationFn: (vars: { id: string; input: UpdateRecipeRequest }) => client.updateRecipe(vars.id, vars.input),
         onSuccess: async (data, vars) => {
             // Cancel any in-flight `recipe(id)` GET before writing through, so a detail fetch that started
             // stale (>staleTime) and settles AFTER this mutation cannot clobber the fresh response with
@@ -605,7 +672,7 @@ export function useSetRecipeRating() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (vars: { id: string; input: SetRecipeRatingInput }) => client.setRecipeRating(vars.id, vars.input),
+        mutationFn: (vars: { id: string; input: SetRatingRequest }) => client.setRecipeRating(vars.id, vars.input),
         onMutate: async (vars): Promise<RatingMutationContext> => {
             await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
             const previous = queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(vars.id));
@@ -711,6 +778,28 @@ export function useAddIngredientByFood() {
 }
 
 /**
+ * `POST /api/v1/ingredients/authored-food` (plan U16) — the picker's create-and-attach mutation.
+ *
+ * Invalidation matches {@link useAddIngredientByFood}: on a `created` outcome the author's own typeahead
+ * must now offer the new food in the familiar `local` section, so the shared search prefix is staled. A
+ * `duplicate` outcome created nothing, and the cache is left alone — the reuse affordance re-uses the
+ * by-food mutation, which carries its own invalidation.
+ */
+export function useCreateAuthoredFoodViaPicker() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (input: CreateAuthoredFoodViaPickerRequest) => client.createAuthoredFoodViaPicker(input),
+        onSuccess: (outcome) => {
+            if (outcome.created) {
+                void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.ingredientSearches });
+            }
+        },
+    });
+}
+
+/**
  * `POST /api/v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` ingredient from a candidate pick.
  *
  * On success the ingredient is now `RESOLVED` with nutrition, so this stales exactly the caches that
@@ -732,6 +821,178 @@ export function useResolveIngredient() {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.ingredientSearches });
         },
     });
+}
+
+/**
+ * `POST /api/v1/ingredients/corrections` — teach the resolver what an ingredient phrase MEANS (U14/R19).
+ *
+ * DESIGN PATTERN: **Command**, which is what a TanStack mutation already IS — no wrapper is added.
+ *
+ * ⚠️ IT INVALIDATES NOTHING, and that is a decision rather than an omission. A correction writes to the
+ * resolution knowledge base, which is consulted by the SERVER when a future phrase is resolved — it changes
+ * no ingredient row, no recipe, and no search result that any cached query already holds. Invalidating
+ * `ingredientSearches` here would re-fetch every cached typeahead to receive byte-identical data, on a path
+ * the user reaches while typing.
+ *
+ * ⛔ It is also deliberately NOT chained onto the pick that produced it. The correction and the pick are two
+ * separate intents: the pick fixes THIS recipe line and must never fail because the knowledge base was
+ * momentarily unwritable, and the correction teaches the system. A caller renders the correction's own
+ * pending/error state and lets the line stand either way — `recorded: false` is a SUCCESS (the binding was
+ * already in force, or a concurrent correction won), so only a thrown error is a failure worth showing.
+ */
+export function useRecordIngredientCorrection() {
+    const client = useRecipeServiceClient();
+
+    return useMutation({
+        mutationFn: (correction: RecordCorrectionRequest) => client.recordIngredientCorrection(correction),
+    });
+}
+
+// ─── Parse-job query + mutations ──────────────────────────────────────────────────────────────────
+//
+// DESIGN PATTERN: **Command**, already satisfied by the TanStack mutations these wrap, over the P5 read
+// seam in `queries.ts`. What the three mutations add is one shared decision:
+//
+// ⛔ WRITE-THROUGH, NOT INVALIDATE (DA3 — the `useUpdateRecipe` precedent). All three answer the FULL,
+// freshly-persisted job view, which is byte-for-byte the shape the poll reads. Invalidating would throw
+// that response away and refetch data already in hand — and on `create` there would be nothing to
+// invalidate at all, so the poll would start from an empty cache and show a spinner over a job whose
+// first view had already arrived.
+//
+// ⛔ AND THEY STALE NOTHING ELSE. R19: a parse binds nothing. No recipe row, no collection membership and
+// no search row changes, so an invalidation of `recipes`/`collections`/`recipeSearches` here would refetch
+// a cook's whole library on every line edit — while they are typing.
+
+/** Enable gate + poll cadence for {@link useParseJob}. */
+export interface ParseJobOptions extends QueryEnableOptions {
+    /** Poll cadence (ms) while the job is `running`. Defaults to {@link DEFAULT_PARSE_JOB_POLL_INTERVAL_MS}. */
+    readonly pollIntervalMs?: number;
+}
+
+/**
+ * `GET /api/v1/recipe-parse-jobs/{id}` — poll one parse job until it settles.
+ *
+ * Self-limiting: the cadence comes from {@link parseJobQueries}`.detail`, which polls while the job can
+ * still MOVE — `running` at the standard cadence and `partial` at the longer settling one — and stops on
+ * `complete`, on `expired`, and once `expiresAt` has passed. Gate it on an id actually existing — `''`
+ * before a create has landed disables the query rather than firing a request for a job that does not exist.
+ *
+ * ⛔ THIS PARAGRAPH PREVIOUSLY SAID THE OPPOSITE — "polls ONLY while `running` and stops on `partial`" —
+ * and is corrected rather than quietly rewritten, because it is the doc a future engineer reads before
+ * "fixing" the poll back. A `partial` job SELF-HEALS: an enqueue failure marks lines whose messages did
+ * send, those land anyway (the worker's landing `UPDATE` has no status predicate), and the aggregate
+ * re-derives. Stopping there strands a cook in front of "press Retry" for a job that already finished.
+ * The factory's own docstring carries the full reasoning.
+ *
+ * ⚠️ EXPIRY ARRIVES HERE AS DATA, not as an error: the service answers an expired job's read `200` with
+ * `status: 'expired'`. Only a mutation raises `ParseJobExpiredError`.
+ *
+ * @param id - The job id (the query is disabled for an empty id).
+ * @param options - Enable gate + poll cadence.
+ */
+export function useParseJob(id: string, options: ParseJobOptions = {}) {
+    const client = useRecipeServiceClient();
+    const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_PARSE_JOB_POLL_INTERVAL_MS;
+
+    return useQuery({
+        ...parseJobQueries(client).detail(id, pollIntervalMs),
+        enabled: (options.enabled ?? true) && id.length > 0,
+    });
+}
+
+/** Caller hooks for {@link useCreateParseJob}. */
+export interface CreateParseJobOptions {
+    /**
+     * Run after the job is accepted and written through — typically to navigate to its review surface.
+     *
+     * ⛔ EXPOSED HERE rather than left to a per-call `mutate(vars, { onSuccess })`, and the difference is
+     * not stylistic. TanStack SKIPS per-call callbacks when the observer unmounts before the mutation
+     * settles — and on this resource that loses the created job's ID PERMANENTLY: the job exists, but the
+     * service publishes no list endpoint (see `queries.ts`'s key factory), so nothing can ever address it
+     * again until the TTL sweeps it. A mutation-level callback survives the unmount.
+     */
+    readonly onSuccess?: (job: ParseJobResponse) => void;
+}
+
+/**
+ * `POST /api/v1/recipe-parse-jobs` — submit a pasted ingredient block (`202`).
+ *
+ * The accepted view is written through to the NEW job's own key, so the poll {@link useParseJob} starts
+ * against the server's first answer instead of an empty cache.
+ *
+ * @param options - Caller hooks; see {@link CreateParseJobOptions.onSuccess} for why navigation belongs here.
+ */
+export function useCreateParseJob(options: CreateParseJobOptions = {}) {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+    const { onSuccess } = options;
+
+    return useMutation({
+        mutationFn: (input: CreateParseJobRequest) => client.createParseJob(input),
+        onSuccess: (job) => {
+            // The write-through happens FIRST, so a caller navigating to the review surface finds the
+            // server's first view already in the cache rather than a spinner over data it holds.
+            writeParseJobThrough(queryClient, job);
+            onSuccess?.(job);
+        },
+    });
+}
+
+/** `POST /api/v1/recipe-parse-jobs/{id}/retry` — re-drive the `failed_retryable` lines (`202`). */
+export function useRetryParseJob() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) => client.retryParseJob(id),
+        onSuccess: async (job) => {
+            await cancelParseJobPoll(queryClient, job.id);
+            writeParseJobThrough(queryClient, job);
+        },
+    });
+}
+
+/** `PATCH /api/v1/recipe-parse-jobs/{id}/lines/{lineIndex}` — replace one line and re-drive its parse (`202`). */
+export function useEditParseJobLine() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (vars: { id: string; lineIndex: number; input: EditParseJobLineRequest }) =>
+            client.editParseJobLine(vars.id, vars.lineIndex, vars.input),
+        onSuccess: async (job) => {
+            await cancelParseJobPoll(queryClient, job.id);
+            writeParseJobThrough(queryClient, job);
+        },
+    });
+}
+
+/**
+ * Cancel any in-flight poll for a job before writing a mutation's response through.
+ *
+ * ⛔ NOT BELT-AND-BRACES, and the race is live rather than theoretical: `useParseJob` polls on a timer while
+ * the job is `running`, so a `GET` issued a moment before a retry/edit lands can settle AFTER it and clobber
+ * the fresh view with the pre-mutation one — putting the edited line back to its old text on screen. Same
+ * cancel `useUpdateRecipe` performs for the same reason. `create` needs none: there is no query for a job
+ * that did not exist.
+ *
+ * @param queryClient - The cache to cancel against.
+ * @param jobId - The job whose poll to cancel.
+ * @sideEffect Cancels in-flight queries for that key.
+ */
+async function cancelParseJobPoll(queryClient: ReturnType<typeof useQueryClient>, jobId: string): Promise<void> {
+    await queryClient.cancelQueries({ queryKey: recipeServiceKeys.parseJob(jobId) });
+}
+
+/**
+ * Write a job view straight into its own cache entry (DA3 write-through).
+ *
+ * @param queryClient - The cache to write.
+ * @param job - The freshly-persisted view every parse-job endpoint answers with.
+ * @sideEffect Writes one cache entry.
+ */
+function writeParseJobThrough(queryClient: ReturnType<typeof useQueryClient>, job: ParseJobResponse): void {
+    queryClient.setQueryData(recipeServiceKeys.parseJob(job.id), job);
 }
 
 // ─── Photo mutations ──────────────────────────────────────────────────────────────────────────────
@@ -922,7 +1183,7 @@ export function usePreviewPull() {
  *
  * `previewedDiff` (from {@link usePreviewPull}) is optional and, when supplied, lets the server detect
  * DRIFT between what the caller previewed and what it would apply now — a rejection surfaces as a typed
- * {@link PullDriftError} (never swallowed) carrying the fresh diff for the caller to re-present.
+ * `PullDriftError` (never swallowed) carrying the fresh diff for the caller to re-present.
  *
  * No write-through: the response's `collection` is the NARROW `Collection` projection (no `recipes`
  * embed), so writing it into `collection(id)` would clobber that cache's `.recipes` array with an entry
@@ -945,11 +1206,17 @@ export function usePullCollectionFromSource() {
 
 // ─── Account mutations ────────────────────────────────────────────────────────────────────────────
 
-/** `POST /api/v1/account/erasure` — request GDPR account erasure. */
+/**
+ * `POST /api/v1/account/erasure` — request IRREVERSIBLE GDPR account erasure.
+ *
+ * The variables argument is REQUIRED (it was optional): `confirmationPhrase` is the intent gate, so a
+ * `mutate()` with nothing to confirm could only ever have produced a `400`. Both call sites — web's
+ * `AccountEraseForm` and mobile's `AccountDangerZone` — already pass the collected phrase and donate election.
+ */
 export function useRequestAccountErasure() {
     const client = useRecipeServiceClient();
 
     return useMutation({
-        mutationFn: (request?: ErasureRequest) => client.requestAccountErasure(request),
+        mutationFn: (request: ErasureRequest) => client.requestAccountErasure(request),
     });
 }

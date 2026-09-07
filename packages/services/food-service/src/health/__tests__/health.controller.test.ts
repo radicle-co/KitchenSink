@@ -1,11 +1,16 @@
 /**
  * Unit tests for the food {@link HealthController} (ARCH-PS-3). Proves liveness stays static and
  * readiness reflects the DB pool: `200` when `SELECT 1` resolves, `503` when it rejects or times out.
+ *
+ * Also pins the drift-layer-3 SKEW SIGNAL (`docs/CODING_STANDARDS.md` §15.2.5): both `200` payloads must
+ * carry `contractHash`, because a consumer cannot detect "this service is serving a contract my pinned
+ * schema does not describe" unless the service says which contract it is serving.
  */
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { CONTRACT_HASH } from '../../contract/contractHash.js';
 import { HealthController } from '../health.controller.js';
 
 function makeController(query: ReturnType<typeof vi.fn>): HealthController {
@@ -21,7 +26,7 @@ describe('HealthController (food)', () => {
         const query = vi.fn();
         const controller = makeController(query);
 
-        expect(controller.getHealth()).toEqual({ status: 'ok', service: 'food' });
+        expect(controller.getHealth()).toEqual({ status: 'ok', service: 'food', contractHash: CONTRACT_HASH });
         expect(query).not.toHaveBeenCalled();
     });
 
@@ -29,8 +34,32 @@ describe('HealthController (food)', () => {
         const query = vi.fn().mockResolvedValue({ rows: [{ '?column?': 1 }] });
         const controller = makeController(query);
 
-        await expect(controller.getReadiness()).resolves.toEqual({ status: 'ok', service: 'food' });
+        await expect(controller.getReadiness()).resolves.toEqual({
+            status: 'ok',
+            service: 'food',
+            contractHash: CONTRACT_HASH,
+        });
         expect(query).toHaveBeenCalledWith('SELECT 1');
+    });
+
+    // The skew signal is only useful if it is the REAL fingerprint. A hard-coded or truncated stamp would
+    // satisfy `toEqual(CONTRACT_HASH)` above while telling every consumer nothing, so assert the SHAPE the
+    // generator emits independently of the constant.
+    it('publishes the contract fingerprint as a full lower-case hex SHA-256 on both probes', async () => {
+        const query = vi.fn().mockResolvedValue({ rows: [{ '?column?': 1 }] });
+        const controller = makeController(query);
+
+        expect(controller.getHealth().contractHash).toMatch(/^[0-9a-f]{64}$/u);
+        expect((await controller.getReadiness()).contractHash).toMatch(/^[0-9a-f]{64}$/u);
+    });
+
+    // Two routes, ONE payload. If liveness and readiness ever answered with different fingerprints, a
+    // consumer probing one of them would draw a conclusion that does not hold for the other.
+    it('answers both probes with the identical payload, so the two cannot disagree', async () => {
+        const query = vi.fn().mockResolvedValue({ rows: [{ '?column?': 1 }] });
+        const controller = makeController(query);
+
+        expect(controller.getHealth()).toEqual(await controller.getReadiness());
     });
 
     it('readiness throws 503 (ServiceUnavailable) when the probe rejects', async () => {

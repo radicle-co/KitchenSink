@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import {
     DEFAULT_THROTTLER_NAME,
     THROTTLE_WINDOW_MS,
+    analyticsLimit,
     exportLimit,
     photoLimit,
     searchLimit,
@@ -37,3 +38,7 @@ export const SearchRateLimit = (): MethodDecorator & ClassDecorator =>
 /** Cap the GDPR account-export route at the (tightest) export limit. */
 export const ExportRateLimit = (): MethodDecorator & ClassDecorator =>
     Throttle({ [DEFAULT_THROTTLER_NAME]: { limit: exportLimit, ttl: THROTTLE_WINDOW_MS } });
+
+/** Cap the analytics ingest door (`POST /ingest/v1/events`) at the analytics limit (R13). */
+export const AnalyticsIngestRateLimit = (): MethodDecorator & ClassDecorator =>
+    Throttle({ [DEFAULT_THROTTLER_NAME]: { limit: analyticsLimit, ttl: THROTTLE_WINDOW_MS } });

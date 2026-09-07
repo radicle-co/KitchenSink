@@ -16,6 +16,7 @@
     },
     "workspaces": [
         "packages/tools/*",
+        "packages/schemas/*",
         "packages/services/*",
         "packages/shared/*",
         "packages/utils/*",
@@ -24,6 +25,7 @@
         "packages/apps/commise/mobile",
         "packages/apps/commise/ui",
         "packages/apps/commise/i18n",
+        "packages/apps/commise/query",
         "packages/apps/commise/features/*",
         "packages/clients/*"
     ],
@@ -32,31 +34,53 @@
         "test": "turbo run test",
         "test:e2e": "turbo run test:e2e",
         "lint": "turbo run lint format:check",
+        "lint:python": "ruff check packages",
+        "boundaries": "node scripts/boundariesRatchet.mjs",
+        "boundaries:update": "node scripts/boundariesRatchet.mjs --update",
+        "contract:generate": "node scripts/contractGenerate.mjs",
+        "contract:verify": "npm run contract:generate && node scripts/contractDriftGate.mjs",
+        "infra:manifest": "node scripts/infrastructureManifest.mjs",
+        "infra:manifest:check": "node scripts/infrastructureManifest.mjs --check",
         "typecheck": "turbo run typecheck",
-        "dev:local": "turbo run dev:local",
+        "typecheck:python": "mypy packages",
+        "dev:local": "turbo run dev",
         "localstack:up": "docker compose -f infra/localstack/docker-compose.yml up -d --wait",
         "localstack:down": "docker compose -f infra/localstack/docker-compose.yml down -v",
         "format": "turbo run format",
+        "format:python": "ruff format packages",
         "format:check": "turbo run format:check",
-        "prepare": "husky || true"
+        "format:check:python": "ruff format --check packages",
+        "prepare": "husky || true",
+        "local:up": "npm run up --workspace=@kitchensink/local-sandbox",
+        "local:down": "docker compose -f .local-sandbox/docker-compose.yml -p local-sandbox down",
+        "local:audit": "npm run audit --workspace=@kitchensink/local-sandbox",
+        "local:seed-food": "npm run seed-food --workspace=@kitchensink/local-sandbox",
+        "local:dev": "npm run local:up && turbo run dev"
+    },
+    "//dependencies": "The CDK CLI is a runtime dependency of the DEPLOY, not a build tool: the deploy workflows prune devDependencies mid-job and every `cdk deploy` necessarily runs after that, so as a devDependency it was removed and each `npx cdk` resolved an unpinned CLI from the registry inside the production deploy. Excluded from the service images by .dockerignore. Keep the range equal to the workspaces' so npm hoists one copy. See postPruneToolchain.test.ts.",
+    "dependencies": {
+        "aws-cdk": "^2.1134.0"
     },
     "overrides": {
+        "@types/node": "^24.13.3",
         "@types/react": "^19.2.0",
-        "@types/react-dom": "^19.2.0"
+        "@types/react-dom": "^19.2.0",
+        "qs": "^6.16.0"
     },
     "devDependencies": {
-        "@commitlint/cli": "^19.8.1",
-        "@commitlint/config-conventional": "^19.8.1",
+        "@commitlint/cli": "^21.2.2",
+        "@commitlint/config-conventional": "^21.2.2",
         "@eslint/js": "^10.0.0",
         "eslint": "^10.0.3",
         "eslint-plugin-import-x": "^4.0.0",
         "husky": "^9.1.7",
-        "lint-staged": "^16.3.2",
+        "jsdom": "^30.0.1",
+        "lint-staged": "^17.4.1",
         "oxlint": "1.73.0",
         "turbo": "^2.9.18",
         "typescript-eslint": "^8.56.0"
     },
     "peerDependencies": {
-        "typescript": "^5"
+        "typescript": "^6.0.3"
     }
 }

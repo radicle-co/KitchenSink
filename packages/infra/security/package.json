@@ -1,0 +1,54 @@
+{
+    "name": "@kitchensink/infra-security",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "//exports": [
+        "Unlike the other shared @kitchensink/* packages, this one exports BUILT JS, not ./src.",
+        "Its consumers are CDK app entrypoints, and prod-deploy runs four of them as COMPILED JS under",
+        "plain `node` (e.g. `cdk deploy --app \"node packages/services/identity/infra/dist/bin/app.js\"`).",
+        "A `main` of ./src/index.ts made that path fail with ERR_MODULE_NOT_FOUND: node type-strips",
+        "index.ts but cannot resolve its `./x.js` relative imports, since no built .js sits beside them.",
+        "Verified by running the real compiled entrypoint; see ADR-0013 and the integration suite in",
+        "packages/infra/global/__tests__/cdkNagSynth.integration.test.ts, which drives `node dist/bin/app.js`."
+    ],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "dependencies": {
+        "cdk-nag": "^2.38.2"
+    },
+    "peerDependencies": {
+        "aws-cdk-lib": "^2.176.0",
+        "constructs": "^10.0.0"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "aws-cdk-lib": "*",
+        "constructs": "*",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

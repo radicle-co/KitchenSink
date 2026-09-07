@@ -1,7 +1,7 @@
 /**
  * @module screens/signup — the mobile sign-up surface (U2 rebuild).
  *
- * The sibling of {@link import('./login.js').LoginScreen}: a custom Clerk sign-up form on the design system
+ * The sibling of `LoginScreen`: a custom Clerk sign-up form on the design system
  * (`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,
  * associated field labels, and a `SafeAreaView` + `KeyboardAvoidingView` shell. It runs `signUp.create` →
  * `signUp.password` → `setActive` on completion; anything short of `complete` surfaces the localized
@@ -147,7 +147,9 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     flex: { flex: 1 },
     container: {
         flexGrow: 1,

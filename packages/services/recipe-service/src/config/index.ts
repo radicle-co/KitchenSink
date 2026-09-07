@@ -1,4 +1,53 @@
-export * from './config.types.js';
-export * from './env-files.js';
-export * from './load-config.js';
-export * from './config.module.js';
+export {
+    CONFIG_SOURCES,
+    DEFAULT_AWS_REGION,
+    ENVIRONMENTS,
+    RECIPE_DB_NAME,
+    RECIPE_DB_USERNAME,
+    accountErasureConfigMeta,
+    accountErasureConfigSchema,
+    apiConfigSchema,
+    baseConfigSchema,
+    clerkConfigMeta,
+    clerkConfigSchema,
+    databaseConfigMeta,
+    databaseConnectionSchema,
+    databasePoolConfigSchema,
+    environmentSchema,
+    foodServiceConfigMeta,
+    foodServiceConfigSchema,
+    ingredientVerificationConfigMeta,
+    ingredientVerificationConfigSchema,
+    parseJobConfigMeta,
+    parseJobConfigSchema,
+    rateLimitConfigSchema,
+    serviceAuthConfigMeta,
+    serviceAuthConfigSchema,
+    ssmConfigSchema,
+    storageConfigMeta,
+    storageConfigSchema,
+} from './config.types.js';
+export type {
+    AccountErasureConfig,
+    ApiConfig,
+    BaseConfig,
+    ClerkConfig,
+    ConfigFieldMeta,
+    ConfigSource,
+    DatabaseConfig,
+    DatabaseConnectionConfig,
+    DatabasePoolConfig,
+    Environment,
+    FoodServiceConfig,
+    IngredientVerificationConfig,
+    ParseJobConfig,
+    LoadConfigFn,
+    LoadConfigOptions,
+    RateLimitConfig,
+    ServiceAuthConfig,
+    SsmConfig,
+    StorageConfig,
+} from './config.types.js';
+export { localEnvFilePaths } from './envFiles.js';
+export { ConfigValidationError, isConfigValidationError, loadConfig } from './loadConfig.js';
+export { AppConfigModule } from './config.module.js';

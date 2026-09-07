@@ -15,10 +15,12 @@
  * `preventDefault()`s FocusScope's own restore-to-previous-element behavior and focuses
  * `context.triggerRef.current` instead — see `@radix-ui/react-dialog`'s `DialogContentModal`). This dialog
  * is opened by a sibling control (the collection-actions "Pull Updates" button, wired in W5 Task 12), not
- * an owned `Dialog.Trigger`, so that default silently focuses nothing. `triggerRef` below captures
+ * an owned `Dialog.Trigger`, so that default silently focuses nothing. `useReturnFocusOnClose`
+ * (`@commise/ui/dialog-focus`) owns the repair for every surface in this position: it snapshots
  * `document.activeElement` at the render where `open` flips true — BEFORE `Dialog.Content` (and its
- * autofocus-on-mount) ever commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own
- * no-op default so there is one focus-restore path, not a silently-losing second one.
+ * autofocus-on-mount) ever commits — and returns the `onCloseAutoFocus` handler that restores it,
+ * `preventDefault()`ing Radix's own no-op default so there is one focus-restore path, not a silently-losing
+ * second one. Its module doc carries the rest, including why the edge latch must not be a ref.
  *
  * A discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):
  * (1) a `role="status"` progress affordance while `isLoadingPreview`, or before any `diff` has arrived; (2)
@@ -28,10 +30,14 @@
  * `diff` — added/removed/unchanged COUNTS only (this block never resolves recipe titles, it only received
  * ids), the "not overwritten" note, and the count-templated Pull action, disabled while `isCommitting` or
  * when there is nothing to add.
+ *
+ * @pattern Adapter over the house Radix `Dialog` — Radix owns the focus trap, Escape-to-dismiss and background inert;
+ *     `open` is the caller's, so this leaf stays a controlled `props → JSX` render.
  */
 import { useMessages } from '@commise/i18n/react';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useRef, type FC } from 'react';
+import { type FC } from 'react';
 
 import { fillTemplate } from '../list/model.js';
 import { collectionMessages } from './messages.js';
@@ -50,18 +56,9 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
 }) => {
     const { pull } = useMessages(collectionMessages);
 
-    // Capture whatever had focus right before this dialog opened, during render (not an effect): this runs
-    // BEFORE `Dialog.Content` mounts and moves focus onto its own first tabbable candidate, so it always
-    // sees the real invoking control. Guarded on the false→true edge so it isn't re-captured on every
-    // re-render while the dialog stays open (e.g. a preview/commit state change).
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this dialog opened, and restore it on close — see the module
+    // doc. The edge guard is inside the hook, so a preview/commit state change cannot re-snapshot.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     const attribution =
         sourceOwnerHandle !== undefined && sourceCollectionName !== undefined
@@ -81,10 +78,7 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
                 <Dialog.Content
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
+                    onCloseAutoFocus={onCloseAutoFocus}
                     className="fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-card p-6 shadow-lg"
                 >
                     <div className="flex flex-col gap-1">

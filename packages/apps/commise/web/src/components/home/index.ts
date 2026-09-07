@@ -1,7 +1,7 @@
 /**
  * @module home — the web Home widget-surface host (US-000 / FR-046).
  *
- * Public surface: the composition root ({@link HomeWidgetSurface}) rendered by the `[locale]` home route,
+ * Public surface: the composition root (`HomeWidgetSurface`) rendered by the `[locale]` home route,
  * plus the appShell container factory and the nudge seam a premium-gated widget triggers.
  */
 export { HomeWidgetSurface, type HomeWidgetSurfaceProps } from './HomeWidgetSurface';

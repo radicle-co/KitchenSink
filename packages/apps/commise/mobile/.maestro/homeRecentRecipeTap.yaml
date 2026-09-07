@@ -27,28 +27,57 @@ appId: io.commise.mobile
 # Drive the card → detail hop on the first seeded recipe. Guarded by `when: visible` so a viewer with an EMPTY
 # library (no seed, or a fresh test user) still passes the widget assertion above instead of failing the suite —
 # the same guard `recipes/list-detail.yaml` uses for exactly this reason.
+# ⛔ A HARD WAIT, not only the guard below. `when:` does not wait and does not fail: when the fixture was
+# missing it evaluated false, the whole body was SKIPPED, and the flow reported GREEN having asserted
+# nothing. That is exactly what happened in run 101351873536 — every reset had failed, the library was
+# empty, and this flow passed. The seeded world is now guaranteed by `e2e-seed`, so its absence is a
+# failure to report rather than a condition to tolerate. The guard is kept underneath it so the block's
+# structure is unchanged; by the time it runs it can only be true.
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_LAMB}'
+      timeout: 30000
 - runFlow:
       when:
-          visible: 'Mediterranean Grilled Lamb'
+          visible: '${E2E_RECIPE_LAMB}'
       commands:
           # The card is a single accessible button named by the recipe title (the shared `RecipeCard` root
           # wraps its content in ONE `PressScale` Pressable labelled with the title).
-          - tapOn: 'Mediterranean Grilled Lamb'
+          - tapOn: '${E2E_RECIPE_LAMB}'
 
           # The recipe DETAIL opened — assert the detail's own title heading plus a section only the detail
           # renders, so a card that merely highlighted (or a navigation that landed on the list) fails here.
           - extendedWaitUntil:
-                visible: 'Mediterranean Grilled Lamb'
+                visible: '${E2E_RECIPE_LAMB}'
                 timeout: 40000
           - assertVisible: 'Ingredients'
-          - assertVisible: 'Instructions'
-          - assertVisible: 'Nutrition (per serving)'
+          # ⚠️ `Instructions` and `Nutrition (per serving)` were asserted BLIND here, and can no longer be: the
+          # seeded lamb now carries five ingredient lines and four steps
+          # (`packages/services/recipe-service/src/database/seed.ts`), which pushes both headings roughly a
+          # screen below the fold, and `assertVisible` only ever sees the current viewport — so a blind assert
+          # would now fail for a TALLER FIXTURE rather than for a broken screen. They are still asserted, in
+          # document order, with `scrollUntilVisible`, which still FAILS when the heading genuinely is absent
+          # (unlike a `when: visible` guard, which would SKIP it). Same remedy `recipes/list-detail.yaml`
+          # applies to the same two headings on the same screen.
+          - scrollUntilVisible:
+                element: 'Instructions'
+                direction: DOWN
+                timeout: 20000
+          - scrollUntilVisible:
+                element: 'Nutrition (per serving)'
+                direction: DOWN
+                timeout: 20000
 
           # We really left Home: the time-of-day greeting is gone.
           - assertNotVisible: '.*Chef.*'
 
           # Back must land on the recipe LIST, not on a dead end — proving `RecipesScreen` was seeded with the
-          # list beneath the pushed detail.
+          # list beneath the pushed detail. `Back` lives INSIDE the detail's own ScrollView, so the walk above
+          # left it off the TOP of the screen — scroll back up to it rather than tapping blind (the idiom
+          # `recipes/list-detail.yaml` uses after the same walk).
+          - scrollUntilVisible:
+                element: 'Back'
+                direction: UP
+                timeout: 20000
           - tapOn: 'Back'
           - assertVisible: 'Recipes'
           - assertVisible: 'New recipe'

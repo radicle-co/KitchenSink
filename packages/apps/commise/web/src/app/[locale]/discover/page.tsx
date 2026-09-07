@@ -48,8 +48,9 @@ function toQueryString(searchParams: RawSearchParams): string {
  * (`filtersFromQueryString` + `filtersToSearchParams`) the container derives its URL-sourced criteria from,
  * plus the container's initial `sortBy` (`RecipeSearchSortBy.RELEVANCE` — a view preference the container
  * only ever starts at on mount, never URL-sourced). This is an INFINITE query (W4/S4 "Load more"), so this
- * uses `prefetchInfiniteQuery` (not `prefetchQuery`) — a flat prefetch would dehydrate a bare page body under
- * a key the infinite observer expects `{ pages, pageParams }` for. A failed prefetch dehydrates to an empty
+ * uses `prefetchInfiniteQuery` over the INFINITE factory (not `prefetchQuery` over the flat one): the two
+ * shapes key separately (`recipeServiceKeys.recipeSearchInfinite`, PR #91 review), so a flat prefetch would
+ * land under a key this container never reads and hydrate nothing. A failed prefetch dehydrates to an empty
  * state (`prefetchInfiniteQuery` never throws; `dehydrate()` drops non-`success` queries), so the container's
  * own client-side search fetch takes over — never a 500.
  */

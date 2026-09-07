@@ -2,10 +2,10 @@
  * T028/T029/T067 — ingredient async-resolution DISAMBIGUATION integration (data-model R5).
  *
  * Exercises {@link IngredientsService} over the REAL {@link IngredientsDal} against Docker Postgres
- * (migrated + seeded by `tests/global-setup.ts`) with the external food service (003) stubbed at the
+ * (migrated + seeded by `tests/globalSetup.ts`) with the external food service (003) stubbed at the
  * `FoodServiceClient` boundary — the ONLY external dependency, and the one 001 does not own. This proves
  * the behaviours a mocked `db.execute` cannot: the poll's write-through actually persists the golden-record
- * per-100g nutrition + household portions into the `ingredients` row, a terminal food is recorded (never
+ * the food REFERENCE and status into the `ingredients` row (nutrition is read LIVE — U10), a terminal food is recorded (never
  * thrown), and `resolve` drives an `UNRESOLVED` row to `RESOLVED` with nutrition through the real SQL
  * (`updateResolution`'s `COALESCE` + `jsonb` cast, `createFoodBacked`'s `search_vector`, `findById`'s
  * numeric/`null` mapping).
@@ -15,15 +15,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import { FoodServiceClient, NotFoundError } from '@kitchensink/food-service-client';
+import { FoodResolutionStatus, type CatalogFoodResolutionStatus } from '@kitchensink/recipe-core';
+import { FoodServiceClient, NotFoundError, type StatusResponse } from '@kitchensink/food-service-client';
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
-import type { FoodCatalogGateway } from '../../../src/ingredients/food-catalog.gateway.js';
+import type { FoodCatalogGateway } from '../../../src/ingredients/foodCatalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import {
     CALLER_TOKEN as CALLER,
+    makeCanonicalName,
     foodClientsOf,
     makeCandidateView,
     makeFoodView,
@@ -45,7 +46,7 @@ function makeFoodClientStub(): FoodServiceClient {
     } as unknown as FoodServiceClient;
 }
 
-/** A no-op catalog gateway — the disambiguation path never blends (see `blended-suggest.integration.test.ts`). */
+/** A no-op catalog gateway — the disambiguation path never blends (see `blendedSuggest.integration.test.ts`). */
 function makeCatalogStub(): FoodCatalogGateway {
     return { search: vi.fn().mockResolvedValue({ hits: [], availability: 'ok' }) } as unknown as FoodCatalogGateway;
 }
@@ -77,15 +78,68 @@ describe.skipIf(!hasDatabaseUrl)(
         });
 
         /** Seed a food-backed catalog row in the given non-terminal status and return its 001 id. */
-        async function seedFoodBacked(status: FoodResolutionStatus): Promise<string> {
+        async function seedFoodBacked(status: CatalogFoodResolutionStatus): Promise<string> {
             const row = await dal.createFoodBacked({
-                name: 'Ambiguous quinoa',
+                name: makeCanonicalName('Ambiguous quinoa'),
                 foodId: FOOD_ID,
                 foodResolutionStatus: status,
             });
 
             return row.id;
         }
+
+        /**
+         * ⛔ THE LOST UPDATE (PR #91 review). Two refreshes read the same PENDING row; the food service answers
+         * the SECOND first (RESOLVED, with a name), then the delayed answer to the FIRST arrives (still
+         * PENDING). An unconditional `UPDATE` persisted the stale PENDING over the newer RESOLVED and the
+         * catalog name with it. The write is now a compare-and-set on the status each refresh OBSERVED: the
+         * stale writer matches nothing and is handed the current row instead.
+         */
+        describe('two interleaved refreshes of one row', () => {
+            it('cannot regress it: the stale PENDING loses to the newer RESOLVED, and the stale caller sees RESOLVED', async () => {
+                const id = await seedFoodBacked(FoodResolutionStatus.PENDING);
+                let answerTheFirst: (status: StatusResponse) => void = () => undefined;
+                const firstAnswer = new Promise<StatusResponse>((resolve) => {
+                    answerTheFirst = resolve;
+                });
+                vi.mocked(food.getStatus)
+                    .mockImplementationOnce(() => firstAnswer)
+                    .mockResolvedValueOnce(
+                        makeStatusResult({
+                            id: FOOD_ID,
+                            status: FoodResolutionStatus.RESOLVED,
+                            food: makeFoodView({ id: FOOD_ID, name: 'Quinoa, cooked' }),
+                        }),
+                    );
+
+                const first = service.refreshStatus(CALLER, id);
+                await vi.waitFor(() => expect(food.getStatus).toHaveBeenCalledTimes(1));
+                const second = await service.refreshStatus(CALLER, id);
+
+                expect(second.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+
+                answerTheFirst(makeStatusResult({ id: FOOD_ID, status: FoodResolutionStatus.PENDING }));
+                const stale = await first;
+
+                expect(stale.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+                expect(await dal.findById(id)).toMatchObject({
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    name: 'Quinoa, cooked',
+                });
+            });
+
+            it('still admits the terminal → PENDING reactivation a refresh genuinely observes', async () => {
+                const id = await seedFoodBacked(FoodResolutionStatus.FAILED);
+                vi.mocked(food.getStatus).mockResolvedValue(
+                    makeStatusResult({ id: FOOD_ID, status: FoodResolutionStatus.PENDING }),
+                );
+
+                const refreshed = await service.refreshStatus(CALLER, id);
+
+                expect(refreshed.foodResolutionStatus).toBe(FoodResolutionStatus.PENDING);
+                expect((await dal.findById(id))?.foodResolutionStatus).toBe(FoodResolutionStatus.PENDING);
+            });
+        });
 
         it('getCandidates proxies the food client for an UNRESOLVED food-backed ingredient', async () => {
             const id = await seedFoodBacked(FoodResolutionStatus.UNRESOLVED);
@@ -98,7 +152,7 @@ describe.skipIf(!hasDatabaseUrl)(
             expect(result).toEqual([candidate]);
         });
 
-        it('resolve drives UNRESOLVED → RESOLVED and PERSISTS the golden-record nutrition + portions to the row', async () => {
+        it('resolve drives UNRESOLVED → RESOLVED and records the food reference and status on the row (nutrition is read live, U10)', async () => {
             const id = await seedFoodBacked(FoodResolutionStatus.UNRESOLVED);
             vi.mocked(food.resolve).mockResolvedValue({ id: FOOD_ID, status: FoodResolutionStatus.RESOLVED });
             vi.mocked(food.getStatus).mockResolvedValue(
@@ -121,9 +175,10 @@ describe.skipIf(!hasDatabaseUrl)(
             // Re-read from the DB: the golden nutrition + a parsed portion were actually written through.
             const reread = await dal.findById(id);
             expect(reread?.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-            expect(reread?.caloriesPer100g).toBe(364);
-            expect(reread?.proteinGPer100g).toBe(10.3);
-            expect(reread?.portions).toEqual([{ unit: 'cup', gramsPerUnit: 185 }]);
+            // ⛔ The row carries the REFERENCE, never a copy of the food's numbers (U10). Asserting a
+            // persisted macro here would be asserting the snapshot this unit deleted.
+            expect(reread).not.toHaveProperty('proteinGPer100g');
+            expect(reread?.foodId).toBeTruthy();
         });
 
         it('resolve is converge-only: a second resolve does NOT re-point an already-RESOLVED row', async () => {
@@ -141,7 +196,6 @@ describe.skipIf(!hasDatabaseUrl)(
             await service.resolve(CALLER, id, ['cand-a']);
             const afterFirst = await dal.findById(id);
             expect(afterFirst?.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-            expect(afterFirst?.caloriesPer100g).toBe(364);
 
             // A SECOND resolve with a DIFFERENT pick must be an idempotent no-op — the ownerless shared row
             // must not be re-pointed. If the converge-only guard were removed, food.resolve would fire with
@@ -158,7 +212,7 @@ describe.skipIf(!hasDatabaseUrl)(
             expect(returned.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
         });
 
-        it('poll (refreshStatus) persists nutrition once a PENDING food RESOLVES', async () => {
+        it('poll (refreshStatus) advances the row to RESOLVED once a PENDING food resolves', async () => {
             const id = await seedFoodBacked(FoodResolutionStatus.PENDING);
             vi.mocked(food.getStatus).mockResolvedValue(
                 makeStatusResult({
@@ -171,7 +225,6 @@ describe.skipIf(!hasDatabaseUrl)(
             const refreshed = await service.refreshStatus(CALLER, id);
 
             expect(refreshed.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-            expect((await dal.findById(id))?.caloriesPer100g).toBe(364);
         });
 
         it('poll records a terminal NOT_FOUND food as the row status (never throws)', async () => {

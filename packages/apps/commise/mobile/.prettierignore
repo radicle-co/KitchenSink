@@ -2,3 +2,10 @@ node_modules
 dist
 coverage
 *.tsbuildinfo
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test
+
+# Expo prebuild + Gradle/CMake native build output. Gitignored wholesale at .gitignore:96.
+android
+ios

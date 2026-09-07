@@ -1,0 +1,377 @@
+# zizmor — static analysis for GitHub Actions workflows.
+#
+# Complements, does not duplicate, CodeQL's `actions` pack: zizmor ships ~40 audits CodeQL has no
+# equivalent for (template-injection reachability, excessive permissions, cache poisoning,
+# artipacked/credential persistence, unpinned and impostor actions, self-hosted-runner exposure).
+# Findings land in the Security tab as SARIF alongside CodeQL's.
+#
+# ── FINDINGS LEDGER (keep this current — a stale baseline is worse than none) ───────────────────────
+#
+# Original baseline on the tree that introduced this file (zizmor 1.29.0, `zizmor .github/`): 231
+# findings — 120x unpinned-uses (error), 65x template-injection (note), 33x artipacked, 6x
+# secrets-inherit, 6x excessive-permissions (1 error: workflow-level `id-token: write` in
+# sandbox-deploy.yml), 1x dependabot-cooldown. That backlog is why this landed ADVISORY: gating on it
+# then would have blocked every PR.
+#
+# BURN-DOWN (2026-08-08). Re-measured 251 on the then-current tree (the drift from 231 is workflow
+# growth, not a zizmor change), now **26**. Closed COMPLETELY:
+#   • excessive-permissions 7 → 0, both High included. The workflow-level `id-token: write` in
+#     prod-deploy / sandbox-deploy / sandbox-identity-deploy was DEAD privilege: all 12
+#     `configure-aws-credentials` call sites use static access keys and nothing under `.github/` names
+#     `role-to-assume`/`web-identity`, so it was removed rather than merely narrowed. ci-pr / ci-main /
+#     ci-full gained explicit blocks, with `id-token: write` job-scoped on the `_ci.yml` call (a called
+#     workflow can only DOWNGRADE what its caller grants, and `e2e-web` needs it for Argos).
+#   • template-injection 67 → 0. Every interpolation moved out of `run:` bodies into `env:`. The
+#     invariant is now uniform outside `_ci-heavy.yml`: NO `${{ … }}` appears in any `run:` body.
+#   • dependabot-cooldown 1 → 0, via `cooldown.default-days: 7` — plus a `github-actions` ecosystem
+#     entry, because SHA-pinning without Dependabot owning the pins just rots them (see dependabot.yml).
+#   • unpinned-uses 133 → 17 and artipacked 37 → 6 (details below).
+#
+# `_ci-heavy.yml` CLOSED OUT (same day, once the concurrent edit landed): its 17 unpinned-uses and 4
+#   artipacked are gone. All four checkouts take `persist-credentials: false` — verified first that NO job
+#   in that workflow performs a git push/fetch/remote operation — and every action is pinned to the same
+#   SHAs used elsewhere, plus `actions/setup-java` → cf277c60eb25467037889841efdb72551f06f6c3 (v4.9.1) and
+#   `reactivecircus/android-emulator-runner` → a421e43855164a8197daf9d8d40fe71c6996bb0d (v2.38.0). Both
+#   were re-verified against the live tag API before use; note that `actions/setup-java@v4` currently
+#   resolves to exactly that commit, so the pin is behaviour-neutral (the repo is on v5 now — bumping the
+#   MAJOR is a separate decision, and the Maestro Android build has been fragile before).
+#   `on.workflow_call.secrets` is declared there too, which let all three callers drop `secrets: inherit`.
+#
+# THE REMAINING 2 — both deliberate, and now DECLARED rather than hidden under a severity floor:
+#   • 2 artipacked — prod-deploy `deploy` and sandbox-identity-deploy `deploy` keep their git credential
+#     ON PURPOSE. `dorny/paths-filter` only uses the GitHub API on `pull_request`; on `push` /
+#     `workflow_dispatch` it falls through to `getChangedFilesFromGit`, which fetches from `origin`. Each
+#     site carries a `⚠️ DELIBERATE` note AND a `# zizmor: ignore[artipacked]` on its `- name: Checkout`
+#     line. Every other checkout in the repo sets `persist-credentials: false`.
+#
+# ⚠️ artipacked's SEVERITY IS NOT STABLE ACROSS RUNS — this is what broke the first version of the gate,
+#   and it is why the floor was moved off `medium` (it is now `informational`, i.e. no floor at all, which
+#   makes this class unconditionally in-scope). The audit "produces lower-severity findings when v6.0.0 or
+#   higher of actions/checkout is used" (docs.zizmor.sh/audits/#artipacked). Both sites pin checkout by
+#   SHA (`d23441a4… # v6.1.0`), and resolving a SHA to its tag needs the GitHub API — so the v6 downgrade
+#   only applies in ONLINE mode. Measured on 1.29.0, same tree, same invocation, the ONLY difference being
+#   whether `GITHUB_TOKEN`/`GH_TOKEN` is in the environment:
+#     • online  (token present) → `0 low` becomes `2 low`    … artipacked graded LOW
+#     • offline (no token)      → `2 medium`                 … artipacked graded MEDIUM
+#   The zizmor step in THIS workflow passes no token, so CI is offline and graded them MEDIUM; the earlier
+#   local measurements in this ledger were taken in a shell that had `GITHUB_TOKEN` exported and graded
+#   them LOW. That is the whole explanation for "2 low" here versus "2 medium" in CI on the same commit —
+#   nothing regressed, and the two findings never changed.
+#
+#   Why that made a `medium` floor UNSOUND rather than merely wrong-looking. Verified by introducing a real
+#   new artipacked (dropped `persist-credentials: false` from heavy-e2e.yml's v6 SHA-pinned checkout) and
+#   running all four combinations:
+#     • floor=medium, ONLINE  → exit 0   ← THE GATE SILENTLY MISSES A BRAND-NEW artipacked
+#     • floor=medium, offline → exit 13
+#     • floor=low,    ONLINE  → exit 12
+#     • floor=low,    offline → exit 13
+#   So at a `medium` floor the gate's ability to catch this class depends on whether zizmor happened to run
+#   offline — i.e. on an env var, not on the code. Anyone adding a token to that step (to enable the online
+#   audits) would silently disarm it. A v4-pinned checkout grades MEDIUM in both modes, so the hole is
+#   specific to v6+ and would widen as checkouts are upgraded.
+#
+# ⚠️ THE FLOOR WAS NEVER THE ONLY FILTER — `--persona` IS THE OTHER, AND IT IS ORTHOGONAL. Raising the
+#   floor to `low` on 2026-08-08 closed one filter and left the other wide open. Measured on 1.29.0,
+#   offline, on the tree BEFORE the persona burn-down below (58 findings total, 2 declared ignores):
+#     • default `regular` persona, --min-severity low            → exit 0, **56 suppressed**
+#     • default `regular` persona, --min-severity informational  → exit 0, **56 suppressed**
+#     • --persona pedantic                                       → 27 shown, 29 still suppressed
+#     • --persona auditor                                        → 56 shown, 0 suppressed
+#   Two invocations differing ONLY in persona saw 0 and 56 findings on the same tree at the same severity.
+#   So a `regular`-persona green said far less than it looked like it said, and the classes it could not
+#   see included EVERY `secrets-outside-env` in the repo.
+#
+# PERSONA BURN-DOWN (2026-08-10, PR #91). The gate moved from `regular` to **`pedantic`**, which required
+#   emptying pedantic's 27 rather than flipping a flag. By audit, with what was done to each:
+#     • undocumented-permissions  8 → 0  FIXED. zizmor wants the explanation on the permission's OWN line;
+#         codeql.yml already had a preceding block comment and still fired. Now every `permissions:` key in
+#         ci-pr / ci-main / ci-full / _ci / codeql / zizmor / sandbox-deploy / sandbox-web-preview carries a
+#         trailing comment saying what needs it.
+#     • excessive-permissions     1 → 0  FIXED. sandbox-web-preview.yml held `deployments: write` at the
+#         WORKFLOW level for its single job. Moved to that job, so a job added later does not inherit the
+#         ability to publish deployment statuses. (This is the same class the 2026-08-08 burn-down closed at
+#         the regular persona; the pedantic tier sees workflow-level grants the regular tier does not.)
+#     • concurrency-limits        1 → 0  FIXED. food-loadtest.yml gained a `concurrency:` group keyed on
+#         `base_stage`, with `cancel-in-progress: false` — two concurrent runs would race each other's
+#         distinct-user pool on a SHARED Clerk instance, and cancelling mid-run is what LEAKS those users
+#         (teardown never executes), so queueing is the correct resolution rather than the reflexive one.
+#     • anonymous-definition      1 → 0  FIXED. food-loadtest.yml's `loadtest` job gained a `name:`.
+#     • unpinned-images          19 → DECLARED, not fixed. Every one is a `services:` container in `_ci.yml`
+#         or `_ci-heavy.yml` (`postgres:18` ×12 — 8 + 4, `localstack/localstack:4.4.0` ×7 — 6 + 1), each now
+#         carrying a per-site `# zizmor: ignore[unpinned-images]`. Pinning them by digest is a real
+#         hardening step and a SEPARATE decision, because nothing would own the resulting pins:
+#         `.github/dependabot.yml` declares `npm` and `github-actions` only, with no `docker` ecosystem, and
+#         a SHA pin nobody bumps is the pinned-and-forgotten failure that file's own header warns about.
+#         `postgres:18` is also deliberately a floating MINOR that tracks the production RDS engine — the
+#         MAJOR is not free to drift here, because `localPostgresParity.test.ts` reads it out of
+#         `DataStack.ts` and fails every pin that disagrees. To close this: add a `docker` ecosystem to
+#         dependabot.yml (verify first that it discovers Actions `services:` images at all), then pin and
+#         delete these 19 comments.
+#         ⚠️ The counts above were STALE and are corrected here (were "×13, ×3, 16"). The authoritative
+#         record is `zizmorGateFilters.test.ts`'s `DECLARED_IGNORES` ratchet, which already read 14 + 5 = 19;
+#         this prose had drifted from it. The `16` → `18` half is the PG 16 → 18 upgrade (plan U13).
+#
+# REGRESSION + REPAIR (2026-09-02, PR #91). The gate went RED and stayed red: **12 shown findings**, all
+#   of them in the two workflows the on-demand-sandbox work added AFTER the burn-downs above —
+#   `sandbox-up.yml` (2026-08-27) and `sandbox-reconcile.yml` — which re-introduced four classes this file
+#   records as CLOSED. That is the ledger earning its keep: every finding was a known-and-solved shape, so
+#   the repair was to apply this repo's existing conventions rather than to decide anything new.
+#     • unpinned-uses 4 → 0. Both files took `actions/checkout@v4` and
+#       `aws-actions/configure-aws-credentials@v4`; now the same SHAs every sibling uses
+#       (`d23441a4… # v6.1.0`, `7474bc46… # v4.3.1`).
+#     • artipacked 2 → 0. Both checkouts take `persist-credentials: false`. Verified the precondition the
+#       2 DECLARED exceptions above turn on: NEITHER workflow pushes, fetches or otherwise talks to
+#       `origin` (and neither runs `dorny/paths-filter`), so nothing needed the credential — these are
+#       fixes, not new declared ignores, and the declared count is unchanged.
+#     • excessive-permissions 3 → 0. Both held their WRITE grants (`pull-requests: write`, and
+#       `actions: write` in sandbox-up) at the WORKFLOW level. Moved to the single job that uses each,
+#       so a job added later cannot silently inherit them — the same resolution the 2026-08-10 persona
+#       burn-down applied to sandbox-web-preview.yml, and the reason the pedantic tier is worth running.
+#     • template-injection 3 → 0. Three `${{ … }}` interpolations sat inside `run:` bodies, restoring the
+#       exact class the 2026-08-08 burn-down drove to zero. All three now arrive through `env:`.
+#       ⚠️ `sandbox-reconcile`'s is the one to read before touching: `EXPIRED_TOKENS` is referenced
+#       UNQUOTED in its `for` loop ON PURPOSE — it is a space-separated `pr-{N}` list the discovery step
+#       builds, and it must word-split into one iteration per token.
+#   ⚠️ THE REAL LESSON IS THE GAP, NOT THE FINDINGS. This gate is a REQUIRED check that had been failing on
+#   every commit for days while work continued around it, which is the same "a check nobody can read is a
+#   check nobody reads" failure that `deployGateStepGuards.test.ts` was written for on the same day. A red
+#   gate is only a gate while someone acts on it.
+#
+# CURRENT MEASUREMENT (2026-09-02, offline, after the repair above AND after `docs.yml` grew its deploy
+#   job): **38 findings — 22 declared per-site ignores, 16 suppressed, 0 shown at EVERY severity.**
+#   `--persona pedantic --min-severity informational --strict-collection .github/` exits 0. The growth
+#   from the 2026-08-11 line below is workflow growth (more `services:` containers and more checkouts),
+#   not a weakening: the declared ignores are still only `unpinned-images` + the 2 deliberate
+#   `artipacked`, and nothing new was annotated away to reach 0.
+#   ⚠️ `docs.yml`'s new `deploy` job moved NO number, which is worth stating rather than assuming: every
+#   count above is identical before and after it. It reads `secrets.VERCEL_TOKEN`, which would normally
+#   add a `secrets-outside-env` finding — that audit is `auditor`-persona and this gate runs `pedantic`,
+#   AND the job is bound to a `Docs` GitHub Environment anyway, so the finding would not exist at
+#   `auditor` either. It performs no checkout at all (deliberately — see that file's header on Vercel's
+#   git-author seat block), so it contributes no `artipacked`; both `${{ … }}` uses sit in `env:` blocks,
+#   so it contributes no `template-injection`; and both its jobs carry a commented `permissions:`.
+#
+# PRIOR MEASUREMENT (2026-08-11, offline, after the Environments work below): **22 findings — 18 declared
+#   per-site ignores (16 unpinned-images + 2 artipacked), 4 suppressed, 0 shown at EVERY severity.**
+#   `--persona pedantic --min-severity informational --strict-collection` exits 0. The floor is now
+#   `informational` rather than `low`, which removes the severity filter entirely: at the pedantic persona
+#   the informational tier holds exactly ONE audit class in this repo (`anonymous-definition`), it was
+#   enumerated and fixed above, so the "informational classes are unreviewed" caveat that kept the floor at
+#   `low` no longer applies. zizmor is EXACTLY version-pinned, so no upstream change can add a class here
+#   without a repo change to point at.
+#
+# ENVIRONMENTS BURN-DOWN (2026-08-11, PR #91) — `secrets-outside-env` 29 → 27 → **12**, by adopting GitHub
+#   Environments rather than by annotating the findings away. Read the audit's annotation literally: "secret is
+#   accessed outside of a dedicated **environment**" — it is NOT about `env:` blocks. It fires on every job
+#   that reads a `secrets.*` value without binding itself to a GitHub Environment. What was done:
+#     • `Production` created with a REQUIRED REVIEWER (gooftroop) and a main-only branch policy, and
+#       prod-deploy's `deploy` job bound to it (2 → 0). This one is a real operational gate, not a label:
+#       prod now waits for a human. `web-surface` is left UNBOUND on purpose — it is a read-only post-deploy
+#       smoke, and gating it would demand a second approval to verify what was just approved.
+#     • `Sandbox` created with ZERO protection rules, and the 6 sandbox DEPLOYING jobs bound to it:
+#       sandbox-deploy 14 → 8 (preview-domain, deploy-food, deploy-recipe), sandbox-web-preview 4 → 0
+#       (route), sandbox-router-deploy 3 → 0, sandbox-identity-deploy 2 → 0.
+#       Zero rules is a CONSTRAINT, not laxity: those jobs run unattended on every non-closed
+#       `pull_request`, and a reviewer or branch policy would stall every preview.
+#     • ⛔ The two RECLAMATION jobs — sandbox-deploy's `cleanup` and `reap-abandoned` — are deliberately
+#       left UNBOUND, which is why sandbox-deploy lands at 8 and not 0. They were briefly bound, and that
+#       was a mistake: an Environment binding is a place a run can be made to WAIT, and the failure modes
+#       are not symmetric. A stalled deploy is loud and free; a stalled cleanup silently leaks AWS spend,
+#       i.e. the exact leak the teardown script exists to prevent, reintroduced through the front door.
+#       Documenting "never protect `Sandbox`" was not enough, because that lives in repo settings where no
+#       test can see it and any admin can flip it from a UI that gives no hint a reaper depends on it. The
+#       invariant is now enforced in code by `packages/infra/global/__tests__/reclamationNeverGated.test.ts`,
+#       which fails if either job gains an `environment:` key. Those 8 findings are the honest cost of
+#       removing a real stall hazard — and per the note below, binding them was buying nothing anyway.
+#     • Workflow-level `SENTRY_AUTH_TOKEN` reads moved into the single consuming job in prod-deploy and
+#       sandbox-identity-deploy. A workflow-level secret is in scope for EVERY job in the file and no per-job
+#       Environment binding can narrow it back down. Note this audit does NOT see workflow-level reads at
+#       all, so that change moved no number — it was made on its own merits.
+#
+#   ⚠️ BE HONEST ABOUT WHAT THE SANDBOX HALF BUYS TODAY: LESS THAN THE ZERO SUGGESTS. `AWS_ACCESS_KEY_ID` and
+#   `AWS_SECRET_ACCESS_KEY` are ORGANIZATION secrets (verified: `gh api
+#   repos/:owner/:repo/actions/organization-secrets`), and an org secret CANNOT be scoped to an Environment —
+#   environment secrets are repo-level only. So every job in every workflow here can still reach those keys
+#   regardless of its binding, and one key pair still serves both prod and sandbox. The bindings make the
+#   deploy target explicit, give each stage its own deployment history, and pre-wire the seam; the trust
+#   boundary MOVES when the sandbox and prod credentials become separate stage-scoped identities held as
+#   `Sandbox` / `Production` environment secrets (or OIDC roles). That is still the undone hardening path
+#   `_ci.yml`'s header and docs/CI_ARCHITECTURE.md record.
+#
+# ⛔ THE REMAINING 4 — deliberately NOT bound, and that is the correct outcome:
+#     food-loadtest 2 · claude 1 · claude-code-review 1
+#   None of these is a deployment. Binding a CI/automation job to the zero-protection `Sandbox` would silence
+#   the finding without moving any boundary — the exact "accepting it by comment" failure this ledger refuses
+#   elsewhere — and binding it to a protected environment would make every PR wait on a human reviewer. The
+#   CI workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `heavy-e2e`, the two loadtests, `claude*`) are
+#   therefore left unbound BY DECISION, and the residual is reported rather than driven to zero. The 12
+#   breaks down as 8 reclamation (sandbox-deploy's `cleanup` + `reap-abandoned`, unbound so nothing can ever
+#   stall a teardown) and 4 CI/automation (food-loadtest 2, claude 1, claude-code-review 1). Note the whole
+#   residual is what the org-secret caveat above makes unavoidable anyway: while the AWS keys are org-scoped,
+#   a bound job is no less able to read them than an unbound one.
+#
+#   ⚠️ AND ZIZMOR STILL HAS NO AUDIT FOR THE ACTOR-TRUST CLASS AT ALL, at any persona. The missing
+#   `author_association` guard on `claude.yml` (a PUBLIC repo handing `CLAUDE_CODE_OAUTH_TOKEN` to a
+#   third-party action for any commenter on the internet) was found by human review. `dangerous-triggers`
+#   covers only `pull_request_target` and `workflow_run`, never the comment triggers.
+#   `secrets-outside-env` points at the same LINE — it is where the token is read — but what it asserts is
+#   "no Environment scopes this secret", not "any stranger can trigger this job", so adopting `auditor`
+#   would not have caught it either. That invariant is asserted only by the repo's own test:
+#   `packages/infra/global/__tests__/commentTriggerGuard.test.ts`. So: green here means "no pedantic-tier
+#   zizmor finding outside the 18 declared ignores". It does NOT mean "the workflows are audited for actor
+#   trust", and it does NOT mean the repo's secrets are environment-scoped.
+#
+# ✅ A WORKFLOW ZIZMOR CANNOT PARSE USED TO DROP OUT OF THE AUDIT WITH ONLY A `WARN` — now adopted and
+#   verified. Measured by dropping a syntactically invalid workflow into a copy of `.github/workflows/`:
+#   without the flag zizmor logged `WARN … failed to parse input` and still exited **0** ("No findings to
+#   report. Good job!"), so an invalid file was silently unaudited; with `--strict-collection` it exits
+#   **1** naming the file. It is a no-op on the current tree (exit 0), and it is on BOTH invocations.
+#
+# SCOPED TO `.github/` DELIBERATELY, not the repo root. A root-scoped run also audits the vendored
+# third-party workflows under `.specify/extensions/**` (36 extra findings in code we do not own and
+# cannot fix), which is noise that would bury our own findings.
+#
+# ⚠️ WHAT PROVES THIS STEP DID ITS JOB — read before changing the run block. In `--format sarif` zizmor
+# exits **0** even when it finds problems, so the exit code is NOT a signal about findings here and must
+# not be treated as one in either direction. Consequently the only thing separating "audited, here are
+# the results" from "never actually ran" is the presence of non-empty SARIF, which is exactly what the
+# step asserts.
+#
+# ⚠️ That exit code is FORMAT-DEPENDENT — measured on 1.29.0, same tree, same invocation otherwise:
+# `--format sarif` → exit 0, while the default human format → **exit 14** with findings present. So
+# changing the `--format` flag silently converts this step from advisory to gating. If that is ever
+# wanted, make it a deliberate decision and keep the non-empty-SARIF assertion; do NOT reach for
+# `continue-on-error` or `|| true` to quieten the resulting red. This repo has already lost four weeks
+# of production to a step that reported success for work it did not do, and a swallowed failure here
+# would reproduce that defect class in the very tool meant to detect it.
+name: zizmor
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: zizmor-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    audit:
+        name: Audit workflows
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            security-events: write # upload the zizmor SARIF to code scanning
+            contents: read # read the checkout being analysed
+            actions: read # read workflow run metadata, which the analysis needs on PRs
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              with:
+                  persist-credentials: false
+
+            - name: Install zizmor
+              # EXACTLY pinned. This started as `>=1,<2` to avoid pinning a version I had not confirmed
+              # existed; 1.29.0 was then installed and exercised locally (`--format sarif` verified, 231
+              # findings, exit 0), so the reason for the range is gone. A floating range on a SECURITY
+              # scanner is the wrong default in both directions: an upstream change can add findings that
+              # red an unrelated PR, or remove ones we were relying on, with no repo change to point at.
+              # pip has no built-in digest check here; `--require-hashes` with a hash-pinned requirements
+              # file is the next step up if this is ever considered supply-chain critical.
+              run: python3 -m pip install --disable-pip-version-check 'zizmor==1.29.0'
+
+            - name: Run zizmor
+              # `rc` rather than `status`: harmless in bash, but `status` is a read-only special in some
+              # shells and this script should stay portable if the shell is ever changed.
+              #
+              # SAME PERSONA AS THE GATE, on purpose. If this run were left at the default `regular` while
+              # the gate audits `pedantic`, the Security tab would show a strictly SMALLER picture than the
+              # thing that can fail the build, and the two would disagree about what "clean" means.
+              # `--strict-collection` so an unparseable workflow cannot silently drop out of the SARIF either.
+              run: |
+                  set -uo pipefail
+                  zizmor --persona pedantic --strict-collection --format sarif .github/ > zizmor.sarif
+                  rc=$?
+                  if [ ! -s zizmor.sarif ]; then
+                    echo "::error::zizmor produced no SARIF output (exit ${rc}) — the audit did not run."
+                    exit 1
+                  fi
+                  echo "zizmor exited ${rc}; wrote $(wc -c < zizmor.sarif) bytes of SARIF."
+
+            # THE GATE (added 2026-08-08, after the burn-down took 251 findings -> 2).
+            #
+            # A SECOND invocation, deliberately, because the SARIF run above CANNOT gate: with
+            # `--format sarif` zizmor always exits 0, so its exit code carries no signal (the default format
+            # exits 12/14 when findings exist). Reusing one run for both jobs is what would silently turn the
+            # gate into a no-op the next time somebody changes `--format`.
+            #
+            # THREE FLAGS, THREE SEPARATE DECISIONS — all three measured, none of them cosmetic:
+            #
+            # 1. `--persona pedantic` (was the implicit `regular`). PERSONA IS A FILTER ORTHOGONAL TO
+            #    SEVERITY, and it was the bigger hole of the two: on the same tree, at the same severity, the
+            #    regular persona showed 0 findings while pedantic showed 27 and auditor 56. A gate that only
+            #    ever ran the regular persona could not see `unpinned-images`, `undocumented-permissions`,
+            #    workflow-level `excessive-permissions`, `concurrency-limits` or `anonymous-definition` AT ANY
+            #    SEVERITY. Moving here was a burn-down, not a flag flip — see the ledger's per-audit account.
+            #    `auditor` is deliberately NOT adopted, but its one extra audit has now been BURNED DOWN
+            #    rather than left escalated: `secrets-outside-env` went 29 → 12 by creating the `Production`
+            #    and `Sandbox` environments and binding the 7 DEPLOYING jobs to them (see the ledger). The 12
+            #    that remain are reclamation jobs (never gated, so a teardown cannot stall) and CI/automation
+            #    jobs that are not deployments, left unbound by decision — which is
+            #    also why the persona stays `pedantic`: adopting `auditor` would gate on findings whose only
+            #    resolutions are to bind a CI job to a zero-protection environment (silencing without
+            #    hardening) or to a protected one (blocking every PR).
+            #
+            # 2. `--min-severity informational` (was `low`). This removes the severity filter entirely, so no
+            #    finding can hide beneath a threshold. `low` existed because artipacked is graded
+            #    inconsistently — LOW online, MEDIUM offline, same version and tree, decided purely by whether
+            #    a token is in the environment — which made the earlier `medium` floor MISS a brand-new
+            #    artipacked in online mode. With no floor at all, that coupling is gone for every class, not
+            #    just artipacked. The caveat that kept it at `low` (unreviewed informational classes) is
+            #    resolved: at this persona the informational tier holds exactly one class in this repo, and it
+            #    was enumerated and fixed.
+            #
+            # 3. `--strict-collection`. Without it a workflow zizmor cannot PARSE drops out of the audit with
+            #    only a `WARN` and the directory-level run still exits 0 — an invalid file reads as a clean
+            #    one. Measured both ways against a copy of this tree carrying one invalid workflow: exit 0
+            #    without the flag, exit 1 naming the file with it. No-op on the current tree.
+            #
+            # The 18 accepted exceptions are DECLARED AT THEIR SITES rather than left to hide beneath a filter:
+            # `# zizmor: ignore[artipacked]` on the `- name: Checkout` line of prod-deploy `deploy` and
+            # sandbox-identity-deploy `deploy`, and `# zizmor: ignore[unpinned-images]` on each `services:`
+            # image in `_ci.yml` / `_ci-heavy.yml`. Each is scoped to ONE step and ONE audit. The artipacked
+            # two sit on the `name:` line specifically so the `uses:` line's `# v6.1.0` comment — which
+            # Dependabot parses to bump the pin — stays a lone version comment.
+            #
+            # VERIFIED BY MUTATION, not by assumption. Each of these reds THIS gate and passes the old
+            # `regular --min-severity low` one on the same tree:
+            #   • a new unpinned `services:` image in heavy-e2e.yml   → exit 14 here, exit 0 under the old gate
+            #   • an undocumented `issues: read` added to this file   → exit 12 here, exit 0 under the old gate
+            #   • one syntactically invalid workflow added            → exit  1 here, exit 0 under the old gate
+            # Plus the classes the earlier burn-down closed and this gate still holds: template-injection
+            # (67 -> 0) — notably a new `${{ … }}` interpolation in a `run:` body, the one genuinely
+            # exploitable class — excessive-permissions, unpinned-uses, secrets-inherit, artipacked.
+            #
+            # A NEW deliberate exception is a per-site `# zizmor: ignore[<audit>]` next to the reason it is
+            # accepted — never a persona downgrade and never a floor change. Weakening either filter to bury a
+            # finding is the exact failure this step has now been rebuilt twice to stop.
+            - name: Gate on all pedantic-persona findings
+              run: |
+                  set -uo pipefail
+                  zizmor --persona pedantic --min-severity informational --strict-collection --no-progress .github/
+                  rc=$?
+                  if [ "${rc}" -ne 0 ]; then
+                    echo "::error::zizmor found pedantic-persona findings, or could not parse a workflow (exit ${rc}). These are gating. Fix them, or — if the site is a deliberate, justified exception — declare it with a per-site '# zizmor: ignore[<audit>]' comment next to the reason it is accepted. Do NOT lower the persona or raise the severity floor to bury a finding."
+                    exit 1
+                  fi
+                  echo "zizmor gate passed: no pedantic-persona findings outside the declared per-site ignores, and every workflow parsed."
+
+            - name: Upload SARIF to code scanning
+              uses: github/codeql-action/upload-sarif@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
+              with:
+                  sarif_file: zizmor.sarif
+                  category: zizmor

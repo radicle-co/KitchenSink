@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe filter bar (FR-006 / W4 S2).
  *
- * The React Native leaf of {@link import('./RecipeFilterBar.js').RecipeFilterBar} — the same P9
+ * The React Native leaf of `RecipeFilterBar` — the same P9
  * descriptor-driven contract (facets are DATA dispatched through a `kind → renderer` map), rendered with RN
  * primitives. Dietary + Tags are multi-select chips, Cuisine is single-select (the search API filters by ONE
  * cuisine), Prep-time + Cook-time (REQ-030f) + Total-time are bucket ladders, and Ingredients (FR-006 gap #3)
@@ -20,6 +20,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { filterMessages, type FilterMessages } from './messages.js';
 import {
     TIME_BUCKETS_MINUTES,
@@ -61,40 +62,10 @@ const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
  */
 export const FILTER_SHEET_PADDING = nativeTokens.spacing[4];
 
-/** The `timeField` → setter map the `timeBucket` renderer dispatches on. */
-function timeSetterFor(
-    timeField: 'maxPrepTime' | 'maxCookTime' | 'maxTotalTime',
-    setters: {
-        onSetMaxPrepTime: (minutes: number | undefined) => void;
-        onSetMaxCookTime: (minutes: number | undefined) => void;
-        onSetMaxTotalTime: (minutes: number | undefined) => void;
-    },
-): (minutes: number | undefined) => void {
-    if (timeField === 'maxPrepTime') {
-        return setters.onSetMaxPrepTime;
-    }
-
-    if (timeField === 'maxCookTime') {
-        return setters.onSetMaxCookTime;
-    }
-
-    return setters.onSetMaxTotalTime;
-}
-
-export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
-    facets,
-    filters,
-    onToggleFacet,
-    onSetCuisine,
-    onSetMaxPrepTime,
-    onSetMaxCookTime,
-    onSetMaxTotalTime,
-    ingredientSearch,
-    onAddIngredientFilter,
-    onRemoveIngredientFilter,
-    onClearAll,
-}) => {
+export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ingredientSearch, onFilterAction }) => {
     const m = useMessages(filterMessages);
+    // The FR-010a minimum copy is shared by all four ingredient-search surfaces — see its message doc.
+    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const locale = useLocale();
     const countLabels = { one: m.chipCountOne, other: m.chipCountOther };
 
@@ -155,7 +126,11 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
             return group(
                 m[labelKey],
-                chips.map((chip) => chipButton(chip, () => onToggleFacet(dimension!, chip.value))),
+                chips.map((chip) =>
+                    chipButton(chip, () =>
+                        onFilterAction({ kind: 'toggleFacet', dimension: dimension!, value: chip.value }),
+                    ),
+                ),
             );
         },
         singleChip: ({ labelKey }) => {
@@ -167,11 +142,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
             return group(
                 m[labelKey],
-                chips.map((chip) => chipButton(chip, () => onSetCuisine(chip.value))),
+                chips.map((chip) =>
+                    chipButton(chip, () => onFilterAction({ kind: 'setCuisine', cuisine: chip.value })),
+                ),
             );
         },
         timeBucket: ({ timeField, labelKey }) => {
-            const set = timeSetterFor(timeField!, { onSetMaxPrepTime, onSetMaxCookTime, onSetMaxTotalTime });
+            const set = (minutes: number | undefined): void =>
+                onFilterAction({ kind: 'setTimeBound', field: timeField!, minutes });
 
             return group(
                 m[labelKey],
@@ -204,6 +182,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                     {/* The label is the region's CONTENT, not only its `aria-label`: an empty live region has
                         nothing to render and nothing to announce (a live region announces content CHANGES).
                         Same doctrine as the web leaf and the mobile `LoadingState`. */}
+                    {/* 003-FR-010a — see the web leaf for why this is not the no-matches copy and not
+                        a live region. */}
+                    {viewState.kind === 'tooShort' && (
+                        <Text style={styles.groupLabel}>
+                            {fillTemplate(minimumCopy.tooShort, { minimum: viewState.minimum })}
+                        </Text>
+                    )}
+
                     {viewState.kind === 'searching' && (
                         <View role="status" aria-label={m.ingredientSearching}>
                             <Text style={styles.groupLabel}>{m.ingredientSearching}</Text>
@@ -235,7 +221,12 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                                     accessibilityLabel={fillTemplate(m.addIngredientFilter, {
                                         name: ingredient.name,
                                     })}
-                                    onPress={() => onAddIngredientFilter({ id: ingredient.id, name: ingredient.name })}
+                                    onPress={() =>
+                                        onFilterAction({
+                                            kind: 'addIngredient',
+                                            ingredient: { id: ingredient.id, name: ingredient.name },
+                                        })
+                                    }
                                     style={styles.ingredientOption}
                                 >
                                     <Text style={styles.ingredientOptionText}>{ingredient.name}</Text>
@@ -251,7 +242,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                                     key={entry.id}
                                     accessibilityRole="button"
                                     accessibilityLabel={fillTemplate(m.removeIngredientFilter, { name: entry.name })}
-                                    onPress={() => onRemoveIngredientFilter(entry.id)}
+                                    onPress={() => onFilterAction({ kind: 'removeIngredient', id: entry.id })}
                                     style={[styles.chip, styles.chipSelected]}
                                 >
                                     <Text style={styles.chipTextSelected}>{entry.name}</Text>
@@ -320,7 +311,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                                         { one: m.clearOne, other: m.clearOther },
                                         locale,
                                     )}
-                                    onPress={onClearAll}
+                                    onPress={() => onFilterAction({ kind: 'clearAll' })}
                                     style={styles.clear}
                                 >
                                     <Text style={styles.clearText}>

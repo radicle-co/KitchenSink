@@ -1,12 +1,19 @@
 /**
- * Recipe-edit screen (mobile, T067 + T070; CP-6/P1 — rewired onto the shared `useRecipeEditor` headless
+ * Recipe-edit screen (mobile, orchestration): a suspense read of the recipe under `QueryBoundary`, whose settled branch
+ * is the editor — the same shape as the web `RecipeEditContainer`. The boundary owns loading and the load failure (a
+ * not-found with only Back, or the generic error with a retry, as `RecipeDetailScreen` offers); the settled editor is
+ * keyed on the recipe id, so editing another recipe is a fresh editor seeded from it, and a failed background refetch
+ * never reaches the boundary, so the editor and the draft stay. ⛔ Nothing under the boundary may suspend without its
+ * own nested `<Suspense>`: React hides a re-suspended subtree, and the cook would watch the form vanish.
+ *
+ * History (T067 + T070; CP-6/P1 — rewired onto the shared `useRecipeEditor` headless
  * hook, `@commise/features-recipes/hooks`; w3/e1,e2 — rewired again onto the 4-step `Wizard` shell via
- * `RecipeEditor`). The hook owns the whole edit lifecycle — seed-once, validation,
+ * `RecipeEditor`). The hook owns the whole edit lifecycle — the mount-time seed, validation,
  * submit-with-`expectedVersion`, the 409-to-conflict transition, the three FR-007c resolutions, AND (w3) the
  * step/draft/publish extensions — as a discriminated-union statechart plus orthogonal step-navigation state;
  * this screen is a thin renderer that switches on `state.status`. The old `seedNonce`/`seedOverride` remount
- * hack is GONE: `RecipeEditor` is a plain controlled component (`values` in, `onChange` out), so "use
- * theirs" is the SAME `setValues` transition the hook's initial seed uses — no remount required. See the
+ * hack is GONE: `RecipeEditor` is a plain controlled component (`values` in, `onChange` out), seeded once from the
+ * settled read; editing another recipe is the keyed remount above, never a reseed. See the
  * hook's module doc for the full statechart and the reseed-incompatibility fix. Mirrors the web
  * `RecipeEditContainer`.
  *
@@ -24,10 +31,20 @@
  * branch here, since it is indistinguishable from `keepServer`'s own discard from this screen's point of view
  * (no write, `onCancel` back to the detail screen). Unlike `keepServer`, it stays callable even while a
  * resolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.
+ *
+ * @pattern Adapter — binds the `useRecipeEditor` statechart to the native `RecipeEditor` wizard, under a read boundary
+ *     whose settled view is keyed on the recipe id.
  */
 import { RecipeConflictView, recipeVersionMessages, useDiscardGuard } from '@commise/features-recipes';
-import { useRecipeEditor } from '@commise/features-recipes/hooks';
+import { useRecipeAutoSave, useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { Feather } from '@expo/vector-icons';
+import { QueryBoundary } from '@commise/query/boundary';
+import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
+import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
+import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -48,23 +65,74 @@ export interface RecipeEditScreenProps {
 }
 
 /**
- * The recipe-edit screen.
+ * The recipe-edit screen: the read boundary around the settled editor.
  *
  * @param props - The recipe id and the save/cancel callbacks the navigator wires.
- * @returns The loading, error, populated editor, or conflict-resolution state.
+ * @returns The loading state, a not-found or retrying error, or the settled editor.
  */
-export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScreenProps): JSX.Element {
+export function RecipeEditScreen(props: RecipeEditScreenProps): JSX.Element {
+    const { recipeId, onCancel } = props;
+    const { recipes: t } = useMessages(mobileMessages);
+    const back = (
+        <Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onCancel}>
+            <Text>{t.back}</Text>
+        </Pressable>
+    );
+
+    return (
+        <QueryBoundary
+            loading={<LoadingState label={t.detailLoading} />}
+            renderError={({ error, resetErrorBoundary }) =>
+                isNotFoundError(error) ? (
+                    <View style={styles.center}>
+                        {back}
+                        <Text accessibilityRole="alert">{t.detailNotFound}</Text>
+                    </View>
+                ) : (
+                    <View style={styles.center}>
+                        {back}
+                        <Text accessibilityRole="alert">{t.detailError}</Text>
+                        <Button
+                            variant="secondary"
+                            icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
+                            onPress={resetErrorBoundary}
+                        >
+                            {t.detailRetry}
+                        </Button>
+                    </View>
+                )
+            }
+            resetKeys={[recipeId]}
+        >
+            <SettledRecipeEditor key={recipeId} {...props} />
+        </QueryBoundary>
+    );
+}
+
+/** The editor over the settled recipe: the wizard, or the conflict resolver after a 409. */
+function SettledRecipeEditor({ recipeId, onSaved, onCancel }: RecipeEditScreenProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
     const { conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
-    const editor = useRecipeEditor(recipeId, { onSaved: (recipe) => onSaved(recipe.id), locale });
+    const { data: recipe } = useSuspenseQuery(recipeQueries(useRecipeServiceClient()).detail(recipeId));
+    const editor = useRecipeEditor(recipe, { onSaved: (saved) => onSaved(saved.id), locale });
 
-    // The discard guard's "unsaved edits" baseline: captured once the recipe has seeded (past `'loading'`),
-    // re-captured on every successful save (`'saved'`) — see `useDiscardGuard`'s module doc. Declared before
-    // the early returns below (Rules of Hooks: no conditional hook calls).
-    const isDirty = useDiscardGuard(editor.values, {
-        ready: editor.state.status !== 'loading',
-        justSaved: editor.state.status === 'saved',
+    // The discard guard's "unsaved edits" baseline: the seeded draft, re-captured on every successful save
+    // (`'saved'`) — see `useDiscardGuard`'s module doc. Declared before the early returns below (Rules of Hooks).
+    const isDirty = useDiscardGuard(editor.values, { justSaved: editor.state.status === 'saved' });
+
+    // Auto-save (U34). `enabled` is this screen's "a write would land in an unresolved race" gate: false
+    // while a save is in flight (that request already holds the version token) and while a conflict is
+    // unresolved (the token is known stale). The
+    // write goes through the editor's own `autoSaveDraft`, so it carries `expectedVersion` and a 409 surfaces
+    // exactly as a manual save's does. Declared before the early returns below (Rules of Hooks).
+    useRecipeAutoSave({
+        isDirty,
+        enabled: editor.state.status === 'editing',
+        // ⛔ `autoSaveDraft`, NOT `saveDraft`: the latter also calls `onSaved`, which this container
+        // wires to a navigation — a background timer calling it closes the editor mid-edit. See the hook's
+        // own doc for the three concerns an unattended write must not inherit.
+        saveDraft: editor.autoSaveDraft,
     });
 
     // OQ-1 (W7 Task 6): `keepServer` (Option A) discards the draft WITHOUT a write, so it never runs the
@@ -78,28 +146,6 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
             onCancel();
         }
     }, [editor.state.status, onCancel]);
-
-    // `isError` MUST be checked before the loading condition below: on a genuine failure `query.data` stays
-    // `undefined` forever, which would otherwise keep `editor.state.status === 'loading'` true forever too
-    // (the seed effect never runs without data) and mask the error behind an infinite spinner.
-    if (editor.query.isError) {
-        return (
-            <View style={styles.center}>
-                <Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onCancel}>
-                    <Text>{t.back}</Text>
-                </Pressable>
-                <Text accessibilityRole="alert">{t.detailError}</Text>
-            </View>
-        );
-    }
-
-    // The query's own `isLoading` covers the network fetch; `state.status === 'loading'` ALSO covers the
-    // committed-render gap after data lands but before the hook's seed-once effect has run (`query.isLoading`
-    // already false, `values` not yet seeded). Both are loading, NOT error — routing the seed-gap into the
-    // alert branch above would announce a false load-failure to screen readers on every successful edit-open.
-    if (editor.query.isLoading || editor.state.status === 'loading') {
-        return <LoadingState label={t.detailLoading} />;
-    }
 
     if (editor.state.status === 'conflict') {
         const { mergeSelections, server, base, diff, versionsBehind, isResolving } = editor.state;

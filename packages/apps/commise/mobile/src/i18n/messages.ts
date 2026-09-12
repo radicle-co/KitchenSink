@@ -174,7 +174,7 @@ export interface MobileMessages {
         readonly signOutFailed: string;
         /**
          * Alert shown when an account ERASURE was accepted (202) but the follow-up sign-out failed.
-         * Deliberately distinct from {@link signOutFailed} and from the erasure dialog's own submit error: the
+         * Deliberately distinct from `signOutFailed` and from the erasure dialog's own submit error: the
          * erasure DID succeed server-side, so telling the viewer to retry it would be a lie — the only
          * outstanding action is leaving the (now-destroyed) account's session.
          */
@@ -193,6 +193,10 @@ export interface MobileMessages {
         readonly detailLoading: string;
         /** Message shown when a recipe's detail fails to load. */
         readonly detailError: string;
+        /** Message shown when the recipe does not exist or is not the viewer's to see — no retry is offered. */
+        readonly detailNotFound: string;
+        /** Label of the retry affordance when a recipe's detail fails to load. */
+        readonly detailRetry: string;
         /** Label of the back affordance on the recipe-detail screen. */
         readonly back: string;
         /** Label of the owner action that opens the recipe editor. */
@@ -205,10 +209,15 @@ export interface MobileMessages {
         readonly visibilityUpgradeReason: string;
         /** Alert shown when creating a recipe fails. */
         readonly createError: string;
+        /**
+         * Shown after a successful create while chosen photos are still uploading (U33). A save is create-THEN-
+         * upload, and the cook must not be told it is one call.
+         */
+        readonly photosFlushingNotice: string;
+        /** The explicit "leave without the photos that would not upload" action (U33). */
+        readonly photosFinishWithout: string;
         /** Alert shown when saving recipe edits fails. */
         readonly saveError: string;
-        /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
-        readonly photosAfterCreateNotice: string;
         /** Title of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
         readonly createGuidanceTitle: string;
         /** Body of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
@@ -238,6 +247,12 @@ export interface MobileMessages {
         readonly unsupportedTypeError: string;
         /** Alert shown when Replace is pressed at the photo cap — a lossless swap needs a free slot (U6). */
         readonly replaceAtCapError: string;
+        /**
+         * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`), on the
+         * create screen and the edit uploader alike. The pick is refused WHOLE rather than truncated — see the
+         * web dictionary's twin for why.
+         */
+        readonly overCapError: string;
     };
     readonly ingredientPicker: {
         /** Section heading for the ingredient typeahead. */
@@ -251,11 +266,15 @@ export interface MobileMessages {
         /** Badge next to the search box naming the ingredient database it searches (C5, wireframe
          *  recipe-edit.md:56 "[USDA database]"). */
         readonly usdaBadge: string;
-        /** Styled (not-yet-wired) "Search USDA for …" seam label (U6; a separate USDA-autocomplete CR wires it;
-         *  contains `{query}`). */
-        readonly searchUsdaFor: string;
-        /** Short "coming soon" tag on the USDA-search seam (U6). */
-        readonly searchUsdaSoon: string;
+        /*
+         * ⛔ `searchUsdaFor` / `searchUsdaSoon` USED TO LIVE HERE, and are DELETED rather than renamed
+         * (plan U29). They were the U6 seam's copy — a label plus a "Soon" tag for a control that did
+         * nothing. U29 wires the control, so the tag describes nothing, and the label now belongs to
+         * `IngredientLiveSearchMessages` in the SHARED feature package: BOTH pickers render it, and the two
+         * app dictionaries have already drifted on every string they share (`noMatches` vs `empty`,
+         * `addFreeform` vs `create`). A cook must be told the same thing about a shared external rate limit
+         * on both platforms, because it IS the same limit.
+         */
         /** Empty-state copy shown when a search returns no catalog matches. */
         readonly empty: string;
         /** Heading of the "your own previously-used ingredients" section of the blended typeahead (Stage 2). */
@@ -276,6 +295,15 @@ export interface MobileMessages {
         readonly addingByName: string;
         /** Message shown when adding a food by name fails. */
         readonly addByNameError: string;
+        /**
+         * Message shown when creating a freeform ingredient fails.
+         *
+         * ⛔ The web picker has always rendered this and the native one did not, so a failed create left the
+         * cook with a control that stopped spinning and said nothing. Nothing to do with offline — it is an
+         * ordinary 5xx or rejected name, on the fallback the picker pushes a cook toward when the catalog has
+         * no match.
+         */
+        readonly createError: string;
         /** Create-a-freeform-ingredient (fallback) action template (contains `{query}`). */
         readonly create: string;
         /** Busy label shown while a freeform ingredient is being created. */
@@ -300,6 +328,10 @@ export interface MobileMessages {
         readonly detailLoading: string;
         /** Message shown when a collection fails to load. */
         readonly detailError: string;
+        /** Message shown when the collection does not exist or is not the viewer's to see — no retry is offered. */
+        readonly detailNotFound: string;
+        /** Label of the retry affordance when a collection fails to load. */
+        readonly detailRetry: string;
         /** Label of the back affordance on the collection-detail screen. */
         readonly back: string;
         /** Alert shown when saving a collection (create or rename) fails. */
@@ -317,8 +349,12 @@ export interface MobileMessages {
         readonly somethingWentWrong: string;
         /** Body copy for the root-level crash fallback (B18) — the app-wide safety net around `AppRoot`. */
         readonly rootErrorBody: string;
+        /** Body copy for the same fallback when Home is what crashed, where Back to Home is not offered. */
+        readonly rootErrorBodyHome: string;
         /** Label of the retry affordance on the root-level crash fallback. */
         readonly retry: string;
+        /** Label of the root fallback's way out of a crashed screen, back to Home. */
+        readonly backToHome: string;
     };
 }
 
@@ -431,15 +467,17 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         recipes: {
             detailLoading: 'Loading recipe…',
             detailError: 'We couldn’t load this recipe.',
+            detailNotFound: 'We couldn’t find that recipe.',
+            detailRetry: 'Try again',
             back: 'Back',
             editAction: 'Edit recipe',
             deleteAction: 'Delete recipe',
             versionsAction: 'Version history',
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
+            photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
+            photosFinishWithout: 'Finish without the remaining photos',
             saveError: 'We couldn’t save your changes. Please try again.',
-            photosAfterCreateNotice:
-                'Publish your recipe to add photos — tap Publish below, then add photos from its page. Nothing here to do yet.',
             createGuidanceTitle: 'Let’s build your recipe',
             createGuidanceBody:
                 'Start with a title and the basics. You’ll add ingredients, steps, and photos as you go — tap Next when a step is ready.',
@@ -456,6 +494,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
             unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
             replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
+            overCapError: 'That’s more photos than this recipe can hold — you can add {count} more.',
         },
         ingredientPicker: {
             heading: 'Add an ingredient',
@@ -463,8 +502,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             searchPlaceholder: 'e.g. olive oil',
             searchClear: 'Clear search',
             usdaBadge: 'USDA database',
-            searchUsdaFor: 'Search USDA for “{query}”',
-            searchUsdaSoon: 'Soon',
             empty: 'No matching ingredients. Create a new one below.',
             ownSectionTitle: 'Your ingredients',
             catalogSectionTitle: 'Food catalog',
@@ -475,6 +512,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             addByName: 'Find nutrition for “{query}”',
             addingByName: 'Finding nutrition…',
             addByNameError: 'We couldn’t add that ingredient. Create a custom one below instead.',
+            createError: 'We couldn’t create that ingredient. Please try again.',
             create: 'Create “{query}”',
             creating: 'Adding…',
             disambiguateTitle: 'Which “{name}” did you mean?',
@@ -488,6 +526,8 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         collections: {
             detailLoading: 'Loading collection…',
             detailError: 'We couldn’t load this collection.',
+            detailNotFound: 'We couldn’t find that collection.',
+            detailRetry: 'Try again',
             back: 'Back',
             saveError: 'We couldn’t save this collection. Please try again.',
         },
@@ -498,8 +538,10 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         },
         common: {
             somethingWentWrong: 'Something went wrong',
-            rootErrorBody: 'We hit a snag loading this screen. Please try again.',
+            rootErrorBody: 'We hit a snag loading this screen. Try again, or go back to Home.',
+            rootErrorBodyHome: 'We hit a snag loading Home. Please try again.',
             retry: 'Try again',
+            backToHome: 'Back to Home',
         },
     },
 };

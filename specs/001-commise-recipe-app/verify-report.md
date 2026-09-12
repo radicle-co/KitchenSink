@@ -38,7 +38,7 @@ Every Must-Have FR resolves to a task, implementing code, and the tests its tier
 
 ### FR-003a — Derived PRO / usesPremiumCapability
 
-- Single authoritative fn `usesPremiumCapability` in `@kitchensink/recipe-core`, wired into **both** projections: `recipes/recipes.service.ts:171` (detail) and `search/dal/search.dal.ts:200` (list/search) — no `is_pro` column, no client re-derivation (`recipe-response.dto.ts:85`). Truth-table unit test `packages/shared/recipe-core/src/__tests__/usesPremiumCapability.test.ts`.
+- Single authoritative fn `usesPremiumCapability` in `@kitchensink/recipe-core`, wired into **both** projections: `recipes/recipes.service.ts:171` (detail) and `search/dal/search.dal.ts:200` (list/search) — no `is_pro` column, no client re-derivation (`recipeResponse.dto.ts:85`). Truth-table unit test `packages/shared/recipe-core/src/__tests__/usesPremiumCapability.test.ts`.
 - **UI** `RecipeCard.tsx:150-157` renders from the materialized flag only; test `RecipeCard.test.tsx:70-80`. **PASS.**
 
 ### FR-001c — Cover image (derived, no N+1, no placeholder URL)
@@ -51,7 +51,7 @@ Every Must-Have FR resolves to a task, implementing code, and the tests its tier
 - **Schema + trigger** `database/schema/ratings.ts` + raw-SQL migration `migrations/0010_ratings_difficulty_cover.sql` (`recipe_ratings_aggregate_refresh()` + statement-level triggers; `recipes.average_rating`/`rating_count` coherence CHECK). No app code writes the aggregate.
 - **Service authz (IDOR-correct)** `ratings/ratings.service.ts:8-13,66-67,89` — missing/tombstoned **and** unseeable both return **404 `RECIPE_NOT_FOUND`** (indistinguishable); own-recipe **403 `CANNOT_RATE_OWN_RECIPE`**; delete idempotent; rater from token, never body.
 - **Routes** `ratings/ratings.controller.ts:31` (`PUT`/`DELETE /v1/recipes/{id}/rating`); client `client.ts:340,359`.
-- **Erasure (013b, third root)** `recipe-workers/src/handlers/account-erasure-worker.ts:299` (`DELETE FROM recipe_ratings WHERE user_id`), rows-first, trigger **not disabled** → surviving recipes re-derived.
+- **Erasure (013b, third root)** `recipe-workers/src/handlers/accountErasureWorker.ts:299` (`DELETE FROM recipe_ratings WHERE user_id`), rows-first, trigger **not disabled** → surviving recipes re-derived.
 - **Tests** service unit T155-test; aggregate-trigger integration T156 (concurrent raters via `FOR UPDATE`; last-removed → `count=0`/`average=NULL`); e2e + k6 T157; erasure×ratings T169-test/T169-int; UI `rating/__tests__/RecipeRatingControl.test.tsx` (own-recipe gate, "not yet rated" never a 0-score, exact-star mutation lens) + `.native`; Playwright `ratings.spec.ts` + Maestro `ratings.yaml`. **PASS.**
 
 ### FR-046 — Home widget surface + skeleton placeholders
@@ -74,12 +74,12 @@ Every Must-Have FR resolves to a task, implementing code, and the tests its tier
 
 ### C-007 — Soft-delete + GDPR erasure
 
-- Soft-delete `recipes/dal/recipes.dal.ts` (`deleted_at`, `WHERE deleted_at IS NULL`), search/collections tombstone exclusion (T124/T125), integration `soft-delete.integration.test.ts`. Erasure worker sweeps three owner-scoped roots (recipes incl. tombstones, collections, ratings) + media **and** archive S3 prefixes (`account-erasure-worker.ts:30,299`); idempotent job semantics (202/410/202) T134-test; integration `account/erasure.integration.test.ts`. **PASS.**
+- Soft-delete `recipes/dal/recipes.dal.ts` (`deleted_at`, `WHERE deleted_at IS NULL`), search/collections tombstone exclusion (T124/T125), integration `softDelete.integration.test.ts`. Erasure worker sweeps three owner-scoped roots (recipes incl. tombstones, collections, ratings) + media **and** archive S3 prefixes (`accountErasureWorker.ts:30,299`); idempotent job semantics (202/410/202) T134-test; integration `account/erasure.integration.test.ts`. **PASS.**
 
 ### FR-007b / 007b-i — Async version archive + alarms
 
-- Outbox `versions/dal/pending-archives.dal.ts` + `recipe_version_pending_archives` table; save-path records over-retention, no inline S3 (T130). Worker `recipe-workers/src/handlers/version-archive-worker.ts` (drain→S3→delete) + `archive-sweeper.ts`; integration `archive.integration.test.ts`.
-- **Both** FR-007b-i alarms present: `recipe-workers-stack.ts:471` `PendingArchiveBacklogAlarm` (>100) and `OldestPendingArchiveAgeAlarm` (>1h), each with `addAlarmAction` → SNS topic (`:454`). **PASS.**
+- Outbox `versions/dal/pendingArchives.dal.ts` + `recipe_version_pending_archives` table; save-path records over-retention, no inline S3 (T130). Worker `recipe-workers/src/handlers/versionArchiveWorker.ts` (drain→S3→delete) + `archiveSweeper.ts`; integration `archive.integration.test.ts`.
+- **Both** FR-007b-i alarms present: `RecipeWorkersStack.ts:471` `PendingArchiveBacklogAlarm` (>100) and `OldestPendingArchiveAgeAlarm` (>1h), each with `addAlarmAction` → SNS topic (`:454`). **PASS.**
 
 **Layer 1–3 result: PASS.** No Must-Have FR without code; no Must-Have without a test.
 
@@ -182,9 +182,9 @@ Task T159 names `RecipeRating.tsx`; shipped as `rating/RecipeRatingControl.tsx` 
 | FR-003a PRO               | `recipe-core` `usesPremiumCapability`; `recipes.service.ts:171`, `search.dal.ts:200`; `RecipeCard.tsx:150` | truth-table unit, component (web+native)                                          |
 | FR-006 Search             | `search/*`, `search/dal/search.dal.ts`                                                                     | unit, integration, Playwright, Maestro                                            |
 | FR-007c Conflict          | `recipes.service.ts` 409; conflict UI T070                                                                 | unit, integration, component                                                      |
-| FR-007b/007b-i Archive    | `pending-archives.dal.ts`, `version-archive-worker.ts`, alarms `stack:471`                                 | unit, integration, cdk-synth                                                      |
+| FR-007b/007b-i Archive    | `pendingArchives.dal.ts`, `versionArchiveWorker.ts`, alarms `stack:471`                                    | unit, integration, cdk-synth                                                      |
 | FR-009 Collections        | `collections.service.ts` membership                                                                        | unit, integration, Playwright, Maestro                                            |
-| FR-013/013a/013b Ratings  | `ratings/*`, `ratings.ts` schema+trigger, `account-erasure-worker.ts:299`                                  | unit, integration (trigger), e2e, k6, component (web+native), Playwright, Maestro |
+| FR-013/013a/013b Ratings  | `ratings/*`, `ratings.ts` schema+trigger, `accountErasureWorker.ts:299`                                    | unit, integration (trigger), e2e, k6, component (web+native), Playwright, Maestro |
 | FR-046 Home               | `features-core/curateHomeWidgets.ts`, hosts + skeletons (web+mobile)                                       | curate unit, component (web+native), Playwright, Maestro                          |
 | C-007 Soft-delete+erasure | `recipes.dal.ts` tombstone, erasure worker 3 roots                                                         | unit, integration, e2e                                                            |
 | US-000 / US-1 / US-2      | see Layer 7                                                                                                | Playwright + Maestro for every journey                                            |

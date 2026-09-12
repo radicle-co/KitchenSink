@@ -31,14 +31,53 @@ Sentry project for all stages, and the forwarder tags each record's `environment
 CloudWatch log group name (`kitchensink-identity-<component>-<stage>-…`). All of these are already
 populated.
 
-| Parameter                                                 | Used by                               |
-| --------------------------------------------------------- | ------------------------------------- |
-| `/kitchensink/{prod,sandbox}/clerk/jwks-url`              | authorizer JWT validation (`jose`)    |
-| `/kitchensink/{prod,sandbox}/clerk/issuer`                | authorizer JWT validation (`jose`)    |
-| `/kitchensink/{prod,sandbox}/clerk/audience`              | set as `IDP_AUDIENCE` (not validated) |
-| `/kitchensink/{prod,sandbox}/sentry/webhook-dsn`          | identity-webhooks Lambdas + forwarder |
-| `/kitchensink/{prod,sandbox}/sentry/identity-service-dsn` | identity service (ECS)                |
-| `/kitchensink/global/sentry/log-drain-dsn`                | log forwarder (`LOG_DRAIN_DSN`)       |
+| Parameter                                    | Used by                               |
+| -------------------------------------------- | ------------------------------------- |
+| `/kitchensink/{prod,sandbox}/clerk/jwks-url` | authorizer JWT validation (`jose`)    |
+| `/kitchensink/{prod,sandbox}/clerk/issuer`   | authorizer JWT validation (`jose`)    |
+| `/kitchensink/{prod,sandbox}/clerk/audience` | set as `IDP_AUDIENCE` (not validated) |
+
+### The Sentry DSN register
+
+⛔ **This table is the authority, and it is guarded.** `sentryDsnRegister.test.ts` derives every
+`/kitchensink/…/sentry/…-dsn` parameter the CDK stacks and workflows actually resolve, and fails if one is
+missing from this table or listed here with no consumer. The table had gone stale once — it named three
+parameters while six more were being resolved at deploy — which is how a runtime comes to hold a DSN nobody
+knows about, or a parameter nobody reads.
+
+⚠️ **One Sentry project per runtime, not per stage.** `prod` and `sandbox` hold the same project's DSN and
+separate themselves with the Sentry `environment` tag; a `pr-{N}` preview resolves its base stage's
+parameter, so previews cost no extra projects and no extra quota.
+
+<!-- sentry-dsn:start -->
+
+| Parameter                                                  | Sentry project                  | Used by                                              |
+| ---------------------------------------------------------- | ------------------------------- | ---------------------------------------------------- |
+| `/kitchensink/{prod,sandbox}/sentry/webhook-dsn`           | `kitchensink-identity-webhook`  | identity-webhooks Lambdas + forwarder                |
+| `/kitchensink/{prod,sandbox}/sentry/identity-service-dsn`  | `kitchensink-identity`          | identity service (ECS)                               |
+| `/kitchensink/{prod,sandbox}/sentry/recipe-service-dsn`    | `kitchensink-recipe-service`    | recipe service (ECS)                                 |
+| `/kitchensink/{prod,sandbox}/sentry/food-service-dsn`      | `kitchensink-food-service`      | food API, worker and change refresh (ECS)            |
+| `/kitchensink/{prod,sandbox}/sentry/recipe-workers-dsn`    | `kitchensink-recipe-workers`    | the ten recipe Lambdas, queue check included         |
+| `/kitchensink/{prod,sandbox}/sentry/platform-dsn`          | `kitchensink-platform`          | migration runners, bootstrap, reaper, scheduler      |
+| `/kitchensink/{prod,sandbox}/sentry/ingredient-parser-dsn` | `kitchensink-ingredient-parser` | the Python CRF parser Lambda                         |
+| `/kitchensink/{prod,sandbox}/sentry/edge-dsn`              | `kitchensink-edge`              | the Lambda@Edge verifier — **inlined at BUILD time** |
+| `/kitchensink/global/sentry/log-drain-dsn`                 | `kitchensink-log-drain`         | log forwarder (`LOG_DRAIN_DSN`)                      |
+
+<!-- sentry-dsn:end -->
+
+⛔ **The edge row is different in kind, in two ways.** First, Lambda@Edge accepts no environment variables,
+so its DSN cannot be resolved at deploy like every other row — `esbuild.mjs` inlines it into the bundle from
+`SENTRY_EDGE_DSN`. Nothing set that variable until U23, so every edge bundle shipped with an empty DSN and
+reported nothing while the parameter sat populated. An absent DSN stays non-fatal (the verifier reports
+nothing, as before) and the bundle step emits a `::notice::` rather than failing, so a local bundle still
+works.
+
+⚠️ Second, **only `prod-deploy.yml` reads it, because the verifier is prod-only.** `bin/app.ts` gates
+`EdgeStack` on `stage === 'prod'` and `esbuild.mjs` skips the edge bundle entirely unless `CLERK_JWT_KEY` is
+exported — which no sandbox workflow does. The sandbox parameter therefore exists and is never read; it is
+left in place rather than deleted, because the cost is nothing and a future non-prod edge deploy would need
+it. `globalBootstrapBundle.test.ts` asserts the DSN is supplied by the workflows that actually build the
+bundle, and names the single builder so the assertion cannot pass vacuously.
 
 ## 3. GitHub Actions (prod-deploy)
 
@@ -72,6 +111,90 @@ populated.
 
 The concrete DSN values were provided out-of-band; place them in SSM (backend) / Vercel + EAS env
 (web, mobile) / the apps' `.env.local`, never in source.
+
+## Per-project alerting posture (plan U23)
+
+Every `kitchensink-*` and `commise-*` project is on the `commise` team, and each carries the same three
+settings. They are recorded here because they are org state, not repository state — nothing in this tree
+enforces them, and the only way to notice one has drifted is to look.
+
+⚠️ **The `radicle-co` org also hosts the `armoury-*` projects, which are a different product.** Every change
+below was scoped to the `kitchensink-*` / `commise-*` set by name, the same rule ADR-0005 applies to the
+shared AWS account. Do not run an org-wide sweep here.
+
+### An alert fires for `prod` and stays quiet everywhere else
+
+Each project's issue workflow is scoped to `environment: prod`. They were created with **no** environment
+filter, which meant every one of them notified on `sandbox` and on **every `pr-{N}` preview** — an alert per
+throwaway stage, which is how an alert channel becomes something people mute. The trigger and action are
+unchanged from Sentry's default (new/existing high-priority issue → email the issue owners); only the
+environment moved.
+
+⚠️ **This is why the runtime's `environment` string matters more than it looks.** A runtime that reports
+anything other than `prod` in production is now not merely mis-filed — it is unalerted. That is the failure
+`EXPO_PUBLIC_STAGE` shipped with on mobile: read in one place, set in none, so every build including a real
+release reported `development`. `eas.json` sets it per build profile now, and
+`tests/config/easProfiles.test.ts` holds the vocabulary to `prod` / `sandbox` / `pr-{N}`.
+
+### Ownership auto-assigns to the team
+
+Each project has an ownership rule of `path:** #commise` with auto-assignment on. With one team the set of
+people notified does not change — what changes is that an issue arrives **assigned** rather than falling
+through to every active member unowned, which is the difference between a triage queue and an inbox. It also
+makes the workflows' `targetType: issue_owners` action resolve to something.
+
+### Spike protection is on
+
+Enabled for every project. It caps runaway ingestion, which matters most for the runtimes that can emit per
+request or per queue message — a loop in the edge verifier or a redelivery storm can otherwise spend the
+month's quota in an afternoon, and a filled quota drops **errors**, not just traces.
+
+⚠️ Reading it back needs a permission the write does not: `GET /organizations/{org}/spike-protections/`
+answers `403` with a token that can `POST` to the same path. Check the project instead — the project detail's
+`options["quotas:spike-protection-disabled"]` is `false` when it is on.
+
+### Still owed, and not doable from here
+
+- **Environments only exist once events arrive.** `kitchensink-identity` and `kitchensink-identity-webhook`
+  show `prod` and `sandbox` because they are deployed; the projects created for this plan show none, and will
+  not until their first deploy. That is the verification U23 asks for and it is pending a deploy, not pending
+  configuration.
+- **Traces, metrics and profiles** cannot be confirmed arriving until the runtimes emit them (plan U22).
+- **`commise-web` carries a historical `production` environment** from before the stage fix, alongside the
+  `prod` it reports now. Harmless, but do not read it as the live one.
+
+## Queue-backstop cron monitors
+
+⛔ **These monitors are created by CODE, not in the UI, which is why they are written down here.** Each
+service's queue backstop (ADR-0041) calls `Sentry.captureCheckIn` with an upsert config on every run, so the
+monitor appears the first time a stage runs the check and nobody has to remember to create it. The cost of
+that convenience is that a monitor nobody created is also a monitor nobody can find by searching the setup
+history — so the slugs, and the reasoning behind their settings, live here.
+
+| Service             | Monitor slug                            | Interval | Why that interval                                             |
+| ------------------- | --------------------------------------- | -------- | ------------------------------------------------------------- |
+| `recipe-workers`    | `recipe-workers-queue-check-<stage>`    | 5 min    | Its own EventBridge rule                                      |
+| `identity-webhooks` | `identity-webhooks-queue-check-<stage>` | 5 min    | Its own EventBridge rule                                      |
+| `food-service`      | `food-service-queue-check-<stage>`      | 1 min    | It rides the drainer's reaper tick and has no rule of its own |
+
+`<stage>` is `prod` or `sandbox`, and **only** those two. A `pr-{N}` preview escalates what it finds and
+never checks in: its stack is torn down when the PR closes while the monitor it created is not, which would
+leave one permanently-missing monitor per PR until the live ones were unreadable among the dead.
+
+⛔ **The stage is part of the slug on purpose.** A monitor shared between `prod` and `sandbox` is checked in
+by whichever stage is still healthy, so a dead prod check reads green for as long as sandbox keeps running —
+the monitor would report success for exactly the outage it was installed to catch.
+
+Settings arrive with the upsert and need no UI change: `checkinMargin` 5 minutes, `failureIssueThreshold` 2,
+`recoveryThreshold` 1. Two consecutive misses rather than one, because every deploy of these services
+replaces the thing that checks in — a Lambda version cut over, an ECS task drained and restarted — so a
+single miss is the normal shape of a release.
+
+**Must page:** a missed check-in on a `prod` monitor. `food-service-queue-check-prod` going quiet means the
+food drainer itself is down, not only its backstop.
+
+**Must NOT page:** an escalation with `condition: delayed`. That is work behind a moving queue — late, not
+lost — and paging on it is how the channel gets muted before a `lost` ever arrives.
 
 ## Provisioning-failure alert (`auth.provisioning: failed`)
 

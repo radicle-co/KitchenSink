@@ -10,6 +10,9 @@
  *    via `aria-describedby`, so assistive tech announces the message with the field.
  *
  * Presentational only — it owns no state; the composing form supplies `value` and handles `onChangeText`.
+ *
+ * @pattern Facade over the RN text-field primitives — it wires the label association, the `alert`-role error slot and
+ *     every metric from `nativeTokens` at the primitive level, so no caller can drift by wiring them itself.
  */
 import { useId, type FC } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';

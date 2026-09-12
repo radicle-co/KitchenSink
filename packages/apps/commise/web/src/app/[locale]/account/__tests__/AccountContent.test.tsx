@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Composition tests for the `/account` route content (U3). The leaf forms have their own suites; here we
- * verify the SHELL: the account surface renders inside the shared {@link AppShell} (so it gets nav on desktop
+ * verify the SHELL: the account surface renders inside the shared `AppShell` (so it gets nav on desktop
  * AND narrow), its headings are localized (no hard-coded English), and it composes the edit + danger-zone
  * controls. The viewer-profile hook is mocked (AppShell's avatar source); the leaf forms are stubbed.
  */
@@ -11,8 +11,14 @@ import type { ReactNode } from 'react';
 
 import { renderWithProviders } from '@commise/test-utils';
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock('@/lib/apiClient', () => ({ buildApiClient: () => ({ get }) }));
+// The identity read now goes through the TYPED `ProfileServiceClient` (its response is parsed against
+// `@kitchensink/schema-identity`), so the seam to mock is the client factory rather than the deleted
+// `lib/apiClient`.
+const { getMe } = vi.hoisted(() => ({ getMe: vi.fn() }));
+vi.mock('@/lib/identityServiceClient', () => ({
+    IDENTITY_SERVICE_BASE_URL: 'http://identity.test',
+    createProfileServiceClient: () => ({ getMe }),
+}));
 
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
@@ -39,7 +45,7 @@ const { AccountContent } = await import('../AccountContent');
 afterEach(cleanup);
 
 const renderContent = async (): Promise<void> => {
-    get.mockResolvedValue({
+    getMe.mockResolvedValue({
         user: { displayName: 'Ada', email: 'ada@example.com', status: 'active', avatarUrl: null },
         account: { subscriptionTier: 'free' },
     });
@@ -84,7 +90,7 @@ describe('AccountContent (U3) — shell + composition', () => {
 
 describe('AccountContent — SSR identity-fetch resilience', () => {
     it('degrades to a recoverable state (no throw) when the identity fetch rejects (ECONNREFUSED)', async () => {
-        get.mockRejectedValue(new Error('fetch failed'));
+        getMe.mockRejectedValue(new Error('fetch failed'));
 
         renderWithProviders(await AccountContent({ accessToken: 'tok', locale: 'en' }));
 

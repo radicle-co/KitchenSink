@@ -4,7 +4,7 @@
  * the queue STALLS (worker pauses at 90% of the cap) and then RESUMES once the window clears.
  *
  * Run against a preview deployed with a LOW cap + SHORT window (CDK context `foodSourceRateLimitPerHour` /
- * `foodSourceWindowSeconds`); the stall→resume is OBSERVED server-side by observe/collect-metrics.mjs (admin
+ * `foodSourceWindowSeconds`); the stall→resume is OBSERVED server-side by observe/collectMetrics.mjs (admin
  * `/metrics` `sources[usda].paused`/utilization + `/queue` depth) and correlated by ratelimit.mjs. This
  * script only GENERATES the burst — a fixed number of distinct enqueues as fast as the arrival rate allows.
  *
@@ -16,13 +16,21 @@ import { check } from 'k6';
 import { SharedArray } from 'k6/data';
 import { Counter } from 'k6/metrics';
 
-const BASE_URL = (__ENV.FOOD_BASE_URL || 'https://food-pr-59.commise.app').replace(/\/$/, '');
+const BASE_URL = (__ENV.FOOD_BASE_URL || '').replace(/\/$/, '');
 const POOL_FILE = __ENV.POOL_FILE || './pool.json';
 const CLERK_SK = __ENV.CLERK_SECRET_KEY || '';
 const BAPI = 'https://api.clerk.com/v1';
 const BURST_COUNT = Number(__ENV.BURST_COUNT || 60);
 const BURST_RATE = Number(__ENV.BURST_RATE || 20);
 const RUN_TAG = __ENV.RUN_TAG || 'rl';
+
+if (!BASE_URL) {
+    // ⛔ No target, no run — never a green run against a default host that no longer exists.
+    throw new Error(
+        'FOOD_BASE_URL is required — resolve it with `node printPublicOrigin.mjs food <stage> <apex>`. ' +
+            'It used to default to a typed host that stopped resolving when that PR closed.',
+    );
+}
 
 if (!CLERK_SK) {
     // Backend token refresh needs the secret; without it every mint 401s and the food adds would look like

@@ -35,7 +35,7 @@ Verified by reading the source, not the spec:
 | C-004 visibility policy `evaluateVisibility(sourceType, isPremium, hasSubstantiveEdit, requested)` | `@kitchensink/recipe-core`                                 |
 | `canClone`, `canGoPrivate`                                                                         | `recipe-core/src/recipeAccessPolicy.ts`                    |
 | Clone endpoint `POST /api/v1/recipes/{id}/clone`                                                   | `src/recipes/recipes.controller.ts` + `recipes.service.ts` |
-| Error envelope `{code,message,details?}` + `RecipeErrorCode` → HTTP map                            | `src/common/filters/api-exception.filter.ts`               |
+| Error envelope `{code,message,details?}` + `RecipeErrorCode` → HTTP map                            | `src/common/filters/apiException.filter.ts`                |
 | Typed domain errors (`Object.setPrototypeOf` + `is*` guard)                                        | `src/recipes/recipe.error.ts`                              |
 | Per-user rate limiting                                                                             | `src/common/throttle/` (`@nestjs/throttler`)               |
 | Zod validation pipe                                                                                | `src/common/pipes/zod-validation.pipe.ts`                  |

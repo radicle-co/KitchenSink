@@ -46,10 +46,10 @@ in which BOTH addressing modes work. See origin brainstorm for decisions and sco
 ### U2 — Service wiring of CLERK_AZP_PREVIEW_MODE — ✅ DONE (330323a)
 
 - **Goal:** identity/recipe/food pass the env selector into the shared resolver so cutover is an env flip.
-- **Files:** `packages/services/{identity,recipe-service}/src/auth/clerk-auth.service.ts`,
-  `packages/services/food-service/src/auth/food-auth.guard.ts`, plus their auth tests (identity
-  `tests/clerk-auth.service.test.ts`, new `recipe-service/src/auth/__tests__/clerk-auth.service.test.ts`,
-  `food-service/src/auth/__tests__/food-auth.guard.test.ts`).
+- **Files:** `packages/services/{identity,recipe-service}/src/auth/clerkAuth.service.ts`,
+  `packages/services/food-service/src/auth/foodAuth.guard.ts`, plus their auth tests (identity
+  `tests/clerkAuth.service.test.ts`, new `recipe-service/src/auth/__tests__/clerkAuth.service.test.ts`,
+  `food-service/src/auth/__tests__/foodAuth.guard.test.ts`).
 - **Verification:** transition mode accepts the apex origin end-to-end; strict rejects it. Prod stages
   reject `CLERK_AZP_PATTERN` entirely (existing config guard) — no prod change. 14/6/9 auth tests pass.
 

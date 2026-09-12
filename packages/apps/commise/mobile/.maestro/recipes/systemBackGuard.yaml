@@ -1,0 +1,115 @@
+appId: io.commise.mobile
+---
+# ⛔ THE SYSTEM BACK BUTTON MUST NOT DESTROY UNSAVED RECIPE WORK.
+#
+# The defect: `RecipesScreen`'s hardware-back handler called `nav.back()` unconditionally, so the wizard's own
+# header arrow asked before discarding and the phone's back button did not. Reproduced with
+# `adb shell input keyevent KEYCODE_BACK` from a dirty step-4 draft: straight to the detail screen, edits gone,
+# no dialog. It hit CREATE as well as EDIT.
+#
+# ⛔ WHAT THIS COVERS THAT THE COMPONENT TESTS CANNOT. `react-native` is aliased to `react-native-web` under
+# vitest, and that shim's `BackHandler` is an inert stub — a component test can only drive a FAKE dispatcher
+# (`@commise/ui/testing/hardware-back`). Only a real device raises a real `KEYCODE_BACK` through React Native's
+# own handler chain. It is also the ONLY tier that can observe the second half of the layering: an open RN
+# `Modal` consumes back itself, on the dialog window, before any `BackHandler` subscription is reached.
+#
+# ⚠️ SELECTOR TRAP, AND IT HAS ALREADY COST A RED CI JOB. Maestro matches the WHOLE string, and under the
+# three-button navigation the CI `ci_pixel6` AVD uses, Android's own navigation bar publishes a node whose
+# accessible name is exactly `Back` — so `tapOn: 'Back'` can resolve to the SYSTEM bar instead of the wizard's
+# header arrow (see `collectionsPull.yaml`, which carries the measured evidence).
+#
+# This flow sidesteps that entirely: it NEVER taps a node named `Back`. It raises the system button with
+# `pressKey: Back`, a key event that resolves to no node at all — and that is also precisely the input under
+# test. Every other selector here is a screen-owned string. If a leg ever does need the header arrow, anchor it
+# (`below: 'Step 1 of 4'`); do not add a bare `tapOn: 'Back'`.
+#
+# ⚠️ IT MUTATES NOTHING. Every leg ends by discarding or by leaving a clean wizard, so no recipe is created and
+# the seeded library is left exactly as found. That is why it can sit next to the read-only create-wizard flows.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+# ── LEG 1: the CREATE wizard, dirty. A whole recipe typed from scratch is the larger of the two losses. ──
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+- assertVisible: 'Step 1 of 4'
+
+- tapOn: 'Title'
+- inputText: 'System Back Guard Draft'
+# ⛔ NO `hideKeyboard` HERE, AND THAT IS THE WHOLE POINT. Android delivers it as a BACK EVENT, so on this
+# screen it is not a keyboard command at all — it is an extra press. Measured on a CI-matched emulator
+# against the fixed build: `hideKeyboard` + `pressKey: Back` RAISED the dialog and then DISMISSED it (every
+# dialog here maps platform dismissal to cancel via `ConfirmDialog.native.tsx`'s `onRequestClose`), and this
+# assertion went red on a working fix. An isolation probe with `pressKey: Back` ALONE passed.
+# ⚠️ An earlier version of this comment placed `hideKeyboard` here deliberately, reasoning the soft keyboard
+# would swallow its back event before the app saw it. It does not — after `inputText` the field is no longer
+# holding the IME open, so the event reaches the wizard. That is the same mechanism that let a `hideKeyboard`
+# dismiss the account-erase dialog mid-flow.
+#
+# THE PRESS UNDER TEST. Against the defect this popped the wizard and the next assertion went red.
+- pressKey: Back
+- assertVisible: 'Discard unsaved changes?'
+
+# "Keep editing" must keep BOTH the wizard and what was typed into it — asserting only that the dialog closed
+# would pass against a guard that discarded the draft behind it.
+- tapOn: 'Keep editing'
+- assertNotVisible: 'Discard unsaved changes?'
+- assertVisible: 'Step 1 of 4'
+- assertVisible: 'System Back Guard Draft'
+
+# ⛔ A SECOND PRESS WHILE THE DIALOG IS OPEN DISMISSES THE DIALOG — it does not exit the wizard. RN's `Modal`
+# catches the key on the dialog window and fires `onRequestClose`, which `ConfirmDialog` maps to cancel, so the
+# press never reaches the back-interceptor chain at all. Leaving a dirty editor therefore takes two DELIBERATE
+# acts, which is the more protective direction. Do NOT "fix" this flow by expecting back-back to exit.
+- pressKey: Back
+- assertVisible: 'Discard unsaved changes?'
+- pressKey: Back
+- assertNotVisible: 'Discard unsaved changes?'
+- assertVisible: 'Step 1 of 4'
+
+# Only an explicit Discard leaves, and it lands on the list — one pop, not two (two would have left the
+# recipes surface entirely and `Recipes` would not be visible).
+- pressKey: Back
+- tapOn: 'Discard changes'
+- assertVisible: 'Recipes'
+
+# ── LEG 2: a CLEAN wizard must not nag. A guard that always prompts is a nuisance, not a guard. ──
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+- assertVisible: 'Step 1 of 4'
+
+- pressKey: Back
+- assertNotVisible: 'Discard unsaved changes?'
+- assertVisible: 'Recipes'
+
+# ── LEG 3: the EDIT wizard. Same guard, the path the original bug report walked. ──
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Step 1 of 4'
+
+- runFlow: common/clearTitle.yaml
+- inputText: 'System Back Guard Edit'
+
+# ⛔ NO `hideKeyboard` — see the create leg above. It is a back EVENT, so it would raise the dialog and the
+# press below would dismiss it, reddening this assertion against a working fix.
+- pressKey: Back
+- assertVisible: 'Discard unsaved changes?'
+- tapOn: 'Discard changes'
+
+# Back on the DETAIL (one pop), carrying its original title — the edit really was discarded rather than saved.
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_LAMB}'
+      timeout: 20000
+- assertNotVisible: 'System Back Guard Edit'
+
+# ── LEG 4: a pushed surface with nothing to lose still pops, and the guard did not break ordinary back. ──
+- pressKey: Back
+- assertVisible: 'Recipes'

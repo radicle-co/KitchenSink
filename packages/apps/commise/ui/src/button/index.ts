@@ -4,5 +4,12 @@
  * prop/variant contract is platform-agnostic. Consumed as `@commise/ui/button`.
  */
 export { Button } from './Button.js';
+export { BUSY_CONTROL_CLASS, busyControlProps, refusedPressProps } from './busyControlProps.js';
+export type {
+    BusyControlOptions,
+    BusyControlProps,
+    RefusedPressOptions,
+    RefusedPressProps,
+} from './busyControlProps.js';
 export { buttonSurfaceClass } from './surfaceClass.js';
 export type { ButtonProps, ButtonVariant } from './props.js';

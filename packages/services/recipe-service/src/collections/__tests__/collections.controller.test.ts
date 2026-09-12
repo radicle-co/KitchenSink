@@ -1,11 +1,13 @@
 /**
  * T041-test — unit tests for {@link CollectionsController}: the pure request→service→response mapping
  * over a mocked {@link CollectionsService}. Pins that the OWNER always comes from `req.principal.userId`
- * (never the body) and that a missing principal is a 401. Body/query validation now runs at the
- * `ZodValidationPipe` framework seam (S-R7) — BEFORE these handlers execute — so malformed-input
- * rejection is no longer observable by calling a handler directly; that coverage lives in
- * `common/pipes/__tests__/zod-validation.pipe.test.ts`. End-to-end behaviour is covered by the
- * integration/e2e tiers.
+ * (never the body) and that a missing principal is a 401. Body/query validation runs at `nestjs-zod`'s
+ * `ZodValidationPipe` framework seam — BEFORE these handlers execute — so malformed-input rejection is
+ * not observable by calling a handler directly; that coverage lives in
+ * `../dto/__tests__/collectionDtos.test.ts`, which drives the real pipe over the DTOs that ARE the
+ * published contract. (It previously lived in `common/pipes/__tests__/zod-validation.pipe.test.ts`,
+ * alongside a hand-rolled pipe that has since been deleted in favour of the library's.) End-to-end
+ * behaviour is covered by the integration/e2e tiers.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
@@ -32,7 +34,16 @@ function makeService(): ServiceMock {
     };
 }
 
-const PRINCIPAL: Principal = { userId: 'owner-1', sub: 'clerk_sub', scopes: [], permissions: [] };
+const PRINCIPAL: Principal = {
+    userId: 'owner-1',
+    sub: 'clerk_sub',
+    scopes: [],
+    permissions: [],
+    principalKind: 'real',
+    containment: 'enforce',
+};
+/** The acting slice the controller hands the service for a write that containment decides (ADR-0040). */
+const ACTING = { userId: 'owner-1', principalKind: 'real', containment: 'enforce' } as const;
 
 function reqWith(principal?: Principal): AuthenticatedRequest {
     return { principal } as unknown as AuthenticatedRequest;
@@ -53,7 +64,7 @@ describe('CollectionsController', () => {
 
             const result = await controller.create(reqWith(PRINCIPAL), { name: 'Weeknight Dinners' });
 
-            expect(service.createCollection).toHaveBeenCalledWith('owner-1', { name: 'Weeknight Dinners' });
+            expect(service.createCollection).toHaveBeenCalledWith(ACTING, { name: 'Weeknight Dinners' });
             expect(result).toEqual({ id: 'c1' });
         });
 
@@ -91,7 +102,7 @@ describe('CollectionsController', () => {
 
             await controller.update(reqWith(PRINCIPAL), 'c1', { visibility: 'public' });
 
-            expect(service.updateCollection).toHaveBeenCalledWith('owner-1', 'c1', { visibility: 'public' });
+            expect(service.updateCollection).toHaveBeenCalledWith(ACTING, 'c1', { visibility: 'public' });
         });
     });
 
@@ -112,7 +123,7 @@ describe('CollectionsController', () => {
                 recipeId: '00000000-0000-4000-8000-000000000001',
             });
 
-            expect(service.addRecipe).toHaveBeenCalledWith('owner-1', 'c1', '00000000-0000-4000-8000-000000000001');
+            expect(service.addRecipe).toHaveBeenCalledWith(ACTING, 'c1', '00000000-0000-4000-8000-000000000001');
         });
     });
 

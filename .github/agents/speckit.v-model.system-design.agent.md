@@ -1,22 +1,22 @@
 ---
 description: Decompose requirements into IEEE 1016-compliant system components with
-  four mandatory design views and many-to-many traceability.
+    four mandatory design views and many-to-many traceability.
 handoffs:
-- label: Generate System Tests
-  agent: speckit.v-model.system-test
-  prompt: Generate the system test plan for this system design
-  send: true
-- label: Back to Requirements
-  agent: speckit.v-model.requirements
-  prompt: Review or update requirements
+    - label: Generate System Tests
+      agent: speckit.v-model.system-test
+      prompt: Generate the system test plan for this system design
+      send: true
+    - label: Back to Requirements
+      agent: speckit.v-model.requirements
+      prompt: Review or update requirements
 scripts:
-  sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs
-  ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs
+    sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs
+    ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -36,6 +36,7 @@ Decompose a V-Model Requirements Specification (`requirements.md`) into an IEEE 
 Run `.specify/scripts/bash/setup-v-model.sh --json --require-reqs` from the repository root and parse the JSON output.
 
 The script returns JSON with these keys:
+
 - `VMODEL_DIR`: Path to `specs/{feature}/v-model/` directory
 - `FEATURE_DIR`: Path to `specs/{feature}/` directory
 - `BRANCH`: Current branch name
@@ -49,27 +50,29 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 1. **Load the template**: Read `.specify/templates/system-design-template.md` from the extension directory to understand the required output structure.
 
 2. **Load requirements**: Read `requirements.md` from the `REQUIREMENTS` path. This is the **sole source of truth** for what the system must do.
-   - Extract all `REQ-NNN` identifiers (all categories: functional, non-functional, interface, constraint)
-   - Note the total count — every REQ must appear as a parent in at least one SYS component
+    - Extract all `REQ-NNN` identifiers (all categories: functional, non-functional, interface, constraint)
+    - Note the total count — every REQ must appear as a parent in at least one SYS component
 
 3. **Load spec.md** (if `AVAILABLE_DOCS` contains `"spec.md"`): Read for supplementary domain context (user stories, acceptance scenarios, edge cases). This provides architectural insight but does NOT override requirements.
 
 4. **Load existing system design** (if `AVAILABLE_DOCS` contains `"system-design.md"`):
-   - Read the existing `system-design.md` to preserve existing SYS IDs and content
-   - Identify the highest existing SYS number to continue the sequence
-   - New components append after existing ones — **never renumber**
+    - Read the existing `system-design.md` to preserve existing SYS IDs and content
+    - Identify the highest existing SYS number to continue the sequence
+    - New components append after existing ones — **never renumber**
 
 ### 2a. Domain Configuration
 
 Load `v-model-config.yml` (if it exists at the repository root).
 
 **If `domain` is set** (e.g., `iso_26262`, `do_178c`, `iec_62304`):
+
 1. Read the command overlay: `commands/overlays/{domain}/system-design.md`
-   - If it exists: note the safety-critical design sections (e.g., FFI analysis, restricted complexity assessment, safety integrity allocation)
-   - If it does not exist: this domain does not extend this command — proceed with base only
+    - If it exists: note the safety-critical design sections (e.g., FFI analysis, restricted complexity assessment, safety integrity allocation)
+    - If it does not exist: this domain does not extend this command — proceed with base only
 2. Where the base command has a domain-variant section (marked with "If a domain overlay is loaded, prefer its content"), use the overlay's version instead of the base default
 
 **If `domain` is empty or absent:**
+
 - Proceed with the base command only
 - Use generic best-practice terminology throughout
 - Do NOT include any safety-critical or domain-specific regulatory references
@@ -81,15 +84,15 @@ before generating new content:
 
 1. **Never delete an ID** — mark as `[DEPRECATED]`
 2. **Deprecation types:**
-   - `[DEPRECATED — Superseded by SYS-NNN]`: Replaced by a new component
-   - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
+    - `[DEPRECATED — Superseded by SYS-NNN]`: Replaced by a new component
+    - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
 3. **Suspect detection from parent REQ:** If a parent REQ (in `requirements.md`)
    is deprecated or modified, mark each SYS that traces to it as
    `[SUSPECT — Parent REQ-NNN {deprecated|modified}]`.
 4. **Suspect resolution:** For each suspect SYS:
-   - **Re-parent** to the superseding REQ (if capability continues under a new requirement)
-   - **Deprecate** (if the requirement is withdrawn — cascade to downstream ARCH, STP, HAZ)
-   - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
+    - **Re-parent** to the superseding REQ (if capability continues under a new requirement)
+    - **Deprecate** (if the requirement is withdrawn — cascade to downstream ARCH, STP, HAZ)
+    - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
 5. **Modified components:** Update content in-place, preserve the original SYS ID.
    Downstream artifacts (ARCH, STP, HAZ) tracing to this SYS become suspect.
 
@@ -109,8 +112,8 @@ For each system component identified during decomposition:
 3. **Describe the component**: What it does, its responsibility boundary. Must be specific enough to generate test cases.
 
 4. **Map parent requirements**: List ALL `REQ-NNN` identifiers that this component satisfies as a comma-separated list. Many-to-many mapping is expected:
-   - A single SYS may satisfy multiple REQs (e.g., `SYS-003` satisfies `REQ-001, REQ-005, REQ-NF-002`)
-   - A single REQ may be satisfied by multiple SYS components (e.g., `REQ-001` is a parent of both `SYS-001` and `SYS-003`)
+    - A single SYS may satisfy multiple REQs (e.g., `SYS-003` satisfies `REQ-001, REQ-005, REQ-NF-002`)
+    - A single REQ may be satisfied by multiple SYS components (e.g., `REQ-001` is a parent of both `SYS-001` and `SYS-003`)
 
 5. **Classify type**: Subsystem | Module | Service | Library | Utility
 
@@ -128,9 +131,10 @@ For each system component identified during decomposition:
 The primary view. Fill the Decomposition View table from the template with all SYS components:
 
 | SYS ID | Name | Description | Parent Requirements | Type |
-|--------|------|-------------|---------------------|------|
+| ------ | ---- | ----------- | ------------------- | ---- |
 
 **Rules**:
+
 - Every `REQ-NNN` from `requirements.md` must appear in at least one row's "Parent Requirements" column
 - Use comma-separated `REQ-NNN` list for many-to-many (e.g., `REQ-001, REQ-NF-002, REQ-IF-001`)
 - No SYS component may have an empty Parent Requirements field
@@ -140,9 +144,10 @@ The primary view. Fill the Decomposition View table from the template with all S
 Document inter-component relationships:
 
 | Source | Target | Relationship | Failure Impact |
-|--------|--------|-------------|----------------|
+| ------ | ------ | ------------ | -------------- |
 
 **Rules**:
+
 - Identify every pair of components that interact (calls, reads, subscribes, etc.)
 - Document the failure propagation path: if Target fails, what happens to Source?
 - Include a simple dependency diagram (ASCII or Mermaid format)
@@ -159,6 +164,7 @@ Document API contracts with explicit external/internal distinction:
 | Source | Target | Interface Name | Protocol | Data Format | Error Handling |
 
 **Rules**:
+
 - MUST distinguish between external and internal interfaces — separate tables
 - External interfaces focus on protocol compliance, authentication, input validation
 - Internal interfaces focus on contract adherence, data format correctness, failure propagation
@@ -171,6 +177,7 @@ Document data structures and protection:
 | Entity | Component | Storage | Protection at Rest | Protection in Transit | Retention |
 
 **Rules**:
+
 - Cover data-at-rest and data-in-transit security measures
 - This view directly feeds **Boundary Value Analysis** in the system test phase
 - Include data lifecycle (creation, update, deletion, retention)
@@ -189,14 +196,14 @@ After generating all `SYS-NNN` components and populating the four IEEE 1016 desi
 
 For each characteristic implied or explicitly stated in `requirements.md`, confirm at least one `SYS-NNN` component or design view decision covers it:
 
-| Quality Characteristic | ISO/IEC 25010 Ref | Design Evidence Required |
-|------------------------|-------------------|--------------------------|
-| Functional Suitability (completeness, correctness, appropriateness) | §4.2.1 | Every `REQ-F-NNN` maps to at least one `SYS-NNN` component |
-| Reliability (availability, fault tolerance, recoverability) | §4.2.2 | Dependency View documents failure propagation and recovery strategies |
-| Performance Efficiency (time behaviour, resource utilisation, capacity) | §4.2.3 | Interface View or Data Design View specifies measurable performance constraints |
-| Security (confidentiality, integrity, authenticity, accountability) | §4.2.5 | Data Design View documents protection at rest and in transit for all sensitive data |
-| Maintainability (modularity, reusability, analysability, modifiability, testability) | §4.2.7 | Decomposition View separates concerns; every interface is explicitly contracted |
-| Safety (operational constraint, risk identification, fail safe, hazard warning) | §4.2.9 | Relevant `SYS-NNN` components link to `HAZ-NNN` entries in the hazard analysis (if applicable) |
+| Quality Characteristic                                                               | ISO/IEC 25010 Ref | Design Evidence Required                                                                       |
+| ------------------------------------------------------------------------------------ | ----------------- | ---------------------------------------------------------------------------------------------- |
+| Functional Suitability (completeness, correctness, appropriateness)                  | §4.2.1            | Every `REQ-F-NNN` maps to at least one `SYS-NNN` component                                     |
+| Reliability (availability, fault tolerance, recoverability)                          | §4.2.2            | Dependency View documents failure propagation and recovery strategies                          |
+| Performance Efficiency (time behaviour, resource utilisation, capacity)              | §4.2.3            | Interface View or Data Design View specifies measurable performance constraints                |
+| Security (confidentiality, integrity, authenticity, accountability)                  | §4.2.5            | Data Design View documents protection at rest and in transit for all sensitive data            |
+| Maintainability (modularity, reusability, analysability, modifiability, testability) | §4.2.7            | Decomposition View separates concerns; every interface is explicitly contracted                |
+| Safety (operational constraint, risk identification, fail safe, hazard warning)      | §4.2.9            | Relevant `SYS-NNN` components link to `HAZ-NNN` entries in the hazard analysis (if applicable) |
 
 #### 6.2 Action on Gaps
 
@@ -209,13 +216,14 @@ For each characteristic implied or explicitly stated in `requirements.md`, confi
 During decomposition, the AI may identify a technical capability necessary for the architecture but not explicitly stated in `requirements.md`. These are **derived requirements**.
 
 **Rules**:
+
 - Do NOT silently create a `SYS-NNN` component for an undocumented capability
 - Instead, flag it with: `[DERIVED REQUIREMENT: description of the needed capability and why it is architecturally necessary]`
 - List all derived requirements in the "Derived Requirements" section of the output
 - The human must resolve each one before proceeding to system test generation:
-  1. Add the capability to `requirements.md` (creating a new REQ-NNN)
-  2. Reject it as unnecessary
-  3. Merge it into an existing requirement
+    1. Add the capability to `requirements.md` (creating a new REQ-NNN)
+    2. Reject it as unnecessary
+    3. Merge it into an existing requirement
 
 ### 8. Write Output
 
@@ -237,6 +245,7 @@ Write the complete system design document to `{VMODEL_DIR}/system-design.md` usi
 ### 9. Report Completion
 
 Display a summary:
+
 - Total system components generated (by type: Subsystem/Module/Service/Library/Utility)
 - Forward coverage: X/Y REQs covered (must be 100% or flagged)
 - Dependency relationships identified
@@ -250,10 +259,10 @@ Display a summary:
 
 This command is governed by the following standards for system design:
 
-| Standard | Full Name | Role in this Command |
-|----------|-----------|----------------------|
-| **IEEE 1016:2009** | IEEE Standard for Information Technology — Software Design Descriptions | Primary structure standard: four mandatory design views (Decomposition, Dependency, Interface, Data Design) and SDD content requirements |
-| **ISO/IEC 25010:2023** | Systems and Software Quality Models | Quality attribute taxonomy: design decisions are cross-checked against 25010 characteristics (Functional Suitability, Reliability, Performance Efficiency, Usability, Security, Compatibility, Flexibility, Safety, Interaction Capability) to make quality rationale explicit and auditable |
+| Standard               | Full Name                                                               | Role in this Command                                                                                                                                                                                                                                                                         |
+| ---------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **IEEE 1016:2009**     | IEEE Standard for Information Technology — Software Design Descriptions | Primary structure standard: four mandatory design views (Decomposition, Dependency, Interface, Data Design) and SDD content requirements                                                                                                                                                     |
+| **ISO/IEC 25010:2023** | Systems and Software Quality Models                                     | Quality attribute taxonomy: design decisions are cross-checked against 25010 characteristics (Functional Suitability, Reliability, Performance Efficiency, Usability, Security, Compatibility, Flexibility, Safety, Interaction Capability) to make quality rationale explicit and auditable |
 
 > **Domain extensions:** If a domain overlay is loaded (Step 2a), additional safety-integrity design requirements from the applicable standard (e.g., ISO 26262-6 §7.4 Freedom from Interference, DO-178C §5.2 Software Architecture) are applied alongside these best-practice standards.
 
@@ -262,6 +271,7 @@ This command is governed by the following standards for system design:
 ### Strict Translation Rules
 
 When decomposing from `requirements.md`:
+
 - **DO NOT** invent capabilities, services, or components not traceable to a REQ-NNN
 - **DO NOT** add architectural components based on "common sense" or "best practices"
 - **DO** flag genuinely necessary but undocumented capabilities as `[DERIVED REQUIREMENT]`

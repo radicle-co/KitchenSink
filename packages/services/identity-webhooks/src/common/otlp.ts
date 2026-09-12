@@ -5,6 +5,7 @@
  * OTLP ingest target from the log-drain DSN. Kept separate from the handler so the transport is
  * swappable for an OTel Collector later (KTD1) and so the mapping + scrubbing are unit-testable.
  */
+import { identifyLogSource } from './logDrainRegister.js';
 
 export interface OtlpTarget {
     url: string;
@@ -73,6 +74,17 @@ const redactIdSegments = (value: string): string =>
  * `jsonWithStandardFields` includes caller IP and request paths that may embed user ids; these
  * bypass the per-SDK scrubbers, so the forwarder strips them here (security P1 / KTD8). Non-JSON
  * lines pass through unchanged.
+ *
+ * ⚠️ THE OUTPUT CAN CARRY A `__proto__` KEY, and that is the fix rather than a leak. These keys come from
+ * a parsed LOG LINE — the most data-derived source in this repository — and rebuilding onto an object
+ * LITERAL sent a field named `__proto__` to `Object.prototype`'s inherited setter, so it was silently
+ * DROPPED: a sanitizer that deleted evidence instead of redacting it. It is kept as DATA now, which means
+ * the line this function emits, and which the forwarder hands to a third party, may contain that key.
+ * Every consumer in the path reads it with `JSON.parse`, which defines own properties and cannot be
+ * polluted; one that rebuilt an object with `obj[key] = …` would be. Asserted both ways in `otlp.test.ts`.
+ *
+ * @param message - One raw CloudWatch log line.
+ * @returns The line with sensitive fields redacted, or unchanged when it is not a JSON object. Pure.
  */
 export const sanitizeAccessLogMessage = (message: string): string => {
     let parsed: unknown;
@@ -87,37 +99,48 @@ export const sanitizeAccessLogMessage = (message: string): string => {
         return message;
     }
 
-    const out: Record<string, unknown> = {};
+    // ⛔ `Object.fromEntries`, NOT a null-prototype accumulator. Both close the defect — a field named
+    // `__proto__` reaching `Object.prototype`'s inherited setter and vanishing — but `Object.create(null)`
+    // still assigns with `[[Set]]`, and CodeQL's `js/remote-property-injection` does not recognise it as a
+    // sanitizer: the same fix applied to the shared scrubbers left all three alerts standing. `fromEntries`
+    // uses `CreateDataProperty` and never `[[Set]]`, which satisfies the defect and the query.
+    // ⚠️ `Object.assign` is the SAME sink as `out[key] = …` and is not an alternative here.
+    return JSON.stringify(
+        Object.fromEntries(
+            Object.entries(parsed as Record<string, unknown>).map(([key, value]) => {
+                if (SENSITIVE_LOG_KEYS.has(key.toLowerCase())) {
+                    return [key, '[redacted]'];
+                }
 
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        if (SENSITIVE_LOG_KEYS.has(key.toLowerCase())) {
-            out[key] = '[redacted]';
-        } else if (typeof value === 'string' && /path|resource|uri/i.test(key)) {
-            out[key] = redactIdSegments(value);
-        } else {
-            out[key] = value;
-        }
-    }
+                if (typeof value === 'string' && /path|resource|uri/i.test(key)) {
+                    return [key, redactIdSegments(value)];
+                }
 
-    return JSON.stringify(out);
+                return [key, value];
+            }),
+        ),
+    );
 };
 
 /**
- * Derive the deployment stage from a CloudWatch log group name. Identity log groups are named
- * `kitchensink-identity-<component>-<stage>-<...>` (e.g.
- * `kitchensink-identity-webhooks-prod-WebhooksLogGroup...`), so the stage is recoverable from the
- * source group without each service stamping it — which matters because the drain carries AWS infra
- * logs, not the app's own JSON logs. One forwarder serves every stage; this keeps the single
- * log-drain project queryable by `environment`. Falls back to `unknown` for unrecognized groups.
+ * Derive the deployment stage from a CloudWatch log group name.
+ *
+ * ⛔ REWRITTEN (plan U15) from a single regex to the REGISTER in `logDrainRegister.ts`, because the regex was
+ * wrong for two of the groups it was meant to serve and wrong SILENTLY:
+ *
+ *  - the identity ECS group is `/kitchensink/identity-service/<stage>` — slashes, not hyphens — so it matched
+ *    nothing and every line from the service that serves real users arrived tagged `environment:unknown`;
+ *  - a sandbox webhook group takes CDK's generated name, and the pattern's `sandbox-[a-z0-9]+` arm swallowed
+ *    the construct id, producing an environment called `sandbox-webhookslogroup` that nobody filters on.
+ *
+ * ⚠️ `'unknown'` SURVIVES as the return for an unregistered group, and only here. The register itself refuses
+ * to guess (`identifyLogSource` answers `undefined`), but this function's caller is a log forwarder whose
+ * first duty is not to drop logs: a group nobody registered is still worth forwarding, mislabelled, rather
+ * than discarded. The difference from before is that `unknown` now means "nobody registered this group",
+ * never "the regex did not fit a group we own" — and `logDrainRegister.test.ts` asserts no registered group
+ * produces it.
  */
-export const stageFromLogGroup = (logGroup: string): string => {
-    const match =
-        /kitchensink-identity-(?:service|webhooks|data|network|domain|global)-(prod|staging|dev|test|sandbox-[a-z0-9]+|mr-[a-z0-9]+|pr-[a-z0-9]+)\b/i.exec(
-            logGroup,
-        );
-
-    return match ? match[1].toLowerCase() : 'unknown';
-};
+export const stageFromLogGroup = (logGroup: string): string => identifyLogSource(logGroup)?.stage ?? 'unknown';
 
 const detectSeverity = (message: string): string => {
     if (/\b(error|fatal|exception)\b/i.test(message)) {

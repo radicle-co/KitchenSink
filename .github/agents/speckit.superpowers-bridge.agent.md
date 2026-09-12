@@ -2,9 +2,9 @@
 description: Execute Spec Kit tasks.md through the Superpowers bridge
 ---
 
-
 <!-- Extension: speckit-superpowers-bridge -->
 <!-- Config: .specify/extensions/speckit-superpowers-bridge/ -->
+
 # Bridge Execute
 
 Execute the active Spec Kit feature through Superpowers without running `speckit.implement`.

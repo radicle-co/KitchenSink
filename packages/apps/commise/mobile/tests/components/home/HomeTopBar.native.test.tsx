@@ -79,7 +79,7 @@ describe('HomeTopBar (mobile)', () => {
  * minimum — and both CSS and Yoga resolve a used length as `max(min-size, size)`, so the 32pt disc painted at
  * 44pt and all but filled the 56pt bar. Native already separates `avatarTouch` (44) from `avatar` (32), so
  * this suite is the pin that keeps the two platforms from drifting back apart on the geometry the mockup
- * (`screen-home`: `p-2` wrapper around a `w-8 h-8` disc) specifies.
+ * (`screenHome`: `p-2` wrapper around a `w-8 h-8` disc) specifies.
  */
 describe('HomeTopBar (mobile) — avatar geometry', () => {
     /** The mockup's avatar disc (`w-8 h-8`), and the web bar's `size-8`. */

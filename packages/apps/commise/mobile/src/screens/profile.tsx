@@ -6,7 +6,7 @@
  * image-picker (replacing the old paste-a-URL text box), and a `@commise/ui` {@link Button} with a real
  * `busy` state for Save — all copy from `mobileMessages`, wrapped in a `SafeAreaView` + `KeyboardAvoidingView`
  * so the keyboard never occludes the field. The account-level controls (security, sign out, close/erase)
- * live in the reachable {@link import('./AccountSettings.js').AccountSettingsScreen} hub, entered via the
+ * live in the reachable `AccountSettingsScreen` hub, entered via the
  * "Account settings" action here (`onOpenAccountSettings`), so destructive actions have a single home.
  */
 import { Button } from '@commise/ui/button';
@@ -15,19 +15,28 @@ import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
 import { Feather } from '@expo/vector-icons';
-import type { JSX } from 'react';
+import type { FC, JSX } from 'react';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { QueryBoundary } from '@commise/query/boundary';
+
 import { AvatarField } from '../components/account/AvatarField.js';
 import { LoadingState } from '../components/LoadingState.js';
 import { SuspensionBanner } from '../components/SuspensionBanner.js';
-import { useUpdateProfile, useUserProfile } from '../hooks/useUserProfile.js';
+import { useUpdateProfile } from '../hooks/useUpdateProfile.js';
+import { useSuspenseUserProfile } from '../hooks/useSuspenseUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
 
-/** The loaded profile query data (non-undefined). */
-type ProfileData = NonNullable<ReturnType<typeof useUserProfile>['data']>;
+/**
+ * The loaded profile.
+ *
+ * ⚠️ Derived from the SUSPENSE hook, whose `data` is already non-undefined by construction — so there is no
+ * `NonNullable` here, and its absence is the point: the old alias wrapped `useUserProfile`'s optional data,
+ * which is exactly the "might not be there" the boundary now removes.
+ */
+type ProfileData = ReturnType<typeof useSuspenseUserProfile>['data'];
 
 /** Props for {@link ProfileScreen}. */
 export interface ProfileScreenProps {
@@ -35,32 +44,60 @@ export interface ProfileScreenProps {
     readonly onOpenAccountSettings?: () => void;
 }
 
-export function ProfileScreen({ onOpenAccountSettings }: ProfileScreenProps = {}): JSX.Element {
-    const { profile: t } = useMessages(mobileMessages);
-    const { data, isLoading, error } = useUserProfile();
-
-    if (isLoading) {
-        return (
-            <SafeAreaView style={styles.safe}>
-                <LoadingState label={t.loading} />
-            </SafeAreaView>
-        );
-    }
-
-    if (error || !data) {
-        return (
-            <SafeAreaView style={styles.safe}>
-                <View style={styles.center}>
-                    <Text style={styles.errorText}>{t.loadError}</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
+/**
+ * The settled profile leaf — a suspense read and nothing else.
+ *
+ * Per §11.0 it takes no `status` and no `onRetry`: Suspense owns pending and the boundary owns failed, so by
+ * the time this renders there is a profile. Split out of {@link ProfileScreen} so the boundary has a child to
+ * suspend; the two cannot be one component, because a component cannot suspend inside its own boundary.
+ */
+const SettledProfile: FC<ProfileScreenProps> = ({ onOpenAccountSettings }) => {
+    const { data } = useSuspenseUserProfile();
 
     // B1 — seed the edit form ONCE from the cache via the `useState` initializer (no clobber `useEffect`).
     // `key={data.user.id}` remounts the form only when the profile IDENTITY changes, so a background refetch
     // or a post-save invalidation of the SAME profile never overwrites unsaved edits.
     return <ProfileEditForm key={data.user.id} profile={data} onOpenAccountSettings={onOpenAccountSettings} />;
+};
+
+export function ProfileScreen({ onOpenAccountSettings }: ProfileScreenProps = {}): JSX.Element {
+    const { profile: t } = useMessages(mobileMessages);
+
+    // ⛔ A SUSPENSE READ UNDER `QueryBoundary` (§11.0), converted from the last `toDetailQueryView` consumer in
+    // the tree. The hand-rolled `status` ladder this replaces was the only remaining place where a read's
+    // pending and failed states were owned by the surface rather than by the boundary — so this screen was the
+    // reason the repo still had two read patterns, and `queryStatus.ts` died with it.
+    //
+    // ⚠️ SAFE ONLY BECAUSE THE SIGNED-IN GATE IS STRUCTURAL. A suspense read cannot be disabled, and the
+    // `useQuery` this replaces carried `enabled: Boolean(isSignedIn)`. `AuthGate` returns its children ONLY in
+    // the `authenticated` case (`components/AuthGate.tsx`) and `AppRoot` — which renders this screen — is
+    // inside it, so the gate that mattered was never the `enabled` flag. Were that to change, this read would
+    // suspend forever on a signed-out viewer rather than sitting idle.
+    //
+    // A failed background refetch stays silent, as before: the form is seeded once, so a retry would change
+    // nothing on screen. Only a profile that NEVER loaded reaches `renderError`.
+    // ⚠️ THE SAFE AREA WRAPS THE TWO FALLBACK NODES, NOT THE BOUNDARY. `ProfileEditForm` brings its own
+    // `SafeAreaView`, so wrapping the boundary nests two of them around the settled case — which a test
+    // caught as "found multiple elements with the text of: safe-area-root". The pre-conversion code had the
+    // same shape for the same reason; this preserves it rather than rediscovering it.
+    return (
+        <QueryBoundary
+            loading={
+                <SafeAreaView style={styles.safe}>
+                    <LoadingState label={t.loading} />
+                </SafeAreaView>
+            }
+            renderError={() => (
+                <SafeAreaView style={styles.safe}>
+                    <View style={styles.center}>
+                        <Text style={styles.errorText}>{t.loadError}</Text>
+                    </View>
+                </SafeAreaView>
+            )}
+        >
+            <SettledProfile {...(onOpenAccountSettings === undefined ? {} : { onOpenAccountSettings })} />
+        </QueryBoundary>
+    );
 }
 
 /** The controlled edit form, seeded once from the cached profile on mount. */
@@ -133,7 +170,9 @@ function ProfileEditForm({
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     flex: { flex: 1 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     container: {

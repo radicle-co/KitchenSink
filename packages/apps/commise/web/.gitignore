@@ -18,6 +18,14 @@
 playwright-report/
 test-results/
 
+# U10a visual passes — generated artifacts, never committed.
+#  - `screenshots/` is what Argos uploads and compares; the BASELINE lives in Argos, keyed on the file name,
+#    so committing these would create a second, silently-diverging source of truth.
+#  - `mockup-fidelity/` is the wireframe/implementation review artifact (image pairs + report.json +
+#    index.html), published as a CI artifact.
+screenshots/
+mockup-fidelity/
+
 # next.js
 /.next/
 /out/

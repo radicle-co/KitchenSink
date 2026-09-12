@@ -2,7 +2,7 @@
  * @module home/homeContainer — the mobile Home appShell container (US-000 discovery layer).
  *
  * Builds the ditox `appShell` container and applies each feature's `addFeature` registration, so the
- * composition root ({@link import('./HomeWidgetSurface.js').HomeWidgetSurface}) can resolve the full set of
+ * composition root (`HomeWidgetSurface`) can resolve the full set of
  * contributed Home-widget descriptors via `resolveHomeWidgets` and hand them to `curateHomeWidgets`.
  *
  * Identical logic to the web host's `homeContainer` — the discovery layer is platform-neutral. In Home v1

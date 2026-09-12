@@ -1,15 +1,15 @@
 ---
 name: speckit.product-forge.code-review
 description: 'Phase 6B: Structured multi-agent code review after implementation, before
-  verification. Checks code quality (SOLID, DRY), security (OWASP surface scan), pattern
-  consistency (vs codebase-analysis.md), and test coverage (vs spec.md requirements).
-  Enriched with Product Forge context — not a generic code review. Use: "code review",
-  "review code", "/speckit.product-forge.code-review"'
+    verification. Checks code quality (SOLID, DRY), security (OWASP surface scan), pattern
+    consistency (vs codebase-analysis.md), and test coverage (vs spec.md requirements).
+    Enriched with Product Forge context — not a generic code review. Use: "code review",
+    "review code", "/speckit.product-forge.code-review"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Code Review (Phase 6B)
 
 You are the **Code Review Conductor** for Product Forge.
@@ -24,7 +24,7 @@ $ARGUMENTS
 
 If `$ARGUMENTS` contains **`--cross-model`** (optionally `--cross-model <reviewer-id>`),
 run the cross-model review loop in **Step 2.5** — export the consolidated review
-surface as a portable package, have a *different* model review it, and ingest the
+surface as a portable package, have a _different_ model review it, and ingest the
 result back into the `F-NNN` namespace. See Step 2.5. Without the flag, code-review
 runs single-model as before.
 
@@ -42,6 +42,7 @@ or status change, emit a `DRY-RUN-REPORT.md`, and make no external side-effect.
 3. If implement phase is not completed: **STOP** — "Phase 6 (Implementation) must be completed first."
 
 Load artifacts:
+
 - `{FEATURE_DIR}/tasks.md` — extract completed tasks with file paths
 - `{FEATURE_DIR}/spec.md` — requirements and acceptance criteria
 - `{FEATURE_DIR}/plan.md` — architecture decisions and patterns
@@ -85,16 +86,16 @@ or attempt to detect via git diff if available.
 
 ## Step 1.5: Machine gates first (two-layer review, v1.6, Theme D)
 
-Code review is a **two-layer** process: deterministic machine gates run *before* the
+Code review is a **two-layer** process: deterministic machine gates run _before_ the
 agent/human judgment dimensions. Run the project's mechanical checks over
 `REVIEW_FILES` and the affected workspaces and record results:
 
-| Gate | Command (resolve from stack) | Blocks human review? |
-|------|------------------------------|----------------------|
-| Lint | project linter | Yes if errors |
-| Types | type checker (tsc / mypy / etc.) | Yes if errors |
+| Gate                | Command (resolve from stack)                                                                                 | Blocks human review? |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------- |
+| Lint                | project linter                                                                                               | Yes if errors        |
+| Types               | type checker (tsc / mypy / etc.)                                                                             | Yes if errors        |
 | Security scan (SCA) | `osv-scanner --recursive .` — same SCA tool as [release-readiness](release-readiness.md) §5C; + project SAST | Yes on high/critical |
-| Coverage thresholds | test runner coverage vs [testing-strategy.md](../docs/testing-strategy.md) | Yes if below min |
+| Coverage thresholds | test runner coverage vs [testing-strategy.md](../docs/testing-strategy.md)                                   | Yes if below min     |
 
 If a machine gate fails, surface it and stop before the judgment dimensions — there
 is no point spending review effort on code that doesn't lint, type-check, or meet
@@ -110,37 +111,37 @@ Run all review dimensions simultaneously. Each produces a findings list.
 
 Check each file in REVIEW_FILES for:
 
-| Check | What to Look For |
-|-------|-----------------|
-| **Single Responsibility** | Functions >50 LOC, classes with >5 public methods, files >400 LOC |
-| **DRY** | Duplicated logic across files (>10 similar lines), copy-pasted patterns |
-| **Error Handling** | Unhandled promise rejections, empty catch blocks, missing error responses |
-| **Naming** | Unclear variable/function names, inconsistent naming conventions |
-| **Immutability** | Direct mutation of objects/arrays where immutable patterns expected |
-| **Complexity** | Nesting >4 levels, cyclomatic complexity >10, long parameter lists |
-| **Dead Code** | Unused imports, commented-out code, unreachable branches |
-| **Hardcoded Values** | Magic numbers, hardcoded strings that should be constants/config |
+| Check                     | What to Look For                                                          |
+| ------------------------- | ------------------------------------------------------------------------- |
+| **Single Responsibility** | Functions >50 LOC, classes with >5 public methods, files >400 LOC         |
+| **DRY**                   | Duplicated logic across files (>10 similar lines), copy-pasted patterns   |
+| **Error Handling**        | Unhandled promise rejections, empty catch blocks, missing error responses |
+| **Naming**                | Unclear variable/function names, inconsistent naming conventions          |
+| **Immutability**          | Direct mutation of objects/arrays where immutable patterns expected       |
+| **Complexity**            | Nesting >4 levels, cyclomatic complexity >10, long parameter lists        |
+| **Dead Code**             | Unused imports, commented-out code, unreachable branches                  |
+| **Hardcoded Values**      | Magic numbers, hardcoded strings that should be constants/config          |
 
 ### Dimension 2: Security
 
 Based on `plan.md` threat model (what attack surfaces this feature introduces):
 
-| Check | When Applicable |
-|-------|----------------|
-| **Input Validation** | Any user input, API parameters, file uploads |
-| **SQL/NoSQL Injection** | Database queries with dynamic values |
-| **XSS** | HTML rendering of user-provided content |
-| **Authentication** | New endpoints, middleware bypass |
-| **Authorization** | Resource access, ownership checks |
-| **Mass Assignment** | DTO/model binding without explicit allowlists |
-| **Secrets** | Hardcoded API keys, passwords, tokens in code |
-| **Rate Limiting** | New public endpoints without throttling |
-| **CSRF** | State-changing operations via forms |
-| **Path Traversal** | File operations with user-provided paths |
+| Check                   | When Applicable                               |
+| ----------------------- | --------------------------------------------- |
+| **Input Validation**    | Any user input, API parameters, file uploads  |
+| **SQL/NoSQL Injection** | Database queries with dynamic values          |
+| **XSS**                 | HTML rendering of user-provided content       |
+| **Authentication**      | New endpoints, middleware bypass              |
+| **Authorization**       | Resource access, ownership checks             |
+| **Mass Assignment**     | DTO/model binding without explicit allowlists |
+| **Secrets**             | Hardcoded API keys, passwords, tokens in code |
+| **Rate Limiting**       | New public endpoints without throttling       |
+| **CSRF**                | State-changing operations via forms           |
+| **Path Traversal**      | File operations with user-provided paths      |
 
 Only check surfaces present in this feature (from plan.md). Don't flag irrelevant categories.
 
-> **Dependency CVEs (v1.6, W5-B3):** vulnerable third-party dependencies are *not* re-judged
+> **Dependency CVEs (v1.6, W5-B3):** vulnerable third-party dependencies are _not_ re-judged
 > here — that surface is enforced mechanically by `osv-scanner --recursive .` in the Step 1.5
 > machine gate (the same SCA tool [release-readiness](release-readiness.md) §5C runs), so the
 > two-layer review and the release gate share one tool. This dimension covers application-code
@@ -150,11 +151,12 @@ Only check surfaces present in this feature (from plan.md). Don't flag irrelevan
 
 From `research/codebase-analysis.md`, extract existing project conventions:
 
-| Existing Pattern | Followed in New Code? | Notes |
-|-----------------|:--------------------:|-------|
-| {pattern from codebase-analysis} | {✅/❌} | {specifics} |
+| Existing Pattern                 | Followed in New Code? | Notes       |
+| -------------------------------- | :-------------------: | ----------- |
+| {pattern from codebase-analysis} |        {✅/❌}        | {specifics} |
 
 Additionally check:
+
 - Consistent import ordering
 - Consistent file structure within modules
 - Consistent error response format
@@ -165,11 +167,12 @@ Additionally check:
 
 From `spec.md` requirements:
 
-| Requirement | Has Unit Test? | Has Integration Test? | Coverage Adequate? |
-|------------|:--------------:|:--------------------:|:-----------------:|
-| {FR-NNN / US-NNN} | {✅/❌} | {✅/❌/N-A} | {✅/⚠️/❌} |
+| Requirement       | Has Unit Test? | Has Integration Test? | Coverage Adequate? |
+| ----------------- | :------------: | :-------------------: | :----------------: |
+| {FR-NNN / US-NNN} |    {✅/❌}     |      {✅/❌/N-A}      |     {✅/⚠️/❌}     |
 
 Check:
+
 - Every public function in new services has at least one test
 - Every API endpoint has at least one request/response test
 - Edge cases from spec.md acceptance criteria are covered
@@ -179,6 +182,7 @@ Check:
 
 Using `traceability.yml`, the contracts (OpenAPI/AsyncAPI), `component-map.yml`, and
 canonical `specs/` (if present):
+
 - Every documented requirement / endpoint / component in scope maps to code.
 - Every significant new code path maps to a documented requirement / task.
 
@@ -195,42 +199,42 @@ carrier `verify-full` uses — so `spec-merge` (Theme B) can consume it.
 
 ## Step 2.5: Cross-Model Review (opt-in, `--cross-model`, v1.7, P1-B)
 
-PF's Step 2 dimensions are multi-*agent* but run on **one model family** — a model
-reviewing output from its own family tends to rationalize it. A *different* model
+PF's Step 2 dimensions are multi-_agent_ but run on **one model family** — a model
+reviewing output from its own family tends to rationalize it. A _different_ model
 brings different priors, bug sensitivity, and rule interpretation. **Run this step
 only when `--cross-model` was passed**; otherwise skip straight to Step 3.
 
 This builds directly on PF's already-consolidated review surface — no new format:
-the `gate-review.md` `F-NNN` namespace + the git diff *are* the package.
+the `gate-review.md` `F-NNN` namespace + the git diff _are_ the package.
 
 1. **Export a portable review package.** Write
    `{FEATURE_DIR}/cross-review/<UTC-timestamp>-<slug>/review-package.md`
    containing, in order:
-   - the feature's `spec.md` acceptance criteria + `plan.md` architecture/threat
-     notes (the contract the reviewer judges against),
-   - the **git diff** of the implementation (`git diff <base>..HEAD`; default
-     base = the feature branch point, overridable with `--base <ref>`),
-   - the current `gate-review.md` open `F-NNN` findings (so the reviewer
-     augments, not re-derives),
-   - an explicit instruction block: *"You are an independent reviewer. Emit
-     findings as `F-NNN` rows (severity, file:line, rule, suggested fix). Do not
-     assume the author's intent was correct."*
-   Also write a sibling `metadata.json` (`base_sha`, `head_sha`, `reviewer_id`,
-   `created_at`). This is the portable handoff — the reviewer needs no access to
-   this session.
+    - the feature's `spec.md` acceptance criteria + `plan.md` architecture/threat
+      notes (the contract the reviewer judges against),
+    - the **git diff** of the implementation (`git diff <base>..HEAD`; default
+      base = the feature branch point, overridable with `--base <ref>`),
+    - the current `gate-review.md` open `F-NNN` findings (so the reviewer
+      augments, not re-derives),
+    - an explicit instruction block: _"You are an independent reviewer. Emit
+      findings as `F-NNN` rows (severity, file:line, rule, suggested fix). Do not
+      assume the author's intent was correct."_
+      Also write a sibling `metadata.json` (`base_sha`, `head_sha`, `reviewer_id`,
+      `created_at`). This is the portable handoff — the reviewer needs no access to
+      this session.
 2. **Run the reviewer out-of-band.** The reviewer model is **not** this session.
    Resolve the reviewer id from `--cross-model <id>` or config
    `review.cross_model` (e.g. `codex`, `gemini`, another `claude` session, a local
    model, or a separate Hermes session). Tell the user the exact command to run,
    e.g.:
-   ```bash
-   PKG={FEATURE_DIR}/cross-review/<ts>-<slug>
-   codex exec --file $PKG/review-package.md > $PKG/review-report.md
-   # or: gemini / a second claude / hermes — any CLI-capable model
-   ```
-   PF does not silently invoke another paid model — the user runs (or confirms)
-   the reviewer. When running inside Hermes, this MAY be delegated to a subagent
-   pinned to a different model, still writing `review-report.md`.
+    ```bash
+    PKG={FEATURE_DIR}/cross-review/<ts>-<slug>
+    codex exec --file $PKG/review-package.md > $PKG/review-report.md
+    # or: gemini / a second claude / hermes — any CLI-capable model
+    ```
+    PF does not silently invoke another paid model — the user runs (or confirms)
+    the reviewer. When running inside Hermes, this MAY be delegated to a subagent
+    pinned to a different model, still writing `review-report.md`.
 3. **Ingest the report.** Read `review-report.md`, dedupe its findings against the
    existing `F-NNN` set (same file:line + rule = same finding; raise severity to
    the max of the two), and **append genuinely new findings** to `gate-review.md`
@@ -261,18 +265,19 @@ Each finding:
 ````markdown
 ### REV-{NNN}: {short title}
 
-| Field | Value |
-|-------|-------|
+| Field         | Value                                 |
+| ------------- | ------------------------------------- |
 | **Dimension** | Quality / Security / Patterns / Tests |
-| **Severity** | CRITICAL / HIGH / MEDIUM / LOW |
-| **File** | `{file path}:{line range}` |
-| **Rule** | {which principle is violated} |
+| **Severity**  | CRITICAL / HIGH / MEDIUM / LOW        |
+| **File**      | `{file path}:{line range}`            |
+| **Rule**      | {which principle is violated}         |
 
 **What:** {description of the issue}
 
 **Why it matters:** {impact — security risk, maintenance burden, bug risk}
 
 **Suggested fix:**
+
 ```{language}
 // Before
 {current code}
@@ -283,6 +288,7 @@ Each finding:
 ````
 
 Severity assignment:
+
 - **CRITICAL**: Security vulnerability, data loss risk, broken functionality
 - **HIGH**: Logic error, missing error handling on critical path, spec divergence
 - **MEDIUM**: Convention violation, missing test, code smell
@@ -303,14 +309,14 @@ Write `{FEATURE_DIR}/code-review.md`:
 
 ## Summary
 
-| Dimension | CRITICAL | HIGH | MEDIUM | LOW | Total |
-|-----------|:--------:|:----:|:------:|:---:|:-----:|
-| Quality | {N} | {N} | {N} | {N} | {N} |
-| Security | {N} | {N} | {N} | {N} | {N} |
-| Patterns | {N} | {N} | {N} | {N} | {N} |
-| Tests | {N} | {N} | {N} | {N} | {N} |
-| Doc↔Code | {N} | {N} | {N} | {N} | {N} |
-| **Total** | **{N}** | **{N}** | **{N}** | **{N}** | **{N}** |
+| Dimension | CRITICAL |  HIGH   | MEDIUM  |   LOW   |  Total  |
+| --------- | :------: | :-----: | :-----: | :-----: | :-----: |
+| Quality   |   {N}    |   {N}   |   {N}   |   {N}   |   {N}   |
+| Security  |   {N}    |   {N}   |   {N}   |   {N}   |   {N}   |
+| Patterns  |   {N}    |   {N}   |   {N}   |   {N}   |   {N}   |
+| Tests     |   {N}    |   {N}   |   {N}   |   {N}   |   {N}   |
+| Doc↔Code  |   {N}    |   {N}   |   {N}   |   {N}   |   {N}   |
+| **Total** | **{N}**  | **{N}** | **{N}** | **{N}** | **{N}** |
 
 > Machine gates (lint / types / security scan / coverage): {PASS/FAIL summary}
 
@@ -334,8 +340,8 @@ Write `{FEATURE_DIR}/code-review.md`:
 
 ## Test Coverage Gap Analysis
 
-| Requirement | Test Status | Gap |
-|------------|:----------:|-----|
+| Requirement                                     | Test Status | Gap |
+| ----------------------------------------------- | :---------: | --- |
 | {requirements with missing or inadequate tests} |
 
 ## Suggested canonical-spec updates (Theme G)
@@ -344,10 +350,10 @@ Write `{FEATURE_DIR}/code-review.md`:
 > proposed delta, keyed on `FR-*`; `spec-merge` consumes this section by name (same
 > carrier as `verify-full`'s "Suggested canonical-spec updates"). Omit if no drift.
 
-| FR / domain | Current canonical text | Observed-from-code behavior | Proposed delta |
-|-------------|------------------------|-----------------------------|----------------|
-| FR-NNN | {what the spec says} | {what the code actually does} | MODIFY FR-NNN: {proposed change} |
-| {domain} | {none — undocumented} | {observed behavior} | ADD FR-NNN: {proposed addition} |
+| FR / domain | Current canonical text | Observed-from-code behavior   | Proposed delta                   |
+| ----------- | ---------------------- | ----------------------------- | -------------------------------- |
+| FR-NNN      | {what the spec says}   | {what the code actually does} | MODIFY FR-NNN: {proposed change} |
+| {domain}    | {none — undocumented}  | {observed behavior}           | ADD FR-NNN: {proposed addition}  |
 
 ## Review Checklist
 
@@ -415,7 +421,7 @@ Gate (structured — see [interaction-prompts.md](../docs/templates/interaction-
 ```
 
 - **Approve** maps to `approved`. If the user accepts open findings as warnings
-  (the per-finding *Acknowledge* path above), record `approved_with_conditions`.
+  (the per-finding _Acknowledge_ path above), record `approved_with_conditions`.
 - **Revise** → `revised`; **Skip** → `skipped`; **Rollback** → `rolled_back` (with
   `rolled_back_to`); **Abort** → `aborted`.
 - Per-finding handling (**Fix now** / **Acknowledge** / **Not applicable**) is offered
@@ -430,27 +436,27 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  code_review: completed  # or "skipped"
+    code_review: completed # or "skipped"
 ```
 
 Record gate decision:
 
 ```yaml
 gates:
-  - phase: code_review
-    decision: "{approved / approved_with_conditions / revised / skipped / rolled_back / aborted}"
-    rolled_back_to: "{phase}"   # only when decision is rolled_back
-    timestamp: "{ISO timestamp}"
-    notes: "{summary}"
-    reviewed_by_model: "{reviewer-id or null}"   # v1.7 P1-B — set when --cross-model ran; null otherwise
-    cross_model_findings: {N}                     # v1.7 P1-B — new findings the cross-model reviewer added (0 if not run)
-    findings:
-      critical: {N}
-      high: {N}
-      medium: {N}
-      low: {N}
-      fixed: {N}
-      acknowledged: {N}
+    - phase: code_review
+      decision: '{approved / approved_with_conditions / revised / skipped / rolled_back / aborted}'
+      rolled_back_to: '{phase}' # only when decision is rolled_back
+      timestamp: '{ISO timestamp}'
+      notes: '{summary}'
+      reviewed_by_model: '{reviewer-id or null}' # v1.7 P1-B — set when --cross-model ran; null otherwise
+      cross_model_findings: { N } # v1.7 P1-B — new findings the cross-model reviewer added (0 if not run)
+      findings:
+          critical: { N }
+          high: { N }
+          medium: { N }
+          low: { N }
+          fixed: { N }
+          acknowledged: { N }
 ```
 
 ---

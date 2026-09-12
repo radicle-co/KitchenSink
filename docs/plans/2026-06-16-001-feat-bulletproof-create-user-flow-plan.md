@@ -26,7 +26,7 @@ Commit `2b052d3` partially fixed this (a shared `ensureProfileAndAccount` called
 - Two divergent helpers exist: `UsersService.ensureAccountAndProfile` (read-through — inserts accounts→profiles, omits `avatarUrl`) and `common/provisioning.ts#ensureProfileAndAccount` (webhook/recon — inserts profiles→accounts, writes `avatarUrl`).
 - Read-through's existing-user heal branch checks **only `accounts`**, never `profiles`; its create branch gates aux creation on a `created` flag (`createdAt===updatedAt`) that a concurrent webhook can flip to `false`, skipping aux creation.
 - `resolveUser` throws `NotFoundException` (404) on a missing account; `getUserMe` tolerates a missing profile (`displayName ?? ''`). Asymmetric.
-- The `@kitchensink/identity-service` subpath exports resolve to **raw `.ts`**; the compiled NestJS Docker runtime (`node dist/main.js`) cannot load raw `.ts` from a workspace dependency — this previously crash-looped the service (why the `auth-trace` facade is duplicated per-service). A shared package must therefore ship **built JS**, not raw `.ts`.
+- The `@kitchensink/identity-service` subpath exports resolve to **raw `.ts`**; the compiled NestJS Docker runtime (`node dist/main.js`) cannot load raw `.ts` from a workspace dependency — this previously crash-looped the service (why the `authTrace` facade is duplicated per-service). A shared package must therefore ship **built JS**, not raw `.ts`.
 - The webhooks CDK stack has **no alarm/SNS/DLQ infrastructure**; the identity-service stack has `IdentityAlarmTopic` + ALB-5xx / CPU / crash-loop (`healthyHostCount` no-data) alarms.
 
 ---
@@ -203,14 +203,14 @@ packages/utils/identity/
 **Goal:** A distinct, named Sentry signal for genuine provisioning failures (never the expected email-collision fallback), plus a documented Sentry alert rule. No new AWS infra (KTD7).
 **Requirements:** R5.
 **Dependencies:** U2, U4.
-**Files:** `packages/services/identity/src/auth/middleware/auth.middleware.ts`, `packages/services/identity/src/users/users.service.ts`, `packages/services/identity-webhooks/src/handlers/identityWebhook.ts`, `packages/services/identity-webhooks/src/handlers/reconciliation.ts`, both `…/observability/sentry-scrubbers.ts` (apply `scrubText` to error-message values), `packages/services/identity-webhooks/src/common/observability.ts` (if a named helper is added); Operational Notes in this plan + `docs/SENTRY_OBSERVABILITY_SETUP.md`.
+**Files:** `packages/services/identity/src/auth/middleware/auth.middleware.ts`, `packages/services/identity/src/users/users.service.ts`, `packages/services/identity-webhooks/src/handlers/identityWebhook.ts`, `packages/services/identity-webhooks/src/handlers/reconciliation.ts`, both `…/observability/sentryScrubbers.ts` (apply `scrubText` to error-message values), `packages/services/identity-webhooks/src/common/observability.ts` (if a named helper is added); Operational Notes in this plan + `docs/SENTRY_OBSERVABILITY_SETUP.md`.
 **Approach:** Define the page/no-page taxonomy explicitly: **page** = a DB/constraint error that leaves a user incomplete (genuine), surfaced as a named Sentry event carrying `clerk.sub` only (not a bare `Unauthorized` — `beforeSend` drops those). **No page** = email-collision placeholder fallback, idempotent `onConflictDoNothing` no-op, concurrent-path duplicate, `set_external_id_failed`. Ensure the routine's collision path emits `traceAuth`/info, never the error signal. Emit sites — **each needs an explicit tagged capture, because only `auth.middleware.ts` has one today**:
 
 - `auth.middleware.ts` (read-through) — already captures with `tags:{'auth.provisioning':'failed'}`; keep.
 - `identityWebhook.ts#handleUserCreated` and `reconciliation.ts` — today an uncaught error auto-captures via `Sentry.wrapHandler` **without** the tag, so the alert rule never fires. Add an explicit `captureException(err, { tags:{'auth.provisioning':'failed'}, contexts:{auth:{clerkSub}} })` on a genuine (non-collision) failure, then rethrow. Reconciliation: decide whether a single user's genuine failure signals-and-continues or aborts the run (today a throw aborts the whole run).
 - `users.service.ts#getUserMe`/`resolveUser` (U3) — the present-but-incomplete anomaly path emits the same named signal (U3).
 
-**PII guard (load-bearing):** a Postgres 23505 message embeds the offending value — for `users_email_unique` that is the user's **email**. The Sentry log scrubber only denylists keys + bearer-shaped strings; it does **not** run the email regex (`scrubText`) over arbitrary string attribute values, so `error: err.message` would leak an email into the `identity`/`identity-webhooks` Sentry projects. Wrap every error-message value through `scrubText` (exists in both `…/observability/sentry-scrubbers.ts`) before placing it in a log attribute or capture context. Document the Sentry alert rule (config, not code). Record the webhook-crash-loop blind spot as a known gap (Operational Notes).
+**PII guard (load-bearing):** a Postgres 23505 message embeds the offending value — for `users_email_unique` that is the user's **email**. The Sentry log scrubber only denylists keys + bearer-shaped strings; it does **not** run the email regex (`scrubText`) over arbitrary string attribute values, so `error: err.message` would leak an email into the `identity`/`identity-webhooks` Sentry projects. Wrap every error-message value through `scrubText` (exists in both `…/observability/sentryScrubbers.ts`) before placing it in a log attribute or capture context. Document the Sentry alert rule (config, not code). Record the webhook-crash-loop blind spot as a known gap (Operational Notes).
 **Test scenarios:**
 
 - Genuine DB failure (mock the routine to throw a non-collision error) → distinct `auth.provisioning: failed`-tagged signal emitted with `clerk.sub`, request rethrows — covered at **all three** emit sites (read-through middleware, webhook handler, reconciliation).
@@ -225,7 +225,7 @@ packages/utils/identity/
 **Goal:** Prove that concurrent webhook + read-through (+ reconciliation) for the same identity converge to exactly one complete user with no deadlock — repeatedly (a single green run does not prove a racy deadlock absent).
 **Requirements:** R3.
 **Dependencies:** U1, U2, U3, U4.
-**Files:** `packages/services/identity/tests/provisioning-race.integration.test.ts` (real Postgres). **Must live under `tests/`** — `vitest.integration.config.ts` includes only `tests/**/*.integration.test.ts` (with `passWithNoTests: true`), so a test under `src/**/__integration__/` would be silently skipped by the real-PG CI job, green-by-absence — defeating the regression proof. Mirrors the existing `packages/services/identity/tests/create-user-flow.integration.test.ts` and the `06-13` plan's concurrent-create test.
+**Files:** `packages/services/identity/tests/provisioningRace.integration.test.ts` (real Postgres). **Must live under `tests/`** — `vitest.integration.config.ts` includes only `tests/**/*.integration.test.ts` (with `passWithNoTests: true`), so a test under `src/**/__integration__/` would be silently skipped by the real-PG CI job, green-by-absence — defeating the regression proof. Mirrors the existing `packages/services/identity/tests/createUserFlow.integration.test.ts` and the `06-13` plan's concurrent-create test.
 **Execution note:** characterization-style — run the concurrent provisioning N times (e.g. ≥ 8 iterations, matching the `d59e11c` validation bar) to surface the racy 40P01 deadlock if it regresses.
 **Test scenarios:**
 
@@ -245,7 +245,7 @@ packages/utils/identity/
 
 ### Deferred to Follow-Up Work
 
-- Migrating the Drizzle **schema** (and other shared/common code — e.g. the duplicated `auth-trace` facade, DAOs) into `@kitchensink/utils-identity`. The package is built to receive it; this plan only schema-injects to stay cycle-free (KTD2).
+- Migrating the Drizzle **schema** (and other shared/common code — e.g. the duplicated `authTrace` facade, DAOs) into `@kitchensink/utils-identity`. The package is built to receive it; this plan only schema-injects to stay cycle-free (KTD2).
 - Seeding `docs/solutions/` with the Clerk JIT/idempotency + cross-runtime-shared-package learnings (flagged by three prior plans).
 
 ### Outside this change

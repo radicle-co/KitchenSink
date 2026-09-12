@@ -23,20 +23,37 @@
  * contracts: a platform-specific hook that the platform which understands it consumes, and the other ignores.
  *
  * NOTE: this returns the SURFACE only. It does not supply the icon slot, the busy spinner, or the press-scale
- * motion — those are behaviour, and behaviour belongs to {@link import('./Button.js').Button}. Reach for the
+ * motion — those are behaviour, and behaviour belongs to `Button`. Reach for the
  * component whenever the control CAN be a `<button>`; reach for this only when it cannot.
  */
+import { BUSY_CONTROL_CLASS } from './busyControlProps.js';
 import type { ButtonVariant } from './props.js';
 
 /**
- * Tier-independent surface: pill geometry, the icon+label flex layout, the focus ring, the disabled
- * treatment, and the touch floor. The `min-h-11` (44px) floor is RESET at `md:` so the mouse density
+ * Tier-independent surface: pill geometry, the icon+label flex layout, the focus ring, the disabled AND busy
+ * (`aria-disabled`) treatment, and the touch floor. The `min-h-11` (44px) floor is RESET at `md:` so the mouse density
  * (`py-2.5`, ~40px) is unchanged on desktop — a comfort bump for touch, not a desktop restyle.
+ *
+ * ## `px-3 md:px-5` — the same reasoning as the touch floor, on the other axis
+ *
+ * ⛔ HORIZONTAL ROOM IS THE SCARCE DIMENSION ON A PHONE, exactly as vertical tap room is the scarce one for a
+ * finger — so the padding moves in the opposite direction to `min-h-11` and for the same reason. Measured in
+ * Chromium on the real geometry (14px/1.5 label, 16px icon, `gap-2`): three actions in one row at `px-5`
+ * need 383px against 288 available at 320, so the label wrapped to two lines and the primary was clipped off
+ * the right edge. At `px-3` the same row fits with 27px to spare.
+ *
+ * ⚠️ `px-4` was measured too and REJECTED at 3px of slack — enough to pass today and not enough to survive a
+ * font fallback or a longer locale, which is the condition this repo already ships under (`web-fonts-dropped-
+ * in-prod-build`: production renders the `system-ui` fallback, not Inter).
+ *
+ * ⚠️ It is the BASE rather than a per-caller override because the constraint is systemic: any row of three
+ * actions on a narrow viewport hits it. A `density` prop for one caller would be a framework for a single
+ * consumer, and a call-site class escape hatch is what this primitive exists to prevent.
  */
 const BASE =
-    'inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-body-sm ' +
+    'inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 py-2.5 text-body-sm md:px-5 ' +
     'font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam ' +
-    'disabled:cursor-not-allowed disabled:opacity-60 md:min-h-0';
+    `disabled:cursor-not-allowed disabled:opacity-60 ${BUSY_CONTROL_CLASS} md:min-h-0`;
 
 /**
  * Per-tier surface. Each tier renders a distinct, visible affordance — the whole point of the design-system
@@ -47,8 +64,8 @@ const BASE =
  * ## `secondary` is the mockups' CORAL-outlined glass, not a grey-bordered white pill
  *
  * The tier used to paint `border border-border bg-white text-charcoal` — a flat grey hairline that appears
- * in NO mockup. The mockups' secondary button is one recurring recipe across `screen-grocery`,
- * `screen-profile` and `screen-recipe-detail` ("Add to Meal Plan", "Change Plan", "Change Password"):
+ * in NO mockup. The mockups' secondary button is one recurring recipe across `screenGrocery`,
+ * `screenProfile` and `screenRecipeDetail` ("Add to Meal Plan", "Change Plan", "Change Password"):
  *
  *     bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-[12px] saturate-[130%]
  *     border-2 border-coral text-coral

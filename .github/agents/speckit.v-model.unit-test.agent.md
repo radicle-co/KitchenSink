@@ -1,23 +1,23 @@
 ---
 description: Generate ISO 29119-4-compliant white-box unit test cases with five mandatory
-  techniques for every module in the design.
+    techniques for every module in the design.
 handoffs:
-- label: Build Traceability Matrix
-  agent: speckit.v-model.trace
-  prompt: Build the full traceability matrix including module-level coverage (Matrix
-    D)
-  send: true
-- label: Back to Module Design
-  agent: speckit.v-model.module-design
-  prompt: Review or update the module design
+    - label: Build Traceability Matrix
+      agent: speckit.v-model.trace
+      prompt: Build the full traceability matrix including module-level coverage (Matrix
+          D)
+      send: true
+    - label: Back to Module Design
+      agent: speckit.v-model.module-design
+      prompt: Review or update the module design
 scripts:
-  sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-module-design
-  ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireModuleDesign
+    sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-module-design
+    ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireModuleDesign
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -39,6 +39,7 @@ CRITICAL DISTINCTION: Unit tests do NOT test module boundaries or interfaces (th
 Run `.specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-module-design` from the repository root and parse the JSON output.
 
 The script returns JSON with these keys:
+
 - `VMODEL_DIR`: Path to `specs/{feature}/v-model/` directory
 - `FEATURE_DIR`: Path to `specs/{feature}/` directory
 - `BRANCH`: Current branch name
@@ -53,25 +54,25 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 1. **Load the template**: Read `.specify/templates/unit-test-template.md` from the extension directory to understand the required output structure.
 
 2. **Load module design**: Read `module-design.md` from the `MODULE_DESIGN` path.
-   - If `module-design.md` does NOT exist: ERROR — "Module design not found. Run `/speckit.v-model.module-design` first."
-   - Extract ALL `MOD-NNN` identifiers and their four views
-   - Extract Algorithmic/Logic View (drives Statement & Branch Coverage)
-   - Extract State Machine View (drives State Transition Testing)
-   - Extract Internal Data Structures (drives BVA and Equivalence Partitioning)
-   - Extract Error Handling (drives fault-related test cases)
-   - Note `[EXTERNAL]` and `[CROSS-CUTTING]` tags
-   - Note the total MOD count — every non-`[EXTERNAL]` MOD must have at least one UTP
+    - If `module-design.md` does NOT exist: ERROR — "Module design not found. Run `/speckit.v-model.module-design` first."
+    - Extract ALL `MOD-NNN` identifiers and their four views
+    - Extract Algorithmic/Logic View (drives Statement & Branch Coverage)
+    - Extract State Machine View (drives State Transition Testing)
+    - Extract Internal Data Structures (drives BVA and Equivalence Partitioning)
+    - Extract Error Handling (drives fault-related test cases)
+    - Note `[EXTERNAL]` and `[CROSS-CUTTING]` tags
+    - Note the total MOD count — every non-`[EXTERNAL]` MOD must have at least one UTP
 
 3. **Load requirements**: Read `requirements.md` from the `REQUIREMENTS` path for supplementary domain context.
 
 4. **Load v-model-config.yml** (if it exists at the repository root):
-   - If `domain` is set to `iso_26262`, `do_178c`, or `iec_62304`: Enable safety-critical techniques (MC/DC Coverage, Variable-Level Fault Injection)
-   - If absent or `domain` is empty: Skip safety-critical techniques entirely
+    - If `domain` is set to `iso_26262`, `do_178c`, or `iec_62304`: Enable safety-critical techniques (MC/DC Coverage, Variable-Level Fault Injection)
+    - If absent or `domain` is empty: Skip safety-critical techniques entirely
 
 5. **Load existing unit tests** (if `AVAILABLE_DOCS` contains `"unit-test.md"`):
-   - Read the existing `unit-test.md` to preserve existing UTP/UTS IDs and content
-   - Identify the highest existing UTP number to continue the sequence
-   - New test cases append after existing ones — **never renumber**
+    - Read the existing `unit-test.md` to preserve existing UTP/UTS IDs and content
+    - Identify the highest existing UTP number to continue the sequence
+    - New test cases append after existing ones — **never renumber**
 
 ### 3. Lifecycle Rules (When Evolving Existing Artifacts)
 
@@ -80,15 +81,15 @@ before generating new content:
 
 1. **Never delete an ID** — mark as `[DEPRECATED]`
 2. **Deprecation types:**
-   - `[DEPRECATED — Superseded by UTP-NNN]`: Replaced by a new test case
-   - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
+    - `[DEPRECATED — Superseded by UTP-NNN]`: Replaced by a new test case
+    - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
 3. **Suspect detection from parent MOD:** If a parent MOD (in `module-design.md`)
    is deprecated or modified, mark each UTP/UTS that traces to it as
    `[SUSPECT — Parent MOD-NNN {deprecated|modified}]`.
 4. **Suspect resolution:** For each suspect UTP/UTS:
-   - **Re-parent** to the superseding MOD (if module continues under a new ID)
-   - **Deprecate** (if the module is withdrawn)
-   - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
+    - **Re-parent** to the superseding MOD (if module continues under a new ID)
+    - **Deprecate** (if the module is withdrawn)
+    - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
 5. **Modified test cases:** Update content in-place, preserve the original UTP/UTS ID.
 
 If no existing `unit-test.md` is found, skip this step entirely — all
@@ -101,6 +102,7 @@ For each `MOD-NNN` module, generate one or more test cases using the appropriate
 #### 4.1 External Module Bypass
 
 Modules tagged `[EXTERNAL]` are **skipped entirely** — no UTP is generated. Document each bypass:
+
 > "Module MOD-NNN is [EXTERNAL] — wrapper behavior tested at integration level."
 
 The `[EXTERNAL]` tag applies to the third-party library, not the wrapper. If the wrapper itself contains meaningful logic (retry policy, circuit breaker), that wrapper MOD is NOT `[EXTERNAL]` and MUST have unit tests.
@@ -109,15 +111,16 @@ The `[EXTERNAL]` tag applies to the third-party library, not the wrapper. If the
 
 Each test case MUST name its ISO 29119-4 technique explicitly. Select based on the module view being verified:
 
-| Module View | Primary Technique | What It Tests |
-|-------------|------------------|---------------|
-| Algorithmic/Logic View | **Statement & Branch Coverage** | Every line of code and every True/False branch outcome |
-| Internal Data Structures | **Boundary Value Analysis** | Variable boundaries: min, min-1, mid, max, max+1 (scalar types) |
-| Internal Data Structures | **Equivalence Partitioning** | Discrete non-scalar types: Booleans, Enums (no numeric boundaries) |
-| Architecture Interface View | **Strict Isolation** | Every external dependency mocked/stubbed |
-| State Machine View | **State Transition Testing** | Every state transition including invalid ones |
+| Module View                 | Primary Technique               | What It Tests                                                      |
+| --------------------------- | ------------------------------- | ------------------------------------------------------------------ |
+| Algorithmic/Logic View      | **Statement & Branch Coverage** | Every line of code and every True/False branch outcome             |
+| Internal Data Structures    | **Boundary Value Analysis**     | Variable boundaries: min, min-1, mid, max, max+1 (scalar types)    |
+| Internal Data Structures    | **Equivalence Partitioning**    | Discrete non-scalar types: Booleans, Enums (no numeric boundaries) |
+| Architecture Interface View | **Strict Isolation**            | Every external dependency mocked/stubbed                           |
+| State Machine View          | **State Transition Testing**    | Every state transition including invalid ones                      |
 
 **Rules**:
+
 - Every non-`[EXTERNAL]` MOD gets at least one UTP from Statement & Branch Coverage
 - Modules with scalar variables in Internal Data Structures get BVA
 - Modules with Boolean/Enum types get Equivalence Partitioning instead of BVA
@@ -159,12 +162,13 @@ For each discrete, non-scalar variable (Boolean, Enum, discrete set):
 
 For each `MOD-NNN`, create a **Dependency & Mock Registry** table listing ALL external dependencies:
 
-| Dependency | Source | Mock/Stub Strategy | Rationale |
-|------------|--------|-------------------|-----------|
-| [Name] | [ARCH Interface View] | [Mock type: stub/fake/spy] | [Why this approach] |
-| [HW Interface] | [GPIO/Register/Bus] | [Hardware abstraction mock] | [Embedded isolation] |
+| Dependency     | Source                | Mock/Stub Strategy          | Rationale            |
+| -------------- | --------------------- | --------------------------- | -------------------- |
+| [Name]         | [ARCH Interface View] | [Mock type: stub/fake/spy]  | [Why this approach]  |
+| [HW Interface] | [GPIO/Register/Bus]   | [Hardware abstraction mock] | [Embedded isolation] |
 
 **Rules:**
+
 - Dependencies come from the Architecture Interface View contracts
 - **Hardware interfaces** (GPIO, memory-mapped registers, I2C/SPI buses) MUST be explicitly listed — LLMs often miss these in embedded contexts
 - If the module has NO external dependencies: write `"None — module is self-contained"` and proceed with direct invocation (no mocking needed)
@@ -189,12 +193,14 @@ For each test case (`UTP-NNN-X`), generate one or more executable scenarios (`UT
 Unit test scenarios MUST use **white-box, implementation-oriented language** referencing internal code paths, variables, and branches. They verify internal module logic, not boundaries or user journeys.
 
 **PROHIBITED phrases** (these belong in OTHER test levels):
+
 - "the user clicks/sees/navigates/enters/selects/receives" (acceptance test)
 - "Module ARCH-NNN sends/receives" (integration test)
 - "the interface between modules" (integration test)
 - "the system responds/processes" (system test)
 
 **REQUIRED language style**:
+
 - "Arrange: Set `buffer_size` to 256 and `input_length` to 257"
 - "Act: Call `parse_sensor_data(input)`"
 - "Assert: Returns `ERROR_OVERFLOW` and `buffer` remains unchanged"
@@ -205,6 +211,7 @@ Unit test scenarios MUST use **white-box, implementation-oriented language** ref
 **Examples**:
 
 ❌ WRONG (user-centric — belongs in acceptance test):
+
 ```
 Given a logged-in user
 When the user submits the form
@@ -212,6 +219,7 @@ Then the user sees a success message
 ```
 
 ❌ WRONG (module-boundary — belongs in integration test):
+
 ```
 Given ARCH-001 sends parsed data to ARCH-003
 When ARCH-003 processes the payload
@@ -219,6 +227,7 @@ Then ARCH-003 returns the expected schema
 ```
 
 ✅ CORRECT (white-box — unit test):
+
 ```
 Arrange: Set input_array = [1, 2, 3] and max_size = 3
 Act: Call validate_array(input_array, max_size)
@@ -228,6 +237,7 @@ Assert: Returns true; internal counter equals 3
 #### 5.2 Scenario Quality Criteria
 
 Every UTS scenario must satisfy:
+
 1. **Internal focus**: References specific variables, branches, or states from the module design
 2. **Measurable outcomes**: Includes exact return values, variable states, error codes
 3. **Isolation**: No references to other modules, external services, or user actions
@@ -245,12 +255,12 @@ For each complex boolean decision in the Algorithmic/Logic View (e.g., `if (A an
 - Each row in the table becomes a UTS scenario
 - Table format:
 
-| Test | A | B | C | Decision | Independence Proof |
-|------|---|---|---|----------|--------------------|
-| 1 | T | T | F | T | A flips: row 1 vs row 3 |
-| 2 | T | F | F | F | B flips: row 1 vs row 2 |
-| 3 | F | T | F | F | A flips: row 1 vs row 3 |
-| 4 | T | F | T | T | C flips: row 2 vs row 4 |
+| Test | A   | B   | C   | Decision | Independence Proof      |
+| ---- | --- | --- | --- | -------- | ----------------------- |
+| 1    | T   | T   | F   | T        | A flips: row 1 vs row 3 |
+| 2    | T   | F   | F   | F        | B flips: row 1 vs row 2 |
+| 3    | F   | T   | F   | F        | A flips: row 1 vs row 3 |
+| 4    | T   | F   | T   | T        | C flips: row 2 vs row 4 |
 
 #### 6.2 Variable-Level Fault Injection
 
@@ -282,8 +292,8 @@ Write the complete unit test plan to `{VMODEL_DIR}/unit-test.md` using the templ
 After writing the test plan, run the coverage gate:
 
 1. Run `validate-module-coverage.sh {VMODEL_DIR}` (or `.ps1`) to verify:
-   - Forward coverage: every ARCH has at least one MOD
-   - Backward coverage: every non-`[EXTERNAL]` MOD has at least one UTP
+    - Forward coverage: every ARCH has at least one MOD
+    - Backward coverage: every non-`[EXTERNAL]` MOD has at least one UTP
 2. Include the validation result (pass/fail with coverage summary) in the output
 
 **IEEE 1012:2016 §5.7 V&V Completeness Check**: In addition to script validation, confirm:
@@ -298,6 +308,7 @@ If validation fails, include the gap report but do NOT delete the generated file
 ### 9. Report Completion
 
 Display a summary:
+
 - Total test cases (UTP) and scenarios (UTS) generated
 - Coverage: X/Y MOD modules covered (must be 100%, excluding `[EXTERNAL]`)
 - Technique distribution: Statement & Branch [N], BVA [N], EP [N], Strict Isolation [N], State Transition [N]
@@ -312,10 +323,10 @@ Display a summary:
 
 This command is governed by the following standards for unit testing:
 
-| Standard | Full Name | Role in this Command |
-|----------|-----------|----------------------|
+| Standard                      | Full Name                                                                     | Role in this Command                                                                                                                                                                                                                                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **ISO/IEC/IEEE 29119-4:2021** | Software and Systems Engineering — Software Testing — Part 4: Test Techniques | Primary test technique standard: defines the five mandatory white-box unit test techniques (Statement & Branch Coverage, Boundary Value Analysis, Equivalence Partitioning, State Transition, Strict Isolation), their application criteria per module view, and the Arrange/Act/Assert scenario format |
-| **IEEE 1012:2016** | IEEE Standard for System, Software, and Hardware Verification and Validation | V&V governance: ensures every module has at least one white-box V&V activity (Step 8 — Coverage Gate §5.7); defines unit testing as a verification activity confirming that each module implements its design correctly; prescribes entry/exit criteria for unit test activities |
+| **IEEE 1012:2016**            | IEEE Standard for System, Software, and Hardware Verification and Validation  | V&V governance: ensures every module has at least one white-box V&V activity (Step 8 — Coverage Gate §5.7); defines unit testing as a verification activity confirming that each module implements its design correctly; prescribes entry/exit criteria for unit test activities                        |
 
 > **Domain extensions:** If a domain overlay is loaded (Step 6 — Safety-Critical Techniques), additional structural coverage techniques (e.g., MC/DC per ISO 26262-6 §9.4.4 by ASIL, DO-178C §6.4.4.2 coverage objectives by DAL, IEC 62304 §5.5.3 unit testing by safety class) are applied on top of the ISO 29119-4 base techniques.
 
@@ -324,6 +335,7 @@ This command is governed by the following standards for unit testing:
 ### Strict Translation Rules
 
 When generating from `module-design.md`:
+
 - **DO NOT** invent test cases for modules or logic not in the module design
 - **DO NOT** test module boundaries or interfaces — that is integration testing's job
 - **DO NOT** test user journeys — that is acceptance testing's job
@@ -349,13 +361,13 @@ When generating from `module-design.md`:
 - Every UTP MUST declare its ISO 29119-4 technique name
 - Every UTP MUST declare which module view it targets
 - Valid technique names (exact strings for structural validators):
-  - `Statement & Branch Coverage`
-  - `Boundary Value Analysis`
-  - `Equivalence Partitioning`
-  - `Strict Isolation`
-  - `State Transition Testing`
-  - `MC/DC Coverage` (safety-critical only)
-  - `Variable-Level Fault Injection` (safety-critical only)
+    - `Statement & Branch Coverage`
+    - `Boundary Value Analysis`
+    - `Equivalence Partitioning`
+    - `Strict Isolation`
+    - `State Transition Testing`
+    - `MC/DC Coverage` (safety-critical only)
+    - `Variable-Level Fault Injection` (safety-critical only)
 - BVA applies to scalar ordered types ONLY; use EP for Booleans and Enums
 
 ### Language Rules

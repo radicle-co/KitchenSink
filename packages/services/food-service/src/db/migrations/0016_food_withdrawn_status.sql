@@ -1,0 +1,29 @@
+-- 0016 — the WITHDRAWN lifecycle value (owner rulings 5 + 6, 2026-09-07).
+--
+-- ⛔ THIS FILE ADDS THE VALUE AND NOTHING ELSE, and the split from 0017 is not stylistic.
+--   `ALTER TYPE … ADD VALUE` inside a transaction is legal on PostgreSQL 12+ (0005 and 0014 established
+--   the pattern), but the new label cannot be USED in that same transaction — and `applyMigrations` wraps
+--   each migration file in one BEGIN/COMMIT (`@kitchensink/db-schema-guard`, applyMigrations.ts). 0017's
+--   partial index predicate compares against 'WITHDRAWN', so combining the two files would synthesize
+--   clean and fail at runtime, on the deploy, against a real database.
+--
+-- ── Why a soft delete, and why not DELETING ───────────────────────────────────────────────────────
+--   A voluntary delete of an authored food now RETAINS the row "so that we can provide information about
+--   what was deleted" (owner ruling). The recipe that referenced the food finds out lazily, when the
+--   recipe is fetched, and tells the cook which line lost its food — which is impossible if the row is
+--   gone, because the name goes with it.
+--
+--   ⛔ It is NOT `DELETING`, for three independent reasons:
+--     1. `DELETING` is store-internal and never reaches the wire — `publishableStatusOf` THROWS on it.
+--        A withdrawal must be READABLE; that is the whole point.
+--     2. `DELETING` is IN-FLIGHT, not terminal: `LEGAL_PRIORS` allows RESOLVED → DELETING → RESOLVED, and
+--        `eraseFoodRows` reverts referenced foods to RESOLVED as orphans. A reader told "removed" during
+--        an erasure window would be asserting a terminal fact about a state that is about to un-happen.
+--     3. Being a new WIRE member, it lands the compile error exactly where it is wanted — recipe-service's
+--        exhaustive switch over food's union (`foodStatusTranslation.ts`), which is the tripwire the U9
+--        `AWAITING_RETRY` production 500 exists to have caught.
+--
+--   WITHDRAWN is reachable only from RESOLVED and has no exit (`LEGAL_PRIORS` in food.dao.ts). Un-withdrawal
+--   is not ruled, so it is terminal for now and additive later.
+
+ALTER TYPE food_status ADD VALUE IF NOT EXISTS 'WITHDRAWN';

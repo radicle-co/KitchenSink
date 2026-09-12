@@ -155,6 +155,171 @@ SELECT count(*) FROM food_sources fs JOIN food f ON f.id = fs.food_id
 
 ---
 
+## 5. Which databases to seed — and how a per-PR preview gets a WARM catalog (U38)
+
+⛔ **Seed a BASE database, never a preview.** There are exactly three targets and they are not seeded the
+same way:
+
+| target                              | what it is                                                              | how it gets seeded                                                           |
+| ----------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **prod** `kitchensink_food`         | the live catalog, already partly filled on demand                       | run this importer once; it merges in place and never duplicates              |
+| **sandbox base** `kitchensink_food` | created by the DataStack bootstrap; **nothing ever connects to it**     | run this importer once — it exists purely to be cloned                       |
+| each **`pr-{N}`**                   | `kitchensink_food_pr_{N}`, created and destroyed with the PR (ADR-0006) | **not seeded at all** — cloned from the sandbox base by the migration runner |
+
+The clone is `CREATE DATABASE "kitchensink_food_pr_{N}" TEMPLATE "kitchensink_food"`, issued by
+`ensureDatabaseExists` in `src/lambdas/migrate/handler.ts` during the in-stack migration Trigger
+(ADR-0022). PostgreSQL copies the base at the filesystem level, so the preview starts with the base's rows
+**and** its `schema_migrations` history — the migration run that immediately follows then applies only what
+is newer than the base. No seed run, no cold-cache USDA spend, and no per-PR share of the 1,000/hr quota.
+
+### Two preconditions, both of which fail the deploy LOUDLY rather than degrading
+
+1. **Nothing may be connected to the base.** PostgreSQL refuses to copy a database with any open session
+   (`SQLSTATE 55006`). This holds today because no food service runs at a base stage — every food deploy is
+   prod or `pr-{N}` — but it is a property to check, not a coincidence to rely on. A refusal raises
+   `FoodDatabaseCloneError` with `reason: 'template-in-use'` and the deploy fails. Find the holder:
+
+    ```sql
+    SELECT pid, usename, application_name, client_addr
+      FROM pg_stat_activity WHERE datname = 'kitchensink_food';
+    ```
+
+2. **The cloning role must be permitted to copy the base.** Copying a database that is not marked
+   `datistemplate` requires ownership of the source. If a clone fails with `reason:
+'insufficient-privilege'`, either give `food_app` ownership of `kitchensink_food` or mark it a template
+   (`ALTER DATABASE kitchensink_food IS_TEMPLATE true`; note that a template database also cannot be
+   dropped until the flag is cleared).
+
+⛔ **A clone failure is NEVER softened into creating the database empty.** That is the whole point of the
+guard: an empty per-PR catalog passes every check this repo runs — the deploy is green, the service is
+healthy, the smoke test's `401` is the expected pass — and is discovered only by a person whose ingredient
+search returns nothing, with `catalogAvailability: 'unavailable'`. That is the failure ADR-0010 exists to
+prevent.
+
+### Verifying a preview came up warm
+
+```sql
+-- Against kitchensink_food_pr_{N}: a warm clone mirrors the base's counts.
+SELECT origin, status, count(*) FROM food GROUP BY 1, 2 ORDER BY 1, 2;
+
+-- And the migration run that followed the clone should have applied nothing new.
+SELECT count(*) FROM schema_migrations;
+```
+
+---
+
+## Clearing the catalog before a reseed (U12a) — ⛔ TWO SERVICES, ONE ORDER
+
+A reseed mints FRESH ULIDs, so it invalidates every `ingredients.food_id` the recipe service holds. That
+column is an **opaque cross-service reference with NO foreign key**, so nothing in either database catches a
+dangling one: clear the food catalog first and every recipe silently points at a deleted row.
+
+**The recipe-side unlink runs FIRST, and must finish, before one food row is deleted.** The clear enforces
+this itself — it reads the recipe database and aborts on any non-zero linked count — but the order is still
+the operator's to run. (Same discipline as ADR-0001's preview-address teardown, where reversing the two
+steps manufactures a takeover window.)
+
+```bash
+# 1. RECIPE SIDE — look first…
+STAGE=sandbox DATABASE_URL="$RECIPE_DATABASE_URL" \
+    npm run ingredients:unlink --workspace=@kitchensink/recipe-service -- --dry-run
+
+# …then null food_id + food_resolution_status IN PLACE (no row is deleted).
+STAGE=sandbox DATABASE_URL="$RECIPE_DATABASE_URL" \
+    npm run ingredients:unlink --workspace=@kitchensink/recipe-service -- --confirm sandbox
+
+# 2. FOOD SIDE — the dry run answers "would the clear be permitted?", which is a question about (1).
+STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" RECIPE_DATABASE_URL="$RECIPE_DATABASE_URL" \
+    npm run catalog:clear --workspace=packages/services/food-service -- --dry-run
+
+STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" RECIPE_DATABASE_URL="$RECIPE_DATABASE_URL" \
+    npm run catalog:clear --workspace=packages/services/food-service -- --confirm sandbox
+
+# 3. Then RESEED (U12b, below). Nothing repopulates the catalog on its own.
+```
+
+Both commands share one guard:
+
+| Flag                    | Meaning                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--stage` / `STAGE`     | Required, no default. A destructive task that guesses its stage has no guard.                                 |
+| `--confirm <stage>`     | Required for a run that writes; must EQUAL the resolved stage. A dry run needs none.                          |
+| `--allow-prod`          | Required on `prod`, and **rejected** on any other stage — a flag that is harmless when wrong becomes habit.   |
+| `--dry-run`             | Reports the counts, writes nothing.                                                                           |
+| `--recipe-database-url` | Clear only. Required always; a probe that cannot answer fails CLOSED rather than reading as "nothing linked". |
+
+Both are idempotent and exit non-zero on any refusal, so a scripted invocation cannot mistake "the guard
+said no" for "there was nothing to do". The clear removes `food` and the eight tables that cascade off it;
+the `nutrient` and `food_category` dictionaries are left, because the reseed finds them rather than
+re-minting them.
+
+---
+
+## Reseeding after a clear (U12b) — `catalog:reseed`
+
+`seed:usda-bulk` (§3) imports ONE directory with no stage guard: it is the Stage 1 tool, and it predates
+the reset. `catalog:reseed` is the **reset's** other half — the same importer, driven by the catalog
+**roster** and wearing the same guard the clear wears, because it is still a bulk write against shared
+data that mints fresh ULIDs.
+
+```bash
+# 1. LOOK first. Reads the extractions, counts what would be imported, writes nothing.
+STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" \
+    npm run catalog:reseed --workspace=packages/services/food-service -- \
+      --dir tmp/fdc/FoodData_Central_sr_legacy_food_csv_2018-04 \
+      --dir tmp/fdc/FoodData_Central_foundation_food_csv_2026-04-30 --dry-run
+
+# 2. Then import. Same flags, plus the stage typed back.
+STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" \
+    npm run catalog:reseed --workspace=packages/services/food-service -- \
+      --dir tmp/fdc/FoodData_Central_sr_legacy_food_csv_2018-04 \
+      --dir tmp/fdc/FoodData_Central_foundation_food_csv_2026-04-30 --confirm sandbox
+```
+
+| Flag                | Meaning                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| `--stage` / `STAGE` | Required, no default (as above).                                                     |
+| `--confirm <stage>` | Required for a run that writes; must EQUAL the resolved stage. A dry run needs none. |
+| `--allow-prod`      | Required on `prod`, **rejected** on any other stage.                                 |
+| `--dry-run`         | Reads the extractions, reports the counts, writes nothing.                           |
+| `--dir <path>`      | **Repeatable** — one extracted download per dataset. Required (or `USDA_BULK_DIR`).  |
+| `--limit <n>`       | Cap on candidates taken from EACH directory — the bounded smoke run.                 |
+
+The run logs `catalog-reseed-starting` (naming the server it actually reached, before writing) and
+`catalog-reseed-finished` with the tallies, the catalog counts before/after, and `wouldProceed`.
+
+### The post-condition — and why it cannot roll back
+
+The clear asserts inside its transaction; a reseed cannot (thousands of foods, thousands of
+transactions). So `assertCatalogReseeded` runs **after** the write and reports **every** violated check at
+once: an empty catalog, any failed candidate, rows not marked `origin='bulk'` when the catalog started
+empty, and the alias check below. Exit is non-zero; nothing is rolled back; the import is idempotent, so
+the remedy is always "fix the cause and re-run".
+
+### ⚠️ The reseed lands NO aliases — read this before concluding U2 is broken
+
+`food.aliases` is **NULL across the entire reseeded catalog**, on purpose and by measurement.
+
+USDA publishes curated "additional descriptions" only for **Survey (FNDDS)** foods. The roster this
+reseed ships (`catalogDatasets.ts`) enables `foundation_food` + `sr_legacy_food`, and both were verified
+live against FDC on 2026-08-21 to carry none. So a reseed does **not**, by itself, make U2's alias ranking
+observable — aliases reach the catalog only through the live acquisition path (`UsdaSourceAdapter`), one
+on-demand food at a time. Every run reports the position it is in (`aliasesExpected: false`,
+`foodsWithAliases: 0`) rather than leaving it to be inferred.
+
+⛔ **Whether to seed FNDDS is an owner decision, not an engineering one.** FNDDS is composite prepared
+dishes ("Cheese, cheddar, prepared"); admitting ~5.4k of them into a catalog whose job is "which
+ingredient is this recipe line?" puts dishes in direct competition with ingredient rows — immediately
+before the ranking work that would be measured against them. The roster carries the entry **disabled**,
+with its reasoning, so enabling it is a one-word decision rather than a rewrite.
+
+⚠️ Enabling it also needs reader work, and the reseed will say so rather than seed silently: the bulk zips
+carry additional descriptions in `food_attribute.csv` + `food_attribute_type.csv`, which
+`usdaBulk.reader.ts` does not read. A roster whose enabled datasets declare `carriesAliases` but whose
+import lands zero aliases **fails the post-condition**.
+
+---
+
 ## The `origin` column (F-C2)
 
 `food.origin` is `'live'` (default) or `'bulk'`. The live change-refresh scan
@@ -180,7 +345,7 @@ are excluded from **nothing else** — they are fully searchable and readable li
 
 - `src/sources/usda/bulk/` owns the bulk file format — it and `usda.adapter.ts` are the only places USDA's
   native `fdc_id` is named (FR-IDN-2). It emits source-agnostic `CanonicalCandidate`s.
-- `src/foods/seed/bulk-seed.service.ts` is **source-agnostic**: it never names USDA, `fdcId`, or CSV, so a
+- `src/foods/seed/bulkSeed.service.ts` is **source-agnostic**: it never names USDA, `fdcId`, or CSV, so a
   future bulk source reuses it unchanged.
 - The bulk mapper is **not** a reuse of the adapter's private `mapToCanonical` (different schema entirely),
   but it **does** import the adapter's `(name, unit)` canonicalization so a bulk value and a live value for
@@ -190,3 +355,42 @@ are excluded from **nothing else** — they are fully searchable and readable li
   touches the shared `nutrient` dictionary, so concurrency would buy contention, not throughput.
 - Peak memory is bounded by the **selected** set, not the file size: `food.csv` is filtered first, then the
   nutrient/portion files are streamed and retained only for the selected `fdc_id`s.
+
+## FNDDS/WWEIA consumption prior (`seed:fndds-prior`, plan U5)
+
+Seeds `food_popularity` — the consumption prior the search ranking max-fuses within a rung. Three
+operator-obtained artifacts; **nothing deployed fetches USDA or CDC**:
+
+1. **FNDDS survey foods** (FDC): `FoodData_Central_survey_food_csv_2024-10-31.zip` from
+   `https://fdc.nal.usda.gov/download-datasets` → extract; needs `survey_fndds_food.csv` + `input_food.csv`.
+2. **SR Legacy** (the NDB→fdc_id crosswalk): the same frozen 2018-04 zip the bulk seed uses; needs
+   `sr_legacy_food.csv`.
+3. **NHANES day-1 intake frequencies**: download the cycle's `DR1IFF_*.xpt` (e.g.
+   `https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/DR1IFF_L.xpt`) and derive the per-food-code
+   CSV. XPT is a SAS transport format with no maintained Node reader, so this is a documented pandas step:
+
+    ```bash
+    python3 - <<'PY'
+    import pandas as pd
+    df = pd.read_sas('DR1IFF_L.xpt', format='xport')
+    df.groupby('DR1IFDCD').agg(weighted=('WTDRD1', 'sum')).to_csv('wweia_day1_frequencies.csv')
+    PY
+    ```
+
+Then:
+
+```bash
+DATABASE_URL=postgres://… npm run seed:fndds-prior --workspace=packages/services/food-service -- \
+    --survey-dir …/FoodData_Central_survey_food_csv_2024-10-31 \
+    --sr-dir …/FoodData_Central_sr_legacy_food_csv_2018-04 \
+    --intake-csv …/wweia_day1_frequencies.csv \
+    --source 'fndds-2021-2023+nhanes-2021-2023-day1'
+```
+
+The run reports the SR-Legacy match rate (95.3% of intake weight on the 2021-2023 cycle) and **fails
+loudly** if any coverable row of the 14-query staple set received no prior. Three staples are NAMED
+structural exceptions (`fnddsPrior.ts` `STAPLE_EXPECTATIONS`): vanilla extract and mace never appear as
+FNDDS ingredients, and olive oil decomposes only to post-SR-Legacy NDBs. Idempotent — re-running upserts.
+
+⚠️ ADR-0006 sandbox note: seed the SANDBOX BASE database before per-PR clones are cut, so previews
+inherit the prior; a preview cloned earlier simply ranks without one until re-cloned.

@@ -24,21 +24,30 @@ import { sql, type SQL } from 'drizzle-orm';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import type { Recipe, RecipeFacetCount, RecipeSearchResult } from '@kitchensink/recipe-core';
 
+// The CONTRACT owns this shape (it is a public response-body field); the DAL merely computes a value of
+// it. It used to be declared and exported here, which made a data-access internal define the public API.
+import type { RecipeSearchFacets } from '../search.schema.js';
+
 import type { RecipeDrizzle } from '../../database/client.js';
-import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../common/pagination.js';
-import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
-import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipe-row-to-domain.js';
-import { resolveCdnUrl } from '../../photos/photo-view.js';
+import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE } from '../../common/pagination.js';
+import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipePredicates.js';
+import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipeRowToDomain.js';
+import { resolveCdnUrl } from '../../photos/photoView.js';
 
 /** Default page size when the caller does not specify one — the shared S-R8 default (20). */
 export const DEFAULT_SEARCH_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
-/** Hard ceiling on page size (mirrors the OpenAPI `pageSize` maximum for search) — the shared S-R8 ceiling (50). */
-export const MAX_SEARCH_PAGE_SIZE = MAX_PAGE_SIZE;
+// ⛔ `MAX_SEARCH_PAGE_SIZE` IS NOT DECLARED HERE ANY MORE. It is a WIRE bound — `recipeSearchQuerySchema`
+// publishes it and rejects above it — and it lived here as `export const MAX_SEARCH_PAGE_SIZE = MAX_PAGE_SIZE`
+// with the query DTO importing it, which made a data-access module the source of a published constraint. That is
+// the same backwards dependency `../search.schema.ts`'s header records for `RecipeSearchFacets`, and the fix is
+// the same one: the bound lives in `@kitchensink/recipe-core` and this module consumes it like any other reader.
+// `MAX_PAGE_SIZE` below remains the INTERNAL clamp shared with the collections and recipes lists; the two are
+// asserted equal in `../__tests__/pageSizeBound.test.ts`.
 
-// Re-exported so existing importers (this module's own `search()`, the query DTO, and this module's
-// tests) keep resolving `clampPage`/`clampPageSize` from `search.dal.js` unchanged — the S-R8 clamps
-// themselves now live once, in `../../common/pagination.js`.
+// Re-exported so existing importers (this module's own `search()` and this module's tests) keep resolving
+// `clampPage`/`clampPageSize` from `search.dal.js` unchanged — the S-R8 clamps themselves now live once, in
+// `../../common/pagination.js`.
 export { clampPage, clampPageSize };
 
 /**
@@ -49,17 +58,31 @@ export { clampPage, clampPageSize };
 export const FACET_SAMPLE_SIZE = 200;
 
 /**
+ * The largest facet sample the {@link SearchDal} constructor will accept.
+ *
+ * A ceiling rather than an exact equality check, because the size is deliberately injectable (tests drive the
+ * sampling boundary with a handful of rows). What it rules out is the value that would make every search scan
+ * the table — the facet CTE runs on EVERY search request, so an absurd sample here is a whole-service
+ * performance fault, not a slow query in one place. Set well above {@link FACET_SAMPLE_SIZE} so tuning the
+ * default upward stays possible without touching this bound.
+ */
+export const MAX_FACET_SAMPLE_SIZE = 10_000;
+
+/**
  * The explicit `recipes` projection returned by the page read — deliberately excludes `search_vector`.
  * Every name is qualified `recipes.` because the page read joins a cover-photo LATERAL (see below), so a
  * bare column list would be ambiguous once another relation is in scope.
  */
 const RECIPE_COLUMNS = sql`
     recipes.id, recipes.owner_id, recipes.title, recipes.description, recipes.prep_time_minutes,
-    recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty,
+    recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty, recipes.meal_type,
     recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.source_type,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
-    recipes.cuisine, recipes.dietary_flags, recipes.tags, recipes.has_partial_nutrition,
-    recipes.lead_calories_per_serving, recipes.author_handle, recipes.current_version, recipes.ingredient_names_text,
+    recipes.cuisine, recipes.dietary_flags, recipes.tags,
+    -- ⛔ NO has_partial_nutrition / lead_calories_per_serving (U10, migration 0019). Selecting a dropped
+    -- column does not fail a type-check or a mocked unit test — it 500s every search and list request at
+    -- runtime, which is exactly how this was found (searchContract.integration.test.ts).
+    recipes.author_handle, recipes.current_version, recipes.ingredient_names_text,
     recipes.deleted_at, recipes.created_at, recipes.updated_at`;
 
 /** Everything the DAL needs to build one ranked, filtered, paginated search. */
@@ -71,9 +94,9 @@ export interface RecipeSearchFilters {
     /** Exact cuisine filter. */
     readonly cuisine?: string;
     /** Require ALL of these dietary flags (array containment). */
-    readonly dietaryFlags?: string[];
+    readonly dietaryFlags?: readonly string[];
     /** Require ALL of these tags (array containment). */
-    readonly tags?: string[];
+    readonly tags?: readonly string[];
     /** Upper bound on `prep_time_minutes` (rows with unknown prep time are excluded). */
     readonly maxPrepTime?: number;
     /** Upper bound on `cook_time_minutes` (rows with unknown cook time are excluded). */
@@ -81,28 +104,13 @@ export interface RecipeSearchFilters {
     /** Upper bound on `total_time_minutes` (rows with unknown total time are excluded). */
     readonly maxTotalTime?: number;
     /** Require the recipe to contain ANY of these ingredient ids (via `recipe_ingredients`). */
-    readonly ingredientIds?: string[];
+    readonly ingredientIds?: readonly string[];
     /** 1-based page number. */
     readonly page: number;
-    /** Page size (clamped to `[1, MAX_SEARCH_PAGE_SIZE]`). */
+    /** Page size (clamped to `[1, MAX_PAGE_SIZE]`). */
     readonly pageSize: number;
     /** Result ordering. */
     readonly sortBy: RecipeSearchSortBy;
-}
-
-/** Facet aggregations returned alongside a page of results. Buckets are the canonical `RecipeFacetCount`. */
-export interface RecipeSearchFacets {
-    readonly dietaryFlags: RecipeFacetCount[];
-    readonly tags: RecipeFacetCount[];
-    /** Distinct cuisines in the match sample (W8-a.9), most-common first. NULL cuisines are excluded. */
-    readonly cuisine: RecipeFacetCount[];
-    /**
-     * Total-time buckets over the match sample (W8-a.9), keyed by the stable bucket ids in
-     * {@link TOTAL_TIME_BUCKETS} (`0-15` | `16-30` | `31-60` | `61+`) — mutually exclusive so the counts
-     * sum to the sample size. The `totalTime` dimension is the one the `quickest` sort and the `maxTotalTime`
-     * filter also key on; the client maps each id to display copy ("Under 15 min", …).
-     */
-    readonly totalTime: RecipeFacetCount[];
 }
 
 /** What {@link SearchDal.search} returns: the ranked page, its facets, and the unpaged total. */
@@ -128,6 +136,7 @@ interface RawRecipeSearchRow {
     total_time_minutes: number | null;
     servings: number;
     difficulty: string | null;
+    meal_type: string | null;
     average_rating: string | null;
     rating_count: number;
     visibility: string;
@@ -140,8 +149,6 @@ interface RawRecipeSearchRow {
     cuisine: string | null;
     dietary_flags: string[];
     tags: string[];
-    has_partial_nutrition: boolean;
-    lead_calories_per_serving: string | null;
     author_handle: string | null;
     current_version: number;
     ingredient_names_text: string;
@@ -182,6 +189,7 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         totalTimeMinutes: row.total_time_minutes,
         servings: row.servings,
         difficulty: row.difficulty,
+        mealType: row.meal_type,
         visibility: row.visibility,
         status: row.status,
         sourceType: row.source_type,
@@ -192,8 +200,6 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         cuisine: row.cuisine,
         dietaryFlags: row.dietary_flags,
         tags: row.tags,
-        hasPartialNutrition: row.has_partial_nutrition,
-        leadCaloriesPerServing: row.lead_calories_per_serving,
         authorHandle: row.author_handle,
         currentVersion: row.current_version,
         averageRating: row.average_rating,
@@ -220,6 +226,18 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
  *   `coverPhotoUrl` is omitted.
  */
 export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Recipe {
+    // ⛔ SEARCH AND LIST REPORT NUTRITION AS UNKNOWN, NOT AS COMPLETE (plan U10).
+    //
+    // These figures used to come from denormalized columns written at recipe-save time, which is exactly
+    // the duplicate KTD-3 deletes — a value frozen at its last write while food's own data moved on. They
+    // are now derived from food's live data, and this projection deliberately does NOT fetch it: a search
+    // page would issue one food lookup per hit, which is the N+1 the columns existed to avoid.
+    //
+    // So this projection emits NO nutrition at all — no figure, and no flag ABOUT the figure. It used to
+    // pin `hasPartialNutrition: true` to mean "we have not accounted for this recipe's nutrition on this
+    // path", which is not what that field meant ("some line could not be accounted for"): one field, two
+    // meanings, no discriminant. A caller that needs the numbers asks
+    // `POST /api/v1/recipes/nutrition-batch`, which answers with a discriminated state per recipe.
     const recipe = recipeRowToDomain(toRecipeRowInput(row));
 
     return {
@@ -231,7 +249,7 @@ export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Re
 }
 
 /** Build a `text[]` array literal from JS strings, each bound as its own param. Pure. */
-function textArray(values: string[]): SQL {
+function textArray(values: readonly string[]): SQL {
     return sql`ARRAY[${sql.join(
         values.map((value) => sql`${value}`),
         sql`, `,
@@ -239,7 +257,7 @@ function textArray(values: string[]): SQL {
 }
 
 /** Build a comma-separated bound-param list (for an `IN (...)` clause). Pure. */
-function paramList(values: string[]): SQL {
+function paramList(values: readonly string[]): SQL {
     return sql.join(
         values.map((value) => sql`${value}`),
         sql`, `,
@@ -272,9 +290,18 @@ const SORT_ORDER_BUILDERS: Record<RecipeSearchSortBy, (query: string | undefined
         sql`(SELECT count(*) FROM recipes clones WHERE clones.cloned_from_id = recipes.id) DESC, created_at DESC`,
 };
 
-/** The page-ordering expression for a given sort key (references the `rank` alias for relevance). Pure. */
+/**
+ * The page-ordering expression for a given sort key (references the `rank` alias for relevance). Pure.
+ *
+ * `Object.hasOwn` rather than `??`: an inherited key like `toString` resolves to a TRUTHY function, so the
+ * fallback would never fire and the caller would splice `Object.prototype.toString`'s return — a string, not a
+ * `SQL` — straight into an ORDER BY. The wire schema does validate `sortBy` as a zod enum, but a DAL that
+ * builds SQL should not inherit its safety from a caller's validation.
+ */
 function orderByExpr(sortBy: RecipeSearchSortBy, query: string | undefined): SQL {
-    const builder = SORT_ORDER_BUILDERS[sortBy] ?? SORT_ORDER_BUILDERS[RecipeSearchSortBy.RELEVANCE];
+    const builder = Object.hasOwn(SORT_ORDER_BUILDERS, sortBy)
+        ? SORT_ORDER_BUILDERS[sortBy]
+        : SORT_ORDER_BUILDERS[RecipeSearchSortBy.RELEVANCE];
 
     return builder(query);
 }
@@ -333,7 +360,20 @@ export class SearchDal {
         // compiling; `SearchModule` always supplies it in production, so cover URLs are always resolved
         // there. When absent, `coverPhotoUrl` is simply omitted (never a malformed URL).
         private readonly cloudfrontUrl?: string,
-    ) {}
+    ) {
+        // FAIL CLOSED ON THE FACET SAMPLE SIZE. This value is the one number in this DAL that reaches a
+        // statement without passing through the request schema, so it is bounded HERE rather than trusted.
+        // It used to be interpolated via `sql.raw(String(...))`, where a non-integer would have produced
+        // `LIMIT 1e21` / `LIMIT NaN` — a syntax error at best — and a request-derived value would have been
+        // raw SQL. It is now a bound parameter, so the remaining risk is not injection but an absurd sample
+        // (`LIMIT 2000000000` scans the table on every search); refusing it at construction turns a silent
+        // production pathology into an immediate, un-missable boot failure.
+        if (!Number.isSafeInteger(facetSampleSize) || facetSampleSize < 1 || facetSampleSize > MAX_FACET_SAMPLE_SIZE) {
+            throw new RangeError(
+                `facetSampleSize must be an integer in 1..${MAX_FACET_SAMPLE_SIZE}, received ${String(facetSampleSize)}`,
+            );
+        }
+    }
 
     /**
      * Run one ranked, filtered, paginated search and aggregate its facets.
@@ -386,7 +426,15 @@ export class SearchDal {
                 -- created_at (newest-first, matching the page) then the unique id makes the sample
                 -- deterministic and stable.
                 ORDER BY rank DESC, created_at DESC, id
-                LIMIT ${sql.raw(String(this.facetSampleSize))}
+                -- A BOUND PARAMETER, not a spliced sql.raw(String(...)). The raw form put this value into the
+                -- statement TEXT, which is unnecessary here (the page query two statements up passes its own
+                -- LIMIT as a parameter) and it made the DAL's injection-safety a property of whoever happened
+                -- to construct it. Parameterised, a bad value can only ever be a rejected parameter, never
+                -- new SQL. The constructor additionally rejects a non-integer/out-of-range size, so the two
+                -- together make this safe by construction rather than by convention.
+                -- NB: no backticks and no dollar-brace in this comment — it lives inside a JS template
+                -- literal, so a backtick would END the statement and a dollar-brace would INTERPOLATE.
+                LIMIT ${this.facetSampleSize}
             )
             SELECT 'dietary_flags' AS facet, flag AS value, count(*)::int AS count
             FROM matched, unnest(matched.dietary_flags) AS flag

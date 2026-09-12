@@ -30,7 +30,9 @@ export default async function NewRecipePage({
     }
 
     return (
-        <AppShell activeId="recipes" titleId="recipeNew">
+        // `focusedTask`: the wizard pins its own action bar to the foot, and the tab bar would cover it
+        // entirely below `lg` — see `HomeChromeProps.focusedTask`.
+        <AppShell activeId="recipes" titleId="recipeNew" focusedTask>
             <RecipeCreateContainer locale={locale} />
         </AppShell>
     );

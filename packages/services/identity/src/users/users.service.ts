@@ -1,25 +1,55 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { buildHandleSyncMessage, computeProfileScrub, deriveDisplayName } from '@kitchensink/identity-core';
+import { eraseIdentityRow } from '@kitchensink/identity-db';
 
-import { HANDLE_SYNC_PUBLISHER, type HandleSyncPublisher } from './handle-sync.publisher.js';
-import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatar-object-store.js';
+import { HANDLE_SYNC_PUBLISH_FAILED } from '@kitchensink/identity-core';
+import { HANDLE_SYNC_PUBLISHER, type HandleSyncPublisher } from './handleSync.publisher.js';
+import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatarObjectStore.js';
 
-import { users, accounts, profiles, lifecycleEvents } from '../database/index.js';
+import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
 import { DrizzleProvider } from '../database/database.module.js';
 import { SqsService } from '../queue/sqs.service.js';
-import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
-import type { VerifiedClerkClaims } from '../auth/clerk-auth.service.js';
+import { subscriptionTierFor } from './domain/subscriptionTier.js';
+import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
+import type { VerifiedClerkClaims } from '../auth/clerkAuth.service.js';
 import { ResolveUserService } from './resolveUser.js';
 import { newUserId, type UserId } from '../types/index.js';
-import { createServiceLogger } from '../observability/sentry-logging.js';
-import { traceAuth } from '../observability/auth-trace.js';
+import { createServiceLogger } from '@kitchensink/service-logging';
+import { traceAuth } from '../observability/authTrace.js';
+import { reportDeletionEnqueueFailure } from '../queue/deletionEnqueue.error.js';
+import { resolveTestPrincipalContainment } from '../config/env.schema.js';
+import { evaluateTestPrincipalContainment, type ContainedAction } from './domain/testPrincipalContainment.js';
 
 /** Per-identity, never-deliverable placeholder for users whose Clerk token carries no email claim. */
 function placeholderEmail(sub: string): string {
     return `${sub}@no-email.invalid`;
+}
+
+/**
+ * Refuse a lifecycle action the test-principal containment Specification denies (ADR-0040).
+ *
+ * Called FIRST by each contained action — before any database read, S3 call or queue message — because the
+ * damage it prevents (a banned or deleted Clerk pool member) is done by the side effects, not by the response.
+ * The mode is read at call time and fails closed (see `resolveTestPrincipalContainment`).
+ *
+ * @param ctx - The verified caller.
+ * @param action - The lifecycle action being attempted.
+ * @throws ForbiddenException carrying `code: 'TEST_PRINCIPAL_CONTAINED'` in identity's error envelope.
+ * @sideEffect Reads `process.env['TEST_PRINCIPAL_CONTAINMENT']`.
+ */
+function assertNotContained(ctx: AuthorizerContext, action: ContainedAction): void {
+    const decision = evaluateTestPrincipalContainment({
+        testPrincipal: ctx.testPrincipal,
+        containment: resolveTestPrincipalContainment(process.env['TEST_PRINCIPAL_CONTAINMENT']),
+        action,
+    });
+
+    if (!decision.allowed) {
+        throw new ForbiddenException({ code: decision.code, message: decision.reason });
+    }
 }
 
 @Injectable()
@@ -159,6 +189,8 @@ export class UsersService {
             scopes: claims.scopes ?? [],
             permissions: claims.permissions ?? [],
             tokenType: 'user',
+            // ADR-0040: carried from the signed claim so the lifecycle actions can contain a test-pool member.
+            testPrincipal: claims.testPrincipal,
         };
     }
 
@@ -180,11 +212,61 @@ export class UsersService {
             account: {
                 id: account.id,
                 userId: account.userId,
-                subscriptionTier: account.subscriptionTier,
+                // ⛔ DERIVED from the signed token, not read from `account.subscriptionTier`. See
+                // `domain/subscriptionTier.ts`: the column is written by nothing, while recipe-service
+                // decides the same question from `permissions` — so the apps could never offer the
+                // private-recipe option to anyone the service would have accepted the write from.
+                subscriptionTier: subscriptionTierFor(ctx.permissions),
                 createdAt: account.createdAt.toISOString(),
                 updatedAt: account.updatedAt.toISOString(),
             },
         };
+    }
+
+    /**
+     * Clear the owed marker after a successful publish — but ONLY for the rename that set it (U9/R21).
+     *
+     * ⛔ CONDITIONAL on the value it read. A second rename can land between this publish starting and
+     * finishing; clearing unconditionally would erase the NEWER debt and leave that second name un-synced
+     * with nothing recording it — the exact silence this marker exists to end, reintroduced by the
+     * successful path. Comparing the timestamp means a later rename's marker survives.
+     *
+     * @param userId - The renamed user.
+     * @param owedAt - The stamp this rename wrote.
+     * @sideEffect Updates `profiles`.
+     */
+    private async clearHandleSyncOwed(userId: string, owedAt: Date): Promise<void> {
+        await this.db
+            .update(profiles)
+            .set({ handleSyncOwedAt: null, handleSyncFailureCode: null })
+            .where(and(eq(profiles.userId, userId), eq(profiles.handleSyncOwedAt, owedAt)));
+    }
+
+    /**
+     * Record WHY the publish failed, leaving the debt in place for the backstop (U9/R25).
+     *
+     * ⚠️ A CODE, never the exception's message: an error text can carry the display name, and this column
+     * exists to make the failure visible without copying the user's words anywhere new. Guarded on the same
+     * stamp for the same reason as {@link clearHandleSyncOwed} — a newer rename's marker is not overwritten
+     * with an older attempt's verdict.
+     *
+     * ⚠️ Best-effort in its own right: if THIS write fails the rename still succeeded, and the row simply
+     * keeps the owed stamp with no code, which the backstop reads as owed-and-unexplained rather than
+     * nothing at all.
+     *
+     * @param userId - The renamed user.
+     * @param owedAt - The stamp this rename wrote.
+     * @sideEffect Updates `profiles`.
+     */
+    private async recordHandleSyncFailure(userId: string, owedAt: Date): Promise<void> {
+        try {
+            await this.db
+                .update(profiles)
+                .set({ handleSyncFailureCode: HANDLE_SYNC_PUBLISH_FAILED })
+                .where(and(eq(profiles.userId, userId), eq(profiles.handleSyncOwedAt, owedAt)));
+        } catch (error) {
+            this.logger.error('could not record the handle-sync failure code', { userId, error });
+        }
     }
 
     async patchUserMe(ctx: AuthorizerContext, input: { displayName?: string; avatarUrl?: string | null }) {
@@ -204,6 +286,15 @@ export class UsersService {
                 .set({
                     ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
                     ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+                    // ⛔ U9/R21: the OWED MARKER moves with the name, in this one statement. The publish
+                    // below happens after the commit and is deliberately best-effort, so before this marker
+                    // a failed fan-out left nothing behind: the name changed here, never changed on the
+                    // cook's recipes, and the only trace was the `logger.error` below. Writing it here
+                    // rather than as a second statement is what makes "outside the transaction" unwritable
+                    // — the same reason ADR-0034's outbox takes the transaction as a required parameter.
+                    //
+                    // ⚠️ Only on a NAME change: an avatar edit publishes nothing, so it owes nothing.
+                    ...(input.displayName !== undefined ? { handleSyncOwedAt: now, handleSyncFailureCode: null } : {}),
                     updatedAt: now,
                 })
                 .where(eq(profiles.userId, userId));
@@ -221,8 +312,10 @@ export class UsersService {
                 await this.handleSync.publish(
                     buildHandleSyncMessage(userId, updatedProfile?.displayName ?? '', now.toISOString()),
                 );
+                await this.clearHandleSyncOwed(userId, now);
             } catch (error) {
                 this.logger.error('handle-sync publish failed (rename still succeeded)', { userId, error });
+                await this.recordHandleSyncFailure(userId, now);
             }
         }
 
@@ -239,7 +332,7 @@ export class UsersService {
             account: {
                 id: updatedAccount?.id,
                 userId: updatedAccount?.userId,
-                subscriptionTier: updatedAccount?.subscriptionTier ?? 'free',
+                subscriptionTier: subscriptionTierFor(ctx.permissions),
                 createdAt: updatedAccount?.createdAt.toISOString(),
                 updatedAt: updatedAccount?.updatedAt.toISOString(),
             },
@@ -256,9 +349,15 @@ export class UsersService {
      * best-effort (S3 is not transactional), and the Clerk BAN is handed to the deletion-worker via a `closure`
      * queue message — this service holds no Clerk secret (public ALB), so it never calls Clerk directly.
      *
+     * ⛔ A TEST PRINCIPAL is refused under `TEST_PRINCIPAL_CONTAINMENT=enforce` (ADR-0040) before anything is read —
+     * the ban would disable a shared Clerk test-pool member.
+     *
+     * @throws ForbiddenException (`TEST_PRINCIPAL_CONTAINED`) when containment refuses the caller.
      * @sideEffect tombstones the user, writes an audit row, deletes the avatar S3 object, and enqueues a ban.
      */
     async deleteUserMe(ctx: AuthorizerContext) {
+        assertNotContained(ctx, 'closeAccount');
+
         const userId = ctx.userId;
         const clerkUserId = ctx.clerkUserId;
 
@@ -276,7 +375,16 @@ export class UsersService {
         await this.db.transaction(async (tx) => {
             await tx
                 .update(users)
-                .set({ ...directive.userColumns, deletedAt: now, updatedAt: now })
+                .set({
+                    ...directive.userColumns,
+                    deletedAt: now,
+                    updatedAt: now,
+                    // ⛔ U10/R26: the INTENT advances with the status, in this transaction. The Clerk ban is
+                    // handed to the deletion worker and the queue is unordered, so the worker must be able
+                    // to tell "this is the newest thing the database wants" from "this is an old message
+                    // that outlived its intent" — which it cannot do from the event name alone.
+                    statusVersion: sql`${users.statusVersion} + 1`,
+                })
                 .where(eq(users.id, userId));
 
             // Closure keeps the companion rows (displayName survives for recovery); scrub only the avatar.
@@ -312,10 +420,16 @@ export class UsersService {
         }
 
         // Hand the durable, reversible Clerk BAN to the deletion-worker (the only holder of the Clerk secret).
+        //
+        // ⛔ NOT BEST-EFFORT, AND NOT A `warn`. The tombstone above is committed, so a failure here leaves the
+        // database saying "closed" while Clerk keeps the session alive and keeps minting JWTs for the account
+        // the user just closed. It is reported through the ONE paging path in `deletionEnqueue.error.ts` — see
+        // that module for why the state is left divergent-but-loud rather than rolled back (the audit row is
+        // append-only, so a retry of closure would write a second one) and for the sweep that should converge it.
         try {
             await this.sqs.enqueueDeletion({ identityId: clerkUserId, userId, event: 'closure' });
         } catch (err) {
-            this.logger.warn('Failed to enqueue closure ban', { userId, error: String(err) });
+            reportDeletionEnqueueFailure({ event: 'closure', userId, identityId: clerkUserId, error: err });
         }
 
         return {
@@ -323,5 +437,91 @@ export class UsersService {
             deletedAt: now.toISOString(),
             message: 'Account closure initiated',
         };
+    }
+
+    /**
+     * Account ERASURE (plan U2) — the IRREVERSIBLE sibling of {@link deleteUserMe}'s recoverable closure.
+     *
+     * ⛔ **Why this exists.** The app's "erase my data" control called the RECIPE service and nothing else,
+     * so an erasure destroyed the user's recipes and left the identity row, the Clerk account, the avatar
+     * object and food's requester rows all intact — the user could sign straight back in to an account they
+     * had been told was destroyed. Recipe cannot close that gap from its side: it does not own the user and
+     * holds no Clerk secret. Identity owns the user, so the account-level erasure is initiated here.
+     *
+     * **What this method does NOT do, and must not.** It does not call Clerk. This service sits behind a
+     * public ALB and holds no Clerk secret — the same reason closure hands its BAN to the deletion-worker —
+     * so the Clerk `deleteUser` is the worker's job, driven by the message enqueued below. Every downstream
+     * effect of an erasure (Clerk account deleted, recipe erased, food's requester rows dropped) hangs off
+     * that one message, which is why a failure to enqueue PAGES rather than warns.
+     *
+     * **Ordering, and the window it leaves.** The scrub commits before the Clerk identity is deleted, so
+     * between the two a token minted earlier still verifies. That window is closed by the scrub itself:
+     * `status='erased'` brings the row under the R10 anti-resurrection guard, so the token resolves to an
+     * erased user rather than read-through-creating a fresh one. The inverse order is not available to us —
+     * it would require the Clerk secret this service deliberately does not have.
+     *
+     * Idempotent: an already-erased user is a no-op that writes no second audit row (R9, append-only) and
+     * re-enqueues nothing.
+     *
+     * @param ctx - The verified caller. The owner is taken from the token, never from a body.
+     * @returns The erasure acknowledgement (`202`-shaped; the work is asynchronous).
+     * ⛔ A TEST PRINCIPAL is refused under `TEST_PRINCIPAL_CONTAINMENT=enforce` (ADR-0040) before anything is read —
+     * the Clerk delete, plus R10 anti-resurrection, would make a shared test-pool member unusable forever.
+     *
+     * @throws ForbiddenException (`TEST_PRINCIPAL_CONTAINED`) when containment refuses the caller.
+     * @throws NotFoundException when no such user exists.
+     * @sideEffect Erases the identity row, deletes the avatar object, and enqueues the erasure event.
+     */
+    async eraseUserMe(ctx: AuthorizerContext) {
+        assertNotContained(ctx, 'eraseAccount');
+
+        const userId = ctx.userId;
+        const clerkUserId = ctx.clerkUserId;
+
+        const [existing] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+        if (!existing) {
+            throw new NotFoundException('User not found');
+        }
+
+        const now = new Date();
+
+        if (existing.status === 'erased') {
+            // R9: the audit log is append-only, so a retry, a double-tap, or the reconciliation sweep
+            // re-driving this must not manufacture a second erasure event for one erasure. Nothing is
+            // re-enqueued either — the original message is already in flight or already processed.
+            this.logger.log('erasure: already-erased user, no-op', { userId });
+
+            return { sub: userId, erasedAt: now.toISOString(), message: 'Account erasure already completed' };
+        }
+
+        // ONE definition of "erased" for all three callers (this, the tombstone-sweep, the user.deleted
+        // webhook) — the field-scrub, the companion-row purge and the R8 audit row, in one transaction.
+        await eraseIdentityRow(this.db, { userId, triggerSource: 'user', actor: userId }, now);
+
+        // The row is already scrubbed and S3 is not transactional, so a failed object delete cannot roll the
+        // erasure back — but it leaves a real photograph of a user who asked to be erased, with no DB row
+        // pointing at it and therefore nothing to find it by later. That is an ERROR, not the `warn` closure
+        // uses for its recoverable tombstone.
+        try {
+            await this.avatarStore.deleteAllForUser(userId);
+        } catch (err) {
+            this.logger.error('erasure: avatar S3 delete FAILED — orphaned object for an erased user', {
+                userId,
+                error: String(err),
+            });
+        }
+
+        // ⛔ NOT BEST-EFFORT. Identity has scrubbed its own row, so the database says "erased" — but the
+        // Clerk account still exists and both downstream services still hold the user's data. All of that is
+        // destroyed by the worker this message wakes. Swallowing a failure here produces a user who was told
+        // their data was erased while their account still signs in, with nothing recorded anywhere.
+        try {
+            await this.sqs.enqueueDeletion({ identityId: clerkUserId, userId, event: 'erasure' });
+        } catch (err) {
+            reportDeletionEnqueueFailure({ event: 'erasure', userId, identityId: clerkUserId, error: err });
+        }
+
+        return { sub: userId, erasedAt: now.toISOString(), message: 'Account erasure initiated' };
     }
 }

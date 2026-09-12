@@ -11,10 +11,16 @@
     "dependencies": {
         "zod": "^4.4.3"
     },
+    "kitchensink": {
+        "wireContract": {
+            "thirdParty": true,
+            "reason": "USDA FoodData Central is a third-party API we do not serve, so there is no service of ours whose zod could own these shapes and nothing to generate a schema package from (CODING_STANDARDS \u00a715.3 / ADR-0014). src/schemas.ts validates the RAW upstream wire shape at the boundary with this package's own zod, and deliberately differs from the normalized public type the client returns. This marker is what makes the exemption explicit and per-package: it is NOT inherited by name or by location, so a future packages/clients/stripe must state its own case."
+        }
+    },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
-        "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -26,7 +32,7 @@
         "@kitchensink/vitest": "*",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },
     "engines": {

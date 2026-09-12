@@ -181,7 +181,7 @@ describe('CollectionHeader (web) — Edit/Delete affordances (C4)', () => {
 
 /**
  * Cross-platform parity for the native leaf's `flexShrink` fix (Maestro `collections` /
- * `collections-pagination`, where a long name pushed Rename/Delete off the screen edge on Android). CSS
+ * `collectionsPagination`, where a long name pushed Rename/Delete off the screen edge on Android). CSS
  * flex items default to `flex-shrink: 1`, so web degraded more gracefully than RN — but the `h1`'s
  * `min-width: auto` still lets a single long token overflow, and the action group could itself be squeezed.
  * Pinning both here keeps the two leaves' overflow behaviour from drifting again.
@@ -205,5 +205,54 @@ describe('CollectionHeader (web) — title row cannot squeeze its actions off-sc
 
         expect(actions).not.toBeNull();
         expect(actions?.className).toContain('shrink-0');
+    });
+});
+
+describe('CollectionHeader (web) — a failed refresh of what is on screen', () => {
+    const notice = (
+        overrides: Partial<{ failed: boolean; refreshing: boolean; recoveries: number; onRetry: () => void }> = {},
+    ) => ({
+        failed: false,
+        refreshing: false,
+        onRetry: () => undefined,
+        recoveries: 0,
+        ...overrides,
+    });
+
+    function viewWith(refreshNotice: ReturnType<typeof notice>) {
+        return (
+            <CollectionHeader
+                name="Keto Week"
+                visibility="public"
+                recipeCount={8}
+                onEdit={noop}
+                onDelete={noop}
+                refreshNotice={refreshNotice}
+            />
+        );
+    }
+
+    it('shows no notice while nothing has failed', () => {
+        render(viewWith(notice()));
+
+        expect(screen.queryByText('We couldn’t refresh this collection.')).toBeNull();
+    });
+
+    it('⛔ keeps what is shown and says the refresh failed, with a Try again that retries', () => {
+        const onRetry = vi.fn();
+        render(viewWith(notice({ failed: true, onRetry })));
+
+        expect(screen.getByRole('heading', { name: 'Keto Week' })).toBeTruthy();
+        expect(screen.getAllByText('We couldn’t refresh this collection.').length).toBeGreaterThan(0);
+        screen.getByRole('button', { name: 'Try again' }).click();
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ moves focus to the title when a retry from the notice succeeds, since its button is gone', () => {
+        const { rerender } = render(viewWith(notice({ failed: true })));
+
+        rerender(viewWith(notice({ recoveries: 1 })));
+
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Keto Week' }));
     });
 });

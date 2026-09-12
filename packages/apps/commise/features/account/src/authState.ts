@@ -4,6 +4,9 @@
  * gate from this single pure function so the two platforms cannot drift on WHICH sessions
  * are blocked or WHAT the user is told. Presentation stays platform-specific; the state
  * model and the user-facing copy live here.
+ *
+ * The two blocked-state ERROR classes live in `authState.errors.ts` — this module's subject is the state
+ * derivation, and §1 keeps an error taxonomy in its own file.
  */
 
 export type AuthState =
@@ -68,32 +71,4 @@ export function deriveAuthState(input: DeriveAuthStateInput): AuthState {
     }
 
     return { status: 'authenticated', userId };
-}
-
-export class AccountSuspendedError extends Error {
-    readonly code = 'account_suspended' as const;
-
-    constructor(message = 'Account suspended') {
-        super(message);
-        this.name = 'AccountSuspendedError';
-        Object.setPrototypeOf(this, AccountSuspendedError.prototype);
-    }
-}
-
-export class ImpersonationBlockedError extends Error {
-    readonly code = 'impersonation_blocked' as const;
-
-    constructor(message = 'Impersonation blocked') {
-        super(message);
-        this.name = 'ImpersonationBlockedError';
-        Object.setPrototypeOf(this, ImpersonationBlockedError.prototype);
-    }
-}
-
-export function isAccountSuspendedError(error: unknown): error is AccountSuspendedError {
-    return error instanceof AccountSuspendedError;
-}
-
-export function isImpersonationBlockedError(error: unknown): error is ImpersonationBlockedError {
-    return error instanceof ImpersonationBlockedError;
 }

@@ -41,6 +41,27 @@ export type PendingArchiveStatus = (typeof PENDING_ARCHIVE_STATUSES)[number];
 
 // ── recipe_versions: snapshot history (last 10 in DB, all in S3) ──────────────────────────────────
 
+/**
+ * ⚠️ THE PHYSICAL TABLE STILL HAS A `device_label` COLUMN THAT IS DELIBERATELY NOT DECLARED HERE.
+ *
+ * The owner ruled on **2026-08-26** that device attribution comes out — *"I don't care what device they
+ * were on when they edited something"* — so `0014_version_device_label.sql`'s column is now read by
+ * nothing. Its `DROP` is deferred to a LATER release, which is ADR-0022's standing EXPAND-FIRST
+ * precondition and not an oversight: *"a contracting migration ships a release LATER than the code that
+ * stopped reading the column."* The in-stack Trigger applies migrations BEFORE the new tasks serve, so
+ * dropping it in the same release would leave the PREVIOUS image issuing `SELECT`s naming a column that no
+ * longer exists — and both version-history reads (`versions.dal.ts`) and the 409's conflict-enrichment read
+ * (`recipes.dal.ts`) are bare `.select()`s over this table, so they would raise `42703` as a user-visible
+ * 500, while `recordSnapshot`'s INSERT — which is best-effort and SWALLOWS its error — would drop version
+ * rows permanently and silently. Deferring costs nothing: every row's `device_label` is already NULL.
+ *
+ * Removing the field from this definition is what makes the deferral SAFE. Drizzle only ever names the
+ * columns declared here, so the undeclared, nullable column is simply never selected or inserted.
+ *
+ * ⛔ Do NOT "restore" the column here to make the definition match the database. The follow-up migration is
+ * recorded in `specs/001-commise-recipe-app/change-requests/CR-004-version-compare-and-conflict-diff.md`
+ * (its 2026-08-26 amendment) and in `0014_version_device_label.sql`'s own header.
+ */
 export const recipeVersions = pgTable(
     'recipe_versions',
     {
@@ -58,11 +79,6 @@ export const recipeVersions = pgTable(
         // App-user ULID (from token claim); no FK, no local users table (D2).
         createdBy: varchar('created_by', { length: 255 }).notNull(),
         changeSummary: text('change_summary'),
-        // Device that authored this version (W8-a.6 / FR-007b) — bounded free text captured from the write
-        // request. A mutable COLUMN, deliberately NOT a field inside the immutable `snapshot` JSONB. NULLABLE
-        // with no default: a device is not knowable retroactively, so historical rows stay NULL and the UI
-        // renders "unknown device" rather than fabricating attribution. User-controlled → escaped at render.
-        deviceLabel: text('device_label'),
         // The version editor's denormalized display-name (W8-a.2 / decision 6). A mutable COLUMN, NOT a
         // snapshot field (a handle frozen in the immutable snapshot could never be corrected by rename-sync).
         // NULLABLE; kept current by the handle-sync consumer's fan-out. The editor is `created_by` (the ULID).

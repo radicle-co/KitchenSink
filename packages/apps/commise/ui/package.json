@@ -5,9 +5,9 @@
     "type": "module",
     "sideEffects": false,
     "scripts": {
-        "build": "tsc -p tsconfig.build.json && node scripts/generate-theme.mjs",
+        "build": "tsc -p tsconfig.build.json && node scripts/generateTheme.mjs",
         "typecheck": "tsc --noEmit",
-        "lint": "eslint 'src/**/*.{ts,tsx}' --ignore-pattern '**/*.test.{ts,tsx}'",
+        "lint": "eslint .",
         "test": "vitest run && vitest run --config vitest.native.config.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -27,12 +27,22 @@
             "import": "./dist/tokens/*.js",
             "default": "./dist/tokens/*.js"
         },
+        "./back-intercept": "./src/backIntercept/index.ts",
+        "./testing/hardware-back": "./src/testing/hardwareBack.native.ts",
         "./button": "./src/button/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",
+        "./dialog-focus": "./src/dialogFocus/index.ts",
         "./motion": "./src/motion/index.ts",
         "./press-scale": "./src/pressScale/index.ts",
         "./surface": "./src/surface/index.ts",
-        "./input": "./src/input/index.ts"
+        "./input": "./src/input/index.ts",
+        "./live-region": "./src/liveRegion/index.ts",
+        "./load-more": "./src/loadMore/index.ts",
+        "./pending-bar": "./src/pendingBar/index.ts",
+        "./refresh-notice": "./src/refreshNotice/index.ts",
+        "./screen-reader-focus": "./src/screenReaderFocus/index.ts",
+        "./offline-notice": "./src/offlineNotice/index.ts",
+        "./sync-notice": "./src/syncNotice/index.ts"
     },
     "dependencies": {
         "@radix-ui/react-alert-dialog": "^1.1.15"
@@ -60,13 +70,13 @@
         "@types/react": "^19.0.0",
         "culori": "^4.0.2",
         "eslint": "^10.0.3",
-        "jsdom": "^24.1.0",
+        "jsdom": "^30.0.1",
         "prettier": "^3.0.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "react-native": "0.86.0",
-        "react-native-web": "^0.20.0",
-        "typescript": "^5.9.3",
+        "react-native-web": "^0.21.2",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },
     "engines": {

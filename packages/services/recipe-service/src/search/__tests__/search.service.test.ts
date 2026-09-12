@@ -7,9 +7,12 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import type { RecipeSearchParams } from '@kitchensink/recipe-core';
 
 import { SearchService } from '../search.service.js';
+// The SERVICE'S OWN authored query type, matching `SearchService.searchRecipes`'s parameter. These three literals
+// were annotated `recipe-core`'s `RecipeSearchParams` — the looser twin, now deleted — and compiled only because
+// a mutable `string[]` is assignable to the contract's `readonly string[]`.
+import type { RecipeSearchQuery } from '../search.schema.js';
 import type { SearchDal, RecipeSearchDalResult } from '../dal/search.dal.js';
 import { makeSearchResult } from '../__fixtures__/search.fixtures.js';
 
@@ -34,7 +37,7 @@ function fakeDal(result: RecipeSearchDalResult): { dal: SearchDal; search: Retur
 describe('SearchService.searchRecipes', () => {
     it('forwards the owner key and filters, defaulting page/pageSize/sortBy', async () => {
         const { dal, search } = fakeDal(dalResult());
-        const params: RecipeSearchParams = { query: 'pasta', cuisine: 'italian', dietaryFlags: ['vegetarian'] };
+        const params: RecipeSearchQuery = { query: 'pasta', cuisine: 'italian', dietaryFlags: ['vegetarian'] };
 
         await new SearchService(dal).searchRecipes(OWNER, params);
 
@@ -53,7 +56,7 @@ describe('SearchService.searchRecipes', () => {
 
     it('forwards maxCookTime alongside maxPrepTime/maxTotalTime (REQ-030f)', async () => {
         const { dal, search } = fakeDal(dalResult());
-        const params: RecipeSearchParams = { maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 };
+        const params: RecipeSearchQuery = { maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 };
 
         await new SearchService(dal).searchRecipes(OWNER, params);
 
@@ -64,7 +67,7 @@ describe('SearchService.searchRecipes', () => {
 
     it('honors explicit pagination + sort', async () => {
         const { dal, search } = fakeDal(dalResult());
-        const params: RecipeSearchParams = { page: 3, pageSize: 10, sortBy: RecipeSearchSortBy.TITLE };
+        const params: RecipeSearchQuery = { page: 3, pageSize: 10, sortBy: RecipeSearchSortBy.TITLE };
 
         await new SearchService(dal).searchRecipes(OWNER, params);
 

@@ -6,7 +6,10 @@
  * global `ApiExceptionFilter` recognizes it via `isRecipeError` and maps `code` → HTTP status +
  * `{ code, message, details? }` envelope, so throwing this class is all a service/DAL needs to do.
  */
+import { HttpException } from '@nestjs/common';
 import { RecipeErrorCode, type RecipeError, type VersionConflictSide } from '@kitchensink/recipe-core';
+
+import { apiError } from '../common/apiError.js';
 
 /** A thrown recipe-domain error carrying a machine-readable {@link RecipeErrorCode}. */
 export class RecipeDomainError extends Error implements RecipeError {
@@ -38,6 +41,21 @@ export function isRecipeDomainError(value: unknown): value is RecipeDomainError 
 /** `RECIPE_NOT_FOUND` — no active recipe with that id (or it is soft-deleted). */
 export function recipeNotFound(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.RECIPE_NOT_FOUND, `Recipe ${id} not found.`);
+}
+
+/**
+ * `VERSION_LINE_UNRESTORABLE` (→ 409) — plan 002 R52: a version restore would drop the lines at these snapshot
+ * positions, because their bindings are gone and they froze no name.
+ *
+ * @param positions - The 0-based snapshot positions.
+ * @returns The error.
+ */
+export function versionLineUnrestorable(positions: readonly number[]): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.VERSION_LINE_UNRESTORABLE,
+        'This version cannot be restored: some of its ingredients no longer exist and have no name to find them by.',
+        { positions: [...positions] },
+    );
 }
 
 /**
@@ -126,4 +144,26 @@ export function versionConflict(
  */
 export function invalidVisibility(reason: string, details?: Record<string, unknown>): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.INVALID_VISIBILITY, reason, details);
+}
+
+/**
+ * `FORBIDDEN` — the caller declared a provenance it is not granted to declare (004-FR-025, ADR-0023).
+ *
+ * ⚠️ A `403` and not a `400`, because the refusal is about the CALLER rather than the body: the same bytes
+ * from a curator are accepted. A `400` would tell an ordinary user their request was malformed, which is
+ * false and would send them to fix a payload that is already correct.
+ *
+ * ⚠️ It returns an `HttpException` rather than a {@link RecipeDomainError}, and that is the shape the
+ * shipped contract already chose. `FORBIDDEN` is a PUBLISHED code in `apiError.schema.ts` — documented there
+ * as "Authenticated, but not permitted (a scope/permission gate rather than an ownership one)", which is
+ * this case verbatim — but it is deliberately NOT a member of `recipe-core`'s `RecipeErrorCode`, because it
+ * is not a recipe-DOMAIN outcome. Adding a member to that enum to reach it would widen a union both apps
+ * consume, for a denial `details.requiredScope` already makes actionable.
+ *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - Machine-readable context; carries `requiredScope` so a client can say what is missing.
+ * @returns The exception to throw.
+ */
+export function provenanceNotPermitted(reason: string, details?: Record<string, unknown>): HttpException {
+    return apiError('FORBIDDEN', reason, details);
 }

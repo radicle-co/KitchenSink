@@ -79,6 +79,13 @@
 | Footer bar          | Clone CTA (public recipes only); version badge; visibility badge                |
 | Bottom nav          | Same as recipe-list.md                                                          |
 
+## Refresh Failure State
+
+- **When:** a focus/reconnect refresh fails while the recipe is on screen.
+- **Shown:** the recipe stays, and an inline notice below the title band reads "We couldn’t refresh this recipe." with **Try again**. A load that failed with nothing to show is the not-found or load-error state instead.
+- **Behaviour:** the notice announces politely, keeps its button (busy) while any retry runs, and clears on the next successful refresh. When its own Try again succeeds, focus moves to the recipe title.
+- **Authority:** `docs/CODING_STANDARDS.md` §11.0.
+
 ## FR Annotation Summary
 
 | Element                        | FR              |

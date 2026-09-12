@@ -20,59 +20,59 @@ The core opportunity for Commise is not just “having cook mode,” but deliver
 
 ### 1. Paprika (Cook Mode)
 
-| Attribute                            | Detail                                                                                     |
-| ------------------------------------ | ------------------------------------------------------------------------------------------ |
-| **Platforms**                        | iOS, Android, macOS, Windows                                                               |
-| **Core Strengths**                   | Mature step-by-step cook mode, reliable timer integration, strong offline behavior         |
-| **Core Weaknesses**                  | Limited collaborative guidance features, conservative UI modernization                     |
-| **Timers**                           | Inline + manual timers, trusted by power users                                             |
-| **Voice**                            | Limited/native-assistant dependent                                                         |
+| Attribute                          | Detail                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Platforms**                      | iOS, Android, macOS, Windows                                                               |
+| **Core Strengths**                 | Mature step-by-step cook mode, reliable timer integration, strong offline behavior         |
+| **Core Weaknesses**                | Limited collaborative guidance features, conservative UI modernization                     |
+| **Timers**                         | Inline + manual timers, trusted by power users                                             |
+| **Voice**                          | Limited/native-assistant dependent                                                         |
 | **Key gap vs Commise opportunity** | Opportunity to exceed with richer accessibility telemetry and modern cross-platform parity |
 
 ---
 
 ### 2. SideChef
 
-| Attribute                            | Detail                                                                                               |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| **Platforms**                        | iOS, Android, Web                                                                                    |
-| **Core Strengths**                   | Guided step flow, ecosystem integrations, onboarding for novice cooks                                |
-| **Core Weaknesses**                  | Heavier “guided recipe” opinionation can feel rigid for experienced users                            |
-| **Timers**                           | Step-attached timers and progress guidance                                                           |
-| **Voice**                            | Some voice-friendly interaction patterns                                                             |
+| Attribute                          | Detail                                                                                               |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Platforms**                      | iOS, Android, Web                                                                                    |
+| **Core Strengths**                 | Guided step flow, ecosystem integrations, onboarding for novice cooks                                |
+| **Core Weaknesses**                | Heavier “guided recipe” opinionation can feel rigid for experienced users                            |
+| **Timers**                         | Step-attached timers and progress guidance                                                           |
+| **Voice**                          | Some voice-friendly interaction patterns                                                             |
 | **Key gap vs Commise opportunity** | Deliver equivalent guidance with clearer local-first resilience and stronger screen-reader semantics |
 
 ---
 
 ### 3. Yummly
 
-| Attribute                            | Detail                                                                               |
-| ------------------------------------ | ------------------------------------------------------------------------------------ |
-| **Platforms**                        | iOS, Android, Web                                                                    |
-| **Core Strengths**                   | Discovery/search depth and appliance integrations                                    |
-| **Core Weaknesses**                  | Cooking mode is strong but ecosystem-driven priorities can dilute pure in-kitchen UX |
-| **Timers**                           | Present, with contextual prompts                                                     |
-| **Voice**                            | Limited first-party voice control                                                    |
+| Attribute                          | Detail                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| **Platforms**                      | iOS, Android, Web                                                                    |
+| **Core Strengths**                 | Discovery/search depth and appliance integrations                                    |
+| **Core Weaknesses**                | Cooking mode is strong but ecosystem-driven priorities can dilute pure in-kitchen UX |
+| **Timers**                         | Present, with contextual prompts                                                     |
+| **Voice**                          | Limited first-party voice control                                                    |
 | **Key gap vs Commise opportunity** | Compete on focused, uncluttered cooking flow rather than discovery-heavy experience  |
 
 ---
 
 ### 4. Kitchen Stories
 
-| Attribute                            | Detail                                                                                   |
-| ------------------------------------ | ---------------------------------------------------------------------------------------- |
-| **Platforms**                        | iOS, Android, Web                                                                        |
-| **Core Strengths**                   | High production value UX, strong visual step content                                     |
-| **Core Weaknesses**                  | Visual richness can increase interaction overhead in messy kitchen contexts              |
-| **Timers**                           | Built-in timer support                                                                   |
-| **Voice**                            | Not a primary differentiator                                                             |
+| Attribute                          | Detail                                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Platforms**                      | iOS, Android, Web                                                                        |
+| **Core Strengths**                 | High production value UX, strong visual step content                                     |
+| **Core Weaknesses**                | Visual richness can increase interaction overhead in messy kitchen contexts              |
+| **Timers**                         | Built-in timer support                                                                   |
+| **Voice**                          | Not a primary differentiator                                                             |
 | **Key gap vs Commise opportunity** | Outperform on utilitarian, large-target, accessibility-first controls for active cooking |
 
 ---
 
 ## Feature Parity Matrix (Cooking Mode Focus)
 
-| Capability                       | Paprika | SideChef | Yummly | Kitchen Stories |        Commise target (008)         |
+| Capability                       | Paprika | SideChef | Yummly | Kitchen Stories |         Commise target (008)          |
 | -------------------------------- | :-----: | :------: | :----: | :-------------: | :-----------------------------------: |
 | One-step-at-a-time view          |   ✅    |    ✅    |   ✅   |       ✅        |              ✅ (FR-032)              |
 | Large readable typography        |   ✅    |    ✅    |   ✅   |       ✅        |          ✅ (FR-032, SC-007)          |

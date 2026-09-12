@@ -14,7 +14,8 @@ import { palette } from '@commise/ui';
 import { makeRecipeVersion } from '../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeVersionList } from '../RecipeVersionList.native.js';
-import type { RecipeVersionListProps } from '../model.js';
+import type { RecipeVersionListProps } from '../history.js';
+import { recipeVersionMessages } from '../messages.js';
 
 afterEach(cleanup);
 
@@ -155,23 +156,22 @@ describe('RecipeVersionList (native) — restoring state', () => {
     });
 });
 
-describe('RecipeVersionList (native) — editor/device attribution', () => {
-    it('shows "by @handle (from device)" when both are present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: 'iPhone' })];
-        renderList({ versions, currentVersion: 1 });
-
-        expect(screen.getByText('by @clara (from iPhone)')).toBeTruthy();
-    });
-
-    it('shows "by @handle" with no device suffix when only the handle is present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: undefined })];
+/**
+ * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution — the web leaf's sibling, kept
+ * in step with it deliberately (a fix to one platform must not miss the other). The two cases that pinned
+ * the ` (from {device})` suffix are gone; the escaping guard the web file keeps has no native counterpart
+ * here because this file never had one.
+ */
+describe('RecipeVersionList (native) — editor attribution', () => {
+    it('shows "by @handle" when the handle is present', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara' })];
         renderList({ versions, currentVersion: 1 });
 
         expect(screen.getByText('by @clara')).toBeTruthy();
     });
 
-    it('renders no attribution line when neither the handle nor the device is present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: undefined, deviceLabel: undefined })];
+    it('renders no attribution line when the handle is absent', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: undefined })];
         renderList({ versions, currentVersion: 1 });
 
         expect(screen.queryByText(/^by @/)).toBeNull();
@@ -415,7 +415,11 @@ describe('RecipeVersionList (native) — WCAG AA text contrast (SC 1.4.3)', () =
 
 describe('RecipeVersionList (native) — restore error (B17: no silent failure)', () => {
     it('surfaces the conflict copy when a restore fails because the recipe changed underneath', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, restoreError: 'conflict' });
+        renderList({
+            versions: threeVersions,
+            currentVersion: 3,
+            restoreError: { kind: 'conflict', versionNumber: 2 },
+        });
 
         expect(
             screen.getByText(
@@ -425,9 +429,21 @@ describe('RecipeVersionList (native) — restore error (B17: no silent failure)'
     });
 
     it('surfaces the generic copy for any other failed restore', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, restoreError: 'generic' });
+        renderList({ versions: threeVersions, currentVersion: 3, restoreError: { kind: 'generic', versionNumber: 2 } });
 
         expect(screen.getByText('We couldn’t restore that version. Please try again.')).toBeTruthy();
+    });
+
+    it('⛔ surfaces a REFUSED restore as an alert — which lines, that nothing changed, and where to look', () => {
+        renderList({
+            versions: threeVersions,
+            currentVersion: 3,
+            restoreError: { kind: 'unrestorable', versionNumber: 2, positions: [0, 2] },
+        });
+
+        expect(screen.getByRole('alert').textContent).toBe(
+            recipeVersionMessages.en.versionList.restoreUnrestorableErrorMany.replace('{count}', '2'),
+        );
     });
 
     it('shows no error text when the last restore did not fail', () => {

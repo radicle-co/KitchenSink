@@ -1,0 +1,17 @@
+{
+    "upstreams": {
+        "table": {
+            "upstream": "Norwegian Food Composition Table 2026.xlsx",
+            "upstreamSha256": "91af92552975dcb259735e833639f8aacd7cf4674b5c7321e7271224000c247c"
+        }
+    },
+    "extract": "matvaretabellenExtract2026.jsonl",
+    "extractSha256": "10eb568043d250d50ada87d089176d5987d5b86acd00a904e4d29ed0a5956f8c",
+    "snapshots": {
+        "foods": {
+            "upstream": "foods.json",
+            "upstreamSha256": "89b8f5f494a79731bf7d8d98065ee66c55263ccdbb519e7c87941218be6c948d",
+            "committed": "matvaretabellenFoods2026.gz"
+        }
+    }
+}

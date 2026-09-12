@@ -5,7 +5,7 @@ import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipe
 import { signInWithTicket } from './utils/auth';
 
 /**
- * Recipe-detail HERO cover (mockup `screen-recipe-detail`), driven through the real web UI with the
+ * Recipe-detail HERO cover (mockup `screenRecipeDetail`), driven through the real web UI with the
  * recipe/identity HTTP contract intercepted (`utils/recipeApi`). The mockup opens the screen with the cover
  * photo before any type; the web detail used to start at the gradient title band.
  *
@@ -28,7 +28,7 @@ import { signInWithTicket } from './utils/auth';
 
 /** A real 1x1 PNG as a `data:` URI — the cover must genuinely decode, and nothing may hit the network. */
 const COVER_DATA_URI =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
 /** The localized copy the no-cover fallback carries — the SAME dictionary string the card placeholder uses. */
 const NO_PHOTO_LABEL = 'No photo yet';

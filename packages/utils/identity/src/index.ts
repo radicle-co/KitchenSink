@@ -1,4 +1,5 @@
 export {
+    PROVISION_LOCK_NAMESPACE,
     provisionCompleteUser,
     type Db,
     type EmailCollisionPolicy,

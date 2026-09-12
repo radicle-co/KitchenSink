@@ -7,18 +7,21 @@
  * `UNRESOLVED` / a terminal state).
  *
  * It renders nothing — the visible status lives on the shared form's per-line badge. The editor makes
- * `onStatus` idempotent (via `setIngredientStatusById`, which no-ops an unchanged status) so the repeated
+ * `onStatus` idempotent (via `settleIngredientLine`, which no-ops an unchanged answer) so the repeated
  * callback cannot loop, and unmounts this poller once the line leaves `PENDING` (which also stops the query).
  */
+import type { ObservedIngredientStatus } from '@commise/features-recipes';
 import { usePollIngredientStatus } from '@commise/features-recipes/hooks';
-import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 /** Props for {@link IngredientStatusPoller}. */
 export interface IngredientStatusPollerProps {
-    /** The catalog ingredient id of the pending line to poll. */
+    /** The binding of the pending line to poll. */
     readonly ingredientId: string;
-    /** Called with the latest observed resolution status whenever it is known. Must be idempotent. */
-    readonly onStatus: (ingredientId: string, status: FoodResolutionStatus) => void;
+    /**
+     * Called with the polled id and what the poll observed — the binding the server answered with (a different id once
+     * the line settled, plan 002) and its status. Must be idempotent.
+     */
+    readonly onStatus: (polledId: string, observed: ObservedIngredientStatus) => void;
 }
 
 /**

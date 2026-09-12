@@ -1,13 +1,13 @@
 /**
  * T134 — the real SQS adapter behind {@link ErasureQueuePort}.
  *
- * Wraps an `@aws-sdk/client-sqs` `SQSClient` into the narrow port {@link ErasureService} depends on.
+ * Wraps an `@aws-sdk/client-sqs` `SQSClient` into the narrow port `ErasureService` depends on.
  * Isolating the SDK here keeps the service unit-testable against a mock port (no network, no SDK
- * module-mocking), mirroring `photos.storage.ts` / {@link createS3PhotoStorage}. The adapter itself is
+ * module-mocking), mirroring `photos.storage.ts` / `createS3PhotoStorage`. The adapter itself is
  * exercised against LocalStack by the integration tier (T137).
  */
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
-import type { AccountErasureMessage } from '@kitchensink/recipe-core';
+import type { ErasureQueueMessage } from '@kitchensink/recipe-core';
 
 /** DI token for the erasure queue port — provided by `AccountModule` via `useFactory` over the env config. */
 export const ERASURE_QUEUE = 'ERASURE_QUEUE';
@@ -20,7 +20,7 @@ export interface ErasureQueuePort {
      * @param message - The owner-scoped unit of work.
      * @sideEffect Issues an SQS `SendMessage` request.
      */
-    enqueue(message: AccountErasureMessage): Promise<void>;
+    enqueue(message: ErasureQueueMessage): Promise<void>;
 }
 
 /** Config the SQS adapter needs (sourced from the service's env config). */
@@ -52,7 +52,7 @@ export function createSqsErasureQueue(config: SqsErasureQueueConfig): ErasureQue
     });
 
     return {
-        async enqueue(message: AccountErasureMessage): Promise<void> {
+        async enqueue(message: ErasureQueueMessage): Promise<void> {
             await client.send(
                 new SendMessageCommand({ QueueUrl: config.queueUrl, MessageBody: JSON.stringify(message) }),
             );

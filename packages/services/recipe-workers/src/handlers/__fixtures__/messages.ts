@@ -1,7 +1,8 @@
 import type { SQSEvent, SQSRecord } from 'aws-lambda';
+import type { TestPrincipalResetMessage } from '@kitchensink/recipe-core';
 
-import type { AccountErasureMessage } from '../account-erasure-worker.js';
-import type { RecipeVersionArchiveMessage } from '../version-archive-worker.js';
+import type { AccountErasureMessage } from '../accountErasureWorker.js';
+import type { RecipeVersionArchiveMessage } from '../versionArchiveWorker.js';
 
 /**
  * Fixture factories for the recipe-workers SQS handlers. Each `make*` accepts a `Partial<T>` of
@@ -46,15 +47,37 @@ export const makeErasureEvent = (...messages: Array<Partial<AccountErasureMessag
     Records: (messages.length > 0 ? messages : [{}]).map((message) => makeErasureRecord(message)),
 });
 
+/** A typed test-principal reset message (ADR-0040) with sensible defaults. The default owner is a VALID ULID. */
+export const makeTestPrincipalResetMessage = (
+    overrides: Partial<TestPrincipalResetMessage> = {},
+): TestPrincipalResetMessage => ({
+    kind: 'testPrincipalReset',
+    ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P',
+    requestedAt: '2026-09-13T00:00:00.000Z',
+    ...overrides,
+});
+
+/** An `SQSEvent` wrapping one-or-more test-principal reset records. */
+export const makeTestPrincipalResetEvent = (...messages: Array<Partial<TestPrincipalResetMessage>>): SQSEvent => ({
+    Records: (messages.length > 0 ? messages : [{}]).map((message) =>
+        makeSqsRecord(JSON.stringify(makeTestPrincipalResetMessage(message))),
+    ),
+});
+
 /** A typed recipe-version archive message with sensible defaults. */
 export const makeArchiveMessage = (
     overrides: Partial<RecipeVersionArchiveMessage> = {},
 ): RecipeVersionArchiveMessage => ({
-    recipeId: '00000000-0000-4000-8000-0000000000r1',
-    versionId: '00000000-0000-4000-8000-0000000000v1',
+    // ⚠️ These must be REAL ids, not merely readable ones. `parseArchiveMessage` now validates the message
+    // against `recipeVersionArchiveMessageSchema`, so a mnemonic-but-invalid fixture makes every suite that
+    // uses this factory fail at the boundary rather than exercise the behaviour under test. The previous
+    // values (`…0000r1` / `…0000v1`, and `…OWN0`) were all invalid: the first two are not UUIDs, and `O` is
+    // not in Crockford base32, so the owner was not a ULID either.
+    recipeId: '00000000-0000-4000-8000-0000000000c1',
+    versionId: '00000000-0000-4000-8000-0000000000e1',
     // The archive object is keyed by the client-facing version NUMBER, not `versionId` (ARCH-BE-3).
     versionNumber: 1,
-    ownerId: '01J0000000000000000000OWN0',
+    ownerId: '01J0000000000000000000WN00',
     requestedAt: '2026-07-10T00:00:00.000Z',
     ...overrides,
 });

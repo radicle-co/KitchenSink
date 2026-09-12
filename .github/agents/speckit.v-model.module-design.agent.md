@@ -1,22 +1,22 @@
 ---
 description: Decompose architecture modules into low-level module designs with four
-  mandatory views and ARCH↔MOD traceability.
+    mandatory views and ARCH↔MOD traceability.
 handoffs:
-- label: Generate Unit Tests
-  agent: speckit.v-model.unit-test
-  prompt: Generate the unit test plan for this module design
-  send: true
-- label: Back to Architecture Design
-  agent: speckit.v-model.architecture-design
-  prompt: Review or update the architecture design
+    - label: Generate Unit Tests
+      agent: speckit.v-model.unit-test
+      prompt: Generate the unit test plan for this module design
+      send: true
+    - label: Back to Architecture Design
+      agent: speckit.v-model.architecture-design
+      prompt: Review or update the architecture design
 scripts:
-  sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-architecture-design
-  ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireArchitectureDesign
+    sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-architecture-design
+    ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireArchitectureDesign
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -38,6 +38,7 @@ CRITICAL DISTINCTION: Module Design is NOT architecture. It does NOT describe mo
 Run `.specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-architecture-design` from the repository root and parse the JSON output.
 
 The script returns JSON with these keys:
+
 - `VMODEL_DIR`: Path to `specs/{feature}/v-model/` directory
 - `FEATURE_DIR`: Path to `specs/{feature}/` directory
 - `BRANCH`: Current branch name
@@ -52,23 +53,23 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 1. **Load the template**: Read `.specify/templates/module-design-template.md` from the extension directory to understand the required output structure.
 
 2. **Load architecture design**: Read `architecture-design.md` from the `ARCH_DESIGN` path.
-   - If `architecture-design.md` does NOT exist: ERROR — "Architecture design not found. Run `/speckit.v-model.architecture-design` first."
-   - Extract ALL `ARCH-NNN` identifiers from the Logical View table
-   - Extract the Interface View (feeds Error Handling & Return Codes view)
-   - Extract the Data Flow View (feeds Algorithmic/Logic View data transformation context)
-   - Note each module's type, parent SYS, and `[CROSS-CUTTING]` tags
-   - Note the total ARCH count — every ARCH must have at least one MOD
+    - If `architecture-design.md` does NOT exist: ERROR — "Architecture design not found. Run `/speckit.v-model.architecture-design` first."
+    - Extract ALL `ARCH-NNN` identifiers from the Logical View table
+    - Extract the Interface View (feeds Error Handling & Return Codes view)
+    - Extract the Data Flow View (feeds Algorithmic/Logic View data transformation context)
+    - Note each module's type, parent SYS, and `[CROSS-CUTTING]` tags
+    - Note the total ARCH count — every ARCH must have at least one MOD
 
 3. **Load requirements**: Read `requirements.md` from the `REQUIREMENTS` path for supplementary domain context.
 
 4. **Load v-model-config.yml** (if it exists at the repository root):
-   - If `domain` is set to `iso_26262`, `do_178c`, or `iec_62304`: Enable safety-critical sections (Complexity Constraints, Memory Management, Single Entry/Exit)
-   - If absent or `domain` is empty: Skip safety-critical sections entirely
+    - If `domain` is set to `iso_26262`, `do_178c`, or `iec_62304`: Enable safety-critical sections (Complexity Constraints, Memory Management, Single Entry/Exit)
+    - If absent or `domain` is empty: Skip safety-critical sections entirely
 
 5. **Load existing module design** (if `AVAILABLE_DOCS` contains `"module-design.md"`):
-   - Read the existing `module-design.md` to preserve existing MOD-NNN IDs and content
-   - Identify the highest existing MOD number to continue the sequence
-   - New modules append after existing ones — **never renumber**
+    - Read the existing `module-design.md` to preserve existing MOD-NNN IDs and content
+    - Identify the highest existing MOD number to continue the sequence
+    - New modules append after existing ones — **never renumber**
 
 ### 3. Lifecycle Rules (When Evolving Existing Artifacts)
 
@@ -77,15 +78,15 @@ before generating new content:
 
 1. **Never delete an ID** — mark as `[DEPRECATED]`
 2. **Deprecation types:**
-   - `[DEPRECATED — Superseded by MOD-NNN]`: Replaced by a new module
-   - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
+    - `[DEPRECATED — Superseded by MOD-NNN]`: Replaced by a new module
+    - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
 3. **Suspect detection from parent ARCH:** If a parent ARCH (in
    `architecture-design.md`) is deprecated or modified, mark each MOD that traces
    to it as `[SUSPECT — Parent ARCH-NNN {deprecated|modified}]`.
 4. **Suspect resolution:** For each suspect MOD:
-   - **Re-parent** to the superseding ARCH (if module continues under a new ID)
-   - **Deprecate** (if the architecture module is withdrawn — cascade to downstream UTP)
-   - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
+    - **Re-parent** to the superseding ARCH (if module continues under a new ID)
+    - **Deprecate** (if the architecture module is withdrawn — cascade to downstream UTP)
+    - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
 5. **Modified modules:** Update content in-place, preserve the original MOD ID.
    Downstream artifacts (UTP) tracing to this MOD become suspect.
 
@@ -111,12 +112,12 @@ These four requirements apply to all module types except `[EXTERNAL]` modules (w
 
 Each `MOD-NNN` represents a single function, class, script, or tightly coupled file group that will become actual source code. The decomposition granularity follows these rules:
 
-| ARCH Type | Decomposition Rule | Example |
-|-----------|-------------------|---------|
-| Component | One MOD per major function/class in the module | ARCH-001 (Parser) → MOD-001 (parse_input), MOD-002 (validate_schema) |
-| Service | One MOD per endpoint or handler | ARCH-003 (API Service) → MOD-005 (handle_create), MOD-006 (handle_delete) |
-| Library | One MOD per public API surface | ARCH-005 (Template Lib) → MOD-008 (load_template), MOD-009 (render_template) |
-| Utility | Often 1:1 with ARCH | ARCH-007 (Config Loader) → MOD-010 (load_config) |
+| ARCH Type | Decomposition Rule                             | Example                                                                      |
+| --------- | ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| Component | One MOD per major function/class in the module | ARCH-001 (Parser) → MOD-001 (parse_input), MOD-002 (validate_schema)         |
+| Service   | One MOD per endpoint or handler                | ARCH-003 (API Service) → MOD-005 (handle_create), MOD-006 (handle_delete)    |
+| Library   | One MOD per public API surface                 | ARCH-005 (Template Lib) → MOD-008 (load_template), MOD-009 (render_template) |
+| Utility   | Often 1:1 with ARCH                            | ARCH-007 (Config Loader) → MOD-010 (load_config)                             |
 
 #### 4.2 Tag Routing
 
@@ -140,6 +141,7 @@ For each `MOD-NNN`, generate the four mandatory views:
 The core of the module design. This view must be so detailed that a developer can translate it directly into source code.
 
 **Requirements:**
+
 - Step-by-step pseudocode enclosed in fenced Markdown code blocks tagged `pseudocode` (i.e., ` ```pseudocode ``` `)
 - Every branch (`if/else`), loop (`for/while`), and decision point must be explicit
 - No vague prose like "process the data appropriately" — every transformation must be concrete
@@ -147,6 +149,7 @@ The core of the module design. This view must be so detailed that a developer ca
 - For `[EXTERNAL]` modules: document wrapper configuration logic only (e.g., retry policy, connection setup), not the library's internal algorithm
 
 **Anti-Pattern Guard:**
+
 - ❌ "The module processes input and produces output" (vague)
 - ❌ "Handle errors appropriately" (undefined)
 - ✅ `if input.length > MAX_BUFFER_SIZE: return ERROR_OVERFLOW` (concrete)
@@ -157,12 +160,14 @@ The core of the module design. This view must be so detailed that a developer ca
 For modules that maintain state across invocations:
 
 **Stateful modules:**
+
 - Use Mermaid `stateDiagram-v2` syntax
 - Document every state, transition, event, and guard condition
 - Include entry/exit actions for each state
 - Show error/recovery states
 
 **Stateless modules:**
+
 - Write a bypass string detectable by the broad regex `(?i)N/?A.*Stateless`
 - Example: `N/A — Stateless` or `N/A: Stateless pure function`
 - Validators use this regex rather than exact string matching to tolerate minor LLM punctuation variance
@@ -194,6 +199,7 @@ Document how the module catches and processes errors internally:
 #### 6.1 Complexity Constraints (MISRA C/C++ / CERT-C)
 
 For each `MOD-NNN`:
+
 - **Cyclomatic Complexity Limit**: Maximum allowed (e.g., ≤ 10 per function)
 - **MISRA/CERT-C Rule Annotations**: Specific rules applicable to the module
 - **Coding Standard Deviations**: Any justified deviations with rationale
@@ -201,6 +207,7 @@ For each `MOD-NNN`:
 #### 6.2 Memory Management (Safety-Critical Best Practice)
 
 For each `MOD-NNN`:
+
 - **Dynamic Allocation**: Forbidden after initialization (document init-time allocations)
 - **Unbounded Loops**: Forbidden — all loops must have provable termination
 - **Stack Usage**: Maximum stack depth estimate
@@ -208,6 +215,7 @@ For each `MOD-NNN`:
 #### 6.3 Single Entry/Exit (Safety-Critical Best Practice)
 
 For each `MOD-NNN`:
+
 - **Entry Points**: Exactly one per function
 - **Exit Points**: Exactly one `return` per function for deterministic execution paths
 - **Guard Clauses**: Document how early-return patterns are restructured to single-exit
@@ -224,10 +232,10 @@ After generating all `MOD-NNN` modules, verify coverage:
 If any check fails, flag the specific gaps in the output but do NOT abort generation.
 
 5. **ISO/IEC/IEEE 12207:2017 §8.4.4 Compliance**: For each `MOD-NNN`, confirm the four detailed design requirements from Step 4.0 are satisfied:
-   - Requirement allocation traceable (ARCH and REQ parents documented)
-   - Algorithm specified (pseudocode block present, or `[EXTERNAL]` tag with wrapper doc)
-   - Interface defined (Contract View completed with inputs, outputs, pre/post-conditions)
-   - Design verifiable (paired UTP exists or will be generated by `/speckit.v-model.unit-test`)
+    - Requirement allocation traceable (ARCH and REQ parents documented)
+    - Algorithm specified (pseudocode block present, or `[EXTERNAL]` tag with wrapper doc)
+    - Interface defined (Contract View completed with inputs, outputs, pre/post-conditions)
+    - Design verifiable (paired UTP exists or will be generated by `/speckit.v-model.unit-test`)
 
 ### 8. Write Output
 
@@ -244,6 +252,7 @@ Write the complete module design to `{VMODEL_DIR}/module-design.md` using the te
 #### 8.1 Target Source File(s) Property
 
 Every `MOD-NNN` MUST include a "Target Source File(s)" property:
+
 - Maps the module to one or more physical file paths in the repository
 - Comma-separated for languages with header/implementation pairs (e.g., `src/parser.h, src/parser.cpp`)
 - This bridges specification and codebase — `/speckit.implement` uses this to know where to write code
@@ -253,6 +262,7 @@ Every `MOD-NNN` MUST include a "Target Source File(s)" property:
 ### 9. Report Completion
 
 Display a summary:
+
 - Total modules (MOD) generated
 - Coverage: X/Y ARCH modules covered (must be 100% or flagged)
 - View completeness: N modules with all 4 views, M modules with pseudocode bypass (`[EXTERNAL]`)
@@ -266,10 +276,10 @@ Display a summary:
 
 This command is governed by the following standards for module design:
 
-| Standard | Full Name | Role in this Command |
-|----------|-----------|----------------------|
-| **IEEE 1016:2009** | IEEE Standard for Information Technology — Software Design Descriptions | Detailed design structure: algorithm specification, interface definition, data structure descriptions, and design verification requirements at module level |
-| **ISO/IEC/IEEE 12207:2017** | Systems and Software Engineering — Software Life Cycle Processes | Lifecycle process governance (Clause 8.4 — Software Detailed Design): requirement allocation to modules, algorithm specification completeness, interface definition discipline, and design verification activities. Provides the general-purpose detailed design process independent of any safety domain. |
+| Standard                    | Full Name                                                               | Role in this Command                                                                                                                                                                                                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **IEEE 1016:2009**          | IEEE Standard for Information Technology — Software Design Descriptions | Detailed design structure: algorithm specification, interface definition, data structure descriptions, and design verification requirements at module level                                                                                                                                                |
+| **ISO/IEC/IEEE 12207:2017** | Systems and Software Engineering — Software Life Cycle Processes        | Lifecycle process governance (Clause 8.4 — Software Detailed Design): requirement allocation to modules, algorithm specification completeness, interface definition discipline, and design verification activities. Provides the general-purpose detailed design process independent of any safety domain. |
 
 > **Domain extensions:** If a domain overlay is loaded (Step 2a), domain-specific module design constraints (e.g., MISRA C/C++ per ISO 26262-6 §8.4.5, CERT-C per DO-178C §5.2.3, IEC 62304 §5.4 safety class constraints) are applied alongside these best-practice standards.
 
@@ -278,6 +288,7 @@ This command is governed by the following standards for module design:
 ### Strict Translation Rules
 
 When generating from `architecture-design.md`:
+
 - **DO NOT** invent modules for capabilities not described in the architecture design
 - **DO NOT** decompose the internal algorithms of third-party libraries tagged `[EXTERNAL]`
 - **DO NOT** write vague prose in place of pseudocode (structural validators will reject it)

@@ -22,6 +22,13 @@ export interface AuthorizerContext {
     scopes: string[];
     permissions: string[];
     tokenType: 'user';
+    /**
+     * Whether the caller is a member of the fixed Clerk TEST POOL (ADR-0040) — copied from the verified claim
+     * (`public_metadata.testPrincipal === true`, read by `@kitchensink/clerk-verify`), never from anything a
+     * client can supply. REQUIRED with no default on purpose: every construction site must state it, so a new
+     * one cannot silently mark a test principal as a real user and bypass containment.
+     */
+    testPrincipal: boolean;
 }
 
 export interface ApiGatewayAuthorizerResult {

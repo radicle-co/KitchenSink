@@ -41,11 +41,30 @@ describe('PressScale (web)', () => {
             </PressScale>,
         );
 
-        const className = container.querySelector('span')?.className ?? '';
+        const tokens = (container.querySelector('span')?.className ?? '').split(' ');
         // The scale + transition apply ONLY when motion is safe, so `prefers-reduced-motion: reduce`
-        // yields no press motion. Guard against a regression to an ungated `active:scale`.
-        expect(className).toContain('motion-safe:active:scale-[0.98]');
-        expect(className).toContain('motion-safe:transition-transform');
-        expect(className).not.toMatch(/(?<!safe:)\bactive:scale-\[0\.98\]/);
+        // yields no press motion. Guard against a regression to an ungated scale.
+        expect(tokens).toContain('motion-safe:transition-transform');
+        expect(tokens.filter((token) => token.endsWith('scale-[0.98]'))).toEqual([
+            'motion-safe:not-has-aria-disabled:active:scale-[0.98]',
+        ]);
+    });
+
+    /**
+     * A natively `disabled` child never matches `:active`, but a busy or refused child is `aria-disabled` and
+     * still does — so without this gate a press the child refuses would still shrink it, reading as accepted.
+     */
+    it('does not scale while its child is aria-disabled (a refused press is not feedback)', () => {
+        const { container } = render(
+            <PressScale>
+                <button type="button" aria-disabled="true">
+                    Busy action
+                </button>
+            </PressScale>,
+        );
+
+        const tokens = (container.querySelector('span')?.className ?? '').split(' ');
+        expect(tokens).toContain('motion-safe:not-has-aria-disabled:active:scale-[0.98]');
+        expect(tokens).not.toContain('motion-safe:active:scale-[0.98]');
     });
 });

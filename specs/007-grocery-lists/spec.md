@@ -2,19 +2,19 @@
 
 **Feature Branch**: `007-grocery-lists`
 **Created**: 2026-04-14
-**Last Updated**: 2026-05-10
+**Last Updated**: 2026-08-12
 **Status**: Pre-handoff (open questions resolved — see revision log in review.md)
 **Input**: Split from `001-commise-recipe-app` — grocery list generation from meal plans with ingredient aggregation, deduplication, and online ordering integration.
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                               |
-| --------------------------------------------------------------- | ---------------------------------------------------------- |
-| [006-meal-planning](../006-meal-planning/spec.md)               | **Required** — grocery lists are generated from meal plans |
+| Spec                                                        | Relationship                                               |
+| ----------------------------------------------------------- | ---------------------------------------------------------- |
+| [006-meal-planning](../006-meal-planning/spec.md)           | **Required** — grocery lists are generated from meal plans |
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — ingredient data comes from Recipe entities  |
-| [003-usda-food-data](../003-usda-food-data/spec.md)             | **Required** — ingredient identity and unit normalization  |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — all grocery features require authentication |
-| [010-subscriptions](../010-subscriptions/spec.md)               | **Referenced** — online ordering is a premium feature      |
+| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — ingredient identity and unit normalization  |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all grocery features require authentication |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — online ordering is a premium feature      |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -76,6 +76,130 @@ From a meal plan, a user generates a consolidated grocery list. The list aggrega
 ### Key Entities
 
 - **Grocery List**: An aggregated, deduplicated list of ingredients. May be generated from a meal plan or created standalone. Items can be marked as "already have" or mapped to store products for online ordering. A list retains a nullable reference to its originating meal plan.
+
+## API Contract & Input Validation (GR-015 / GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15 / §15.4 / §15.5](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md) ·
+[ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md). Full
+bindings: [`plan.md` §3.0](./plan.md#30-contract-ownership-and-drift-gr-015) and
+[`plan.md` §3.0a](./plan.md#30a-input-validation-gr-016), which this section summarises and must not contradict.
+**This section applies existing portfolio rules and mints NO new FR** (GR-003). GR-015 decides who **authors**
+the contract; GR-016 decides where that zod **runs**.
+
+### Contract ownership (GR-015)
+
+| Role                                        | Binding for 007                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Owning service (**authors** the zod)        | `@kitchensink/recipe-service` — `packages/services/recipe-service/src/grocery-lists/*.schema.ts` |
+| Schema package (**generated**, committed)   | `@kitchensink/schema-recipe` — `packages/schemas/recipe`, extended, **never hand-edited**        |
+| Consuming client                            | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                         |
+| Consuming apps / feature packages           | `@commise/web`, `@commise/mobile`, and a `packages/apps/commise/features/*` package              |
+| Retailer adapters + order-status polling    | `@kitchensink/recipe-workers` — a **worker plus scoped secrets**, deliberately **not** a service |
+| Domain types (a **different** axis, GR-007) | `@kitchensink/recipe-core` — reused `import type`, never re-declared in the schema package       |
+
+✅ **Ownership is decided, not TBD** (ADR-0017, 2026-08-12): `/api/v1/grocery-lists/*` lands in the existing
+recipe service. 007's coupling to recipes is weaker than 006's or 009's — generation is a **one-shot read** of a
+plan and its recipes — and the genuinely separate part, the **retailer integration, is a worker plus scoped
+secrets, not a service**. **No new deployable is created**, and a **schema package is per SERVICE, not per
+feature** — there is no `@kitchensink/schema-grocery`.
+
+✅ **The `tasks.md` repoint is DONE** (commit `b9221bb3`, 2026-08-12 — the same commit that ratified ADR-0017;
+183 insertions / 82 deletions in that file). All **57** `packages/services/grocery-service` references (counted
+against the pre-repoint revision, `b9221bb3^`) were repointed: task paths now read
+`packages/services/recipe-service/src/grocery-lists/…`, with the retailer adapters and the order-status polling
+under `packages/services/recipe-workers/src/grocery/…`, and the file carries its own `Was → Now` mapping table
+in its _Cross-Cutting_ section. Measured 2026-08-12: the **8** `grocery-service` strings still in that file are
+all historical record — five in the mapping table's `Was` column, one in its count statement, one in a
+superseded-task note, and one naming the hypothetical `@kitchensink/grocery-service` in ADR-0017's flip
+condition. **No prescribed path names a package that does not exist.**
+
+**The service MUST** author every grocery-list, item, pantry-flag and order request/response shape as **zod in
+the service** at `src/grocery-lists/*.schema.ts`, **beside the controller it serves**; validate its own requests
+with **that same zod**; and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
+`@kitchensink/schema-recipe` exports the **zod**, the **`z.infer` types**, a **`CONTRACT_HASH`**, a **barrel**,
+and a **DERIVED `openapi.yaml`**.
+
+⛔ **Three properties of that package that look wrong and are not** — do not "correct" them: the schema package is
+a literal file **COPY** (zod are **runtime values**, so they cannot be derived from themselves, and every package
+exports raw `./src/*.ts`, so there is no bundle-into-`dist` path); turbo wires it with `$TURBO_ROOT$` **`inputs`**
+and **NOT** `dependsOn` (that edge closes the cycle `client → schema → service → client`, and ordering was never
+the requirement because the generated files are **committed**); and `openapi.yaml` is **DERIVED OUTPUT** for
+`oasdiff`, docs and integrators, **NEVER a codegen input** — through JSON Schema you lose `readonly`, branded and
+template-literal types, and discriminated unions flatten.
+
+**The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client half
+got skipped portfolio-wide (276 + 144 lines of independently declared client wire types, agreeing with nothing).
+
+- **No grocery-list wire shape is declared anywhere outside the schema package** — including **type-only**
+  declarations, and including `packages/apps/**` feature packages (GR-015 §15-b.4).
+- Both the **type and the runtime zod** are imported from `@kitchensink/schema-recipe`.
+- A genuinely divergent consumer shape — the check-off list view model, the aisle-grouped projection — is
+  **DERIVED** with `Pick` / `Omit` / `Partial`. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- ⚠️ **`storeMapping` and the item `status` enum are OURS**, authored in the recipe service. What comes back from
+  a retailer is not — see the exception below.
+- ⚠️ **CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): schema-package additions, typed
+  client methods, **response validation on receipt**, and the **contract-skew guard**. "The list screen will add
+  the type" is a **contract fork, not a task**.
+
+**Drift gates** — inherited from GR-015 §15-c, all three: the turbo `inputs` rebuild, the **regenerate-and-diff CI
+gate**, and the **`CONTRACT_HASH` boot assertion**.
+
+⛔ **THE THIRD-PARTY EXCEPTION (GR-015 §15-d) — Walmart and Instacart are APIs we do NOT serve. NEVER converge
+them.** There is no service of ours to own their types and their contracts change without telling us, so their
+adapters are the **OPPOSITE** case:
+
+- They **MUST validate the raw upstream wire shape at the boundary with their own zod**, the moment a body
+  arrives — product/SKU lookup, cart creation, order placement, and order-status polling alike.
+- They **MAY declare their own types**, and the normalized shape they hand back **deliberately differs** from the
+  raw retailer payload. That difference is the normalization, not drift.
+- **NO OpenAPI document is written for Walmart or Instacart**, and their shapes are never folded into
+  `@kitchensink/schema-recipe` as though we owned them. Instacart's `/idp/api/v1/products/*` is likewise
+  **exempt from GR-002** — it is their path, not ours.
+- `packages/clients/usda` is the reference implementation and its `schemas.ts` must **never** be "converged".
+  **Deleting a retailer boundary schema under §15-b is a security regression, not a cleanup**: this path spends
+  real money on a user's behalf.
+
+### Input validation — where that zod RUNS (GR-016)
+
+- **One mechanism, one `400`.** Every input — body, path params (`{id}`, `{itemId}`), query params — is parsed by
+  the recipe service's own authored zod via `createZodDto` plus **`nestjs-zod`'s** `ZodValidationPipe`. ⚠️ Under
+  Nest's **OWN** `ValidationPipe` a `createZodDto` DTO validates **NOTHING while looking correctly wired** (it bit
+  identity's `PATCH /users/me`), and **the only way to observe it is a test that posts a known-bad body to a real
+  route and asserts the `400`**.
+- **`z.strictObject()` for every mutating body** (GR-017 §17-c, ruled 2026-08-12); plain `z.object()` needs a
+  documented forward-compatibility reason, which in practice means a **read** surface. On
+  `PUT /api/v1/grocery-lists/{id}` a silently stripped key is a `200` for a check-off that did not persist, on a
+  screen the user is reading while standing in a shop. ⚠️ The **retailer's** inbound bodies are the opposite case
+  and tolerate unknown keys **deliberately**.
+- **Requests are validated in the service; responses are validated ON RECEIPT by the consumer** — including the
+  retailer's responses, which are **input to us**. ⛔ Server-side **response** validation is **DEFERRED by owner
+  decision** (GR-016 §16-g) and **MUST NOT be "completed"**.
+- **⚠️ The ORDER path spends real money, so its input bounds are a financial control.**
+  `POST /api/v1/grocery-lists/{id}/order` is validated at the boundary **before any retailer call** — an unbounded
+  quantity, a duplicated item or an out-of-enum store is rejected here rather than becoming a cart.
+- **⛔ The storage floor — an ASSERTION, never a derivation.** `grocery_list_items.usda_fdc_id` and `sort_order`
+  are `int4` (ceiling **2,147,483,647**); `quantity_g` is `DECIMAL` **with no declared `(p,s)`**, so ⚠️ **the
+  precision and scale must be declared before it can be a floor at all** — bare `numeric` in PostgreSQL is
+  effectively unbounded and yields nothing to assert against; and `status`, `store` and `category` are
+  **enum-by-comment `TEXT`**, so the column enforces nothing and the domain must be written into the zod. No zod
+  is generated from the storage schema and **no storage type enters a wire schema**. **A floor is not a target**:
+  `grocery_lists.name` is unbounded `text()`, so its limit is a **product decision 007 owns**. Enforcement is the
+  per-service parity test of GR-017 §17-d, its mapping asserted complete **in both directions**.
+- **Non-HTTP ingress — 007 has two.** (1) A **`@Cron` pantry-expiry prune**, implied by `user_pantry_items`' 7-day
+  TTL, and (2) the **order-status polling** loop. Both run in `@kitchensink/recipe-workers` and both parse their
+  own event, because "the payload is ours" is an assumption about a deploy that has already drifted once.
+  **Order status is POLLING, not webhooks** — a deliberate MVP decision, since neither candidate partner
+  guarantees webhook delivery. ⚠️ **If a signed retailer callback is ever added it gets signature THEN schema**,
+  in that order (a signature proves **origin, not shape**), and per GR-018 §18-c a sender that retries on any
+  non-2xx is answered **`2xx`** with the rejection in the body, the logs, a per-`reason` counter and an alarm.
+- **No request-derived value reaches `sql.raw()`**; a request-selected sort or aisle grouping maps through a
+  validated enum to a **closed allowlist of literals** in code.
 
 ## Success Criteria _(mandatory)_
 

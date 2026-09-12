@@ -245,9 +245,22 @@ export function computedContrast(element: Element, options: ComputedContrastOpti
     const { surface = palette.white } = options;
     const style = window.getComputedStyle(element);
 
-    // An unrendered or unstyled leaf reports an EMPTY (or otherwise unreadable) colour. Left alone that
-    // reaches culori as `undefined` and surfaces as an inscrutable "cannot read 'alpha'", which reads like a
-    // tooling bug rather than what it is: a test measuring an element it never actually rendered.
+    // ⛔ THE CONDITION IS "NEVER RENDERED", AND IT IS NOW TESTED DIRECTLY.
+    //
+    // This used to infer it from an EMPTY computed `color`, which jsdom 24 reported for a detached element.
+    // jsdom 30 reports `rgb(0, 0, 0)` for detached and attached alike — measured — so the inference is dead
+    // and the guard silently stopped guarding. `isConnected` asks the question the comment always described:
+    // a test measuring an element it never put in the document proves nothing, whatever colour jsdom
+    // invents for it.
+    if (!element.isConnected) {
+        throw new Error(
+            'Expected the element to be in the document before measuring its computed `color`; ' +
+                'measuring nothing proves nothing.',
+        );
+    }
+
+    // Still checked, for a colour that is present but genuinely unreadable — left alone it reaches culori as
+    // `undefined` and surfaces as an inscrutable "cannot read 'alpha'".
     if (parse(style.color) === undefined) {
         throw new Error('Expected the element to carry a computed `color`; measuring nothing proves nothing.');
     }

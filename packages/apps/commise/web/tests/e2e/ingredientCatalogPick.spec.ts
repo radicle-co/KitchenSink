@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { E2E_INGREDIENT_IDS, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -52,7 +52,10 @@ test.describe('blended ingredient typeahead — food-catalog suggestions (search
         // The line landed — with the name and status the ADMIT response supplied, not the suggestion's. A
         // regression that resolved straight off the suggestion would have no valid id to put here.
         await expect(page.getByLabel('Ingredient 1 name')).toHaveValue('Pepper, black, ground');
-        await expect(page.getByLabel('Ingredient 1 status')).toHaveText('Resolved');
+        // EDITED for plan 002 V1: a matched row shows NO status word (SPECIFY.1 rows 3-4, "a match is not news"), and
+        // the old "Ingredient 1 status" label is gone. A match now reads as the row's info glyph, named for its food.
+        await expect(page.getByRole('button', { name: 'About Pepper, black, ground' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'About Pepper, black, ground' })).toHaveAccessibleDescription('');
 
         // …and it is a real catalog id, so the recipe publishes (Publish validation rejects a line whose
         // `ingredientId` does not resolve). This is the falsifiable end of the story.
@@ -60,7 +63,7 @@ test.describe('blended ingredient typeahead — food-catalog suggestions (search
         await expect(page.getByText('Step 3 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Simmer, then season generously.');
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 
@@ -89,7 +92,7 @@ test.describe('blended ingredient typeahead — food-catalog suggestions (search
                         {
                             provenance: 'local',
                             ingredient: {
-                                id: 'ing_salt',
+                                id: E2E_INGREDIENT_IDS.salt,
                                 name: 'Salt',
                                 foodId: 'food_salt',
                                 isUserEntered: false,

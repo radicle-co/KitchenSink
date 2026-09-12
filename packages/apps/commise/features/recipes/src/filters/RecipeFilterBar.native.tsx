@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe filter bar (FR-006 / W4 S2).
  *
- * The React Native leaf of {@link import('./RecipeFilterBar.js').RecipeFilterBar} — the same P9
+ * The React Native leaf of `RecipeFilterBar` — the same P9
  * descriptor-driven contract (facets are DATA dispatched through a `kind → renderer` map), rendered with RN
  * primitives. Dietary + Tags are multi-select chips, Cuisine is single-select (the search API filters by ONE
  * cuisine), Prep-time + Cook-time (REQ-030f) + Total-time are bucket ladders, and Ingredients (FR-006 gap #3)
@@ -14,12 +14,13 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
-import type { Ingredient } from '@kitchensink/recipe-core';
+import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
+import { Sheet } from '@commise/ui/sheet';
 import { useState, type FC, type ReactElement } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { filterMessages, type FilterMessages } from './messages.js';
 import {
     TIME_BUCKETS_MINUTES,
@@ -28,6 +29,7 @@ import {
     formatFacetChipName,
     hasActiveFilters,
     type FacetDimension,
+    type FoodIngredient,
     type RecipeFacetChip,
     type RecipeFilterBarProps,
 } from './model.js';
@@ -54,47 +56,10 @@ const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
     { id: 'ingredients', kind: 'ingredientTypeahead', labelKey: 'ingredientsLabel' },
 ];
 
-/**
- * The bottom sheet's base edge padding, in dp, BEFORE the device's window insets are added. Exported so a
- * test can assert the COMPOSED padding rather than restating the literal (which would still pass with the
- * inset term dropped — exactly the defect this constant's consumer exists to prevent).
- */
-export const FILTER_SHEET_PADDING = nativeTokens.spacing[4];
-
-/** The `timeField` → setter map the `timeBucket` renderer dispatches on. */
-function timeSetterFor(
-    timeField: 'maxPrepTime' | 'maxCookTime' | 'maxTotalTime',
-    setters: {
-        onSetMaxPrepTime: (minutes: number | undefined) => void;
-        onSetMaxCookTime: (minutes: number | undefined) => void;
-        onSetMaxTotalTime: (minutes: number | undefined) => void;
-    },
-): (minutes: number | undefined) => void {
-    if (timeField === 'maxPrepTime') {
-        return setters.onSetMaxPrepTime;
-    }
-
-    if (timeField === 'maxCookTime') {
-        return setters.onSetMaxCookTime;
-    }
-
-    return setters.onSetMaxTotalTime;
-}
-
-export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
-    facets,
-    filters,
-    onToggleFacet,
-    onSetCuisine,
-    onSetMaxPrepTime,
-    onSetMaxCookTime,
-    onSetMaxTotalTime,
-    ingredientSearch,
-    onAddIngredientFilter,
-    onRemoveIngredientFilter,
-    onClearAll,
-}) => {
+export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ingredientSearch, onFilterAction }) => {
     const m = useMessages(filterMessages);
+    // The FR-010a minimum copy is shared by all four ingredient-search surfaces — see its message doc.
+    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const locale = useLocale();
     const countLabels = { one: m.chipCountOne, other: m.chipCountOther };
 
@@ -155,7 +120,11 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
             return group(
                 m[labelKey],
-                chips.map((chip) => chipButton(chip, () => onToggleFacet(dimension!, chip.value))),
+                chips.map((chip) =>
+                    chipButton(chip, () =>
+                        onFilterAction({ kind: 'toggleFacet', dimension: dimension!, value: chip.value }),
+                    ),
+                ),
             );
         },
         singleChip: ({ labelKey }) => {
@@ -167,11 +136,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
             return group(
                 m[labelKey],
-                chips.map((chip) => chipButton(chip, () => onSetCuisine(chip.value))),
+                chips.map((chip) =>
+                    chipButton(chip, () => onFilterAction({ kind: 'setCuisine', cuisine: chip.value })),
+                ),
             );
         },
         timeBucket: ({ timeField, labelKey }) => {
-            const set = timeSetterFor(timeField!, { onSetMaxPrepTime, onSetMaxCookTime, onSetMaxTotalTime });
+            const set = (minutes: number | undefined): void =>
+                onFilterAction({ kind: 'setTimeBound', field: timeField!, minutes });
 
             return group(
                 m[labelKey],
@@ -184,11 +156,11 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
         },
         ingredientTypeahead: ({ labelKey }) => {
             const selected = filters.ingredients ?? [];
-            const selectedIds = new Set(selected.map((entry) => entry.id));
+            const selectedIds = new Set(selected.map((entry) => entry.foodId));
             const { viewState } = ingredientSearch;
-            const visibleResults: readonly Ingredient[] =
+            const visibleResults: readonly FoodIngredient[] =
                 viewState.kind === 'results'
-                    ? viewState.results.filter((ingredient) => !selectedIds.has(ingredient.id))
+                    ? viewState.results.filter((ingredient) => !selectedIds.has(ingredient.foodId))
                     : [];
 
             return group(m[labelKey], [
@@ -204,6 +176,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                     {/* The label is the region's CONTENT, not only its `aria-label`: an empty live region has
                         nothing to render and nothing to announce (a live region announces content CHANGES).
                         Same doctrine as the web leaf and the mobile `LoadingState`. */}
+                    {/* 003-FR-010a — see the web leaf for why this is not the no-matches copy and not
+                        a live region. */}
+                    {viewState.kind === 'tooShort' && (
+                        <Text style={styles.groupLabel}>
+                            {fillTemplate(minimumCopy.tooShort, { minimum: viewState.minimum })}
+                        </Text>
+                    )}
+
                     {viewState.kind === 'searching' && (
                         <View role="status" aria-label={m.ingredientSearching}>
                             <Text style={styles.groupLabel}>{m.ingredientSearching}</Text>
@@ -235,7 +215,12 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                                     accessibilityLabel={fillTemplate(m.addIngredientFilter, {
                                         name: ingredient.name,
                                     })}
-                                    onPress={() => onAddIngredientFilter({ id: ingredient.id, name: ingredient.name })}
+                                    onPress={() =>
+                                        onFilterAction({
+                                            kind: 'addIngredient',
+                                            ingredient: { foodId: ingredient.foodId, name: ingredient.name },
+                                        })
+                                    }
                                     style={styles.ingredientOption}
                                 >
                                     <Text style={styles.ingredientOptionText}>{ingredient.name}</Text>
@@ -248,10 +233,10 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         <View style={styles.chipRow}>
                             {selected.map((entry) => (
                                 <Pressable
-                                    key={entry.id}
+                                    key={entry.foodId}
                                     accessibilityRole="button"
                                     accessibilityLabel={fillTemplate(m.removeIngredientFilter, { name: entry.name })}
-                                    onPress={() => onRemoveIngredientFilter(entry.id)}
+                                    onPress={() => onFilterAction({ kind: 'removeIngredient', foodId: entry.foodId })}
                                     style={[styles.chip, styles.chipSelected]}
                                 >
                                     <Text style={styles.chipTextSelected}>{entry.name}</Text>
@@ -266,13 +251,22 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
     // Collapse the ~7 always-open facet groups into a single "Filters" button + a bottom sheet (U7): the
     // groups above the results were eating the phone viewport before a single card was visible. The button
-    // carries an active-count badge; the sheet holds every facet + Clear-all, unchanged.
+    // carries an active-count badge; the sheet holds every facet + Clear-all. The sheet is the design system's
+    // (`@commise/ui/sheet`, §S8.1a), which owns the insets, the keyboard and every close route.
     const [open, setOpen] = useState(false);
-    // An Android `Modal` window spans the WHOLE display (the app is edge-to-edge, as `FullScreenSheet.native`
-    // already compensates for), and this sheet is bottom-ANCHORED — so without the device's bottom inset its
-    // footer "Done" lands inside the navigation bar's own tap region and every press on it is swallowed by
-    // the system bar. Left/right cover a landscape cutout for the same reason.
-    const insets = useSafeAreaInsets();
+    // Advances on EVERY close, whatever the route (Done, Close, the scrim, a swipe, back), so the trigger takes
+    // the screen-reader cursor back each time: React Native cannot tell the Sheet where that cursor was.
+    const [closes, setCloses] = useState(0);
+    const triggerRef = useScreenReaderFocusOnSignal<View>(closes);
+
+    const onOpenChange = (next: boolean): void => {
+        setOpen(next);
+
+        if (!next) {
+            setCloses((count) => count + 1);
+        }
+    };
+
     const activeCount = countActiveFilters(filters);
     const triggerLabel =
         activeCount > 0 ? fillTemplate(m.filtersButtonActive, { count: activeCount }) : m.filtersButton;
@@ -280,9 +274,10 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     return (
         <View style={styles.bar}>
             <Pressable
+                ref={triggerRef}
                 accessibilityRole="button"
                 accessibilityLabel={triggerLabel}
-                onPress={() => setOpen(true)}
+                onPress={() => onOpenChange(true)}
                 style={styles.trigger}
             >
                 <Text style={styles.triggerText}>{m.filtersButton}</Text>
@@ -293,58 +288,46 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                 )}
             </Pressable>
 
-            <Modal visible={open} transparent onRequestClose={() => setOpen(false)}>
-                <View style={styles.sheetBackdrop}>
-                    <View
-                        role="group"
-                        aria-label={m.barLabel}
-                        style={[
-                            styles.sheet,
-                            {
-                                paddingBottom: FILTER_SHEET_PADDING + insets.bottom,
-                                paddingLeft: FILTER_SHEET_PADDING + insets.left,
-                                paddingRight: FILTER_SHEET_PADDING + insets.right,
-                            },
-                        ]}
+            <Sheet
+                open={open}
+                onOpenChange={onOpenChange}
+                title={m.barLabel}
+                closeLabel={m.filtersClose}
+                size="content"
+                footer={
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={m.filtersDone}
+                        onPress={() => onOpenChange(false)}
+                        style={styles.done}
                     >
-                        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-                            {FACET_DESCRIPTORS.map((descriptor) => (
-                                <View key={descriptor.id}>{renderers[descriptor.kind](descriptor)}</View>
-                            ))}
+                        <Text style={styles.doneText}>{m.filtersDone}</Text>
+                    </Pressable>
+                }
+            >
+                <View style={styles.container}>
+                    {FACET_DESCRIPTORS.map((descriptor) => (
+                        <View key={descriptor.id}>{renderers[descriptor.kind](descriptor)}</View>
+                    ))}
 
-                            {hasActiveFilters(filters) && (
-                                <Pressable
-                                    accessibilityRole="button"
-                                    accessibilityLabel={formatRecipeCount(
-                                        activeCount,
-                                        { one: m.clearOne, other: m.clearOther },
-                                        locale,
-                                    )}
-                                    onPress={onClearAll}
-                                    style={styles.clear}
-                                >
-                                    <Text style={styles.clearText}>
-                                        {formatRecipeCount(
-                                            activeCount,
-                                            { one: m.clearOne, other: m.clearOther },
-                                            locale,
-                                        )}
-                                    </Text>
-                                </Pressable>
-                            )}
-                        </ScrollView>
-
+                    {hasActiveFilters(filters) && (
                         <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel={m.filtersDone}
-                            onPress={() => setOpen(false)}
-                            style={styles.done}
+                            accessibilityLabel={formatRecipeCount(
+                                activeCount,
+                                { one: m.clearOne, other: m.clearOther },
+                                locale,
+                            )}
+                            onPress={() => onFilterAction({ kind: 'clearAll' })}
+                            style={styles.clear}
                         >
-                            <Text style={styles.doneText}>{m.filtersDone}</Text>
+                            <Text style={styles.clearText}>
+                                {formatRecipeCount(activeCount, { one: m.clearOne, other: m.clearOther }, locale)}
+                            </Text>
                         </Pressable>
-                    </View>
+                    )}
                 </View>
-            </Modal>
+            </Sheet>
         </View>
     );
 };
@@ -363,9 +346,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
     },
     triggerText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.charcoal },
+    // A 22 dp FLOOR, not a fixed height (E2 I10): at a large font scale the digit outgrew a fixed circle and sat
+    // white on white outside it. The padding gives a scaled digit room, so the badge grows with the text.
     badge: {
         minWidth: 22,
-        height: 22,
+        minHeight: 22,
+        paddingVertical: 2,
         borderRadius: nativeTokens.radius.full,
         backgroundColor: palette.seafoam,
         alignItems: 'center',
@@ -373,17 +359,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[1],
     },
     badgeText: { fontSize: nativeTokens.fontSize.overline, fontWeight: '700', color: palette.white },
-    sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(45, 52, 54, 0.4)' },
-    sheet: {
-        maxHeight: '85%',
-        backgroundColor: palette.white,
-        borderTopLeftRadius: nativeTokens.radius.xl,
-        borderTopRightRadius: nativeTokens.radius.xl,
-        paddingTop: FILTER_SHEET_PADDING,
-        // Bottom/left/right are composed PER RENDER from the device insets (see the `insets` read above) —
-        // deliberately absent here so a static rule can never win over the inset-aware value.
-        gap: nativeTokens.spacing[3],
-    },
     done: {
         minHeight: 44,
         alignItems: 'center',

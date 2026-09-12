@@ -1,5 +1,5 @@
 /**
- * Typed error hierarchy for {@link UsdaApiClient}. Every error extends `Error`, calls
+ * Typed error hierarchy for `UsdaApiClient`. Every error extends `Error`, calls
  * `Object.setPrototypeOf` (so `instanceof` survives transpilation), and ships a matching
  * `is*` type guard per the project constitution.
  */

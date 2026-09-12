@@ -1,22 +1,22 @@
 ---
 description: Decompose system components into IEEE 42010/Kruchten 4+1 architecture
-  modules with four mandatory views and many-to-many SYS↔ARCH traceability.
+    modules with four mandatory views and many-to-many SYS↔ARCH traceability.
 handoffs:
-- label: Generate Integration Tests
-  agent: speckit.v-model.integration-test
-  prompt: Generate the integration test plan for this architecture design
-  send: true
-- label: Back to System Design
-  agent: speckit.v-model.system-design
-  prompt: Review or update the system design
+    - label: Generate Integration Tests
+      agent: speckit.v-model.integration-test
+      prompt: Generate the integration test plan for this architecture design
+      send: true
+    - label: Back to System Design
+      agent: speckit.v-model.system-design
+      prompt: Review or update the system design
 scripts:
-  sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-system-design
-  ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireSystemDesign
+    sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-system-design
+    ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireSystemDesign
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -28,6 +28,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Goal
 
 Decompose a V-Model System Design (`system-design.md`) into an IEEE 42010/Kruchten 4+1-compliant Architecture Description where **every system component maps to at least one architecture module** (`ARCH-NNN`). The output organizes modules into four mandatory views (Logical, Process, Interface, Data Flow) and supports:
+
 - Many-to-many SYS↔ARCH relationships
 - `[CROSS-CUTTING]` tag for infrastructure/utility modules
 - `[DERIVED MODULE]` flagging for modules not traceable to SYS
@@ -42,6 +43,7 @@ This document becomes the left side of V-Model Level 3, later paired with integr
 Run `.specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-system-design` from the repository root and parse the JSON output.
 
 The script returns JSON with these keys:
+
 - `VMODEL_DIR`: Path to `specs/{feature}/v-model/` directory
 - `FEATURE_DIR`: Path to `specs/{feature}/` directory
 - `BRANCH`: Current branch name
@@ -56,30 +58,32 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 1. **Load the template**: Read `.specify/templates/architecture-design-template.md` from the extension directory to understand the required output structure.
 
 2. **Load system design**: Read `system-design.md` from the `VMODEL_DIR` path. This is the **sole source of truth** for what the architecture must implement.
-   - If `system-design.md` does NOT exist: ERROR — "System design not found. Run `/speckit.v-model.system-design` first."
-   - Extract all `SYS-NNN` identifiers from the Decomposition View
-   - Extract the Dependency View (feeds Process View concurrency model)
-   - Extract the Interface View (feeds architecture Interface View contracts)
-   - Note the total SYS count — every SYS must appear as a parent in at least one ARCH
+    - If `system-design.md` does NOT exist: ERROR — "System design not found. Run `/speckit.v-model.system-design` first."
+    - Extract all `SYS-NNN` identifiers from the Decomposition View
+    - Extract the Dependency View (feeds Process View concurrency model)
+    - Extract the Interface View (feeds architecture Interface View contracts)
+    - Note the total SYS count — every SYS must appear as a parent in at least one ARCH
 
 3. **Load requirements**: Read `requirements.md` from the `REQUIREMENTS` path for supplementary domain context. This provides insight into the problem domain but does NOT override system design.
 
 4. **Load existing architecture design** (if `AVAILABLE_DOCS` contains `"architecture-design.md"`):
-   - Read the existing `architecture-design.md` to preserve existing ARCH IDs and content
-   - Identify the highest existing ARCH number to continue the sequence
-   - New modules append after existing ones — **never renumber**
+    - Read the existing `architecture-design.md` to preserve existing ARCH IDs and content
+    - Identify the highest existing ARCH number to continue the sequence
+    - New modules append after existing ones — **never renumber**
 
 ### 2a. Domain Configuration
 
 Load `v-model-config.yml` (if it exists at the repository root).
 
 **If `domain` is set** (e.g., `iso_26262`, `do_178c`, `iec_62304`):
+
 1. Read the command overlay: `commands/overlays/{domain}/architecture-design.md`
-   - If it exists: note the safety-critical architecture sections (e.g., safety integrity decomposition, defensive programming requirements, temporal constraints)
-   - If it does not exist: this domain does not extend this command — proceed with base only
+    - If it exists: note the safety-critical architecture sections (e.g., safety integrity decomposition, defensive programming requirements, temporal constraints)
+    - If it does not exist: this domain does not extend this command — proceed with base only
 2. Where the base command has a domain-variant section (marked with "If a domain overlay is loaded, prefer its content"), use the overlay's version instead of the base default
 
 **If `domain` is empty or absent:**
+
 - Proceed with the base command only
 - Use generic best-practice terminology throughout
 - Do NOT include any safety-critical or domain-specific regulatory references
@@ -91,15 +95,15 @@ rules before generating new content:
 
 1. **Never delete an ID** — mark as `[DEPRECATED]`
 2. **Deprecation types:**
-   - `[DEPRECATED — Superseded by ARCH-NNN]`: Replaced by a new module
-   - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
+    - `[DEPRECATED — Superseded by ARCH-NNN]`: Replaced by a new module
+    - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
 3. **Suspect detection from parent SYS:** If a parent SYS (in `system-design.md`)
    is deprecated or modified, mark each ARCH that traces to it as
    `[SUSPECT — Parent SYS-NNN {deprecated|modified}]`.
 4. **Suspect resolution:** For each suspect ARCH:
-   - **Re-parent** to the superseding SYS (if component continues under a new ID)
-   - **Deprecate** (if the component is withdrawn — cascade to downstream MOD, ITP)
-   - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
+    - **Re-parent** to the superseding SYS (if component continues under a new ID)
+    - **Deprecate** (if the component is withdrawn — cascade to downstream MOD, ITP)
+    - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
 5. **Modified modules:** Update content in-place, preserve the original ARCH ID.
    Downstream artifacts (MOD, ITP) tracing to this ARCH become suspect.
 
@@ -119,8 +123,8 @@ For each architecture module identified during decomposition:
 3. **Describe the module**: What it does, its responsibility boundary. Must be specific enough to define an API contract — if a description is too vague to derive inputs/outputs/exceptions, emit a warning.
 
 4. **Map parent system components**: List ALL `SYS-NNN` identifiers that this module implements as a comma-separated list. Many-to-many mapping is expected:
-   - A single ARCH may implement multiple SYS (e.g., `ARCH-003` implements `SYS-001, SYS-005`)
-   - A single SYS may be implemented by multiple ARCH modules (e.g., `SYS-001` is a parent of both `ARCH-001` and `ARCH-003`)
+    - A single ARCH may implement multiple SYS (e.g., `ARCH-003` implements `SYS-001, SYS-005`)
+    - A single SYS may be implemented by multiple ARCH modules (e.g., `SYS-001` is a parent of both `ARCH-001` and `ARCH-003`)
 
 5. **Classify type**: Component | Service | Library | Utility | Adapter
 
@@ -136,9 +140,9 @@ For each architecture module identified during decomposition:
 - Do NOT assign an `ARCH-NNN` to derived modules — halt and flag
 - List all derived modules in the "Derived Modules" section of the output
 - The human must resolve each one before proceeding to integration test generation:
-  1. Add the capability to `system-design.md` (creating a new SYS-NNN)
-  2. Reject it as unnecessary
-  3. Tag as `[CROSS-CUTTING]`
+    1. Add the capability to `system-design.md` (creating a new SYS-NNN)
+    2. Reject it as unnecessary
+    3. Tag as `[CROSS-CUTTING]`
 
 #### Anti-Pattern Guard
 
@@ -152,9 +156,10 @@ For each architecture module identified during decomposition:
 The primary view. Fill the Logical View table from the template with all ARCH modules:
 
 | ARCH ID | Name | Description | Parent System Components | Type |
-|---------|------|-------------|--------------------------|------|
+| ------- | ---- | ----------- | ------------------------ | ---- |
 
 **Rules**:
+
 - Every `SYS-NNN` from `system-design.md` must appear in at least one row's "Parent System Components" column
 - Use comma-separated `SYS-NNN` list for many-to-many (e.g., `SYS-001, SYS-004`)
 - Cross-cutting modules appear in the same table with `[CROSS-CUTTING]` tag and rationale
@@ -170,6 +175,7 @@ Document runtime module interactions using Mermaid sequence diagrams:
 4. Document execution order constraints and timing dependencies
 
 **Rules**:
+
 - Use Mermaid `sequenceDiagram` syntax — diagrams MUST be syntactically valid
 - Reference `ARCH-NNN` IDs as participants
 - Feed from the system design's Dependency View for inter-component relationships
@@ -179,13 +185,14 @@ Document runtime module interactions using Mermaid sequence diagrams:
 
 For **every** ARCH-NNN module, define explicit interface contracts:
 
-| Direction | Name | Type | Format | Constraints |
-|-----------|------|------|--------|-------------|
-| Input | [param] | [type] | [format] | [range/required] |
-| Output | [return] | [type] | [format] | [guarantees] |
-| Exception | [error] | [code] | [format] | [when thrown] |
+| Direction | Name     | Type   | Format   | Constraints      |
+| --------- | -------- | ------ | -------- | ---------------- |
+| Input     | [param]  | [type] | [format] | [range/required] |
+| Output    | [return] | [type] | [format] | [guarantees]     |
+| Exception | [error]  | [code] | [format] | [when thrown]    |
 
 **Rules**:
+
 - No "black box" modules — every ARCH module MUST have a contract table
 - Distinguish between synchronous and asynchronous interfaces
 - Error contracts directly drive **Interface Fault Injection** testing
@@ -197,9 +204,10 @@ For **every** ARCH-NNN module, define explicit interface contracts:
 Trace data through architecture modules:
 
 | Stage | Module | Input Format | Transformation | Output Format |
-|-------|--------|-------------|----------------|---------------|
+| ----- | ------ | ------------ | -------------- | ------------- |
 
 **Rules**:
+
 - Show intermediate data formats at each stage
 - Reference `ARCH-NNN` IDs in the chain
 - Each flow traces input → transformation → output with intermediate formats
@@ -213,11 +221,11 @@ After generating the four architecture views, perform a scenario-based fitness-f
 
 For each significant architectural decision (one that affects more than one view or introduces a cross-cutting module), document its quality attribute rationale. This anchors design choices to auditable 25010 evidence:
 
-| Architecture Decision | Quality Characteristic (ISO 25010) | Trade-off Accepted |
-|----------------------|------------------------------------|--------------------|
-| e.g., Microservices decomposition | Flexibility §4.2.7 ↑, Performance Efficiency §4.2.3 ↓ | Latency overhead accepted for independent deployability |
-| e.g., Read-through cache layer | Performance Efficiency §4.2.3 ↑, Consistency risk | Cache invalidation strategy documented in Interface View |
-| e.g., Redundant module instances | Reliability §4.2.2 ↑, Resource Utilisation §4.2.3 ↓ | Extra resource cost justified by fault-tolerance requirement |
+| Architecture Decision             | Quality Characteristic (ISO 25010)                    | Trade-off Accepted                                           |
+| --------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
+| e.g., Microservices decomposition | Flexibility §4.2.7 ↑, Performance Efficiency §4.2.3 ↓ | Latency overhead accepted for independent deployability      |
+| e.g., Read-through cache layer    | Performance Efficiency §4.2.3 ↑, Consistency risk     | Cache invalidation strategy documented in Interface View     |
+| e.g., Redundant module instances  | Reliability §4.2.2 ↑, Resource Utilisation §4.2.3 ↓   | Extra resource cost justified by fault-tolerance requirement |
 
 Populate one row per significant ARCH decision. Explicitly name the ISO 25010 characteristic(s) impacted.
 
@@ -225,10 +233,10 @@ Populate one row per significant ARCH decision. Explicitly name the ISO 25010 ch
 
 Evaluate the architecture against the top stakeholder concerns (quality scenarios). For each concern evaluate at minimum Reliability, Performance Efficiency, Security, and Maintainability:
 
-| Quality Scenario | Architecture Response (ARCH-NNN) | Risk / Sensitivity Point | Verdict |
-|-----------------|-----------------------------------|--------------------------|---------|
-| e.g., 99.9% availability under peak load | ARCH-NNN (load balancer) + ARCH-NNN (health check) | Single-region failure not handled | ⚠️ Partial |
-| e.g., Data encrypted at rest and in transit | ARCH-NNN (encryption service) | Key rotation strategy TBD | ⚠️ Partial |
+| Quality Scenario                            | Architecture Response (ARCH-NNN)                   | Risk / Sensitivity Point          | Verdict    |
+| ------------------------------------------- | -------------------------------------------------- | --------------------------------- | ---------- |
+| e.g., 99.9% availability under peak load    | ARCH-NNN (load balancer) + ARCH-NNN (health check) | Single-region failure not handled | ⚠️ Partial |
+| e.g., Data encrypted at rest and in transit | ARCH-NNN (encryption service)                      | Key rotation strategy TBD         | ⚠️ Partial |
 
 - ✅ Addressed: architecture fully satisfies the scenario
 - ⚠️ Partially Addressed: gap identified — flag as `[ARCH CONCERN: description]` for human resolution
@@ -272,6 +280,7 @@ Write the complete architecture design document to `{VMODEL_DIR}/architecture-de
 ### 9. Report Completion
 
 Display a summary:
+
 - Total architecture modules generated (by type: Component/Service/Library/Utility/Adapter)
 - Cross-cutting module count (with rationale summary)
 - Forward coverage: X/Y SYS components covered (must be 100% or flagged)
@@ -286,12 +295,12 @@ Display a summary:
 
 This command is governed by the following standards for architecture design:
 
-| Standard | Full Name | Role in this Command |
-|----------|-----------|----------------------|
-| **IEEE 42010:2011** | Systems and Software Engineering — Architecture Description | Primary description standard: architecture description structure, viewpoint definitions, architecture rationale, and correspondence rules |
-| **Kruchten 4+1** | 4+1 Architectural View Model (P. Kruchten, 1995) | Mandatory view model: Logical, Process, Interface, and Data Flow views (adapted from 4+1's Logical, Process, Physical, Development + Scenarios) |
-| **ISO/IEC 42030:2019** | Software, Systems and Enterprise — Architecture Evaluation | Architecture evaluation: scenario-based fitness-for-purpose analysis, trade-off assessment (à la ATAM), and evaluation against stakeholder concerns. Completes the describe (IEEE 42010) → evaluate (ISO 42030) cycle. Applied in the Architecture Evaluation step after views are generated. |
-| **ISO/IEC 25010:2023** | Systems and Software Quality Models | Quality attribute justification: architectural decisions are anchored to 25010 quality characteristics (e.g., "microservices for Flexibility [25010 §4.2.5]", "redundancy for Reliability [25010 §4.2.2]") making design rationale auditable |
+| Standard               | Full Name                                                   | Role in this Command                                                                                                                                                                                                                                                                          |
+| ---------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **IEEE 42010:2011**    | Systems and Software Engineering — Architecture Description | Primary description standard: architecture description structure, viewpoint definitions, architecture rationale, and correspondence rules                                                                                                                                                     |
+| **Kruchten 4+1**       | 4+1 Architectural View Model (P. Kruchten, 1995)            | Mandatory view model: Logical, Process, Interface, and Data Flow views (adapted from 4+1's Logical, Process, Physical, Development + Scenarios)                                                                                                                                               |
+| **ISO/IEC 42030:2019** | Software, Systems and Enterprise — Architecture Evaluation  | Architecture evaluation: scenario-based fitness-for-purpose analysis, trade-off assessment (à la ATAM), and evaluation against stakeholder concerns. Completes the describe (IEEE 42010) → evaluate (ISO 42030) cycle. Applied in the Architecture Evaluation step after views are generated. |
+| **ISO/IEC 25010:2023** | Systems and Software Quality Models                         | Quality attribute justification: architectural decisions are anchored to 25010 quality characteristics (e.g., "microservices for Flexibility [25010 §4.2.5]", "redundancy for Reliability [25010 §4.2.2]") making design rationale auditable                                                  |
 
 > **Domain extensions:** If a domain overlay is loaded (Step 2a), additional safety-integrity architecture requirements (e.g., ISO 26262-9 §5 ASIL Decomposition, DO-178C §6.3.3 Defensive Programming) are applied alongside these best-practice standards.
 
@@ -300,6 +309,7 @@ This command is governed by the following standards for architecture design:
 ### Strict Translation Rules
 
 When decomposing from `system-design.md`:
+
 - **DO NOT** invent capabilities, modules, or components not traceable to a SYS-NNN or justified as `[CROSS-CUTTING]`
 - **DO NOT** add architecture modules based on "common sense" or "best practices" without traceability
 - **DO** flag genuinely necessary but undocumented capabilities as `[DERIVED MODULE]`

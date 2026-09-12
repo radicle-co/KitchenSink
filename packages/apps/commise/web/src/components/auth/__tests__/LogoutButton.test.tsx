@@ -89,7 +89,9 @@ describe('LogoutButton (U3)', () => {
         await user.click(screen.getByRole('button', { name: 'Sign out of your account' }));
 
         const busy = await screen.findByRole('button', { name: 'Signing out…' });
-        expect(busy).toHaveProperty('disabled', true);
+        // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus — WCAG 2.2 SC 2.4.3).
+        expect(busy).toHaveAttribute('aria-disabled', 'true');
+        expect(busy).toHaveProperty('disabled', false);
         expect(busy.getAttribute('aria-busy')).toBe('true');
 
         resolveSignOut?.();

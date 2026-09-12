@@ -30,9 +30,10 @@ import {
     type RecipeCollectionRow,
 } from '../../database/schema/collections.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
-import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
-import { withTransaction, type RecipeTx, type Writer } from '../../database/unit-of-work.js';
+import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipePredicates.js';
+import { withTransaction, type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
+import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 /** Row shape for creating a collection (owner resolved from the principal by the service). */
 export interface CreateCollectionRow {
@@ -147,7 +148,7 @@ export class CollectionsDal {
      * insert, within ONE Postgres transaction (mirrors `PhotosDal.create`'s identical per-recipe photo-cap
      * pattern). A bare COUNT-then-INSERT across two separate statements/round-trips leaves a TOCTOU
      * window: two concurrent creates for the same owner can both COUNT 49, both pass, and both INSERT, landing the
-     * owner at 51. `pg_advisory_xact_lock(hashtext(ownerId))` takes a transaction-scoped, per-owner lock
+     * owner at 51. `pg_advisory_xact_lock(ADVISORY_LOCK_CLASSES.recipeCollectionOwner, hashtext(ownerId))` takes a transaction-scoped, per-owner lock
      * BEFORE the COUNT: a second concurrent create for the SAME owner blocks here until the first commits
      * or rolls back, so the COUNT this transaction reads is always current by the time it decides whether
      * to insert. (An occasional cross-owner hash collision just serializes two unrelated creates — never a
@@ -158,7 +159,9 @@ export class CollectionsDal {
      */
     public async createIfUnderCap(input: CreateCollectionRow, cap: number): Promise<CollectionRow> {
         return this.transaction(async (tx) => {
-            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.ownerId})::bigint)`);
+            await tx.execute(
+                sql`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CLASSES.recipeCollectionOwner}, hashtext(${input.ownerId}))`,
+            );
 
             const existingCount = await this.countCollections(input.ownerId, tx);
 
@@ -253,15 +256,19 @@ export class CollectionsDal {
 
     /**
      * Add a recipe to a collection (idempotent). Returns the membership row whether it was newly
-     * inserted or already present. Many-to-many: the same recipe can live in any number of collections.
-     * Pass `tx` (from {@link transaction}) to enlist this in a caller-managed Unit-of-Work.
+     * inserted or already present, with `created` saying WHICH — the distinction is load-bearing for
+     * analytics plan U3: a `recipe_saved` event fires only on a genuinely new membership, because a
+     * replayed add minting save credit would permanently diverge `save_count` from this table (R11's
+     * reconcilability promise) and let one user farm 015's recognition by re-adding the same recipe.
+     * Many-to-many: the same recipe can live in any number of collections. Pass `tx` (from
+     * {@link transaction}) to enlist this in a caller-managed Unit-of-Work.
      */
     public async addRecipe(
         collectionId: string,
         recipeId: string,
         addedVia: RecipeCollectionAddedVia = 'manual',
         tx: Writer = this.db,
-    ): Promise<RecipeCollectionRow> {
+    ): Promise<{ row: RecipeCollectionRow; created: boolean }> {
         const inserted = await tx
             .insert(recipeCollections)
             .values({ collectionId, recipeId, addedVia })
@@ -271,7 +278,7 @@ export class CollectionsDal {
         const row = inserted[0];
 
         if (row) {
-            return row;
+            return { row, created: true };
         }
 
         const existing = await this.findMembership(collectionId, recipeId, tx);
@@ -280,7 +287,7 @@ export class CollectionsDal {
             throw new Error('Membership insert conflicted but no existing row was found.');
         }
 
-        return existing;
+        return { row: existing, created: false };
     }
 
     /**
@@ -350,7 +357,7 @@ export class CollectionsDal {
      *    draft (which add-time validation cannot catch) is filtered out here at read time. This ONE read
      *    serves three callers (the `CollectionWithRecipes` embed, `cloneCollection`'s clone-seed, and
      *    `pullFromSource`/preview), so patching this predicate covers all three. Keep it in lockstep with
-     *    `isRecipeViewableBy` (recipes/domain/recipe-visibility.ts).
+     *    `isRecipeViewableBy` (recipes/domain/recipeVisibility.ts).
      *
      * Also projects each membership's `added_via` (W5 Task 4) alongside the recipe columns, so the
      * `CollectionWithRecipes` embed can surface per-member provenance (the source-indicator checkbox,

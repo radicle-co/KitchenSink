@@ -1,12 +1,14 @@
 /**
  * @module @commise/features-recipes — native collection-header view (W5 Task 6 building block).
  *
- * The React Native leaf of {@link import('./CollectionHeader.js').CollectionHeader} — same presentational
+ * The React Native leaf of `CollectionHeader` — same presentational
  * contract (name + Edit/Delete, visibility badge, recipe count, source attribution, last-pulled, Back)
  * rendered with RN primitives.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette, tint } from '@commise/ui';
+import { RefreshNotice } from '@commise/ui/refresh-notice';
+import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -25,8 +27,12 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
     onBack,
     onEdit,
     onDelete,
+    refreshNotice,
 }) => {
     const { header, detail } = useMessages(collectionMessages);
+    // A retry from the refresh notice that succeeds removes the button the viewer pressed, so the screen-reader cursor
+    // goes to the name.
+    const nameRef = useScreenReaderFocusOnSignal<Text>(refreshNotice?.recoveries ?? 0);
     const locale = useLocale();
 
     const visibilityLabel = visibility === 'public' ? header.visibilityPublic : header.visibilityPrivate;
@@ -62,7 +68,7 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                 </Pressable>
             )}
             <View style={styles.titleRow}>
-                <Text accessibilityRole="header" style={styles.heading}>
+                <Text ref={nameRef} accessibilityRole="header" style={styles.heading}>
                     {name}
                 </Text>
                 <View style={styles.actions}>
@@ -93,6 +99,14 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
             </View>
             {sourceAttribution !== undefined && <Text style={styles.meta}>{sourceAttribution}</Text>}
             {lastPulledLabel !== undefined && <Text style={styles.meta}>{lastPulledLabel}</Text>}
+            {refreshNotice !== undefined && (
+                <RefreshNotice
+                    failed={refreshNotice.failed}
+                    refreshing={refreshNotice.refreshing}
+                    onRetry={refreshNotice.onRetry}
+                    labels={{ failed: detail.refreshError, retry: detail.refreshRetry }}
+                />
+            )}
         </View>
     );
 };
@@ -106,7 +120,7 @@ const styles = StyleSheet.create({
     titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
     // `flexShrink: 1` is load-bearing, not cosmetic. RN defaults `flexShrink` to 0, so without it a long
     // collection name claims its full intrinsic width in this row and pushes `actions` past the screen edge:
-    // on-device (Maestro `collections`, `collections-pagination`) "Rename" was clipped to a 33px slither and
+    // on-device (Maestro `collections`, `collectionsPagination`) "Rename" was clipped to a 33px slither and
     // "Delete" fell out of the view hierarchy entirely — deleting a collection was unreachable on mobile.
     // Shrinking lets the name wrap instead, which is what the web leaf's `min-w-0` + `break-words` already do.
     heading: { flexShrink: 1, fontSize: 28, fontWeight: '700', color: palette.charcoal },

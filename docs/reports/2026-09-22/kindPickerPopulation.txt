@@ -1,0 +1,266 @@
+========================================================================================
+1. WHAT A LINE POINTS AT (R59), share of SR-attributable eating occasions
+========================================================================================
+  no FoodOn name -> root, NO kinds              :  36.5%
+  one source item, remainder EMPTY -> NO kinds  :  13.6%  (153 roots)
+  ⛔ one source item, remainder NOT empty       :  24.2%  (1162 roots)
+     -> by R55 as written this is a root with ONE kind: nothing to choose, but a label to show
+     ... whose source carries a PROTECTED segment : 953 roots,  17.4%
+     ⛔ ... whose KIND LABEL carries one (the root name does not already say it) : 604 roots,  12.9%
+         1.6%  chicken egg (shell on)             | kind: whole, raw, fresh
+         0.9%  banana (raw)                       | kind: bananas
+         0.8%  lowfat cow milk (fortified)        | kind: reduced fat, fluid, 2% milkfat, with added vitamin
+         0.6%  lettuce leaf (raw)                 | kind: green
+         0.6%  tomato (raw)                       | kind: tomatoes, red, ripe, year round average
+         3.3%  sugar (granulated)                 | kind: sugars
+         1.6%  chicken egg (shell on)             | kind: whole, raw, fresh
+         0.9%  banana (raw)                       | kind: bananas
+         0.8%  lowfat cow milk (fortified)        | kind: reduced fat, fluid, 2% milkfat, with added v
+         0.8%  cow whole milk 3.5% fat (vitamin d | kind: 3.25% milkfat, with added
+         0.7%  crisphead lettuce (raw)            | kind: iceberg (includes types)
+         0.6%  lettuce leaf (raw)                 | kind: green
+         0.6%  tomato (raw)                       | kind: tomatoes, red, ripe, year round average
+  grouped root (2+ kinds)                        :  25.6%  (721 roots)
+
+========================================================================================
+2. KIND LABELS in grouped roots — what an option row must hold
+========================================================================================
+  kinds                          : 2811
+  rendered label length          : median 53   p90 86   max 122   (characters)
+  ... longer than 40 characters  : 1911 (68%)
+  ... consumption-weighted median: 21 characters
+  ⛔ rendering vs R55 word set disagree on : 66 kinds (0 means the rendering drops nothing R55 keeps)
+     [beef small end rib roast (raw)] "australian, imported, wagyu, steak/roast, boneless, separable lean only, aust. marble score 4/5"  rendering keeps ['roast']  rendering drops []
+     [beef small end rib roast (raw)] "australian, imported, wagyu, steak/roast, boneless, separable lean only, aust. marble score 9"  rendering keeps ['roast']  rendering drops []
+     [beef small end rib roast (raw)] "australian, imported, wagyu, steak/roast, boneless, separable lean and fat, aust. marble score 4/5"  rendering keeps ['roast']  rendering drops []
+     [beef small end rib roast (raw)] "australian, imported, wagyu, steak/roast, boneless, separable lean and fat, aust. marble score 9"  rendering keeps ['roast']  rendering drops []
+  longest: [rack of lamb] "australian, imported, fresh, roast, frenched, denuded, bone-in, separable lean and fat, trimmed to 0" fat, cooked, roasted"
+
+========================================================================================
+3. ⛔ DUPLICATE LABELS — two kinds of one root that render identically
+========================================================================================
+  grouped roots with a clash     : 2 of 721
+  kinds inside a clash           : 6
+  ⛔ clashes where energy ALSO ties : 0  (calories cannot tell these apart either)
+    [white cornmeal (self-rising)] label "degermed, enriched" <- Cornmeal, degermed, enriched, white (370.0) | Cornmeal, white, self-rising, degermed, enriched (355.0)
+    [black turtle bean (mature)] label "beans, seeds, cooked, boiled, without salt" <- Beans, black, mature seeds, cooked, boiled, without salt (132.0) | Beans, black turtle, mature seeds, cooked, boiled, without salt (130.0)
+    [black turtle bean (mature)] label "beans, seeds, cooked, boiled, with salt" <- Beans, black, mature seeds, cooked, boiled, with salt (132.0) | Beans, black turtle, mature seeds, cooked, boiled, with salt (130.0)
+
+========================================================================================
+4. GROUP SIZE — where a list needs a filter
+========================================================================================
+  roots with >=  2 kinds :  721   occasions  25.6%
+  roots with >=  5 kinds :  165   occasions   5.7%
+  roots with >=  8 kinds :   61   occasions   1.1%
+  roots with >= 13 kinds :   21   occasions   0.7%
+  roots with >= 20 kinds :    3   occasions   0.5%
+  roots with >= 36 kinds :    2   occasions   0.5%
+  roots with >= 90 kinds :    1   occasions   0.2%
+
+========================================================================================
+5. ⛔ THE COST OF SILENCE — the default against the kind actually eaten (WWEIA-weighted)
+========================================================================================
+  how each grouped root elects its default : median energy 464, most eaten 242, plain member 15
+  all grouped roots                 : eaten-weighted mean error   7.7%   p90   0.0%   occasions where the default is off by >= 10%:  4.5%
+  ⛔ roots whose kinds span >= 10%   : eaten-weighted mean error  11.4%   p90   1.1%   occasions where the default is off by >= 10%:  6.7%
+  ... excluding plain-member roots  : eaten-weighted mean error   1.9%   p90   0.0%   occasions where the default is off by >= 10%:  3.3%
+  ⛔ span >= 10%, excluding plain-member: eaten-weighted mean error   2.6%   p90   0.0%   occasions where the default is off by >= 10%:  4.7%
+  ⚠️ The first line reconciles with electionRule.txt (1.9%) only on the third: that script EXCLUDES
+     plain-member roots, and one of them carries most of this error. Largest contributors:
+      77.7% of the weighted error  vanilla bean extract  (default by: plain member)
+      10.8% of the weighted error  tomato (canned)  (default by: most eaten)
+       2.2% of the weighted error  beef (ground)  (default by: most eaten)
+       0.9% of the weighted error  refried beans (dish)  (default by: most eaten)
+
+========================================================================================
+5b. ⛔ THE "ENERGY UNKNOWN" BUCKET the committed disclosure figures quote (8.0%)
+========================================================================================
+  every kind measured at 0 kcal (spread is ZERO, not unknown) :   8.0%  ['non-carbonated water (bottled)', 'tap water']
+  ⛔ genuinely unknown energy                                  :   0.0%
+
+========================================================================================
+6. THE WORST ROOT, whole — ham (cured)
+========================================================================================
+  kinds 90 · with energy 90 · with consumption weight 11 · default by: most eaten
+  default sits at position 16 of 90 in calorie order
+    1.    91 kcal  w=        0  pork, water added, shank, bone-in, separable lean only, unheated
+    2.    95 kcal  w=        0  pork, water added, rump, bone-in, separable lean only, unheated
+    3.    95 kcal  w=        0  pork, water added, slice, bone-in, separable lean only, unheated
+    4.   103 kcal  w=        0  pork, and water product, slice, bone-in, separable lean only, unheated
+    5.   106 kcal  w=        0  hormel, cure 81
+    6.   107 kcal  w=        0  pork, and water product, rump, bone-in, separable lean only, unheated
+    7.   109 kcal  w=        0  pork, with natural juices, spiral slice, boneless, separable lean only, unheated
+    8.   110 kcal  w=        0  pork, water added, whole, boneless, separable lean only, unheated
+    9.   111 kcal  w=        0  pork, with natural juices, whole, boneless, separable lean only, unheated
+   10.   112 kcal  w=        0  pork, with natural juices, whole, boneless, separable lean and fat, unheated
+   11.   113 kcal  w=  3689575  pork, with natural juices, whole, boneless, separable lean only, heated, roasted
+   12.   113 kcal  w=        0  pork, and water product, shank, bone-in, unheated, separable lean only
+   13.   114 kcal  w=    35247  pork, with natural juices, whole, boneless, separable lean and fat, heated, roasted
+   14.   116 kcal  w=        0  pork, and water product, whole, boneless, separable lean only, unheated
+   15.   116 kcal  w=        0  pork, with natural juices, slice, boneless, separable lean only, heated, pan-broil
+   16.   117 kcal  w=  5701549  pork, water added, whole, boneless, separable lean only, heated, roasted ◀ default
+   17.   117 kcal  w=        0  pork, and water product, whole, boneless, separable lean and fat, unheated
+   18.   118 kcal  w=        0  pork, with natural juices, slice, boneless, separable lean and fat, heated, pan-broil
+   19.   119 kcal  w=        0  pork, water added, slice, boneless, separable lean only, heated, pan-broil
+   20.   120 kcal  w=        0  pork, extra lean (approximately 4% fat), canned, unheated
+   21.   121 kcal  w=        0  pork, water added, rump, bone-in, separable lean only, heated, roasted
+   22.   121 kcal  w=        0  pork, water added, whole, boneless, separable lean and fat, unheated
+   23.   122 kcal  w=        0  pork, and water product, slice, bone-in, separable lean only, heated, pan-broil
+   24.   122 kcal  w=        0  pork, with natural juices, rump, bone-in, separable lean only, unheated
+   25.   123 kcal  w=        0  pork, and water product, slice, boneless, separable lean only, heated, pan-broil
+   26.   123 kcal  w=   230542  pork, and water product, whole, boneless, separable lean only, heated, roasted
+   27.   123 kcal  w=        0  pork, with natural juices, slice, bone-in, separable lean only, unheated
+   28.   123 kcal  w=    35247  pork, and water product, whole, boneless, separable lean and fat, heated, roasted
+   29.   124 kcal  w=        0  pork, and water product, slice, boneless, separable lean and fat, heated, pan-broil
+   30.   125 kcal  w=        0  pork, water added, slice, boneless, separable lean and fat, heated, pan-broil
+   31.   125 kcal  w=        0  pork, rump, bone-in, separable lean only, unheated
+   32.   125 kcal  w=        0  pork, shank, bone-in, separable lean only, unheated
+   33.   126 kcal  w=        0  pork, with natural juices, spiral slice, meat only, boneless, separable lean only, heated, roasted
+   34.   126 kcal  w=    35247  pork, water added, whole, boneless, separable lean and fat, heated, roasted
+   35.   128 kcal  w=        0  pork, water added, shank, bone-in, separable lean only, heated, roasted
+   36.   129 kcal  w=        0  pork, with natural juices, spiral slice, boneless, separable lean and fat, unheated
+   37.   130 kcal  w=        0  pork, with natural juices, shank, bone-in, separable lean only, unheated
+   38.   130 kcal  w=        0  pork, slice, bone-in, separable lean only, unheated
+   39.   131 kcal  w=        0  pork, water added, slice, bone-in, separable lean only, heated, pan-broil
+   40.   131 kcal  w=        0  pork, and water product, rump, bone-in, separable lean only, heated, roasted
+   41.   132 kcal  w=        0  pork, and water product, shank, bone-in, separable lean only, heated, roasted
+   42.   132 kcal  w=        0  pork, rump, bone-in, separable lean only, heated, roasted
+   43.   136 kcal  w=        0  pork, extra lean (approximately 4% fat), canned, roasted
+   44.   137 kcal  w=        0  pork, with natural juices, rump, bone-in, separable lean only, heated, roasted
+   45.   139 kcal  w=        0  pork, with natural juices, spiral slice, boneless, separable lean and fat, heated, roasted
+   46.   139 kcal  w=        0  pork, shank, bone-in, separable lean only, heated, roasted
+   47.   144 kcal  w=        0  pork, extra lean and regular, canned, unheated
+   48.   145 kcal  w=        0  pork, boneless, extra lean (approximately 5% fat), roasted
+   49.   145 kcal  w=        0  pork, with natural juices, shank, bone-in, separable lean only, heated, roasted
+   50.   145 kcal  w=        0  pork, boneless, low sodium, extra lean (approximately 5% fat), roasted
+   51.   147 kcal  w=        0  pork, whole, separable lean only, unheated
+   52.   148 kcal  w=        0  pork, slice, bone-in, separable lean only, heated, pan-broil
+   53.   149 kcal  w=        0  pork, and water product, slice, bone-in, separable lean and fat, unheated
+   54.   150 kcal  w=        0  pork, with natural juices, slice, bone-in, separable lean only, heated, pan-broil
+   55.   155 kcal  w=        0  pork, and water product, slice, bone-in, separable lean and fat, heated, pan-broil
+   56.   157 kcal  w=   482496  pork, whole, separable lean only, roasted
+   57.   159 kcal  w=        0  pork, with natural juices, slice, bone-in, separable lean and fat, unheated
+   58.   161 kcal  w=        0  pork, water added, rump, bone-in, separable lean and fat, heated, roasted
+   59.   162 kcal  w=   858779  pork, boneless, extra lean and regular, unheated
+   60.   164 kcal  w=        0  pork, water added, slice, bone-in, separable lean and fat, unheated
+   61.   165 kcal  w=        0  pork, boneless, extra lean and regular, roasted
+   62.   165 kcal  w=        0  pork, boneless, low sodium, extra lean and regular, roasted
+   63.   166 kcal  w=        0  pork, water added, slice, bone-in, separable lean and fat, heated, pan-broil
+   64.   167 kcal  w=    28157  pork, extra lean and regular, canned, roasted
+   65.   167 kcal  w=        0  pork, water added, shank, bone-in, separable lean and fat, unheated
+   66.   172 kcal  w=        0  pork, low sodium, lean and fat, cooked
+   67.   172 kcal  w=        0  pork, water added, rump, bone-in, separable lean and fat, unheated
+   68.   173 kcal  w=        0  pork, slice, bone-in, separable lean and fat, unheated
+   69.   176 kcal  w=        0  pork, rump, bone-in, separable lean and fat, unheated
+   70.   177 kcal  w=        0  pork, rump, bone-in, separable lean and fat, heated, roasted
+   71.   177 kcal  w=        0  pork, shank, bone-in, separable lean and fat, unheated
+   72.   177 kcal  w=        0  pork, with natural juices, rump, bone-in, separable lean and fat, heated, roasted
+   73.   178 kcal  w=    93021  pork, boneless, regular (approximately 11% fat), roasted
+   74.   179 kcal  w=        0  pork, and water product, rump, bone-in, separable lean and fat, unheated
+   75.   180 kcal  w=        0  pork, with natural juices, slice, bone-in, separable lean and fat, heated, pan-broil
+   76.   181 kcal  w=        0  pork, slice, bone-in, separable lean and fat, heated, pan-broil
+   77.   186 kcal  w=        0  pork, and water product, rump, bone-in, separable lean and fat, heated, roasted
+   78.   191 kcal  w=        0  pork, with natural juices, shank, bone-in, separable lean and fat, unheated
+   79.   191 kcal  w=    35247  pork, shank, bone-in, separable lean and fat, heated, roasted
+   80.   191 kcal  w=        0  pork, with natural juices, shank, bone-in, separable lean and fat, heated, roasted
+   81.   200 kcal  w=        0  pork, with natural juices, rump, bone-in, separable lean and fat, unheated
+   82.   200 kcal  w=        0  pork, water added, shank, bone-in, separable lean and fat, heated, roasted
+   83.   226 kcal  w=        0  pork, regular (approximately 13% fat), canned, roasted
+   84.   234 kcal  w=        0  pork, and water product, shank, bone-in, separable lean and fat, heated, roasted
+   85.   243 kcal  w=        0  pork, and water product, shank, bone-in, separable lean and fat, unheated
+   86.   246 kcal  w=        0  pork, whole, separable lean and fat, unheated
+   87.   507 kcal  w=        0  pork, separable fat, boneless, heated
+   88.   515 kcal  w=        0  pork, separable fat, boneless, unheated
+   89.   579 kcal  w=        0  pork, separable fat (from and arm picnic), unheated
+   90.   591 kcal  w=        0  pork, separable fat (from and arm picnic), roasted
+
+========================================================================================
+6b. A ROOT WHOSE KINDS A COOK READS AS DIFFERENT INGREDIENTS — tomato (canned)
+========================================================================================
+  kinds 6 · default by: most eaten
+      16 kcal  w=   7326892  tomatoes, red, ripe, packed in juice
+      26 kcal  w=         0  tomatoes, red, ripe, stewed
+      32 kcal  w=         0  tomatoes, crushed
+      38 kcal  w=  10003762  products, puree, without salt added ◀ default
+      38 kcal  w=     57769  products, puree, with salt added
+      82 kcal  w=   1254734  products, paste, without salt added (includes foods for usda's food distribution program)
+
+========================================================================================
+7. WORDS COMMON TO EVERY KIND of a root — carried by every option, so they tell no option apart
+========================================================================================
+  grouped roots with >= 1 word in every kind label : 612 of 721
+  ham (cured) shared words : []
+
+========================================================================================
+8. A ONE-WORD FILTER over roots with >= 8 kinds
+========================================================================================
+  distinct words per root         : median 21  max 43
+  share of kinds one word keeps   : median 45%  p90 100%
+  ham (cured) — "lean" keeps 83 of 90
+  ham (cured) — "boneless" keeps 30 of 90
+  ham (cured) — "canned" keeps 5 of 90
+  ham (cured) — "spiral" keeps 4 of 90
+  ham (cured) — "unheated" keeps 39 of 90
+  ham (cured) — "roasted" keeps 34 of 90
+  ham (cured) — "water" keeps 36 of 90
+
+========================================================================================
+10. ⛔ AS BOUGHT vs AS EATEN — a recipe line is weighed raw; a cooked kind's numbers are for cooked weight
+========================================================================================
+  (MEASUREMENT ONLY: a word list over USDA segments sizes the question. Production needs a CURATED
+   state per kind, never this regex — see plan §6.6 failure 1.)
+  kinds in grouped roots with an as-eaten word : 1516 of 2811
+  roots mixing as-bought and as-eaten kinds    : 138 of 721,   5.1% of occasions
+  ⛔ ... whose elected default is AS EATEN        : 90 roots,   3.3% of occasions
+       0.6%  pasta                        default: Pasta, cooked, enriched, without added salt (158)
+       0.3%  beef (ground)                default: Beef, ground, 85% lean meat / 15% fat, crumbles, coo (256)
+       0.3%  pork sausage link            default: Pork sausage, link/patty, cooked, pan-fried (325)
+       0.3%  almond                       default: Nuts, almonds, dry roasted, without salt added (598)
+       0.2%  onion                        default: Onions, cooked, boiled, drained, without salt (44)
+       0.2%  broccoli floret              default: Broccoli, frozen, chopped, cooked, boiled, drained,  (28)
+  ⚠️ An UPPER BOUND: the word list also flags items SOLD that way (dry roasted almonds, cooked ham).
+     No "as bought" pairing is printed: pairing by energy matches the wrong item (fresh pasta, imported beef).
+  ham (cured): 90 kinds -> 40 as bought
+  beef (ground): 36 kinds -> 3 as bought
+  largest groups, as bought only               : [40, 19, 17, 13, 13, 12]
+  --- 10b. the same split one level UP: a root and its "(raw)" twin both answer "ground beef" ---
+  root pairs "X" and "X (raw)"                 : 426
+  occasions on the NON-raw twin               :   3.6%
+     "beef (ground)" (36 kinds) beside "beef (ground, raw)" (9 kinds)
+     "almond" (6 kinds) beside "almond (raw)" (1 kinds)
+     "onion" (5 kinds) beside "onion (raw)" (1 kinds)
+     "piece of chicken meat (skinless)" (9 kinds) beside "piece of chicken meat (skinless, raw)" (4 kinds)
+     "broccoli floret" (3 kinds) beside "broccoli floret (raw)" (2 kinds)
+  pasta — every kind, energy and state:
+       131 kcal  as eaten   w=         0  Pasta, fresh-refrigerated, plain, cooked
+       157 kcal  as eaten   w=         0  Pasta, cooked, enriched, with added salt
+       157 kcal  as eaten   w=         0  Pasta, cooked, unenriched, with added salt
+       158 kcal  as eaten   w=         0  Pasta, cooked, unenriched, without added salt
+       158 kcal  as eaten   w=  42108198  Pasta, cooked, enriched, without added salt
+       288 kcal  as bought  w=         0  Pasta, fresh-refrigerated, plain, as purchased
+       371 kcal  as bought  w=     67055  Pasta, dry, enriched
+
+========================================================================================
+11. THE CURATION BUDGET — how few roots carry most of the grouped occasions
+========================================================================================
+  50% of grouped occasions :    6 roots,    26 kinds to label
+  80% of grouped occasions :   36 roots,   262 kinds to label
+  90% of grouped occasions :   65 roots,   383 kinds to label
+  95% of grouped occasions :   93 roots,   517 kinds to label
+  kinds whose source names something a home recipe does not buy: babyfood 35, distribution program 23, industrial 36, restaurant 2
+
+========================================================================================
+9. TWO CANDIDATE REFINEMENTS to R55's label (catalog rule, KTD-12 — measured, not ruled)
+========================================================================================
+  (a) plural-aware strip: one-kind roots whose label becomes EMPTY (they would have no kinds)
+      102 of 1162 roots,   7.1% of occasions, e.g. ['sugar (granulated)', 'banana (raw)', 'onion (raw)', 'carrot root (raw)', 'strawberry (raw)']
+  as ruled (R55)                               median   53   p90   86   > 40 ch  68%
+  (a) plural-aware                             median   51   p90   84   > 40 ch  64%
+  (a)+(b) also drop words every kind shares    median   21   p90   54   > 40 ch  18%
+  (a)+(b) consumption-weighted median : 12 characters
+  ⛔ (a)+(b) labels that become EMPTY : 54  (each would need the root name to stand alone)
+  --- (b) ALONE, as a PICKER presentation (no catalog change): shared words move to the header ---
+  option label                                 median   21   p90   54   > 40 ch  18%   weighted median 12
+  options that become EMPTY (only shared words) : 54
+  ⛔ roots whose shared words include a word of a protected segment : 567 of 721
+     -> why the ROW keeps the full label and only the picker moves shared words to its header

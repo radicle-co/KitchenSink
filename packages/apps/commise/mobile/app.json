@@ -26,7 +26,7 @@
         "android": {
             "package": "io.commise.mobile",
             "adaptiveIcon": {
-                "foregroundImage": "./src/assets/adaptive-icon.png",
+                "foregroundImage": "./src/assets/adaptiveIcon.png",
                 "backgroundColor": "#ffffff"
             },
             "packageCredentials": []
@@ -51,9 +51,6 @@
                     "appleSignIn": false
                 }
             ]
-        ],
-        "experiments": {
-            "typedRoutes": true
-        }
+        ]
     }
 }

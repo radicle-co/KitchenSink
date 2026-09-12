@@ -1,0 +1,21 @@
+{
+    "name": "@kitchensink/rds-iam-auth",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "dependencies": {
+        "@aws-sdk/rds-signer": "^3.1079.0",
+        "pg": "^8.21.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

@@ -1,8 +1,8 @@
 /**
  * @module @commise/features-recipes — the My Recipes / Community source switcher (L5), web leaf.
  *
- * ONE strip, rendered by BOTH recipe-source surfaces — the personal library (`RecipeList`) and the community
- * surface (`RecipeDiscoveryList`). It exists as its own component precisely because the two surfaces DID
+ * ONE strip, rendered by BOTH recipe-source surfaces — the personal library (`RecipeListFrame`) and the community
+ * surface (`RecipeDiscoveryFrame`). It exists as its own component precisely because the two surfaces DID
  * drift: `/recipes` drew the strip while `/discover` drew nothing, so choosing "Community" was a one-way trip
  * with no way back. A single shared switcher makes that asymmetry unrepresentable — a surface either mounts
  * this and gets both destinations, or mounts no switcher at all.

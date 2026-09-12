@@ -18,9 +18,11 @@ afterEach(cleanup);
 const noop = () => undefined;
 
 function renderManager(overrides: Partial<RecipePhotoManagerProps> = {}) {
+    // A wired manager, as every container renders one. The unwired case is rendered directly where it is the subject.
     const props: RecipePhotoManagerProps = {
         photos: [],
         onRemovePhoto: noop,
+        onRemoveQueueItem: noop,
         ...overrides,
     };
     render(<RecipePhotoManager {...props} />);
@@ -247,6 +249,20 @@ describe('RecipePhotoManager (native) — per-photo replace (U6)', () => {
 });
 
 describe('RecipePhotoManager (native) — per-file queue grid (w3/e4)', () => {
+    it('offers no Remove on a queue cell when no remove handler is wired', () => {
+        // A container withholds removal (the create's in-flight save) by not wiring it. A Remove that rendered anyway
+        // would appear to work and do nothing.
+        render(
+            <RecipePhotoManager
+                photos={[]}
+                onRemovePhoto={noop}
+                queueItems={[makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })]}
+            />,
+        );
+
+        expect(screen.queryByRole('button', { name: 'Remove a.png' })).toBeNull();
+    });
+
     it('renders a status badge for a queued file', () => {
         renderManager({ queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })] });
 

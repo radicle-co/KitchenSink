@@ -9,9 +9,10 @@
  *
  * The HTTP layer is mocked via an injected `fetch` (`vi.fn()`); no network calls are made.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { UsdaApiClient } from '../UsdaApiClient.js';
+import type { UsdaApiClientOptions } from '../UsdaApiClient.js';
 import {
     isInvalidBatchSizeError,
     isUsdaNotFoundError,
@@ -27,23 +28,27 @@ type FetchMock = ReturnType<typeof vi.fn>;
 interface MockResponseInit {
     readonly status: number;
     readonly body?: unknown;
+    /** Response headers; omitted entirely when absent, so the no-headers double stays exercised. */
+    readonly headers?: Record<string, string>;
 }
 
 /** Build a minimal `Response`-shaped object the client can consume. */
-function mockResponse({ status, body }: MockResponseInit): Response {
+function mockResponse({ status, body, headers }: MockResponseInit): Response {
     return {
         ok: status >= 200 && status < 300,
         status,
         json: async () => body ?? {},
+        ...(headers !== undefined ? { headers: new Headers(headers) } : {}),
     } as unknown as Response;
 }
 
 /** Construct a client whose HTTP layer is the supplied mock. */
-function makeClient(fetchImpl: FetchMock): UsdaApiClient {
+function makeClient(fetchImpl: FetchMock, overrides?: Partial<UsdaApiClientOptions>): UsdaApiClient {
     return new UsdaApiClient({
         apiKey: 'test-key',
         baseUrl: 'https://api.nal.usda.gov/fdc/v1',
         fetchFn: fetchImpl as unknown as typeof fetch,
+        ...overrides,
     });
 }
 
@@ -200,6 +205,29 @@ describe('UsdaApiClient', () => {
 
             expect(fetchFn.mock.calls[0]?.[0]).toContain('pageSize=20');
         });
+
+        // FDC's `dataType` query parameter is a form-style array with `explode: false`: one parameter, values
+        // comma-joined, each value percent-encoded and the commas left as the delimiter.
+        it('filters the search to the data types asked for, as one comma-joined dataType parameter', async () => {
+            const fetchFn = vi.fn().mockResolvedValue(mockResponse({ status: 200, body: { totalHits: 0, foods: [] } }));
+            const client = makeClient(fetchFn);
+
+            await client.searchFoods('apple', { dataTypes: ['Foundation', 'SR Legacy', 'Survey (FNDDS)'] });
+
+            const url = new URL(String(fetchFn.mock.calls[0]?.[0]));
+
+            expect(url.searchParams.getAll('dataType')).toEqual(['Foundation,SR Legacy,Survey (FNDDS)']);
+            expect(String(fetchFn.mock.calls[0]?.[0])).toContain('&dataType=Foundation,SR%20Legacy,Survey%20(FNDDS)');
+        });
+
+        it('sends no dataType parameter when none is asked for, so USDA searches every data type', async () => {
+            const fetchFn = vi.fn().mockResolvedValue(mockResponse({ status: 200, body: { totalHits: 0, foods: [] } }));
+            const client = makeClient(fetchFn);
+
+            await client.searchFoods('apple');
+
+            expect(new URL(String(fetchFn.mock.calls[0]?.[0])).searchParams.has('dataType')).toBe(false);
+        });
     });
 
     // Transport failures and client aborts are the same class ("USDA did not respond usably") and must all
@@ -238,5 +266,67 @@ describe('UsdaApiClient', () => {
 
             await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaTimeoutError);
         });
+    });
+
+    // ADR-0053 §4: the injected fetch may refuse a request BEFORE it reaches USDA (the food service's rate-limited
+    // transport, when a source is at its ceiling). That refusal is the caller's own typed error, not "USDA did not
+    // respond", so it must reach the caller unchanged rather than be re-read as a timeout.
+    describe('caller errors from the injected fetch', () => {
+        /** Stands in for the food service's `SourceBusyError`, which this package cannot import. */
+        class CallerBusyError extends Error {
+            public constructor() {
+                super('busy');
+                this.name = 'CallerBusyError';
+                Object.setPrototypeOf(this, CallerBusyError.prototype);
+            }
+        }
+
+        const isCallerBusy = (error: unknown): boolean => error instanceof CallerBusyError;
+
+        it.each([
+            ['getFood', (client: UsdaApiClient) => client.getFood(171688)],
+            ['getFoodsBatch', (client: UsdaApiClient) => client.getFoodsBatch([171688])],
+            ['searchFoods', (client: UsdaApiClient) => client.searchFoods('apple')],
+        ])('%s rethrows an error the caller claims as the same instance', async (_, call) => {
+            const refusal = new CallerBusyError();
+            const client = makeClient(vi.fn().mockRejectedValue(refusal), { isCallerError: isCallerBusy });
+
+            await expect(call(client)).rejects.toBe(refusal);
+        });
+
+        it('still reads an error the caller does not claim as a timeout, carrying it', async () => {
+            const cause = new TypeError('fetch failed');
+            const client = makeClient(vi.fn().mockRejectedValue(cause), { isCallerError: isCallerBusy });
+
+            const err = await client.getFood(171688).catch((error: unknown) => error);
+
+            expect(isUsdaTimeoutError(err)).toBe(true);
+            expect((err as UsdaTimeoutError).cause).toBe(cause);
+        });
+
+        it('claims nothing by default, so an unconfigured client keeps reading every foreign error as a timeout', async () => {
+            const client = makeClient(vi.fn().mockRejectedValue(new CallerBusyError()));
+
+            await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaTimeoutError);
+        });
+
+        it("never lets a caller's claim mask USDA's own answer", async () => {
+            const client = makeClient(vi.fn().mockResolvedValue(mockResponse({ status: 429 })), {
+                isCallerError: () => true,
+            });
+
+            await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaRateLimitError);
+        });
+    });
+});
+
+/**
+ * ADR-0053 §3: the food service builds this client over its rate-limited transport, and a client built over nothing
+ * would call USDA unmetered. `fetchFn` is therefore required, with no default, so that client does not compile.
+ */
+describe('UsdaApiClientOptions', () => {
+    it('requires the fetch every request goes through', () => {
+        expectTypeOf<{ apiKey: string }>().not.toExtend<UsdaApiClientOptions>();
+        expectTypeOf<{ apiKey: string; fetchFn: typeof fetch }>().toExtend<UsdaApiClientOptions>();
     });
 });

@@ -1,8 +1,25 @@
 import { expect, test } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { simulateOutage } from './utils/outage';
+import { E2E_RECIPE_IDS, makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+
+/**
+ * Recipe ids as UUIDs rather than readable `rec_*` slugs, because this spec puts a recipe id in a REQUEST BODY:
+ * `addRecipeToCollectionRequestSchema.recipeId` is `z.uuid()`, and the client parses outbound — so a slug makes
+ * "add to collection" throw `InvalidRequestError` before any request, leaving the membership silently absent. It is
+ * not the only body that carries one: every card grid's deferred calorie batch does too (`E2E_RECIPE_IDS` in
+ * `utils/recipeApi` records that trap), so a `rec_*` slug on any card surface silently skips its calorie request.
+ */
+const RECIPE_IDS = {
+    pasta: E2E_RECIPE_IDS.pasta,
+    soup: E2E_RECIPE_IDS.lentilSoup,
+    family: E2E_RECIPE_IDS.familyStew,
+    risotto: E2E_RECIPE_IDS.risotto,
+    duck: E2E_RECIPE_IDS.duck,
+    tart: E2E_RECIPE_IDS.tart,
+} as const;
 
 /**
  * Collections happy path (T109, US1 — "organize recipes into collections"), driven through the real web UI
@@ -23,6 +40,8 @@ import { signInWithTicket } from './utils/auth';
  *   persists" (W5 Task 13)
  * - W5/C7 (server-paged collection list "Load more") → "loads the next page of collections on demand"
  *   (W5 Task 13)
+ * - A failed read recovers through the boundary's retry, on the detail, picker and rename routes →
+ *   "recovering from a failed read"
  *
  * The ADD leg drives the REAL flow end-to-end: the detail view's "Add a recipe" control → the picker route
  * → the `useAddRecipeToCollection` mutation → `POST /api/v1/collections/{id}/recipes`. The mock models membership
@@ -64,8 +83,8 @@ test.describe('collections (T109)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                makeRecipeDetail({ id: 'rec_pasta', ownerId: viewerId, title: 'Weeknight Pasta' }),
-                makeRecipeDetail({ id: 'rec_soup', ownerId: viewerId, title: 'Lentil Soup' }),
+                makeRecipeDetail({ id: RECIPE_IDS.pasta, ownerId: viewerId, title: 'Weeknight Pasta' }),
+                makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' }),
             ],
             // An EMPTY collection — the add flow is what puts a recipe in it.
             collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight dinners' })],
@@ -102,8 +121,8 @@ test.describe('collections (T109)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                makeRecipeDetail({ id: 'rec_pasta', ownerId: viewerId, title: 'Weeknight Pasta' }),
-                makeRecipeDetail({ id: 'rec_soup', ownerId: viewerId, title: 'Lentil Soup' }),
+                makeRecipeDetail({ id: RECIPE_IDS.pasta, ownerId: viewerId, title: 'Weeknight Pasta' }),
+                makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' }),
             ],
             // Seeded membership — the app has no add-to-collection control (see the file header).
             collections: [
@@ -111,7 +130,7 @@ test.describe('collections (T109)', () => {
                     id: 'col_dinners',
                     ownerId: viewerId,
                     name: 'Weeknight dinners',
-                    recipeIds: ['rec_pasta', 'rec_soup'],
+                    recipeIds: [RECIPE_IDS.pasta, RECIPE_IDS.soup],
                 }),
             ],
         });
@@ -143,25 +162,126 @@ test.describe('collections (T109)', () => {
         // through ky → the client's `NotFoundError` → `isNotFoundError` → the localized not-found copy.
         // A generic error message here means the 404 lost its type on the way up.
         //
-        // The long timeout is not padding — it is the cost of a real defect: `RecipeProviders` builds a
-        // bare `new QueryClient()`, so TanStack Query's DEFAULT retry (3 attempts, exponential backoff)
-        // applies to a 404 as much as to a network blip. The user waits ~7s and the API takes 4 requests
-        // to say "no". Scoped here rather than papered over globally; see the T109 report / follow-ups.
+        // ⛔ NO EXPLICIT TIMEOUT — Playwright's default is part of the assertion now. This used to carry a
+        // 20s bound and a paragraph explaining that the wait was REAL: `RecipeProviders` built a bare
+        // `new QueryClient()`, so TanStack's default `retry: 3` with exponential backoff applied to a 404
+        // as much as to a network blip, and the cook waited ~7s while the API took four requests to say
+        // "no". That is fixed — the shared retry policy in `@commise/query` refuses to retry a failure
+        // that repeating cannot fix — so the generous bound became the thing HIDING a regression. At the
+        // default, a 404 that starts retrying again fails here instead of passing slowly.
+        //
+        // (The old comment pointed at "the T109 follow-ups" for the fix. Nothing on disk ever tracked it:
+        // T109 is a COMPLETED task about adding these very Playwright tests and says nothing about
+        // retries. The pointer is removed rather than re-aimed.)
         // The `filter` is not decoration: Next's App Router injects its own permanent
         // `<div role="alert" id="__next-route-announcer__">`, so "the" alert has to be named by its copy.
         // This still fails for every regression worth catching — a plain <div> (no alert role) or the
         // GENERIC error copy (a 404 that lost its type on the way up) both leave it unmatched.
         await page.goto(route('/collections/col_missing'));
         const notFound = page.getByRole('alert').filter({ hasText: 'We couldn’t find that collection.' });
-        await expect(notFound).toBeVisible({ timeout: 20_000 });
+        await expect(notFound).toBeVisible();
         // A not-found is terminal — retrying it would just 404 again, so no retry action is offered.
         await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
     });
 
     /**
+     * Recovery from a failed read, on each non-prefetched collection route. Each read suspends under ONE error
+     * boundary whose "Try again" resets the boundary AND the failed query, so the retry has to issue a real
+     * second request. The chain is wire → client error → boundary → reset → refetch. No component test crosses
+     * the real HTTP half, and a reset that re-rendered the same rejected query would leave the error on screen.
+     *
+     * ⚠️ These three carry a long `LOAD_ERROR_TIMEOUT`, unlike the not-found test above, and the wait is real: a
+     * `503` is exactly what the shared retry policy DOES retry (three times, TanStack's default backoff, about
+     * 7 s) before the boundary sees it.
+     */
+    test.describe('recovering from a failed read', () => {
+        /** TanStack's default backoff over `MAX_QUERY_RETRIES` (1 s + 2 s + 4 s), plus headroom for CI. */
+        const LOAD_ERROR_TIMEOUT = 15_000;
+        const COLLECTION_READ = /\/api\/v1\/collections\/col_dinners$/;
+
+        test('the collection view recovers when Try again succeeds', async ({ page }) => {
+            await signInWithTicket(page);
+            const viewerId = await readViewerAppId(page);
+            await mockRecipeApi(page, {
+                viewerId,
+                recipes: [makeRecipeDetail({ id: RECIPE_IDS.pasta, ownerId: viewerId, title: 'Weeknight Pasta' })],
+                collections: [
+                    makeCollection({
+                        id: 'col_dinners',
+                        ownerId: viewerId,
+                        name: 'Weeknight dinners',
+                        recipeIds: [RECIPE_IDS.pasta],
+                    }),
+                ],
+            });
+            const outage = await simulateOutage(page, COLLECTION_READ);
+
+            await page.goto(route('/collections/col_dinners'));
+            const loadError = page.getByRole('alert').filter({ hasText: 'We couldn’t load this collection.' });
+            await expect(loadError).toBeVisible({ timeout: LOAD_ERROR_TIMEOUT });
+
+            outage.end();
+            await page.getByRole('button', { name: 'Try again' }).click();
+
+            await expect(page.getByRole('heading', { name: 'Weeknight dinners' })).toBeVisible();
+            await expect(page.getByRole('button', { name: 'Weeknight Pasta', exact: true })).toBeVisible();
+            await expect(loadError).toHaveCount(0);
+        });
+
+        test('the picker keeps Done reachable through a failed read and recovers on Try again', async ({ page }) => {
+            await signInWithTicket(page);
+            const viewerId = await readViewerAppId(page);
+            await mockRecipeApi(page, {
+                viewerId,
+                recipes: [makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' })],
+                collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight dinners' })],
+            });
+            // The CANDIDATES read fails, not the collection read: the heading's name comes from the collection
+            // read, so the frame staying named proves the frame sits outside the boundary.
+            const outage = await simulateOutage(page, /\/api\/v1\/recipes(?:\?|$)/);
+
+            await page.goto(route('/collections/col_dinners/add'));
+            await expect(page.getByRole('alert').filter({ hasText: /couldn.t load/i })).toBeVisible({
+                timeout: LOAD_ERROR_TIMEOUT,
+            });
+            await expect(page.getByRole('heading', { name: 'Add recipes to Weeknight dinners' })).toBeVisible();
+            await expect(page.getByRole('button', { name: 'Done' })).toBeVisible();
+
+            outage.end();
+            await page.getByRole('button', { name: 'Try again' }).click();
+
+            await expect(page.getByRole('button', { name: 'Add Lentil Soup' })).toBeVisible();
+        });
+
+        test('rename never shows an empty form for a failed read, and seeds the name on Try again', async ({
+            page,
+        }) => {
+            await signInWithTicket(page);
+            const viewerId = await readViewerAppId(page);
+            await mockRecipeApi(page, {
+                viewerId,
+                collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight dinners' })],
+            });
+            const outage = await simulateOutage(page, COLLECTION_READ);
+
+            await page.goto(route('/collections/col_dinners/rename'));
+            await expect(page.getByRole('alert').filter({ hasText: 'We couldn’t load this collection.' })).toBeVisible({
+                timeout: LOAD_ERROR_TIMEOUT,
+            });
+            // A failed seed used to render the form with an EMPTY name, one Save away from blanking it.
+            await expect(page.getByLabel('Collection name')).toHaveCount(0);
+
+            outage.end();
+            await page.getByRole('button', { name: 'Try again' }).click();
+
+            await expect(page.getByLabel('Collection name')).toHaveValue('Weeknight dinners');
+        });
+    });
+
+    /**
      * Clone (FR-011, W5 Task 13). There is no collection-DISCOVERY surface in this app (only `/discover` for
      * public recipes), so the reachable path the UI actually exposes is cloning a collection the caller
-     * already owns — the same self-clone reasoning the Maestro mirror (`collections-clone.yaml`) documents.
+     * already owns — the same self-clone reasoning the Maestro mirror (`collectionsClone.yaml`) documents.
      * The service's own `cloneCollection` guard only blocks a NON-owned, NON-public source, so a self-owned
      * PUBLIC collection clones unconditionally and exercises the real endpoint/UI wiring end-to-end.
      */
@@ -169,7 +289,7 @@ test.describe('collections (T109)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const recipe = makeRecipeDetail({
-            id: 'rec_family',
+            id: RECIPE_IDS.family,
             ownerId: viewerId,
             title: 'Family Lasagna',
             visibility: 'public',
@@ -179,7 +299,7 @@ test.describe('collections (T109)', () => {
             ownerId: viewerId,
             name: 'Sunday Suppers',
             visibility: 'public',
-            recipeIds: ['rec_family'],
+            recipeIds: [RECIPE_IDS.family],
         });
         await mockRecipeApi(page, {
             viewerId,
@@ -223,19 +343,19 @@ test.describe('collections (T109)', () => {
         const viewerId = await readViewerAppId(page);
         const sourceOwnerId = 'usr_chef_marco';
         const risotto = makeRecipeDetail({
-            id: 'rec_risotto',
+            id: RECIPE_IDS.risotto,
             ownerId: sourceOwnerId,
             title: 'Herb Risotto',
             visibility: 'public',
         });
         const duck = makeRecipeDetail({
-            id: 'rec_duck',
+            id: RECIPE_IDS.duck,
             ownerId: sourceOwnerId,
             title: 'Pan-Seared Duck',
             visibility: 'public',
         });
         const tart = makeRecipeDetail({
-            id: 'rec_tart',
+            id: RECIPE_IDS.tart,
             ownerId: sourceOwnerId,
             title: 'Lemon Tart',
             visibility: 'public',
@@ -245,7 +365,7 @@ test.describe('collections (T109)', () => {
             ownerId: sourceOwnerId,
             name: 'Weekend Picks',
             visibility: 'public',
-            recipeIds: ['rec_risotto', 'rec_duck', 'rec_tart'],
+            recipeIds: [RECIPE_IDS.risotto, RECIPE_IDS.duck, RECIPE_IDS.tart],
         });
         // The clone was seeded BEFORE "Lemon Tart" existed in the source — the source has since drifted
         // ahead by exactly that one recipe, which the preview/commit below must surface.
@@ -254,8 +374,8 @@ test.describe('collections (T109)', () => {
             ownerId: viewerId,
             name: 'Weekend Picks',
             visibility: 'private',
-            recipeIds: ['rec_risotto', 'rec_duck'],
-            memberAddedVia: { rec_risotto: 'clone_seed', rec_duck: 'clone_seed' },
+            recipeIds: [RECIPE_IDS.risotto, RECIPE_IDS.duck],
+            memberAddedVia: { [RECIPE_IDS.risotto]: 'clone_seed', [RECIPE_IDS.duck]: 'clone_seed' },
             sourceCollectionId: 'col_source',
             sourceOwnerHandle: 'chef_marco',
             sourceCollectionName: 'Weekend Picks',

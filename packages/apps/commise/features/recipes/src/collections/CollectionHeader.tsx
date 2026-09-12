@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes — web collection-header view (W5 Task 6 building block).
  *
@@ -11,6 +13,8 @@
  * The badge's tint stays seafoam; see the palette JSDoc in `@commise/ui` for that accent-vs-text rule.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { useFocusOnSignal } from '@commise/ui/dialog-focus';
+import { RefreshNotice } from '@commise/ui/refresh-notice';
 import type { FC } from 'react';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
@@ -28,8 +32,11 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
     onBack,
     onEdit,
     onDelete,
+    refreshNotice,
 }) => {
     const { header, detail } = useMessages(collectionMessages);
+    // A retry from the refresh notice that succeeds removes the button the viewer pressed, so focus goes to the name.
+    const nameRef = useFocusOnSignal<HTMLHeadingElement>(refreshNotice?.recoveries ?? 0);
     const locale = useLocale();
 
     const visibilityLabel = visibility === 'public' ? header.visibilityPublic : header.visibilityPrivate;
@@ -69,7 +76,13 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                     lets a long, unbroken collection name overflow the row and crowd the actions out. The
                     native leaf carries the same contract via `flexShrink` (where RN's 0 default made this a
                     hard on-device failure — Rename clipped, Delete off-screen entirely). */}
-                <h1 className="min-w-0 break-words font-display text-display-md font-bold text-charcoal">{name}</h1>
+                <h1
+                    ref={nameRef}
+                    tabIndex={-1}
+                    className="min-w-0 break-words font-display text-display-md font-bold text-charcoal"
+                >
+                    {name}
+                </h1>
                 <div className="flex shrink-0 items-center gap-3">
                     <button
                         type="button"
@@ -107,6 +120,14 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
             </div>
             {sourceAttribution !== undefined && <p className="text-body-sm text-slate">{sourceAttribution}</p>}
             {lastPulledLabel !== undefined && <p className="text-body-sm text-slate">{lastPulledLabel}</p>}
+            {refreshNotice !== undefined && (
+                <RefreshNotice
+                    failed={refreshNotice.failed}
+                    refreshing={refreshNotice.refreshing}
+                    onRetry={refreshNotice.onRetry}
+                    labels={{ failed: detail.refreshError, retry: detail.refreshRetry }}
+                />
+            )}
         </header>
     );
 };

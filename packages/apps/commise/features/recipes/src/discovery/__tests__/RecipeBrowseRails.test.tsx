@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web curated browse-rails block (U7, net-new). Covers the default browse surface
- * shown when discovery has no active query/filter: the three fixed-sort rails (Trending/New/Quick) with a
- * per-rail "see all", each rail's own loading/error/empty/populated state, the cuisine shortcuts, and the
- * selection/clone interaction contracts — so the rails cannot silently regress into a bare stream.
+ * Component tests for the web curated browse-rails block (U7, net-new). Covers the default browse surface shown when
+ * discovery has no active query/filter: the three fixed-sort rails (Trending/New/Quick) with a per-rail "see all", each
+ * rail's body, the cuisine shortcuts, the enter motion, and the ONE refresh notice — so the rails cannot silently
+ * regress into a bare stream.
+ *
+ * REWRITTEN for the per-rail read boundaries: each rail's body is now a slot (its own boundary renders loading, a load
+ * error, or `RecipeBrowseRailResults`), so the block no longer knows a rail's status. "Rail states" moved to
+ * `RecipeBrowseRailLoading.test.tsx`, `RecipeBrowseRailLoadError.test.tsx` and `RecipeBrowseRailResults.test.tsx`; the
+ * bodies here are the real results leaf, so selection still crosses the composition.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -14,8 +19,9 @@ import { utilityContrast } from '@commise/test-utils';
 import { semantic } from '@commise/ui';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.js';
 import { RecipeBrowseRails } from '../RecipeBrowseRails.js';
-import type { RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
+import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
 
 afterEach(cleanup);
 
@@ -25,22 +31,33 @@ function result(recipe: Partial<Recipe> = {}): RecipeSearchResult {
     return { recipe: makeRecipe(recipe) };
 }
 
-function rail(overrides: Partial<RecipeBrowseRailView> & Pick<RecipeBrowseRailView, 'id'>): RecipeBrowseRailView {
-    return { status: 'ready', results: [], onSeeAll: noop, ...overrides };
+/** A rail whose body is the settled results leaf over `results`. */
+function rail(
+    id: RecipeBrowseRailId,
+    results: readonly RecipeSearchResult[],
+    overrides: Partial<RecipeBrowseRailView> & { readonly onSelectRecipe?: (id: string) => void } = {},
+): RecipeBrowseRailView {
+    const { onSelectRecipe = noop, ...view } = overrides;
+
+    return {
+        id,
+        onSeeAll: noop,
+        headingFocusSignal: 0,
+        body: <RecipeBrowseRailResults results={results} onSelectRecipe={onSelectRecipe} onClone={noop} />,
+        ...view,
+    };
+}
+
+function threeRails(onSelectRecipe: (id: string) => void = noop): readonly RecipeBrowseRailView[] {
+    return [
+        rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })], { onSelectRecipe }),
+        rail('new', [result({ id: 'rec_n', title: 'Fresh Ceviche' })], { onSelectRecipe }),
+        rail('quick', [result({ id: 'rec_q', title: 'Ten-Minute Omelette' })], { onSelectRecipe }),
+    ];
 }
 
 function renderRails(overrides: Partial<RecipeBrowseRailsProps> = {}) {
-    const props: RecipeBrowseRailsProps = {
-        rails: [
-            rail({ id: 'trending', results: [result({ id: 'rec_t', title: 'Viral Pad Thai' })] }),
-            rail({ id: 'new', results: [result({ id: 'rec_n', title: 'Fresh Ceviche' })] }),
-            rail({ id: 'quick', results: [result({ id: 'rec_q', title: 'Ten-Minute Omelette' })] }),
-        ],
-        cuisines: [],
-        onSelectRecipe: noop,
-        onClone: noop,
-        ...overrides,
-    };
+    const props: RecipeBrowseRailsProps = { rails: threeRails(), cuisines: [], ...overrides };
     render(<RecipeBrowseRails {...props} />);
 
     return props;
@@ -66,19 +83,27 @@ describe('RecipeBrowseRails (web) — rails', () => {
     it('reports a "see all" for the rail that was activated', async () => {
         const user = userEvent.setup();
         const onSeeAll = vi.fn();
-        renderRails({
-            rails: [rail({ id: 'trending', results: [result({ id: 'rec_t', title: 'Viral Pad Thai' })], onSeeAll })],
-        });
+        renderRails({ rails: [rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })], { onSeeAll })] });
 
         await user.click(screen.getByRole('button', { name: 'See all Trending' }));
 
         expect(onSeeAll).toHaveBeenCalledTimes(1);
     });
 
+    it('renders each rail’s body under its own heading, whatever that body is', () => {
+        renderRails({
+            rails: [rail('trending', [], { body: <p>TRENDING BODY</p> }), rail('new', [], { body: <p>NEW BODY</p> })],
+        });
+
+        const trending = screen.getByRole('heading', { name: 'Trending' }).closest('section');
+        expect(trending?.textContent).toContain('TRENDING BODY');
+        expect(trending?.textContent).not.toContain('NEW BODY');
+    });
+
     it('reports a selected recipe upward', async () => {
         const user = userEvent.setup();
         const onSelectRecipe = vi.fn();
-        renderRails({ onSelectRecipe });
+        renderRails({ rails: threeRails(onSelectRecipe) });
 
         await user.click(screen.getByRole('button', { name: 'Fresh Ceviche' }));
 
@@ -88,18 +113,7 @@ describe('RecipeBrowseRails (web) — rails', () => {
 
 describe('RecipeBrowseRails (web) — U8 rail header accent', () => {
     it('paints a brand gradient accent under each rail section header', () => {
-        const { container } = render(
-            <RecipeBrowseRails
-                rails={[
-                    rail({ id: 'trending', results: [result({ id: 'rec_t', title: 'Viral Pad Thai' })] }),
-                    rail({ id: 'new', results: [result({ id: 'rec_n', title: 'Fresh Ceviche' })] }),
-                    rail({ id: 'quick', results: [result({ id: 'rec_q', title: 'Ten-Minute Omelette' })] }),
-                ]}
-                cuisines={[]}
-                onSelectRecipe={noop}
-                onClone={noop}
-            />,
-        );
+        const { container } = render(<RecipeBrowseRails rails={threeRails()} cuisines={[]} />);
 
         // Each rail header carries a decorative GradientSurface accent bar (an inline linear-gradient), so
         // three rails ⇒ at least three gradient accents.
@@ -110,31 +124,43 @@ describe('RecipeBrowseRails (web) — U8 rail header accent', () => {
     });
 });
 
-describe('RecipeBrowseRails (web) — rail states', () => {
-    it('shows a busy status for a loading rail', () => {
-        renderRails({ rails: [rail({ id: 'trending', status: 'loading' })] });
+describe('RecipeBrowseRails (web) — a rail’s own Try again', () => {
+    it('⛔ moves focus to THAT rail’s heading when its retry signal changes, since the pressed button is gone', () => {
+        const { rerender } = render(<RecipeBrowseRails rails={threeRails()} cuisines={[]} />);
+        const [trending, fresh, quick] = threeRails();
 
-        expect(screen.getByRole('status')).toBeTruthy();
+        rerender(
+            <RecipeBrowseRails
+                rails={[
+                    trending as RecipeBrowseRailView,
+                    { ...(fresh as RecipeBrowseRailView), headingFocusSignal: 1 },
+                    quick as RecipeBrowseRailView,
+                ]}
+                cuisines={[]}
+            />,
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'New' }));
+    });
+});
+
+describe('RecipeBrowseRails (web) — structure and touch targets', () => {
+    it('exposes the block as a named region', () => {
+        renderRails();
+
+        expect(screen.getByRole('region', { name: 'Browse recipes' })).toBeTruthy();
     });
 
-    it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
-        renderRails({ rails: [rail({ id: 'trending', status: 'loading' })] });
+    it('gives See all and every cuisine shortcut the 44px touch floor, reset for the mouse at md', () => {
+        renderRails({ cuisines: [{ value: 'Thai', onSelect: noop }] });
 
-        // The rail's shimmer cards are all `aria-hidden`, so without a visible caption the live region has NO
-        // content — and a live region announces its CONTENT, not its label. Screen readers hear nothing.
-        expect(screen.getByRole('status').textContent).toContain('Loading recipes');
-    });
-
-    it('shows an error message for a failed rail', () => {
-        renderRails({ rails: [rail({ id: 'trending', status: 'error' })] });
-
-        expect(screen.getByText('Couldn’t load this row.')).toBeTruthy();
-    });
-
-    it('shows an empty message for a settled rail with no recipes', () => {
-        renderRails({ rails: [rail({ id: 'trending', status: 'ready', results: [] })] });
-
-        expect(screen.getByText('Nothing here yet.')).toBeTruthy();
+        for (const control of [
+            screen.getByRole('button', { name: 'See all Trending' }),
+            screen.getByRole('button', { name: 'Browse Thai recipes' }),
+        ]) {
+            expect(control.className).toContain('min-h-11');
+            expect(control.className).toContain('md:min-h-0');
+        }
     });
 });
 
@@ -167,6 +193,7 @@ describe('RecipeBrowseRails (web) — section enter motion (U8 motion pass)', ()
 
         // Three rails + the cuisine section.
         expect(enterWrappers()).toHaveLength(4);
+
         for (const wrapper of enterWrappers()) {
             // Each wrapper actually contains a section heading — it wraps the section, not a stray node.
             expect(wrapper.querySelector('h2')).not.toBeNull();
@@ -220,5 +247,42 @@ describe('RecipeBrowseRails (web) — text contrast (WCAG 2.1 AA)', () => {
             utilityContrast(seeAll.className, { surface: semantic.background, variant: 'hover' }),
             'see-all under its hover:bg-mist/20 tint',
         ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+describe('RecipeBrowseRails (web) — a failed refresh of the rails on screen', () => {
+    const notice = (overrides: Partial<NonNullable<RecipeBrowseRailsProps['refreshNotice']>> = {}) => ({
+        failed: false,
+        refreshing: false,
+        onRetry: noop,
+        recoveries: 0,
+        ...overrides,
+    });
+
+    it('shows no notice while nothing has failed', () => {
+        renderRails({ refreshNotice: notice() });
+
+        expect(screen.queryByText('We couldn’t refresh these recipes.')).toBeNull();
+    });
+
+    it('⛔ keeps every rail’s rows and shows ONE notice for the block, with a Try again that retries', () => {
+        const onRetry = vi.fn();
+        renderRails({ refreshNotice: notice({ failed: true, onRetry }) });
+
+        expect(screen.getByText('Viral Pad Thai')).toBeTruthy();
+        expect(screen.getByText('Ten-Minute Omelette')).toBeTruthy();
+        expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
+        screen.getByRole('button', { name: 'Try again' }).click();
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ moves focus to the first rail’s heading when a retry from the notice succeeds', () => {
+        const props = renderRails({ refreshNotice: notice({ failed: true }) });
+        cleanup();
+        const { rerender } = render(<RecipeBrowseRails {...props} refreshNotice={notice({ failed: true })} />);
+
+        rerender(<RecipeBrowseRails {...props} refreshNotice={notice({ recoveries: 1 })} />);
+
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Trending' }));
     });
 });

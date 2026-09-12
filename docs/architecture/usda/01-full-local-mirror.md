@@ -675,7 +675,7 @@ If a botched ingestion corrupts the PostgreSQL dataset, the recovery path is: (1
 - **Higher base cost.** Even with zero traffic, you pay ~$80–130/mo for always-on RDS, ElastiCache, and NAT Gateway. There's no "pay per query" model.
 - **Ingestion pipeline maintenance.** You own a data pipeline. USDA format changes, download failures, and schema migrations require engineering attention. This is not a set-and-forget operation.
 - **Data freshness bounded by USDA release cadence.** You cannot get Foundation data fresher than the last USDA publication (twice yearly). If USDA corrects a nutritional value today, your application serves the old value for up to 6 months.
-- **Stores data you may not use.** The full dataset includes ~300K Branded items. A typical recipe application may only actively use 5–10K of them. You're paying to store and index 290K items that never get queried — but the storage cost (~$2/mo) is negligible, so this is more philosophical than practical.
+- **Stores data you may not use.** The full dataset includes ~~300K Branded items. A typical recipe application may only actively use 5–10K of them. You're paying to store and index 290K items that never get queried — but the storage cost (~~$2/mo) is negligible, so this is more philosophical than practical.
 - **Cold start complexity.** Bootstrapping a new environment requires running the ingestion pipeline before the API is useful. This adds ~30–60 minutes to initial deployment.
 
 ---

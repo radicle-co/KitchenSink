@@ -1,0 +1,73 @@
+appId: io.commise.mobile
+---
+# Plan 002 US6 on a device: removing an ingredient removes ONLY that row. Mobile mirror of the web Playwright
+# `ingredientRemove.spec.ts`.
+#
+# Remove is slot 2's direct control on every row today (the `⋮` menu mounts when V1 B7 adds Change food). The rows
+# are declared lines from the freeform "Create …" prelude, which this job can produce without a food service. What
+# only this flow proves: on a real device the right row goes and the other keeps its name.
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Remove Rows'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+
+# Two declared lines, through the freeform create (`create.yaml`'s prelude).
+- tapOn: 'Search ingredients'
+- inputText: 'Maestro Alpha'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Maestro Alpha.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Maestro Alpha.*'
+- extendedWaitUntil:
+      notVisible: 'Create .*Maestro Alpha.*'
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Maestro Beta'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Maestro Beta.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Maestro Beta.*'
+- extendedWaitUntil:
+      notVisible: 'Create .*Maestro Beta.*'
+      timeout: 30000
+
+# Remove the FIRST row only.
+- scrollUntilVisible:
+      element: 'Remove ingredient 1'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Remove ingredient 1'
+- assertNotVisible: 'Remove ingredient 2'
+- assertNotVisible:
+      text: '^Maestro Alpha$'
+- assertVisible:
+      text: '^Maestro Beta$'
+
+# Leave without saving: the explicit Discard, as `systemBackGuard.yaml` does.
+- pressKey: Back
+- assertVisible: 'Discard unsaved changes?'
+- tapOn: 'Discard changes'
+- assertVisible: 'Recipes'

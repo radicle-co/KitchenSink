@@ -1,0 +1,57 @@
+FoodOn classes with a label :   39707
+distinct normalised names   :   50904  (labels + exact/related/narrow/broad synonyms)
+
+SR Legacy foods            :    7793
+  USDA supplies a FoodOn term:    4126  (53%)
+  UNMAPPED by USDA           :    3667  (47%)  <- the question
+
+⛔ FoodOn ITSELF names 1382 of the 3667 USDA left unmapped  (38%)
+     via full description        :    18
+     via all segments reversed   :    32
+     via first two un-inverted   :   291
+     via head noun alone         :  1041
+
+  combined coverage: 5508/7793 = 71%   (was 53% on USDA alone)
+
+=== THE STAPLES -- the foods that motivated all of this ===
+  YES  bread                FOODON_03000288
+  YES  cheddar cheese       FOODON_03302458
+  no   soy sauce            
+  YES  mayonnaise           FOODON_03301440
+  YES  mozzarella cheese    FOODON_03303578
+  no   hamburger roll       
+  YES  cheese               FOODON_00001013
+  YES  butter               FOODON_03310351
+  YES  olive oil            FOODON_03301826
+  YES  whole milk           FOODON_03310780
+
+=== ⛔ ROOT FAN-OUT -- is a root usable, or too coarse to pick from? ===
+   A root naming 100 foods is not a name a cook picks; it is a category.
+   roots created from FoodOn-own matching :   297
+     naming exactly ONE food              :   152  (51%)
+     naming 20+ foods (too coarse)        :    13
+   10 coarsest roots:
+     n=141  Chondrichthyes
+     n=100  infant formula
+     n=58   chicken
+     n=57   salad dressing
+     n=52   restaurant
+     n=50   bread
+     n=37   fermented beverage
+     n=28   strained yogurt
+     n=28   sauce
+     n=26   cheese food product
+
+=== sample of newly-nameable foods ===
+  Waffle, buttermilk, frozen, ready-to-heat, toasted     -> waffle
+  Waffle, buttermilk, frozen, ready-to-heat, microwave   -> waffle
+  Waffle, plain, frozen, ready-to-heat, microwave        -> waffle
+  Pie Crust, Cookie-type, Graham Cracker, Ready Crust    -> pie crust
+  Pie Crust, Cookie-type, Chocolate, Ready Crust         -> pie crust
+  Pie, Dutch Apple, Commercially Prepared                -> pie
+  Pie crust, deep dish, frozen, unbaked, made with enr   -> pie crust
+  Bread, salvadoran sweet cheese (quesadilla salvadore   -> bread
+  Bread, pound cake type, pan de torta salvadoran        -> bread
+  Pastry, Pastelitos de Guava (guava pastries)           -> pastry
+  Bread, white wheat                                     -> bread
+  Cream puff, eclair, custard or cream filled, iced      -> cream puff

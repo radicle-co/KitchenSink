@@ -9,13 +9,13 @@
 
 ## Executive Summary
 
-| Item          | Count |
-| ------------- | ----- |
-| CRITICAL      | 3     |
-| WARNING       | 3     |
-| PASSED        | 4     |
-| INFO          | 3     |
-| SKIPPED (L5)  | 1     |
+| Item         | Count |
+| ------------ | ----- |
+| CRITICAL     | 3     |
+| WARNING      | 3     |
+| PASSED       | 4     |
+| INFO         | 3     |
+| SKIPPED (L5) | 1     |
 
 **Overall Status:** **CRITICAL** — Pre-implementation; all findings are artifact/traceability gaps reflecting an unstarted implementation, not regressions.
 
@@ -25,41 +25,42 @@
 
 ### L1 — Research → Product Spec (PASSED)
 
-| Check | Status |
-| --- | --- |
-| `research.md` present and readable | ✅ |
-| `product-spec/product-spec.md` present and readable | ✅ |
-| Key recommendations (async video v1, live Phase 2) reflected across artifacts | ✅ |
+| Check                                                                         | Status |
+| ----------------------------------------------------------------------------- | ------ |
+| `research.md` present and readable                                            | ✅     |
+| `product-spec/product-spec.md` present and readable                           | ✅     |
+| Key recommendations (async video v1, live Phase 2) reflected across artifacts | ✅     |
 
 ### L2 — Product Spec → Spec (PASSED)
 
-| Check | Status | Detail |
-| --- | --- | --- |
-| Personas aligned (P12, P13, P1, P2, P9) | ✅ | Both artifacts list all 5 personas |
-| Must Have story set coverage | ✅ | `spec.md`: US-001..US-005; `product-spec`: FR-001..FR-010 |
-| No missing Must Have requirements | ✅ | 10/10 FRs accounted for at story level |
+| Check                                   | Status | Detail                                                    |
+| --------------------------------------- | ------ | --------------------------------------------------------- |
+| Personas aligned (P12, P13, P1, P2, P9) | ✅     | Both artifacts list all 5 personas                        |
+| Must Have story set coverage            | ✅     | `spec.md`: US-001..US-005; `product-spec`: FR-001..FR-010 |
+| No missing Must Have requirements       | ✅     | 10/10 FRs accounted for at story level                    |
 
-| Caveat | Severity |
-| --- | --- |
+| Caveat                                                                                               | Severity   |
+| ---------------------------------------------------------------------------------------------------- | ---------- |
 | `spec.md` uses user stories; `product-spec` uses FR IDs. No explicit crosswalk section in `spec.md`. | ⚠️ WARNING |
 
 ### L3 — Spec → Plan (PASSED)
 
-| Check | Status | Detail |
-| --- | --- | --- |
-| All Must Have USs decomposed into plan acceptance criteria | ✅ | US-001..US-005 mapped in plan.md §Functional Acceptance |
-| Governance rules referenced | ✅ | GR-002, GR-007, GR-012, GR-014 |
-| Cross-feature dependencies mapped | ✅ | 002, 005, 010, 012 explicitly in Dependencies table |
+| Check                                                      | Status | Detail                                                  |
+| ---------------------------------------------------------- | ------ | ------------------------------------------------------- |
+| All Must Have USs decomposed into plan acceptance criteria | ✅     | US-001..US-005 mapped in plan.md §Functional Acceptance |
+| Governance rules referenced                                | ✅     | GR-002, GR-007, GR-012, GR-014                          |
+| Cross-feature dependencies mapped                          | ✅     | 002, 005, 010, 012 explicitly in Dependencies table     |
 
 ### L4 — Plan → Tasks (CRITICAL)
 
-| Check | Status | Detail |
-| --- | --- | --- |
-| Task coverage exists for all Must Have US/FRs | ✅ | T024-T052 cover authoring, ingest, enrollment, progress |
-| Tasks checked vs unchecked | ❌ CRITICAL | **0/85** checked; 0 execution evidence |
-| Implementation workspaces exist | ❌ CRITICAL | 0 files found for `packages/services/cooking-school-*`, `packages/shared/cooking-school-*`, `packages/apps/commise/{web,mobile}` feature areas |
+| Check                                         | Status      | Detail                                                                                                                                         |
+| --------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task coverage exists for all Must Have US/FRs | ✅          | T024-T052 cover authoring, ingest, enrollment, progress                                                                                        |
+| Tasks checked vs unchecked                    | ❌ CRITICAL | **0/85** checked; 0 execution evidence                                                                                                         |
+| Implementation workspaces exist               | ❌ CRITICAL | 0 files found for `packages/services/cooking-school-*`, `packages/shared/cooking-school-*`, `packages/apps/commise/{web,mobile}` feature areas |
 
 **Evidence:**
+
 - `tasks.md` contains 85 tasks (T001-T085 with gaps) — all unchecked.
 - Glob searches across monorepo returned zero files for planned workspaces.
 
@@ -69,26 +70,26 @@
 
 ### L6 — Code → Verify (INFO)
 
-| Check | Status | Detail |
-| --- | --- | --- |
-| Implementation code exists | ℹ️ | 0 feature files — expected pre-impl |
-| `verify-report.md` exists | ✅ | Contains valid multi-layer analysis |
-| `v-model/release-audit-report.md` | ℹ️ | BLOCKED (102 untested scenarios) — expected pre-impl |
+| Check                             | Status | Detail                                               |
+| --------------------------------- | ------ | ---------------------------------------------------- |
+| Implementation code exists        | ℹ️     | 0 feature files — expected pre-impl                  |
+| `verify-report.md` exists         | ✅     | Contains valid multi-layer analysis                  |
+| `v-model/release-audit-report.md` | ℹ️     | BLOCKED (102 untested scenarios) — expected pre-impl |
 
 ### L7 — Cross-Feature Dependency Evidence (CRITICAL)
 
-| Dependency | Relationship | Status | Evidence |
-| --- | --- | --- | --- |
-| 002-user-auth | Required in spec.md | ❌ CRITICAL | No integration test or contract evidence |
-| 010-subscriptions | Referenced (billing, payouts) | ❌ CRITICAL | No execution evidence of revenue-share/purchase flow |
-| 012-creator-profile | Referenced (educator identity) | ❌ CRITICAL | No contract integration evidence |
-| 005-ai-integration | Referenced (script drafting) | ⚠️ WARNING | No execution evidence |
-| 001-commise-recipe-app | Referenced (recipe-linked lessons) | ⚠️ WARNING | No execution evidence |
+| Dependency             | Relationship                       | Status      | Evidence                                             |
+| ---------------------- | ---------------------------------- | ----------- | ---------------------------------------------------- |
+| 002-user-auth          | Required in spec.md                | ❌ CRITICAL | No integration test or contract evidence             |
+| 010-subscriptions      | Referenced (billing, payouts)      | ❌ CRITICAL | No execution evidence of revenue-share/purchase flow |
+| 012-creator-profile    | Referenced (educator identity)     | ❌ CRITICAL | No contract integration evidence                     |
+| 005-ai-integration     | Referenced (script drafting)       | ⚠️ WARNING  | No execution evidence                                |
+| 001-commise-recipe-app | Referenced (recipe-linked lessons) | ⚠️ WARNING  | No execution evidence                                |
 
-| Check | Status |
-| --- | --- |
+| Check                                                                | Status               |
+| -------------------------------------------------------------------- | -------------------- |
 | Monorepo workspace refs outside `packages/apps/commise/{web,mobile}` | ℹ️ INFO — none found |
-| `apps/X` refs flagged INFO | ℹ️ INFO — none found |
+| `apps/X` refs flagged INFO                                           | ℹ️ INFO — none found |
 
 ---
 
@@ -143,29 +144,29 @@
 
 ## Action Matrix
 
-| Priority | Action | Owner | Phase |
-| --- | --- | --- | --- |
-| P0 | Scaffold planned workspaces (API, shared, web, mobile) | Implement | Pre-impl |
-| P0 | Execute first task slice and mark T001-T010 checked | Implement | Pre-impl |
-| P0 | Add FR-to-US crosswalk in `spec.md` | Spec | Pre-impl |
-| P1 | Produce integration contract evidence for 002, 010, 012 | Integration | Impl |
-| P1 | Reconcile `.forge-status.yml` lifecycle states | Governance | Impl |
-| P2 | Close 102 v-model scenarios by executing acceptance/system tests | Verify | Post-impl |
-| P2 | Re-run `/speckit.product-forge.verify-full` after implementation | Verify | Post-impl |
+| Priority | Action                                                           | Owner       | Phase     |
+| -------- | ---------------------------------------------------------------- | ----------- | --------- |
+| P0       | Scaffold planned workspaces (API, shared, web, mobile)           | Implement   | Pre-impl  |
+| P0       | Execute first task slice and mark T001-T010 checked              | Implement   | Pre-impl  |
+| P0       | Add FR-to-US crosswalk in `spec.md`                              | Spec        | Pre-impl  |
+| P1       | Produce integration contract evidence for 002, 010, 012          | Integration | Impl      |
+| P1       | Reconcile `.forge-status.yml` lifecycle states                   | Governance  | Impl      |
+| P2       | Close 102 v-model scenarios by executing acceptance/system tests | Verify      | Post-impl |
+| P2       | Re-run `/speckit.product-forge.verify-full` after implementation | Verify      | Post-impl |
 
 ---
 
 ## Evidence Inventory
 
-| Artifact | Present | Hash / Status |
-| --- | --- | --- |
-| `research.md` | ✅ | Present |
-| `product-spec/product-spec.md` | ✅ | Present |
-| `spec.md` | ✅ | Present |
-| `plan.md` | ✅ | Present |
-| `tasks.md` | ✅ | 85 tasks, 0 checked |
-| `verify-report.md` | ✅ | 5 CRITICAL, 5 WARNING, 7 PASSED, 3 SKIPPED |
-| `.forge-status.yml` | ✅ | plan=completed, implement=not-started, verify=failed |
-| `v-model/release-audit-report.md` | ✅ | BLOCKED (102 untested) |
-| Implementation packages | ❌ | 0 files |
-| Integration contract evidence | ❌ | 0 files |
+| Artifact                          | Present | Hash / Status                                        |
+| --------------------------------- | ------- | ---------------------------------------------------- |
+| `research.md`                     | ✅      | Present                                              |
+| `product-spec/product-spec.md`    | ✅      | Present                                              |
+| `spec.md`                         | ✅      | Present                                              |
+| `plan.md`                         | ✅      | Present                                              |
+| `tasks.md`                        | ✅      | 85 tasks, 0 checked                                  |
+| `verify-report.md`                | ✅      | 5 CRITICAL, 5 WARNING, 7 PASSED, 3 SKIPPED           |
+| `.forge-status.yml`               | ✅      | plan=completed, implement=not-started, verify=failed |
+| `v-model/release-audit-report.md` | ✅      | BLOCKED (102 untested)                               |
+| Implementation packages           | ❌      | 0 files                                              |
+| Integration contract evidence     | ❌      | 0 files                                              |

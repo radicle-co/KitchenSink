@@ -1,0 +1,101 @@
+{
+    "name": "@radicle-co/infra-shared",
+    "version": "0.1.0",
+    "description": "Shared CDK constructs and pure resolvers for the KitchenSink platform: ALB listener-priority allocation, message-table naming, and the advisory cdk-nag security layer.",
+    "license": "UNLICENSED",
+    "type": "module",
+    "//": [
+        "\u26d4 DELIBERATELY OUTSIDE THE npm WORKSPACE, and it must stay outside. It sits at `shared/infra` rather",
+        "than `packages/shared/infra` for exactly that reason \u2014 the root globs include `packages/shared/*`, so",
+        "the obvious location would silently make this a workspace again and undo the seam.",
+        "",
+        "WHY IT EXISTS. CDK is not part of the workspace installs. A service's CDK app installs its own",
+        "`aws-cdk-lib` inside its `infra/` directory, so `aws-cdk-lib` never enters the root tree and never",
+        "reaches `turbo prune`, and therefore never ships inside a service's container image \u2014 it was 149 MB of",
+        "one.",
+        "",
+        "That only works if the shared constructs resolve the CONSUMER's copy of aws-cdk-lib rather than one of",
+        "their own. Two instances is not a packaging nuisance: `SecretValue` tokens minted by one instance are",
+        "not resolvable by a stack from the other, and TypeScript rejects the assignment outright ('Types have",
+        "separate declarations of a private property'). Hence peerDependencies below \u2014 this package owns no CDK",
+        "copy and defers instance ownership to whoever installs it. `cdk-nag` is a real dependency because it is",
+        "ours to pin, and it peers on aws-cdk-lib itself, so it resolves the same single instance.",
+        "",
+        "\u26a0\ufe0f PUBLISHED TO GITHUB PACKAGES, and that is why this one package breaks the `@kitchensink/*`",
+        "naming convention CODING_STANDARDS \u00a7406 documents. GitHub Packages requires the npm scope to match",
+        "the repository owner, so `@radicle-co` is not a preference \u2014 it is the only name the registry will",
+        "accept for `radicle-co/KitchenSink`. Every other platform package stays `@kitchensink/*`.",
+        "",
+        "\u26a0\ufe0f Consumers need a token to READ this, because GitHub Packages authenticates even public",
+        "packages. CI uses the built-in `GITHUB_TOKEN`; a local `npm ci` in an `infra/` directory needs a",
+        "PAT with `read:packages` in `~/.npmrc`. The trade was accepted deliberately: the alternative was",
+        "the public npm registry, which needs no auth but also no longer matched what this repo wanted.",
+        "",
+        "\u26a0\ufe0f Subpath exports keep the three original boundaries (`/alb`, `/messaging`, `/security`) rather than",
+        "flattening them into one namespace. They were three packages for a reason and merging the surface would",
+        "lose it; only the publishing unit is shared.",
+        "",
+        "\u26a0\ufe0f It declares NEITHER zod NOR dotenv, and must not. Neither is imported here \u2014 they were added by",
+        "mistake, copied from a consuming CDK app. A dependency this package does not use is not merely",
+        "dead weight: it is COPIED into every consumer that installs from the registry, giving them a",
+        "second instance of a library the workspace already provides. That split zod and broke",
+        "infra-global's typecheck.",
+        "",
+        "\u26d4 It declares NO `@kitchensink/*` tooling, and must not, even though `eslint.config.js` imports `@kitchensink/eslint`. This package sits outside the npm workspace, so DECLARING one makes npm resolve it from the registry \u2014 where a private workspace package does not exist \u2014 and `npm install` here fails. Undeclared, Node's upward walk finds the workspace symlink in the repo root's `node_modules`, which the root install has already created by the time `cdk-checks` runs. `packages/infra/global` resolves its own the same way, for the same reason."
+    ],
+    "publishConfig": {
+        "registry": "https://npm.pkg.github.com"
+    },
+    "exports": {
+        "./alb": {
+            "types": "./dist/alb/index.d.ts",
+            "default": "./dist/alb/index.js"
+        },
+        "./database": {
+            "types": "./dist/database/index.d.ts",
+            "default": "./dist/database/index.js"
+        },
+        "./messaging": {
+            "types": "./dist/messaging/index.d.ts",
+            "default": "./dist/messaging/index.js"
+        },
+        "./security": {
+            "types": "./dist/security/index.d.ts",
+            "default": "./dist/security/index.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "lint": "eslint .",
+        "prepack": "npm run build",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "cdk-nag": "^2.38.2"
+    },
+    "peerDependencies": {
+        "aws-cdk-lib": "^2.176.0",
+        "constructs": "^10.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^24.13.3",
+        "aws-cdk-lib": "^2.267.0",
+        "constructs": "^10.8.1",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^6.0.3"
+    },
+    "engines": {
+        "node": "24.x"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/radicle-co/KitchenSink.git",
+        "directory": "shared/infra"
+    }
+}

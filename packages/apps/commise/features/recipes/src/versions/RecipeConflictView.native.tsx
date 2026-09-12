@@ -2,7 +2,7 @@
  * @module @commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 / W7 building
  * block).
  *
- * The React Native leaf of {@link import('./RecipeConflictView.js').RecipeConflictView} — same FULLY
+ * The React Native leaf of `RecipeConflictView` — same FULLY
  * controlled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)
  * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the
  * changed-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row
@@ -17,28 +17,25 @@
  * the two platforms cannot drift.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { FC } from 'react';
 import { palette } from '@commise/ui';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ConflictMarker } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
+import { fillTemplate } from '../list/model.js';
 import {
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
-    conflictRowLabel,
-    fillTemplate,
+    type RecipeConflictViewProps,
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatYourCardHeading,
     isConflictBaseStale,
-    type MergeSide,
-    type RecipeConflictViewProps,
-} from './model.js';
+} from './conflictView.js';
+import { conflictMarkerGlyph, conflictMarkerLabel, conflictRowLabel } from './diffLabels.js';
+import type { MergeSide } from './merge.js';
 
 /** The three markers, in the order the legend explains them (matching the wireframe's own `[=] [→] [!!]`
  *  order). */
@@ -90,12 +87,10 @@ const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndC
 const VersionSideCard: FC<{
     readonly heading: string;
     readonly savedLine?: string;
-    readonly deviceLine?: string;
-}> = ({ heading, savedLine, deviceLine }) => (
+}> = ({ heading, savedLine }) => (
     <View style={styles.versionCard}>
         <Text style={styles.versionCardHeading}>{heading}</Text>
         {savedLine !== undefined && <Text style={styles.versionCardLine}>{savedLine}</Text>}
-        {deviceLine !== undefined && <Text style={styles.versionCardLine}>{deviceLine}</Text>}
     </View>
 );
 
@@ -174,10 +169,17 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     // A NEW conflict (same component instance, new props) must NOT inherit the PRIOR conflict's local UI
     // state — see the web leaf's own note (X6 robustness gap). `server.versionNumber` is this conflict's
     // stable identity token.
-    useEffect(() => {
+    //
+    // Reset DURING RENDER, React's documented form for state keyed on a prop — not in an effect, which committed
+    // one frame of the NEW conflict with the OLD confirmation still ticked before correcting it.
+    const [conflictVersion, setConflictVersion] = useState(server.versionNumber);
+
+    if (conflictVersion !== server.versionNumber) {
+        setConflictVersion(server.versionNumber);
         setStaleConfirmed(false);
         setMerging(false);
-    }, [server.versionNumber]);
+    }
+
     // Reading the clock is THIS component's own side effect — see the web leaf's own note.
     const now = new Date();
 
@@ -289,7 +291,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <VersionSideCard
                     heading={formatServerCardHeading(server, conflict)}
                     savedLine={formatVersionCardSavedLine(server, locale, conflict)}
-                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
                 />
                 <VersionSideCard
                     heading={formatYourCardHeading(base, conflict)}
@@ -297,7 +298,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         ? {}
                         : {
                               savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                              deviceLine: formatVersionCardDeviceLine(base, conflict),
                           })}
                 />
             </View>

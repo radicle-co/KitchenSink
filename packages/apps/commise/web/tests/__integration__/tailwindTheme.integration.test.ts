@@ -55,6 +55,9 @@ const PROBES = [
     'text-caption',
     'leading-body',
     'text-sm',
+    'bg-hero',
+    'animate-pending-bar-reveal',
+    '-top-3.5',
 ] as const;
 
 /**
@@ -80,8 +83,13 @@ async function compileAppCss(): Promise<string> {
  * a utility RESOLVES TO, never how it happens to be formatted.
  */
 function ruleFor(css: string, utility: string): string | undefined {
-    // Class selectors escape nothing we probe here (plain `a-z0-9-`), so a literal match is exact.
-    const match = new RegExp(`\\.${utility.replace(/[-]/g, '\\-')}\\s*\\{([^}]*)\\}`).exec(css);
+    // Escape every regex metacharacter, not just `-`: a partial escape silently mis-parses any utility
+    // carrying a `.`, `[` or `\` (arbitrary-value utilities do), and leaves the literal match only apparently exact.
+    // `-` is deliberately NOT in the set: it is literal outside a character class, and escaping it emits `\-`,
+    // which a `u`-flagged pattern rejects as an invalid escape — so every utility carrying a hyphen (`size-8`,
+    // `h-14`, i.e. nearly all of them) threw at construction.
+    const escaped = utility.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    const match = new RegExp(`\\.${escaped}\\s*\\{([^}]*)\\}`, 'u').exec(css);
 
     return match?.[1].replace(/\s+/g, '').replace(/;$/, '');
 }
@@ -94,7 +102,7 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
     it('does not redefine the numeric spacing scale (a DS ramp must never hijack --spacing-*)', async () => {
         const css = await cssPromise;
 
-        // `size-8` is the top-bar avatar disc and the recipe step marker. The mockups (`screen-home`:
+        // `size-8` is the top-bar avatar disc and the recipe step marker. The mockups (`screenHome`:
         // `w-8 h-8`) and the native leaves (`width: 32`) both mean 32px, so Tailwind's default MUST win.
         expect(ruleFor(css, 'size-8')).toBe('width:calc(var(--spacing)*8);height:calc(var(--spacing)*8)');
         expect(css).toMatch(/--spacing:\s*0?\.25rem/);
@@ -162,5 +170,116 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         // rather than by a flat `.class { … }` body — but they must be PRESENT, which is the regression risk.
         expect(css, 'the hover fill').toContain('hover\\:bg-mist\\/40');
         expect(css, 'the focus ring').toContain('focus-visible\\:ring-ocean-dark');
+    });
+});
+
+/**
+ * `@commise/ui`'s `PendingBar` reveals itself through the `animate-pending-bar-reveal` utility, with its delay set
+ * inline from `PENDING_BAR_DELAY_MS`. The class being in the JSX proves nothing: if the theme token were missing the
+ * utility would compile to NOTHING, and the bar would paint on the very first frame of every search — the flash the
+ * delay exists to prevent — while every jsdom test still passed.
+ */
+describe('the pending-bar reveal (compiled)', () => {
+    const cssPromise = compileAppCss();
+
+    it('compiles the reveal utility to a zero-length animation that holds its from-state through the delay', async () => {
+        const css = await cssPromise;
+        const rule = ruleFor(css, 'animate-pending-bar-reveal');
+
+        expect(rule, 'the utility must emit a declaration').toBeDefined();
+        expect(rule).toContain('animation:var(--animate-pending-bar-reveal)');
+        // `both` is what keeps the bar at opacity 0 during `animation-delay`; `0s` is what makes it a reveal, not motion.
+        expect(css.replace(/\s+/g, ' ')).toMatch(/--animate-pending-bar-reveal: pending-bar-reveal 0s[^;]*both/);
+    });
+
+    it('centres the bar in the 24px gap above the results: 14px up (12px half-gap + 2px half-bar)', async () => {
+        // `3.5` is not a DS spacing step, so it resolves through Tailwind's `--spacing` base. A DS ramp that ever
+        // defines a fractional step would move the bar out of the gap without any jsdom test noticing.
+        const css = await cssPromise;
+
+        expect(ruleFor(css, '-top-3\\.5')).toBe('top:calc(var(--spacing)*-3.5)');
+        expect(css).toMatch(/--spacing:\s*0?\.25rem/);
+    });
+
+    it('reveals by opacity alone, from 0 to 1', async () => {
+        // Whitespace and a declaration's trailing `;` dropped, so a pretty-printed and a minified build read the same.
+        const css = (await cssPromise).replace(/\s+/g, '').replace(/;\}/g, '}');
+        const keyframes = /@keyframespending-bar-reveal\{(.*?\})\}/.exec(css)?.[1];
+
+        expect(keyframes).toBe('from{opacity:0}to{opacity:1}');
+    });
+});
+
+/**
+ * The page-canvas gradient must be REAL, EMITTED CSS on the `body` — the app's flat-vs-gradient defect.
+ *
+ * All nine wireframes paint `body { background: var(--gradient-beach-glow) }`; the app painted a flat
+ * `background-color`. Two earlier failures on this exact surface dictate the shape of these assertions:
+ *
+ *  - A token can exist and still compile to nothing (`--font-size-*` was not a namespace, so 324 type-ramp
+ *    call sites emitted zero CSS). So this reads the COMPILED declaration, never `themeCss()`'s string.
+ *  - A jsdom component test once stubbed its own stylesheet and passed at 32px while the app shipped 64px. So
+ *    this compiles the app's real `globals.css` with the app's real compiler — the whole chain, token →
+ *    `themeCss()` → `dist/theme.css` → `@import` → Tailwind — rather than simulating any part of it.
+ *
+ * Mutation lens: revert `body` to `background-color` alone and the first assertion fails; re-tone a stop and
+ * the second fails; move the ramp back into a hand-written class and the fourth fails.
+ */
+describe('the beach-glow page canvas (compiled)', () => {
+    const cssPromise = compileAppCss();
+
+    /** The declaration body of the compiled `@layer base` rule for a bare element selector. */
+    function baseRuleFor(css: string, element: string): string | undefined {
+        const match = new RegExp(`(?:^|[{}\\s,])${element}\\s*\\{([^}]*)\\}`).exec(css);
+
+        return match?.[1].replace(/\s+/g, '').replace(/;$/, '');
+    }
+
+    it('paints the gradient on body, from the token — not a flat background-color', async () => {
+        const body = baseRuleFor(await cssPromise, 'body');
+
+        expect(body).toBeDefined();
+        expect(body).toContain('background-image:var(--background-image-hero)');
+        // The solid colour stays as the pre-paint/unsupported fallback, so a canvas is never transparent.
+        expect(body).toContain('background-color:var(--color-background)');
+    });
+
+    it('resolves --background-image-hero to the wireframes’ three-stop 135° ramp', async () => {
+        const css = await cssPromise;
+
+        expect(css).toContain(
+            '--background-image-hero: linear-gradient(135deg, #FAF6F0 0%, #F0F7F4 50%, #E8F4F8 100%)',
+        );
+    });
+
+    it('generates a usable bg-hero utility (the namespace is live, not merely plausible)', async () => {
+        expect(ruleFor(await cssPromise, 'bg-hero')).toBe('background-image:var(--background-image-hero)');
+    });
+
+    /**
+     * The drifted canvas tints must not be spelled ANYWHERE the compiler can see.
+     *
+     * The app shell and the mobile nav drawer each hand-rolled a ramp through two arbitrary-value stops
+     * (mid `#F5F8FA`, end `#EDF5F8`) — a second and third representation of the canvas, already drifted from
+     * the wireframes' own `#F0F7F4` / `#E8F4F8`. Both now consume the token, so those utilities should no
+     * longer be generated at all; if one reappears, a duplicate definition is back.
+     *
+     * The hex codes are assembled below rather than written as class literals ON PURPOSE. Tailwind v4's
+     * automatic source detection scans the whole non-ignored tree as TEXT — this test file included, comments
+     * included — so naming the class verbatim anywhere, even in prose explaining why it is banned, REGENERATES
+     * it and makes the assertion fail against itself. (Both the fix and this test tripped over exactly that.)
+     */
+    it('no longer compiles a SECOND, hand-spelled canvas gradient', async () => {
+        const css = await cssPromise;
+        const driftedMid = '#F5F8'.concat('FA');
+        const driftedEnd = '#EDF5'.concat('F8');
+
+        for (const [prefix, hex] of [
+            ['via', driftedMid],
+            ['to', driftedEnd],
+        ] as const) {
+            // Tailwind escapes `[`, `]` and `#` in the generated selector.
+            expect(css).not.toContain(`.${prefix}-\\[\\${hex}\\]`);
+        }
     });
 });

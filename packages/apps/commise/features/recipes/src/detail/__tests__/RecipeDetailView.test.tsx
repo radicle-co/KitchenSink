@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { utilityContrast } from '@commise/test-utils';
 
@@ -18,20 +18,31 @@ import {
     makePhoto,
     makeRecipeDetail,
     makeStepView,
+    idleUnreachableRetry,
 } from '../../__fixtures__/index.js';
+import { RecipeDetailBody } from '../RecipeDetailBody.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
+import { resetServingScale } from '../servingScale.js';
+import { recipeMessages } from '../../messages.js';
 
 afterEach(cleanup);
 
 describe('RecipeDetailView (web) — header', () => {
     it('renders the title as the top-level heading', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Mediterranean Grilled Lamb' })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Mediterranean Grilled Lamb' })}
+            />,
+        );
 
         expect(screen.getByRole('heading', { level: 1, name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
     });
 
     it('sits the header in a brand gradient title band (U8)', () => {
-        const { container } = render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb' })} />);
+        const { container } = render(
+            <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ title: 'Lamb' })} />,
+        );
         // The GradientSurface paints an inline linear-gradient background behind the header. Selected by the
         // band that CONTAINS the h1 — not merely "the first gradient on the screen", so another gradient
         // surface elsewhere on the detail (e.g. the hero's no-cover placeholder) cannot satisfy this by accident.
@@ -43,13 +54,23 @@ describe('RecipeDetailView (web) — header', () => {
     });
 
     it('renders the description', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ description: 'Tender and herby.' })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ description: 'Tender and herby.' })}
+            />,
+        );
 
         expect(screen.getByText('Tender and herby.')).toBeTruthy();
     });
 
     it('sizes the title responsively — smaller at base, the original text-4xl from sm up (U5)', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Mediterranean Grilled Lamb' })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Mediterranean Grilled Lamb' })}
+            />,
+        );
 
         // A long title overflows a 360px viewport at text-4xl, so the base drops to text-2xl and restores the
         // original text-4xl at `sm:` — tablet/desktop are unchanged.
@@ -61,6 +82,7 @@ describe('RecipeDetailView (web) — header', () => {
     it('renders cuisine, dietary flags, and tags as badges', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ cuisine: 'Mediterranean', dietaryFlags: ['Gluten-Free'], tags: ['grill'] })}
             />,
         );
@@ -73,6 +95,7 @@ describe('RecipeDetailView (web) — header', () => {
     it('makes EVERY badge in the hero row WCAG-AA legible over its own tint', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ cuisine: 'Mediterranean', dietaryFlags: ['Gluten-Free'], tags: ['grill'] })}
             />,
         );
@@ -88,7 +111,9 @@ describe('RecipeDetailView (web) — header', () => {
     });
 
     it('makes the tappable tag chip WCAG-AA legible AT REST AND ON HOVER', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} />);
+        render(
+            <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ tags: ['grill'] })} />,
+        );
 
         const chip = screen.getByRole('button', { name: 'Find recipes tagged grill' });
 
@@ -109,6 +134,7 @@ describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA l
     it('makes the NOT-DONE step numeral legible (the reader reads the number)', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' })] })}
                 checkedSteps={new Set()}
                 onToggleStep={vi.fn()}
@@ -125,6 +151,7 @@ describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA l
     it('makes the step timer label legible', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     steps: [makeStepView({ stepNumber: 1, instruction: 'Rest the lamb.', timerSeconds: 120 })],
                 })}
@@ -135,7 +162,12 @@ describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA l
     });
 
     it('makes the footer visibility badge legible over its seafoam tint', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC })}
+            />,
+        );
 
         const badge = within(screen.getByRole('group', { name: 'Recipe status' })).getByText('Public');
 
@@ -147,6 +179,7 @@ describe('RecipeDetailView (web) — meta', () => {
     it('renders prep, cook, total times and servings', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     prepTimeMinutes: 15,
                     cookTimeMinutes: 30,
@@ -159,12 +192,16 @@ describe('RecipeDetailView (web) — meta', () => {
         expect(screen.getByText('15 min')).toBeTruthy();
         expect(screen.getByText('30 min')).toBeTruthy();
         expect(screen.getByText('45 min')).toBeTruthy();
-        expect(screen.getByText('4')).toBeTruthy();
+        // REWRITTEN (serving scaling): the Serves cell is no longer static text — it is the labelled
+        // serving-count control, opening at the recipe's own yield. The assertion below proves the SAME
+        // fact (the strip reports 4 servings) against the new affordance; the coverage did not move.
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '4');
     });
 
     it('orders the stat cards Serves, Prep, Cook, Total (wireframe parity, C2)', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     prepTimeMinutes: 15,
                     cookTimeMinutes: 30,
@@ -183,8 +220,11 @@ describe('RecipeDetailView (web) — ingredients', () => {
     it('renders each ingredient with its formatted quantity and name', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
-                    ingredients: [makeIngredientView({ name: 'Lamb leg', quantity: 1.5, unit: 'lbs' })],
+                    ingredients: [
+                        makeIngredientView({ name: 'Lamb leg', quantity: { kind: 'exact', value: 1.5 }, unit: 'lbs' }),
+                    ],
                 })}
             />,
         );
@@ -197,6 +237,7 @@ describe('RecipeDetailView (web) — ingredients', () => {
     it('renders ingredient notes when present', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ notes: 'butterflied' })] })}
             />,
         );
@@ -207,6 +248,7 @@ describe('RecipeDetailView (web) — ingredients', () => {
     it('marks user-entered ingredients with a badge', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ isUserEntered: true })] })}
             />,
         );
@@ -217,6 +259,7 @@ describe('RecipeDetailView (web) — ingredients', () => {
     it('does not show the custom badge for resolved ingredients', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ isUserEntered: false })] })}
             />,
         );
@@ -229,6 +272,7 @@ describe('RecipeDetailView (web) — instructions', () => {
     it('renders steps in an ordered list', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     steps: [
                         makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' }),
@@ -247,10 +291,14 @@ describe('RecipeDetailView (web) — instructions', () => {
     });
 });
 
+/** The detail's stale-nutrition disclosure (owner ruling 2026-09-12; copy per staff-ux-engineer SPECIFY). */
+const STALE_NOTICE = 'These figures include saved food data, so they may be out of date.';
+
 describe('RecipeDetailView (web) — nutrition', () => {
     it('renders the per-serving macros', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     nutrition: makeNutrition({ calories: 520, proteinG: 32, carbsG: 18, fatG: 34 }),
                 })}
@@ -263,15 +311,71 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('shows an estimated indicator when nutrition is incomplete', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: false }) })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: false }) })}
+            />,
+        );
 
         expect(screen.getByText('Estimated — some items aren’t counted yet')).toBeTruthy();
     });
 
     it('hides the estimated indicator when nutrition is complete', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: true }) })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: true }) })}
+            />,
+        );
 
         expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
+    });
+
+    it('⛔ says so when the figures were served from saved food data (KTD-3b)', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ nutrition: makeNutrition({ freshness: 'stale' }) })}
+            />,
+        );
+
+        const nutrition = screen.getByRole('region', { name: 'Nutrition (per serving)' });
+        expect(within(nutrition).getByText(STALE_NOTICE)).toBeTruthy();
+    });
+
+    it('shows no freshness sentence for figures fetched for this read', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ nutrition: makeNutrition({ freshness: 'fresh' }) })}
+            />,
+        );
+
+        expect(screen.queryByText(STALE_NOTICE)).toBeNull();
+    });
+
+    it('keeps each notice its own sentence, in reading order: partial, range, stale, then review', () => {
+        // Source/reading order of the sibling notices — the order a screen reader walks. It cannot see a CSS
+        // reorder, so it is not a claim about visual position.
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    nutrition: makeNutrition({ isComplete: false, rangeDerivedBound: 'low', freshness: 'stale' }),
+                    ingredients: [makeIngredientView({ resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW })],
+                })}
+            />,
+        );
+
+        const partial = screen.getByText('Estimated — some items aren’t counted yet');
+        const range = screen.getByText('Estimated from the lower amount of each stated range');
+        const stale = screen.getByText(STALE_NOTICE);
+        const review = screen.getByText(recipeMessages.en.detail.needsReviewNoticeOne);
+
+        expect(partial.compareDocumentPosition(range) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(range.compareDocumentPosition(stale) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(stale.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('shows the standing USDA-source note when the recipe has a user-entered ingredient (REQ-034)', () => {
@@ -279,6 +383,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
         // recipe has a user-entered ingredient the note explains — never an unconditional standing fact.
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     nutrition: makeNutrition({ isComplete: true }),
                     ingredients: [makeIngredientView({ isUserEntered: true })],
@@ -297,6 +402,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     it('hides the standing USDA-source note when no ingredient is user-entered (REQ-034)', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ isUserEntered: false })] })}
             />,
         );
@@ -307,7 +413,9 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('hides the standing USDA-source note for a recipe with no ingredients (REQ-034)', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ ingredients: [] })} />);
+        render(
+            <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ ingredients: [] })} />,
+        );
 
         expect(
             screen.queryByText('Nutrition includes USDA database items; user-entered ingredients are marked Custom.'),
@@ -319,6 +427,7 @@ describe('RecipeDetailView (web) — photos', () => {
     it('renders each photo with an accessible name', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ title: 'Grilled Lamb', photos: [makePhoto({ url: 'https://cdn/x.jpg' })] })}
             />,
         );
@@ -327,7 +436,7 @@ describe('RecipeDetailView (web) — photos', () => {
     });
 
     it('renders no photo gallery when the recipe has no photos', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [] })} />);
+        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ photos: [] })} />);
 
         // The GALLERY is absent — asserted on the carousel's own region and its slide controls, not on "no
         // image anywhere on the screen": the detail now also leads with the cover hero, which is a different
@@ -337,7 +446,12 @@ describe('RecipeDetailView (web) — photos', () => {
     });
 
     it('renders no photo gallery even when a cover hero IS present (they are independent)', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [], coverPhotoUrl: 'https://cdn/hero.jpg' })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ photos: [], coverPhotoUrl: 'https://cdn/hero.jpg' })}
+            />,
+        );
 
         expect(screen.queryByRole('region', { name: 'Recipe photos' })).toBeNull();
         // …while the hero still paints the cover (alt text = the recipe title).
@@ -349,6 +463,7 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
     it('renders each ingredient as a real checkbox reflecting the checked set (D5)', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     ingredients: [
                         makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' }),
@@ -366,6 +481,7 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
     it('gives the ingredient checkbox a 44px base touch target around a smaller visual box, reset at sm (U5)', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' })],
                 })}
@@ -396,6 +512,7 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
     it('makes the UNCHECKED ingredient checkbox perceivable — its border is all there is', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' })],
                 })}
@@ -421,6 +538,7 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
         const user = userEvent.setup();
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
                     ingredients: [makeIngredientView({ ingredientId: 'ing_9', name: 'Salt' })],
                 })}
@@ -438,6 +556,7 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
         const user = userEvent.setup();
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' })] })}
                 checkedSteps={new Set()}
                 onToggleStep={onToggleStep}
@@ -455,6 +574,7 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
     it('reflects a checked step from the checked set (D4)', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 2, instruction: 'Sear.' })] })}
                 checkedSteps={new Set([2])}
             />,
@@ -468,7 +588,13 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
     it('renders tags as tappable chips that invoke onFilterByTag (D6)', async () => {
         const onFilterByTag = vi.fn();
         const user = userEvent.setup();
-        render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} onFilterByTag={onFilterByTag} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ tags: ['grill'] })}
+                onFilterByTag={onFilterByTag}
+            />,
+        );
 
         await user.click(screen.getByRole('button', { name: 'Find recipes tagged grill' }));
 
@@ -478,25 +604,45 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
 
 describe('RecipeDetailView (web) — version + visibility badges (D3)', () => {
     it('shows the current-version badge when the recipe is past v1', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 3 })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ currentVersion: 3 })}
+            />,
+        );
 
         expect(screen.getByLabelText('Version 3').textContent).toBe('v3');
     });
 
     it('omits the version badge at v1 (nothing to signal)', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 1 })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ currentVersion: 1 })}
+            />,
+        );
 
         expect(screen.queryByLabelText('Version 1')).toBeNull();
     });
 
     it('shows a Public badge for a public recipe', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC })}
+            />,
+        );
 
         expect(within(screen.getByRole('group', { name: 'Recipe status' })).getByText('Public')).toBeTruthy();
     });
 
     it('shows a Private badge for a private recipe', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE })}
+            />,
+        );
 
         expect(within(screen.getByRole('group', { name: 'Recipe status' })).getByText('Private')).toBeTruthy();
     });
@@ -506,6 +652,7 @@ describe('RecipeDetailView (web) — grouped footer (C3 wireframe parity)', () =
     it('groups caller-supplied footerActions with the version + visibility badges in ONE footer row', () => {
         render(
             <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ currentVersion: 2, visibility: RecipeVisibility.PUBLIC })}
                 footerActions={
                     <button type="button" onClick={() => undefined}>
@@ -522,16 +669,24 @@ describe('RecipeDetailView (web) — grouped footer (C3 wireframe parity)', () =
     });
 
     it('renders no footerActions slot when the caller omits it (e.g. the owner viewing their own recipe)', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 1 })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ currentVersion: 1 })}
+            />,
+        );
 
         expect(screen.queryByRole('button', { name: 'Clone' })).toBeNull();
     });
 });
 
-describe('RecipeDetailView (web) — hero cover (mockup screen-recipe-detail)', () => {
+describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', () => {
     it('LEADS the screen with the cover hero — it precedes the title heading in document order', () => {
         const { container } = render(
-            <RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: 'https://cdn/hero.jpg' })} />,
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: 'https://cdn/hero.jpg' })}
+            />,
         );
         const hero = screen.getByRole('img', { name: 'Lamb' });
         const heading = screen.getByRole('heading', { level: 1, name: 'Lamb' });
@@ -542,7 +697,12 @@ describe('RecipeDetailView (web) — hero cover (mockup screen-recipe-detail)', 
     });
 
     it('renders the deliberate no-photo hero fallback for a recipe with no cover', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: undefined, photos: [] })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: undefined, photos: [] })}
+            />,
+        );
 
         expect(screen.getByRole('img', { name: 'No photo yet' })).toBeTruthy();
         // And the title still renders — a missing cover degrades the hero, never the screen.
@@ -552,7 +712,12 @@ describe('RecipeDetailView (web) — hero cover (mockup screen-recipe-detail)', 
 
 describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
     it('gives the step toggle a 44px base touch target around its smaller visual marker, reset at sm', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1 })] })} />);
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1 })] })}
+            />,
+        );
         const control = screen.getByRole('checkbox', { name: 'Mark step 1 complete' });
 
         // The tap target is the interactive control: 44px (`size-11`) on touch, collapsing to the original
@@ -564,7 +729,9 @@ describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
     });
 
     it('gives each tag-filter chip the 44px touch floor, reset for the mouse at md', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} />);
+        render(
+            <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ tags: ['grill'] })} />,
+        );
         const chip = screen.getByRole('button', { name: 'Find recipes tagged grill' });
 
         expect(chip.className).toContain('min-h-11');
@@ -591,20 +758,498 @@ describe('RecipeDetailView (web) — a long ingredient line cannot push the row 
         });
 
     it('lets the ingredient name shrink and wrap rather than overflow the row', () => {
-        render(<RecipeDetailView recipe={longIngredient()} />);
+        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={longIngredient()} />);
 
-        const name = screen.getByText('Slow-roasted San Marzano tomatoes from the co-op down the road');
+        // The name sits in the row's ONE flowing text block with its preparation and notes (namelessLineCopy.md
+        // §2c), so the shrink-and-wrap classes are on that block, the name's parent.
+        const block = screen.getByText('Slow-roasted San Marzano tomatoes from the co-op down the road').parentElement;
 
-        expect(name.className).toContain('min-w-0');
-        expect(name.className).toContain('break-words');
+        expect(block?.className).toContain('min-w-0');
+        expect(block?.className).toContain('break-words');
     });
 
-    it('never shrinks the fixed-format quantity or the trailing user-entered badge', () => {
-        render(<RecipeDetailView recipe={longIngredient()} />);
+    it('never shrinks the fixed-format quantity', () => {
+        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={longIngredient()} />);
 
-        // Both are the row's CHROME: the quantity is a formatted fixed field and the badge is a pill — RN
-        // leaves them unshrinkable by default, so web says so explicitly.
+        // The quantity is a formatted fixed field: the row's chrome, so it never yields width.
         expect(screen.getByText('2 tbsp').className).toContain('shrink-0');
-        expect(screen.getByText('Custom').className).toContain('shrink-0');
+    });
+});
+
+/**
+ * E2 I1 — a named row's status badge flows INSIDE the name's text block, never in a column beside it.
+ *
+ * ⚠️ This REPLACES the old "never shrinks the trailing user-entered badge" test, which pinned the defect: a
+ * `shrink-0 ml-auto` badge column left the name 37 px wide at 320 px and 0 px under 200% text
+ * (`ingredientSpecialization.md` E2, `namelessLineCopy.md` §2c). The row now has exactly three columns — the
+ * tick, the amount and the text block — and every badge is inline content of that block, so the name has the
+ * block's whole width and a badge wraps under it rather than squeezing it. jsdom has no layout, so this pins the
+ * STRUCTURE; the width gain itself was measured in a browser, not here.
+ *
+ * Every badge kind is a case, because each was its own trailing element and each could be left behind.
+ */
+describe('RecipeDetailView (web) — a status badge flows inside the name block (E2 I1)', () => {
+    const en = recipeMessages.en.detail;
+    const healthy = makeIngredientView({ ingredientId: 'healthy', name: 'Salt' });
+    const cases = [
+        {
+            what: 'the Custom badge',
+            line: makeIngredientView({ ingredientId: 'line', name: 'Plain flour', isUserEntered: true }),
+            badge: en.userEnteredBadge,
+        },
+        {
+            what: 'the needs-review badge',
+            line: makeIngredientView({
+                ingredientId: 'line',
+                name: 'Plain flour',
+                resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+            }),
+            badge: en.needsReviewBadge,
+        },
+        {
+            what: 'the needs-a-pick badge',
+            line: makeIngredientView({
+                ingredientId: 'line',
+                name: 'Plain flour',
+                resolutionStatus: FoodResolutionStatus.AMBIGUOUS,
+            }),
+            badge: en.ambiguousBadge,
+        },
+        {
+            what: 'the food-removed badge',
+            line: makeIngredientView({
+                ingredientId: 'line',
+                name: 'Plain flour',
+                resolutionStatus: FoodResolutionStatus.FOOD_REMOVED,
+            }),
+            badge: en.removedFoodBadge,
+        },
+    ] as const;
+
+    for (const { what, line, badge } of cases) {
+        it(`renders ${what} inside the name's text block`, () => {
+            render(
+                <RecipeDetailView
+                    unreachableRetry={idleUnreachableRetry}
+                    recipe={makeRecipeDetail({ ingredients: [line, healthy] })}
+                />,
+            );
+
+            const block = screen.getByText('Plain flour').parentElement;
+
+            expect(block?.contains(screen.getByText(badge))).toBe(true);
+        });
+
+        it(`gives the row no badge column beside the name for ${what}`, () => {
+            render(
+                <RecipeDetailView
+                    unreachableRetry={idleUnreachableRetry}
+                    recipe={makeRecipeDetail({ ingredients: [line, healthy] })}
+                />,
+            );
+
+            const row = screen.getByRole('checkbox', { name: /Plain flour/u }).closest('li');
+            const block = screen.getByText('Plain flour').parentElement;
+
+            // Exactly the tick, the amount and the text block: nothing sits beside the block to squeeze it.
+            expect(row?.children).toHaveLength(3);
+            expect(row?.lastElementChild).toBe(block);
+        });
+    }
+});
+
+/**
+ * Gap A — the recipe's ORIGIN, on the detail view itself.
+ *
+ * `sourceUrl`/`sourceAttribution` used to render nowhere on this view: attribution appeared only inside
+ * `RecipeCloneAction`, which the container mounts only for a NON-owner, so the owner of an imported recipe
+ * could never see where it came from and `sourceUrl` was shown to nobody. This view takes no viewer, which
+ * is the structural fix — provenance is a property of the recipe, not of who is looking.
+ */
+describe('RecipeDetailView (web) — recipe source', () => {
+    it('renders the source link for a recipe that has one, with no viewer context at all', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    sourceUrl: 'https://www.seriouseats.com/recipes/lamb',
+                    sourceAttribution: 'Serious Eats',
+                })}
+            />,
+        );
+
+        // The link is labelled by the VERIFIED host (never by the untrusted attribution, which renders
+        // beside it as text) — see `RecipeSourceLine`.
+        const link = screen.getByRole('link', { name: 'www.seriouseats.com' });
+        expect(link.getAttribute('href')).toBe('https://www.seriouseats.com/recipes/lamb');
+        expect(screen.getByText('Serious Eats')).toBeTruthy();
+    });
+
+    it('renders the source even when the view is handed owner-style props (no footer clone action)', () => {
+        // The regression this locks: provenance must not be coupled to the clone affordance again.
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ sourceAttribution: 'Grandma’s cookbook' })}
+                footerActions={undefined}
+            />,
+        );
+
+        expect(screen.getByText('Grandma’s cookbook')).toBeTruthy();
+    });
+
+    it('renders NO source affordance for a recipe that has none', () => {
+        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({})} />);
+
+        expect(screen.queryByText('Source')).toBeNull();
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+});
+
+/**
+ * Gap B — configurable serving size.
+ *
+ * The model under test is deliberately partial, and these tests are what hold it in place: ingredient
+ * amounts and hands-on PREP scale with the yield; COOK time and per-step timers do NOT, because thermal
+ * cooking time is not proportional to batch size. Per-serving nutrition is invariant and must not move.
+ */
+describe('RecipeDetailView (web) — serving scale', () => {
+    // The scale is session state, keyed by recipe id, and the store is a module singleton: without this,
+    // one test's doubling leaks into the next.
+    afterEach(resetServingScale);
+
+    const scalable = () =>
+        makeRecipeDetail({
+            servings: 4,
+            prepTimeMinutes: 15,
+            // Distinct from the prep time on purpose: at 2x, prep becomes 30 and a shared value would let a
+            // "cook time scaled" bug hide behind an ambiguous text match.
+            cookTimeMinutes: 25,
+            totalTimeMinutes: 45,
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: 'ing_1',
+                    name: 'Olive oil',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'tbsp',
+                }),
+            ],
+            steps: [makeStepView({ stepNumber: 1, instruction: 'Simmer gently.', timerSeconds: 600 })],
+            nutrition: makeNutrition({ calories: 520, isComplete: true }),
+        });
+
+    /** Render the PURE body at an explicit serving count — the ratio cases, with no store involved. */
+    const renderAt = (servings: number) =>
+        render(
+            <RecipeDetailBody
+                unreachableRetry={idleUnreachableRetry}
+                recipe={scalable()}
+                servings={servings}
+                onServingsChange={vi.fn()}
+            />,
+        );
+
+    it('opens at the serving count the recipe was created with', () => {
+        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={scalable()} />);
+
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '4');
+        // …and nothing is presented as adjusted.
+        expect(screen.queryByText(/Adjusted from/)).toBeNull();
+    });
+
+    it('rescales the WHOLE view when the cook uses the control — no app wiring involved', async () => {
+        // The end-to-end wiring assertion: `RecipeDetailView` binds the scale itself, so a container that
+        // knows nothing about scaling still ships a working control. This is the structural answer to the
+        // defect class this feature came from (a capability that only reaches the screen if someone
+        // remembers to pass it down).
+        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={scalable()} />);
+
+        await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
+
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '5');
+        expect(screen.getByText('2.5 tbsp')).toBeTruthy();
+        expect(screen.getByText(/Adjusted from 4 servings/)).toBeTruthy();
+    });
+
+    it('keeps each recipe’s scale to itself', async () => {
+        const { unmount } = render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={scalable()} />);
+        await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
+        unmount();
+
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ id: 'rec_other', servings: 2 })}
+            />,
+        );
+
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '2');
+    });
+
+    it('scales ingredient quantities to the chosen serving count', () => {
+        renderAt(8);
+
+        expect(screen.getByText('4 tbsp')).toBeTruthy();
+        expect(screen.queryByText('2 tbsp')).toBeNull();
+    });
+
+    it('scales HANDS-ON prep time and rebuilds the total from it', () => {
+        renderAt(8);
+
+        expect(screen.getByText('30 min')).toBeTruthy(); // prep 15 -> 30
+        expect(screen.getByText('60 min')).toBeTruthy(); // total 45 + the 15-minute prep delta
+    });
+
+    it('does NOT scale cook time', () => {
+        const { container } = renderAt(8);
+
+        // Read the Cook cell specifically: doubling the batch must leave it at the stored 25 minutes. A
+        // "scale every timing" implementation renders 50 here and would tell a cook to bake twice as long.
+        const cook = Array.from(container.querySelectorAll('div')).find(
+            (cell) => cell.querySelector('dt')?.textContent === 'Cook',
+        );
+
+        expect(cook?.querySelector('dd')?.textContent).toBe('25 min');
+    });
+
+    it('does NOT scale a step timer', () => {
+        renderAt(8);
+
+        expect(screen.getByText('600s timer')).toBeTruthy();
+        expect(screen.queryByText('1200s timer')).toBeNull();
+    });
+
+    it('leaves PER-SERVING nutrition untouched, because it is invariant under scaling', () => {
+        renderAt(12);
+
+        // Restating it here would double-count the ratio; a fabricated or recomputed figure is the failure.
+        expect(screen.getByText('520')).toBeTruthy();
+    });
+
+    it('discloses what scaled and what deliberately did not, but only while scaled', () => {
+        const { unmount } = renderAt(4);
+
+        expect(screen.queryByText(/Cook times and step timers are shown unchanged/)).toBeNull();
+        unmount();
+
+        renderAt(6);
+
+        expect(screen.getByText(/Adjusted from 4 servings/)).toBeTruthy();
+        expect(screen.getByText(/Cook times and step timers are shown unchanged/)).toBeTruthy();
+    });
+
+    it('announces the disclosure rather than leaving it to sighted scanning', () => {
+        renderAt(6);
+
+        // REWRITTEN, not a lone `getByRole('status')`: the serving stepper carries its own status region (the
+        // spoken count), so the disclosure is asserted as ONE OF the status regions — still a live region, not text.
+        const statuses = screen.getAllByRole('status').map((node) => node.textContent ?? '');
+        expect(statuses.some((text) => text.includes('Adjusted from 4 servings'))).toBe(true);
+    });
+
+    it('scales DOWN as well as up', () => {
+        renderAt(2);
+
+        expect(screen.getByText('1 tbsp')).toBeTruthy();
+        expect(screen.getByText('8 min')).toBeTruthy(); // prep 15 -> 7.5, rounded to a whole minute
+    });
+
+    it('renders a recipe authored beyond the display cap at its own yield rather than crashing', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ id: 'rec_huge', servings: 250 })}
+            />,
+        );
+
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '250');
+    });
+});
+
+/**
+ * U9 / R42 + R38 — a ranged or absent quantity on the READ surface.
+ *
+ * The checkbox's accessible name is the assertion that matters: it is composed from the same formatted
+ * quantity the sighted row shows, so a bound dropped from one is dropped from both. The native suite
+ * asserts the identical set.
+ */
+describe('RecipeDetailView (web) — ranged and absent quantities (U9)', () => {
+    it('renders a stated range as a span, not as its lower bound alone', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            quantity: { kind: 'range', low: 2, high: 3 },
+                            unit: 'cups',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByRole('checkbox', { name: '2–3 cups Flour' })).toBeTruthy();
+    });
+
+    it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Butter',
+                            quantity: { kind: 'absent' },
+                            unit: 'the size of an egg',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByRole('checkbox', { name: 'the size of an egg Butter' })).toBeTruthy();
+        // Mutation guard: a `?? 0` or a `?? 1` fallback would put a digit in front of a cook here.
+        expect(screen.queryByRole('checkbox', { name: /^0 /u })).toBeNull();
+        expect(screen.queryByRole('checkbox', { name: /^1 /u })).toBeNull();
+    });
+
+    it('discloses that the nutrition figure came from one bound of a stated range (R38)', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ nutrition: makeNutrition({ rangeDerivedBound: 'low' }) })}
+            />,
+        );
+
+        expect(screen.getByText('Estimated from the lower amount of each stated range')).toBeTruthy();
+    });
+
+    it('shows NO range disclosure when nothing was collapsed', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ nutrition: makeNutrition() })}
+            />,
+        );
+
+        expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
+    });
+});
+
+/**
+ * U26 — the preparation on the READ surface.
+ *
+ * ⛔ Without this the field round-trips and is INVISIBLE: a cook types "finely chopped" in the editor, saves,
+ * opens the recipe, and cooks from a line that never mentions it. A field the author can set and the reader
+ * cannot see is not a shipped feature.
+ */
+describe('RecipeDetailView — ingredient preparation (U26)', () => {
+    it('renders the preparation when the line carries one', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Onion', preparation: 'finely chopped' })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('finely chopped')).toBeTruthy();
+    });
+
+    // ⛔ U26's headline rule on the read surface. A concatenated name would ALSO make the assertion above
+    // pass via `getByText` on a longer string, so the name is pinned separately and exactly.
+    it('⛔ NEVER concatenates the preparation into the food name', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Onion', preparation: 'finely chopped' })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('Onion')).toBeTruthy();
+        expect(screen.queryByText('Onion finely chopped')).toBeNull();
+        expect(screen.queryByText('Onion (finely chopped)')).toBeNull();
+    });
+
+    it('renders BOTH the preparation and a `notes` display override — they are different facts', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            preparation: 'sifted',
+                            notes: '2 cups all-purpose flour, sifted',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('sifted')).toBeTruthy();
+        expect(screen.getByText('2 cups all-purpose flour, sifted')).toBeTruthy();
+    });
+
+    it('renders NOTHING extra for a line that states no preparation', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ name: 'Salt' })] })}
+            />,
+        );
+
+        expect(screen.getByText('Salt')).toBeTruthy();
+    });
+});
+
+describe('RecipeDetailView (web) — a failed refresh of what is on screen', () => {
+    const notice = (
+        overrides: Partial<{ failed: boolean; refreshing: boolean; recoveries: number; onRetry: () => void }> = {},
+    ) => ({
+        failed: false,
+        refreshing: false,
+        onRetry: () => undefined,
+        recoveries: 0,
+        ...overrides,
+    });
+
+    function viewWith(refreshNotice: ReturnType<typeof notice>) {
+        return (
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Mediterranean Grilled Lamb' })}
+                refreshNotice={refreshNotice}
+            />
+        );
+    }
+
+    it('shows no notice while nothing has failed', () => {
+        render(viewWith(notice()));
+
+        expect(screen.queryByText('We couldn’t refresh this recipe.')).toBeNull();
+    });
+
+    it('⛔ keeps what is shown and says the refresh failed, with a Try again that retries', () => {
+        const onRetry = vi.fn();
+        render(viewWith(notice({ failed: true, onRetry })));
+
+        expect(screen.getByRole('heading', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+        expect(screen.getAllByText('We couldn’t refresh this recipe.').length).toBeGreaterThan(0);
+        screen.getByRole('button', { name: 'Try again' }).click();
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ moves focus to the title when a retry from the notice succeeds, since its button is gone', () => {
+        const { rerender } = render(viewWith(notice({ failed: true })));
+
+        rerender(viewWith(notice({ recoveries: 1 })));
+
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Mediterranean Grilled Lamb' }));
     });
 });

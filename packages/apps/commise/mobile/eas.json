@@ -18,13 +18,17 @@
         },
         "preview": {
             "distribution": "internal",
-            "environment": "preview"
+            "environment": "preview",
+            "env": {
+                "EXPO_PUBLIC_STAGE": "sandbox"
+            }
         },
         "production": {
             "autoIncrement": true,
             "env": {
                 "EXPO_PUBLIC_RECIPE_API_URL": "https://recipe.commise.app",
-                "EXPO_PUBLIC_IDENTITY_API_URL": "https://identity.commise.app"
+                "EXPO_PUBLIC_IDENTITY_API_URL": "https://identity.commise.app",
+                "EXPO_PUBLIC_STAGE": "prod"
             }
         }
     }

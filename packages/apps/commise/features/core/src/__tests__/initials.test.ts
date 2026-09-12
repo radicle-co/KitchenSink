@@ -34,7 +34,7 @@ describe('initialsFor', () => {
         });
     });
 
-    describe('non-latin and multi-code-unit names (must not split a surrogate pair)', () => {
+    describe('non-latin and multi-code-point names (must never split a glyph)', () => {
         it('uses whole code points for names outside the BMP', () => {
             // '𝒥' is a surrogate pair; a naive `name[0]` would emit half of it (a replacement glyph).
             expect(initialsFor('𝒥ane 𝒟oe')).toBe('𝒥𝒟');
@@ -44,8 +44,47 @@ describe('initialsFor', () => {
             expect(initialsFor('山田 太郎')).toBe('山太');
         });
 
-        it('handles an emoji-only display name without emitting a broken glyph', () => {
-            expect(initialsFor('🍳')).toBe('🍳');
+        /**
+         * REWRITTEN (was `'🍳'` → `'🍳'`). An initial is a LETTER. The old expectation passed only because 🍳 is a
+         * single code point; the same code-point rule emitted a lone regional indicator for a flag and a
+         * truncated ZWJ sequence for a profession emoji (the cases below). A name with no letter now yields `''`
+         * and both top bars draw their existing no-initials fallback, so no glyph is ever split.
+         */
+        it('derives nothing from an emoji-only display name, leaving the fallback to the caller', () => {
+            expect(initialsFor('🍳')).toBe('');
+            expect(initialsFor('👩‍🍳')).toBe('');
+            expect(initialsFor('🇫🇷')).toBe('');
+        });
+
+        it('skips a leading flag rather than emitting half of it', () => {
+            // A flag is TWO regional-indicator code points; the first alone renders as a boxed letter.
+            expect(initialsFor('🇫🇷 Marie Curie')).toBe('MC');
+        });
+
+        it('skips a leading ZWJ emoji sequence rather than emitting its first code point', () => {
+            // 👩‍🍳 is 👩 + ZWJ + 🍳; its first code point alone is a different emoji.
+            expect(initialsFor('👩‍🍳 Chef')).toBe('C');
+        });
+
+        it('keeps a combining mark with the letter it modifies', () => {
+            // A decomposed É is `E` + U+0301; taking the `E` alone drops the accent. Escaped so no editor
+            // silently normalises the fixture to the precomposed form, which would pass without the fix.
+            expect(initialsFor('E\u0301mile Zola')).toBe('E\u0301Z');
+        });
+    });
+
+    describe('words that are not a name part', () => {
+        it('ignores a trailing parenthetical such as pronouns', () => {
+            expect(initialsFor('Jane Doe (she/her)')).toBe('JD');
+        });
+
+        it('ignores a quoted nickname in the middle and at the end', () => {
+            expect(initialsFor('Robert "Bob" Smith')).toBe('RS');
+            expect(initialsFor('Robert Smith "Bob"')).toBe('RS');
+        });
+
+        it('returns an empty string when no word starts with a letter', () => {
+            expect(initialsFor('(she/her) 123')).toBe('');
         });
     });
 

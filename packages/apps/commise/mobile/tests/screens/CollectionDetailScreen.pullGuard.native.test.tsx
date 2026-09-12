@@ -15,25 +15,27 @@
  * module-file-scoped and would otherwise replace the real dialog for every other test in that suite.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
 import type { PullUpdatesDialogProps } from '@commise/features-recipes';
+import { renderWithRecipeClient } from '@commise/test-utils';
 import {
     useCloneCollection,
-    useCollection,
     useDeleteCollection,
     usePreviewPull,
     usePullCollectionFromSource,
     useRemoveRecipeFromCollection,
     useUpdateCollection,
 } from '@kitchensink/recipe-service-client/hooks';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { CollectionDetailScreen } from '../../src/screens/CollectionDetailScreen.js';
 import { makeCollectionWithRecipes } from '../__fixtures__/recipes.js';
 
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useCollection: vi.fn(),
+// The READ is real (a mocked read cannot suspend) over a fake client; the mutations stay stubbed.
+vi.mock('@kitchensink/recipe-service-client/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@kitchensink/recipe-service-client/hooks')>()),
     useDeleteCollection: vi.fn(),
     useRemoveRecipeFromCollection: vi.fn(),
     useUpdateCollection: vi.fn(),
@@ -62,7 +64,15 @@ vi.mock('@commise/features-recipes', async (importOriginal) => {
     };
 });
 
-const useCollectionMock = vi.mocked(useCollection);
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
+}));
+
 const useDeleteCollectionMock = vi.mocked(useDeleteCollection);
 const useRemoveRecipeFromCollectionMock = vi.mocked(useRemoveRecipeFromCollection);
 const useUpdateCollectionMock = vi.mocked(useUpdateCollection);
@@ -70,12 +80,6 @@ const useCloneCollectionMock = vi.mocked(useCloneCollection);
 const usePreviewPullMock = vi.mocked(usePreviewPull);
 const usePullCollectionFromSourceMock = vi.mocked(usePullCollectionFromSource);
 const useUserProfileMock = vi.mocked(useUserProfile);
-
-function collectionResult(overrides: Partial<ReturnType<typeof useCollection>> = {}): ReturnType<typeof useCollection> {
-    return { isLoading: false, isError: false, data: undefined, ...overrides } as unknown as ReturnType<
-        typeof useCollection
-    >;
-}
 
 function mutation<T>(overrides: Partial<T> = {}): T {
     return {
@@ -118,11 +122,6 @@ beforeEach(() => {
     useCloneCollectionMock.mockReturnValue(mutation<ReturnType<typeof useCloneCollection>>());
     usePreviewPullMock.mockReturnValue(mutation<ReturnType<typeof usePreviewPull>>());
     usePullCollectionFromSourceMock.mockReturnValue(mutation<ReturnType<typeof usePullCollectionFromSource>>());
-    useCollectionMock.mockReturnValue(
-        collectionResult({
-            data: makeCollectionWithRecipes([], { id: 'col_1', sourceCollectionId: 'col_src' }),
-        }),
-    );
 });
 
 describe('CollectionDetailScreen — confirmPull guards against an undefined previewed diff', () => {
@@ -138,8 +137,13 @@ describe('CollectionDetailScreen — confirmPull guards against an undefined pre
             mutation<ReturnType<typeof usePullCollectionFromSource>>({ mutateAsync: commitMutateAsync as never }),
         );
 
-        render(<CollectionDetailScreen {...props} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Pull Updates from Source' }));
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getCollectionById').mockResolvedValue(
+            makeCollectionWithRecipes([], { id: 'col_1', sourceCollectionId: 'col_src' }),
+        );
+
+        renderWithRecipeClient(<CollectionDetailScreen {...props} />, client);
+        fireEvent.click(await screen.findByRole('button', { name: 'Pull Updates from Source' }));
         fireEvent.click(await screen.findByRole('button', { name: 'Force confirm (test seam)' }));
 
         expect(commitMutateAsync).not.toHaveBeenCalled();

@@ -21,6 +21,7 @@
  * is a legitimate future need but is a separate, feature-sized task — not a drop-in here.
  */
 import { resolveErrorReporter } from '@commise/features-core';
+import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -58,6 +59,7 @@ const reportRootError = resolveErrorReporter(homeContainer);
  */
 export function AppRoot(): JSX.Element {
     const [destination, setDestination] = useState<RootDestination>({ id: 'home' });
+    const { reset: resetQueryErrors } = useQueryErrorResetBoundary();
 
     let content: JSX.Element;
 
@@ -82,7 +84,16 @@ export function AppRoot(): JSX.Element {
 
     return (
         <ErrorBoundary
-            FallbackComponent={RootErrorFallback}
+            fallbackRender={(fallback) => (
+                <RootErrorFallback
+                    {...fallback}
+                    {...(destination.id === 'home' ? {} : { onBackToHome: () => setDestination({ id: 'home' }) })}
+                />
+            )}
+            // Leaving the crashed destination clears the failure; staying and pressing Try again resets it too.
+            // Either way TanStack's query errors reset with it, so a failed read refetches instead of re-throwing.
+            resetKeys={[destination.id]}
+            onReset={resetQueryErrors}
             onError={(error) => reportRootError(error, { boundary: 'root' })}
         >
             {content}

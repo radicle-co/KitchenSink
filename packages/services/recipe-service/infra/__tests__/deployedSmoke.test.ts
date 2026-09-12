@@ -40,18 +40,46 @@
  * work to produce it), whereas a transport failure or the shared ALB's default `404 text/plain` proves the
  * opposite. Both directions are asserted below.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     classifyDependencyReachability,
     classifyDependencyWiring,
     classifyHealth,
     classifyImageCurrency,
+    classifyForeignPreflight,
     classifyPreflight,
+    classifyPreflightDenied,
+    FOREIGN_PREFLIGHT_ORIGIN,
+    failureAnnotation,
+    main,
+    runSmoke,
 } from '../smoke/deployedSmoke.js';
 
 const ORIGIN = 'https://pr-73.sandbox.commise.app';
 const FOOD_ORIGIN = 'https://food-pr-73.commise.app';
+
+/** The `Origin` a stubbed request carried, or `undefined`. */
+function originOf(init: RequestInit | undefined): string | undefined {
+    return new Headers(init?.headers).get('origin') ?? undefined;
+}
+
+/**
+ * A preflight answered the way the shared CORS policy answers it: the allow-origin echoes `admitted` and nothing else.
+ * A stub that sent a fixed allow-origin to every caller would fail the foreign-origin check, which is correct: no
+ * policy of ours does that.
+ */
+function admitOnly(admitted: string): (url: string, init?: RequestInit) => Response {
+    return (_url, init) => {
+        if (init?.method !== 'OPTIONS') {
+            return new Response('{}', { status: 200 });
+        }
+
+        return originOf(init) === admitted
+            ? new Response(null, { status: 204, headers: { 'access-control-allow-origin': admitted } })
+            : new Response(null, { status: 204 });
+    };
+}
 
 describe('classifyHealth', () => {
     it('passes on 200', () => {
@@ -101,8 +129,96 @@ describe('classifyPreflight', () => {
         expect(verdict.reason).toContain('https://commise.app');
     });
 
-    it('accepts a wildcard allow-origin', () => {
-        expect(classifyPreflight(ORIGIN, { status: 204, allowOrigin: '*' }).ok).toBe(true);
+    // Rewritten from "accepts a wildcard allow-origin" (plan 002 S4 review, F4). No policy of ours sends `*`: the
+    // shared policy's origin is always a list. A `*` therefore means the service is not running that policy, and a
+    // smoke that passed it would pass a service open to every origin.
+    it('FAILS on a wildcard allow-origin, which admits every origin', () => {
+        const verdict = classifyPreflight(ORIGIN, { status: 204, allowOrigin: '*' });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toContain('*');
+    });
+});
+
+/**
+ * The other direction (plan 002 S2): a service that must NOT be callable from a browser, or a path on a
+ * browser-facing service that must not be. A smoke that can only assert "admits" cannot hold either line.
+ */
+describe('classifyPreflightDenied', () => {
+    it.each([
+        ['no allow-origin at all, answered 204', { status: 204 }],
+        ['no allow-origin, answered by the router with 404', { status: 404 }],
+        ['an allow-origin naming a DIFFERENT origin', { status: 204, allowOrigin: 'https://commise.app' }],
+        ['a credential-less refusal', { status: 401 }],
+    ])('passes on %s', (_, observed) => {
+        expect(classifyPreflightDenied(ORIGIN, observed).ok).toBe(true);
+    });
+
+    it('FAILS when the preflight admits the caller, naming the origin', () => {
+        const verdict = classifyPreflightDenied(ORIGIN, { status: 204, allowOrigin: ORIGIN });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toContain(ORIGIN);
+    });
+
+    it('FAILS on a wildcard, which admits every origin', () => {
+        expect(classifyPreflightDenied(ORIGIN, { status: 204, allowOrigin: '*' }).ok).toBe(false);
+    });
+
+    it('FAILS on a 5xx: an erroring service proves nothing about its CORS policy', () => {
+        expect(classifyPreflightDenied(ORIGIN, { status: 502 }).ok).toBe(false);
+    });
+});
+
+describe('classifyForeignPreflight — an origin nothing admits must get NO allow-origin', () => {
+    it('is an origin under a reserved top-level domain, so it can never be a real caller', () => {
+        expect(new URL(FOREIGN_PREFLIGHT_ORIGIN).hostname.endsWith('.invalid')).toBe(true);
+        expect(FOREIGN_PREFLIGHT_ORIGIN).toBe(new URL(FOREIGN_PREFLIGHT_ORIGIN).origin);
+    });
+
+    it.each([
+        ['the CORS middleware refusing the match', 204],
+        ["the router's 404 on a service with no CORS", 404],
+        ['an auth layer answering first', 401],
+    ])('passes on %s, with no allow-origin', (_label, status) => {
+        expect(classifyForeignPreflight({ status }).ok).toBe(true);
+    });
+
+    // ⛔ The case F4 exists for: a service that reflects any origin passes every admit check, because it reflects the
+    // web origin too. Only a probe from an origin nobody admits can see it.
+    it('FAILS when the foreign origin is reflected back, naming it', () => {
+        const verdict = classifyForeignPreflight({ status: 204, allowOrigin: FOREIGN_PREFLIGHT_ORIGIN });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toContain(FOREIGN_PREFLIGHT_ORIGIN);
+    });
+
+    it('FAILS on a wildcard', () => {
+        expect(classifyForeignPreflight({ status: 204, allowOrigin: '*' }).ok).toBe(false);
+    });
+
+    // Stricter than `classifyPreflightDenied`, on purpose: our policy never sends a fixed allow-origin, so ANY value
+    // here means the service is not running it.
+    it('FAILS on any other allow-origin value too', () => {
+        expect(classifyForeignPreflight({ status: 204, allowOrigin: ORIGIN }).ok).toBe(false);
+    });
+
+    it('FAILS on a 5xx, which proves nothing about the policy', () => {
+        expect(classifyForeignPreflight({ status: 502 }).ok).toBe(false);
+    });
+
+    it('treats an empty allow-origin as absent', () => {
+        expect(classifyForeignPreflight({ status: 204, allowOrigin: '' }).ok).toBe(true);
+    });
+});
+
+describe('failureAnnotation', () => {
+    it('names the service by the origin it probed, not as "the recipe service"', () => {
+        const annotation = failureAnnotation('https://food.commise.app');
+
+        expect(annotation).toContain('https://food.commise.app');
+        expect(annotation).not.toMatch(/recipe/iu);
+        expect(annotation.startsWith('::error::')).toBe(true);
     });
 });
 
@@ -308,5 +424,261 @@ describe('classifyDependencyReachability — 401 proves reachability; unreachabl
         for (const observation of observations) {
             expect(classifyDependencyReachability(FOOD_ORIGIN, observation).reason).toContain(FOOD_ORIGIN);
         }
+    });
+});
+
+/**
+ * `runSmoke`'s composition — which checks it runs, given which inputs.
+ *
+ * ## Why `--web-origin` had to become OPTIONAL (task #152)
+ *
+ * The preflight check asserts what a BROWSER can do. A service whose `main.ts` calls `app.enableCors(…)` must
+ * ADMIT the web origin on its preflights; one with no `enableCors` must REFUSE it (`expectCors: 'deny'`, plan 002
+ * S2). `prodDeploySmokeDepth.test.ts` derives which one each deploy leg owes from the service's `main.ts`. Omitting
+ * the web origin still skips every preflight.
+ */
+describe('runSmoke composition', () => {
+    /** A fetch stub that records what was requested and answers from a fixed script. */
+    function stubFetch(handler: (url: string, init?: RequestInit) => Response): readonly string[] {
+        const seen: string[] = [];
+
+        vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => {
+            const url = String(input);
+
+            seen.push(`${init?.method ?? 'GET'} ${url}`);
+
+            return Promise.resolve(handler(url, init));
+        });
+
+        return seen;
+    }
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('SKIPS the preflight entirely when no web origin is supplied', async () => {
+        const seen = stubFetch(() => new Response('{}', { status: 200 }));
+
+        const verdicts = await runSmoke({ baseUrl: 'https://food.commise.app' });
+
+        expect(seen).toEqual(['GET https://food.commise.app/health']);
+        expect(verdicts.map((verdict) => verdict.reason)).toEqual(['health returned 200']);
+    });
+
+    it('still asserts image currency without a web origin', async () => {
+        // The #152 gap: the currency check must not depend on the web origin. Food's currency check landed
+        // before its preflight did, which a coupled design would have made impossible.
+        stubFetch(() => new Response('{}', { status: 200 }));
+
+        const verdicts = await runSmoke({
+            baseUrl: 'https://food.commise.app',
+            expectedImageTag: 'abc123',
+            runningImageTag: 'stale99',
+        });
+
+        expect(verdicts.some((verdict) => !verdict.ok && verdict.reason.includes('STALE'))).toBe(true);
+    });
+
+    it('RUNS the preflight when a web origin IS supplied', async () => {
+        const seen = stubFetch(admitOnly(ORIGIN));
+
+        const verdicts = await runSmoke({ baseUrl: 'https://recipe.commise.app', webOrigin: ORIGIN });
+
+        expect(seen).toContain('OPTIONS https://recipe.commise.app/api/v1/recipes');
+        expect(verdicts.every((verdict) => verdict.ok)).toBe(true);
+    });
+
+    it('also preflights each path from an origin nothing admits', async () => {
+        const origins: (string | undefined)[] = [];
+
+        stubFetch((url, init) => {
+            if (init?.method === 'OPTIONS') {
+                origins.push(`${originOf(init)} ${url}`);
+            }
+
+            return admitOnly(ORIGIN)(url, init);
+        });
+
+        const verdicts = await runSmoke({
+            baseUrl: 'https://food.commise.app',
+            webOrigin: ORIGIN,
+            preflightPaths: ['/api/v1/foods/search/live', '/api/v1/foods/nutrition'],
+        });
+
+        expect(origins).toEqual([
+            `${ORIGIN} https://food.commise.app/api/v1/foods/search/live`,
+            `${FOREIGN_PREFLIGHT_ORIGIN} https://food.commise.app/api/v1/foods/search/live`,
+            `${ORIGIN} https://food.commise.app/api/v1/foods/nutrition`,
+            `${FOREIGN_PREFLIGHT_ORIGIN} https://food.commise.app/api/v1/foods/nutrition`,
+        ]);
+        expect(verdicts.every((verdict) => verdict.ok)).toBe(true);
+    });
+
+    // ⛔ THE REGRESSION F4 closes. A service that reflects ANY origin echoes the web origin as well, so every admit
+    // check passed it. The foreign preflight is the only one that can tell.
+    it('FAILS a service that reflects any origin, though it admits the web origin', async () => {
+        stubFetch((_url, init) =>
+            init?.method === 'OPTIONS'
+                ? new Response(null, {
+                      status: 204,
+                      headers: { 'access-control-allow-origin': originOf(init) ?? '' },
+                  })
+                : new Response('{}', { status: 200 }),
+        );
+
+        const verdicts = await runSmoke({ baseUrl: 'https://recipe.commise.app', webOrigin: ORIGIN });
+
+        expect(verdicts.filter((verdict) => !verdict.ok).map((verdict) => verdict.reason)).toEqual([
+            expect.stringContaining(FOREIGN_PREFLIGHT_ORIGIN),
+        ]);
+    });
+
+    it('preflights every --preflight-path given, instead of the recipe path', async () => {
+        const seen = stubFetch(admitOnly(ORIGIN));
+
+        const verdicts = await runSmoke({
+            baseUrl: 'https://identity.commise.app',
+            webOrigin: ORIGIN,
+            preflightPaths: ['/api/v1/users/me', '/api/v1/users/me/avatar'],
+        });
+
+        // Each path twice: once from the web origin, once from the foreign one.
+        expect(seen.filter((line) => line.startsWith('OPTIONS'))).toEqual([
+            'OPTIONS https://identity.commise.app/api/v1/users/me',
+            'OPTIONS https://identity.commise.app/api/v1/users/me',
+            'OPTIONS https://identity.commise.app/api/v1/users/me/avatar',
+            'OPTIONS https://identity.commise.app/api/v1/users/me/avatar',
+        ]);
+        expect(verdicts.filter((verdict) => verdict.reason.includes('/api/v1/users/me'))).toHaveLength(4);
+        expect(verdicts.every((verdict) => verdict.ok)).toBe(true);
+    });
+
+    it('asserts a REFUSAL on every path when the expectation is deny', async () => {
+        // A service with no CORS: the preflight carries no allow-origin, and the check passes.
+        stubFetch((_url, init) =>
+            init?.method === 'OPTIONS' ? new Response(null, { status: 404 }) : new Response('{}', { status: 200 }),
+        );
+
+        const denied = await runSmoke({
+            baseUrl: 'https://food.commise.app',
+            webOrigin: ORIGIN,
+            preflightPaths: ['/api/v1/foods/search/live'],
+            expectCors: 'deny',
+        });
+
+        expect(denied.every((verdict) => verdict.ok)).toBe(true);
+        expect(denied.some((verdict) => verdict.reason.includes('/api/v1/foods/search/live'))).toBe(true);
+
+        // …and it goes red the day food starts admitting the origin without the smoke being flipped.
+        vi.unstubAllGlobals();
+        stubFetch((_url, init) =>
+            init?.method === 'OPTIONS'
+                ? new Response(null, { status: 204, headers: { 'access-control-allow-origin': ORIGIN } })
+                : new Response('{}', { status: 200 }),
+        );
+
+        const admitted = await runSmoke({
+            baseUrl: 'https://food.commise.app',
+            webOrigin: ORIGIN,
+            preflightPaths: ['/api/v1/foods/search/live'],
+            expectCors: 'deny',
+        });
+
+        expect(admitted.some((verdict) => !verdict.ok)).toBe(true);
+    });
+
+    it('asserts a refusal on every --deny-preflight-path, even when the rest must admit', async () => {
+        const seen = stubFetch(admitOnly(ORIGIN));
+
+        const verdicts = await runSmoke({
+            baseUrl: 'https://food.commise.app',
+            webOrigin: ORIGIN,
+            preflightPaths: ['/api/v1/foods/search/live'],
+            denyPreflightPaths: ['/api/v1/foods/nutrition'],
+        });
+
+        expect(seen).toContain('OPTIONS https://food.commise.app/api/v1/foods/nutrition');
+        // The nutrition path admitted the origin, so its deny assertion fails while the admit one passes.
+        expect(verdicts.find((verdict) => verdict.reason.includes('/api/v1/foods/nutrition'))?.ok).toBe(false);
+        expect(verdicts.find((verdict) => verdict.reason.includes('/api/v1/foods/search/live'))?.ok).toBe(true);
+    });
+
+    it('FAILS the preflight when a web origin is supplied and CORS is absent', async () => {
+        // The negative control for the case above: "optional" must not have become "never enforced".
+        stubFetch((_url, init) =>
+            init?.method === 'OPTIONS' ? new Response(null, { status: 204 }) : new Response('{}', { status: 200 }),
+        );
+
+        const verdicts = await runSmoke({ baseUrl: 'https://recipe.commise.app', webOrigin: ORIGIN });
+
+        expect(verdicts.some((verdict) => !verdict.ok && /access-control-allow-origin/.test(verdict.reason))).toBe(
+            true,
+        );
+    });
+});
+
+describe('main — the CLI', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+        process.exitCode = undefined;
+    });
+
+    it('takes repeatable --preflight-path and --deny-preflight-path flags and --expect-cors deny', async () => {
+        const seen: string[] = [];
+
+        vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => {
+            seen.push(`${init?.method ?? 'GET'} ${String(input)}`);
+
+            return Promise.resolve(
+                init?.method === 'OPTIONS' ? new Response(null, { status: 404 }) : new Response('{}', { status: 200 }),
+            );
+        });
+        vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        await main([
+            '--base-url',
+            'https://food.commise.app',
+            '--web-origin',
+            ORIGIN,
+            '--preflight-path',
+            '/api/v1/foods/search/live',
+            '--preflight-path',
+            '/api/v1/foods/catalog-search',
+            '--deny-preflight-path',
+            '/api/v1/foods/nutrition',
+            '--expect-cors',
+            'deny',
+        ]);
+
+        expect(process.exitCode).toBeUndefined();
+        // Each --preflight-path from the web origin and then from the foreign one; the deny path once.
+        expect(seen.filter((line) => line.startsWith('OPTIONS'))).toEqual([
+            'OPTIONS https://food.commise.app/api/v1/foods/search/live',
+            'OPTIONS https://food.commise.app/api/v1/foods/search/live',
+            'OPTIONS https://food.commise.app/api/v1/foods/catalog-search',
+            'OPTIONS https://food.commise.app/api/v1/foods/catalog-search',
+            'OPTIONS https://food.commise.app/api/v1/foods/nutrition',
+        ]);
+    });
+
+    it('refuses an --expect-cors value other than admit or deny, with the usage exit code', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        await main(['--base-url', 'https://food.commise.app', '--expect-cors', 'maybe']);
+
+        expect(process.exitCode).toBe(2);
+    });
+
+    it('names the probed origin in the failure annotation', async () => {
+        vi.stubGlobal('fetch', () => Promise.resolve(new Response('{}', { status: 503 })));
+        vi.spyOn(console, 'log').mockImplementation(() => undefined);
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        await main(['--base-url', 'https://identity.commise.app']);
+
+        expect(process.exitCode).toBe(1);
+        expect(errors.mock.calls.flat().join('\n')).toContain('https://identity.commise.app');
     });
 });

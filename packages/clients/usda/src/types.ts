@@ -1,6 +1,6 @@
 /**
  * Type contracts for the USDA FoodData Central REST API responses consumed by
- * {@link UsdaApiClient}. These mirror the subset of the upstream payload the
+ * `UsdaApiClient`. These mirror the subset of the upstream payload the
  * food-service needs; the full upstream object is preserved verbatim in `raw`.
  */
 
@@ -16,8 +16,11 @@ export interface UsdaNutrient {
     readonly value?: number;
 }
 
+/** Every USDA dataset classification a food record can carry, so a consumer can derive a subset rather than retype one. */
+export const USDA_DATA_TYPES = ['Foundation', 'SR Legacy', 'Survey (FNDDS)', 'Branded', 'Experimental'] as const;
+
 /** USDA dataset classification for a food record. */
-export type UsdaDataType = 'Foundation' | 'SR Legacy' | 'Branded' | 'Survey (FNDDS)' | 'Experimental';
+export type UsdaDataType = (typeof USDA_DATA_TYPES)[number];
 
 /** Detailed food record returned by `GET /v1/food/{fdcId}` and `POST /v1/foods`. */
 export interface UsdaFoodDetail {
@@ -29,6 +32,16 @@ export interface UsdaFoodDetail {
     readonly dataType?: UsdaDataType;
     /** Nutrient measurements per 100g. */
     readonly foodNutrients: readonly UsdaNutrient[];
+    /**
+     * USDA's curated alternate names for this food — brands, regional synonyms and alternate forms
+     * (`Tillamook`, `sharp cheese`, `Longhorn` for `Cheese, Cheddar`), in USDA's own `rank` order.
+     *
+     * Total, never `undefined`: `[]` when USDA publishes none (Foundation and SR Legacy rows carry no
+     * alias attribute). Named for the field USDA exposes on its SEARCH envelope, which is the name for
+     * this knowledge — the detail endpoints carry it as typed `foodAttributes` entries instead, which is
+     * what {@link UsdaFoodDetail} normalizes here so no consumer has to know the difference.
+     */
+    readonly additionalDescriptions: readonly string[];
     /** Brand owner (Branded Foods only). */
     readonly brandOwner?: string;
     /** Brand name (Branded Foods only). */

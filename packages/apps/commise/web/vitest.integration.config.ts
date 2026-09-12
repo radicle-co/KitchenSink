@@ -1,3 +1,4 @@
+import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 /**
  * Vitest config for @commise/web's INTEGRATION tier.
  *
@@ -15,6 +16,12 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 
+// ⚠️ `.js`, not extensionless — deliberately AGAINST this package's usual convention. That convention
+// follows `moduleResolution: bundler`, and this file is not under it: `tsconfig.json` does not include the
+// vitest configs, and Vite's config loader resolves them itself. Extensionless makes Vite warn that the
+// import is unsupported by `configLoader: 'native'`, on every single test run. Do not "fix" it back.
+import { SERVICE_URL_DEFAULTS } from './tests/e2e/utils/serviceUrls.js';
+
 const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 
 export default defineConfig({
@@ -23,7 +30,7 @@ export default defineConfig({
         include: ['tests/__integration__/**/*.integration.test.ts', 'tests/__integration__/**/*.integration.test.tsx'],
         exclude: ['node_modules', 'dist'],
         environment: 'jsdom',
-        setupFiles: ['./tests/setup.ts'],
+        setupFiles: [jsdomPolyfillsSetup, './tests/setup.ts'],
         globals: true,
 
         // Compiling the real stylesheet is slower than a unit test; the default 5s timeout is too tight.
@@ -32,9 +39,11 @@ export default defineConfig({
         // Same rationale as the unit config: `src/config/env.ts` validates the app's endpoints at MODULE
         // LOAD with no defaults, so any suite that transitively imports a service client dies with a
         // configuration error unless these are present. Values are irrelevant to the assertions.
+        // Same single source as the unit config: `tests/e2e/utils/serviceUrls.ts` owns every localhost
+        // service default in this package, so no tier carries its own copy to go stale.
         env: {
-            NEXT_PUBLIC_RECIPE_API_URL: 'http://localhost:3000',
-            NEXT_PUBLIC_IDENTITY_API_URL: 'http://localhost:4000',
+            NEXT_PUBLIC_RECIPE_API_URL: SERVICE_URL_DEFAULTS.recipe,
+            NEXT_PUBLIC_IDENTITY_API_URL: SERVICE_URL_DEFAULTS.identity,
         },
     },
     resolve: {

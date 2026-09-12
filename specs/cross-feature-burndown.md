@@ -42,7 +42,7 @@ Findings are mapped to the canonical milestone ladder in [`v1-launch-plan.md`](.
 
 ### Pre-`M1` blockers (resolve in `M0` Shire)
 
-1. ~~**CR-001**~~ — **RESOLVED 2026-08-02.** `/api/v1/*` (not bare `/v1/*`) is canonical, per GR-002. The three services serve it, `specs/001-commise-recipe-app/contracts/api.openapi.yaml` and `specs/002-user-auth/contracts/identity-api.openapi.json` were migrated, and `docs/api-conventions.md` was created. The bare `/v1/*` paths remain as a deprecated alias for out-of-repo consumers — see [ADR-0011](../docs/architecture/decisions/0011-api-version-prefix.md).
+1. ~~**CR-001**~~ — **RESOLVED 2026-08-02.** `/api/v1/*` (not bare `/v1/*`) is canonical, per GR-002. The three services serve it, `specs/001-commise-recipe-app/contracts/api.openapi.yaml` and `specs/002-user-auth/contracts/identityApi.openapi.json` were migrated, and `docs/api-conventions.md` was created. The bare `/v1/*` paths remain as a deprecated alias for out-of-repo consumers — see [ADR-0011](../docs/architecture/decisions/0011-api-version-prefix.md).
 2. **CR-002** — Add `packages/shared/recipe-core` extraction task to `specs/001-commise-recipe-app/tasks.md`. Define `Recipe`, `Ingredient`, `Step`, `Collection`, `User`, `Account`, `Food`, `MealPlan`, `NutritionPlan`, `GroceryList`.
 3. **WA-001** — Align `002` to Node 24.x or document Lambda runtime divergence in `specs/002-user-auth/plan.md`.
 4. **WA-003** — Create `specs/cross-feature-FR-index.md` (one-time scaffold; maintained as features land).

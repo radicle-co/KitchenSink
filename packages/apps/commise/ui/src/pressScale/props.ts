@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/press-scale — shared, platform-neutral prop contract for the design-system
- * {@link PressScale} press-feedback primitive.
+ * `PressScale` press-feedback primitive.
  *
  * `PressScale` gives a control a tactile "shrink while held" scale, respecting the OS reduce-motion
  * preference. The two leaves reach that behaviour differently — and this asymmetry is intrinsic, not an
@@ -9,15 +9,16 @@
  *    `transform` scale from its `pressed` state, so it consumes {@link PressScaleProps.onPress},
  *    {@link PressScaleProps.disabled}, {@link PressScaleProps.busy} and the `accessibility*` props.
  *  - **web** (`PressScale.tsx`) is PRESENTATIONAL: it wraps its child in a span carrying a
- *    `motion-safe:active:scale-[0.98]` utility. CSS puts an activated element's ANCESTORS into `:active`,
- *    so the wrapped interactive child (e.g. a `<button>`) drives the scale while itself owning press
- *    semantics and accessibility. The interaction/accessibility props are therefore ignored on web —
+ *    `motion-safe:not-has-aria-disabled:active:scale-[0.98]` utility. CSS puts an activated element's
+ *    ANCESTORS into `:active`, so the wrapped interactive child (e.g. a `<button>`) drives the scale while
+ *    itself owning press semantics and accessibility; an `aria-disabled` child plays no scale. The interaction/accessibility props are therefore ignored on web —
  *    wire them on the child you wrap.
  *
  * Callers get one import and one mental model ("wrap the thing that should scale on press"); each leaf
  * honours it in the only way its platform allows.
  */
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
+import type { View } from 'react-native';
 
 /** The accessibility roles a native `PressScale` may expose on its `Pressable` (native-only). */
 export type PressScaleRole = 'button' | 'link' | 'none';
@@ -39,4 +40,15 @@ export interface PressScaleProps {
     readonly accessibilityLabel?: string;
     /** Accessibility role for the native `Pressable`. Defaults to `button`. Native-only. */
     readonly accessibilityRole?: PressScaleRole;
+    /**
+     * A handle on the native `Pressable` (React 19's plain `ref` prop) — for moving SCREEN-READER focus onto the
+     * control, which has no declarative form. Native-only: on web, ref the child you wrap.
+     */
+    readonly ref?: Ref<View>;
+    /**
+     * Disclosure state for a control that opens and closes something. `false` means COLLAPSED; leave it
+     * undefined when the control is not a disclosure, because an absent state is a different statement.
+     * Native-only (the web child carries its own `aria-expanded`).
+     */
+    readonly expanded?: boolean;
 }

@@ -9,13 +9,14 @@ import {
     loadVersionSnapshot,
     pruneArchivedVersion,
     snapshotObjectKey,
-} from '../../../src/handlers/version-archive-worker.js';
+} from '../../../src/handlers/versionArchiveWorker.js';
 import {
     claimPendingArchives,
     countBacklog,
     oldestPendingArchiveAgeSeconds,
     toArchiveMessage,
-} from '../../../src/handlers/archive-sweeper.js';
+} from '../../../src/handlers/archiveSweeper.js';
+import { hasTestDatabase, recipeWorkersDb } from '../roleDb.js';
 
 /**
  * T133 — the async version-archive path, against real Postgres + real S3 (LocalStack).
@@ -30,12 +31,13 @@ import {
  * `pruneArchivedVersion`) over a local pool. That is the real SQL on the real schema — only the
  * connection differs.
  *
- * Runs only with both harnesses up (`DATABASE_URL` + `S3_ENDPOINT`); otherwise skipped in lockstep.
+ * Runs only with both harnesses up (`DATABASE_ADMIN_URL` + `S3_ENDPOINT`); otherwise skipped in lockstep.
  */
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+/** The subject connects as `recipe_app` (ADR-0039): DML and nothing else, which is what the workers hold. */
+const roleDb = recipeWorkersDb();
 const S3_ENDPOINT = process.env['S3_ENDPOINT'];
-const canRun = Boolean(DATABASE_URL) && Boolean(S3_ENDPOINT);
+const canRun = hasTestDatabase && Boolean(S3_ENDPOINT);
 
 const BUCKET = process.env['S3_BUCKET_VERSIONS'] ?? 'commise-versions';
 const OWNER = '01JARCHIVE0OWNER000000000A';
@@ -58,7 +60,7 @@ describe.skipIf(!canRun)('version-archive drain (T133 integration)', () => {
     let recipeId: string;
 
     beforeAll(async () => {
-        pool = new pg.Pool({ connectionString: DATABASE_URL });
+        pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = drizzle(pool);
         s3 = new S3Client({
             endpoint: S3_ENDPOINT,

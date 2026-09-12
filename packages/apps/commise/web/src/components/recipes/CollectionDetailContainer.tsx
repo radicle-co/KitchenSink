@@ -2,7 +2,7 @@
 
 /**
  * Container for the collection-detail route (W5 Task 12 — the collection-view integration linchpin). It
- * fetches a single collection (with its member recipes) via `useCollection(id)` and composes the shared,
+ * reads a single collection (with its member recipes) and composes the shared,
  * presentational collection building blocks around it: the {@link CollectionHeader} (name, visibility badge,
  * recipe count, source attribution, last-pulled, Back + rename/delete — C4/C6), the {@link CollectionActions}
  * sidebar (add-recipes, pull-updates, clone, and the premium-gated visibility toggle — C1/FR-009/FR-010/
@@ -10,6 +10,13 @@
  * ({@link CollectionDetail}), and the {@link PullUpdatesDialog} (C2). The fetch-state affordances (loading,
  * generic error with retry, distinct not-found) belong to the app, not the blocks, and are localized through
  * the web dictionary (`useMessages`).
+ *
+ * The read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not
+ * server-prefetched. The boundary owns loading and failure, choosing not-found or the retrying error from the
+ * client's `isNotFoundError`; a background refetch that fails while the collection is on screen does not throw, so
+ * the cook keeps reading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED on the id: the App Router keeps this
+ * container mounted across `/collections/A` → `/collections/B`, and the remount is what clears A's pending
+ * visibility, pull dialog and mutation state before B renders.
  *
  * Remote state stays in TanStack Query — the view is derived from the query, never copied into local state;
  * the only local state is view state the server does not own: the pending (unsaved) visibility selection and
@@ -32,27 +39,38 @@ import {
     CollectionDetail,
     CollectionHeader,
     PullUpdatesDialog,
+    RecipeNutritionSlot,
     collectionMessages,
     type CollectionDetailError,
 } from '@commise/features-recipes';
-import { toDetailQueryView } from '@commise/features-core';
+import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useAuth } from '@clerk/nextjs';
 import { canGoPrivate, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
-import { isNotFoundError, isPullDriftError, type PullDiff } from '@kitchensink/recipe-service-client';
+import {
+    collectionQueries,
+    isNotFoundError,
+    isPullDriftError,
+    type PullDiff,
+} from '@kitchensink/recipe-service-client';
 import {
     useCloneCollection,
-    useCollection,
     useDeleteCollection,
     usePreviewPull,
     usePullCollectionFromSource,
+    useRecipeServiceClient,
     useRemoveRecipeFromCollection,
     useUpdateCollection,
 } from '@kitchensink/recipe-service-client/hooks';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState, type FC } from 'react';
+import { useCallback, useMemo, useState, type FC } from 'react';
 
+import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
+import { CollectionLoadError } from '@/components/recipes/CollectionLoadError';
+import { CollectionNotFound } from '@/components/recipes/CollectionNotFound';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
@@ -79,19 +97,59 @@ function readViewerId(sessionClaims: unknown): string | undefined {
 }
 
 /**
- * The live collection-detail container.
+ * The live collection-detail container: the route's read boundary around {@link CollectionDetailView}.
  *
  * @param props - The collection id to load and the active locale.
- * @returns The composed detail view, or a localized loading / not-found / error affordance.
+ * @returns The boundary: loading, not-found or a retrying error, and the composed detail view once the read settles.
  */
 export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ id, locale }) => {
+    const { collections } = useMessages(webMessages);
+
+    return (
+        <ClientQueryBoundary
+            loading={
+                <p
+                    role="status"
+                    aria-label={collections.detail.loadingLabel}
+                    className="px-4 py-8 text-body-md text-slate"
+                >
+                    {collections.detail.loadingLabel}
+                </p>
+            }
+            renderError={({ error, resetErrorBoundary }) =>
+                isNotFoundError(error) ? <CollectionNotFound /> : <CollectionLoadError onRetry={resetErrorBoundary} />
+            }
+            resetKeys={[id]}
+        >
+            <CollectionDetailView key={id} id={id} locale={locale} />
+        </ClientQueryBoundary>
+    );
+};
+
+/**
+ * The settled collection detail: the collection has resolved by the time this renders.
+ *
+ * @param props - The collection id and the active locale.
+ * @returns The composed detail view.
+ * @throws {Error} For an empty collection id — a read that cannot be made fails into the boundary, as the generic
+ *   failure, rather than issuing a request for `''` (B21).
+ */
+const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale }) => {
+    if (id.length === 0) {
+        throw new Error('A collection detail needs a collection id.');
+    }
+
     const router = useRouter();
     const activeLocale = useLocale();
-    const { collections } = useMessages(webMessages);
     const { actions: collectionActions } = useMessages(collectionMessages);
     const { sessionClaims } = useAuth();
     const profile = useUserProfile();
-    const query = useCollection(id);
+    const client = useRecipeServiceClient();
+    const query = useSuspenseQuery(collectionQueries(client).detail(id));
+    const collection = query.data;
+    // A failed refresh of the collection on screen does not throw into the boundary: it keeps the collection and is
+    // reported by the header's refresh notice.
+    const refreshNotice = useRefreshNotice(query);
     const removeRecipe = useRemoveRecipeFromCollection();
     const deleteCollection = useDeleteCollection();
     const updateCollection = useUpdateCollection();
@@ -101,65 +159,23 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
 
     // View state the server does not own: the pending (unsaved) visibility selection and the pull dialog's
     // preview→commit→drift machine. `pendingVisibility` is undefined until the viewer changes it, so the saved
-    // value is the source of truth until then (no need to seed it from data that is not loaded yet).
+    // value is the source of truth until then.
     const [pendingVisibility, setPendingVisibility] = useState<RecipeVisibility | undefined>(undefined);
     const [isPullOpen, setPullOpen] = useState(false);
     const [pullDiff, setPullDiff] = useState<PullDiff | undefined>(undefined);
     const [pullError, setPullError] = useState<'drift' | 'generic' | undefined>(undefined);
-    const [stateCollectionId, setStateCollectionId] = useState(id);
 
-    if (stateCollectionId !== id) {
-        // The App Router keeps THIS container mounted across a `/collections/A` → `/collections/B` navigation
-        // (same dynamic-segment pattern), so on an id change we must scrub every scrap of the previous
-        // collection's local + mutation state — otherwise collection A's pending visibility, open pull dialog,
-        // or a failed/in-flight write leaks onto B, which shares the same `useMutation`/`useState` instances.
-        // (The member-window reveal count is reset separately by keying `CollectionDetail` on `collection.id`.)
-        setStateCollectionId(id);
-        setPendingVisibility(undefined);
-        setPullOpen(false);
-        setPullDiff(undefined);
-        setPullError(undefined);
-        removeRecipe.reset();
-        deleteCollection.reset();
-        updateCollection.reset();
-        cloneCollection.reset();
-        previewPull.reset();
-        commitPull.reset();
-    }
+    const memberIds = useMemo(() => collection.recipes.map((recipe) => recipe.id), [collection]);
+    const nutritionFor = useRecipeNutritionBatches([memberIds]);
+    const renderNutrition = useCallback(
+        (recipeId: string) => {
+            const batch = nutritionFor(recipeId);
 
-    // B21: ONE derivation of which fetch-state affordance to render, applying the settled-but-absent rule —
-    // a query that stopped loading, carries no error, and still has no data has settled with NOTHING, which
-    // is a FAILURE, not a pending fetch. It used to fall into a SECOND loading branch below the error one,
-    // stranding the viewer on a permanent spinner with no retry; mobile's `CollectionDetailScreen` has always
-    // routed it into ERROR, and web now agrees BY CONSTRUCTION, because both read the same rule.
-    const view = toDetailQueryView(query);
+            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
+        },
+        [nutritionFor],
+    );
 
-    if (view.status === 'loading') {
-        return (
-            <p role="status" aria-label={collections.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
-                {collections.detail.loadingLabel}
-            </p>
-        );
-    }
-
-    if (view.status === 'error') {
-        // `isNotFoundError` needs an error OBJECT: settled-but-absent has none, so it correctly reads as the
-        // GENERIC failure (with retry), never a fabricated 404 — nothing says the collection is gone.
-        const notFound = isNotFoundError(query.error);
-
-        return (
-            <div role="alert">
-                <p>{notFound ? collections.detail.notFoundTitle : collections.detail.errorTitle}</p>
-                {!notFound && (
-                    <button type="button" onClick={() => void query.refetch()}>
-                        {collections.detail.retry}
-                    </button>
-                )}
-            </div>
-        );
-    }
-
-    const collection = view.data;
     const isCloned = collection.sourceCollectionId !== undefined;
     const savedVisibility = collection.visibility;
     const effectivePending = pendingVisibility ?? savedVisibility;
@@ -177,11 +193,7 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
     // B17 — a failed delete/remove must never look frozen. Surface an honest code for whichever mutation
     // errored; delete takes precedence over remove (it is the more consequential, whole-collection action).
     const mutationError: CollectionDetailError | undefined =
-        deleteCollection.error !== null && deleteCollection.error !== undefined
-            ? 'delete'
-            : removeRecipe.error !== null && removeRecipe.error !== undefined
-              ? 'remove'
-              : undefined;
+        deleteCollection.error !== null ? 'delete' : removeRecipe.error !== null ? 'remove' : undefined;
 
     /** Fetch a fresh preview and show it in the dialog; a failed preview surfaces the generic error state. */
     const runPreview = async (): Promise<void> => {
@@ -252,12 +264,17 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
                 name={collection.name}
                 description={collection.description}
                 visibility={savedVisibility}
-                recipeCount={collection.recipeCount ?? collection.recipes?.length ?? 0}
+                recipeCount={
+                    // `recipeCount ??` STAYS — the contract genuinely marks it optional (absent on list reads). The
+                    // `recipes?.` chain does not: `recipes` is required on `CollectionWithRecipesResponse`.
+                    collection.recipeCount ?? collection.recipes.length
+                }
                 sourceCollectionName={collection.sourceCollectionName}
                 sourceOwnerHandle={collection.sourceOwnerHandle}
                 lastPulledAt={collection.lastPulledAt}
                 onBack={() => router.push(`/${locale}/collections` as Route)}
                 onEdit={() => router.push(`/${locale}/collections/${id}/rename` as Route)}
+                refreshNotice={refreshNotice}
                 onDelete={() =>
                     deleteCollection.mutate(id, {
                         onSuccess: () => router.push(`/${locale}/collections` as Route),
@@ -304,15 +321,13 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
                 </aside>
 
                 <div className="min-w-0 flex-1">
-                    {/* Reveal-reset (Task 11): key the member-list subtree on the collection id so the
-                        client-side member-window reveal count resets when navigating between collections. */}
                     <CollectionDetail
-                        key={collection.id}
                         collection={collection}
                         error={mutationError}
                         onSelectRecipe={(recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route)}
                         onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id, recipeId })}
                         onAddRecipe={() => router.push(`/${locale}/collections/${id}/add` as Route)}
+                        renderNutrition={renderNutrition}
                     />
                 </div>
             </div>

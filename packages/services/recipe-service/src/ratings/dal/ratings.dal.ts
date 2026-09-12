@@ -2,7 +2,7 @@
  * CR-001 / FR-013 — the rating data-access layer.
  *
  * Owns every SQL touch of `recipe_ratings` over the shared Drizzle client. It is intentionally
- * authorization-agnostic (the visibility / own-recipe rules live in {@link RatingsService}); it takes
+ * authorization-agnostic (the visibility / own-recipe rules live in `RatingsService`); it takes
  * ids + stars and returns rows. Two things it deliberately does NOT do:
  *
  *  - **Write the aggregate.** `recipes.average_rating` / `recipes.rating_count` are maintained ONLY by

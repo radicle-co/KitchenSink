@@ -1,8 +1,8 @@
 /**
  * @module @commise/features-recipes — native recipe version-history view (T069 building block).
  *
- * The React Native leaf of {@link import('./RecipeVersionList.js').RecipeVersionList} — same controlled,
- * presentational contract (newest-first, editor/device attribution, computed changed-fields summary, Preview
+ * The React Native leaf of `RecipeVersionList` — same controlled,
+ * presentational contract (newest-first, editor attribution, computed changed-fields summary, Preview
  * action, current version marked and not restorable, busy state on the version being restored with all
  * restore actions disabled, empty state) rendered with RN primitives. `onBack` is intentionally NOT read
  * here — native screens (`RecipeVersionsScreen`) already compose their own back chrome outside this shared
@@ -14,15 +14,16 @@ import { palette } from '@commise/ui';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeVersionMessages } from './messages.js';
+import { fillTemplate } from '../list/model.js';
 import {
+    type RecipeVersionListProps,
     changeSummaryForVersion,
-    fillTemplate,
     formatChangedFieldNames,
     formatVersionAttribution,
-    formatVersionTimestamp,
     sortVersionsDescending,
-    type RecipeVersionListProps,
-} from './model.js';
+    restoreErrorMessage,
+} from './history.js';
+import { formatVersionTimestamp } from './timeFormat.js';
 
 export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     versions,
@@ -39,12 +40,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     const isRestoring = restoringVersion !== undefined && restoringVersion !== null;
     // B17 — a failed restore is a mandated UI state, never a silent no-op. Resolve the container's error code
     // to localized copy here so the block stays self-contained on its own copy.
-    const restoreErrorMessage =
-        restoreError === undefined
-            ? undefined
-            : restoreError === 'conflict'
-              ? versionList.restoreConflictError
-              : versionList.restoreGenericError;
+    const restoreErrorText = restoreError === undefined ? undefined : restoreErrorMessage(restoreError, versionList);
 
     if (versions.length === 0) {
         return (
@@ -62,15 +58,15 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
             <Text accessibilityRole="header" style={styles.heading}>
                 {versionList.heading}
             </Text>
-            {restoreErrorMessage !== undefined && (
+            {restoreErrorText !== undefined && (
                 <Text accessibilityRole="alert" style={styles.restoreError}>
-                    {restoreErrorMessage}
+                    {restoreErrorText}
                 </Text>
             )}
             {sortVersionsDescending(versions).map((version) => {
                 const isCurrent = version.versionNumber === currentVersion;
                 const isBusy = restoringVersion === version.versionNumber;
-                const attribution = formatVersionAttribution(version.editorHandle, version.deviceLabel, versionList);
+                const attribution = formatVersionAttribution(version.editorHandle, versionList);
                 const { hasPrior, changedFields } = changeSummaryForVersion(versions, version);
 
                 return (

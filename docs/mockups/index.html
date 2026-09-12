@@ -1,105 +1,154 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Commise — Mockup Index</title>
-<style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #fafaf7;
-    color: #1a1a1a;
-    padding: 2rem 1.5rem 4rem;
-    max-width: 960px;
-    margin-inline: auto;
-  }
-  h1 { margin: 0 0 .25rem; font-size: 1.75rem; }
-  p.lead { margin: 0 0 2rem; color: #555; }
-  .source {
-    font-size: .875rem;
-    color: #666;
-    background: #fff;
-    border: 1px solid #e5e5e0;
-    border-radius: 8px;
-    padding: .75rem 1rem;
-    margin-bottom: 2rem;
-  }
-  .source a { color: #2563eb; }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1rem;
-  }
-  .card {
-    display: block;
-    background: #fff;
-    border: 1px solid #e5e5e0;
-    border-radius: 12px;
-    padding: 1rem 1.125rem;
-    text-decoration: none;
-    color: inherit;
-    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
-  }
-  .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0,0,0,.06);
-    border-color: #cfcfc7;
-  }
-  .card .num { font-size: .75rem; font-weight: 600; color: #888; letter-spacing: .05em; }
-  .card .name { font-size: 1.05rem; font-weight: 600; margin: .25rem 0 .35rem; }
-  .card .desc { font-size: .85rem; color: #666; line-height: 1.35; }
-  footer { margin-top: 3rem; font-size: .8rem; color: #888; }
-</style>
-</head>
-<body>
-  <h1>Commise — Mockups</h1>
-  <p class="lead">Static HTML snapshots of each screen, captured from the Figma Make prototype. Self-contained per file; shared images under <code>_assets/</code>.</p>
-  <div class="source">
-    Source prototype: <a href="https://jazz-spec-04687086.figma.site" target="_blank" rel="noopener">jazz-spec-04687086.figma.site</a>
-  </div>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Commise — Mockup Index</title>
+        <style>
+            :root {
+                color-scheme: light dark;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                background: #fafaf7;
+                color: #1a1a1a;
+                padding: 2rem 1.5rem 4rem;
+                max-width: 960px;
+                margin-inline: auto;
+            }
+            h1 {
+                margin: 0 0 0.25rem;
+                font-size: 1.75rem;
+            }
+            p.lead {
+                margin: 0 0 2rem;
+                color: #555;
+            }
+            .source {
+                font-size: 0.875rem;
+                color: #666;
+                background: #fff;
+                border: 1px solid #e5e5e0;
+                border-radius: 8px;
+                padding: 0.75rem 1rem;
+                margin-bottom: 2rem;
+            }
+            .source a {
+                color: #2563eb;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                gap: 1rem;
+            }
+            .card {
+                display: block;
+                background: #fff;
+                border: 1px solid #e5e5e0;
+                border-radius: 12px;
+                padding: 1rem 1.125rem;
+                text-decoration: none;
+                color: inherit;
+                transition:
+                    transform 0.12s ease,
+                    box-shadow 0.12s ease,
+                    border-color 0.12s ease;
+            }
+            .card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+                border-color: #cfcfc7;
+            }
+            .card .num {
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #888;
+                letter-spacing: 0.05em;
+            }
+            .card .name {
+                font-size: 1.05rem;
+                font-weight: 600;
+                margin: 0.25rem 0 0.35rem;
+            }
+            .card .desc {
+                font-size: 0.85rem;
+                color: #666;
+                line-height: 1.35;
+            }
+            footer {
+                margin-top: 3rem;
+                font-size: 0.8rem;
+                color: #888;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Commise — Mockups</h1>
+        <p class="lead">
+            Static HTML snapshots of each screen, captured from the Figma Make prototype. Self-contained per file;
+            shared images under <code>_assets/</code>.
+        </p>
+        <div class="source">
+            Source prototype:
+            <a href="https://jazz-spec-04687086.figma.site" target="_blank" rel="noopener"
+                >jazz-spec-04687086.figma.site</a
+            >
+        </div>
 
-  <div class="grid">
-    <a class="card" href="screens/screen-auth.html">
-      <div class="num">01</div><div class="name">Auth</div>
-      <div class="desc">Sign-in / sign-up entry screen.</div>
-    </a>
-    <a class="card" href="screens/screen-home.html">
-      <div class="num">02</div><div class="name">Home</div>
-      <div class="desc">Dashboard with featured recipes and quick actions.</div>
-    </a>
-    <a class="card" href="screens/screen-recipes.html">
-      <div class="num">03</div><div class="name">Recipes</div>
-      <div class="desc">Browse, search, and filter the recipe library.</div>
-    </a>
-    <a class="card" href="screens/screen-recipe-detail.html">
-      <div class="num">04</div><div class="name">Recipe Detail</div>
-      <div class="desc">Full recipe view — ingredients, steps, nutrition.</div>
-    </a>
-    <a class="card" href="screens/screen-cooking.html">
-      <div class="num">05</div><div class="name">Cooking Mode</div>
-      <div class="desc">Step-by-step guided cooking flow.</div>
-    </a>
-    <a class="card" href="screens/screen-mealplan.html">
-      <div class="num">06</div><div class="name">Meal Plan</div>
-      <div class="desc">Weekly calendar of planned meals.</div>
-    </a>
-    <a class="card" href="screens/screen-grocery.html">
-      <div class="num">07</div><div class="name">Grocery</div>
-      <div class="desc">Generated shopping list grouped by aisle.</div>
-    </a>
-    <a class="card" href="screens/screen-nutrition.html">
-      <div class="num">08</div><div class="name">Nutrition</div>
-      <div class="desc">Daily macro and calorie tracking.</div>
-    </a>
-    <a class="card" href="screens/screen-profile.html">
-      <div class="num">09</div><div class="name">Profile</div>
-      <div class="desc">Account, preferences, subscription, security.</div>
-    </a>
-  </div>
+        <div class="grid">
+            <a class="card" href="screens/screenAuth.html">
+                <div class="num">01</div>
+                <div class="name">Auth</div>
+                <div class="desc">Sign-in / sign-up entry screen.</div>
+            </a>
+            <a class="card" href="screens/screenHome.html">
+                <div class="num">02</div>
+                <div class="name">Home</div>
+                <div class="desc">Dashboard with featured recipes and quick actions.</div>
+            </a>
+            <a class="card" href="screens/screenRecipes.html">
+                <div class="num">03</div>
+                <div class="name">Recipes</div>
+                <div class="desc">Browse, search, and filter the recipe library.</div>
+            </a>
+            <a class="card" href="screens/screenRecipeDetail.html">
+                <div class="num">04</div>
+                <div class="name">Recipe Detail</div>
+                <div class="desc">Full recipe view — ingredients, steps, nutrition.</div>
+            </a>
+            <a class="card" href="screens/screenCooking.html">
+                <div class="num">05</div>
+                <div class="name">Cooking Mode</div>
+                <div class="desc">Step-by-step guided cooking flow.</div>
+            </a>
+            <a class="card" href="screens/screenMealplan.html">
+                <div class="num">06</div>
+                <div class="name">Meal Plan</div>
+                <div class="desc">Weekly calendar of planned meals.</div>
+            </a>
+            <a class="card" href="screens/screenGrocery.html">
+                <div class="num">07</div>
+                <div class="name">Grocery</div>
+                <div class="desc">Generated shopping list grouped by aisle.</div>
+            </a>
+            <a class="card" href="screens/screenNutrition.html">
+                <div class="num">08</div>
+                <div class="name">Nutrition</div>
+                <div class="desc">Daily macro and calorie tracking.</div>
+            </a>
+            <a class="card" href="screens/screenProfile.html">
+                <div class="num">09</div>
+                <div class="name">Profile</div>
+                <div class="desc">Account, preferences, subscription, security.</div>
+            </a>
+        </div>
 
-  <footer>Generated from live DOM snapshots — not regenerated automatically. Re-run capture if prototype changes.</footer>
-</body>
+        <footer>
+            Generated from live DOM snapshots — not regenerated automatically. Re-run capture if prototype changes.
+        </footer>
+    </body>
 </html>

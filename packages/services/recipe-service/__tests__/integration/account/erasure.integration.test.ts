@@ -39,7 +39,7 @@
  *
  * The worker half — the FK/cascade semantics of the erase itself, the dual-bucket S3 sweep, and the job
  * reaching `completed` — lives in `@kitchensink/recipe-workers`
- * (`__tests__/integration/erasure/account-erasure.integration.test.ts`), because `recipe-service` does
+ * (`__tests__/integration/erasure/accountErasure.integration.test.ts`), because `recipe-service` does
  * not (and must not) depend on its own downstream consumer.
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup.
@@ -55,11 +55,12 @@ import { ACCOUNT_ALREADY_ERASED_CODE, type AccountErasureMessage } from '@kitche
 import { eq, sql } from 'drizzle-orm';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
-import { SEED_ERASURE_QUEUE_URL } from '../../../tests/global-setup.js';
+import { SEED_ERASURE_QUEUE_URL } from '../../../tests/globalSetup.js';
 import { DrizzleProvider } from '../../../src/database/database.module.js';
 import type { RecipeDrizzle } from '../../../src/database/client.js';
 import { accountErasureJobs } from '../../../src/database/schema/account.js';
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE } from '../../../src/account/dto/erasure.dto.js';
+import { recipeDb } from '../../../tests/support/roleDb.js';
 
 /** The dev-bypass owner ULID every request in this suite authenticates as. */
 const OWNER = '01JERASUREHTTP0OWNER00000A';
@@ -88,6 +89,8 @@ interface GoneBody {
     message: string;
 }
 
+const roleDb = recipeDb();
+
 describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration)', () => {
     let booted: BootedRecipeApp;
     let baseUrl: string;
@@ -105,7 +108,7 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
         // which reads env when it dynamically imports `AppModule`.
         process.env['RATE_LIMIT_PHOTO_UPLOAD'] = '1000';
 
-        booted = await bootRecipeApp({ devAuthUserId: OWNER });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: OWNER });
         baseUrl = booted.baseUrl;
         db = booted.app.get<RecipeDrizzle>(DrizzleProvider);
         sqs = new SQSClient({

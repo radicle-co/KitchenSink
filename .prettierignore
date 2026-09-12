@@ -16,3 +16,49 @@ cdk.context.json
 # `packages/tools/test-utils/src/__tests__/mockupContrast.test.ts`. The README beside them is NOT ignored.
 docs/mockups/screens
 docs/mockups/_assets
+
+# The generated OpenAPI documents. They are DERIVED output written by `@kitchensink/contract-gen`
+# (CODING_STANDARDS §15.2) and guarded by CI's regenerate-and-diff, so any reformatting here — even a
+# harmless one — reads as contract drift and reds that gate until the generator is re-run. Prettier happens
+# to leave today's output byte-identical; this entry is what stops a future prettier release from turning
+# that coincidence into a permanently-failing check nobody can explain.
+packages/schemas/*/openapi.yaml
+
+# The published-contract fingerprints — the golden master the breaking-change classifier compares against
+# (`@kitchensink/contract-gen`'s `contractFingerprint.ts`). Same argument as the OpenAPI entry above, except
+# that here it is NOT a coincidence and the entry is load-bearing: `JSON.stringify(…, 4)` expands every array
+# while Prettier collapses a short one onto a single line, so WITHOUT this entry `lint-staged`'s
+# `prettier --write` on staged `*.json` reformats the artifact at commit time and the regenerate-and-diff gate
+# reds on drift that is not drift, on every single run. The generator owns these bytes.
+packages/schemas/*/contract.schema.json
+
+# The staged Python Lambda asset — ~3,000 files of pip output (third-party Python, licences, model cards)
+# rewritten by `npm run bundle:lambda`. It is gitignored build output that this repository did not author,
+# and reformatting a dependency's own README changes nothing anyone reads while making `format:check` walk
+# 91 MB. See ADR-0025.
+packages/services/ingredient-parser/build
+
+# The generated component + design-token documentation. DERIVED output written by
+# `@kitchensink/docgen-components` and guarded by regenerate-and-diff, exactly like the OpenAPI documents
+# above and for the identical reason: the guard compares BYTES, and `lint-staged` runs `prettier --write` on
+# every staged `*.json`, so without this entry a commit reformats the artifact and the gate reds on drift
+# that is not drift. Prettier happens to leave today's output nearly identical; the point is that it must not
+# be able to touch it at all.
+docs/generated/components
+docs/generated/design
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test
+
+# The generated infrastructure manifest and its rendered view. DERIVED output written by
+# `npm run infra:manifest`, guarded by a regenerate-and-diff in `infrastructureManifest.test.ts`, so any
+# reformatting here — even a harmless one — reads as staleness and reds that gate until the generator is
+# re-run. Same argument as the OpenAPI entry above; the difference is that this one is not a coincidence,
+# because the Markdown carries wide tables Prettier would reflow. The generator, not Prettier, owns the bytes.
+docs/generated/infrastructure
+
+# Build-time MIRRORS of the three entries above, written by the docs site whenever a generated corpus
+# nests inside another content source (`MIRROR_ROOT` in
+# packages/tools/docs-site/src/content/contentSource.ts). Byte copies of guarded output, gitignored,
+# refilled on every build — the same argument as the entries above, one directory over.
+packages/tools/docs-site/content/mirrored

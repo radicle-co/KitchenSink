@@ -1,0 +1,32 @@
+{"key":"01079","name":"こむぎ　［その他］　パン粉　乾燥","basis":"per100g","values":{"CHOAVL":"62.5","CHOAVLM":"68.6","CHOCDF":"67.4","ENERC_KCAL":"349","ENERC_KJ":"1479","FAT":"4.1","FIBTG":"6.5","PROCNT":"14.9"}}
+{"key":"06183","name":"（トマト類）　赤色ミニトマト　果実　生","basis":"per100g","values":{"CHOAVL":"4.5","CHOAVLM":"4.6","CHOCDF":"7.2","ENERC_KCAL":"30","ENERC_KJ":"127","FAT":"0.1","FIBTG":"1.4","PROCNT":"1.1"}}
+{"key":"06223","name":"（にんにく類）　にんにく　りん茎　生","basis":"per100g","values":{"CHOAVL":"1.0","CHOAVLM":"1.1","CHOCDF":"27.5","ENERC_KCAL":"129","ENERC_KJ":"544","FAT":"0.9","FIBTG":"6.2","PROCNT":"6.4"}}
+{"key":"06224","name":"（にんにく類）　茎にんにく　花茎　生","basis":"per100g","values":{"CHOCDF":"10.6","ENERC_KCAL":"44","ENERC_KJ":"186","FAT":"0.3","FIBTG":"3.8","PROCNT":"1.9"}}
+{"key":"06239","name":"パセリ　葉　生","basis":"per100g","values":{"CHOAVL":"0.9","CHOAVLM":"0.9","CHOCDF":"7.8","ENERC_KCAL":"34","ENERC_KJ":"142","FAT":"0.7","FIBTG":"6.8","PROCNT":"4.0"}}
+{"key":"06366","name":"（しょうが類）　しょうが　根茎　皮なし　生　おろし汁","basis":"per100g","values":{"CHOCDF":"3.5","ENERC_KCAL":"17","ENERC_KJ":"72","FAT":"0.3","FIBTG":"0.3","PROCNT":"0.4"}}
+{"key":"09003","name":"あまのり　ほしのり","basis":"per100g","values":{"CHOAVL":"0.4","CHOAVLM":"0.5","CHOCDF":"38.7","ENERC_KCAL":"276","ENERC_KJ":"1154","FAT":"3.7","FIBTG":"31.2","PROCNT":"39.4"}}
+{"key":"09004","name":"あまのり　焼きのり","basis":"per100g","values":{"CHOAVL":"1.7","CHOAVLM":"1.9","CHOCDF":"44.3","ENERC_KCAL":"297","ENERC_KJ":"1240","FAT":"3.7","FIBTG":"36.0","PROCNT":"41.4"}}
+{"key":"09017","name":"（こんぶ類）　まこんぶ　素干し　乾","basis":"per100g","values":{"CHOAVL":"0.1","CHOAVLM":"0.1","CHOCDF":"64.3","ENERC_KCAL":"170","ENERC_KJ":"703","FAT":"1.3","FIBTG":"32.1","PROCNT":"5.8"}}
+{"key":"10149","name":"＜魚類＞　（さけ・ます類）　べにざけ　生","basis":"per100g","values":{"CHOAVL":"0.1","CHOAVLM":"0.1","CHOCDF":"0.1","ENERC_KCAL":"127","ENERC_KJ":"536","FAT":"4.5","FIBTG":"0","PROCNT":"22.5"}}
+{"key":"10222","name":"＜魚類＞　にしん　かずのこ　生","basis":"per100g","values":{"CHOAVL":"0.2","CHOAVLM":"0.2","CHOCDF":"0.2","ENERC_KCAL":"139","ENERC_KJ":"588","FAT":"6.7","FIBTG":"0","PROCNT":"25.2"}}
+{"key":"16013","name":"＜アルコール飲料類＞　（醸造酒類）　紹興酒","basis":"per100g","values":{"CHOCDF":"5.1","ENERC_KCAL":"126","ENERC_KJ":"525","PROCNT":"1.7"},"traces":["FAT","FIBTG"]}
+{"key":"16025","name":"＜アルコール飲料類＞　（混成酒類）　みりん　本みりん","basis":"per100g","values":{"CHOAVL":"26.6","CHOAVLM":"26.8","CHOCDF":"43.2","ENERC_KCAL":"241","ENERC_KJ":"1015","PROCNT":"0.3"},"traces":["FAT"]}
+{"key":"16035","name":"＜茶類＞　（緑茶類）　抹茶　茶","basis":"per100g","values":{"CHOAVL":"1.5","CHOAVLM":"1.6","CHOCDF":"39.5","ENERC_KCAL":"237","ENERC_KJ":"984","FAT":"5.3","FIBTG":"38.5","PROCNT":"29.6"}}
+{"key":"17006","name":"＜調味料類＞　（辛味調味料類）　ラー油","basis":"per100g","values":{"ENERC_KCAL":"887","ENERC_KJ":"3648","FAT":"99.8","PROCNT":"0.1"},"traces":["CHOCDF"]}
+{"key":"17016","name":"＜調味料類＞　（食酢類）　米酢","basis":"per100g","values":{"CHOCDF":"7.4","ENERC_KCAL":"46","ENERC_KJ":"193","FAT":"0","FIBTG":"0","PROCNT":"0.2"}}
+{"key":"17044","name":"＜調味料類＞　（みそ類）　米みそ　甘みそ","basis":"per100g","values":{"CHOCDF":"37.9","ENERC_KCAL":"206","ENERC_KJ":"869","FAT":"3.0","FIBTG":"5.6","PROCNT":"9.7"}}
+{"key":"17045","name":"＜調味料類＞　（みそ類）　米みそ　淡色辛みそ","basis":"per100g","values":{"CHOAVL":"11.8","CHOAVLM":"11.9","CHOCDF":"21.9","ENERC_KCAL":"182","ENERC_KJ":"762","FAT":"6.0","FIBTG":"4.9","PROCNT":"12.5"}}
+{"key":"17054","name":"＜調味料類＞　（その他）　みりん風調味料","basis":"per100g","values":{"CHOAVL":"39.2","CHOAVLM":"39.9","CHOCDF":"55.7","ENERC_KCAL":"225","ENERC_KJ":"958","FAT":"0","FIBTG":"0","PROCNT":"0.1"}}
+{"key":"17055","name":"＜香辛料類＞　オールスパイス　粉","basis":"per100g","values":{"CHOCDF":"75.2","ENERC_KCAL":"364","ENERC_KJ":"1543","FAT":"5.6","PROCNT":"5.6"}}
+{"key":"17060","name":"＜香辛料類＞　からし　粒入りマスタード","basis":"per100g","values":{"CHOAVL":"5.1","CHOAVLM":"5.1","CHOCDF":"12.7","ENERC_KCAL":"229","ENERC_KJ":"955","FAT":"16.0","PROCNT":"7.6"}}
+{"key":"17062","name":"＜香辛料類＞　クローブ　粉","basis":"per100g","values":{"CHOCDF":"66.4","ENERC_KCAL":"398","ENERC_KJ":"1679","FAT":"13.6","PROCNT":"7.2"}}
+{"key":"17063","name":"＜香辛料類＞　こしょう　黒　粉","basis":"per100g","values":{"CHOAVL":"38.5","CHOAVLM":"42.3","CHOCDF":"66.6","ENERC_KCAL":"362","ENERC_KJ":"1532","FAT":"6.0","PROCNT":"11.0"}}
+{"key":"17064","name":"＜香辛料類＞　こしょう　白　粉","basis":"per100g","values":{"CHOAVL":"38.7","CHOAVLM":"42.5","CHOCDF":"70.1","ENERC_KCAL":"376","ENERC_KJ":"1590","FAT":"6.4","PROCNT":"10.1"}}
+{"key":"17066","name":"＜香辛料類＞　さんしょう　粉","basis":"per100g","values":{"CHOCDF":"69.6","ENERC_KCAL":"375","ENERC_KJ":"1588","FAT":"6.2","PROCNT":"10.3"}}
+{"key":"17067","name":"＜香辛料類＞　シナモン　粉","basis":"per100g","values":{"CHOCDF":"79.6","ENERC_KCAL":"356","ENERC_KJ":"1512","FAT":"3.5","PROCNT":"3.6"}}
+{"key":"17074","name":"＜香辛料類＞　ナツメグ　粉","basis":"per100g","values":{"CHOCDF":"47.5","ENERC_KCAL":"520","ENERC_KJ":"2172","FAT":"38.5","PROCNT":"5.7"}}
+{"key":"17076","name":"＜香辛料類＞　にんにく　おろし","basis":"per100g","values":{"CHOAVL":"1.2","CHOAVLM":"1.3","CHOCDF":"37.0","ENERC_KCAL":"170","ENERC_KJ":"722","FAT":"0.5","PROCNT":"4.7"}}
+{"key":"17079","name":"＜香辛料類＞　パプリカ　粉","basis":"per100g","values":{"CHOCDF":"55.6","ENERC_KCAL":"385","ENERC_KJ":"1624","FAT":"11.6","PROCNT":"15.5"}}
+{"key":"17101","name":"＜調味料類＞　（調味ソース類）　すし酢　ちらし・稲荷用","basis":"per100g","values":{"CHOAVL":"30.1","CHOAVLM":"31.6","CHOCDF":"34.9","ENERC_KCAL":"150","ENERC_KJ":"638","FAT":"0","FIBTG":"0","PROCNT":"0.1"}}
+{"key":"17102","name":"＜調味料類＞　（調味ソース類）　すし酢　にぎり用","basis":"per100g","values":{"CHOAVL":"8.2","CHOAVLM":"8.6","CHOCDF":"14.3","ENERC_KCAL":"70","ENERC_KJ":"299","FAT":"0","FIBTG":"0","PROCNT":"0.2"}}
+{"key":"17103","name":"＜調味料類＞　（調味ソース類）　すし酢　巻き寿司・箱寿司用","basis":"per100g","values":{"CHOAVL":"18.3","CHOAVLM":"19.2","CHOCDF":"23.8","ENERC_KCAL":"107","ENERC_KJ":"454","FAT":"0","FIBTG":"0","PROCNT":"0.1"}}

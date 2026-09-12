@@ -5,14 +5,14 @@
  * `Object.setPrototypeOf` (so `instanceof` survives transpilation), and ships an `is*` guard
  * (CODING_STANDARDS).
  *
- * There is deliberately NO `429`/rate-limit error: the food service never rejects an authenticated
- * caller with a per-user quota (FR-043). Capacity pressure surfaces ONLY as {@link FetchUnavailableError}
- * (`503`). A candidate pick not in the food's set surfaces as {@link CandidateMismatchError} (`409`,
- * DSN-14), never `400` (which is reserved for a malformed request body).
+ * Capacity pressure surfaces ONLY as {@link FetchUnavailableError} (`503`). The one `429` is the live search's
+ * per-caller cap (plan 002 R42), surfaced as {@link RateLimitedError}. A candidate pick not in the food's set
+ * surfaces as {@link CandidateMismatchError} (`409`, DSN-14), never `400` (which is reserved for a malformed
+ * request body).
  *
  * @implements FR-047
  */
-import type { FoodStatus } from './types.js';
+import type { TerminalFoodStatus } from './types.js';
 
 /** Base class for all food-service client errors. Carries the originating HTTP status. */
 export class FoodServiceClientError extends Error {
@@ -78,10 +78,18 @@ export function isBadRequestError(error: unknown): error is BadRequestError {
 export class NotFoundError extends FoodServiceClientError {
     /** Internal food id. */
     public readonly id: string;
-    /** The terminal food status when a row exists (`NOT_FOUND` | `FAILED`), else `undefined`. */
-    public readonly foodStatus?: FoodStatus;
+    /**
+     * The terminal food status when a row exists (`NOT_FOUND` | `FAILED`), else `undefined`.
+     *
+     * ⛔ `TerminalFoodStatus`, not the full lifecycle — a type that matches the guarantee it is built from.
+     * The only construction site reads `body.details.status` of the `FOOD_NOT_FOUND` envelope arm, which
+     * the published contract types as `terminalFoodStatusSchema`. Declaring it wider was a contract breach
+     * in the direction that costs: it forced every consumer to defend against statuses this error can never
+     * carry — a phantom branch for `WITHDRAWN` at recipe-service's translation seam among them.
+     */
+    public readonly foodStatus?: TerminalFoodStatus;
 
-    public constructor(id: string, foodStatus?: FoodStatus) {
+    public constructor(id: string, foodStatus?: TerminalFoodStatus) {
         super(`Food '${id}' not found`, 404);
         this.name = 'NotFoundError';
         this.id = id;
@@ -154,6 +162,92 @@ export class FetchUnavailableError extends FoodServiceClientError {
 /** Type guard for {@link FetchUnavailableError}. */
 export function isFetchUnavailableError(error: unknown): error is FetchUnavailableError {
     return error instanceof FetchUnavailableError;
+}
+
+/**
+ * `429` — THIS caller passed its own per-minute cap on a capped route (live search, plan 002 R42). Refused before
+ * any source call, so it spent no quota.
+ *
+ * ⛔ Deliberately NOT a {@link FetchUnavailableError}. That one means the SERVICE is out of capacity for everyone
+ * (`503`, and the contract says it is never a per-user `429`); this one means one caller is over its own cap while
+ * the service serves everyone else. Both carry a `Retry-After`, but they are different facts with different fixes —
+ * a runaway loop in one caller is not food being down — and the `503` type already carries two meanings (a shed and
+ * a transport failure, told apart by `cause`). There is no `cause` here: a `429` always comes from a response.
+ */
+export class RateLimitedError extends FoodServiceClientError {
+    /** Seconds until this caller's cap resets (from `Retry-After`, when present). */
+    public readonly retryAfterSeconds: number | undefined;
+
+    public constructor(retryAfterSeconds?: number, message = 'Too many requests') {
+        super(message, 429);
+        this.name = 'RateLimitedError';
+        this.retryAfterSeconds = retryAfterSeconds;
+        Object.setPrototypeOf(this, RateLimitedError.prototype);
+    }
+}
+
+/** Type guard for {@link RateLimitedError}. */
+export function isRateLimitedError(error: unknown): error is RateLimitedError {
+    return error instanceof RateLimitedError;
+}
+
+/**
+ * The upstream FOOD DATA SOURCE did not answer a live search — a `502` (plan U29).
+ *
+ * ⛔ Deliberately NOT a {@link FetchUnavailableError}, and the distinction reaches the cook. That one means
+ * OUR own rate budget said no and carries a `Retry-After` a caller can act on; this one means the source
+ * itself is down, and we know nothing about when it recovers. Collapsing them would make the picker promise
+ * a retry window that does not exist — and would make "the source has nothing", "the source is busy" and
+ * "the source is down" render as two sentences instead of three.
+ */
+export class SourceUnavailableError extends FoodServiceClientError {
+    /** The underlying transport error, when there is one. */
+    public override readonly cause: unknown;
+
+    public constructor(message = 'The food data source is unavailable', cause?: unknown) {
+        super(message, 502);
+        this.name = 'SourceUnavailableError';
+        this.cause = cause;
+        Object.setPrototypeOf(this, SourceUnavailableError.prototype);
+    }
+}
+
+/** Type guard for {@link SourceUnavailableError}. */
+export function isSourceUnavailableError(error: unknown): error is SourceUnavailableError {
+    return error instanceof SourceUnavailableError;
+}
+
+/**
+ * The body the CALLER built does not satisfy the request schema the food service publishes, so the request was
+ * never sent (ADR-0014, outbound half).
+ *
+ * ⚠️ It is deliberately NOT a {@link BadRequestError}, because three failures that all look like "a 400" need
+ * to stay distinguishable — the right response to each differs and a caller cannot act on a conflated one:
+ *
+ *  1. **This error** — the caller's own bug. The body is illegal per `@kitchensink/schema-food`; no request
+ *     went out and a retry with the same body cannot work.
+ *  2. {@link BadRequestError} — the SERVER answered `400`. The body was legal per the contract this client
+ *     compiles against and the service rejected it anyway: either a rule the contract does not express, or
+ *     genuine skew worth alerting on.
+ *  3. A bare `ZodError` from the response parse — the SERVER's body drifted from the contract.
+ *
+ * Mirrors `@kitchensink/recipe-service-client`'s `InvalidRequestError`, so the two clients read alike.
+ */
+export class InvalidRequestError extends FoodServiceClientError {
+    /** The `ZodError` from parsing the outbound body against the published request schema. */
+    public override readonly cause: unknown;
+
+    public constructor(operation: string, cause: unknown) {
+        super(`Request body for ${operation} does not satisfy the published food-service contract`);
+        this.name = 'InvalidRequestError';
+        this.cause = cause;
+        Object.setPrototypeOf(this, InvalidRequestError.prototype);
+    }
+}
+
+/** Type guard for {@link InvalidRequestError}. */
+export function isInvalidRequestError(error: unknown): error is InvalidRequestError {
+    return error instanceof InvalidRequestError;
 }
 
 /** Any unmapped/unexpected response status (a contract drift the caller should surface, not swallow). */

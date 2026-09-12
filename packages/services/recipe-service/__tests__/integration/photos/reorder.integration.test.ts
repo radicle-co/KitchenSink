@@ -18,9 +18,10 @@ import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/c
 import { recipes } from '../../../src/database/schema/recipes.js';
 import { recipePhotos } from '../../../src/database/schema/photos.js';
 import { PhotosDal } from '../../../src/photos/dal/photos.dal.js';
+import { hasTestDatabase, recipeDb } from '../../../tests/support/roleDb.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
-const hasDatabaseUrl = Boolean(DATABASE_URL);
+const roleDb = recipeDb();
+const hasDatabaseUrl = hasTestDatabase;
 
 const OWNER = '01JPHOTOREORDEROWNERAAAAAAA';
 
@@ -82,7 +83,7 @@ describe.skipIf(!hasDatabaseUrl)('PhotosDal.reorder atomic permutation guard (in
     let dal: PhotosDal;
 
     beforeAll(() => {
-        pool = new pg.Pool({ connectionString: DATABASE_URL });
+        pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = createRecipeDrizzle(pool);
         dal = new PhotosDal(db);
     });

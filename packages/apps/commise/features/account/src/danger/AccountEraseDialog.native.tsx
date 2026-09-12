@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-account/danger/AccountEraseDialog.native — the NATIVE account-erasure dialog
- * (CR-002 / U4b). The React Native leaf of {@link import('./AccountEraseDialog.js').AccountEraseDialog} — the
+ * (CR-002 / U4b). The React Native leaf of `AccountEraseDialog` — the
  * SAME controlled, presentational contract, phrase gate, and donate election as the web leaf, so the two
  * platforms can never drift on behaviour or on which inputs enable the destructive confirm.
  *
@@ -8,6 +8,11 @@
  * `react-native-web` a `Modal` keeps its portal content mounted across a `visible` toggle, so gating the
  * whole `<Modal>` behind `open` keeps this leaf's contract identical to every other controlled dialog here
  * (mirrors `@commise/ui`'s `ConfirmDialog.native`).
+ *
+ * @pattern Adapter over React Native's `Modal` around the same `confirmsErasurePhrase` Specification, so the phrase
+ *     gate is one rule rather than one per platform.
+ * @pattern The `recipesLoading` / `recipesError` booleans are DISPLAY DERIVATION of one donate-election slot, exactly
+ *     as on web — same dialog, same gate, same actions in every branch.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

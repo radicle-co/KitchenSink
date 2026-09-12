@@ -39,7 +39,7 @@ import { signInWithTicket } from './utils/auth';
 /** `h-14` — the sticky bar's fixed height. */
 const BAR_HEIGHT_PX = 56;
 
-/** `size-8` — the mockup's painted avatar disc (`screen-home`), and the same 32px the native leaf paints. */
+/** `size-8` — the mockup's painted avatar disc (`screenHome`), and the same 32px the native leaf paints. */
 const DISC_PX = 32;
 
 /** `min-h-11` / `min-w-11` — the mobile touch-target floor, released at `md:`. */

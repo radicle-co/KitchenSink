@@ -131,6 +131,24 @@ describe('Button (native)', () => {
         expect(surface).not.toBeNull();
     });
 
+    /**
+     * E2 I2 — the radius is HALF the minimum height (§S13), not a full pill: on a pill, a label that wraps at a large
+     * font scale runs past the curve. Read off the pill's own computed style, so a change to the floor moves both.
+     */
+    it('rounds the pill to half its minimum height, so a wrapped label stays inside the curve', () => {
+        render(
+            <Button icon={markerIcon} onPress={vi.fn()}>
+                Save changes
+            </Button>,
+        );
+
+        const pill = withMinHeight(screen.getByRole('button', { name: 'Save changes' }), '44px');
+        const style = getComputedStyle(pill ?? document.body);
+
+        expect(pill).not.toBeNull();
+        expect(Number.parseFloat(style.borderTopLeftRadius)).toBe(Number.parseFloat(style.minHeight) / 2);
+    });
+
     it('shows a real spinner and hides the icon when busy (no layout shift), still labelled', () => {
         const { rerender } = render(
             <Button icon={markerIcon} onPress={vi.fn()}>
@@ -264,12 +282,14 @@ describe('Button (native)', () => {
  */
 function withMinHeight(root: HTMLElement, minHeight: string): HTMLElement | null {
     const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
     return candidates.find((el) => getComputedStyle(el).minHeight === minHeight) ?? null;
 }
 
 /** The sibling of {@link withMinHeight} for the tier's bordered surface (RNW compiles borders the same way). */
 function withBorderWidth(root: HTMLElement, borderWidth: string): HTMLElement | null {
     const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
     return candidates.find((el) => getComputedStyle(el).borderTopWidth === borderWidth) ?? null;
 }
 

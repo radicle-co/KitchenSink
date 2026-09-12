@@ -1,16 +1,16 @@
 ---
 name: speckit.product-forge.migration-plan
 description: 'Optional pre-implement phase: when plan.md introduces data-model changes,
-  generate a zero-downtime migration plan with forward + rollback scripts, validation
-  queries, backfill job outline, and risk matrix. Wraps the installed `db-migration-manager`
-  and `mongodb-ops` skills. Runs at Phase 5.5 — after Phase 5B (Tasks) and before
-  Phase 5C (Pre-Impl Review), when schema changes are detected in plan.md. Use: "migration
-  plan", "schema migration", "/speckit.product-forge.migration-plan"'
+    generate a zero-downtime migration plan with forward + rollback scripts, validation
+    queries, backfill job outline, and risk matrix. Wraps the installed `db-migration-manager`
+    and `mongodb-ops` skills. Runs at Phase 5.5 — after Phase 5B (Tasks) and before
+    Phase 5C (Pre-Impl Review), when schema changes are detected in plan.md. Use: "migration
+    plan", "schema migration", "/speckit.product-forge.migration-plan"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Migration Plan (Phase 5.5)
 
 You are the **Migration Strategist** for Product Forge.
@@ -28,6 +28,7 @@ $ARGUMENTS
 ```
 
 Parse for:
+
 - Feature slug (required).
 - `--db=<kind>` — `mongodb` | `postgres` | `mysql`. If omitted, detect
   from project config / plan.md hints.
@@ -38,13 +39,13 @@ Parse for:
 
 1. `plan.md` exists AND its Data Model section is non-empty.
 2. Identify the DB kind:
-   - From `.product-forge/config.yml` `project_tech_stack` if clear.
-   - Otherwise from plan.md (Prisma schema ⇒ Postgres/MySQL; Mongoose
-     schema ⇒ MongoDB; raw SQL ⇒ inspect).
+    - From `.product-forge/config.yml` `project_tech_stack` if clear.
+    - Otherwise from plan.md (Prisma schema ⇒ Postgres/MySQL; Mongoose
+      schema ⇒ MongoDB; raw SQL ⇒ inspect).
 3. Confirm with the user before proceeding.
 
 If plan.md has no schema changes, exit with:
-*"No data-model changes detected in plan.md — migration plan not needed."*
+_"No data-model changes detected in plan.md — migration plan not needed."_
 
 ---
 
@@ -57,11 +58,11 @@ Extract the before/after schema:
 
 Produce a diff:
 
-| Change | Field / collection | Type | Reversible? |
-|--------|-------------------|:----:|:-----------:|
-| ADD | `User.push_token` | `string | null` | ✅ |
-| MODIFY | `Subscription.status` (enum `active → trialing`) | enum | ⚠️ data-dependent |
-| DROP | `User.legacy_flag` | bool | ❌ destructive |
+| Change | Field / collection                               |  Type   |    Reversible?    |
+| ------ | ------------------------------------------------ | :-----: | :---------------: |
+| ADD    | `User.push_token`                                | `string |       null`       | ✅  |
+| MODIFY | `Subscription.status` (enum `active → trialing`) |  enum   | ⚠️ data-dependent |
+| DROP   | `User.legacy_flag`                               |  bool   |  ❌ destructive   |
 
 Flag any `❌` as HIGH RISK.
 
@@ -71,12 +72,12 @@ Flag any `❌` as HIGH RISK.
 
 Pick one strategy per change, defaulting toward safe:
 
-| Strategy | When to use |
-|----------|-------------|
-| **Shadow column + dual-write** | Renames, type widenings, non-nullable additions on non-empty tables. |
-| **Expand–migrate–contract** | Any data backfill touching > 10k rows. |
-| **Blue-green** | Changes to hot paths where a short flip window is acceptable. |
-| **Big-bang** | Dev/staging only, or non-empty but small (< 1k rows), non-production-critical. |
+| Strategy                       | When to use                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| **Shadow column + dual-write** | Renames, type widenings, non-nullable additions on non-empty tables.           |
+| **Expand–migrate–contract**    | Any data backfill touching > 10k rows.                                         |
+| **Blue-green**                 | Changes to hot paths where a short flip window is acceptable.                  |
+| **Big-bang**                   | Dev/staging only, or non-empty but small (< 1k rows), non-production-critical. |
 
 Reject big-bang for production-critical changes — flag as action item
 instead.
@@ -126,11 +127,11 @@ If Step 2 selected expand–migrate–contract, produce
 
 Write `{FEATURE_DIR}/migrations/risk-matrix.md`:
 
-| # | Risk | Severity | Mitigation |
-|--:|------|:--------:|------------|
-| 1 | Unique constraint violation during dual-write | HIGH | Pre-backfill check query; abort if non-zero matches. |
-| 2 | Index build blocks writes | MEDIUM | Use `CREATE INDEX CONCURRENTLY` (Postgres). |
-| 3 | Replication lag under backfill load | MEDIUM | Throttle + monitor replica_lag_ms. |
+|   # | Risk                                          | Severity | Mitigation                                           |
+| --: | --------------------------------------------- | :------: | ---------------------------------------------------- |
+|   1 | Unique constraint violation during dual-write |   HIGH   | Pre-backfill check query; abort if non-zero matches. |
+|   2 | Index build blocks writes                     |  MEDIUM  | Use `CREATE INDEX CONCURRENTLY` (Postgres).          |
+|   3 | Replication lag under backfill load           |  MEDIUM  | Throttle + monitor replica_lag_ms.                   |
 
 Each row must have a concrete mitigation — "monitor carefully" is not a
 mitigation.
@@ -149,12 +150,15 @@ Top-level summary document:
 > Strategy: {primary strategy}
 
 ## Schema diff
+
 {table from Step 1}
 
 ## Strategy per change
+
 {list mapping change → strategy with rationale}
 
 ## Files produced
+
 - `migrations/forward.sql`
 - `migrations/rollback.sql`
 - `migrations/validation.sql`
@@ -162,17 +166,20 @@ Top-level summary document:
 - `migrations/risk-matrix.md`
 
 ## Pre-migration checklist
+
 - [ ] Take backup of affected tables
 - [ ] Announce migration window (if required)
 - [ ] Verify monitoring and alerts are active
 - [ ] Dry-run on staging with production-shaped data
 
 ## Rollback trigger criteria
+
 - Validation query fails
 - Error rate exceeds baseline by {threshold}
 - Replication lag > {threshold}
 
 ## Owner
+
 {person or team}
 ```
 
@@ -184,20 +191,20 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  migration_plan:
-    status: "completed"
-    started_at: "{ISO}"
-    completed_at: "{ISO}"
-    digest_path: "migrations/digest.md"
+    migration_plan:
+        status: 'completed'
+        started_at: '{ISO}'
+        completed_at: '{ISO}'
+        digest_path: 'migrations/digest.md'
 migration:
-  db_kind: "{postgres | mongodb | ...}"
-  strategy: "{primary}"
-  destructive_changes: {true | false}
-  files:
-    plan: "migrations/migration-plan.md"
-    forward: "migrations/forward.sql"
-    rollback: "migrations/rollback.sql"
-    validation: "migrations/validation.sql"
+    db_kind: '{postgres | mongodb | ...}'
+    strategy: '{primary}'
+    destructive_changes: { true | false }
+    files:
+        plan: 'migrations/migration-plan.md'
+        forward: 'migrations/forward.sql'
+        rollback: 'migrations/rollback.sql'
+        validation: 'migrations/validation.sql'
 ```
 
 Also write `migrations/digest.md` per the digest template.

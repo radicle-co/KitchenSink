@@ -57,10 +57,10 @@ Per [plan.md](../plan.md), feature 002 implementation is organized around a serv
 | Surface                     | Purpose                                                                      |
 | --------------------------- | ---------------------------------------------------------------------------- |
 | `src/auth/authorizer/*`     | API Gateway Lambda REQUEST authorizer, JWT validation, policy/context output |
-| `src/auth/webhook/*`        | IdP user.created webhook action ingestion and DB sync                         |
+| `src/auth/webhook/*`        | IdP user.created webhook action ingestion and DB sync                        |
 | `src/auth/profile/*`        | Profile retrieval and account update endpoints                               |
 | `src/auth/deletion/*`       | Account deletion endpoint + async retry consumer                             |
-| `src/auth/reconciliation/*` | Nightly IdP↔DB consistency repair job                                      |
+| `src/auth/reconciliation/*` | Nightly IdP↔DB consistency repair job                                        |
 | `src/auth/observability/*`  | Structured logs, metrics, tracing, and error tracking integration            |
 
 This structure aligns with tasks in `tasks.md` (T-001 through T-124) and enables isolated testing boundaries.

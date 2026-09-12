@@ -11,7 +11,9 @@ import userEvent from '@testing-library/user-event';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { diffSnapshots, type SnapshotDiff } from '../diff.js';
-import type { VersionPreviewModalProps } from '../model.js';
+import type { VersionPreviewModalProps } from '../preview.js';
+import { recipeVersionMessages } from '../messages.js';
+import { recipeMessages } from '../../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { VersionPreviewModal } from '../VersionPreviewModal.native.js';
 
@@ -31,7 +33,7 @@ const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngred
     id: 'ri_1',
     recipeId: 'rec_1',
     ingredientId: 'ing_1',
-    quantity: 200,
+    quantity: { kind: 'exact', value: 200 },
     unit: 'g',
     sortOrder: 1,
     ingredientName: 'Pasta',
@@ -48,11 +50,17 @@ const makeSnapshot = (overrides: Partial<RecipeSnapshot> = {}): RecipeSnapshot =
     cookTimeMinutes: 30,
     steps: [makeStep()],
     ingredients: [
-        makeIngredient({ id: 'ri_1', quantity: 200, unit: 'g', ingredientName: 'Pasta', userCalories: 420 }),
+        makeIngredient({
+            id: 'ri_1',
+            quantity: { kind: 'exact', value: 200 },
+            unit: 'g',
+            ingredientName: 'Pasta',
+            userCalories: 420,
+        }),
         makeIngredient({
             id: 'ri_2',
             ingredientId: 'ing_2',
-            quantity: 1,
+            quantity: { kind: 'exact', value: 1 },
             unit: 'cup',
             sortOrder: 2,
             ingredientName: 'Cherry tomatoes',
@@ -75,11 +83,17 @@ const populatedVersion = makeVersion();
 
 const currentSnapshot = makeSnapshot({
     ingredients: [
-        makeIngredient({ id: 'ri_1', quantity: 220, unit: 'g', ingredientName: 'Pasta', userCalories: 460 }),
+        makeIngredient({
+            id: 'ri_1',
+            quantity: { kind: 'exact', value: 220 },
+            unit: 'g',
+            ingredientName: 'Pasta',
+            userCalories: 460,
+        }),
         makeIngredient({
             id: 'ri_3',
             ingredientId: 'ing_3',
-            quantity: 2,
+            quantity: { kind: 'exact', value: 2 },
             unit: 'tbsp',
             sortOrder: 3,
             ingredientName: 'Basil',
@@ -377,5 +391,68 @@ describe('VersionPreviewModal (native) — dismissal', () => {
         await user.click(screen.getByRole('button', { name: 'Keep current version' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * A restore the server REFUSED (plan 002 R52; `namelessLineCopy.md` §5). The refusal shows INSIDE the preview —
+ * before this change a failed restore from the preview showed only in the list behind the dialog — and the lines
+ * it named are marked in words, by their snapshot position.
+ */
+describe('VersionPreviewModal (native) — a refused restore', () => {
+    const en = recipeVersionMessages.en;
+
+    it('⛔ shows the refusal inside the preview and marks each refused line', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: populatedVersion,
+                    restoreError: { kind: 'unrestorable', versionNumber: 10, positions: [1] },
+                })}
+            />,
+        );
+
+        expect(screen.getByRole('alert').textContent).toBe(en.preview.restoreUnrestorableErrorOne);
+        expect(screen.getAllByText(en.preview.lineCannotRestore)).toHaveLength(1);
+        expect(screen.getByText(/Cherry tomatoes/u).parentElement?.textContent).toContain(en.preview.lineCannotRestore);
+    });
+
+    it('⛔ shows a conflict or a generic failure inside the preview too', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({ version: populatedVersion, restoreError: { kind: 'generic', versionNumber: 10 } })}
+            />,
+        );
+
+        expect(screen.getByRole('alert').textContent).toBe(en.versionList.restoreGenericError);
+        expect(screen.queryByText(en.preview.lineCannotRestore)).toBeNull();
+    });
+
+    it('says nothing about ANOTHER version’s failed restore', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: populatedVersion,
+                    restoreError: { kind: 'unrestorable', versionNumber: 9, positions: [0] },
+                })}
+            />,
+        );
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByText(en.preview.lineCannotRestore)).toBeNull();
+    });
+
+    it('shows a line whose version saved no name by its stand-in', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: makeVersion({
+                        snapshot: makeSnapshot({ ingredients: [makeIngredient({ ingredientName: undefined })] }),
+                    }),
+                })}
+            />,
+        );
+
+        expect(screen.getByText(`200 g ${recipeMessages.en.ingredientLineName.notSavedInVersion}`)).toBeTruthy();
     });
 });

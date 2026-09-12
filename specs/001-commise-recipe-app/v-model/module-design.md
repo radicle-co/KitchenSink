@@ -68,7 +68,7 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 
 **Parent Architecture Modules**: ARCH-001
 **Type**: Library
-**Target Source File(s)**: `packages/services/recipe-service/src/auth/clerk-auth.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/auth/clerkAuth.service.ts`
 
 #### Interface View
 

@@ -10,7 +10,7 @@ import type { LocalizedMessages } from '@commise/i18n';
 
 /** Shared copy for the recipe filter bar (FR-006), rendered by both the web and native bars. */
 export interface FilterMessages {
-    /** Accessible name for the whole filter bar (its outer group). */
+    /** The filter bar's name: the web bar's outer group, and the native sheet's title. */
     readonly barLabel: string;
     /** Group label for the dietary-flag facet. */
     readonly dietaryLabel: string;
@@ -64,6 +64,8 @@ export interface FilterMessages {
     readonly filtersButtonActive: string;
     /** Visible label of the action that closes the filter bottom sheet. */
     readonly filtersDone: string;
+    /** Accessible name of the sheet's icon-only close control (house form "Close {thing}", §S8.1a). */
+    readonly filtersClose: string;
 }
 
 export const filterMessages: LocalizedMessages<FilterMessages> = {
@@ -83,6 +85,7 @@ export const filterMessages: LocalizedMessages<FilterMessages> = {
         filtersButton: 'Filters',
         filtersButtonActive: 'Filters, {count} active',
         filtersDone: 'Done',
+        filtersClose: 'Close filters',
         ingredientsLabel: 'Ingredients',
         ingredientSearchLabel: 'Search ingredients',
         ingredientSearchPlaceholder: 'e.g. chicken',

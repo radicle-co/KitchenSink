@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { RecipesDal } from '../dal/recipes.dal.js';
 import type { RecipeDrizzle } from '../../database/client.js';
-import { makeFakeDrizzle, type FakeDrizzle } from '../../__testing__/make-fake-drizzle.js';
+import { makeFakeDrizzle, type FakeDrizzle } from '../../__testing__/makeFakeDrizzle.js';
 import { makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 
 /** A chainable, thenable query stub: builder methods return `this`; awaiting shifts one queued result. */
@@ -182,26 +182,21 @@ describe('RecipesDal.findById', () => {
 });
 
 describe('RecipesDal.findAll', () => {
-    it('applies the pagination offset, returns the total, and groups steps by recipe', async () => {
+    it('applies the pagination offset, returns the total, and loads NO steps and NO lines', async () => {
         const control = createFakeDb();
         const dal = new RecipesDal(control.db);
         const rowA = makeRecipeRow({ id: 'a' });
         const rowB = makeRecipeRow({ id: 'b' });
-        const steps = [
-            makeRecipeStepRow({ recipeId: 'a', stepNumber: 1 }),
-            makeRecipeStepRow({ recipeId: 'b', stepNumber: 1 }),
-            makeRecipeStepRow({ recipeId: 'b', stepNumber: 2 }),
-        ];
-        // findAll: select page → count → load steps → load ingredient links (empty set).
-        control.enqueue([rowA, rowB], [{ count: 7 }], steps, []);
+        // findAll: select page → count. The cover keys come from one raw query, which the fake answers with none.
+        control.enqueue([rowA, rowB], [{ count: 7 }]);
 
         const result = await dal.findAll({ ownerId: 'owner-1', page: 2, pageSize: 2, sortBy: 'updatedAt' });
 
         expect(result.total).toBe(7);
-        expect(result.rows).toHaveLength(2);
-        expect(result.rows[0]?.steps).toHaveLength(1);
-        expect(result.rows[1]?.steps).toHaveLength(2);
-        expect(result.rows[0]?.ingredients).toEqual([]);
+        // ⛔ The list item carries neither steps nor lines (plan 002): a line's name costs a food call, so loading
+        // lines for a list would pay for fields no client receives.
+        expect(result.rows).toStrictEqual([{ recipe: rowA }, { recipe: rowB }]);
+        expect(control.calls.filter((call) => call.method === 'select')).toHaveLength(2);
 
         const offsetCall = control.calls.find((call) => call.method === 'offset');
         expect(offsetCall?.args[0]).toBe(2); // (page 2 - 1) * pageSize 2

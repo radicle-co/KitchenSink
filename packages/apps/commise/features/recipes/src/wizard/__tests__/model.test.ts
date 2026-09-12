@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultRecipeFormValues } from '../../form/model.js';
+import type { RecipeWizardStep } from '../../form/steps.js';
+import { defaultRecipeFormValues } from '../../form/values.js';
 import {
     blockedAdvanceErrors,
     deriveRailStepState,
+    nextStep,
+    previousStep,
     recipeFormValuesEqual,
     WIZARD_STEPS,
     WIZARD_TOTAL_STEPS,
 } from '../model.js';
+import { withLineKeys } from '../../__fixtures__/index.js';
 
 describe('WIZARD_STEPS', () => {
     it('is the 4 steps in order', () => {
@@ -41,6 +45,35 @@ describe('deriveRailStepState', () => {
     });
 });
 
+describe('step adjacency (U33 — the rail owns adjacency, not the two platform leaves)', () => {
+    it('has no step before the first', () => {
+        expect(previousStep(1)).toBeNull();
+    });
+
+    it('has no step after the last', () => {
+        expect(nextStep(4)).toBeNull();
+    });
+
+    it('walks forward and back through every interior step', () => {
+        expect(nextStep(1)).toBe(2);
+        expect(nextStep(2)).toBe(3);
+        expect(nextStep(3)).toBe(4);
+        expect(previousStep(4)).toBe(3);
+        expect(previousStep(3)).toBe(2);
+        expect(previousStep(2)).toBe(1);
+    });
+
+    it('round-trips: every step but the last is its own next step’s previous', () => {
+        for (const step of WIZARD_STEPS) {
+            const forward: RecipeWizardStep | null = nextStep(step);
+
+            if (forward !== null) {
+                expect(previousStep(forward)).toBe(step);
+            }
+        }
+    });
+});
+
 describe('recipeFormValuesEqual', () => {
     it('is true for two values built the same way', () => {
         expect(recipeFormValuesEqual(defaultRecipeFormValues(), defaultRecipeFormValues())).toBe(true);
@@ -53,7 +86,10 @@ describe('recipeFormValuesEqual', () => {
 
     it('is false when an array field differs', () => {
         const base = defaultRecipeFormValues();
-        const next = { ...base, ingredients: [{ ingredientId: 'ing_1', name: 'Salt', quantity: 1 }] };
+        const next = {
+            ...base,
+            ingredients: withLineKeys([{ ingredientId: 'ing_1', name: 'Salt', quantity: 1, isUserEntered: false }]),
+        };
         expect(recipeFormValuesEqual(base, next)).toBe(false);
     });
 

@@ -15,12 +15,16 @@
  *    mouse density (`py-2.5`, ~40px) is unchanged on desktop. (The WCAG-AA bar 2.5.8/24px is already met;
  *    this is a comfort bump for touch, not a desktop change.)
  *  - **Busy** — the `busy` prop swaps the icon slot for a real spinner in place (no layout shift) and
- *    disables the control; and the whole button is wrapped in {@link PressScale} for a motion-safe
- *    press-scale.
+ *    marks the control unavailable without disabling it natively (see `busyControlProps`); and the whole
+ *    button is wrapped in {@link PressScale} for a motion-safe press-scale, which a busy button does not play.
+ *
+ * @pattern Value Object contract (`ButtonProps`) rendered as a pure `props → JSX` leaf, composed with the
+ *     `PressScale` Decorator — the tier is a discriminated `variant`, never a boolean that switches behaviour.
  */
 import type { FC } from 'react';
 
 import { PressScale } from '../pressScale/index.js';
+import { busyControlProps } from './busyControlProps.js';
 import type { ButtonProps } from './props.js';
 import { buttonSurfaceClass } from './surfaceClass.js';
 
@@ -58,10 +62,9 @@ export const Button: FC<ButtonProps> = ({
     <PressScale>
         <button
             type={type}
-            onClick={onPress}
-            // A busy control is also disabled so an in-flight action cannot be double-fired.
-            disabled={disabled || busy}
-            aria-busy={busy || undefined}
+            // ⛔ BUSY IS NOT NATIVE `disabled` — the control that goes busy is the one just pressed, and a browser
+            // drops focus from a disabled control. The rule, and why the click is cancelled, is `busyControlProps`'s.
+            {...busyControlProps({ busy, blocked: disabled, onClick: () => onPress?.() })}
             aria-label={accessibilityLabel}
             className={buttonSurfaceClass(variant)}
         >

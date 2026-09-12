@@ -55,16 +55,28 @@ describe('IngredientStatusPoller', () => {
         expect(getIngredientStatusSpy).toHaveBeenCalledWith('ing_food');
     });
 
-    it('reports the observed status (with the line id) once the poll returns one', async () => {
+    // REWRITTEN for finding #5 (plan 002 V1): the report now carries the food the answered binding names, because a
+    // line that resolves here reads every catalog figure through that food.
+    it('reports the observed status (with the line id and the food it names) once the poll returns one', async () => {
         const onStatus = vi.fn();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getIngredientStatus').mockResolvedValue(
-            makeIngredient({ id: 'ing_food', foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
+            makeIngredient({
+                id: 'ing_food',
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                foodId: 'food_rice',
+            }),
         );
 
         renderWithRecipeClient(<IngredientStatusPoller ingredientId="ing_food" onStatus={onStatus} />, client);
 
-        await waitFor(() => expect(onStatus).toHaveBeenCalledWith('ing_food', FoodResolutionStatus.RESOLVED));
+        await waitFor(() =>
+            expect(onStatus).toHaveBeenCalledWith('ing_food', {
+                id: 'ing_food',
+                status: FoodResolutionStatus.RESOLVED,
+                foodId: 'food_rice',
+            }),
+        );
     });
 
     it('stays silent while the poll has no data yet', () => {

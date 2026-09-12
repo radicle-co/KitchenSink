@@ -1,11 +1,14 @@
 import { Inject, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, ilike } from 'drizzle-orm';
+import { and, eq, ilike, sql } from 'drizzle-orm';
 
-import { users, lifecycleEvents, DrizzleProvider } from '../database/index.js';
-import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import { lifecycleEvents, users } from '@kitchensink/identity-db';
+import { DrizzleProvider } from '../database/database.module.js';
+import { containsPattern } from '../common/likePattern.js';
+import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import { SqsService } from '../queue/sqs.service.js';
-import { createServiceLogger } from '../observability/sentry-logging.js';
+import { createServiceLogger } from '@kitchensink/service-logging';
+import { reportDeletionEnqueueFailure } from '../queue/deletionEnqueue.error.js';
 
 // Authorization (the `admin:users` scope check) is enforced declaratively by `ScopesGuard` +
 // `@RequireScopes('admin:users')` on `AdminController` — see that guard's JSDoc for the pattern. This
@@ -24,9 +27,13 @@ export class AdminService {
     ) {}
 
     async listUsers(filters: { email?: string; name?: string; sub?: string; limit?: number; offset?: number }) {
+        // `containsPattern`, not a template literal: `%` and `_` in the caller's filter are ILIKE SYNTAX, and
+        // they live inside the bound parameter's value where parameterisation cannot help. `?email=%` used to
+        // build `ILIKE '%%%'` — the filter silently became "match every user" — and `?email=a_b` over-matched
+        // addresses that do not contain `a_b`. See `common/likePattern.ts`.
         const predicates = [
-            filters.email ? ilike(users.email, `%${filters.email}%`) : undefined,
-            filters.name ? ilike(users.name, `%${filters.name}%`) : undefined,
+            filters.email ? ilike(users.email, containsPattern(filters.email)) : undefined,
+            filters.name ? ilike(users.name, containsPattern(filters.name)) : undefined,
             filters.sub ? eq(users.id, filters.sub) : undefined,
         ].filter((predicate) => predicate !== undefined);
 
@@ -63,7 +70,11 @@ export class AdminService {
         }
 
         const now = new Date();
-        await this.db.update(users).set({ status: 'suspended', updatedAt: now }).where(eq(users.id, targetSub));
+        // U10/R26: the intent advances with the status (see `users.status_version`).
+        await this.db
+            .update(users)
+            .set({ status: 'suspended', updatedAt: now, statusVersion: sql`${users.statusVersion} + 1` })
+            .where(eq(users.id, targetSub));
 
         this.logger.warn('user suspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -81,7 +92,10 @@ export class AdminService {
         }
 
         const now = new Date();
-        await this.db.update(users).set({ status: 'active', updatedAt: now }).where(eq(users.id, targetSub));
+        await this.db
+            .update(users)
+            .set({ status: 'active', updatedAt: now, statusVersion: sql`${users.statusVersion} + 1` })
+            .where(eq(users.id, targetSub));
 
         this.logger.warn('user unsuspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -122,7 +136,12 @@ export class AdminService {
         await this.db.transaction(async (tx) => {
             await tx
                 .update(users)
-                .set({ status: 'active', deletedAt: null, updatedAt: now })
+                .set({
+                    status: 'active',
+                    deletedAt: null,
+                    updatedAt: now,
+                    statusVersion: sql`${users.statusVersion} + 1`,
+                })
                 .where(eq(users.id, targetSub));
 
             await tx.insert(lifecycleEvents).values({
@@ -142,9 +161,15 @@ export class AdminService {
                 event: 'reactivation',
             });
         } catch (err) {
-            this.logger.warn('reactivation: failed to enqueue unban (tombstone already cleared)', {
-                targetSub,
-                error: String(err),
+            // ⛔ NOT a `warn`. The tombstone is already cleared and committed, so the database says `active`
+            // while Clerk still has the identity BANNED — the recovered user stays locked out, and the support
+            // agent who called this was told it worked. Announced through the ONE paging path in
+            // `deletionEnqueue.error.ts`.
+            reportDeletionEnqueueFailure({
+                event: 'reactivation',
+                userId: existing.id,
+                identityId: existing.identityId,
+                error: err,
             });
         }
 

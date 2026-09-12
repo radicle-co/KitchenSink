@@ -1,16 +1,16 @@
 import { Module } from '@nestjs/common';
 import { S3Client } from '@aws-sdk/client-s3';
 import { UsersController } from './users.controller.js';
-import { AvatarUploadController } from './avatar-upload.controller.js';
+import { AvatarUploadController } from './avatarUpload.controller.js';
 import { UsersService } from './users.service.js';
 import { ResolveUserService } from './resolveUser.js';
-import { AVATAR_OBJECT_STORE, S3AvatarObjectStore, type AvatarObjectStore } from './avatar-object-store.js';
+import { AVATAR_OBJECT_STORE, S3AvatarObjectStore, type AvatarObjectStore } from './avatarObjectStore.js';
 import {
     HANDLE_SYNC_PUBLISHER,
     createSnsHandleSyncPublisher,
     noopHandleSyncPublisher,
     type HandleSyncPublisher,
-} from './handle-sync.publisher.js';
+} from './handleSync.publisher.js';
 
 @Module({
     controllers: [UsersController, AvatarUploadController],

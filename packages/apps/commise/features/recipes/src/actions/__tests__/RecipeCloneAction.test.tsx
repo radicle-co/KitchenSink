@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * Component tests for the web recipe clone action (T075). Covers the clone interaction, both disabled gates
- * (cloning in-flight and not-cloneable), the busy status, and the attribution line — shown only when a
- * source attribution is present.
+ * (cloning in-flight and not-cloneable) and the busy status. Provenance is NOT this control's job — see
+ * the deleted-tests note below.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -39,13 +39,16 @@ describe('RecipeCloneAction (web)', () => {
         expect(onClone).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the action and shows a busy status while cloning', async () => {
+    it('busies the action and shows a busy status while cloning', async () => {
         const user = userEvent.setup();
         const onClone = vi.fn();
         renderClone({ cloning: true, onClone });
 
         const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Clone' });
-        expect(button.disabled).toBe(true);
+        // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus in a real browser —
+        // WCAG 2.2 SC 2.4.3); the no-refire guarantee below is unchanged.
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect((button as HTMLButtonElement).disabled).toBe(false);
         expect(button.getAttribute('aria-busy')).toBe('true');
         expect(screen.getByRole('status')).toBeTruthy();
         expect(screen.getByText('Cloning…')).toBeTruthy();
@@ -60,24 +63,25 @@ describe('RecipeCloneAction (web)', () => {
         expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Clone' }).disabled).toBe(true);
     });
 
-    it('renders the attribution line when a source attribution is present', () => {
-        renderClone({ sourceAttribution: 'Grandma’s cookbook' });
+    /*
+     * ⛔ TWO TESTS WERE DELETED HERE, NOT WEAKENED: "renders the attribution line when a source attribution
+     * is present" and its absent-case twin. `RecipeCloneAction` no longer renders provenance at all.
+     *
+     * Where the coverage went: `detail/__tests__/RecipeSourceLine.test.tsx`, which covers strictly more —
+     * attribution present/absent (as these did) PLUS the `sourceUrl` half that never reached any screen, and
+     * the unsafe-scheme case. The move is the point: rendering provenance from a CLONE control meant only a
+     * viewer who could clone ever saw it, so an imported recipe's own owner never did.
+     */
 
-        expect(screen.getByText('Cloned from Grandma’s cookbook')).toBeTruthy();
-    });
-
-    it('omits the attribution line when no source attribution is present', () => {
-        renderClone({ sourceAttribution: undefined });
-
-        expect(screen.queryByText(/Cloned from/)).toBeNull();
-    });
-
-    it('gives the clone control the 44px touch floor, reset for the mouse at md', () => {
+    // E2 I12 — rewritten from "reset for the mouse at md": the DS Button now resets its floor only for a fine
+    // pointer at md:, so a touch screen keeps 44px at every width.
+    it('gives the clone control the 44px touch floor, reset only for a fine pointer at md', () => {
         renderClone();
-        const className = screen.getByRole('button', { name: 'Clone' }).className;
+        const classes = screen.getByRole('button', { name: 'Clone' }).className.split(/\s+/u);
 
-        expect(className).toContain('min-h-11');
-        expect(className).toContain('md:min-h-0');
+        expect(classes).toContain('min-h-11');
+        expect(classes).toContain('md:pointer-fine:min-h-0');
+        expect(classes).not.toContain('md:min-h-0');
     });
 });
 

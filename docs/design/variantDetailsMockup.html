@@ -1,0 +1,1788 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Variant details: dotted line and details dialog (design mockup, NOT production code)</title>
+        <!--
+            ⛔ DESIGN ARTEFACT. NOT PRODUCTION CODE. Not imported by anything, not bundled, not a component.
+            It is the rendered mockup for docs/design/ingredientSpecialization.md (plan U12), and it answers
+            one question: does the specified layout hold at 320, 390 and 768 px and at 200% text?
+
+            Every root name, part and calorie figure is REAL: roots and parts from the committed
+            packages/services/food-service/src/foods/seed/data/curatedCatalog.jsonl, calories per 100 g from
+            the USDA SR Legacy (2018-04) and Foundation (2026-04-30) CSVs, energy read in KTD-21's order.
+            Rows are ordered and grouped by the spec's rule (§S8.3: R26 read literally, first-part keys).
+
+            Two frames are STATE ILLUSTRATIONS, labelled on the page: a real variant is shown AS IF it were
+            retired, because the committed seed retires nothing yet.
+
+            ⚠️ Frames 17 to 21 (added 2026-10-01, spec §S13 to §S16) hold MORE illustrations, each labelled on the
+            page: the live-search hit names are not looked up, and the Data sources page's short names, licence
+            names and converted note stand in for endpoint fields that do not exist yet. The register strings in
+            frame 20 are real, from the untracked working-tree sourceRegister.ts.
+
+            Colours are the tokens in packages/apps/commise/ui/src/tokens/colors.ts. Font sizes are the
+            scale.ts ramp in rem, and spacing is in px, so `?text=200` (root font size 200%) models a
+            text-only resize: the way native font scale behaves, and stricter than browser zoom.
+
+            Phone frames (below 640 px) draw the native bottom sheet. Web below 640 px is the same layout,
+            full screen. The 768 px frames draw the web dialog (centred, max-w-lg); native at 768 is a
+            560-wide bottom sheet (§S8.1). Keyboard heights are stand-ins, not device measurements.
+        -->
+        <style>
+            :root {
+                --charcoal: #2d3436;
+                --slate: #636e72;
+                --mist: #b2bec3;
+                --pearl: #f5f5f5;
+                --white: #ffffff;
+                --sand: #faf6f0;
+                --seafoam: #31807a;
+                --ocean-dark: #2a6b65;
+                --coral: #e8917a;
+                --border-subtle: rgba(178, 190, 195, 0.3);
+                --overlay: rgba(45, 52, 54, 0.4);
+                /* scale.ts fontSize, px ÷ 16 */
+                --heading-md: 1.25rem;
+                --heading-sm: 1.125rem;
+                --body-md: 1rem;
+                --body-sm: 0.875rem;
+                --caption: 0.75rem;
+                --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+                --font-display: Georgia, 'Times New Roman', serif;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: #e9e6e1;
+                color: var(--charcoal);
+                font-family: var(--font-body);
+            }
+
+            /* ── Harness chrome: px on purpose, so 200% text does not scale the captions ── */
+            .doc {
+                padding: 16px 12px 4px;
+                font-size: 13px;
+                line-height: 1.45;
+                color: #444;
+            }
+            .doc h1 {
+                font-size: 16px;
+                margin: 0 0 4px;
+            }
+            .doc .warn {
+                display: inline-block;
+                background: #fff3cd;
+                border: 1px solid #e0c36b;
+                padding: 2px 6px;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            .frame {
+                margin: 0 0 28px;
+            }
+            .cap {
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                text-transform: uppercase;
+                color: #555;
+                margin: 0;
+                padding: 0 12px 4px;
+            }
+            .note {
+                font-size: 12px;
+                color: #555;
+                margin: 0;
+                padding: 0 12px 6px;
+                line-height: 1.4;
+            }
+            .note b {
+                color: #8a5a00;
+            }
+            .device {
+                position: relative;
+                width: 100%;
+                overflow: hidden;
+                background: var(--sand);
+                outline: 1px dashed #9aa;
+            }
+            .device.auto {
+                height: auto !important;
+            }
+            .kb {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: #cfd3d8;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                color: #555;
+                border-top: 1px solid #aab;
+            }
+
+            /* ── App content behind the sheet ── */
+            .screen {
+                padding: 16px;
+            }
+            .card {
+                background: var(--white);
+                border: 1px solid var(--border-subtle);
+                border-radius: 16px;
+                padding: 16px;
+                margin: 0 0 16px;
+            }
+            .card h2 {
+                font-family: var(--font-display);
+                font-size: var(--heading-sm);
+                font-weight: 600;
+                margin: 0 0 8px;
+                line-height: 1.2;
+            }
+            .overlay {
+                position: absolute;
+                inset: 0;
+                background: var(--overlay);
+            }
+
+            /* ── VariantPartsLine (§S4) ── */
+            .vpl {
+                display: block;
+                overflow-wrap: anywhere;
+            }
+            .vpl.secondary {
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--slate);
+            }
+            .vpl.primary {
+                font-size: var(--body-md);
+                line-height: 1.5;
+                color: var(--charcoal);
+            }
+            .vpl.inline {
+                display: inline;
+            }
+            .sr {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                padding: 0;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0, 0, 0, 0);
+                white-space: nowrap;
+                border: 0;
+            }
+            .nobr {
+                white-space: nowrap;
+            }
+
+            /* ── The ingredient row (committed rev 4: one flow, icon column floated) ── */
+            ul.lines {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+            li.row {
+                padding: 8px 0;
+                border-top: 1px solid var(--border-subtle);
+                display: flow-root;
+            }
+            li.row:first-child {
+                border-top: 0;
+            }
+            .icons {
+                float: right;
+                display: flex;
+                gap: 4px;
+                margin-left: 8px;
+            }
+            .icon {
+                width: 48px;
+                height: 48px;
+                border-radius: 999px;
+                border: 0;
+                background: transparent;
+                color: var(--slate);
+                font-size: 1.1rem;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .icon.info {
+                font-family: Georgia, serif;
+                font-style: italic;
+                font-weight: 700;
+            }
+            .nameLine {
+                font-size: var(--body-md);
+                line-height: 1.5;
+                padding-top: 12px;
+            }
+            .qty {
+                font-weight: 600;
+            }
+            .nameLine + .vpl {
+                margin-top: 4px;
+            }
+            .read li.row {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+            }
+            .check {
+                flex: none;
+                width: 24px;
+                height: 24px;
+                margin-top: 12px;
+                border: 2px solid var(--slate);
+                border-radius: 6px;
+            }
+            .read .body {
+                flex: 1;
+                min-width: 0;
+            }
+
+            /* ── Sheet (§S8.1) ── */
+            .sheet {
+                position: absolute;
+                left: 0;
+                right: 0;
+                background: var(--white);
+                display: flex;
+                flex-direction: column;
+                border-radius: 20px 20px 0 0;
+            }
+            .sheet.web {
+                left: 50%;
+                transform: translateX(-50%);
+                width: min(32rem, calc(100% - 32px));
+                border-radius: 16px;
+                box-shadow: 0 10px 15px -3px rgba(45, 52, 54, 0.08);
+            }
+            .sheetHead {
+                display: flex;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 12px 8px 8px 16px;
+            }
+            .sheetHead h2 {
+                flex: 1;
+                min-width: 0;
+                margin: 0;
+                padding-top: 10px;
+                font-family: var(--font-display);
+                font-size: var(--heading-md);
+                font-weight: 600;
+                line-height: 1.2;
+            }
+            /* Icon-only close, 48 × 48, accessible name "Close". The glyph is drawn in px: it is an icon, not text. */
+            .close {
+                flex: none;
+                width: 48px;
+                height: 48px;
+                border: 0;
+                background: transparent;
+                border-radius: 999px;
+                color: var(--slate);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .labelRow {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: baseline;
+                gap: 0 12px;
+                margin: 0 0 4px;
+            }
+            .labelRow .basis {
+                padding: 0;
+                margin-left: auto;
+            }
+            .toolbar {
+                padding: 0 16px 12px;
+            }
+            .toolbar label {
+                display: block;
+                font-size: var(--body-sm);
+                font-weight: 500;
+                line-height: 1.5;
+                margin: 0;
+            }
+            .field {
+                display: flex;
+                align-items: center;
+                min-height: 48px;
+                border: 1px solid var(--slate);
+                border-radius: 12px;
+                padding: 0 4px 0 12px;
+                font-size: var(--body-md);
+            }
+            .field.focused {
+                box-shadow: 0 0 0 2px var(--seafoam);
+                border-color: var(--seafoam);
+            }
+            .field .val {
+                flex: 1;
+                min-width: 0;
+                overflow-wrap: anywhere;
+            }
+            .field .caret {
+                display: inline-block;
+                width: 1px;
+                height: 1.1em;
+                background: var(--charcoal);
+                vertical-align: text-bottom;
+                margin-left: 1px;
+            }
+            .field .clear {
+                flex: none;
+                width: 48px;
+                height: 48px;
+                border: 0;
+                background: transparent;
+                color: var(--slate);
+                font-size: 1.2rem;
+            }
+            .scroll {
+                position: relative;
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+                border-top: 1px solid var(--border-subtle);
+                padding-bottom: 8px;
+            }
+            .food {
+                margin: 0;
+                padding: 12px 16px 0;
+                font-size: var(--body-md);
+                font-weight: 600;
+                line-height: 1.5;
+                color: var(--charcoal);
+            }
+            /* The intro and the per-100 g caption share one wrapping row: side by side where they fit, stacked where not. */
+            .lead {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: baseline;
+                gap: 0 12px;
+                padding: 4px 16px 0;
+            }
+            .lead .intro {
+                padding: 0;
+                flex: 1 1 auto;
+            }
+            .lead .basis {
+                padding: 0;
+                flex: none;
+                margin-left: auto;
+            }
+            .intro {
+                margin: 0;
+                padding: 12px 16px 0;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--slate);
+            }
+            .hlabel {
+                flex: 1;
+                min-width: 0;
+                padding-top: 12px;
+                font-size: var(--body-sm);
+                font-weight: 500;
+                line-height: 1.5;
+            }
+            .current {
+                padding: 8px 16px 0;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--slate);
+            }
+            .current b {
+                color: var(--charcoal);
+                font-weight: 600;
+            }
+            .current .vpl {
+                display: inline;
+            }
+            .basis {
+                padding: 12px 16px 4px;
+                text-align: end;
+                font-size: var(--caption);
+                line-height: 1.4;
+                color: var(--slate);
+            }
+            .ghead {
+                padding: 24px 16px 8px;
+                font-size: var(--body-sm);
+                font-weight: 600;
+                line-height: 1.5;
+                color: var(--charcoal);
+            }
+            .ghead:first-of-type {
+                padding-top: 12px;
+            }
+            /* The calorie value sits beside the parts while the parts keep 12rem; below that it wraps under them,
+               end-aligned. Intrinsic layout: no breakpoint, and it follows the text size because the basis is rem. */
+            .opt {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: baseline;
+                gap: 0 12px;
+                min-height: 48px;
+                padding: 12px 16px;
+            }
+            .opt .mark {
+                flex: none;
+                width: 16px;
+                align-self: flex-start;
+                padding-top: 4px;
+            }
+            .opt .txt {
+                flex: 1 1 12rem;
+                min-width: 0;
+            }
+            .opt .cal {
+                flex: none;
+                margin-left: auto;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--slate);
+                font-variant-numeric: tabular-nums;
+                text-align: end;
+            }
+            .opt.active {
+                background: var(--pearl);
+                box-shadow: inset 0 0 0 2px var(--seafoam);
+            }
+            .tag {
+                display: block;
+                font-size: var(--caption);
+                line-height: 1.4;
+                font-weight: 600;
+                color: var(--ocean-dark);
+                margin-top: 2px;
+            }
+            .msg {
+                margin: 0;
+                padding: 16px;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--slate);
+            }
+            .msg.alert {
+                color: var(--charcoal);
+            }
+            .skel {
+                height: 48px;
+                margin: 0 16px 8px;
+                border-radius: 8px;
+                background: var(--pearl);
+            }
+            .foot {
+                border-top: 1px solid var(--mist);
+                padding: 12px 16px;
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+            }
+            .sheet.web .foot {
+                padding-bottom: 12px;
+                justify-content: flex-end;
+            }
+            .btn {
+                flex: 1 1 auto;
+                min-height: 48px;
+                /* §S13 (2026-10-01): half the minimum height, not 999px. One line is still a pill, and a wrapped
+                   label becomes a rounded rectangle instead of an ellipse that cuts its own first and last lines. */
+                border-radius: 24px;
+                border: 2px solid var(--coral);
+                background: rgba(255, 255, 255, 0.8);
+                color: var(--slate);
+                font: inherit;
+                font-size: var(--body-sm);
+                font-weight: 600;
+                padding: 8px 12px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                text-align: center;
+            }
+            .sheet.web .btn {
+                flex: 0 1 auto;
+            }
+            .btn .ic {
+                flex: none;
+            }
+
+            /* ── Menu ── */
+            .menuSheet .item {
+                display: flex;
+                align-items: center;
+                min-height: 48px;
+                padding: 12px 16px;
+                font-size: var(--body-md);
+                line-height: 1.5;
+                border-top: 1px solid var(--border-subtle);
+            }
+            .menuSheet .item:first-child {
+                border-top: 0;
+            }
+            .dropdown {
+                position: absolute;
+                right: 16px;
+                width: 15rem;
+                background: var(--white);
+                border-radius: 12px;
+                box-shadow: 0 10px 15px -3px rgba(45, 52, 54, 0.15);
+                border: 1px solid var(--border-subtle);
+                padding: 4px 0;
+            }
+            .dropdown .item {
+                min-height: 44px;
+                padding: 10px 16px;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+            }
+            .dropdown .item.focus {
+                background: var(--pearl);
+            }
+
+            /* ── Combobox result (F1) ── */
+            .results {
+                border: 1px solid var(--border-subtle);
+                border-radius: 12px;
+                margin-top: 4px;
+                background: var(--white);
+            }
+            .result {
+                padding: 12px 16px;
+                min-height: 48px;
+            }
+            .result .nm {
+                font-size: var(--body-md);
+                line-height: 1.5;
+            }
+
+            /* ── Panel (§S6) ── */
+            .panel h3 {
+                margin: 0;
+                font-family: var(--font-display);
+                font-size: var(--heading-sm);
+                line-height: 1.2;
+                font-weight: 600;
+            }
+            .panel .kcal {
+                font-size: var(--heading-md);
+                font-weight: 600;
+                margin-top: 8px;
+                font-variant-numeric: tabular-nums;
+            }
+            .panel .basisLine {
+                font-size: var(--caption);
+                color: var(--slate);
+                line-height: 1.4;
+            }
+            .panel .cooked {
+                font-size: var(--body-sm);
+                color: var(--charcoal);
+                line-height: 1.5;
+                margin: 8px 0 0;
+            }
+            .panel .macros {
+                display: flex;
+                gap: 16px;
+                flex-wrap: wrap;
+                margin-top: 8px;
+                font-size: var(--body-sm);
+                color: var(--slate);
+            }
+            .panel .macros b {
+                display: block;
+                color: var(--charcoal);
+                font-variant-numeric: tabular-nums;
+            }
+            .blocked {
+                display: inline-block;
+                font-size: 11px;
+                font-weight: 700;
+                color: #8a5a00;
+                border: 1px dashed #c9a24a;
+                padding: 1px 4px;
+                margin-top: 4px;
+            }
+
+            /* ── Extension 2026-10-01 (§S13 to §S16): picker, results across sources, Data sources page ── */
+            .sectionTitle {
+                font-size: var(--caption);
+                font-weight: 600;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                color: var(--slate);
+                margin: 12px 0 4px;
+            }
+            .pickRow {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: flex-start;
+                gap: 4px 12px;
+                min-height: 48px;
+                padding: 12px 16px;
+                border-top: 1px solid var(--border-subtle);
+                font-size: var(--body-md);
+                line-height: 1.5;
+            }
+            .pickRow:first-child {
+                border-top: 0;
+            }
+            .pickRow .txt {
+                flex: 1 1 12rem;
+                min-width: 0;
+                overflow-wrap: break-word;
+            }
+            .pickRow .src {
+                flex: 0 0 auto;
+                margin-left: auto;
+                font-size: var(--caption);
+                line-height: 1.5;
+                color: var(--slate);
+            }
+            .actions {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                margin-top: 12px;
+            }
+            .actions .btn {
+                width: 100%;
+                overflow-wrap: break-word;
+            }
+            .actions .btn.primary {
+                background: var(--seafoam);
+                border-color: var(--seafoam);
+                color: var(--white);
+            }
+            .liveTrigger {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+                min-height: 48px;
+                margin-top: 8px;
+                padding: 8px 12px;
+                border: 1px solid var(--border-subtle);
+                border-radius: 10px;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--slate);
+            }
+            .liveTrigger .lbl {
+                flex: 1 1 12rem;
+                min-width: 0;
+                overflow-wrap: break-word;
+            }
+            .liveTrigger .slow {
+                flex: none;
+                margin-left: auto;
+                font-size: var(--caption);
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                background: var(--pearl);
+                border-radius: 999px;
+                padding: 2px 8px;
+            }
+            .livePanel {
+                margin-top: 8px;
+                border: 1px solid var(--border-subtle);
+                border-radius: 12px;
+                background: var(--white);
+            }
+            .livePanel .head {
+                padding: 8px 16px 0;
+            }
+            .livePanel .notice {
+                margin: 0;
+                padding: 8px 16px;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--slate);
+            }
+            .livePanel .notice.alert {
+                color: var(--charcoal);
+            }
+            .livePanel .row2 {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 4px 16px 12px;
+            }
+            .livePanel .row2 .btn {
+                flex: 1 1 8rem;
+            }
+            .lnk {
+                color: var(--ocean-dark);
+                text-decoration: underline;
+                text-underline-offset: 2px;
+                font-weight: 500;
+            }
+            .linkRow {
+                display: flex;
+                align-items: center;
+                min-height: 48px;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+            }
+            .noteText {
+                margin: 8px 0 0;
+                font-size: var(--caption);
+                line-height: 1.5;
+                color: var(--slate);
+            }
+            .dsHead {
+                display: flex;
+                align-items: flex-start;
+                gap: 8px;
+                padding: 12px 8px 8px 16px;
+                border-bottom: 1px solid var(--border-subtle);
+                background: var(--white);
+            }
+            .dsHead h1 {
+                flex: 1 1 auto;
+                margin: 0;
+                padding-top: 10px;
+                font-family: var(--font-display);
+                font-size: var(--heading-md);
+                font-weight: 600;
+                line-height: 1.3;
+            }
+            .dsBody {
+                padding: 16px;
+            }
+            .dsBody.web {
+                max-width: 40rem;
+                margin: 0 auto;
+            }
+            .dsBody .dsLead {
+                margin: 0 0 8px;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--charcoal);
+            }
+            .dsCard {
+                container-type: inline-size;
+                background: var(--white);
+                border: 1px solid var(--border-subtle);
+                border-radius: 16px;
+                padding: 16px;
+                margin-top: 12px;
+            }
+            .dsCard h2 {
+                margin: 0;
+                font-family: var(--font-display);
+                font-size: var(--heading-sm);
+                font-weight: 600;
+                line-height: 1.3;
+                overflow-wrap: anywhere;
+            }
+            .dsCard .name {
+                margin: 4px 0 0;
+                font-size: var(--body-md);
+                line-height: 1.5;
+                overflow-wrap: anywhere;
+            }
+            .dsCard .pub,
+            .dsCard .conv {
+                margin: 4px 0 0;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                color: var(--slate);
+                overflow-wrap: anywhere;
+            }
+            .dsCard dl {
+                margin: 12px 0 0;
+            }
+            .dsCard dt {
+                font-size: var(--caption);
+                font-weight: 600;
+                color: var(--slate);
+                line-height: 1.5;
+                margin-top: 8px;
+            }
+            .dsCard dd {
+                margin: 0;
+                font-size: var(--body-sm);
+                line-height: 1.5;
+                overflow-wrap: anywhere;
+            }
+            .dsCard dd .linkRow {
+                min-height: 44px;
+                align-items: flex-start;
+            }
+            .native .dsCard dd .linkRow,
+            .native .dsCard > .linkRow {
+                min-height: 48px;
+            }
+            @container (min-width: 24rem) {
+                .dsCard dl {
+                    display: grid;
+                    grid-template-columns: 6rem 1fr;
+                    column-gap: 12px;
+                }
+                .dsCard dt {
+                    margin-top: 8px;
+                }
+                .dsCard dd {
+                    margin-top: 8px;
+                }
+            }
+            .dsPage {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                background: var(--sand);
+            }
+            .dsPage .scroll {
+                flex: 1 1 auto;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="doc">
+            <h1>Variant details: the dotted line and the details dialog</h1>
+            <span class="warn">DESIGN MOCKUP. NOT PRODUCTION CODE.</span>
+            Spec: <code>docs/design/ingredientSpecialization.md</code> (plan U12). Real seed rows, real USDA calories.
+            Open with <code>?text=200</code> for 200% text. <span id="viewportNote"></span>
+        </div>
+        <main id="frames"></main>
+
+        <script id="seed" type="application/json">
+            {
+                "brisket": {
+                    "food": "beef brisket",
+                    "n": 40,
+                    "groups": [
+                        {
+                            "header": "flat half",
+                            "rows": [
+                                { "item": "fdc:168658", "parts": ["lean only", "0-inch trim", "select"], "cal": 124 },
+                                { "item": "fdc:174766", "parts": ["lean only", "1/8-inch trim", "select"], "cal": 124 },
+                                {
+                                    "item": "fdc:174048",
+                                    "parts": ["lean only", "1/8-inch trim", "all grades"],
+                                    "cal": 127
+                                },
+                                { "item": "fdc:174057", "parts": ["lean only", "1/8-inch trim", "choice"], "cal": 129 },
+                                {
+                                    "item": "fdc:168656",
+                                    "parts": ["lean only", "0-inch trim", "all grades"],
+                                    "cal": 132
+                                },
+                                { "item": "fdc:168657", "parts": ["lean only", "0-inch trim", "choice"], "cal": 137 },
+                                {
+                                    "item": "fdc:168714",
+                                    "parts": ["separable lean and fat", "0-inch trim", "all grades"],
+                                    "cal": 165
+                                },
+                                {
+                                    "item": "fdc:168743",
+                                    "parts": ["separable lean and fat", "0-inch trim", "choice"],
+                                    "cal": 169
+                                },
+                                {
+                                    "item": "fdc:174768",
+                                    "parts": ["lean only", "1/8-inch trim", "select", "braised"],
+                                    "cal": 189
+                                },
+                                {
+                                    "item": "fdc:174047",
+                                    "parts": ["lean only", "1/8-inch trim", "all grades", "braised"],
+                                    "cal": 196
+                                },
+                                {
+                                    "item": "fdc:169469",
+                                    "parts": ["lean only", "0-inch trim", "select", "braised"],
+                                    "cal": 198
+                                },
+                                {
+                                    "item": "fdc:171818",
+                                    "parts": ["lean only", "1/8-inch trim", "choice", "braised"],
+                                    "cal": 203
+                                },
+                                {
+                                    "item": "fdc:170210",
+                                    "parts": ["lean only", "0-inch trim", "all grades", "braised"],
+                                    "cal": 205
+                                },
+                                {
+                                    "item": "fdc:169555",
+                                    "parts": ["separable lean and fat", "0-inch trim", "select", "braised"],
+                                    "cal": 205
+                                },
+                                {
+                                    "item": "fdc:170601",
+                                    "parts": ["lean only", "0-inch trim", "choice", "braised"],
+                                    "cal": 212
+                                },
+                                {
+                                    "item": "fdc:170613",
+                                    "parts": ["separable lean and fat", "0-inch trim", "all grades", "braised"],
+                                    "cal": 213
+                                },
+                                {
+                                    "item": "fdc:169440",
+                                    "parts": ["separable lean and fat", "0-inch trim", "choice", "braised"],
+                                    "cal": 221
+                                },
+                                {
+                                    "item": "fdc:173129",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "select"],
+                                    "cal": 276
+                                },
+                                {
+                                    "item": "fdc:168666",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "all grades"],
+                                    "cal": 277
+                                },
+                                {
+                                    "item": "fdc:173128",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "choice"],
+                                    "cal": 278
+                                },
+                                {
+                                    "item": "fdc:169432",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "select", "braised"],
+                                    "cal": 280
+                                },
+                                {
+                                    "item": "fdc:169488",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "all grades", "braised"],
+                                    "cal": 289
+                                },
+                                {
+                                    "item": "fdc:173130",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "choice", "braised"],
+                                    "cal": 298
+                                }
+                            ]
+                        },
+                        {
+                            "header": "navel end",
+                            "rows": [
+                                { "item": "fdc:174718", "parts": ["lean only", "product of New Zealand"], "cal": 194 },
+                                {
+                                    "item": "fdc:174717",
+                                    "parts": ["lean only", "braised", "product of New Zealand"],
+                                    "cal": 265
+                                },
+                                {
+                                    "item": "fdc:174740",
+                                    "parts": ["separable lean and fat", "product of New Zealand"],
+                                    "cal": 345
+                                },
+                                {
+                                    "item": "fdc:174739",
+                                    "parts": ["separable lean and fat", "braised", "product of New Zealand"],
+                                    "cal": 453
+                                }
+                            ]
+                        },
+                        {
+                            "header": "point end",
+                            "rows": [
+                                { "item": "fdc:173074", "parts": ["lean only", "product of New Zealand"], "cal": 125 },
+                                {
+                                    "item": "fdc:174742",
+                                    "parts": ["separable lean and fat", "product of New Zealand"],
+                                    "cal": 163
+                                },
+                                {
+                                    "item": "fdc:173073",
+                                    "parts": ["lean only", "braised", "product of New Zealand"],
+                                    "cal": 202
+                                },
+                                {
+                                    "item": "fdc:174741",
+                                    "parts": ["separable lean and fat", "braised", "product of New Zealand"],
+                                    "cal": 250
+                                }
+                            ]
+                        },
+                        {
+                            "header": "point half",
+                            "rows": [
+                                {
+                                    "item": "fdc:170212",
+                                    "parts": ["lean only", "0-inch trim", "all grades", "braised"],
+                                    "cal": 244
+                                },
+                                {
+                                    "item": "fdc:169489",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "all grades"],
+                                    "cal": 267
+                                },
+                                {
+                                    "item": "fdc:169490",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "all grades", "braised"],
+                                    "cal": 349
+                                },
+                                {
+                                    "item": "fdc:170211",
+                                    "parts": ["separable lean and fat", "0-inch trim", "all grades", "braised"],
+                                    "cal": 358
+                                }
+                            ]
+                        },
+                        {
+                            "header": "whole",
+                            "rows": [
+                                { "item": "fdc:168607", "parts": ["lean only", "all grades"], "cal": 157 },
+                                {
+                                    "item": "fdc:170612",
+                                    "parts": ["lean only", "0-inch trim", "all grades", "braised"],
+                                    "cal": 218
+                                },
+                                {
+                                    "item": "fdc:168664",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "all grades"],
+                                    "cal": 253
+                                },
+                                {
+                                    "item": "fdc:170611",
+                                    "parts": ["separable lean and fat", "0-inch trim", "all grades", "braised"],
+                                    "cal": 291
+                                },
+                                {
+                                    "item": "fdc:168665",
+                                    "parts": ["separable lean and fat", "1/8-inch trim", "all grades", "braised"],
+                                    "cal": 331
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "breasts": {
+                    "food": "boneless skinless chicken breasts",
+                    "n": 8,
+                    "groups": [
+                        {
+                            "header": null,
+                            "rows": [
+                                { "parts": ["with added solution"], "cal": 108 },
+                                { "parts": ["with added solution", "braised"], "cal": 145 },
+                                { "parts": ["with added solution", "grilled"], "cal": 148 },
+                                { "parts": ["grilled"], "cal": 151 },
+                                { "parts": ["stewed"], "cal": 151 },
+                                { "parts": ["roasted"], "cal": 165 },
+                                { "parts": ["braised"], "cal": 166 },
+                                { "parts": ["fried"], "cal": 187 }
+                            ]
+                        }
+                    ]
+                },
+                "thighs": {
+                    "food": "boneless skinless chicken thighs",
+                    "n": 7,
+                    "groups": [
+                        {
+                            "header": null,
+                            "rows": [
+                                { "parts": ["with added solution"], "cal": 110 },
+                                { "parts": ["with added solution", "braised"], "cal": 164 },
+                                { "parts": ["with added solution", "roasted"], "cal": 164 },
+                                { "parts": ["braised"], "cal": 176 },
+                                { "parts": ["roasted"], "cal": 179 },
+                                { "parts": ["stewed"], "cal": 195 },
+                                { "parts": ["fried"], "cal": 218 }
+                            ]
+                        }
+                    ]
+                },
+                "ribeye": {
+                    "food": "beef ribeye steak",
+                    "n": 75,
+                    "groups": [
+                        {
+                            "header": null,
+                            "rows": [
+                                {
+                                    "parts": ["petite roast or filet", "lean only", "0-inch trim", "select"],
+                                    "cal": 125
+                                },
+                                {
+                                    "parts": ["petite roast or filet", "lean only", "0-inch trim", "all grades"],
+                                    "cal": 133
+                                },
+                                {
+                                    "parts": ["petite roast or filet", "lean only", "0-inch trim", "choice"],
+                                    "cal": 138
+                                },
+                                { "parts": ["lean only", "lip-off", "0-inch trim", "select"], "cal": 142 },
+                                {
+                                    "parts": ["steak or roast", "lean only", "lip-on", "1/8-inch trim", "select"],
+                                    "cal": 148
+                                },
+                                { "parts": ["small end", "eye", "lean only", "0-inch trim", "select"], "cal": 149 },
+                                { "parts": ["lean only", "lip-off", "0-inch trim", "all grades"], "cal": 154 },
+                                {
+                                    "parts": [
+                                        "bone-in",
+                                        "steak or roast",
+                                        "lean only",
+                                        "lip-on",
+                                        "1/8-inch trim",
+                                        "select"
+                                    ],
+                                    "cal": 155
+                                },
+                                {
+                                    "parts": ["steak or roast", "lean only", "lip-on", "1/8-inch trim", "all grades"],
+                                    "cal": 156
+                                },
+                                {
+                                    "parts": [
+                                        "steak or roast",
+                                        "grass-fed",
+                                        "lean only",
+                                        "lip-on",
+                                        "product of Australia"
+                                    ],
+                                    "cal": 160
+                                },
+                                { "parts": ["cube roll", "lean only", "product of New Zealand"], "cal": 161 },
+                                { "parts": ["small end", "eye", "lean only", "0-inch trim", "choice"], "cal": 161 },
+                                {
+                                    "parts": ["steak or roast", "lean only", "lip-on", "1/8-inch trim", "choice"],
+                                    "cal": 161
+                                },
+                                { "parts": ["lean only", "lip-off", "0-inch trim", "choice"], "cal": 162 },
+                                {
+                                    "parts": ["petite roast", "lean only", "0-inch trim", "select", "roasted"],
+                                    "cal": 164
+                                },
+                                {
+                                    "parts": [
+                                        "bone-in",
+                                        "steak or roast",
+                                        "lean only",
+                                        "lip-on",
+                                        "1/8-inch trim",
+                                        "choice"
+                                    ],
+                                    "cal": 173
+                                },
+                                {
+                                    "parts": ["petite roast", "lean only", "0-inch trim", "all grades", "roasted"],
+                                    "cal": 178
+                                },
+                                {
+                                    "parts": ["small end", "eye", "lean only", "0-inch trim", "select", "broiled"],
+                                    "cal": 182
+                                },
+                                { "parts": ["filet", "lean only", "0-inch trim", "select", "grilled"], "cal": 186 },
+                                {
+                                    "parts": ["petite roast", "lean only", "0-inch trim", "choice", "roasted"],
+                                    "cal": 188
+                                },
+                                { "parts": ["lean only", "lip-off", "0-inch trim", "select", "grilled"], "cal": 191 },
+                                { "parts": ["lean only", "lip-on", "1/8-inch trim", "select", "grilled"], "cal": 192 },
+                                { "parts": ["filet", "lean only", "0-inch trim", "all grades", "grilled"], "cal": 199 },
+                                {
+                                    "parts": ["roast", "lean only", "lip-on", "1/8-inch trim", "select", "roasted"],
+                                    "cal": 202
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "macros": {
+                    "169432": { "protein": 28.97, "fat": 17.37, "carbs": 0.0, "kcal": 280 },
+                    "171112": { "protein": 26.75, "fat": 11.4, "carbs": 0.0, "kcal": 217 }
+                }
+            }
+        </script>
+        <script>
+            'use strict';
+            // The ribeye blob above holds its first 24 rows only (of 75): enough to fill the tallest frame.
+            // Its count (75) is the real one, and the frame says so.
+            const SEED = JSON.parse(document.getElementById('seed').textContent);
+            const params = new URLSearchParams(location.search);
+            const TEXT = params.get('text') === '200' ? 200 : 100;
+            document.documentElement.style.fontSize = TEXT + '%';
+            const W = window.innerWidth;
+            const H = W <= 340 ? 568 : W <= 420 ? 844 : 1024; // iPhone SE 1st gen, iPhone 12-15, iPad portrait
+            const KB = W <= 340 ? 253 : W <= 420 ? 336 : 313; // keyboard stand-ins (not device measurements)
+            // Safe-area stand-ins: iPhone SE (1st gen) has a 20 pt status bar and no home indicator; iPhone 12-15
+            // has 47 pt and a 34 pt home indicator. The web dialog at 768 has neither.
+            const INSET_TOP = W <= 340 ? 20 : 47;
+            const INSET_BOTTOM = W <= 340 ? 0 : 34;
+            const closeX =
+                '<button class="close" aria-label="Close details"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>';
+            const WEB = W >= 640;
+            document.getElementById('viewportNote').textContent =
+                `Rendered at ${W} px wide, device height ${H} px, text ${TEXT}%. ` +
+                (WEB
+                    ? 'Frames draw the web dialog (≥ 640 px).'
+                    : 'Frames draw the native sheet (web below 640 px is the same layout, full screen).');
+
+            const esc = (s) =>
+                String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+            const cap1 = (s) => s.charAt(0).toLocaleUpperCase('en') + s.slice(1);
+
+            /** VariantPartsLine (§S4): NBSP + aria-hidden dot, a hidden comma for screen readers, a plain space after. */
+            // A measurement token (a number, a hyphen, a unit: `0-inch`, `1/8-inch`) never breaks at its hyphen. The
+            // longest in the seed is 8 characters, so keeping it whole cannot overflow; a longer hyphenated WORD
+            // (`chocolate-flavored`, 18) may still break at its hyphen, or it would overflow at 200% text.
+            const MEASURE = /^\d[\d/.]*-[a-z]+$/i;
+            const part = (p) =>
+                esc(p)
+                    .split(' ')
+                    .map((t) => (MEASURE.test(t) ? `<span class="nobr">${t}</span>` : t))
+                    .join(' ');
+            function vpl(parts, tone, extraClass = '') {
+                const html = parts
+                    .map(
+                        (p, i) =>
+                            (i === 0 ? '' : ' <span aria-hidden="true">·</span><span class="sr">,</span> ') +
+                            `<span lang="en">${part(p)}</span>`,
+                    )
+                    .join('');
+                return `<span class="vpl ${tone} ${extraClass}" data-vpl>${html}</span>`;
+            }
+            const checkSvg =
+                '<svg class="ic" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="#2A6B65" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            const minusSvg =
+                '<svg class="ic" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
+            function opt(row, { current = false, active = false, markCol = false } = {}) {
+                const cal = row.cal == null ? 'no figure' : `${row.cal} cal`;
+                const mark = markCol ? `<span class="mark">${current ? checkSvg : ''}</span>` : '';
+                return `<div class="opt${active ? ' active' : ''}" role="option" data-opt>${mark}<span class="txt">${vpl(row.parts, 'primary')}${current ? '<span class="tag">Current</span>' : ''}</span><span class="cal">${cal}</span></div>`;
+            }
+            function list(groups, opts = {}) {
+                // The check column is reserved only when a LISTED row is current (a retired current row is not listed).
+                const markCol = !!opts.isCurrent && groups.some((g) => g.rows.some((r) => opts.isCurrent(r)));
+                opts = { ...opts, markCol };
+                return groups
+                    .map((g) => {
+                        const rows = g.rows
+                            .map((r) =>
+                                opt(r, {
+                                    markCol: opts.markCol,
+                                    current: opts.isCurrent?.(r),
+                                    active: opts.isActive?.(r),
+                                }),
+                            )
+                            .join('');
+                        return g.header
+                            ? `<div role="group"><div class="ghead">${esc(cap1(g.header))}</div>${rows}</div>`
+                            : rows;
+                    })
+                    .join('');
+            }
+            /**
+             * The sheet (§S8.1). size: 'full' | 'content'.
+             * search: { count, value, focused }. With the keyboard up the title row COLLAPSES into the search
+             * label row (the title stays the dialog's accessible name), and the footer stays at the sheet's
+             * bottom edge, under the keyboard, so it is not drawn here.
+             */
+            function sheet({ title, food, search = null, body, footer = '', size = 'full', keyboard = false }) {
+                const avail = keyboard ? H - KB : H;
+                const field = search
+                    ? `<div class="field${search.focused ? ' focused' : ''}"><span class="val">${esc(search.value ?? '')}${search.focused ? '<span class="caret"></span>' : ''}</span>${search.value ? '<button class="clear" aria-label="Clear search">×</button>' : ''}</div>`
+                    : '';
+                const label = search ? `Search ${search.count} options` : '';
+                const basisSpan = '<span class="basis">Calories per 100 g</span>';
+                // Long list: the per-100 g caption rides in the pinned label row, so it heads the calorie column
+                // while the list scrolls. Short list: it shares the intro's row in the scroll region.
+                const labelRow = `<div class="labelRow"><label>${label}</label>${basisSpan}</div>`;
+                const head =
+                    keyboard && search
+                        ? `<div class="sheetHead"><h2 class="sr">${title}</h2><div class="hlabel" data-search>${labelRow}</div>${closeX}</div><div class="toolbar">${field}</div>`
+                        : `<div class="sheetHead"><h2>${title}</h2>${closeX}</div>${search ? `<div class="toolbar" data-search>${labelRow}${field}</div>` : ''}`;
+                const lead = food ? `<p class="food">${esc(cap1(food))}</p>` : '';
+                const content = body.replace('@@BASIS@@', search ? '' : basisSpan);
+                const web = WEB;
+                const foot =
+                    footer && !keyboard
+                        ? `<div class="foot" style="padding-bottom:${12 + (web ? 0 : INSET_BOTTOM)}px">${footer}</div>`
+                        : '';
+                const kb = keyboard ? `<div class="kb" style="height:${KB}px">keyboard stand-in, ${KB} px</div>` : '';
+                if (web) {
+                    const maxH = Math.round(avail * 0.85);
+                    const place =
+                        size === 'full'
+                            ? `height:${maxH}px;top:${Math.round((avail - maxH) / 2)}px;`
+                            : `max-height:${maxH}px;top:${Math.round(avail / 2)}px;transform:translate(-50%,-50%);`;
+                    return `<div class="overlay"></div><div class="sheet web" data-sheet style="${place}">${head}<div class="scroll" data-scroll>${lead}${content}</div>${foot}</div>${kb}`;
+                }
+                const bottomPad = !footer || keyboard ? INSET_BOTTOM : 0; // a sheet with no footer still clears the home indicator
+                const place =
+                    size === 'full'
+                        ? `top:${INSET_TOP}px;bottom:${keyboard ? KB : 0}px;padding-bottom:${keyboard ? 0 : bottomPad}px;`
+                        : `bottom:${keyboard ? KB : 0}px;max-height:${avail - INSET_TOP}px;padding-bottom:${keyboard ? 0 : bottomPad}px;`;
+                return `<div class="overlay"></div><div class="sheet" data-sheet style="${place}">${head}<div class="scroll" data-scroll>${lead}${content}</div>${foot}</div>${kb}`;
+            }
+            const intro = '<div class="lead"><p class="intro">Nutrition uses the one you pick.</p>@@BASIS@@</div>';
+            const basis = '';
+            const currentLine = (parts, retired = false) =>
+                `<div class="current"><b>Current:</b> ${vpl(parts, 'secondary', 'inline')}${retired ? '. It’s no longer listed, so if you change it, you can’t pick it again.' : ''}</div>`;
+            const removeBtn = `<button class="btn">${minusSvg}Remove details</button>`;
+            const closeBtn = `<button class="btn">Close</button>`;
+            const behind =
+                `<div class="screen"><div class="card"><h2>Ingredients</h2><ul class="lines">` +
+                `<li class="row"><div class="icons"><button class="icon info">i</button><button class="icon">⋮</button></div><div class="nameLine"><span class="qty">2 lb</span> beef brisket</div></li>` +
+                `<li class="row"><div class="icons"><button class="icon info">i</button><button class="icon">⋮</button></div><div class="nameLine"><span class="qty">4</span> boneless skinless chicken breasts</div></li>` +
+                `</ul></div></div>`;
+
+            const frames = [];
+            const frame = (id, caption, note, inner, { height = H, n = null, auto = false } = {}) =>
+                frames.push(
+                    `<section class="frame" data-frame="${id}"${n == null ? '' : ` data-n="${n}"`}><p class="cap">${caption}</p>${note ? `<p class="note">${note}</p>` : ''}<div class="device${auto ? ' auto' : ''}" style="height:${height}px">${inner}</div></section>`,
+                );
+
+            // 1. The dotted line on the recipe form and the read view.
+            const lines = [
+                { qty: '2 lb', name: 'beef brisket', parts: null, note: 'root-bound' },
+                {
+                    qty: '2 lb',
+                    name: 'beef brisket',
+                    parts: ['flat half', 'separable lean and fat', '1/8-inch trim', 'select', 'braised'],
+                },
+                { qty: '4', name: 'boneless skinless chicken breasts', parts: ['grilled'] },
+                {
+                    qty: '1 rack',
+                    name: 'lamb rib roast',
+                    parts: [
+                        'rack roast',
+                        'frenched',
+                        'separable lean and fat',
+                        'denuded',
+                        '0-inch trim',
+                        'roasted',
+                        'product of Australia',
+                    ],
+                },
+            ];
+            const editRows = lines
+                .map(
+                    (l) =>
+                        `<li class="row"><div class="icons"><button class="icon info" aria-label="About ${esc(l.name)}">i</button><button class="icon" aria-label="Actions for ${esc(l.name)}">⋮</button></div><div class="nameLine" data-clip><span class="qty">${l.qty}</span> ${esc(l.name)}</div>${l.parts ? vpl(l.parts, 'secondary') : ''}</li>`,
+                )
+                .join('');
+            const readRows = lines
+                .slice(1)
+                .map(
+                    (l) =>
+                        `<li class="row"><span class="check" aria-hidden="true"></span><div class="body"><div class="nameLine" data-clip><span class="qty">${l.qty}</span> ${esc(l.name)}</div>${vpl(l.parts, 'secondary')}</div></li>`,
+                )
+                .join('');
+            frame(
+                'line',
+                '1 · The dotted line: recipe form and read view',
+                'Row 1 is root-bound: the name only (R28). Row 2 is AE1. Row 3 is AE3. Row 4 is the longest parts line in the seed (103 characters).',
+                `<div class="screen"><div class="card"><h2>Ingredients (edit)</h2><ul class="lines">${editRows}</ul></div><div class="card read"><h2>Ingredients (read)</h2><ul class="lines">${readRows}</ul></div></div>`,
+                { auto: true },
+            );
+
+            // 2. The row menu.
+            const menuItems = ['Change food', 'Add details', 'Remove ingredient'];
+            const menu = WEB
+                ? `${behind}<div class="dropdown" style="top:128px" role="menu">${menuItems.map((m, i) => `<div class="item${i === 1 ? ' focus' : ''}" role="menuitem">${m}</div>`).join('')}</div>`
+                : `${behind}<div class="overlay"></div><div class="sheet menuSheet" style="bottom:0"><div style="padding:16px 16px 8px;font-size:var(--body-sm);color:var(--slate)">Actions for beef brisket</div>${menuItems.map((m) => `<div class="item" role="menuitem">${m}</div>`).join('')}<div style="height:28px"></div></div>`;
+            frame(
+                'menu',
+                '2 · The row’s ⋮ menu, root-bound line with variants',
+                'Add details is second, one line, no caption. A variant-bound line shows Edit details in the same place.',
+                menu,
+                { height: WEB ? 360 : 420 },
+            );
+
+            // 3. F1: a result that carries a variant (AE3).
+            frame(
+                'suggest',
+                '3 · F1: a search result that carries a variant (AE3)',
+                'One result: the root name, the dotted line under it. Picking it binds the variant.',
+                `<div class="screen"><div class="card"><h2>Ingredients (edit)</h2><div class="field focused"><span class="val">grilled boneless skinless chicken breasts<span class="caret"></span></span></div><div class="results" role="listbox"><div class="result opt active" role="option" data-opt><span class="txt"><span class="nm" data-clip>boneless skinless chicken breasts</span>${vpl(['grilled'], 'secondary')}</span></div></div></div></div>`,
+                { auto: true },
+            );
+
+            // 4. Long list, grouped (AE8).
+            frame(
+                'brisketAdd',
+                '4 · Long list, grouped by cut (AE8): beef brisket, 40 options, add mode',
+                'Search pinned. Groups sort A to Z; rows in calorie order. Flat half opens with lean only · 0-inch trim · select, 124 cal.',
+                behind +
+                    sheet({
+                        title: 'Add details',
+                        food: 'beef brisket',
+                        search: { count: 40 },
+                        body: intro + list(SEED.brisket.groups),
+                    }),
+                { n: 40 },
+            );
+
+            // 5. Exactly 8: long list, flat, edit mode.
+            const isGrilled = (r) => r.parts.length === 1 && r.parts[0] === 'grilled';
+            frame(
+                'breastsEdit',
+                '5 · Exactly 8 options: search appears, the list is flat (R26 fails): chicken breasts, edit mode',
+                'Current: grilled (AE3). Check glyph and the word Current. Remove details pinned in the footer.',
+                behind +
+                    sheet({
+                        title: 'Edit details',
+                        food: 'boneless skinless chicken breasts',
+                        search: { count: 8 },
+                        body:
+                            intro +
+                            currentLine(['grilled']) +
+                            list(SEED.breasts.groups, { markCol: true, isCurrent: isGrilled }),
+                        footer: removeBtn,
+                    }),
+                { n: 8 },
+            );
+
+            // 6. Keyboard up.
+            const gril = [
+                {
+                    header: null,
+                    rows: SEED.breasts.groups[0].rows.filter((r) => r.parts.some((p) => p.startsWith('gril'))),
+                },
+            ];
+            frame(
+                'keyboard',
+                '6 · Keyboard up, search “gril”: 2 of 8 options',
+                'The title row collapses into the search label row; the footer stays under the keyboard; the active row is scrolled into view. Polite announcement: “2 of 8 options”.',
+                behind +
+                    sheet({
+                        title: 'Edit details',
+                        food: 'boneless skinless chicken breasts',
+                        search: { count: 8, value: 'gril', focused: true },
+                        body:
+                            intro +
+                            currentLine(['grilled']) +
+                            list(gril, { markCol: true, isCurrent: isGrilled, isActive: (r) => r === gril[0].rows[0] }),
+                        footer: removeBtn,
+                        keyboard: true,
+                    }),
+                { n: 8 },
+            );
+
+            // 7. Exactly 7: short list, content height, no search.
+            frame(
+                'thighsAdd',
+                '7 · Exactly 7 options: short list, no search, content height: chicken thighs, add mode',
+                'No footer in add mode. No row is marked.',
+                behind +
+                    sheet({
+                        title: 'Add details',
+                        food: 'boneless skinless chicken thighs',
+                        body: intro + list(SEED.thighs.groups),
+                        size: 'content',
+                    }),
+                { n: 7 },
+            );
+
+            // 8. Longest list, flat.
+            frame(
+                'ribeye',
+                '8 · The longest list, flat under R26 read literally: beef ribeye steak, 75 options',
+                'cut differs first but only 16 of 75 rows carry it, so the list is flat (E2). The frame holds the first 24 rows.',
+                behind +
+                    sheet({
+                        title: 'Add details',
+                        food: 'beef ribeye steak',
+                        search: { count: 75 },
+                        body: intro + list(SEED.ribeye.groups),
+                    }),
+                { n: 75 },
+            );
+
+            // 9. No matches.
+            frame(
+                'noMatches',
+                '9 · Search with no match',
+                'The way out is named, and the Clear control sits in the field.',
+                behind +
+                    sheet({
+                        title: 'Edit details',
+                        food: 'boneless skinless chicken breasts',
+                        search: { count: 8, value: 'smoked' },
+                        body: '<p class="msg" role="status">Nothing matches “smoked”. Clear the search to see all 8.</p>',
+                        footer: removeBtn,
+                    }),
+                { n: 8 },
+            );
+
+            // 10. Retired current, with live siblings (state illustration).
+            frame(
+                'retired',
+                '10 · Edit mode, the line’s variant is retired, live siblings remain',
+                '<b>State illustration:</b> the real variant navel end · separable lean and fat · braised · product of New Zealand is drawn as if retired, so Navel end lists 3 rows.',
+                behind +
+                    sheet({
+                        title: 'Edit details',
+                        food: 'beef brisket',
+                        search: { count: 39 },
+                        body:
+                            intro +
+                            currentLine(
+                                ['navel end', 'separable lean and fat', 'braised', 'product of New Zealand'],
+                                true,
+                            ) +
+                            list(
+                                SEED.brisket.groups.map((g) => ({
+                                    header: g.header,
+                                    rows: g.rows.filter((r) => r.item !== 'fdc:174739'),
+                                })),
+                                { markCol: true },
+                            ),
+                        footer: removeBtn,
+                    }),
+                { n: 39 },
+            );
+
+            // 11. detailsNoneLeft (state illustration).
+            frame(
+                'noneLeft',
+                '11 · detailsNoneLeft: the line’s variant is retired and no other remains',
+                '<b>State illustration:</b> duck legs’ only variant, drawn as if retired. Footer: Close, then Remove details.',
+                behind +
+                    sheet({
+                        title: 'Edit details',
+                        food: 'duck legs',
+                        body:
+                            currentLine(['skinless', 'White Pekin', 'braised']) +
+                            '<p class="msg">Duck legs has no other details now. Your recipe keeps these numbers. If you remove the details, you can’t add them back.</p>',
+                        footer: closeBtn + removeBtn,
+                        size: 'content',
+                    }),
+            );
+
+            // 12 to 15. Loading, error, offline, no variants. Content-height sheets on a full device, so 200% text has room.
+            frame(
+                'loading',
+                '12 · Loading',
+                'Title and Close at once; three rows reserve the height; no search until the count is known.',
+                behind +
+                    sheet({
+                        title: 'Add details',
+                        food: 'beef brisket',
+                        body: '<p class="msg" role="status">Loading details…</p><div class="skel"></div><div class="skel"></div><div class="skel"></div>',
+                        size: 'content',
+                    }),
+            );
+            frame(
+                'error',
+                '13 · Load failed',
+                'role="alert". Retry returns to loading. Focus goes to Try again.',
+                behind +
+                    sheet({
+                        title: 'Add details',
+                        food: 'beef brisket',
+                        body: '<p class="msg alert" role="alert">We couldn’t load the details. Your ingredient hasn’t changed.</p><div class="foot" style="border:0;padding-top:0"><button class="btn">Try again</button></div>',
+                        size: 'content',
+                    }),
+            );
+            frame(
+                'offline',
+                '14 · Offline: the app-wide OfflineReadSlot, shared copy, no retry',
+                'Resumes by itself on reconnect.',
+                behind +
+                    sheet({
+                        title: 'Add details',
+                        food: 'beef brisket',
+                        body: '<p class="msg" role="status" style="text-align:center;padding:32px 16px">Waiting for a connection. This loads on its own.</p>',
+                        size: 'content',
+                    }),
+            );
+            frame(
+                'noVariants',
+                '15 · No variants left to choose',
+                'Close only.',
+                behind +
+                    sheet({
+                        title: 'Add details',
+                        food: 'beef brisket',
+                        body: '<p class="msg">Beef brisket has no details to choose from right now. Your ingredient hasn’t changed.</p>',
+                        size: 'content',
+                    }),
+            );
+
+            // 16. The panel.
+            const m = SEED.macros;
+            const macros = (x) =>
+                `<div class="macros"><span><b>${x.protein.toFixed(1)} g</b>protein</span><span><b>${x.carbs.toFixed(1)} g</b>carbs</span><span><b>${x.fat.toFixed(1)} g</b>fat</span></div>`;
+            frame(
+                'panel',
+                '16 · The panel: variant-bound, cooked root, no numbers',
+                'Card 2’s sentence is BLOCKED ON DATA (E3): nothing on the wire says duck legs’ own item is roasted.',
+                `<div class="screen panel">` +
+                    `<div class="card"><h3>Beef brisket</h3>${vpl(['flat half', 'separable lean and fat', '1/8-inch trim', 'select', 'braised'], 'secondary')}<div class="kcal">${m['169432'].kcal} cal</div><div class="basisLine">per 100 g</div>${macros(m['169432'])}</div>` +
+                    `<div class="card"><h3>Duck legs</h3><div class="kcal">${m['171112'].kcal} cal</div><div class="basisLine">per 100 g</div><p class="cooked">These numbers are for roasted duck legs.</p><span class="blocked">BLOCKED ON DATA · E3</span>${macros(m['171112'])}</div>` +
+                    `<div class="card"><h3>Aleppo pepper</h3><p class="cooked" style="color:var(--slate)">Matched, no figures published.</p></div>` +
+                    `</div>`,
+                { auto: true },
+            );
+
+            // ── Extension 2026-10-01 (spec §S13 to §S16). Frames 17 to 21. ──
+            // ⚠️ The live-search hit names in 17 and 18 are ILLUSTRATIONS, not looked up in any source. The register
+            // strings in 20 (names, publishers, editions, credits) are copied from the working-tree
+            // packages/services/food-service/src/sources/sourceRegister.ts (untracked on 2026-10-01). The short
+            // names and licence names are the fields §S16 asks the endpoint for, so they are illustrations too.
+            const NATIVE = !WEB;
+            const liveTrigger = (q, busy = false) =>
+                `<div class="liveTrigger" role="button" data-target${busy ? ' aria-busy="true"' : ''}><span class="lbl">Search more food databases for “${esc(q)}”</span><span class="slow">Slow</span></div>`;
+            const hit = (name, src, parts = null) =>
+                `<div class="pickRow" role="button" data-target><span class="txt">${esc(name)}${parts ? vpl(parts, 'secondary') : ''}</span>${src ? `<span class="src">${esc(src)}</span>` : ''}</div>`;
+            const pickerTop = (q) =>
+                `<h2>Ingredients (edit)</h2><div class="field focused"><span class="val">${esc(q)}</span></div>` +
+                `<p class="sectionTitle">Food catalog</p><div class="results">${hit('lingonberries', null)}</div>` +
+                `<div class="actions"><button class="btn primary" data-target>Find nutrition for “${esc(q)}”</button><button class="btn" data-target>Add “${esc(q)}” as a custom ingredient</button><button class="btn" data-target>Create your own food</button></div>` +
+                liveTrigger(q);
+            const QUERY = 'lingonberry jam';
+            frame(
+                'liveResults',
+                '17 · Search more food databases: every source answered (L2)',
+                '<b>Illustration:</b> hit names are not looked up. The source tag is plain text at the row’s end, and it wraps under the name below 12rem of room. No badge on the catalog row (§S15).',
+                `<div class="screen"><div class="card">${pickerTop(QUERY)}` +
+                    `<section class="livePanel" aria-label="Results from other food databases"><p class="sectionTitle head">From other food databases</p><div>` +
+                    hit('Lingonberry jam', 'Matvaretabellen') +
+                    hit('WILD LINGONBERRY PRESERVES, ORGANIC, WITH CANE SUGAR AND LEMON JUICE CONCENTRATE', 'USDA') +
+                    hit('Lingonberries, raw, stirred with sugar', 'Matvaretabellen') +
+                    `</div><div class="row2"><button class="btn" data-target>Close these results</button></div><p class="sr" role="status">3 results from other food databases</p></section>` +
+                    `</div></div>`,
+                { auto: true },
+            );
+            frame(
+                'livePartial',
+                '18 · Partial: USDA was busy, Matvaretabellen answered (L3)',
+                '<b>Illustration:</b> hit name not looked up. The notice sits after the last hit, then Try again and Close.',
+                `<div class="screen"><div class="card">${pickerTop(QUERY)}` +
+                    `<section class="livePanel" aria-label="Results from other food databases"><p class="sectionTitle head">From other food databases</p><div>` +
+                    hit('Lingonberry jam', 'Matvaretabellen') +
+                    `</div><p class="notice">Some food databases weren’t searched just now, so there may be more results. Try again later.</p>` +
+                    `<div class="row2"><button class="btn" data-target>Try again</button><button class="btn" data-target>Close these results</button></div></section>` +
+                    `</div></div>`,
+                { auto: true },
+            );
+            const alertPanel = (text, retry, role) =>
+                `<section class="livePanel"><p class="notice${role === 'alert' ? ' alert' : ''}" role="${role}">${text}</p><div class="row2">${retry ? '<button class="btn" data-target>Try again</button>' : ''}<button class="btn" data-target>Close these results</button></div></section>`;
+            frame(
+                'liveAlerts',
+                '19 · The other outcomes: L4 empty, L5 empty and partial, L6 none searched, L7 failed',
+                'L4 offers no retry, because the answer is final. The other three offer Try again.',
+                `<div class="screen"><div class="card"><h2>Search more food databases</h2>` +
+                    alertPanel(
+                        `None of the food databases we searched has “${esc(QUERY)}”. Add it as a custom ingredient instead.`,
+                        false,
+                        'status',
+                    ) +
+                    alertPanel(
+                        `Nothing found for “${esc(QUERY)}” so far, but some food databases weren’t searched just now. Try again later.`,
+                        true,
+                        'alert',
+                    ) +
+                    alertPanel(
+                        'We couldn’t search the other food databases just now. Try again later.',
+                        true,
+                        'alert',
+                    ) +
+                    alertPanel('The search didn’t go through. Check your connection and try again.', true, 'alert') +
+                    `</div></div>`,
+                { auto: true },
+            );
+
+            // 20. The Data sources page.
+            const SOURCES = [
+                {
+                    short: 'USDA',
+                    name: 'FoodData Central',
+                    publisher: 'U.S. Department of Agriculture, Agricultural Research Service',
+                    edition: 'SR Legacy 2018-04, Foundation 2026-04-30, FNDDS 2021-2023, Branded 2026-04-30',
+                    licence: 'CC0 1.0 Universal',
+                    credit: 'U.S. Department of Agriculture, Agricultural Research Service, Beltsville Human Nutrition Research Center. FoodData Central.',
+                    lang: 'en',
+                    converted: false,
+                },
+                {
+                    short: 'CoFID',
+                    name: "McCance and Widdowson's Composition of Foods Integrated Dataset",
+                    publisher: 'Public Health England',
+                    edition: '2021',
+                    licence: 'Open Government Licence v3.0',
+                    credit: "Contains public sector information licensed under the Open Government Licence v3.0: McCance and Widdowson's Composition of Foods Integrated Dataset 2021.",
+                    lang: 'en',
+                    converted: true,
+                },
+                {
+                    short: null,
+                    name: 'Standard Tables of Food Composition in Japan',
+                    publisher: 'Ministry of Education, Culture, Sports, Science and Technology',
+                    edition: 'Eighth edition, 2023 supplement, updated 2026-03-27',
+                    licence: null,
+                    credit: '出典：日本食品標準成分表（八訂）増補2023年',
+                    lang: 'ja',
+                    converted: false,
+                },
+                {
+                    short: 'Matvaretabellen',
+                    name: 'Matvaretabellen (Norwegian Food Composition Table)',
+                    publisher: 'Mattilsynet',
+                    edition: '2026',
+                    licence: 'NLOD 2.0',
+                    credit: 'Norwegian Food Composition Table 2026. The Norwegian Food Safety Authority. www.matvaretabellen.no',
+                    lang: 'en',
+                    converted: false,
+                },
+            ];
+            const dsCard = (s) =>
+                `<section class="dsCard"><h2>${esc(s.short ?? s.name)}</h2>${s.short ? `<p class="name">${esc(s.name)}</p>` : ''}<p class="pub">${esc(s.publisher)}</p>` +
+                `<dl><dt>Edition</dt><dd>${esc(s.edition)}</dd>` +
+                `<dt>License</dt><dd><span class="linkRow" data-target><a class="lnk" href="#">${esc(s.licence ?? 'License terms')}</a>&nbsp;<span aria-hidden="true">↗</span></span></dd>` +
+                `<dt>Credit</dt><dd lang="${s.lang}">${esc(s.credit)}</dd></dl>` +
+                (s.converted ? '<p class="conv">We converted some of its values to the units this app uses.</p>' : '') +
+                `<span class="linkRow" data-target><a class="lnk" href="#">Source website</a>&nbsp;<span aria-hidden="true">↗</span></span></section>`;
+            const dsIntro =
+                '<p class="dsLead">The nutrition figures in this app come from these public food databases.</p>' +
+                '<p class="dsLead">When no database lists a food exactly, we use the figures for a similar or more general food.</p>';
+            frame(
+                'dataSources',
+                '20 · The Data sources page',
+                '<b>Illustration:</b> the short names, the licence names and CoFID’s converted note stand in for fields the endpoint does not carry yet (§S16). Japan has no short name and no licence name, so it shows both fallbacks. Its credit is Japanese, with lang="ja".',
+                NATIVE
+                    ? `<div class="dsPage native"><div class="dsHead"><h1>Data sources</h1><button class="close" data-target aria-label="Close data sources"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div class="scroll"><div class="dsBody">${dsIntro}${SOURCES.map(dsCard).join('')}</div></div></div>`
+                    : `<div class="dsBody web"><h1 style="font-family:var(--font-display);font-size:var(--heading-md);margin:0 0 8px">Data sources</h1>${dsIntro}${SOURCES.map(dsCard).join('')}</div>`,
+                { auto: !NATIVE },
+            );
+
+            // 21. The recipe nutrition note, read view.
+            frame(
+                'nutritionNote',
+                '21 · The recipe nutrition note: two sentences, each with its own condition',
+                'Web: the link follows sentence 1. Native: the link is its own 48 dp row and opens the Data sources sheet.',
+                `<div class="screen"><div class="card"><h2>Nutrition (per serving)</h2>` +
+                    `<div class="panel"><div class="macros"><span><b>412</b>calories</span><span><b>31.0 g</b>protein</span><span><b>22.4 g</b>carbs</span><span><b>21.7 g</b>fat</span></div></div>` +
+                    (NATIVE
+                        ? `<p class="noteText">Nutrition comes from public food databases.</p><span class="linkRow" data-target><a class="lnk" href="#">Data sources</a></span><p class="noteText" style="margin-top:0">Custom ingredients count only the nutrition you entered for them.</p>`
+                        : `<p class="noteText">Nutrition comes from public food databases. <a class="lnk" href="#" style="display:inline-block;padding:4px 0">Data sources</a><br>Custom ingredients count only the nutrition you entered for them.</p>`) +
+                    `</div></div>`,
+                { auto: true },
+            );
+
+            document.getElementById('frames').innerHTML = frames.join('');
+        </script>
+    </body>
+</html>

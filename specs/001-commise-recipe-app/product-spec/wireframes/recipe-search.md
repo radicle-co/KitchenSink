@@ -86,6 +86,34 @@
 | Ingredient       | Text input (matches ingredient list)        | FR-006 |
 | Tags             | Multi-select checkbox                       | FR-006 |
 
+## Loading State
+
+- **When:** a search, or the default browse, is loading with nothing to show yet.
+- **Shown:** the heading, source tabs, search field and filter bar stay on screen and usable, and so do the sort control (while searching, or after a rail's "see all") and back-to-browse (after a rail's "see all" while nothing is typed). Only the results area shows the card skeleton with its caption.
+- **Filter bar:** on a first load it shows only the ingredient box and any filters already active, because there are no facets yet. Once facets exist, the bar keeps showing the **last settled** facets while a newer search is pending. It never empties while you type, which would make the filter groups jump on every keystroke.
+- **Authority:** `docs/CODING_STANDARDS.md` §11.0 — the pending read suspends the results only.
+
+## Updating Results State (a newer search is pending)
+
+- **When:** results (or the browse rails) are on screen and the query, a filter or the sort has changed, but the new results have not arrived. This is the state after the 300 ms debounce, while the deferred query resolves.
+- **Shown:** the **previous results stay, at full strength and fully usable**. They are not dimmed and not replaced by the skeleton. The results header keeps naming the query those results belong to ("Showing 12 recipes for “past”", `resultsForQuery`), which tells the viewer what they are looking at. If the new results take longer than **500 ms**, a thin, still (not moving) teal bar appears in the gap directly above the results. It takes no layout space, so nothing shifts.
+- **Not dimmed, on purpose:** faded card text falls below the 4.5:1 text contrast floor. The stale results are still valid and can still be opened or cloned, so they must stay readable (`packages/apps/commise/ui/src/tokens/colors.ts`: "An ALPHA-tinted text colour is not a text colour").
+- **Behaviour:** nothing is announced when the search starts, and the results are deliberately **not** marked busy — JAWS hides content marked busy, which would take away the results this state keeps usable. When the new results land, the new header text is announced once, politely ("Showing 9 recipes for “pasta”", or "No matching recipes"). The same announcement follows **Load more** ("Showing 24 recipes for “pasta”"), because the load-more control itself announces only a failure, and a background refresh that changes the count is announced the same way. If the pending search fails, the load-error state replaces the results, and focus stays in the search field.
+
+## Load Error State
+
+- **When:** a search (or the default browse load) fails with nothing loaded for it.
+- **Shown:** everything above the results stays: heading, tabs, search, filter bar, back-to-browse and sort. The results area, or the browse rails, is replaced by the error message and **Try again**. A search that fails does not clear the typed query.
+- **Behaviour:** the error is announced as an alert, and focus stays where it was.
+- **One browse rail:** each rail loads on its own, so a rail that fails while the others load shows only "Couldn’t load this row." with **Try again** under its own heading, retrying that rail alone. The other rails, every heading and the cuisine shortcuts stay. The rail's failure is announced as an alert, so a retry that fails again is heard; pressing **Try again** moves focus to that rail's heading, because the pressed button is replaced by the rail's loading body. (Build note: each rail reads behind its own boundary, and a failure there stays until it is retried, so the retry is the way out.)
+
+## Refresh Failure State
+
+- **When:** a refresh fails while results or browse rails are on screen — pull-to-refresh on mobile, or a focus/reconnect refresh on either platform.
+- **Shown:** what is on screen stays. Over search results, an inline notice reads "We couldn’t refresh these results."; over the browse rails, ONE notice for the whole block reads "We couldn’t refresh these recipes." Each has **Try again**. The load-error state above is only for a search that failed with nothing to show. It replaces the results area, not the page.
+- **Behaviour:** the notice announces politely, keeps its button (busy) while any retry runs, and clears on the next successful refresh. When its own Try again succeeds, focus moves to the page heading (results) or the first rail’s heading (rails).
+- **Authority:** `docs/CODING_STANDARDS.md` §11.0.
+
 ## FR Annotation Summary
 
 | Element                     | FR     |

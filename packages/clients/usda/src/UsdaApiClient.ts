@@ -3,7 +3,7 @@
  *
  * Wraps the upstream `GET /v1/food/{fdcId}`, `POST /v1/foods`, and `GET /v1/foods/search`
  * endpoints with a 10-second request timeout and maps upstream status codes onto the typed
- * error hierarchy in {@link ./errors}. This is the external-API client only — no database and
+ * error hierarchy in `./errors.ts`. This is the external-API client only — no database and
  * no HTTP server; `@kitchensink/food-service` depends on it.
  *
  * @implements FR-023
@@ -20,13 +20,81 @@ import {
     UsdaTimeoutError,
 } from './errors.js';
 import {
+    ADDITIONAL_DESCRIPTION_ATTRIBUTE,
     RawUsdaFoodArraySchema,
     RawUsdaFoodSchema,
     RawUsdaSearchResultSchema,
     type RawUsdaFood,
+    type RawUsdaFoodAttribute,
     type RawUsdaNutrient,
 } from './schemas.js';
+import { readRateLimitHeaders, type HeaderBag, type UsdaRateLimitSnapshot } from './rateLimit.js';
 import type { UsdaDataType, UsdaFoodDetail, UsdaNutrient, UsdaSearchHit, UsdaSearchResult } from './types.js';
+
+/**
+ * The base URL with any trailing slashes removed. Deliberately NOT `/\/+$/`: that regex backtracks
+ * quadratically over a long run of slashes (measured at 1.6s for 100k), which is `js/polynomial-redos`. A base
+ * URL comes from configuration rather than a request, so this is defence in depth, not a live exposure. Pure.
+ */
+function withoutTrailingSlashes(url: string): string {
+    let end = url.length;
+
+    while (end > 0 && url.charAt(end - 1) === '/') {
+        end -= 1;
+    }
+
+    return url.slice(0, end);
+}
+
+/**
+ * Rank an unranked alias after every ranked one, without letting the comparator see `Infinity` (which
+ * would make two unranked entries compare equal — fine — but also invites a `NaN` if the value is ever
+ * non-finite). USDA ranks are small positive integers.
+ */
+const UNRANKED = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Extract USDA's curated alternate names from a food-detail `foodAttributes[]` array, in USDA's own
+ * `rank` order. Pure.
+ *
+ * ⚠️ **The detail endpoints do NOT send `additionalDescriptions`.** That flat, `;`-joined field exists
+ * only on the search envelope (`SearchResultFood`). `GET /v1/food/{fdcId}` and `POST /v1/foods` carry the
+ * same knowledge as typed attributes — verified live on 2026-08-21 against fdcId 2705709, where the
+ * search hit reads `'Pioneer;New York;Tillamook;…'` and the detail response has no such key but eight
+ * `foodAttributeType.name = 'Additional Description'` entries. Since the persistence path
+ * (`UsdaSourceAdapter.fetchByKey`/`fetchByKeys`) reads DETAIL, parsing only the flat string would recover
+ * nothing while appearing to work.
+ *
+ * Only that one attribute type is admitted: the same array also carries `WWEIA Category description`
+ * (the food group) and `Adjustments` (moisture/fat notes), neither of which is a name for the food.
+ * Blank values are dropped rather than stored, so a food with nothing usable yields `[]` and persists
+ * as NULL downstream rather than an empty-string sentinel.
+ *
+ * @param attributes - The raw `foodAttributes` array (already shape-validated).
+ * @returns The trimmed alias values, ranked first and in input order thereafter.
+ */
+export function additionalDescriptionsOf(attributes: readonly RawUsdaFoodAttribute[]): string[] {
+    return (
+        attributes
+            .map((attribute, index) => ({ attribute, index }))
+            .filter(
+                ({ attribute }) =>
+                    (attribute.foodAttributeType?.name ?? '').trim().toLowerCase() === ADDITIONAL_DESCRIPTION_ATTRIBUTE,
+            )
+            .sort((left, right) => {
+                const byRank = (left.attribute.rank ?? UNRANKED) - (right.attribute.rank ?? UNRANKED);
+
+                // Input order is the tiebreak, so the sort is total and the output deterministic — `Array.sort`
+                // is stable in modern V8, but relying on that for a wire-derived array is an unstated premise.
+                return byRank !== 0 ? byRank : left.index - right.index;
+            })
+            // ⛔ String values ONLY. `value` is `string | number` on the wire (see `RawUsdaFoodAttributeSchema`),
+            // and a number is not a name for a food — coercing one would put `9` in the catalog as an alias.
+            // Dropping it here also keeps this pure function total: `.trim()` on a number is a TypeError.
+            .map(({ attribute }) => (typeof attribute.value === 'string' ? attribute.value.trim() : ''))
+            .filter((value) => value.length > 0)
+    );
+}
 
 /** Default USDA FoodData Central API base URL. */
 const DEFAULT_BASE_URL = 'https://api.nal.usda.gov/fdc/v1';
@@ -38,8 +106,8 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_BATCH_SIZE = 20;
 
 /**
- * Search page size. USDA defaults to 50, but the worker only ever batch-fetches the top {@link
- * MAX_BATCH_SIZE}; USDA returns hits in relevance order, so a smaller page yields the same top-N with a
+ * Search page size. USDA defaults to 50, but the worker only ever batch-fetches the top
+ * {@link MAX_BATCH_SIZE}; USDA returns hits in relevance order, so a smaller page yields the same top-N with a
  * much smaller payload. Set EXACTLY to the batch cap so the fan-out issues one search + ONE batch (=2 USDA
  * requests/food, not 3) — every extra hit would force a second batch POST that adds USDA load for no gain.
  */
@@ -55,6 +123,15 @@ export interface UsdaApiClientOptions {
     readonly fetchFn?: typeof fetch;
     /** Per-request timeout in milliseconds; defaults to {@link DEFAULT_TIMEOUT_MS}. */
     readonly timeoutMs?: number;
+    /**
+     * Observer for the `X-RateLimit-*` reading USDA returns on every response (U38). Invoked once per
+     * response — including a `429`, where the reading is most informative — and NOT invoked when USDA
+     * sent nothing readable.
+     *
+     * ⚠️ This package has no logger and no metrics sink by design (it is a third-party API client, not a
+     * service), so publishing the reading is the caller's job. `@kitchensink/food-service` wires it to EMF.
+     */
+    readonly onRateLimit?: (snapshot: UsdaRateLimitSnapshot) => void;
 }
 
 /** Typed client for the USDA FoodData Central REST API. */
@@ -63,15 +140,17 @@ export class UsdaApiClient {
     private readonly baseUrl: string;
     private readonly fetchFn: typeof fetch;
     private readonly timeoutMs: number;
+    private readonly onRateLimit: ((snapshot: UsdaRateLimitSnapshot) => void) | undefined;
 
     /**
-     * @param options - API key, optional base URL, injectable `fetch`, and timeout.
+     * @param options - API key, optional base URL, injectable `fetch`, timeout, and rate-limit observer.
      */
     public constructor(options: UsdaApiClientOptions) {
         this.apiKey = options.apiKey;
-        this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+        this.baseUrl = withoutTrailingSlashes(options.baseUrl ?? DEFAULT_BASE_URL);
         this.fetchFn = options.fetchFn ?? fetch;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+        this.onRateLimit = options.onRateLimit;
     }
 
     /**
@@ -159,6 +238,10 @@ export class UsdaApiClient {
         try {
             const response = await this.fetchFn(url, { ...init, signal: controller.signal });
 
+            // Read BEFORE the status is classified, so a 429 — the response whose reading matters most —
+            // is observed rather than thrown past.
+            this.observeRateLimit(response);
+
             if (!response.ok) {
                 if (response.status === 404) {
                     throw new UsdaNotFoundError(fdcId ?? 0);
@@ -191,6 +274,38 @@ export class UsdaApiClient {
             throw new UsdaTimeoutError('USDA request failed or timed out', error);
         } finally {
             clearTimeout(timeout);
+        }
+    }
+
+    /**
+     * Hand the response's `X-RateLimit-*` reading to the configured observer, when there is one and USDA
+     * reported something readable (U38).
+     *
+     * ⛔ The observer's own failure is swallowed on purpose. It is an observability sink — a metrics
+     * writer, a log line — and letting it throw would convert a USDA response we successfully received
+     * into a `UsdaTimeoutError`, i.e. make the act of measuring the quota a way to lose the call it was
+     * measuring. `request`'s catch-all sits directly above this, so an unguarded throw would be
+     * mis-classified rather than merely propagated.
+     *
+     * @param response - The response just received.
+     * @sideEffect Invokes the caller-supplied observer.
+     */
+    private observeRateLimit(response: Response): void {
+        if (this.onRateLimit === undefined) {
+            return;
+        }
+
+        // `fetch` is injectable, so `headers` is only as present as the caller's implementation makes it.
+        const snapshot = readRateLimitHeaders((response as { headers?: HeaderBag }).headers);
+
+        if (snapshot === undefined) {
+            return;
+        }
+
+        try {
+            this.onRateLimit(snapshot);
+        } catch {
+            // Deliberately ignored — see the docstring above.
         }
     }
 
@@ -235,6 +350,7 @@ export class UsdaApiClient {
             description: food.description,
             ...(food.dataType !== undefined ? { dataType: food.dataType as UsdaDataType } : {}),
             foodNutrients: nutrients,
+            additionalDescriptions: additionalDescriptionsOf(food.foodAttributes),
             ...(food.brandOwner !== undefined ? { brandOwner: food.brandOwner } : {}),
             ...(food.brandName !== undefined ? { brandName: food.brandName } : {}),
             ...(food.gtinUpc !== undefined ? { gtinUpc: food.gtinUpc } : {}),

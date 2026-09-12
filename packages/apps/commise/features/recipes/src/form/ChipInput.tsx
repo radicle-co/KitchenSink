@@ -10,8 +10,8 @@
  * only the in-progress DRAFT text is local UI state. Each entry commits ONE chip via the pure {@link addChip}
  * (trim + case-insensitive de-dupe), on Enter or comma; Backspace on an empty draft removes the last chip
  * (standard token-field affordance); every chip carries its own labelled remove control. No comma parsing —
- * a comma is a commit key, never split into the token. The native leaf is {@link
- * import('./ChipInput.native.js').ChipInput}; the two share this contract so the platforms cannot drift.
+ * a comma is a commit key, never split into the token. The native leaf is `ChipInput.native.tsx`; the two
+ * share this contract so the platforms cannot drift.
  */
 import type { FC, KeyboardEvent } from 'react';
 import { useState } from 'react';

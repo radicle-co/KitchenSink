@@ -1,12 +1,12 @@
 /**
  * @module @commise/features-recipes — native collection-detail view (T072 building block).
  *
- * The React Native leaf of {@link import('./CollectionDetail.js').CollectionDetail} — same presentational
+ * The React Native leaf of `CollectionDetail` — same presentational
  * contract: the MEMBER LIST ("Recipes" section, add control, member recipe rows — each a
  * {@link CollectionMemberRow} (W5 Task 9, C3), which composes the shared `RecipeCard` with its
  * source-indicator and remove control) plus an empty state and the B17 error banner. Rendered with RN
  * primitives. The header zone (name/rename/delete/provenance/back) is owned by the sibling
- * {@link import('./CollectionHeader.native.js').CollectionHeader} (W5 Task 6), composed above this block by
+ * `CollectionHeader` (W5 Task 6), composed above this block by
  * the screen (W5 Task 12) — this view holds no header of its own, so the surface renders exactly ONE header.
  *
  * Member-list windowing (W5/C7): the detail embed returns EVERY member in one round trip (no
@@ -32,10 +32,12 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     onRemoveRecipe,
     onAddRecipe,
     error,
+    renderNutrition,
 }) => {
     const { detail } = useMessages(collectionMessages);
     const [revealCount, setRevealCount] = useState(MEMBER_WINDOW_SIZE);
-    const recipes = collection.recipes ?? [];
+    // See the web leaf: `recipes` is REQUIRED on the published response, so the `?? []` here guarded nothing.
+    const recipes = collection.recipes;
     const visibleRecipes = recipes.slice(0, revealCount);
     const remainingCount = recipes.length - visibleRecipes.length;
     // B17 — a failed delete/remove is a mandated UI state, never a frozen no-op. Resolve the container's error
@@ -75,6 +77,10 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                             member={recipe}
                             onSelect={onSelectRecipe}
                             onRemove={onRemoveRecipe}
+                            // ONE promise, N slots. The host batches EVERY member, not just the revealed
+                            // window: revealing more rows must not mint a new batch and blink the figures
+                            // already on screen back to skeletons.
+                            nutrition={renderNutrition?.(recipe.id)}
                         />
                     ))}
                     {remainingCount > 0 && (

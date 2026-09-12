@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Component tests for the web {@link RecentRecipeGrid} — the Home "Recent recipes" card GRID (mockup
- * `screen-home`: `grid grid-cols-2 md:grid-cols-4 gap-4`, each cell a tappable card through to the recipe).
+ * `screenHome`: `grid grid-cols-2 md:grid-cols-4 gap-4`, each cell a tappable card through to the recipe).
  *
  * Covers EVERY state of this render leaf: populated (one card per recipe, in order), empty (a list with no
  * items — never a fabricated placeholder card), selectable (a card reports ITS OWN id, not a neighbour's) and

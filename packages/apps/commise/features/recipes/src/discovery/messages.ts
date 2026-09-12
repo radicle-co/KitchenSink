@@ -13,6 +13,8 @@ import type { LocalizedMessages } from '@commise/i18n';
 export interface DiscoveryMessages {
     /** Page/section heading for the discovery surface. */
     readonly heading: string;
+    /** Accessible name of the region holding the results (or the rails) under the frame. */
+    readonly resultsLabel: string;
     /** Accessible name for the search field. */
     readonly searchLabel: string;
     /** Placeholder shown inside the search field. */
@@ -27,6 +29,10 @@ export interface DiscoveryMessages {
     readonly loadMore: string;
     /** Visible label for the load-more button while the next page is loading (S4). */
     readonly loadingMore: string;
+    /** Announced beside the load-more button when the next page fails; the loaded results stay (S4). */
+    readonly loadMoreError: string;
+    /** The notice when refreshing the search results already on screen fails. */
+    readonly refreshError: string;
     /** Accessible name for the sort control (S3). */
     readonly sortLabel: string;
     /** Visible label for the Relevance sort. */
@@ -83,6 +89,8 @@ export interface DiscoveryMessages {
     readonly railEmpty: string;
     /** Shown inside a rail that failed to load. */
     readonly railError: string;
+    /** The notice when refreshing the rails already on screen fails. */
+    readonly railsRefreshError: string;
     /** Visible label of the "back to browse" action shown after a rail's see-all. */
     readonly backToBrowse: string;
     /** Accessible name + visible title of the recent-searches panel (U7). */
@@ -98,6 +106,7 @@ export interface DiscoveryMessages {
 export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
     en: {
         heading: 'Discover recipes',
+        resultsLabel: 'Search results',
         searchLabel: 'Search public recipes',
         searchPlaceholder: 'Search public recipes...',
         countOne: '{count} recipe',
@@ -105,6 +114,8 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         resultsForQuery: 'Showing {count} for “{query}”',
         loadMore: 'Load more',
         loadingMore: 'Loading…',
+        loadMoreError: 'We couldn’t load more recipes.',
+        refreshError: 'We couldn’t refresh these results.',
         sortLabel: 'Sort by',
         sortRelevance: 'Relevance',
         sortNewest: 'Newest',
@@ -133,6 +144,7 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         cuisineShortcutLabel: 'Browse {cuisine} recipes',
         railEmpty: 'Nothing here yet.',
         railError: 'Couldn’t load this row.',
+        railsRefreshError: 'We couldn’t refresh these recipes.',
         backToBrowse: 'Back to browse',
         recentSearchesLabel: 'Recent searches',
         recentSearchLabel: 'Search for “{query}”',

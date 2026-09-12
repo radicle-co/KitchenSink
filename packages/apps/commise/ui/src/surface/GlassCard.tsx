@@ -6,6 +6,9 @@
  * NOT a hardcoded assumption — `blurSupported` defaults to the host capability probe ({@link isBlurSupported})
  * and a caller may override it; when it is `false` the card renders the readable solid surface with no blur.
  * Layout is the consumer's via `className`.
+ *
+ * @pattern Strategy over one capability probe — `blurSupported` selects the translucent surface or the opaque
+ *     `fallback`, both projected from the single-source `glass` tokens rather than assumed.
  */
 import type { CSSProperties, FC } from 'react';
 

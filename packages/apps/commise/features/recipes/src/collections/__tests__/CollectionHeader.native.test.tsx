@@ -5,6 +5,7 @@
  * Edit/Delete affordances — so the two platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AccessibilityInfo } from 'react-native';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
@@ -15,6 +16,13 @@ import { tintOf } from '../../__tests__/cssColor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionHeader } from '../CollectionHeader.native.js';
 import type { CollectionHeaderViewProps } from '../model.js';
+
+// react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+});
 
 afterEach(cleanup);
 
@@ -183,7 +191,7 @@ function appliedStyle(element: Element, property: string): string | undefined {
 }
 
 /**
- * Regression (Maestro `collections` / `collections-pagination`): the title row is
+ * Regression (Maestro `collections` / `collectionsPagination`): the title row is
  * `[name][Rename][Delete]` at `justifyContent: 'space-between'`, and React Native's default `flexShrink`
  * is 0 — so a long collection name took its full intrinsic width and pushed the action group off the
  * right edge. On-device, "Rename" was clipped to a 33px slither at x=1047..1080 and **"Delete" was not in
@@ -210,5 +218,57 @@ describe('CollectionHeader (native) — title row cannot squeeze its actions off
 
         expect(actions).not.toBeNull();
         expect(appliedStyle(actions as Element, 'flex-shrink')).toBe('0');
+    });
+});
+
+describe('CollectionHeader (native) — a failed refresh of what is on screen', () => {
+    const notice = (
+        overrides: Partial<{ failed: boolean; refreshing: boolean; recoveries: number; onRetry: () => void }> = {},
+    ) => ({
+        failed: false,
+        refreshing: false,
+        onRetry: () => undefined,
+        recoveries: 0,
+        ...overrides,
+    });
+
+    function viewWith(refreshNotice: ReturnType<typeof notice>) {
+        return (
+            <CollectionHeader
+                name="Keto Week"
+                visibility="public"
+                recipeCount={8}
+                onEdit={noop}
+                onDelete={noop}
+                refreshNotice={refreshNotice}
+            />
+        );
+    }
+
+    it('shows no notice while nothing has failed', () => {
+        render(viewWith(notice()));
+
+        expect(screen.queryByText('We couldn’t refresh this collection.')).toBeNull();
+    });
+
+    it('⛔ keeps what is shown and says the refresh failed, with a Try again that retries', () => {
+        const onRetry = vi.fn();
+        render(viewWith(notice({ failed: true, onRetry })));
+
+        expect(screen.getByRole('heading', { name: 'Keto Week' })).toBeTruthy();
+        expect(screen.getAllByText('We couldn’t refresh this collection.').length).toBeGreaterThan(0);
+        screen.getByRole('button', { name: 'Try again' }).click();
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ moves focus to the title when a retry from the notice succeeds, since its button is gone', () => {
+        const { rerender } = render(viewWith(notice({ failed: true })));
+
+        rerender(viewWith(notice({ recoveries: 1 })));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('heading', { name: 'Keto Week' }),
+            'focus',
+        );
     });
 });

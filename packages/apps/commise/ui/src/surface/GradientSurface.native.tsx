@@ -5,6 +5,9 @@
  * (`toNativeGradient`) to the `colors`/`locations`/`start`/`end` the library consumes, so the native and
  * web (`linear-gradient`) legs paint the identical brand gradient. Presentational and static (a gradient
  * background carries no motion), so there is nothing to gate on reduced motion.
+ *
+ * @pattern Adapter projecting the same single-source `gradient` spec onto `expo-linear-gradient`'s
+ *     `colors`/`locations`/`start`/`end`, so both legs paint the identical brand gradient from one definition.
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import type { FC } from 'react';

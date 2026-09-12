@@ -511,8 +511,11 @@ Stores the raw ingredient data as authored in a recipe:
 ```sql
 CREATE TABLE recipe_ingredients (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  recipe_id   UUID NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
-  food_id     UUID REFERENCES foods(id),  -- nullable; links to USDA FDC (003)
+  recipe_id   UUID NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,  -- local: same database
+  food_id     TEXT,                       -- nullable OPAQUE reference to the food service's ULID (003).
+                                          -- Corrected 2026-08-16: shipped as `text('food_id')` with NO FK
+                                          -- (`database/schema/ingredients.ts`). Was written here as
+                                          -- `UUID REFERENCES foods(id)` — wrong type AND a cross-database FK.
   name        TEXT NOT NULL,              -- raw string: "all-purpose flour"
   quantity    NUMERIC,                    -- 2.5
   unit        TEXT,                       -- "cups"
@@ -526,8 +529,8 @@ CREATE TABLE recipe_ingredients (
 ```sql
 CREATE TABLE grocery_lists (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  meal_plan_id    UUID REFERENCES meal_plans(id) ON DELETE SET NULL,
+  owner_id        VARCHAR(255) NOT NULL,  -- app-user ULID from the token claim; NO FK (no local users table)
+  meal_plan_id    UUID,                  -- 006 owns meal_plans in kitchensink_meal_plans — NO FK
   name            TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'active'  -- 'active' | 'ordered' | 'completed' | 'archived'
   date_range_start DATE,
@@ -538,8 +541,8 @@ CREATE TABLE grocery_lists (
 
 CREATE TABLE grocery_list_items (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  grocery_list_id     UUID NOT NULL REFERENCES grocery_lists(id) ON DELETE CASCADE,
-  food_id             UUID REFERENCES foods(id),   -- nullable; from USDA FDC (003)
+  grocery_list_id     UUID NOT NULL REFERENCES grocery_lists(id) ON DELETE CASCADE,  -- local
+  food_id             TEXT,                        -- nullable opaque food-service ULID (003); NO FK
   canonical_name      TEXT NOT NULL,               -- normalized: "all-purpose flour"
   display_name        TEXT NOT NULL,               -- user-facing: "All-Purpose Flour"
   quantity            NUMERIC,                     -- aggregated: 3.5
@@ -558,13 +561,34 @@ CREATE TABLE grocery_list_items (
 -- Track which recipe_ingredients contributed to each grocery_list_item
 CREATE TABLE grocery_list_item_sources (
   grocery_list_item_id  UUID NOT NULL REFERENCES grocery_list_items(id) ON DELETE CASCADE,
-  recipe_ingredient_id  UUID NOT NULL REFERENCES recipe_ingredients(id) ON DELETE CASCADE,
-  meal_slot_id          UUID NOT NULL REFERENCES meal_slots(id) ON DELETE CASCADE,
+  recipe_ingredient_id  UUID NOT NULL REFERENCES recipe_ingredients(id) ON DELETE CASCADE,  -- local: 007 shares
+                                                                                            -- kitchensink_recipes
+  meal_plan_entry_id    UUID NOT NULL,   -- 006's entry, in kitchensink_meal_plans — NO FK
+  meal_slot             TEXT NOT NULL,   -- 'breakfast' | 'lunch' | 'dinner' | 'snack'
   contributed_quantity  NUMERIC,
   contributed_unit      TEXT,
-  PRIMARY KEY (grocery_list_item_id, recipe_ingredient_id, meal_slot_id)
+  PRIMARY KEY (grocery_list_item_id, recipe_ingredient_id, meal_plan_entry_id)
 );
 ```
+
+⛔ **Corrected 2026-08-16 — three defects in the block above, kept visible because each would have shipped a
+migration that cannot apply.**
+
+1. **`meal_slot_id UUID REFERENCES meal_slots(id)` referenced a table that does not exist.** 006 has no
+   `meal_slots` table; `meal_slot` is a `text` column on `meal_plan_entries`, constrained to four values. The
+   grain 007 actually needs is the **entry**, so the column is now `meal_plan_entry_id` with the slot carried
+   alongside for display.
+2. **Every FK to `users`, `foods` and `meal_plans` crossed a database boundary.** 007 lives in
+   `@kitchensink/recipe-service` / `kitchensink_recipes` (ADR-0017); `users` is the identity database, `foods`
+   is `kitchensink_food`, and `meal_plans` moved to `kitchensink_meal_plans` when 006 was extracted on
+   2026-08-14. Postgres cannot enforce any of them. Same rule as 006's **C-006-002** / **REQ-CN-003**.
+3. **`user_id UUID` was the wrong type.** The app-user identifier is a **ULID** stored as `VARCHAR(255)`, as
+   `recipes.owner_id` already does. Dropping the FK without fixing the type leaves a second, silent
+   incompatibility.
+
+**What survives, and why it is not the same case:** `recipes(id)` and `recipe_ingredients(id)` are in
+`kitchensink_recipes` **with** 007, so those FKs are real and stay. That is the one thing ADR-0017's placement
+of 007 buys, and it is worth stating explicitly so a later reader does not strip them along with the rest.
 
 ### Key Differences from `recipe_ingredients`
 

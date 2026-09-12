@@ -45,17 +45,12 @@
  *
  * Pure: no I/O, and neither `base` nor `target` (nor their nested arrays) is ever mutated.
  */
+import { quantitiesEqual } from '@kitchensink/recipe-core';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep } from '@kitchensink/recipe-core';
 
 /** The `RecipeSnapshot` fields this module diffs — every field except `version` (see module docs). */
 export type SnapshotFieldKey =
-    | 'title'
-    | 'description'
-    | 'servings'
-    | 'prepTimeMinutes'
-    | 'cookTimeMinutes'
-    | 'steps'
-    | 'ingredients';
+    'title' | 'description' | 'servings' | 'prepTimeMinutes' | 'cookTimeMinutes' | 'steps' | 'ingredients';
 
 /** Added/removed/modified tallies for one collection (steps, ingredients, or the overall summary). Exported
  *  so consumers (e.g. the W6 Task 4 compare view's per-collection tally) can type against it directly rather
@@ -104,7 +99,7 @@ const hasChanges = (tally: DiffTally): boolean => tally.added > 0 || tally.remov
 /**
  * Whether two steps AT THE SAME POSITION carry different authored content. Compares `instruction` and
  * `timerSeconds` only — `id`/`recipeId`/`stepNumber` are structural/regenerated, not authored content. Pure.
- * Exported so the W7 three-way {@link ../conflictDiff.js!computeConflictDiff} can reuse this SAME
+ * Exported so the W7 three-way `computeConflictDiff` (`../conflictDiff.ts`) can reuse this SAME
  * authored-content comparison rather than re-deriving it — one authoritative definition of "changed" per
  * step, so the two-way and three-way diffs can never disagree.
  */
@@ -138,7 +133,7 @@ const diffSteps = (base: readonly RecipeStep[], target: readonly RecipeStep[]): 
 };
 
 /** The stable cross-version ingredient identity — the canonical catalog ingredient reference (see module docs).
- *  Exported for reuse by the W7 three-way {@link ../conflictDiff.js!computeConflictDiff} (see {@link stepContentChanged}
+ *  Exported for reuse by the W7 three-way `computeConflictDiff` (`../conflictDiff.ts`) (see {@link stepContentChanged}
  *  for why reuse, not re-derivation, matters here). */
 export const ingredientIdentity = (ingredient: RecipeIngredient): string => ingredient.ingredientId;
 
@@ -148,9 +143,22 @@ export const ingredientIdentity = (ingredient: RecipeIngredient): string => ingr
  * Pure. Exported for reuse — see {@link stepContentChanged}.
  */
 export const ingredientContentChanged = (base: RecipeIngredient, target: RecipeIngredient): boolean =>
-    base.quantity !== target.quantity ||
+    // ⛔ NOT `base.quantity !== target.quantity`. Since U8 a quantity is a value OBJECT, and `!==` on an
+    // object is REFERENCE identity — it is `true` for every pair of separately-parsed snapshots, so every
+    // ingredient of every version would have read as modified. `quantitiesEqual` is the value object's own
+    // identity, and it is also what makes an upper-bound-only edit visible: this function is a POSITIVE
+    // field-by-field enumeration, so a newly-modelled part of a quantity is invisible to it by construction
+    // and nothing would fail to compile.
+    !quantitiesEqual(base.quantity, target.quantity) ||
     base.unit !== target.unit ||
     base.displayText !== target.displayText ||
+    // ⛔ U26/U27 — the same trap the comment above names, one migration later. A preparation-only or
+    // section-only edit is content a cook made and will look for in the history; left out here, the version
+    // screen reports "no changes" for it. And `computeConflictDiff` REUSES this predicate, so the three-way
+    // merge would inherit the lie — a concurrent edit to a preparation would read as no conflict at all and
+    // one side's value would be dropped without anyone being asked.
+    base.preparation !== target.preparation ||
+    base.groupLabel !== target.groupLabel ||
     base.sortOrder !== target.sortOrder ||
     base.ingredientName !== target.ingredientName ||
     base.isUserEntered !== target.isUserEntered ||

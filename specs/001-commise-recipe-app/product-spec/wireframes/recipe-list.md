@@ -92,6 +92,27 @@
 - Pull-to-refresh → reload list with latest data
 - Tap "+" FAB → navigate to [recipe-edit.md](./recipe-edit.md) (new recipe)
 
+## Loading State
+
+- **When:** the first load of the library, with nothing to show yet.
+- **Shown:** the heading, the source tabs and the search field stay on screen and usable. Only the results area shows the card skeleton, captioned "Loading recipes" (`list.loadingLabel`). No filter chips (they come from the loaded recipes) and **no create dial** — until the library answers, the app cannot tell whether it is empty, and an empty library shows its own create button instead.
+- **Behaviour:** the caption announces politely. The skeleton does not animate for anyone who has asked for reduced motion.
+- **Authority:** `docs/CODING_STANDARDS.md` §11.0 — the pending read suspends the results only, never the heading, tabs or search.
+
+## Load Error State
+
+- **When:** the first load fails, with nothing to show.
+- **Shown:** the heading, tabs and search stay. The results area is replaced by the error message and **Try again**. On **My Recipes** the create dial **still shows**: creating a recipe does not depend on this read, and a true-empty library cannot be detected here, so no empty-state create button replaces it. Hiding it would leave Try again as the only action. Never on **Community**.
+- **Behaviour:** the error is announced as an alert. Focus stays where it was. After a successful Try again, the loaded results replace the error in place.
+- **Build note:** the dial belongs to the results area, so the load-error body (`RecipeListLoadError`) renders it explicitly — unconditionally, because this list is only ever the **My Recipes** source (Community is the discovery surface, which has no dial). The loading body (`RecipeListLoading`) never renders it.
+
+## Refresh Failure State
+
+- **When:** a refresh fails while recipes are on screen — pull-to-refresh on mobile, or a focus/reconnect refresh on either platform.
+- **Shown:** the recipes stay, and an inline notice above the list reads "We couldn’t refresh your recipes." with **Try again**. The load-error state above is only for a load that failed with nothing to show. It replaces the results area, not the page.
+- **Behaviour:** the notice announces politely, keeps its button (busy) while any retry runs, and clears on the next successful refresh. When its own Try again succeeds, focus moves to the page heading.
+- **Authority:** `docs/CODING_STANDARDS.md` §11.0.
+
 ## FR Annotation Summary
 
 | Element                        | FR              |

@@ -50,7 +50,10 @@ export interface RecipePhotoManagerProps {
     readonly queueItems?: readonly RecipePhotoQueueItem[];
     /** Retry a failed queue item (the container re-drives that file's upload). */
     readonly onRetryQueueItem?: (fileId: number) => void;
-    /** Remove a queued/failed queue item from the grid (never a confirmed photo — use `onRemovePhoto`). */
+    /**
+     * Remove a queued/failed queue item from the grid (never a confirmed photo — use `onRemovePhoto`). When absent,
+     * queue cells offer no Remove at all.
+     */
     readonly onRemoveQueueItem?: (fileId: number) => void;
     /**
      * Make the photo with this id the recipe's cover (U6). The cover is NOT a stored boolean: the server
@@ -58,7 +61,7 @@ export interface RecipePhotoManagerProps {
      * chosen id to index 0 — the container runs `reorderRecipePhotos` and the projection refetch reprojects
      * the new cover into `photos[0]` (and into every `RecipeCard.Cover`). Because index 0 is always the cover,
      * the cover DEFAULTS to the first photo with no explicit selection, and removing the current cover
-     * promotes the next photo automatically. Omitted (never passed `undefined`, per exactOptionalPropertyTypes)
+     * promotes the next photo automatically. Omitted (never passed `undefined`, per the §6 convention)
      * on a surface that does not offer cover selection — the manager then renders neither the badge nor the
      * radios.
      */
@@ -100,3 +103,41 @@ export const isAtPhotoCap = (photoCount: number): boolean => photoCount >= MAX_R
 /** The in-flight queue items actually worth a grid cell — `ok` items are folded into `photos` (see above). */
 export const visibleQueueItems = (items: readonly RecipePhotoQueueItem[]): readonly RecipePhotoQueueItem[] =>
     items.filter((item) => item.status !== 'ok');
+
+/**
+ * How many more photos a recipe may take: the cap, less the photos it holds, less every queue item still holding
+ * a grid cell (queued, uploading or failed — an `ok` item is already counted in `heldCount` once the refetch
+ * lands, see {@link visibleQueueItems}).
+ *
+ * ⛔ The ONE statement of the queue's ADMISSION rule — what `useRecipePhotoUploadQueue.enqueue` judges a batch against,
+ * and what the create containers derive their draft capacity from. It used to be written three times (the queue's own
+ * slice and inline in both create containers), and the web edit container applied none, which is how a multi-file pick
+ * past the cap was silently truncated. The manager leaves' "hide the add control" check and mobile's replace gate still
+ * ask {@link isAtPhotoCap} of their own counts (mobile's adds pending drafts, which the queue never sees): those are
+ * presentation questions over the same constant, not a second admission rule. The server enforces `MAX_PHOTOS_EXCEEDED` independently; this is the client's policy,
+ * not the authority.
+ *
+ * @param heldCount - Photos the recipe already has (confirmed, or held in a draft).
+ * @param queueItems - The upload queue's current items.
+ * @returns The remaining slots, never below zero. Pure.
+ */
+export const remainingPhotoSlots = (heldCount: number, queueItems: readonly RecipePhotoQueueItem[]): number =>
+    Math.max(0, MAX_RECIPE_PHOTOS - heldCount - visibleQueueItems(queueItems).length);
+
+/**
+ * The verdict on a batch of photos offered to the upload queue. A batch is admitted WHOLE or refused whole —
+ * never truncated — and a refusal carries how many would have fit, so the caller can say so.
+ */
+export type RecipePhotoAdmission =
+    { readonly status: 'accepted' } | { readonly status: 'overCap'; readonly remaining: number };
+
+/**
+ * Decide whether a batch of `requested` photos fits in `remaining` slots (Specification — the admission policy).
+ *
+ * @param remaining - Slots left, from {@link remainingPhotoSlots}.
+ * @param requested - How many photos the batch carries.
+ * @returns `accepted` when the whole batch fits (an empty batch always does), else `overCap` with `remaining`.
+ *   Pure.
+ */
+export const admitPhotoBatch = (remaining: number, requested: number): RecipePhotoAdmission =>
+    requested > remaining ? { status: 'overCap', remaining } : { status: 'accepted' };

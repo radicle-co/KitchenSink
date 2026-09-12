@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-recipes/form/ChipInput — native token (chip) input for the recipe form's tags +
- * dietary-flags fields (U6). The React Native leaf of {@link import('./ChipInput.js').ChipInput} — same
+ * dietary-flags fields (U6). The React Native leaf of `ChipInput` — same
  * controlled contract and same pure transitions ({@link addChip}/{@link removeChipAt}), RN primitives.
  * Replaces the old single comma-separated `TextInput` (`values.tags.join(', ')` → `parseCommaList`): the
  * committed chips live in the form's `values`, only the in-progress draft is local state, and each entry

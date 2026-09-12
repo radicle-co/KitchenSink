@@ -4,22 +4,26 @@
  * navigation stack and composes the per-screen containers, with the three top-level destinations under a
  * persistent tab bar. These tests exercise the navigation transitions end to end (the per-screen behaviour is
  * covered by each screen's own test), so the hooks are mocked only enough to render each destination.
+ *
+ * The list, detail and collections destinations are SUSPENSE reads, so every render goes through a real query cache
+ * SEEDED with their settled data (`renderScreen`). Without one each read threw "No QueryClient set" into its screen's
+ * error boundary, and the chrome-only assertions kept passing over a destination that had crashed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
 
 import { compositeOver, computedContrast, contrastRatio } from '@commise/test-utils';
 import { palette } from '@commise/ui';
+import { collectionQueries, recipeQueries, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
-    useCollectionsInfinite,
     useCreateIngredient,
     useCreateRecipe,
     useDeleteRecipe,
     useDeleteRecipeRating,
     useInfiniteSearchRecipes,
-    useRecipe,
-    useRecipes,
     useSearchIngredients,
     useSetRecipeRating,
     useSetRecipeVisibility,
@@ -35,9 +39,36 @@ import {
     makeSearchResponse,
 } from '../__fixtures__/recipes.js';
 
+/**
+ * The client every suspense read builds its query from. Its reads never answer: each destination renders from the
+ * seeded cache, so a read that reached the network would be a destination reading a key the seed does not cover.
+ */
+const { serviceClient } = vi.hoisted(() => ({
+    serviceClient: {
+        // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+        emitAnalyticsEvents: async () => undefined,
+        listRecipes: () => new Promise(() => undefined),
+        getRecipeById: () => new Promise(() => undefined),
+        listCollections: () => new Promise(() => undefined),
+    },
+}));
+
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useRecipes: vi.fn(),
-    useRecipe: vi.fn(),
+    useRecipeServiceClient: () => serviceClient,
+    // U33 — the create screen now composes the real photo surface (a pick lands in the draft and flushes
+    // once the recipe has an id), so its hooks must exist even though this suite never picks a file.
+    useRecipePhotos: () => ({ data: [], isLoading: false, isError: false }),
+    useCreatePhotoUploadUrl: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
+    useConfirmPhotoUpload: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
+    useDeleteRecipePhoto: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
+    useReorderRecipePhotos: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
+    // Plan U9 — the parse surfaces the dial's second destination opens. Inert defaults: this suite drives
+    // NAVIGATION to and from those screens, never a parse job, so the create never fires and the poll stays
+    // disabled on an empty id.
+    useCreateParseJob: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
+    useParseJob: () => ({ data: undefined, error: undefined, fetchStatus: 'idle', isLoading: false }),
+    useRetryParseJob: () => ({ mutate: () => undefined, isPending: false, error: undefined }),
+    useEditParseJobLine: () => ({ mutate: () => undefined, isPending: false, error: undefined, variables: undefined }),
     useDeleteRecipe: vi.fn(),
     useSetRecipeVisibility: vi.fn(),
     useCloneRecipe: vi.fn(),
@@ -56,7 +87,6 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
     useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
     useInfiniteSearchRecipes: vi.fn(),
-    useCollectionsInfinite: vi.fn(),
     useSetRecipeRating: vi.fn(),
     useDeleteRecipeRating: vi.fn(),
 }));
@@ -73,8 +103,24 @@ vi.mock('react-native-safe-area-context', () => ({
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
 
-const useRecipesMock = vi.mocked(useRecipes);
-const useRecipeMock = vi.mocked(useRecipe);
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
+}));
+
+/** The request cache each test renders over, seeded with every suspense destination's settled data. */
+let queryClient: QueryClient;
+
+/** The typed view of the stub the queries are built from — only the read methods are ever called. */
+const client = serviceClient as unknown as RecipeServiceClient;
+
+function renderScreen(ui: ReactElement) {
+    return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 /** A query-result double (only the fields the screens read); cast to the concrete hook's result type. */
 function query<T>(overrides: Record<string, unknown> = {}): T {
@@ -94,16 +140,20 @@ function mutation<T>(overrides: Record<string, unknown> = {}): T {
 afterEach(cleanup);
 
 beforeEach(() => {
-    vi.mocked(useRecipes).mockReturnValue(
-        query<ReturnType<typeof useRecipes>>({
-            data: makeRecipePage([makeRecipe({ id: 'rec_2', title: 'Fish Tacos' })]),
-        }),
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    queryClient.setQueryData(
+        recipeQueries(client).list().queryKey,
+        makeRecipePage([makeRecipe({ id: 'rec_2', title: 'Fish Tacos' })]),
     );
-    vi.mocked(useRecipe).mockReturnValue(
-        query<ReturnType<typeof useRecipe>>({
-            data: makeRecipeDetail({ id: 'rec_2', title: 'Fish Tacos', description: 'Bright and zesty.' }),
-        }),
+    // ONLY rec_2's detail is seeded: a detail screen that read any other id would stay pending and never show it.
+    queryClient.setQueryData(
+        recipeQueries(client).detail('rec_2').queryKey,
+        makeRecipeDetail({ id: 'rec_2', title: 'Fish Tacos', description: 'Bright and zesty.' }),
     );
+    queryClient.setQueryData(collectionQueries(client).listInfinite().queryKey, {
+        pages: [makeCollectionPage([])],
+        pageParams: [1],
+    });
     vi.mocked(useDeleteRecipe).mockReturnValue(mutation<ReturnType<typeof useDeleteRecipe>>());
     vi.mocked(useSetRecipeVisibility).mockReturnValue(mutation<ReturnType<typeof useSetRecipeVisibility>>());
     vi.mocked(useCloneRecipe).mockReturnValue(mutation<ReturnType<typeof useCloneRecipe>>());
@@ -122,25 +172,21 @@ beforeEach(() => {
             fetchNextPage: vi.fn(),
         }),
     );
-    vi.mocked(useCollectionsInfinite).mockReturnValue(
-        query<ReturnType<typeof useCollectionsInfinite>>({ data: { pages: [makeCollectionPage([])] } as never }),
-    );
     vi.mocked(useUserProfile).mockReturnValue({ data: undefined } as unknown as ReturnType<typeof useUserProfile>);
 });
 
 describe('RecipesScreen — navigation', () => {
     it('starts on the my-recipes list', () => {
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
     });
 
     it('opens the detail for the selected recipe and returns to the list on back', () => {
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Fish Tacos' }));
 
-        expect(useRecipeMock).toHaveBeenCalledWith('rec_2');
         expect(screen.getByText('Bright and zesty.')).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'Recipes' })).toBeNull();
 
@@ -155,15 +201,14 @@ describe('RecipesScreen — navigation', () => {
      * dead-ending, matching what `RecipeCreateScreen`'s `onCreated` already does.
      */
     it('opens straight into the detail for initialRecipeId', () => {
-        render(<RecipesScreen initialRecipeId="rec_2" />);
+        renderScreen(<RecipesScreen initialRecipeId="rec_2" />);
 
-        expect(useRecipeMock).toHaveBeenCalledWith('rec_2');
         expect(screen.getByText('Bright and zesty.')).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'Recipes' })).toBeNull();
     });
 
     it('leaves the recipe list beneath the seeded detail, so Back does not dead-end', () => {
-        render(<RecipesScreen initialRecipeId="rec_2" />);
+        renderScreen(<RecipesScreen initialRecipeId="rec_2" />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
@@ -171,24 +216,62 @@ describe('RecipesScreen — navigation', () => {
     });
 
     it('still starts on the list when no initialRecipeId is given', () => {
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         // Guards the default: seeding unconditionally would send every recipes-tab entry to a detail.
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.queryByText('Bright and zesty.')).toBeNull();
     });
 
-    it('opens the create screen from the list create action', () => {
-        render(<RecipesScreen />);
+    it('opens the create screen from the create dial’s ONE destination', () => {
+        // REWRITTEN for U34 (owner ruling 2026-08-25): the list's pinned FAB is now a menu TRIGGER, so the
+        // create screen is reached from "Create from Scratch". Asserting that opening the dial alone
+        // navigates NOWHERE is what stops this passing against a dial wired to nothing — the accepted +1 tap
+        // is precisely the behaviour under test.
+        renderScreen(<RecipesScreen />);
+        // From the SETTLED list: the load-error branch mounts the same dial, so without this the test would pass over a
+        // list that failed to load.
+        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(screen.queryByLabelText('Title')).toBeNull();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
 
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.getByText('Step 1 of 4')).toBeTruthy();
     });
 
+    it('opens the PASTE screen from the dial’s second destination (plan U9)', () => {
+        renderScreen(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
+
+        expect(screen.getByText('Paste your ingredients')).toBeTruthy();
+    });
+
+    it('⛔ leaves the paste screen by its back control — a pushed surface has no chrome behind it', () => {
+        // THE REGRESSION GUARD FOR A REAL DEFECT. These two surfaces shipped with no back seam at all:
+        // `isTab({id:'parse'})` is false so no tab bar renders, `AppRoot` renders this screen bare, and iOS
+        // has no hardware back — so a cook who opened the paste screen could not leave it without creating
+        // a job. Every sibling pushed screen already takes this seam; these two did not, and no test in this
+        // file covered their navigation, which is why it shipped.
+        renderScreen(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
+        expect(screen.getByText('Paste your ingredients')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to recipes' }));
+
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+        expect(screen.queryByText('Paste your ingredients')).toBeNull();
+    });
+
     it('switches to the discover tab', () => {
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         fireEvent.click(screen.getByRole('tab', { name: 'Discover' }));
 
@@ -196,7 +279,7 @@ describe('RecipesScreen — navigation', () => {
     });
 
     it('keeps the SELECTED tab’s label WCAG-AA legible on its own fill', () => {
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         // The selected tab now paints a white "front folder" fill; seafoam-as-label scored 3.73:1 on the
         // screen's sand, under the 4.5:1 body floor (SC 1.4.3), which is why the label is `ocean-dark`. The
@@ -214,7 +297,7 @@ describe('RecipesScreen — navigation', () => {
         // visible folder (fill + hairline), from the SAME shared `RecipeSourceTab` the web strip mirrors, and
         // both halves are measured rather than spelled: the label owes 4.5:1 (SC 1.4.3) on that fill and the
         // hairline, being the control's boundary, owes 3:1 (SC 1.4.11) against it.
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         const inactive = screen.getByRole('tab', { name: 'Discover' });
         const style = window.getComputedStyle(inactive);
@@ -232,14 +315,14 @@ describe('RecipesScreen — navigation', () => {
     });
 
     it('marks the active destination as the selected tab', () => {
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         expect(screen.getByRole('tab', { name: 'My recipes' }).getAttribute('aria-selected')).toBe('true');
         expect(screen.getByRole('tab', { name: 'Discover' }).getAttribute('aria-selected')).not.toBe('true');
     });
 
     it('gives the top-level tabs a 44pt touch target (U4 / RC-3)', () => {
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         for (const tab of screen.getAllByRole('tab')) {
             expect(window.getComputedStyle(tab).minHeight).toBe('44px');
@@ -247,16 +330,33 @@ describe('RecipesScreen — navigation', () => {
     });
 
     it('switches to the collections tab', () => {
-        render(<RecipesScreen />);
+        renderScreen(<RecipesScreen />);
 
         fireEvent.click(screen.getByRole('tab', { name: 'Collections' }));
 
         expect(screen.getByRole('heading', { name: 'Collections' })).toBeTruthy();
     });
 
-    it('keeps the list query bound to the source of truth', () => {
-        render(<RecipesScreen />);
+    it('keeps the list bound to the source of truth — a cache update reaches the rows', async () => {
+        renderScreen(<RecipesScreen />);
 
-        expect(useRecipesMock).toHaveBeenCalled();
+        await act(async () => {
+            queryClient.setQueryData(
+                recipeQueries(client).list().queryKey,
+                makeRecipePage([makeRecipe({ id: 'rec_3', title: 'Lentil Soup' })]),
+            );
+        });
+
+        expect(await screen.findByRole('button', { name: 'Lentil Soup' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Fish Tacos' })).toBeNull();
+    });
+
+    it('renders the collections destination from its read, not its error fallback', () => {
+        renderScreen(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Collections' }));
+
+        expect(screen.getByText('No collections yet')).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 });

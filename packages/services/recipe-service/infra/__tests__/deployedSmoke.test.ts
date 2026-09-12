@@ -40,7 +40,7 @@
  * work to produce it), whereas a transport failure or the shared ALB's default `404 text/plain` proves the
  * opposite. Both directions are asserted below.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     classifyDependencyReachability,
@@ -48,6 +48,7 @@ import {
     classifyHealth,
     classifyImageCurrency,
     classifyPreflight,
+    runSmoke,
 } from '../smoke/deployedSmoke.js';
 
 const ORIGIN = 'https://pr-73.sandbox.commise.app';
@@ -308,5 +309,94 @@ describe('classifyDependencyReachability — 401 proves reachability; unreachabl
         for (const observation of observations) {
             expect(classifyDependencyReachability(FOOD_ORIGIN, observation).reason).toContain(FOOD_ORIGIN);
         }
+    });
+});
+
+/**
+ * `runSmoke`'s composition — which checks it runs, given which inputs.
+ *
+ * ## Why `--web-origin` had to become OPTIONAL (task #152)
+ *
+ * The preflight check asserts a BROWSER can reach the service. That is the right assertion for identity and
+ * recipe, which both call `app.enableCors(…)` in `main.ts` and are called cross-origin by the web app. The
+ * FOOD service deliberately has no `enableCors` at all: nothing outside the cluster calls it, and its only
+ * consumer is the recipe service server-to-server (`foodCatalog.gateway.ts`). So sending it a preflight
+ * asserts something that is false by design — `OPTIONS /api/v1/recipes` against food is an app 404, which
+ * `classifyPreflight` correctly rejects.
+ *
+ * The alternative was to give food CORS purely so a smoke could pass, i.e. open a browser-facing surface
+ * with no browser consumer to satisfy a check. Skipping the check the way the food/ecosystem checks are
+ * already skipped (by omitting their flag) is the honest shape, and `prodDeploySmokeDepth.test.ts`
+ * derives WHICH services must supply the flag from whether their `main.ts` enables CORS — so a service that
+ * gains CORS immediately owes the assertion, and one that has it cannot silently drop it.
+ */
+describe('runSmoke composition', () => {
+    /** A fetch stub that records what was requested and answers from a fixed script. */
+    function stubFetch(handler: (url: string, init?: RequestInit) => Response): readonly string[] {
+        const seen: string[] = [];
+
+        vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => {
+            const url = String(input);
+
+            seen.push(`${init?.method ?? 'GET'} ${url}`);
+
+            return Promise.resolve(handler(url, init));
+        });
+
+        return seen;
+    }
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('SKIPS the preflight entirely when no web origin is supplied', async () => {
+        const seen = stubFetch(() => new Response('{}', { status: 200 }));
+
+        const verdicts = await runSmoke({ baseUrl: 'https://food.commise.app' });
+
+        expect(seen).toEqual(['GET https://food.commise.app/health']);
+        expect(verdicts.map((verdict) => verdict.reason)).toEqual(['health returned 200']);
+    });
+
+    it('still asserts image currency without a web origin', async () => {
+        // The #152 gap: food's smoke needs the currency check and CANNOT take the preflight, so the two
+        // must be independently selectable. If currency were coupled to the web origin, closing food's
+        // gap would have been impossible without giving it CORS.
+        stubFetch(() => new Response('{}', { status: 200 }));
+
+        const verdicts = await runSmoke({
+            baseUrl: 'https://food.commise.app',
+            expectedImageTag: 'abc123',
+            runningImageTag: 'stale99',
+        });
+
+        expect(verdicts.some((verdict) => !verdict.ok && verdict.reason.includes('STALE'))).toBe(true);
+    });
+
+    it('RUNS the preflight when a web origin IS supplied', async () => {
+        const seen = stubFetch((_url, init) =>
+            init?.method === 'OPTIONS'
+                ? new Response(null, { status: 204, headers: { 'access-control-allow-origin': ORIGIN } })
+                : new Response('{}', { status: 200 }),
+        );
+
+        const verdicts = await runSmoke({ baseUrl: 'https://recipe.commise.app', webOrigin: ORIGIN });
+
+        expect(seen).toContain('OPTIONS https://recipe.commise.app/api/v1/recipes');
+        expect(verdicts.every((verdict) => verdict.ok)).toBe(true);
+    });
+
+    it('FAILS the preflight when a web origin is supplied and CORS is absent', async () => {
+        // The negative control for the case above: "optional" must not have become "never enforced".
+        stubFetch((_url, init) =>
+            init?.method === 'OPTIONS' ? new Response(null, { status: 204 }) : new Response('{}', { status: 200 }),
+        );
+
+        const verdicts = await runSmoke({ baseUrl: 'https://recipe.commise.app', webOrigin: ORIGIN });
+
+        expect(verdicts.some((verdict) => !verdict.ok && /access-control-allow-origin/.test(verdict.reason))).toBe(
+            true,
+        );
     });
 });

@@ -11,17 +11,30 @@
  * `DatabaseModule` (the NestJS connection-pool provider) and the numbered SQL migrations — neither
  * is schema/DAO code a Lambda needs, and moving them would pull Nest into the Lambda bundle.
  */
-export { userStatusEnum, users, accounts, profiles, webhookEvents, lifecycleEvents } from './schema/index.js';
-export type { NewUserRow, UserRow, AccountRow, NewAccountRow, NewProfileRow, ProfileRow } from './schema/index.js';
-export type { NewWebhookEventRow, WebhookEventRow } from './schema/index.js';
+export { accounts } from './schema/accounts.js';
+export { lifecycleEvents } from './schema/lifecycleEvents.js';
+export { profiles } from './schema/profiles.js';
+export { userStatusEnum, users } from './schema/users.js';
+export { webhookEvents } from './schema/webhookEvents.js';
+export type { AccountRow, NewAccountRow } from './schema/accounts.js';
+export type { NewProfileRow, ProfileRow } from './schema/profiles.js';
+export type { NewUserRow, UserRow } from './schema/users.js';
+export type { NewWebhookEventRow, WebhookEventRow } from './schema/webhookEvents.js';
 export type {
-    NewLifecycleEventRow,
     LifecycleEventRow,
     LifecycleEventType,
     LifecycleTriggerSource,
-} from './schema/index.js';
+    NewLifecycleEventRow,
+} from './schema/lifecycleEvents.js';
 
-export { UserDAO, AccountDAO, hasProcessedWebhookEvent, recordOnce } from './dao/index.js';
+export { AccountDAO } from './dao/account.dao.js';
+export { UserDAO } from './dao/user.dao.js';
+export { hasProcessedWebhookEvent, recordOnce } from './dao/webhookEvents.dao.js';
+
+export { eraseIdentityRow, type EraseIdentityInput } from './eraseIdentityRow.js';
 
 export { newUserId, isUserId } from './ulid.js';
 export type { UserId } from './ulid.js';
+
+/** The database surface the DAOs accept — see the module docstring for why it is a structural Pick. */
+export type { IdentityWriter } from './identityWriter.js';

@@ -2,16 +2,16 @@
  * @module @commise/features-recipes — native full-screen modal sheet primitive.
  *
  * The ONE place the "full-screen RN `Modal` sheet" shape lives. Three feature leaves —
- * {@link import('../collections/PullUpdatesDialog.native.js').PullUpdatesDialog},
- * {@link import('../versions/VersionPreviewModal.native.js').VersionPreviewModal} and
- * {@link import('../versions/VersionCompareView.native.js').VersionCompareView} — each hand-rolled the same
+ * `PullUpdatesDialog`,
+ * `VersionPreviewModal` and
+ * `VersionCompareView` — each hand-rolled the same
  * `<Modal presentationStyle="fullScreen">` wrapping a `{ flex: 1, padding: 20 }` surface, and all three
  * shipped the same defect with it: an Android full-screen `Modal` window spans the ENTIRE display (the app
  * is edge-to-edge, as `HomeScreen`/`RecipesScreen` already compensate for with `useSafeAreaInsets`), so a
  * flat pad put the sheet's heading UNDER the status bar and its Cancel/confirm row UNDER the navigation bar.
  *
  * On-device that meant the heading was not merely ugly but *gone*: fully occluded by the status-bar window,
- * it dropped out of the accessibility hierarchy altogether — which is how Maestro's `collections-pull` flow
+ * it dropped out of the accessibility hierarchy altogether — which is how Maestro's `collectionsPull` flow
  * caught it (`Assert "Pull Updates from Source Collection" is visible` failed against a screenshot in which
  * the text was plainly drawn), while the footer buttons overlapped the navigation bar's own tap targets.
  *

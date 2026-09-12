@@ -53,7 +53,7 @@ cannot impersonate anyone. Do not merge these two packages.
           │ Clerk session token      │ Clerk OAuth access token (DCR)
           ▼                          ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  @kitchensink/ai-service            (ALB priority 400)       │
+│  @kitchensink/ai-service            (ALB priority 500)       │
 │                                                              │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌──────────────┐  │
 │  │ByokModule │ │McpModule  │ │GrantPolicy│ │ IntakeModule │  │
@@ -211,6 +211,107 @@ All endpoints are served under `/api/v1/*` per [`docs/api-conventions.md`](../..
 (GR-002), via `app.setGlobalPrefix('api/v1', { exclude: ['health'] })`. `/health` stays unprefixed — ECS
 and ALB health checks target it.
 
+### 3.0 Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Bindings for this feature
+only; the rule lives there and wins on any detail.
+
+| Role                                  | Binding for 005                                                                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Owning service (**authors** the zod)  | `@kitchensink/ai-service` — `packages/services/ai-service/src/**/*.schema.ts`, beside each controller                                |
+| Schema package (generated, committed) | `@kitchensink/schema-ai` — `packages/schemas/ai` — **new package, does not exist yet**                                               |
+| Consuming clients / apps              | `@commise/web`, `@commise/mobile`; `@kitchensink/ai-workers` for the intake/job shapes it shares with the service                    |
+| 005 as a **client** of others (§15-b) | `@kitchensink/recipe-service-client` → `@kitchensink/schema-recipe`; `@kitchensink/food-service-client` → `@kitchensink/schema-food` |
+
+**The service MUST**: author every BYOK, generation-intake, job-status, streaming-chunk and optimize-preview
+shape as zod in `ai-service` beside its controller; validate its own requests with that same zod via
+`nestjs-zod`'s `createZodDto`; generate and commit `@kitchensink/schema-ai`; derive `openapi.yaml` from the zod
+(outbound only — never a codegen input); and keep every `*.schema.ts` importing **only `zod` and other
+`*.schema.ts` files** — no Nest symbol, no Secrets Manager type, no provider SDK type.
+
+**Every client MUST** (separately mandatory): import its wire types **and** zod from `@kitchensink/schema-ai`
+and **declare no AI-service request or response shape of its own**. Two cases carry real risk here:
+
+- **The streaming surface.** `POST /api/v1/ai/generate/recipe/stream` emits partial objects then
+  `{ done: true }`. The **partial/chunk envelope is a wire shape** and belongs in the schema package —
+  hand-writing it in the web and mobile stream readers is how a chunk shape drifts on two platforms
+  independently. The zod for a partial is a `Partial`/`.partial()` **derivation** of the full shape, not a
+  second declaration.
+- **`ai-workers` is a consumer too.** It shares the job/intake envelope with `ai-service`; that envelope is
+  authored once as zod and imported, never re-declared per deployable.
+- A divergent consumer shape (a preview view model, a job-progress badge model) is **DERIVED** with
+  `Pick` / `Omit` / `Partial`. Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new AI endpoint is not complete until its types are reachable from `@kitchensink/schema-ai`.**
+
+**Drift gates** — inherited from GR-015 §15-c, all three: turbo `inputs` rebuild, regenerate-and-diff CI gate,
+`CONTRACT_HASH` boot assertion.
+
+### ⛔ 005's provider boundary is the SHARPEST third-party case in the portfolio (GR-015 §15-d)
+
+**Model output is untrusted input by this plan's own §1.2 security boundary.** Everything on the provider side
+is governed by §15-d, not §15-b:
+
+- **LLM provider responses** (via the Vercel AI SDK — Anthropic, OpenAI, and any other) and **structured
+  generation output** MUST be **validated at the boundary with zod** before any field is used, logged, or
+  persisted. We do not serve those APIs, cannot author their types, and they change without telling us.
+- **Clerk's OAuth 2.1 / dynamic-client-registration surface** (ADR-0012) is likewise third-party: validated at
+  the boundary, its shapes not folded into `@kitchensink/schema-ai`.
+- These clients **MAY declare their own types**, and the normalized shape we hand onward deliberately differs
+  from the raw provider payload.
+- **No OpenAPI document is written for a provider API we do not serve.**
+- **Converging these schemas away would delete the exact parse that keeps prompt-injected or malformed model
+  output from reaching `ai-service`'s Clerk-actor-token capability.** On this feature that is not a style
+  question — it is the control §1.2 is built on. `packages/clients/usda` is the reference pattern.
+
+⚠️ **Note the asymmetry, because it is easy to get backwards:** a generated recipe that 005 saves goes through
+`recipeServiceClient.createRecipe()`, whose shape **is** ours and **is** governed by §15-b (imported from
+`@kitchensink/schema-recipe`, never re-declared). The model's raw output on the way in is §15-d. Same request
+path, opposite rules.
+
+### 3.0a Input validation (GR-016) — and model output is INPUT, not a response
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
+authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
+
+- **One mechanism, one `400`.** Every BYOK, generation-intake, job-status, streaming and optimize-preview
+  input — body, path params, query params, `Idempotency-Key` — is parsed by `ai-service`'s own `*.schema.ts`
+  zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. New services start with one mechanism; there
+  is no `class-validator` residue to inherit here, and none is introduced.
+- **⚠️ A model's output is INPUT to us — validating it is 16-a/16-d work, NOT the response validation GR-016
+  §16-g defers.** §1.2 already treats model output as untrusted and §3.0 requires the provider boundary parse;
+  GR-016 makes it **mandatory** before any field is used, logged, or persisted. Do not let §16-g's deferral be
+  read as licence to skip it: §16-g is about **the bodies `ai-service` emits**, not the bodies a provider
+  emits.
+- **⛔ THE FLOOR, reached through the model.** A generated recipe saved via
+  `recipeServiceClient.createRecipe()` writes 001's `integer` (`int4`) columns — **`servings`,
+  `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`**, capped at **2,147,483,647**. An
+  LLM is a very plausible source of `servings: 9999999999`, and structured-output mode does not bound
+  magnitudes. So the **structured-generation schema carries those bounds** (it is a `Partial`-style derivation
+  of the recipe wire zod, per §3.0, not a second declaration), and the outbound `createRecipe` body is
+  validated against `@kitchensink/schema-recipe` **before the call**. A model-produced out-of-range integer
+  must fail as a **generation-quality error we own**, never as a `500` from the recipe service's `INSERT`.
+- **Prompt/intake bounds are part of the contract**, not a runtime guard: input length, attachment count and
+  any list arity that drives provider spend belong in the intake zod so a client sees the same limit the
+  service enforces. Unbounded free text on a **metered** path is a cost incident, not just a validation gap.
+- **BYOK bodies: validate the shape, never echo the value.** `POST /api/v1/ai/byok/keys` accepts a
+  provider-scoped secret. The schema bounds provider enum, key shape and length; the validation **error must
+  not** include the offending value, and no key material appears in a `400` body or a log line. (§3.1 already
+  states the response carries metadata, never the key — this is the request-side half of that rule.)
+- **Non-HTTP ingress is in scope.** `@kitchensink/ai-workers` **parses the job/intake envelope on receipt**,
+  against the same authored zod the service publishes (§3.0). "The service put it on the queue" is an
+  assumption about a deploy, and the two deployables version independently.
+- **Streaming is a validated surface too.** Each emitted chunk conforms to the authored partial envelope; a
+  client parsing chunks with the schema package's zod is the receipt-side parse GR-016 §16-c.3 requires of
+  consumers — again, not the deferred server-side response validation.
+- **Unknown keys are a stated choice per surface** (`z.object` strips silently; `z.strictObject` rejects).
+  Portfolio default is **OPEN** (GR-016 OPEN-GR-016-B).
+- **⛔ Response validation on `ai-service`'s own responses is DEFERRED (GR-016 §16-g).** Do not add it, and do
+  not conflate it with the provider-boundary parse above.
+
 ### 3.1 BYOK key management (`ai-service`)
 
 | Method   | Path                             | Behaviour                                                                                                     |
@@ -311,9 +412,9 @@ redeploying this repo — already-shipped mobile builds and cached web bundles h
 from build-time `NEXT_PUBLIC_*` values, the Clerk dashboard holds the webhook URL, and
 `POST /v1/internal/account/erasure` is dialed service-to-service by independently-deployed identity
 Lambdas. Both halves are pinned by tests that fail if either path disappears:
-`packages/services/recipe-service/src/common/__tests__/api-route-paths.test.ts`,
-`packages/services/identity/tests/api-route-paths.test.ts`, and the over-the-wire
-`packages/services/identity/tests/e2e/deprecated-path-alias.e2e.test.ts`. **Retiring the alias is a
+`packages/services/recipe-service/src/common/__tests__/apiRoutePaths.test.ts`,
+`packages/services/identity/tests/apiRoutePaths.test.ts`, and the over-the-wire
+`packages/services/identity/tests/e2e/deprecatedPathAlias.e2e.test.ts`. **Retiring the alias is a
 separate decision with its own consumer-drain evidence, tracked against ADR-0011 — it is explicitly OUT
 of 005's scope.**
 
@@ -420,15 +521,44 @@ disclosure is the worst possible place for a hard-coded literal.
 
 ## 6. Infrastructure
 
-| Resource     | Name                                                                                            |
-| ------------ | ----------------------------------------------------------------------------------------------- |
-| ALB priority | **400** (identity 100, food 200, recipe 300)                                                    |
-| Per-PR band  | Must be **disjoint** from food (10000) and recipe (30000)                                       |
-| SQS + DLQ    | `ai-generation-queue`, `ai-generation-dlq` (maxReceive 3)                                       |
-| Secrets      | `byok/{userId}/{provider}`; the Clerk mint key is scoped to the `ai-service` task role **only** |
-| Database     | `kitchensink_ai`                                                                                |
+| Resource     | Name                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| ALB priority | **500**, allocated by `packages/infra/alb` — see §6.1. 005 declares no constant of its own        |
+| Per-PR band  | Slot **4** → **26000–31999**, cut by the allocator from the slot index; PR numbers must be < 6000 |
+| SQS + DLQ    | `ai-generation-queue`, `ai-generation-dlq` (maxReceive 3)                                         |
+| Secrets      | `byok/{userId}/{provider}`; the Clerk mint key is scoped to the `ai-service` task role **only**   |
+| Database     | `kitchensink_ai`                                                                                  |
 
 Per-PR previews tag `Environment=pr-{N}` (ADR-0005).
+
+### 6.1 Listener priority — allocated, never declared _(corrected 2026-08-16)_
+
+⛔ **`ai-service` writes no priority constant.** Shared-ALB listener priorities come from ONE allocator,
+`packages/infra/alb/src/listenerPriority.ts` ([ADR-0003](../../docs/architecture/decisions/0003-shared-alb-per-stage.md)),
+because priority is a namespace shared across independently-deployed stacks that nothing in AWS or CDK
+arbitrates: a collision surfaces only at deploy, as `Priority 'N' is currently in use`, and it does not name
+the other claimant. Per-service resolvers were deleted for drifting into each other's bands.
+
+005 **appends** `ai` to `EPHEMERAL_SLOT_ORDER` and adds `'ai': 500` to `BASE_LISTENER_PRIORITY`, then resolves
+every rule through `listenerPriorityForStage({ service: 'ai', stage, baseStage })`. `BASE_LISTENER_PRIORITY` is
+a `Record` over the slot-order union, so registering in one and not the other is a **compile** error.
+
+| Stage kind              | Priority                                   |
+| ----------------------- | ------------------------------------------ |
+| Base (`prod`/`sandbox`) | **500**                                    |
+| `pr-{N}`                | slot **4** → **26000–31999** (`26000 + N`) |
+| Registered named stage  | slot **4** → **1500–1624**                 |
+
+**Why 500 and not 400.** This plan previously claimed base **400**, and so did
+[006](../006-meal-planning/plan.md) — a straight collision, and the reason both were rewritten. 006 takes the
+lower slot because §7 below sequences `ai-service` **after 006 and 007**, so 006 registers first, and
+`EPHEMERAL_SLOT_ORDER` is append-only: reordering would re-cut every ephemeral band for no gain.
+
+**The stale per-PR bands are gone too.** "Disjoint from food (10000) and recipe (30000)" described the deleted
+per-service resolvers. Bands are now cut from the slot index — identity 2000–7999, food 8000–13999, recipe
+14000–19999, meal-plan 20000–25999, ai 26000–31999 — and the geometry reserves **8** slots in total, three of
+which remain after 005. A ninth service needs the spans re-cut; before that, AWS's default **100 rules per
+ALB** binds first.
 
 ---
 

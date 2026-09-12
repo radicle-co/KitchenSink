@@ -1,0 +1,19 @@
+appId: io.commise.mobile
+---
+# Reusable sub-flow: empty the recipe wizard's Title field and prove it is empty. Called with
+# `runFlow: common/clearTitle.yaml` from a flow already on step 1 of the edit wizard.
+#
+# ⛔ TWO PASSES, THEN PROVE IT IS EMPTY. `tapOn` puts the cursor where it TAPS, which is the
+# field's CENTRE, and `eraseText` deletes only what is LEFT of the cursor. The run-scoped title (`<base> <run
+# key>`, 47 characters) is wider than half the field, so one pass left its tail behind and `inputText` then
+# typed IN FRONT of the tail until the field's 64-character `maxLength` cut it off. Runs 34856885723 and 34863424203
+# saved `Mediterranean Grilled Lamb ghg0ks6a3-1-29eb8f` + `hg0ks6a3-1-29eb8f29`: 45 typed characters, then the
+# original from character 28, exactly 64. After one pass, what is left fits in the left half of the field, so the
+# second tap lands past its end and the second erase clears it. `64` is the field's `maxLength`, not Maestro's
+# default of 50. The `0/64` counter makes an unclear field fail HERE, not later as a strange saved title.
+- tapOn: 'Title'
+- eraseText: 64
+- tapOn: 'Title'
+- eraseText: 64
+- assertVisible:
+      text: '^0/64$'

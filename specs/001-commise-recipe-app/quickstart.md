@@ -30,7 +30,7 @@ aws --version
 
 ## Docker Compose
 
-Create `docker-compose.yml` at the monorepo root (or copy from below). This starts PostgreSQL 16 and LocalStack for S3 emulation. All services share a single Docker network.
+Create `compose.yml` at the monorepo root (or copy from below). This starts PostgreSQL 16 and LocalStack for S3 emulation. All services share a single Docker network.
 
 ```yaml
 version: '3.9'
@@ -54,7 +54,7 @@ services:
             POSTGRES_DB: commise
         volumes:
             - postgres_data:/var/lib/postgresql/data
-            - ./infra/docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+            - ./infra/docker/postgresInit.sql:/docker-entrypoint-initdb.d/init.sql:ro
         healthcheck:
             test: ['CMD-SHELL', 'pg_isready -U commise -d commise']
             interval: 5s
@@ -82,10 +82,10 @@ volumes:
     localstack_data:
 ```
 
-The postgres init script at `infra/docker/postgres-init.sql` must enable the `pg_trgm` extension used by the full-text search indexes. Create that file with:
+The postgres init script at `infra/docker/postgresInit.sql` must enable the `pg_trgm` extension used by the full-text search indexes. Create that file with:
 
 ```sql
--- infra/docker/postgres-init.sql
+-- infra/docker/postgresInit.sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 ```
 
@@ -272,7 +272,7 @@ The most common cause is a port conflict. Check if something is already using po
 lsof -i :5432
 ```
 
-If another Postgres instance is running, either stop it or change the host port in `docker-compose.yml` (e.g., `"5433:5432"`) and update `DATABASE_URL` in `.env` to match.
+If another Postgres instance is running, either stop it or change the host port in `compose.yml` (e.g., `"5433:5432"`) and update `DATABASE_URL` in `.env` to match.
 
 If the container keeps restarting, check its logs:
 
@@ -280,7 +280,7 @@ If the container keeps restarting, check its logs:
 docker compose logs postgres
 ```
 
-A `could not open file "/docker-entrypoint-initdb.d/init.sql"` error means the init script path is wrong. Confirm `infra/docker/postgres-init.sql` exists from the repo root.
+A `could not open file "/docker-entrypoint-initdb.d/init.sql"` error means the init script path is wrong. Confirm `infra/docker/postgresInit.sql` exists from the repo root.
 
 ### drizzle-kit can't connect to the database
 
@@ -387,14 +387,14 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 maestro test packages/apps/commise/mobile/.maestro
 ```
 
-Flows live in `packages/apps/commise/mobile/.maestro/` (auth + recipes: create/edit/delete/rating/visibility/collections/conflict/discover-clone/list-detail/search/accessibility). They require the Expo debug build installed on a running emulator and a reachable recipe API (`EXPO_PUBLIC_API_URL`).
+Flows live in `packages/apps/commise/mobile/.maestro/` (auth + recipes: create/edit/delete/rating/visibility/collections/conflict/discoverClone/listDetail/search/accessibility). They require the Expo debug build installed on a running emulator and a reachable recipe API (`EXPO_PUBLIC_API_URL`).
 
 ### Load Tests (k6 — SC-009)
 
 ```bash
 # 1. Install k6 (https://k6.io/docs/get-started/installation/), then prepare a dedicated load DB:
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_load \
-  node packages/services/recipe-service/tests/load/prepare-db.mjs   # applies migrations + seeds catalog
+  node packages/services/recipe-service/tests/load/prepareDb.mjs   # applies migrations + seeds catalog
 
 # 2. Boot the COMPILED service against that DB (dev-bypass auth so k6 needs no live Clerk token):
 npm run build --workspace=@kitchensink/recipe-service
@@ -404,10 +404,10 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_load PORT=3000 \
 
 # 3. Run the SC-009 read/write scenario (p95 ≤ 500ms threshold; a breach exits non-zero):
 RECIPE_API_BASE_URL=http://localhost:3000 \
-  k6 run packages/services/recipe-service/tests/load/sc009-read-write.load.js
+  k6 run packages/services/recipe-service/tests/load/sc009ReadWrite.load.js
 ```
 
-`prepare-db.mjs` is mandatory: since T043b every recipe create validates each line's `ingredientId` against the catalog, so the seed ingredients must exist or every write 400s and trips the failure-rate threshold. The `search-latency` and `save-under-archive` scenarios live alongside it.
+`prepareDb.mjs` is mandatory: since T043b every recipe create validates each line's `ingredientId` against the catalog, so the seed ingredients must exist or every write 400s and trips the failure-rate threshold. The `search-latency` and `save-under-archive` scenarios live alongside it.
 
 ---
 
@@ -448,7 +448,7 @@ Recipe photos never pass through the API body — the client uploads directly to
 1. **Request an upload URL** — `POST …/photos/upload-url` `{ fileName, fileSize, contentType }` → `{ uploadUrl, key, expiresIn, maxBytes }`. The service pre-checks the 5 MB / 10-photo caps and returns a presigned S3 PUT.
 2. **PUT the bytes to S3** — the client `PUT`s the image straight to the `uploadUrl` (LocalStack `commise-photos` bucket locally). _LocalStack quirk:_ the S3 client is configured `requestChecksumCalculation: 'WHEN_REQUIRED'`, otherwise the presigned PUT fails an `x-amz-checksum-crc32` check under the aws-sdk v3 defaults.
 3. **Confirm** — `POST …/photos/confirm` `{ key, contentType }`. The service validates the object's **magic bytes** (jpeg/png/webp — the `file-type` library, not a hand-rolled sniff), records the `recipe_photos` row, and generates a **cover thumbnail**.
-4. **Cover thumbnail (synchronous, in-API)** — `photo-thumbnail.ts` resizes the first photo with **sharp/libvips** to `THUMBNAIL_MAX_PX` longest edge (default 400) at `THUMBNAIL_QUALITY` JPEG (default 80) and stores it under `thumbnail_key` (migration `0011`). If generation fails (e.g. an S3 5xx, or a `sharp` arch mismatch on a deployed task), it logs and **serves the original as the cover** — the cover projection resolves `COALESCE(thumbnail_key, s3_key)`, so the card degrades gracefully rather than 500-ing. The gallery always serves full-size originals; only the **cover** is a thumbnail.
+4. **Cover thumbnail (synchronous, in-API)** — `photoThumbnail.ts` resizes the first photo with **sharp/libvips** to `THUMBNAIL_MAX_PX` longest edge (default 400) at `THUMBNAIL_QUALITY` JPEG (default 80) and stores it under `thumbnail_key` (migration `0011`). If generation fails (e.g. an S3 5xx, or a `sharp` arch mismatch on a deployed task), it logs and **serves the original as the cover** — the cover projection resolves `COALESCE(thumbnail_key, s3_key)`, so the card degrades gracefully rather than 500-ing. The gallery always serves full-size originals; only the **cover** is a thumbnail.
 5. **Serve** — URLs are resolved against `CLOUDFRONT_URL` (a LocalStack stand-in locally).
 
 `sharp` is a native binary: it installs with a plain `npm i` for the local/Fargate `linux-x64` platform. On a deployed task the image build arch **must** match the task arch (`X86_64`) or every thumbnail falls back to the original (see release-readiness).

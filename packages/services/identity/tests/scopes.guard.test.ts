@@ -9,7 +9,7 @@ import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
 import type { Reflector } from '@nestjs/core';
 
 import { ScopesGuard } from '../src/auth/guards/scopes.guard.js';
-import type { AuthorizerContext } from '../src/auth/decorators/current-user.decorator.js';
+import type { AuthorizerContext } from '../src/auth/decorators/currentUser.decorator.js';
 
 function makeUser(overrides: Partial<AuthorizerContext> = {}): AuthorizerContext {
     return {
@@ -19,6 +19,7 @@ function makeUser(overrides: Partial<AuthorizerContext> = {}): AuthorizerContext
         scopes: [],
         permissions: [],
         tokenType: 'user',
+        testPrincipal: false,
         ...overrides,
     };
 }

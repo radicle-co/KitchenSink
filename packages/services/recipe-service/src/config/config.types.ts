@@ -9,6 +9,9 @@
 
 import { z } from 'zod';
 import { hasExactlyOneAzpMode } from '@kitchensink/clerk-verify';
+import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+import { TEST_PRINCIPAL_CONTAINMENT_MODES } from '../common/containmentPolicy.js';
+import { RATE_LIMIT_DEFAULTS } from '../common/throttle/throttleDefaults.js';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -137,14 +140,14 @@ export type BaseConfig = z.infer<typeof baseConfigSchema>;
 export const RECIPE_DB_NAME = 'kitchensink_recipes';
 
 /** The least-privilege role the recipe workloads authenticate as (passwordless, RDS-IAM). */
-export const RECIPE_DB_USERNAME = 'recipe_app';
+export const RECIPE_DB_USERNAME = DATABASE_ROLES.recipe.app;
 
 /** Default AWS region used when minting RDS IAM auth tokens. */
 export const DEFAULT_AWS_REGION = 'us-east-1';
 
 /**
  * Database CONNECTION config — passwordless **RDS-IAM**, mirroring the shipped food service
- * (`packages/services/food-service/src/database/pool-config.ts`). There is deliberately **no**
+ * (`packages/services/food-service/src/database/poolConfig.ts`). There is deliberately **no**
  * database password secret and **no** `secret: true` `DATABASE_URL` fetched from SSM.
  *
  * Either/or, exactly like the food service's `EnvironmentSchema`:
@@ -264,7 +267,7 @@ export const clerkConfigMeta: Record<keyof ClerkConfig, ConfigFieldMeta> = {
  * this public-ALB service, no network round-trip).
  *
  * `RECIPE_SERVICE_PRINCIPAL_JWT_KEY` is OPTIONAL: a stage that has not yet provisioned the key (or local
- * dev) simply has no service-principal path — {@link import('../auth/service-erasure-auth.service.js').ServiceErasureAuthService}
+ * dev) simply has no service-principal path — `ServiceErasureAuthService`
  * fails CLOSED (rejects every service token) rather than failing to boot. This lets U4b provision the key
  * without a lockstep deploy. Non-secret: it is a PUBLIC verification key, not a signing secret.
  */
@@ -310,7 +313,7 @@ export const storageConfigSchema = z.object({
      * (HAZ-051/067/039). OPTIONAL: no `Distribution` construct exists in this repo's CDK (the
      * distribution is provisioned outside it), so a stage without one yet — or local/dev — simply omits
      * this. When unset, invalidation degrades to a logged no-op rather than failing to boot or failing a
-     * delete request; see `photos/cdn-invalidation.ts`.
+     * delete request; see `photos/cdnInvalidation.ts`.
      */
     CLOUDFRONT_DISTRIBUTION_ID: z.string().min(1).optional(),
 
@@ -358,16 +361,16 @@ export const rateLimitConfigSchema = z.object({
      * Home widget's reads. This is the default throttler's limit: any route without a category override
      * inherits it, so it is deliberately the most generous. Defaults to 120.
      */
-    RATE_LIMIT_READ: z.coerce.number().int().positive().default(120),
+    RATE_LIMIT_READ: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_READ),
 
     /** Write endpoint limit (req/min per user). Defaults to 30. */
-    RATE_LIMIT_WRITE: z.coerce.number().int().positive().default(30),
+    RATE_LIMIT_WRITE: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_WRITE),
 
     /** Photo upload limit (req/min per user). Defaults to 10. */
-    RATE_LIMIT_PHOTO_UPLOAD: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_PHOTO_UPLOAD: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_PHOTO_UPLOAD),
 
     /** Search endpoint limit (req/min per user). Defaults to 60. */
-    RATE_LIMIT_SEARCH: z.coerce.number().int().positive().default(60),
+    RATE_LIMIT_SEARCH: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_SEARCH),
 
     /**
      * GDPR account-export limit (req/min per user). Defaults to 10 — the tightest category. The export
@@ -375,7 +378,10 @@ export const rateLimitConfigSchema = z.object({
      * data-egress surface; a portability download is issued rarely, so a low cap curbs abuse/exfiltration
      * without impeding a genuine "download my data" request.
      */
-    RATE_LIMIT_EXPORT: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_EXPORT: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_EXPORT),
+
+    /** Analytics ingest door requests/min per user (plan U4, R13). */
+    RATE_LIMIT_ANALYTICS: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.RATE_LIMIT_ANALYTICS),
 });
 
 /** Typed rate limiting configuration. */
@@ -384,6 +390,48 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
 // ---------------------------------------------------------------------------
 // Food Service Integration Config
 // ---------------------------------------------------------------------------
+
+/**
+ * What a post-commit response needs AFTER its food lookup, inside the recipe client's deadline: the transaction,
+ * the verification enqueue, serialisation, and the client → ALB round trip. Named so the ceiling below is derived
+ * from it rather than leaving it as whatever a ceiling happens to leave over.
+ */
+export const POST_COMMIT_RESPONSE_HEADROOM_MS = 5_000;
+
+/**
+ * The ceiling on `FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS`.
+ *
+ * ⛔ Derived, not chosen: a single-recipe lookup is at most TWO requests (one chunk plus the authored call), and
+ * twice this ceiling PLUS {@link POST_COMMIT_RESPONSE_HEADROOM_MS} must fit inside the recipe client's own 10 s
+ * per-attempt deadline (`DEFAULT_REQUEST_TIMEOUT_MS` in `@kitchensink/recipe-service-client`), or a write that
+ * succeeded is reported to the cook as a timeout. `loadConfig.test.ts` asserts the relation against the client's
+ * constant.
+ */
+export const MAX_POST_COMMIT_NUTRITION_TIMEOUT_MS = 2_500;
+
+/**
+ * What a READ response needs OUTSIDE its food lookup, inside the recipe client's deadline: the recipe aggregate,
+ * photo, ingredient and private-owner reads before it, the verdict and pending-state reads after it, serialisation,
+ * and the client → ALB round trip.
+ *
+ * That work is milliseconds on a healthy service; the 5 s is not that figure. It is sized to the recipe pool's
+ * `connectionTimeoutMillis` (5 s, `database.module.ts`), the longest a healthy-but-saturated service can wait for a
+ * connection before any of those reads starts — the one non-food wait on this path that is itself bounded at seconds.
+ */
+export const READ_RESPONSE_HEADROOM_MS = 5_000;
+
+/**
+ * The ceiling on `FOOD_NUTRITION_READ_DEADLINE_MS`.
+ *
+ * ⛔ Derived, not chosen: the read deadline is ONE bound over every request a lookup issues (chunks, waves and the
+ * authored call — `FoodNutritionGateway`), so the ceiling plus {@link READ_RESPONSE_HEADROOM_MS} must fit inside the
+ * recipe client's 10 s per-attempt deadline (`DEFAULT_REQUEST_TIMEOUT_MS`). Before the deadline existed each request
+ * took the food client's 8 s default and a detail issued two in series — 16 s, past the client — and a 500-recipe
+ * card batch up to ten (80 s). `loadConfig.test.ts` asserts the relation against the client's constant. 4.5 s, not
+ * 5 s: at 5 s the sum is EXACTLY the client's 10 s, leaving nothing for the serialisation and network the headroom's
+ * pool wait does not cover.
+ */
+export const MAX_READ_NUTRITION_DEADLINE_MS = 4_500;
 
 /**
  * Config for the outbound call to the food service (003) that the ingredients vertical resolves
@@ -403,7 +451,7 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
  * **There is deliberately NO `FOOD_SERVICE_TOKEN`.** Food's `FoodAuthGuard` verifies a *Clerk* token, and a
  * long-lived static env string cannot satisfy that verifier (session tokens live ~60s) — the variable was
  * read as a static bearer and was never set anywhere in the repo. Recipe now forwards the CALLER's own
- * verified token instead (`auth/caller-token.ts` → `ingredients/food-service-clients.factory.ts`), so there
+ * verified token instead (`auth/CallerToken.ts` → `ingredients/FoodServiceClients.factory.ts`), so there
  * is no service credential to configure here.
  */
 export const foodServiceConfigSchema = z.object({
@@ -425,6 +473,25 @@ export const foodServiceConfigSchema = z.object({
      * low simply means the catalog section degrades to empty). `IngredientsModule` applies a default.
      */
     FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: z.coerce.number().int().min(50).max(5_000).optional(),
+
+    /**
+     * Per-request bound (ms) on the nutrition lookup a recipe response makes AFTER its write has committed.
+     * Tunable because no recipe→food latency measurement exists yet; bounded above by
+     * {@link MAX_POST_COMMIT_NUTRITION_TIMEOUT_MS}. `IngredientsModule` applies a default.
+     */
+    FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS: z.coerce
+        .number()
+        .int()
+        .min(250)
+        .max(MAX_POST_COMMIT_NUTRITION_TIMEOUT_MS)
+        .optional(),
+
+    /**
+     * The deadline (ms) over everything one nutrition READ (the GET detail, the card batch) waits on food, bounded
+     * above by {@link MAX_READ_NUTRITION_DEADLINE_MS}. `IngredientsModule` applies a default. Too low degrades
+     * honestly: cached figures marked `stale`, the rest incomplete — never zero.
+     */
+    FOOD_NUTRITION_READ_DEADLINE_MS: z.coerce.number().int().min(250).max(MAX_READ_NUTRITION_DEADLINE_MS).optional(),
 });
 
 /** Typed food-service integration configuration. */
@@ -440,6 +507,14 @@ export const foodServiceConfigMeta: Record<keyof FoodServiceConfig, ConfigFieldM
     FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: {
         secret: false,
         description: 'Per-keystroke food-catalog search timeout (ms)',
+    },
+    FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS: {
+        secret: false,
+        description: 'Per-request food nutrition timeout on a response sent after a committed write (ms)',
+    },
+    FOOD_NUTRITION_READ_DEADLINE_MS: {
+        secret: false,
+        description: 'Deadline over every food request one recipe nutrition read issues (ms)',
     },
 };
 
@@ -476,6 +551,96 @@ export const accountErasureConfigMeta: Record<keyof AccountErasureConfig, Config
 };
 
 // ---------------------------------------------------------------------------
+// Ingredient Verification Config
+// ---------------------------------------------------------------------------
+
+/**
+ * Config for the LLM verification gate's hand-off (plan U11 / ADR-0024): the `recipe-verification` SQS queue
+ * this service enqueues onto after a recipe save, drained by `verifyLine` in `@kitchensink/recipe-workers`.
+ *
+ * ⛔ `INGREDIENT_VERIFICATION_QUEUE_URL` is REQUIRED, and the reason is this unit's own history rather than
+ * symmetry with the erasure queue. U11 shipped the gate's consumer — a Lambda, its queue, its DLQ, its IAM
+ * grant, its alarms and its spend ledger — with NOTHING producing a message, and every check in the
+ * repository stayed green while the gate verified nothing. An optional URL is exactly how that state comes
+ * back: the service would boot, save recipes, and silently ask nobody. This is ADR-0010's lesson applied
+ * (`RECIPE_FOOD_SERVICE_URL`'s conditional passthrough is what left a preview with no food service at all),
+ * and it is what `FOOD_SERVICE_URL` already does for the same reason.
+ *
+ * ⚠️ The SQS ENDPOINT override is deliberately NOT redeclared here — it is one client setting for one
+ * process, and both queue adapters read the same `SQS_ENDPOINT` from `accountErasureConfigSchema`. Two
+ * endpoint variables would be two ways to point the same process at two different LocalStacks.
+ */
+export const ingredientVerificationConfigSchema = z.object({
+    /** URL of the `recipe-verification` SQS queue (published per stage by `RecipeWorkersStack`). */
+    INGREDIENT_VERIFICATION_QUEUE_URL: z.string().url(),
+});
+
+/** Typed ingredient-verification configuration. */
+export type IngredientVerificationConfig = z.infer<typeof ingredientVerificationConfigSchema>;
+
+/** Secret/non-secret metadata. A queue URL is not a secret. */
+export const ingredientVerificationConfigMeta: Record<keyof IngredientVerificationConfig, ConfigFieldMeta> = {
+    INGREDIENT_VERIFICATION_QUEUE_URL: {
+        secret: false,
+        description: 'ingredient-verification SQS queue URL (plan U11, ADR-0024)',
+    },
+};
+
+/**
+ * Config for the parse-job hand-off (plan U9, origin D9/R13): the `recipe-parse-line` SQS queue this
+ * service enqueues one message per pasted line onto, drained by `parseLine` in
+ * `@kitchensink/recipe-workers`.
+ *
+ * ⛔ REQUIRED for the same historical reason `INGREDIENT_VERIFICATION_QUEUE_URL` is (see above): an
+ * optional URL is how a consumer ships with nothing producing — the service would boot, accept parse
+ * jobs, and silently enqueue nowhere, leaving every line `pending` until the TTL sweep expired the job.
+ * Published per stage by `RecipeWorkersStack` (`/kitchensink/{stage}/recipe/parse-queue-url`).
+ */
+export const parseJobConfigSchema = z.object({
+    /** URL of the `recipe-parse-line` SQS queue (published per stage by `RecipeWorkersStack`). */
+    RECIPE_PARSE_QUEUE_URL: z.string().url(),
+});
+
+/** Typed parse-job configuration. */
+export type ParseJobConfig = z.infer<typeof parseJobConfigSchema>;
+
+/** Secret/non-secret metadata. A queue URL is not a secret. */
+export const parseJobConfigMeta: Record<keyof ParseJobConfig, ConfigFieldMeta> = {
+    RECIPE_PARSE_QUEUE_URL: {
+        secret: false,
+        description: 'recipe-parse-line SQS queue URL (plan U9)',
+    },
+};
+
+// ---------------------------------------------------------------------------
+// Test-Principal Containment Config (ADR-0040)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether this stage CONTAINS signed test principals — refuses their publish, rate, foreign clone, correction
+ * promotion, analytics capture and erasure (see `common/containmentPolicy.ts`).
+ *
+ * ⛔ DEFAULTS TO `enforce`, and an unrecognised value FAILS THE BOOT. Owner ruling 2026-09-13: production enforces,
+ * sandbox and every `pr-{N}` run `off`. A stage that forgets the variable must therefore land on the safe side —
+ * `off` on production is precisely the leak the switch exists to prevent — and a typo must not pick either side for
+ * the operator. `RecipeServiceStack` sets `off` only on sandbox and `pr-{N}`.
+ */
+export const testPrincipalContainmentConfigSchema = z.object({
+    TEST_PRINCIPAL_CONTAINMENT: z.enum(TEST_PRINCIPAL_CONTAINMENT_MODES).default('enforce'),
+});
+
+/** Typed test-principal containment configuration. */
+export type TestPrincipalContainmentConfig = z.infer<typeof testPrincipalContainmentConfigSchema>;
+
+/** Secret/non-secret metadata. A mode switch is not a secret. */
+export const testPrincipalContainmentConfigMeta: Record<keyof TestPrincipalContainmentConfig, ConfigFieldMeta> = {
+    TEST_PRINCIPAL_CONTAINMENT: {
+        secret: false,
+        description: 'Contain signed test principals (enforce | off; default enforce) — ADR-0040',
+    },
+};
+
+// ---------------------------------------------------------------------------
 // Composite: Full API Config
 // ---------------------------------------------------------------------------
 
@@ -485,7 +650,8 @@ export const accountErasureConfigMeta: Record<keyof AccountErasureConfig, Config
  *
  * Usage at app boot:
  * ```typescript
- * import { loadConfig, apiConfigSchema } from './config/index.js';
+ * import { loadConfig } from './loadConfig.js';
+ *   import { apiConfigSchema } from './config.types.js';
  * const config = await loadConfig(apiConfigSchema);
  * ```
  */
@@ -497,6 +663,9 @@ export const apiConfigSchema = baseConfigSchema
     .merge(rateLimitConfigSchema)
     .merge(foodServiceConfigSchema)
     .merge(accountErasureConfigSchema)
+    .merge(ingredientVerificationConfigSchema)
+    .merge(parseJobConfigSchema)
+    .merge(testPrincipalContainmentConfigSchema)
     // The DB connection is an either/or (URL vs discrete IAM parts), so it is intersected in rather
     // than merged — a union is not a ZodObject and cannot be `.merge()`d.
     .and(databaseConnectionSchema)
@@ -577,7 +746,8 @@ export interface LoadConfigOptions {
  * @example
  * ```typescript
  * // In the recipe service's NestJS main.ts
- * import { loadConfig, apiConfigSchema } from './config/index.js';
+ * import { loadConfig } from './loadConfig.js';
+ *   import { apiConfigSchema } from './config.types.js';
  *
  * async function bootstrap() {
  *   const config = await loadConfig(apiConfigSchema, {
@@ -593,7 +763,8 @@ export interface LoadConfigOptions {
  * @example
  * ```typescript
  * // In a worker Lambda handler (its own config/ module)
- * import { loadConfig, workerConfigSchema } from './config/index.js';
+ * import { loadConfig } from './loadConfig.js';
+ *   import { workerConfigSchema } from './config.types.js';
  *
  * const config = await loadConfig(workerConfigSchema, {
  *   ssmFallback: true,

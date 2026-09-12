@@ -12,6 +12,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { UsdaApiClient } from '../UsdaApiClient.js';
+import type { UsdaApiClientOptions } from '../UsdaApiClient.js';
 import {
     isInvalidBatchSizeError,
     isUsdaNotFoundError,
@@ -27,23 +28,27 @@ type FetchMock = ReturnType<typeof vi.fn>;
 interface MockResponseInit {
     readonly status: number;
     readonly body?: unknown;
+    /** Response headers; omitted entirely when absent, so the no-headers double stays exercised. */
+    readonly headers?: Record<string, string>;
 }
 
 /** Build a minimal `Response`-shaped object the client can consume. */
-function mockResponse({ status, body }: MockResponseInit): Response {
+function mockResponse({ status, body, headers }: MockResponseInit): Response {
     return {
         ok: status >= 200 && status < 300,
         status,
         json: async () => body ?? {},
+        ...(headers !== undefined ? { headers: new Headers(headers) } : {}),
     } as unknown as Response;
 }
 
 /** Construct a client whose HTTP layer is the supplied mock. */
-function makeClient(fetchImpl: FetchMock): UsdaApiClient {
+function makeClient(fetchImpl: FetchMock, overrides?: Partial<UsdaApiClientOptions>): UsdaApiClient {
     return new UsdaApiClient({
         apiKey: 'test-key',
         baseUrl: 'https://api.nal.usda.gov/fdc/v1',
         fetchFn: fetchImpl as unknown as typeof fetch,
+        ...overrides,
     });
 }
 
@@ -237,6 +242,104 @@ describe('UsdaApiClient', () => {
             const client = makeClient(fetchFn);
 
             await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaTimeoutError);
+        });
+    });
+
+    /**
+     * U38 — the client READS the quota USDA reports on every response instead of leaving us to model it.
+     * The observer is the only seam available: this package has no logger and no metrics sink, so the food
+     * service wires the reading to EMF where it can be charted against our own rolling-window count.
+     */
+    describe('X-RateLimit observation', () => {
+        it('reports the parsed snapshot to the observer on a successful call', async () => {
+            const onRateLimit = vi.fn();
+            const fetchFn = vi.fn().mockResolvedValue(
+                mockResponse({
+                    status: 200,
+                    body: FOOD_DETAIL,
+                    headers: { 'X-RateLimit-Limit': '1000', 'X-RateLimit-Remaining': '994' },
+                }),
+            );
+            const client = makeClient(fetchFn, { onRateLimit });
+
+            await client.getFood(171688);
+
+            expect(onRateLimit).toHaveBeenCalledTimes(1);
+            expect(onRateLimit).toHaveBeenCalledWith({ limit: 1000, remaining: 994 });
+        });
+
+        it('reports on searchFoods and getFoodsBatch too (every call spends the same quota)', async () => {
+            const onRateLimit = vi.fn();
+            const fetchFn = vi
+                .fn()
+                .mockResolvedValueOnce(
+                    mockResponse({
+                        status: 200,
+                        body: { foods: [], totalHits: 0 },
+                        headers: { 'X-RateLimit-Remaining': '900' },
+                    }),
+                )
+                .mockResolvedValueOnce(
+                    mockResponse({ status: 200, body: [FOOD_DETAIL], headers: { 'X-RateLimit-Remaining': '899' } }),
+                );
+            const client = makeClient(fetchFn, { onRateLimit });
+
+            await client.searchFoods('apple');
+            await client.getFoodsBatch([171688]);
+
+            expect(onRateLimit.mock.calls).toEqual([[{ remaining: 900 }], [{ remaining: 899 }]]);
+        });
+
+        it('reports the snapshot on a 429 — the reading matters most when the quota is refused', async () => {
+            const onRateLimit = vi.fn();
+            const fetchFn = vi
+                .fn()
+                .mockResolvedValue(mockResponse({ status: 429, headers: { 'X-RateLimit-Remaining': '0' } }));
+            const client = makeClient(fetchFn, { onRateLimit });
+
+            await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaRateLimitError);
+            expect(onRateLimit).toHaveBeenCalledWith({ remaining: 0 });
+        });
+
+        it('does NOT invoke the observer when USDA sent no rate-limit headers, and the call still succeeds', async () => {
+            const onRateLimit = vi.fn();
+            const fetchFn = vi
+                .fn()
+                .mockResolvedValue(mockResponse({ status: 200, body: FOOD_DETAIL, headers: { 'x-other': '1' } }));
+            const client = makeClient(fetchFn, { onRateLimit });
+
+            const food = await client.getFood(171688);
+
+            expect(food.fdcId).toBe(171688);
+            expect(onRateLimit).not.toHaveBeenCalled();
+        });
+
+        it('survives a response object carrying no headers at all (a degraded double is not an error)', async () => {
+            const onRateLimit = vi.fn();
+            const fetchFn = vi.fn().mockResolvedValue(mockResponse({ status: 200, body: FOOD_DETAIL }));
+            const client = makeClient(fetchFn, { onRateLimit });
+
+            const food = await client.getFood(171688);
+
+            expect(food.fdcId).toBe(171688);
+            expect(onRateLimit).not.toHaveBeenCalled();
+        });
+
+        it('never lets a throwing observer turn a good USDA response into a failure', async () => {
+            const onRateLimit = vi.fn(() => {
+                throw new Error('metrics sink is down');
+            });
+            const fetchFn = vi
+                .fn()
+                .mockResolvedValue(
+                    mockResponse({ status: 200, body: FOOD_DETAIL, headers: { 'X-RateLimit-Remaining': '5' } }),
+                );
+            const client = makeClient(fetchFn, { onRateLimit });
+
+            const food = await client.getFood(171688);
+
+            expect(food.description).toBe('Apple, raw, granny smith');
+            expect(onRateLimit).toHaveBeenCalledTimes(1);
         });
     });
 });

@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native Pull-Updates preview dialog (W5 Task 10, C2 / FR-011).
  *
- * The React Native leaf of {@link import('./PullUpdatesDialog.js').PullUpdatesDialog}: a
+ * The React Native leaf of `PullUpdatesDialog`: a
  * {@link FullScreenSheet} rendering the SAME controlled, presentational contract as the web leaf — same
  * state precedence, same localized copy, so the two platforms can't drift. `onRequestClose` (the Android
  * hardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the
@@ -11,7 +11,7 @@
  * The modal window and its safe-area padding belong to `FullScreenSheet`, not here. This leaf previously
  * hand-rolled `<Modal presentationStyle="fullScreen">` over a flat `padding: 20` surface, which on an
  * edge-to-edge Android device drew the heading UNDER the status bar — fully occluded, and therefore absent
- * from the accessibility hierarchy, which is how Maestro's `collections-pull` flow caught it — and put the
+ * from the accessibility hierarchy, which is how Maestro's `collectionsPull` flow caught it — and put the
  * Cancel/Pull row UNDER the navigation bar's own tap targets.
  *
  * A discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):
@@ -21,6 +21,9 @@
  * composing container (W5 Task 12) can re-run the preview; (3) the loaded `diff` — added/removed/unchanged
  * COUNTS only (this block never resolves recipe titles, it only received ids), the "not overwritten" note,
  * and the count-templated Pull action, disabled while `isCommitting` or when there is nothing to add.
+ *
+ * @pattern Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area
+ *     padding — the same controlled `props → JSX` contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

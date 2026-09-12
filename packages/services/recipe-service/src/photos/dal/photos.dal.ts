@@ -16,9 +16,10 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipePhotos, type RecipePhotoRow } from '../../database/schema/index.js';
-import { type Writer } from '../../database/unit-of-work.js';
+import { type Writer } from '../../database/unitOfWork.js';
 import { maxPhotosExceeded } from '../photo.error.js';
-import { isExactReorder } from '../photo-reorder.js';
+import { isExactReorder } from '../photoReorder.js';
+import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 /** The hard cap on photos per recipe, enforced by {@link PhotosDal.create}. */
 export const MAX_PHOTOS_PER_RECIPE = 10;
@@ -56,7 +57,9 @@ export class PhotosDal {
             // COUNT 9 and both INSERT, exceeding the cap (and colliding on `sortOrder`). A transaction-
             // scoped advisory lock keyed on the recipe id makes the COUNT + INSERT atomic per recipe
             // (released automatically at commit/rollback); different recipes never contend.
-            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.recipeId})::bigint)`);
+            await tx.execute(
+                sql`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CLASSES.recipePhoto}, hashtext(${input.recipeId}))`,
+            );
 
             const count = await this.countByRecipe(tx, input.recipeId);
 

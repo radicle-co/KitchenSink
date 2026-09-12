@@ -8,37 +8,52 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
-import { computedContrast, renderWithProviders } from '@commise/test-utils';
+import { computedContrast, renderWithRecipeClient } from '@commise/test-utils';
 import { palette } from '@commise/ui';
-import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
+import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 
 import { RecipeWidgetSlot } from '../../../src/components/home/RecipeWidgetSlot.js';
 import { makeRecipe, makeRecipePage } from '../../__fixtures__/recipes.js';
 
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({ useRecipes: vi.fn() }));
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
+}));
 
-const useRecipesMock = vi.mocked(useRecipes);
-
-/** Build a `useRecipes` result double from the fields the slot reads. */
-function listResult(overrides: Partial<ReturnType<typeof useRecipes>> = {}): ReturnType<typeof useRecipes> {
-    return { isLoading: false, data: undefined, ...overrides } as unknown as ReturnType<typeof useRecipes>;
-}
+/** The recipe-service client the slot reads through — a real client, network-guarded, stubbed per test. */
+let client: RecipeServiceClient;
 
 const noop = (): void => undefined;
 
-const renderSlot = (onSeeAllRecipes: () => void = noop, onSelectRecipe: (id: string) => void = noop): void => {
-    renderWithProviders(<RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} onSelectRecipe={onSelectRecipe} />);
+const renderSlot = (
+    onSeeAllRecipes: () => void = noop,
+    onSelectRecipe: (id: string) => void = noop,
+    onWidgetError?: (error: unknown) => void,
+): void => {
+    renderWithRecipeClient(
+        <RecipeWidgetSlot
+            onSeeAllRecipes={onSeeAllRecipes}
+            onSelectRecipe={onSelectRecipe}
+            {...(onWidgetError === undefined ? {} : { onWidgetError })}
+        />,
+        client,
+    );
 };
 
 afterEach(cleanup);
 
 beforeEach(() => {
-    useRecipesMock.mockReset();
+    client = createFakeRecipeServiceClient();
 });
 
 describe('RecipeWidgetSlot (mobile)', () => {
     it('shows the skeleton card (widget title, no empty message) while the recipes query is loading', async () => {
-        useRecipesMock.mockReturnValue(listResult({ isLoading: true }));
+        vi.spyOn(client, 'listRecipes').mockReturnValue(new Promise(() => undefined));
 
         renderSlot();
 
@@ -48,8 +63,8 @@ describe('RecipeWidgetSlot (mobile)', () => {
     });
 
     it('renders the recent recipes once the query resolves with data', async () => {
-        useRecipesMock.mockReturnValue(
-            listResult({ data: makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]) }),
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]),
         );
 
         renderSlot();
@@ -58,16 +73,34 @@ describe('RecipeWidgetSlot (mobile)', () => {
     });
 
     it('renders the empty state when the viewer has no recipes', async () => {
-        useRecipesMock.mockReturnValue(listResult({ data: makeRecipePage([]) }));
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage([]));
 
         renderSlot();
 
         expect(await screen.findByText('No recipes yet. Create your first recipe to see it here.')).toBeTruthy();
     });
 
+    /**
+     * ⛔ A FAILED read is not an empty library. The slot used to pass only the data and a loading flag to the widget,
+     * so a recipe service outage told the cook they had no recipes and invited them to create their first one.
+     */
+    it('⛔ shows the widget failure notice — not the empty state — when the recipes read fails, and reports it', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('recipe service unavailable'));
+        const onWidgetError = vi.fn();
+
+        renderSlot(noop, noop, onWidgetError);
+
+        expect(await screen.findByText('This section couldn’t load.')).toBeTruthy();
+        expect(screen.queryByText('No recipes yet. Create your first recipe to see it here.')).toBeNull();
+        expect(onWidgetError).toHaveBeenCalledWith(expect.objectContaining({ message: 'recipe service unavailable' }));
+        // The route off Home survives the failure.
+        expect(screen.getByRole('button', { name: 'See all recipes' })).toBeTruthy();
+    });
+
     it('shows NO failure notice while the widget renders normally', async () => {
-        useRecipesMock.mockReturnValue(
-            listResult({ data: makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]) }),
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]),
         );
 
         renderSlot();
@@ -82,7 +115,7 @@ describe('RecipeWidgetSlot (mobile)', () => {
     });
 
     it('renders a "see all recipes" entry and forwards activation to onSeeAllRecipes', async () => {
-        useRecipesMock.mockReturnValue(listResult({ data: makeRecipePage([]) }));
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage([]));
         const onSeeAllRecipes = vi.fn();
 
         renderSlot(onSeeAllRecipes);
@@ -94,7 +127,7 @@ describe('RecipeWidgetSlot (mobile)', () => {
     });
 
     it('keeps the "see all recipes" label WCAG-AA legible on the Home surface', async () => {
-        useRecipesMock.mockReturnValue(listResult({ data: makeRecipePage([]) }));
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage([]));
 
         renderSlot();
 
@@ -118,8 +151,8 @@ describe('RecipeWidgetSlot (mobile)', () => {
  */
 describe('RecipeWidgetSlot (mobile) — recipe card activation', () => {
     it('reports the activated recipe id upward', async () => {
-        useRecipesMock.mockReturnValue(
-            listResult({ data: makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]) }),
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]),
         );
         const onSelectRecipe = vi.fn();
 
@@ -131,14 +164,12 @@ describe('RecipeWidgetSlot (mobile) — recipe card activation', () => {
     });
 
     it('reports the id of the card that was actually tapped, not merely the first', async () => {
-        useRecipesMock.mockReturnValue(
-            listResult({
-                data: makeRecipePage([
-                    makeRecipe({ id: 'r1', title: 'Weeknight Pasta' }),
-                    makeRecipe({ id: 'r2', title: 'Herb Risotto' }),
-                    makeRecipe({ id: 'r3', title: 'Fish Tacos' }),
-                ]),
-            }),
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipePage([
+                makeRecipe({ id: 'r1', title: 'Weeknight Pasta' }),
+                makeRecipe({ id: 'r2', title: 'Herb Risotto' }),
+                makeRecipe({ id: 'r3', title: 'Fish Tacos' }),
+            ]),
         );
         const onSelectRecipe = vi.fn();
 
@@ -153,8 +184,8 @@ describe('RecipeWidgetSlot (mobile) — recipe card activation', () => {
     });
 
     it('does not confuse a card activation with the "see all recipes" entry', async () => {
-        useRecipesMock.mockReturnValue(
-            listResult({ data: makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]) }),
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]),
         );
         const onSeeAllRecipes = vi.fn();
         const onSelectRecipe = vi.fn();

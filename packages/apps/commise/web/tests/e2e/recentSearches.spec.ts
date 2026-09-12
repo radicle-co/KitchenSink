@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { E2E_RECIPE_IDS, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -17,7 +17,20 @@ import { signInWithTicket } from './utils/auth';
  * The list rules (newest-first, case-insensitive de-duplication, the cap) are covered by the pure model's
  * unit tests, and the panel's visibility rules by the shared view's component tests; this spec deliberately
  * does not re-prove them. Selectors are role/label only. The mobile equivalent is
- * `.maestro/recipes/discover-recent-searches.yaml` (emulator/CI only).
+ * `.maestro/recipes/discoverRecentSearches.yaml` (emulator/CI only).
+ *
+ * ⛔ TWO WAITS ARE LOAD-BEARING, and each replaces one that passed vacuously in CI (run 34859669064).
+ *  - **The rails before any interaction.** The frame (heading, search field) is server-rendered; the rails are not —
+ *    `/discover` prefetches only the main search, so each rail's `ClientQueryBoundary` renders its loading state until
+ *    the page has hydrated and the BROWSER fetches it. So the first rail card is this page's hydration witness.
+ *    Without it, the field was clicked and filled before the rails' searches had even been issued, and the
+ *    recent-search panel — which opens on a focus event React has to observe — was asserted with no proof the page
+ *    had hydrated.
+ *  - **The results sentence before any card.** One recipe sits in Trending, New AND Quick at once, so a bare card
+ *    locator strict-fails while the rails are the body — and Playwright fails a strict-mode violation at once rather
+ *    than retrying it. The old guard, `Weeknight Pasta` reaching `toHaveCount(0)`, is also true while the rails are
+ *    still loading: it passed in 4 ms, before the rails' searches had even been answered, and the next assertion
+ *    then met the rails. `Showing 1 recipe for “paella”` exists ONLY once the results for the term are on screen.
  */
 test.describe('discovery recent searches (U7)', () => {
     test('a search that ran is remembered, survives a reload, re-runs on tap, and can be cleared', async ({ page }) => {
@@ -26,24 +39,38 @@ test.describe('discovery recent searches (U7)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                makeRecipeDetail({ id: 'rec_paella', ownerId: 'usr_other', title: 'Seafood Paella' }),
-                makeRecipeDetail({ id: 'rec_pasta', ownerId: 'usr_other', title: 'Weeknight Pasta' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.paella, ownerId: 'usr_other', title: 'Seafood Paella' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.pasta, ownerId: 'usr_other', title: 'Weeknight Pasta' }),
             ],
         });
 
-        await page.goto(route('/discover'));
-        await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
-
         const searchBox = page.getByRole('searchbox', { name: 'Search public recipes' });
+        const pastaCard = page.getByRole('article', { name: 'Weeknight Pasta' });
+        const paellaCard = page.getByRole('article', { name: 'Seafood Paella' });
+        // Rendered twice by design — the visible results header and the frame's polite status region (see
+        // `search.spec.ts`'s `discoverySentence`) — so exactly two is both halves present.
+        const paellaResults = page.getByText('Showing 1 recipe for “paella”', { exact: true });
+
+        /** Wait for discovery to hydrate, witnessed by the browser-fetched rails (see the file doc). */
+        const waitForHydratedDiscovery = async (): Promise<void> => {
+            await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
+            await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
+            await expect(pastaCard.first()).toBeVisible();
+        };
+
+        await page.goto(route('/discover'));
+        await waitForHydratedDiscovery();
 
         // Nothing is remembered yet — the panel must not appear on an empty history.
         await searchBox.click();
         await expect(page.getByRole('region', { name: 'Recent searches' })).toHaveCount(0);
 
-        // Run a real search…
+        // Run a real search. The results sentence FIRST (see the file doc): until it shows, the rails may still be the
+        // body, where the match is three cards and the non-match is trivially present.
         await searchBox.fill('paella');
-        await expect(page.getByRole('article', { name: 'Seafood Paella' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toHaveCount(0);
+        await expect(paellaResults).toHaveCount(2);
+        await expect(pastaCard).toHaveCount(0);
+        await expect(paellaCard).toBeVisible();
 
         // …then return to the idle state: the search that RAN is offered back.
         await searchBox.fill('');
@@ -51,16 +78,17 @@ test.describe('discovery recent searches (U7)', () => {
 
         // It survives a real reload — i.e. it genuinely reached `localStorage`, not just React state.
         await page.reload();
-        await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
+        await waitForHydratedDiscovery();
         await searchBox.click();
         await expect(page.getByRole('button', { name: 'Search for “paella”' })).toBeVisible();
 
         // Choosing it re-runs the search end to end: the field carries it AND the non-match disappears,
-        // which can only happen if `query=paella` reached the API again.
+        // which can only happen if `query=paella` reached the API again. The sentence first, for the rails reason above.
         await page.getByRole('button', { name: 'Search for “paella”' }).click();
         await expect(searchBox).toHaveValue('paella');
-        await expect(page.getByRole('article', { name: 'Seafood Paella' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toHaveCount(0);
+        await expect(paellaResults).toHaveCount(2);
+        await expect(pastaCard).toHaveCount(0);
+        await expect(paellaCard).toBeVisible();
 
         // Clear-all empties the history: back to the idle state, nothing is offered.
         await searchBox.fill('');
@@ -69,7 +97,7 @@ test.describe('discovery recent searches (U7)', () => {
 
         // And the emptied history stays empty across a reload (the clear was persisted, not just local).
         await page.reload();
-        await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
+        await waitForHydratedDiscovery();
         await searchBox.click();
         await expect(page.getByRole('region', { name: 'Recent searches' })).toHaveCount(0);
     });

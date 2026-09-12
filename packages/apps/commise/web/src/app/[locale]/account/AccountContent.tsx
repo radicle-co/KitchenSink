@@ -1,6 +1,6 @@
 import { resolveMessages } from '@commise/i18n';
-import { buildApiClient } from '@/lib/apiClient';
-import type { UserProfile } from '@kitchensink/identity-service';
+import { createProfileServiceClient } from '@/lib/identityServiceClient';
+import type { UserProfile } from '@kitchensink/schema-identity';
 import { AppShell } from '@/components/app/AppShell';
 import { AccountStateGate } from '@/components/auth/AccountStateGate';
 import { AccountEditForm } from '@/components/auth/AccountEditForm';
@@ -25,10 +25,28 @@ import { pageContainer, pageHeading, sectionCard, sectionHeading } from '@/compo
  * down with it. This route therefore degrades the same way `/profile` (and, per B19, the recipe pages) already
  * do: the shell, heading, and danger zone still render, with a status notice standing in for the edit form.
  */
+/**
+ * Read the signed-in viewer's identity profile through the TYPED client.
+ *
+ * ⚠️ It went through `buildApiClient(...).get<UserProfile>(...)` until this change, and that generic was the
+ * whole problem: `apiClient` ended in `JSON.parse(text) as T`, so naming `UserProfile` here asserted the shape
+ * and checked nothing (`docs/CODING_STANDARDS.md` §15 / ADR-0014). `ProfileServiceClient.getMe()` parses the
+ * body against `@kitchensink/schema-identity`'s `userProfileSchema` — the same definition the identity service
+ * validates with — so a drifted response fails at the boundary instead of rendering a profile card with
+ * `undefined` fields.
+ *
+ * Migrating these two server components is also what let `lib/apiClient.ts` be DELETED. It was the third
+ * hand-rolled transport to one service, and its own header called these "the two server-rendered pages that
+ * have not migrated to the typed client"; the base origin, the `credentials: 'include'` policy and the
+ * circuit-broken 401 redirect all already lived in `createProfileServiceClient`, so `apiClient` duplicated
+ * every one of them with no validation.
+ *
+ * @param accessToken - The server-resolved Clerk access token.
+ * @returns The VALIDATED viewer profile.
+ * @sideEffect Performs an authenticated HTTP request to the identity service.
+ */
 async function getUserProfile(accessToken: string): Promise<UserProfile> {
-    const api = buildApiClient(accessToken);
-
-    return api.get<UserProfile>('/api/v1/users/me');
+    return createProfileServiceClient(accessToken).getMe();
 }
 
 export async function AccountContent({

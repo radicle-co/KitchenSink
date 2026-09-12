@@ -26,8 +26,9 @@ sequenceDiagram
     participant Device as Device Runtime
 
     U->>App: Open recipe detail and tap "Start Cooking"
-    App->>API: GET /api/v1/recipes/{id}/instructions
-    API-->>App: instructions[]
+    Note right of App: Corrected 2026-08-05 — no /instructions route exists;<br/>the detail payload already carries the steps.
+    App->>API: GET /api/v1/recipes/{id} (already fetched by recipe detail)
+    API-->>App: recipe with steps: RecipeStepView[] (incl. timerSeconds)
 
     Note right of App: FR-032: one-step-at-a-time large text
     App->>U: Render Step 1 of N (large readable format)

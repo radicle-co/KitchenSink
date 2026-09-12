@@ -9,7 +9,6 @@ import * as Sentry from '@sentry/nestjs';
 import type { UserId } from '../types/index.js';
 import { AccountDAO, UserDAO } from '@kitchensink/identity-db';
 import type { AccountRow, UserRow } from '@kitchensink/identity-db';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DrizzleProvider } from '../database/database.module.js';
@@ -25,7 +24,7 @@ export class ResolveUserService {
     private readonly accountDao: AccountDAO;
 
     constructor(@Inject(DrizzleProvider) db: NodePgDatabase) {
-        const daoDb = db as unknown as PostgresJsDatabase<Record<string, never>>;
+        const daoDb = db;
         this.userDao = new UserDAO(daoDb);
         this.accountDao = new AccountDAO(daoDb);
     }

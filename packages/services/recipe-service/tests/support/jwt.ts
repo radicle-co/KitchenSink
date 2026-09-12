@@ -39,6 +39,11 @@ export interface MintTokenOptions {
     readonly scopes?: readonly string[];
     /** Authorization permissions embedded in `public_metadata`. */
     readonly permissions?: readonly string[];
+    /**
+     * ADR-0040: when `true`, the SIGNED `public_metadata.testPrincipal` marker a test-pool member carries. Omitted
+     * leaves the key out of the metadata entirely — the shape every real user's token has.
+     */
+    readonly testPrincipal?: boolean;
     /** Seconds until expiry (default 3600). Use a negative value to mint an already-expired token. */
     readonly expiresInSeconds?: number;
 }
@@ -87,6 +92,7 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
         public_metadata: {
             scopes: [...(options.scopes ?? [])],
             permissions: [...(options.permissions ?? [])],
+            ...(options.testPrincipal !== undefined ? { testPrincipal: options.testPrincipal } : {}),
         },
     };
 

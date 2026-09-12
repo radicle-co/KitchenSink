@@ -13,7 +13,7 @@ import { utilityContrast } from '@commise/test-utils';
 
 import { makeRecipeVersion } from '../__fixtures__/index.js';
 import { RecipeVersionList } from '../RecipeVersionList.js';
-import type { RecipeVersionListProps } from '../model.js';
+import type { RecipeVersionListProps } from '../history.js';
 
 afterEach(cleanup);
 
@@ -128,11 +128,19 @@ describe('RecipeVersionList (web) — restoring state', () => {
         expect(screen.getByRole('status').textContent).toContain('Restoring version 2');
     });
 
-    it('disables all restore actions while a restore is in flight', () => {
+    /**
+     * REWRITTEN from native `disabled`: the control the cook just pressed goes busy, and a real browser drops focus
+     * to <body> the moment a focused control is natively disabled (WCAG 2.2 SC 2.4.3). It stays focusable and
+     * `aria-disabled` (`busyControlProps`), and the press is refused — the next case proves the refusal.
+     */
+    it('busies all restore actions while a restore is in flight, keeping them focusable', () => {
         renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: 2 });
 
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Restore version 1' }).disabled).toBe(true);
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Restore version 2' }).disabled).toBe(true);
+        for (const name of ['Restore version 1', 'Restore version 2']) {
+            const control = screen.getByRole<HTMLButtonElement>('button', { name });
+            expect(control.disabled).toBe(false);
+            expect(control.getAttribute('aria-disabled')).toBe('true');
+        }
     });
 
     it('does not fire restore when a disabled action is activated', async () => {
@@ -146,40 +154,34 @@ describe('RecipeVersionList (web) — restoring state', () => {
     });
 });
 
-describe('RecipeVersionList (web) — editor/device attribution', () => {
-    it('shows "by @handle (from device)" when both are present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: 'iPhone' })];
-        renderList({ versions, currentVersion: 1 });
-
-        expect(screen.getByText('by @clara (from iPhone)')).toBeTruthy();
-    });
-
-    it('shows "by @handle" with no device suffix when only the handle is present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: undefined })];
+/**
+ * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution. Two of the four cases here
+ * pinned the ` (from {device})` suffix and are gone with it. The ESCAPING case is KEPT and re-aimed: it
+ * used to fire its markup payload at the device label, and now fires the same payload at `editorHandle` —
+ * which is equally untrusted (a denormalized display name off the token claims) and is what still reaches
+ * this surface. Deleting it outright would have retired the only XSS guard on the version-history row.
+ */
+describe('RecipeVersionList (web) — editor attribution', () => {
+    it('shows "by @handle" when the handle is present', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara' })];
         renderList({ versions, currentVersion: 1 });
 
         expect(screen.getByText('by @clara')).toBeTruthy();
     });
 
-    it('renders no attribution line when neither the handle nor the device is present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: undefined, deviceLabel: undefined })];
+    it('renders no attribution line when the handle is absent', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: undefined })];
         renderList({ versions, currentVersion: 1 });
 
         expect(screen.queryByText(/^by @/)).toBeNull();
         expect(screen.queryByText(/undefined/)).toBeNull();
     });
 
-    it('renders the device label as plain text, never as markup (untrusted free text)', () => {
-        const versions = [
-            makeRecipeVersion({
-                versionNumber: 1,
-                editorHandle: 'clara',
-                deviceLabel: '<img src=x onerror=alert(1)>',
-            }),
-        ];
+    it('renders the editor handle as plain text, never as markup (untrusted free text)', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: '<img src=x onerror=alert(1)>' })];
         renderList({ versions, currentVersion: 1 });
 
-        expect(screen.getByText('by @clara (from <img src=x onerror=alert(1)>)')).toBeTruthy();
+        expect(screen.getByText('by @<img src=x onerror=alert(1)>')).toBeTruthy();
         expect(document.querySelector('img')).toBeNull();
     });
 });

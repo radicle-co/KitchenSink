@@ -1,15 +1,16 @@
 /**
- * Recipe version-history screen (mobile, T069). Drives the shared native `RecipeVersionList` building block
- * from `useRecipeVersions` (the history) and `useRecipe` (for the authoritative current version, which the
- * list marks as non-restorable), and wires each restore action to `useRestoreRecipeVersion`. The mutation's
- * in-flight `variables` drive the per-row busy state, so exactly the version being restored shows progress.
- * Renders localized loading and error states until both queries resolve; the restore invalidates the recipe
- * and its versions, so the list refreshes itself.
+ * Recipe version-history screen (mobile, T069). Reads the history and the recipe (for the authoritative current
+ * version, which the list marks as non-restorable) with suspense queries under a `QueryBoundary`, drives the shared
+ * native `RecipeVersionList` once both settle, and wires each restore action to `useRestoreRecipeVersion`. The
+ * mutation's in-flight `variables` drive the per-row busy state, so exactly the version being restored shows
+ * progress. The boundary owns the localized loading state and the failure (whose retry refetches); Back sits above
+ * it, in the same place in every state. The restore invalidates the recipe and its versions, so the list refreshes
+ * itself.
  *
  * W6 Task 5 additionally wires the Preview full-screen modal and the two-version Compare full-screen sheet —
  * mirroring the web container's wiring EXACTLY (`RecipeVersionsContainer.tsx`, whose module docs carry the
  * fuller rationale, shared verbatim here): Preview/Compare read snapshots straight off the already-loaded
- * `useRecipeVersions` list (no extra fetch); the "changed from current" line gracefully omits itself if the
+ * history (no extra fetch); the "changed from current" line gracefully omits itself if the
  * current version were ever NOT in that list (structurally unreachable today — see the web container's
  * docs); the preview modal's Restore reflects the restore mutation's own pending state for the previewed
  * version (no double-submit); and the Compare selection is capped at two, disabling every other row's
@@ -23,12 +24,13 @@ import {
     resolveVersionPreview,
     type RecipeVersionRestoreError,
 } from '@commise/features-recipes';
-import { toDetailQueryView } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { QueryBoundary } from '@commise/query/boundary';
 import { palette } from '@commise/ui';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
-import { isVersionConflictError } from '@kitchensink/recipe-service-client';
-import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
+import { isVersionConflictError, recipeQueries } from '@kitchensink/recipe-service-client';
+import { useRecipeServiceClient, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
+import { useSuspenseQueries } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -47,13 +49,58 @@ export interface RecipeVersionsScreenProps {
  * The recipe version-history screen.
  *
  * @param props - The recipe id and the back callback.
- * @returns The loading, error, or populated version-history view.
+ * @returns Back, above the read boundary: the loading and error states, or the version history once both reads
+ *   settle.
  */
 export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
+
+    return (
+        <View style={styles.container}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onBack}>
+                <Text>{t.back}</Text>
+            </Pressable>
+            <QueryBoundary
+                loading={<LoadingState label={t.versionsLoading} />}
+                renderError={({ resetErrorBoundary }) => (
+                    <View style={styles.center}>
+                        <Text accessibilityRole="alert">{t.versionsError}</Text>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={t.versionsRetry}
+                            onPress={resetErrorBoundary}
+                            style={styles.retryButton}
+                        >
+                            <Text style={styles.retryLabel}>{t.versionsRetry}</Text>
+                        </Pressable>
+                    </View>
+                )}
+                resetKeys={[recipeId]}
+            >
+                <RecipeVersionsView recipeId={recipeId} />
+            </QueryBoundary>
+        </View>
+    );
+}
+
+/**
+ * The settled version history: both reads have resolved by the time this renders, so it holds no fetch state.
+ *
+ * @param props - The recipe id.
+ * @returns The version list, the Preview modal and the Compare sheet.
+ * @throws {Error} For an empty recipe id — a read that cannot be made fails into the boundary rather than issuing
+ *   a request for `''` (B21: never a permanent spinner).
+ */
+function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recipeId'>): JSX.Element {
+    if (recipeId.length === 0) {
+        throw new Error('A recipe version history needs a recipe id.');
+    }
+
     const locale = useLocale();
-    const recipe = useRecipe(recipeId);
-    const versions = useRecipeVersions(recipeId);
+    const client = useRecipeServiceClient();
+    const [versions, recipe] = useSuspenseQueries({
+        queries: [recipeQueries(client).versions(recipeId), recipeQueries(client).detail(recipeId)],
+    });
     const restore = useRestoreRecipeVersion();
 
     // W6 Task 5 — Preview: which version (by number) is being previewed, or `null` when the modal is closed.
@@ -62,55 +109,8 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
     // they were picked (see `toggleCompare` for the cap-at-two UX this order feeds).
     const [compareSelection, setCompareSelection] = useState<readonly number[]>([]);
 
-    const back = (
-        <Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onBack}>
-            <Text>{t.back}</Text>
-        </Pressable>
-    );
-
-    // B21: this screen was already on the right side of the settled-but-absent rule (an absent `data` with
-    // nothing in flight reads as ERROR, not as a pending fetch), but it STATED that rule itself while the web
-    // container stated its own — the shape that let the two platforms drift in the first place. Both now read
-    // the ONE statement in `toDetailQueryView`, over both queries combined. `'ready'` carries the pair, so
-    // absence is never re-derived downstream.
-    const view = toDetailQueryView({
-        isLoading: recipe.isLoading || versions.isLoading,
-        isError: recipe.isError || versions.isError,
-        data:
-            recipe.data === undefined || versions.data === undefined
-                ? undefined
-                : { recipe: recipe.data, versions: versions.data },
-    });
-
-    if (view.status === 'loading') {
-        return <LoadingState label={t.versionsLoading} />;
-    }
-
-    if (view.status === 'error') {
-        // B21 fold-in: this branch used to offer Back and one sentence — no way to try again, so a transient
-        // failure could only be escaped by leaving the surface entirely. It now mirrors the web container's
-        // error affordance: the honest message PLUS a retry that re-issues BOTH requests, with Back kept
-        // alongside it so the state is never a one-way street.
-        return (
-            <View style={styles.center}>
-                {back}
-                <Text accessibilityRole="alert">{t.versionsError}</Text>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t.versionsRetry}
-                    onPress={() => {
-                        void versions.refetch();
-                        void recipe.refetch();
-                    }}
-                    style={styles.retryButton}
-                >
-                    <Text style={styles.retryLabel}>{t.versionsRetry}</Text>
-                </Pressable>
-            </View>
-        );
-    }
-
-    const { versions: versionRows, recipe: currentRecipe } = view.data;
+    const versionRows = versions.data;
+    const currentRecipe = recipe.data;
     const restoringVersion = restore.isPending ? (restore.variables?.versionNumber ?? null) : null;
 
     // B17 — a failed restore must never silently no-op. Map the mutation's error to an honest code: a 409 is
@@ -180,8 +180,7 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
     };
 
     return (
-        <View style={styles.container}>
-            {back}
+        <>
             <RecipeVersionList
                 versions={versionRows}
                 currentVersion={currentRecipe.currentVersion}
@@ -206,7 +205,7 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
                 locale={locale}
                 onClose={() => setCompareSelection([])}
             />
-        </View>
+        </>
     );
 }
 

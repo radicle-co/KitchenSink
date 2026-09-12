@@ -24,7 +24,7 @@
 
 **Database (no new RDS, no cluster):** reuse the existing shared instance
 `kitchensink-data-{stage}` (a single `rds.DatabaseInstance`, db.t4g.small, defined in
-`packages/infra/global/lib/platform/data-stack.ts`). Add a **separate logical database
+`packages/infra/global/lib/platform/DataStack.ts`). Add a **separate logical database
 `kitchensink_food`** on that instance (own least-privilege role + secret), provisioned in the
 **global DataStack** so it stays platform infra. `food-service` `Fn.importValue`s the shared
 `kitchensink-data-{stage}:Database*` exports and runs its Drizzle migrations against
@@ -81,7 +81,7 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## Phase 0 — Setup & Infrastructure
 
-- [ ] **T-001** [P0] [Foundation] `FoodServiceStack` CDK — `packages/services/food-service/infra/lib/food-service-stack.ts`
+- [ ] **T-001** [P0] [Foundation] `FoodServiceStack` CDK — `packages/services/food-service/infra/lib/FoodServiceStack.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-001b
@@ -100,7 +100,7 @@ INTEGRATION TESTS (T-040–T-045)
     - `cdk synth` produces valid CloudFormation with no errors and **no new RDS resource**
     - Stack exports `foodFetchWorkerServiceName`; imports the shared DB endpoint/secret
 
-- [ ] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/data-stack.ts`
+- [ ] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/DataStack.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: —
@@ -596,13 +596,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## Phase 4 — Rolling 60-Minute Window Rate Limiter (US-003)
 
-- [ ] **T-024** [P1] [US-003] Rolling Window Limiter: In-Process Implementation — `packages/services/food-service/src/rate-limiter/rolling-window-limiter.ts`
+- [ ] **T-024** [P1] [US-003] Rolling Window Limiter: In-Process Implementation — `packages/services/food-service/src/rate-limiter/RollingWindowLimiter.ts`
       **Story**: US-003
       **Priority**: P1
       **Depends on**: T-007
       **Implements**: FR-019, FR-020
 
-    Create `packages/services/food-service/src/rate-limiter/rolling-window-limiter.ts`:
+    Create `packages/services/food-service/src/rate-limiter/RollingWindowLimiter.ts`:
     - `RollingWindowLimiter` class: `tryRecord(): boolean` (count trailing-60-min calls and record the new call atomically; reject when already at cap), `count(): number` (calls in the trailing 60 min), `isPaused(): boolean` (true once the trailing count ≥ 900 / 90%)
     - Limit: **≤1,000 USDA calls per trailing 60 minutes**; worker pauses draining at **90% (900)** and resumes as calls age out of the window (no continuous refill, no token capacity)
     - In-process state is a list of recent call timestamps, pruned to the trailing 60 min (single Fargate worker = no shared state needed at MVP)
@@ -1080,7 +1080,7 @@ INTEGRATION TESTS (T-040–T-045)
       foods (SC-007). (SC-011 auth-under-flood is already covered by STP-013-B.)
       **Acceptance**: each SC threshold measured and reported under representative load; regressions fail CI.
 
-- [ ] **T-061** [P3 — Deferred] [infra] Multi-AZ upgrade of shared DB (SC-009) — `packages/infra/global/lib/platform/data-stack.ts`
+- [ ] **T-061** [P3 — Deferred] [infra] Multi-AZ upgrade of shared DB (SC-009) — `packages/infra/global/lib/platform/DataStack.ts`
       **Story**: US-0/availability · **Depends on**: — · **Implements**: SC-009 (A-013)
       Promote the shared `kitchensink-data-{stage}` instance to `multiAz: true` so SC-009's 99.9%
       target becomes defensible. **Deferred to the GA/scale phase** — lean launch accepts the

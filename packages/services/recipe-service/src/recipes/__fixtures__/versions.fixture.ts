@@ -1,5 +1,5 @@
 /**
- * Test fixture: a fake {@link VersionsService} for unit-testing {@link RecipesService} in isolation.
+ * Test fixture: a fake {@link VersionsService} for unit-testing `RecipesService` in isolation.
  *
  * RecipesService records a version snapshot on every write via VersionsService (a forwardRef circular
  * dependency). Unit tests that exercise create/update/clone construct the service with this stub so they

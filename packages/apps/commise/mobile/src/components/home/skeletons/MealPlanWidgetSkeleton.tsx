@@ -30,10 +30,11 @@ export function MealPlanWidgetSkeleton(): JSX.Element {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
                 {weekdayLabels(locale).map((day) => (
                     <View key={day} style={styles.tile}>
-                        {/* The weekday name is REAL data — exposed, not hidden. */}
+                        {/* The weekday name is REAL data — exposed, not hidden. The shell used to wrap every
+                            child in one hidden subtree, which silenced all seven of these on device. */}
                         <Text style={styles.day}>{day}</Text>
-                        {/* The meal thumbnail — the only unknown on this tile. */}
-                        <View style={styles.meal} />
+                        {/* The meal thumbnail — the only unknown on this tile, so the only thing hidden. */}
+                        <View aria-hidden style={styles.meal} />
                     </View>
                 ))}
             </ScrollView>

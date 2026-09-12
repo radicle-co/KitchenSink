@@ -1,7 +1,7 @@
 /**
  * Native component tests for the public-discovery result card (T076 / W4 S1), rendered via react-native-web
  * under jsdom. Mirrors the web leaf and is focused on the card's CLONE affordance: the list-level behaviour is
- * covered through `RecipeDiscoveryList.native.test.tsx`, which renders this card in situ.
+ * covered through `RecipeDiscoveryResults.native.test.tsx` and `RecipeBrowseRailResults.native.test.tsx`, which render this card in situ.
  *
  * The clone control used to hand-roll a coral OUTLINE here while `CollectionActions.native.tsx` hand-rolled a
  * SOLID coral fill — the same action, two platforms, three visual answers across the product. See the web

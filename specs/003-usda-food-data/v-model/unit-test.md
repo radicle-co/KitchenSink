@@ -680,7 +680,7 @@ left untouched (REQ-018, §2 Addition B).
 ### Module: MOD-004 (FoodConsumerService — Fan-Out / Merge Worker)
 
 **Parent Architecture Modules**: ARCH-004
-**Target Source File(s)**: `packages/services/food-service/src/worker/food-consumer.service.ts` (Fargate consumer worker — single instance, advisory lock)
+**Target Source File(s)**: `packages/services/food-service/src/worker/foodConsumer.service.ts` (Fargate consumer worker — single instance, advisory lock)
 **REQ trace**: REQ-016, REQ-018, REQ-025..027, REQ-050, REQ-MRG-1, REQ-042
 
 ---
@@ -2492,7 +2492,7 @@ partially persist on error, corrupting an `UNRESOLVED` food.
 ### Module: MOD-020 (ChangeRefreshConsumer — Change-Driven Refresh)
 
 **Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `packages/services/food-service/src/refresh/change-refresh.consumer.ts`
+**Target Source File(s)**: `packages/services/food-service/src/refresh/changeRefresh.consumer.ts`
 **REQ trace**: REQ-031, REQ-032, REQ-053
 
 > **(New.)** Change-driven refresh that runs as a **low-priority Fargate scheduled task** (idle-drain, yields to live demand; ADR-0004 keeps it off the NAT path — **not** a VPC Lambda). An `IngestionScheduled` rule triggers the run. For `RESOLVED` foods, re-fetches each backing source item via its adapter and compares `food_sources.item_version`; re-pulls a field **only** when its originating external item changed upstream, never blindly re-blending. Re-enqueues affected foods via the **ordinary `enqueue(food_id, 'svc_change_refresh')` path** as a low-demand `fetch_queue` row (deduped via `ON CONFLICT`) — there is **no** separate low-priority tier or `enqueueLowPriority` method.

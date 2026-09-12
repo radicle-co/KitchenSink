@@ -28,6 +28,7 @@ const userCtx = {
     scopes: [],
     permissions: [],
     tokenType: 'user' as const,
+    testPrincipal: false,
 };
 
 function encodeHeaderCtx(ctx: unknown): string {
@@ -173,6 +174,8 @@ describe('AuthMiddleware', () => {
                 scopes: [],
                 permissions: [],
                 tokenType: 'user',
+                // A synthetic local principal is never a Clerk test-pool member (ADR-0040).
+                testPrincipal: false,
             });
         });
 

@@ -1,0 +1,8 @@
+{
+    "name": "@kitchensink/unparsed-boundary-tagged-client",
+    "private": true,
+    "dependencies": {
+        "@kitchensink/schema-thing": "*",
+        "zod": "^4.4.3"
+    }
+}

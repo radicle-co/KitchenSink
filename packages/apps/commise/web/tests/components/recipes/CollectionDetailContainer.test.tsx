@@ -14,11 +14,15 @@
  * loosened one. The Next router stays mocked — routing is not part of the recipe-service hooks seam this
  * migration targets.
  */
-import { screen } from '@testing-library/react';
+import { LocaleProvider } from '@commise/i18n/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NotFoundError, PullDriftError, type PullDiff } from '@kitchensink/recipe-service-client';
+import { RecipeServiceProvider, recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
@@ -191,10 +195,10 @@ describe('CollectionDetailContainer', () => {
     });
 
     describe('settled but absent (B21 — the state you cannot get out of)', () => {
-        // `useCollection` disables itself for an empty id, which is exactly the settled-with-nothing shape:
-        // `isLoading` false (a disabled query is pending but not FETCHING), `isError` false, `data` undefined.
-        // This container used to route that back into its LOADING affordance — a permanent spinner with no
-        // retry — while the mobile `CollectionDetailScreen` routed the same shape into ERROR. Web converges.
+        // The read is a suspense read, and query-core refuses to settle a query with `undefined` data, so a
+        // collection that "settled with nothing" can no longer reach the view. The one input that cannot be read at
+        // all is an empty id: it fails into the boundary without issuing a request, as the GENERIC failure with a
+        // retry — never the permanent spinner this container once showed, and never a fabricated not-found.
         it('reports a failure instead of spinning forever', () => {
             const client = createFakeRecipeServiceClient();
             const getCollectionSpy = vi.spyOn(client, 'getCollectionById');
@@ -222,6 +226,87 @@ describe('CollectionDetailContainer', () => {
 
             expect(screen.queryByText(/couldn.t find that collection/i)).not.toBeInTheDocument();
         });
+    });
+
+    it('⛔ issues NO request during the server render', () => {
+        const client = clientSeededWith(makeCollectionWithRecipes());
+
+        const html = renderToString(
+            <LocaleProvider locale="en">
+                <QueryClientProvider client={new QueryClient()}>
+                    <RecipeServiceProvider client={client}>
+                        <CollectionDetailContainer id="col_1" locale="en" />
+                    </RecipeServiceProvider>
+                </QueryClientProvider>
+            </LocaleProvider>,
+        );
+
+        expect(html).toContain('Loading collection');
+        expect(client.getCollectionById).not.toHaveBeenCalled();
+    });
+
+    it('⛔ keeps a loaded collection when a background refetch fails, says so, and a Try again that works clears it', async () => {
+        const user = userEvent.setup();
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_1', name: 'Weeknight dinners' }));
+
+        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client, { queryClient });
+        await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' });
+
+        // One failed refetch; the seeded collection answers every read after it.
+        vi.mocked(client.getCollectionById).mockRejectedValueOnce(new Error('network down'));
+        await act(async () => {
+            await queryClient.refetchQueries({ queryKey: recipeServiceKeys.collection('col_1') });
+        });
+        expect(queryClient.getQueryState(recipeServiceKeys.collection('col_1'))?.status).toBe('error');
+        // TanStack batches observer notifications onto a timer; let that batch reach React before asserting absence.
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+
+        // The cook was reading this collection; a failed refresh must not replace it with an error screen.
+        expect(screen.getByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.getAllByText('We couldn’t refresh this collection.')).not.toHaveLength(0);
+
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+        await waitFor(() => expect(screen.queryAllByText('We couldn’t refresh this collection.')).toHaveLength(0));
+        expect(client.getCollectionById).toHaveBeenCalledTimes(3);
+        await waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Weeknight dinners' })),
+        );
+    });
+
+    it('scrubs the previous collection’s state when the route moves to another collection', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getCollectionById').mockImplementation(async (collectionId) =>
+            makeClonedCollection({
+                id: collectionId,
+                name: collectionId === 'col_a' ? 'Collection A' : 'Collection B',
+                visibility: 'public',
+            }),
+        );
+        vi.spyOn(client, 'deleteCollection').mockRejectedValue(new Error('network down'));
+        vi.spyOn(client, 'previewPullFromSource').mockReturnValue(new Promise(() => {}));
+
+        const { rerender } = renderWithRecipeClient(<CollectionDetailContainer id="col_a" locale="en" />, client);
+        await user.click(await screen.findByRole('button', { name: 'Delete' }));
+        await vi.waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('We couldn’t delete this collection. Please try again.'),
+        );
+        await user.click(screen.getByRole('radio', { name: 'Private' }));
+        await user.click(screen.getByRole('button', { name: 'Pull Updates from Source' }));
+        expect(await screen.findByRole('heading', { name: 'Pull Updates from Source Collection' })).toBeInTheDocument();
+
+        rerender(<CollectionDetailContainer id="col_b" locale="en" />);
+
+        expect(await screen.findByRole('heading', { level: 1, name: 'Collection B' })).toBeInTheDocument();
+        // Collection A's failed delete, open pull dialog and unsaved visibility must not leak onto B.
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Pull Updates from Source Collection' })).not.toBeInTheDocument();
+        expect(screen.getByRole('radio', { name: 'Private' })).not.toBeChecked();
     });
 
     describe('mutation failure (B17: no frozen no-op)', () => {

@@ -83,7 +83,7 @@ describe('RecipeDeleteDialog (native)', () => {
 });
 
 /**
- * Both dialog actions are the design-system {@link Button} (there is no Radix `AlertDialog.Cancel` owning an
+ * Both dialog actions are the design-system `Button` (there is no Radix `AlertDialog.Cancel` owning an
  * element on native, which is the ONLY reason the web leaf's cancel stays hand-rolled), so they inherit the DS
  * palette, the 44pt touch floor, the press-scale motion, and — for confirm — the real in-place spinner plus the
  * disabled + busy in-flight guard that used to be hand-rolled here.

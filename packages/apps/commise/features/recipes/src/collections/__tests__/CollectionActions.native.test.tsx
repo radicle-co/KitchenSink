@@ -9,7 +9,6 @@ import { fireEvent } from '@testing-library/dom';
 
 import { computedContrast } from '@commise/test-utils';
 import { glass, palette } from '@commise/ui';
-import { nativeTokens } from '@commise/ui/native';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { cssColor } from '../../__tests__/cssColor.js';
@@ -145,13 +144,14 @@ describe('CollectionActions (native) — Clone Collection is the DS secondary su
         expect(window.getComputedStyle(screen.getByText('Clone Collection')).color).not.toBe(cssColor(palette.white));
     });
 
-    it('rounds from the radius scale, not a magic 999', () => {
+    // E2 I2 — rewritten from "the radius scale's full pill": the DS Button now rounds to half its minimum height,
+    // so a label that wraps at a large font scale stays inside the curve. Read off the pill's own style.
+    it("rounds to the DS Button's half-height radius, not a magic 999", () => {
         renderActions();
 
-        expect(
-            window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone Collection' })))
-                .borderTopLeftRadius,
-        ).toBe(`${nativeTokens.radius.full}px`);
+        const pill = window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone Collection' })));
+
+        expect(Number.parseFloat(pill.borderTopLeftRadius)).toBe(Number.parseFloat(pill.minHeight) / 2);
     });
 
     it('announces the in-flight clone through NATIVE busy semantics, not a web-only aria-busy prop', () => {

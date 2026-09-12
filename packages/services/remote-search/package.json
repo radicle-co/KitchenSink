@@ -1,0 +1,51 @@
+{
+    "name": "@kitchensink/remote-search-service",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "bundle:lambda": "node esbuild.mjs",
+        "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "test:e2e": "vitest run --config vitest.e2e.config.ts",
+        "test:deployed": "vitest run --config vitest.deployed.config.ts",
+        "test:load": "k6 run tests/load/remoteSearch.load.js",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "contract:generate": "tsx contract/generate.ts"
+    },
+    "dependencies": {
+        "@aws-lambda-powertools/logger": "^2.33.1",
+        "@aws-sdk/client-secrets-manager": "^3.935.0",
+        "@kitchensink/observability-scrubbers": "*",
+        "@kitchensink/schema-food": "*",
+        "@kitchensink/usda-client": "*",
+        "@sentry/aws-serverless": "^10.57.0",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@aws-sdk/client-lambda": "^3.935.0",
+        "@aws-sdk/client-ssm": "^3.935.0",
+        "@aws-sdk/cloudfront-signer": "^3.1138.0",
+        "@kitchensink/contract-gen": "*",
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/service-test-harness": "*",
+        "@kitchensink/typescript": "*",
+        "@types/aws-lambda": "^8.10.0",
+        "@types/node": "^24.13.3",
+        "esbuild": "^0.28.1",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0",
+        "yaml": "^2.8.1"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

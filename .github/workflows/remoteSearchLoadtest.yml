@@ -1,0 +1,150 @@
+name: Remote search load test (deployed preview — manual only)
+
+# ⛔ k6 NEVER RUNS AUTOMATICALLY (owner rulings 2026-09-13), so this workflow runs only when a person dispatches it.
+# The `push` trigger below exists only to REGISTER the file from a branch (`workflowRegistration.test.ts`): it is
+# scoped to this file, and the one job is gated on `workflow_dispatch`, so a push does no work.
+#
+# It loads ONE pull request preview's remote search copy through its CloudFront distribution (ADR-0055), with URLs
+# signed by the base stage's key — `sandbox`, because a preview is the only stage it accepts. Production is refused:
+# the scenario's miss path shares the function's reserved concurrency with cooks (`@loadExcludeTarget prod` in
+# `tests/load/remoteSearch.load.js`).
+#
+# ⛔ THE SIGNED URLS ARE CREDENTIAL MATERIAL. `prepareSignedUrls.ts` writes them to a git-ignored file that this job
+# deletes, and the artifact upload names the k6 summary alone (`k6LoadTierWiring.test.ts`, analyzer 2).
+
+on:
+    workflow_dispatch:
+        inputs:
+            target_stage:
+                description: 'The pull request preview to load, pr-{N}. Production is refused.'
+                required: true
+            hit_rate:
+                description: 'Cache-hit requests per second'
+                required: true
+                default: '10'
+            probe_rate:
+                description: 'Miss probes per second (each reaches the function)'
+                required: true
+                default: '1'
+            duration:
+                description: 'Duration of each series (k6 duration, e.g. 60s, 2m)'
+                required: true
+                default: '60s'
+    push:
+        paths:
+            - .github/workflows/remoteSearchLoadtest.yml
+
+permissions:
+    contents: read # checkout only; the AWS reads use repository secrets, not the GITHUB_TOKEN
+
+concurrency:
+    group: remote-search-load-${{ github.event.inputs.target_stage || github.ref }}
+    cancel-in-progress: false
+
+env:
+    NODE_VERSION: 24
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+
+jobs:
+    loadtest:
+        name: Run k6 against a remote search preview (deployed)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        env:
+            TARGET_STAGE: ${{ inputs.target_stage }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+
+            - name: Refuse anything but a pull request preview
+              run: |
+                  set -euo pipefail
+                  if ! [[ "${TARGET_STAGE}" =~ ^pr-[1-9][0-9]*$ ]]; then
+                      echo "::error::refusing the k6 target '${TARGET_STAGE}': the remote search load test runs against a pull request preview (pr-{N}) only"
+                      exit 1
+                  fi
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Install k6
+              run: |
+                  sudo gpg -k
+                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+                      | sudo tee /etc/apt/sources.list.d/k6.list
+                  sudo apt-get update
+                  sudo apt-get install -y k6
+
+            - name: Configure AWS credentials (to read the origin and the signing key)
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+
+            # Before any request: the origin comes from SSM, and this job is about to send signed requests to it.
+            - name: Read the published search origin, and confirm it is under this repository's own domain
+              id: origin
+              env:
+                  DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  origin=$(aws ssm get-parameter --name "/kitchensink/${TARGET_STAGE}/remote-search/origin" \
+                    --query Parameter.Value --output text)
+                  . .github/scripts/targetScope.sh
+                  target_scope_assert "${DOMAIN_NAME}" "${origin}"
+                  echo "origin=${origin}" >> "${GITHUB_OUTPUT}"
+
+            # The distribution is serving when it refuses an unsigned request itself, which is `deployGate.sh`'s own
+            # definition for this service. A person named this stage, so a copy that is not serving is an error.
+            - name: Confirm the preview's search distribution is serving
+              env:
+                  REMOTE_SEARCH_ORIGIN: ${{ steps.origin.outputs.origin }}
+              run: |
+                  set -euo pipefail
+                  # shellcheck source=.github/scripts/deployGate.sh
+                  source .github/scripts/deployGate.sh
+                  code=$(deploy_gate_probe "${REMOTE_SEARCH_ORIGIN}/" 403)
+                  if [ "${code}" != '403' ]; then
+                      echo "::error::${REMOTE_SEARCH_ORIGIN} answered ${code} to an unsigned request, not 403, so ${TARGET_STAGE}'s remote search copy is not serving"
+                      exit 1
+                  fi
+
+            # ⛔ Signed with the BASE stage's key (`sandbox`), as the preview's food signs.
+            - name: Mint the signed URLs (credential material, never uploaded)
+              working-directory: packages/services/remote-search
+              env:
+                  REMOTE_SEARCH_ORIGIN: ${{ steps.origin.outputs.origin }}
+                  REMOTE_SEARCH_STAGE: ${{ inputs.target_stage }}
+                  REMOTE_SEARCH_KEY_PAIR_ID_PARAMETER: /kitchensink/sandbox/remote-search/key-pair-id
+                  REMOTE_SEARCH_SIGNING_KEY_PARAMETER: /kitchensink/sandbox/remote-search/signing-key-secret-arn
+              run: npx tsx tests/load/prepareSignedUrls.ts
+
+            - name: Run k6 against the remote search preview
+              working-directory: packages/services/remote-search
+              env:
+                  LOAD_PROFILE: deployed
+                  REMOTE_SEARCH_HIT_RATE: ${{ inputs.hit_rate }}
+                  REMOTE_SEARCH_PROBE_RATE: ${{ inputs.probe_rate }}
+                  REMOTE_SEARCH_DURATION: ${{ inputs.duration }}
+              run: k6 run --summary-export=k6-remote-search-summary.json tests/load/remoteSearch.load.js
+
+            - name: Delete the signed URLs
+              if: always()
+              run: rm -f packages/services/remote-search/tests/load/signedUrls.json
+
+            - name: Upload the k6 summary (the summary alone)
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: remote-search-k6-summary-${{ inputs.target_stage }}
+                  path: packages/services/remote-search/k6-remote-search-summary.json
+                  if-no-files-found: warn

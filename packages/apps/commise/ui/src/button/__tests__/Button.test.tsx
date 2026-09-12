@@ -89,7 +89,24 @@ describe('Button (web)', () => {
         expect(onPress).not.toHaveBeenCalled();
     });
 
-    it('marks a busy control as aria-busy AND disabled (cannot double-fire)', async () => {
+    // ⛔ REWRITTEN: a busy control used to be natively `disabled`. The control that goes busy is the one the user
+    // just pressed, and a real browser drops focus to <body> the moment a focused control becomes disabled
+    // (WCAG 2.2 SC 2.4.3) — jsdom does not, which is why this asserts the attributes as well as the press. A busy
+    // control stays FOCUSABLE, says it is unavailable (`aria-disabled`) and in flight (`aria-busy`), and still
+    // cannot double-fire: the click is cancelled.
+    it('⛔ a busy control that is also disabled keeps focus — busy wins, as the control just pressed', () => {
+        render(
+            <Button icon={markerIcon} disabled busy>
+                Clone
+            </Button>,
+        );
+
+        const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Clone' });
+        expect(button.disabled).toBe(false);
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('marks a busy control aria-busy AND aria-disabled, keeps it focusable, and cannot double-fire', async () => {
         const user = userEvent.setup();
         const onPress = vi.fn();
         render(
@@ -100,9 +117,33 @@ describe('Button (web)', () => {
 
         const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Create recipe' });
         expect(button.getAttribute('aria-busy')).toBe('true');
-        expect(button.disabled).toBe(true);
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.disabled).toBe(false);
         await user.click(button);
         expect(onPress).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a busy SUBMIT button does not let Enter in a field submit the form a second time', async () => {
+        // HTML implicit submission fires a click on the form's default button when Enter is pressed in a field.
+        // Native `disabled` used to stop that; the busy click handler must cancel it (`preventDefault`), or a
+        // cook pressing Enter twice saves twice.
+        const user = userEvent.setup();
+        const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
+        render(
+            <form onSubmit={onSubmit}>
+                <label>
+                    Title
+                    <input />
+                </label>
+                <Button icon={markerIcon} type="submit" busy>
+                    Save recipe
+                </Button>
+            </form>,
+        );
+
+        await user.type(screen.getByLabelText('Title'), 'Soup{Enter}');
+
+        expect(onSubmit).not.toHaveBeenCalled();
     });
 
     it('renders a real spinner when busy, swapping the icon slot in place (no layout shift)', () => {
@@ -127,13 +168,18 @@ describe('Button (web)', () => {
         expect(screen.getByRole('button', { name: 'Create recipe' })).toBeTruthy();
     });
 
-    it('gets a 44px min touch height at base that is reset for the mouse at md: (desktop height unchanged)', () => {
+    /**
+     * E2 I12 — rewritten to prove the POINTER rule: the old version pinned the width-only `md:min-h-0`, which gave a
+     * touch iPad a 41 px target. The floor is now reset only for a fine pointer at md: and up.
+     */
+    it('gets a 44px min touch height that only a fine pointer at md: resets (desktop height unchanged)', () => {
         const { container } = render(<Button icon={markerIcon}>Save</Button>);
-        const className = container.querySelector('button')?.className ?? '';
-        // Touch widths (base) get the comfortable 44px min target…
-        expect(className).toContain('min-h-11');
-        // …but desktop (md:+) resets the floor so the mouse density (py-2.5) is preserved exactly.
-        expect(className).toContain('md:min-h-0');
+        const classes = (container.querySelector('button')?.className ?? '').split(/\s+/u);
+        // Touch, at every width, gets the comfortable 44px min target…
+        expect(classes).toContain('min-h-11');
+        // …and only a mouse at md:+ resets it, so the desktop density (py-2.5) is preserved exactly.
+        expect(classes).toContain('md:pointer-fine:min-h-0');
+        expect(classes).not.toContain('md:min-h-0');
     });
 
     it('adopts the PressScale primitive so it scales on press (motion-safe)', () => {
@@ -142,7 +188,7 @@ describe('Button (web)', () => {
         // motion-safe press-scale utility (suppressed under reduce-motion), and the <button> lives inside.
         const wrapper = container.firstElementChild;
         expect(wrapper?.tagName).toBe('SPAN');
-        expect(wrapper?.className).toContain('motion-safe:active:scale-[0.98]');
+        expect(wrapper?.className).toContain('motion-safe:not-has-aria-disabled:active:scale-[0.98]');
         expect(wrapper?.querySelector('button')).not.toBeNull();
     });
 
@@ -196,5 +242,71 @@ describe('Button (web)', () => {
             expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass(variant));
             unmount();
         }
+    });
+});
+
+/**
+ * `width` (R9, `docs/design/rowEditorOpenDecisions.md`). jsdom has no layout, so these pin the class contract; the
+ * measured widths are `variantSurfaceReflow.spec.ts`'s and `recipeFilterSheet.spec.ts`'s.
+ */
+describe('Button (web) — width', () => {
+    const tokensOf = (element: Element | null | undefined): string[] => (element?.className ?? '').split(/\s+/u);
+
+    it('hugs its content when no width is given: the inline wrapper, and no width on the button', () => {
+        const { container } = render(<Button icon={markerIcon}>Save</Button>);
+
+        expect(tokensOf(container.firstElementChild)).toContain('inline-flex');
+        expect(tokensOf(container.firstElementChild)).not.toContain('self-stretch');
+        expect(tokensOf(container.querySelector('button'))).not.toContain('w-full');
+    });
+
+    it('fills its slot under fill: the wrapper stretches and the button takes its whole width, label centred', () => {
+        const { container } = render(
+            <Button icon={markerIcon} variant="secondary" width="fill">
+                Back to recipes
+            </Button>,
+        );
+
+        const wrapper = tokensOf(container.firstElementChild);
+        expect(wrapper).toEqual(expect.arrayContaining(['flex', 'self-stretch']));
+        expect(wrapper).not.toContain('inline-flex');
+
+        const button = tokensOf(screen.getByRole('button', { name: 'Back to recipes' }));
+        // The tier's surface is untouched; only the width is added.
+        expect(button).toEqual(expect.arrayContaining([...buttonSurfaceClass('secondary').split(' '), 'w-full']));
+        expect(button).toContain('justify-center');
+    });
+});
+
+describe('Button (web) — a focus request', () => {
+    const requested = (focusRequested: boolean, onFocusRequestHandled = vi.fn()) => (
+        <div>
+            <Button icon={<span>+</span>} focusRequested={focusRequested} onFocusRequestHandled={onFocusRequestHandled}>
+                Add ingredient
+            </Button>
+            <button type="button">Elsewhere</button>
+        </div>
+    );
+
+    it('moves focus to the button and acknowledges, once', () => {
+        const handled = vi.fn();
+        const { rerender } = render(requested(false, handled));
+
+        expect(document.activeElement).toBe(document.body);
+
+        rerender(requested(true, handled));
+        rerender(requested(true, handled));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add ingredient' }));
+        expect(handled).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes a request it mounts with', () => {
+        const handled = vi.fn();
+
+        render(requested(true, handled));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add ingredient' }));
+        expect(handled).toHaveBeenCalledTimes(1);
     });
 });

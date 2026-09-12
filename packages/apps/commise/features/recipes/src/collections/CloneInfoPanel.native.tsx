@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native clone-info panel (W5 Task 8 building block).
  *
- * The React Native leaf of {@link import('./CloneInfoPanel.js').CloneInfoPanel} — same presentational
+ * The React Native leaf of `CloneInfoPanel` — same presentational
  * contract (source `@owner / "name"` attribution, cloned date, View Source) rendered with RN primitives.
  */
 import { useMessages } from '@commise/i18n/react';
@@ -36,8 +36,10 @@ export const CloneInfoPanel: FC<CloneInfoPanelProps> = ({
     const clonedOnLabel = fillTemplate(cloneInfo.clonedOn, { date: formatCollectionDate(clonedAt, locale) });
 
     return (
-        <View accessibilityLabel={cloneInfo.heading} style={styles.container}>
-            <Text style={styles.heading}>{cloneInfo.heading}</Text>
+        <View style={styles.container}>
+            <Text accessibilityRole="header" style={styles.heading}>
+                {cloneInfo.heading}
+            </Text>
             <Text style={styles.attribution}>{attribution}</Text>
             <Text style={styles.meta}>{clonedOnLabel}</Text>
             <Pressable

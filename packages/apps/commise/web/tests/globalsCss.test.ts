@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -52,4 +52,64 @@ describe('globals.css', () => {
             expect(globalsCss, `${family} must stay in the font import`).toContain(family);
         }
     });
+
+    /**
+     * Tailwind v4 scans THIS app's files and nothing it imports from a workspace package, so a utility class used
+     * only inside a shared package is simply never generated — the element renders unstyled and no test notices.
+     * Every `@commise/*` dependency whose web source writes a `className` must therefore be an `@source`.
+     */
+    it('scans every @commise workspace package whose web components carry utility classes', () => {
+        const manifest = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8')) as {
+            dependencies?: Record<string, string>;
+        };
+        const cssDirectory = resolve(import.meta.dirname, '../src/app');
+        // Read from the RAW file, anchored to a line start: a glob's `/**/` looks like a comment to the stripper
+        // above, and an `@source` inside a real comment never starts a line of this file.
+        const rawCss = readFileSync(resolve(cssDirectory, 'globals.css'), 'utf8');
+        const sourced = [...rawCss.matchAll(/^@source\s+["']([^"']+)["']/gm)].map((match) =>
+            resolve(cssDirectory, (match[1] ?? '').split('/**')[0] ?? ''),
+        );
+
+        const unsourced = Object.keys(manifest.dependencies ?? {})
+            .filter((name) => name.startsWith('@commise/'))
+            .map((name) => ({
+                name,
+                src: join(packageDirectory(name), 'src'),
+            }))
+            .filter(({ src }) => writesClassNames(src))
+            .filter(({ src }) => !sourced.some((root) => !relative(root, src).startsWith('..')))
+            .map(({ name }) => name);
+
+        expect(unsourced, 'these packages style web components but are not scanned by Tailwind').toEqual([]);
+    });
 });
+
+/** Whether any web (non-`.native`) TSX file under `directory` writes a `className`. */
+function writesClassNames(directory: string): boolean {
+    let entries: string[];
+
+    try {
+        entries = readdirSync(directory, { recursive: true, encoding: 'utf8' });
+    } catch {
+        return false;
+    }
+
+    return entries
+        .filter((entry) => entry.endsWith('.tsx') && !entry.endsWith('.native.tsx') && !entry.includes('__tests__'))
+        .some((entry) => readFileSync(join(directory, entry), 'utf8').includes('className='));
+}
+
+/** A dependency's real directory, found the way Node resolves it: the nearest `node_modules` walking up. */
+function packageDirectory(name: string): string {
+    for (let directory = resolve(import.meta.dirname, '..'); ; directory = dirname(directory)) {
+        const candidate = join(directory, 'node_modules', name);
+
+        try {
+            return realpathSync(candidate);
+        } catch {
+            if (dirname(directory) === directory) {
+                throw new Error(`cannot resolve ${name} from the web app`);
+            }
+        }
+    }
+}

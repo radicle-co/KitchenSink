@@ -24,6 +24,7 @@
  * same pure check on the same file and re-fails — Retry there is a dead affordance. Such a cell offers Remove
  * only (and still says WHY it failed); a transport/server failure keeps both.
  */
+import { BUSY_CONTROL_CLASS, busyControlProps } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
@@ -102,10 +103,8 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 <button
                                     type="button"
                                     aria-label={fillTemplate(m.removeLabel, { index: index + 1 })}
-                                    aria-busy={removing}
-                                    disabled={removing}
-                                    onClick={() => onRemovePhoto(photo.id)}
-                                    className="absolute right-2 top-2 rounded-full bg-charcoal/70 px-3 py-1 text-caption font-medium text-white transition hover:bg-error disabled:opacity-60"
+                                    {...busyControlProps({ busy: removing, onClick: () => onRemovePhoto(photo.id) })}
+                                    className={`absolute right-2 top-2 rounded-full bg-charcoal/70 px-3 py-1 text-caption font-medium text-white transition hover:bg-error ${BUSY_CONTROL_CLASS}`}
                                 >
                                     {removing ? m.removing : m.remove}
                                 </button>
@@ -183,13 +182,19 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         {item.errorMessage}
                                     </p>
                                 ) : null}
-                                {item.status === 'failed' ? (
+                                {/* ⛔ `queued` is offered a Remove too, not only `failed`. A file that has not
+                                    started uploading is the one a cook is most likely to want back — and on
+                                    the CREATE path every draft pick sits `queued` until the recipe exists, so
+                                    without this the photo chosen before the first save was the ONE field of
+                                    the editor that could not be changed. Retry stays `failed`-only: there is
+                                    nothing to retry about a file that has not tried yet. */}
+                                {item.status === 'failed' || item.status === 'queued' ? (
                                     <div className="relative flex items-center gap-2">
                                         {/* Retry is offered ONLY where it can plausibly succeed. The queue
                                             re-validates on retry by design, so a client-rejected file (too
                                             large / wrong type) would re-fail identically — a dead affordance.
                                             `retryable` is the queue's own discriminator for that. */}
-                                        {item.retryable ? (
+                                        {item.status === 'failed' && item.retryable ? (
                                             <button
                                                 type="button"
                                                 aria-label={fillTemplate(m.queueRetryLabel, {
@@ -201,14 +206,20 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                 {m.queueRetry}
                                             </button>
                                         ) : null}
-                                        <button
-                                            type="button"
-                                            aria-label={fillTemplate(m.queueRemoveLabel, { fileName: item.fileName })}
-                                            onClick={() => onRemoveQueueItem?.(item.fileId)}
-                                            className="rounded-full bg-white px-3 py-1 text-caption font-medium text-charcoal shadow-sm transition hover:bg-pearl"
-                                        >
-                                            {m.remove}
-                                        </button>
+                                        {/* Offered only when wired: a container withholds removal by not
+                                            wiring it, and an unwired Remove would do nothing. */}
+                                        {onRemoveQueueItem === undefined ? null : (
+                                            <button
+                                                type="button"
+                                                aria-label={fillTemplate(m.queueRemoveLabel, {
+                                                    fileName: item.fileName,
+                                                })}
+                                                onClick={() => onRemoveQueueItem(item.fileId)}
+                                                className="rounded-full bg-white px-3 py-1 text-caption font-medium text-charcoal shadow-sm transition hover:bg-pearl"
+                                            >
+                                                {m.remove}
+                                            </button>
+                                        )}
                                     </div>
                                 ) : null}
                             </li>

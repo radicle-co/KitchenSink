@@ -1,0 +1,10 @@
+{
+    "upstreams": {
+        "archive": {
+            "upstream": "cnf-fcen-csv.zip",
+            "upstreamSha256": "fb77503d88186844cc2c27b39432d755505f97a789c97fc5973a30d0cd4b0367"
+        }
+    },
+    "extract": "cnfExtract2015.jsonl",
+    "extractSha256": "ffcc2c30de948c94652af0ae6a1ab930a9ceda64cb355d88817ecea2eeaaa54e"
+}

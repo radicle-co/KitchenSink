@@ -1,7 +1,8 @@
 /**
  * Native component tests for the recipe-widget card shell (rendered via react-native-web under jsdom).
- * RNW maps the View's accessibilityRole="summary"+accessibilityLabel to a labelled <section role="region">
- * and the Text's accessibilityRole="header" to a <h* role="heading">, mirroring the web leaf's semantics.
+ * RNW maps the View's accessibilityRole="summary" to a <section role="region"> and the Text's
+ * accessibilityRole="header" to a <h* role="heading">. The card carries no name of its own: its header names it, so the
+ * title is said once (`docs/design/nativeContainerNames.md` N1).
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -18,12 +19,6 @@ describe('RecipeWidgetCard (native)', () => {
         expect(screen.getByRole('heading', { name: 'Recent recipes' })).toBeTruthy();
     });
 
-    it('exposes the card as a region whose accessible name is the title', () => {
-        render(<RecipeWidgetCard title="Recent recipes" />);
-
-        expect(screen.getByRole('region', { name: 'Recent recipes' })).toBeTruthy();
-    });
-
     it('renders its children inside the card body', () => {
         render(
             <RecipeWidgetCard title="Recent recipes">
@@ -31,7 +26,21 @@ describe('RecipeWidgetCard (native)', () => {
             </RecipeWidgetCard>,
         );
 
-        const region = screen.getByRole('region', { name: 'Recent recipes' });
+        const region = screen.getByRole('region');
         expect(within(region).getByText('body-content')).toBeTruthy();
+    });
+});
+
+/**
+ * `docs/design/nativeContainerNames.md` N1: the card keeps its summary role (rule 4: it says the card summarises), and
+ * its title header names it (rule 2), so the card carries no name and the title is said once (N4).
+ */
+describe('RecipeWidgetCard (native) — N1: a summary region whose title is said once', () => {
+    it('keeps the summary region, says the title through one header, and labels no node with it', () => {
+        render(<RecipeWidgetCard title="Recent recipes" />);
+
+        expect(screen.getAllByRole('region')).toHaveLength(1);
+        expect(screen.getAllByRole('heading', { name: 'Recent recipes' })).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Recent recipes')).toEqual([]);
     });
 });

@@ -1,0 +1,31 @@
+roots: 2036
+roots with an item whose name matches the root : 282
+  ... that item is the ONLY member (no group)   : 259
+  ... other items share the FoodOn term (group) : 23
+  ... roots with TWO OR MORE such items         : 1  (each is a mapping error for R54b)
+       "taro leaf (raw)" <- Taro leaves, raw | Taro, raw
+first version, no plural folding  : 168 roots, 153 alone, 15 in a group, 0 with two or more
+strict equality                   : 212 roots, 199 alone, 13 in a group, 0 with two or more
+group defaults strict equality would lose: 10: ['broccoli floret (raw)', 'cabbage head (raw)', 'chicken egg white (dried)', 'lamb meat (ground, raw)', 'pine nut kernel (dried)', 'prickly pear pad (raw)', 'turkey meat (ground, raw)', 'vanilla bean extract', 'white sweet corn kernel (raw)', 'yellow sweet corn kernel (raw)']
+
+examples of the group case:
+  root "canola oil"  (5 items)
+     matches the root : Oil, canola
+     another item     : Oil, vegetable, Natreon canola, high stability, non trans, high oleic (70%)
+     another item     : Oil, industrial, canola, high oleic
+  root "white sweet corn kernel (raw)"  (4 items)
+     matches the root : Corn, sweet, white, raw
+     another item     : Corn, sweet, white, frozen, kernels cut off cob, unprepared
+     another item     : Corn grain, white
+  root "chicken egg white (dried)"  (4 items)
+     matches the root : Egg, white, dried
+     another item     : Egg, white, dried, stabilized, glucose reduced
+     another item     : Egg, white, dried, flakes, stabilized, glucose reduced
+  root "palm oil"  (4 items)
+     matches the root : Oil, palm
+     another item     : Shortening frying (heavy duty), palm (hydrogenated)
+     another item     : Shortening, confectionery, fractionated palm
+  root "coconut oil"  (4 items)
+     matches the root : Oil, coconut
+     another item     : Oil, industrial, coconut, confection fat, typical basis for ice cream coatings
+     another item     : Oil, industrial, coconut (hydrogenated), used for whipped toppings and coffee whiteners

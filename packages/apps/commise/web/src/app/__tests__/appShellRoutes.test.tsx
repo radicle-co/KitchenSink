@@ -78,6 +78,20 @@ const shellRoutes: readonly ShellRoute[] = [
         titleId: 'recipeNew',
     },
     {
+        path: '/[locale]/recipes/parse',
+        load: () => import('../[locale]/recipes/parse/page'),
+        props: localeParams,
+        activeId: 'recipes',
+        titleId: 'recipeParse',
+    },
+    {
+        path: '/[locale]/recipes/parse/[jobId]',
+        load: () => import('../[locale]/recipes/parse/[jobId]/page'),
+        props: () => ({ params: Promise.resolve({ locale: 'en', jobId: '00000000-0000-4000-8000-00000000d001' }) }),
+        activeId: 'recipes',
+        titleId: 'recipeParseReview',
+    },
+    {
         path: '/[locale]/recipes/[id]',
         load: () => import('../[locale]/recipes/[id]/page'),
         props: idParams,
@@ -148,6 +162,7 @@ const contentSplitRoutes: readonly { readonly path: string; readonly load: () =>
     { path: '/[locale]/profile', load: () => import('../[locale]/profile/page') },
     { path: '/[locale]/account', load: () => import('../[locale]/account/page') },
     { path: '/[locale]/settings', load: () => import('../[locale]/settings/page') },
+    { path: '/[locale]/legal/sources', load: () => import('../[locale]/legal/sources/page') },
 ];
 
 /** Resolve `auth()` as an authenticated caller with a fixed session token. */
@@ -212,9 +227,9 @@ describe('every authenticated route renders inside the app navigation shell', ()
             const shell = findElementByType(element, AppShell);
 
             expect(shell, `${route.path} renders no AppShell`).toBeDefined();
-            expect((shell?.props as { activeId?: string }).activeId).toBe(route.activeId);
+            expect((shell?.props as { activeId?: string } | undefined)?.activeId).toBe(route.activeId);
             // The shell wraps the surface — it is never rendered empty beside it.
-            expect((shell?.props as { children?: ReactNode }).children).toBeDefined();
+            expect((shell?.props as { children?: ReactNode } | undefined)?.children).toBeDefined();
         });
     }
 });
@@ -231,7 +246,7 @@ describe('every authenticated route names ITSELF in the top bar', () => {
             const element = await Page(route.props() as never);
             const shell = findElementByType(element, AppShell);
 
-            expect((shell?.props as { titleId?: string }).titleId).toBe(route.titleId);
+            expect((shell?.props as { titleId?: string } | undefined)?.titleId).toBe(route.titleId);
         });
     }
 
@@ -250,6 +265,7 @@ describe('every authenticated route names ITSELF in the top bar', () => {
             'profile',
             'account',
             'settings',
+            'dataSources',
         ]);
 
         expect([...SHELL_SURFACE_IDS].filter((id) => !covered.has(id))).toEqual([]);

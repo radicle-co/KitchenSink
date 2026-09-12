@@ -6,8 +6,10 @@
  * can't drift on behaviour or the destructive gate.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { createElement, type ComponentProps } from 'react';
+import type { KeyboardAvoidingView as KeyboardAvoidingViewType, ScrollView as ScrollViewType } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { AccountEraseDialog } from '../AccountEraseDialog.native.js';
@@ -15,6 +17,25 @@ import type { AccountEraseDialogProps } from '../model.js';
 import { makeDonatableRecipe } from '../__fixtures__/index.js';
 
 const PHRASE = 'ERASE MY DATA';
+
+// The real ScrollView and KeyboardAvoidingView, their elements marked: jsdom has no keyboard and no layout, so "the
+// field and the actions move clear of the keyboard" is asserted as "they sit in the keyboard avoider, in a scroll
+// region whose first tap reaches a control".
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        ScrollView: (props: ComponentProps<typeof ScrollViewType>) =>
+            createElement(
+                'div',
+                { 'data-scroll-region': props.keyboardShouldPersistTaps ?? 'never' },
+                createElement(actual.ScrollView, props),
+            ),
+        KeyboardAvoidingView: (props: ComponentProps<typeof KeyboardAvoidingViewType>) =>
+            createElement('div', { 'data-keyboard-avoider': true }, createElement(actual.KeyboardAvoidingView, props)),
+    };
+});
 
 afterEach(cleanup);
 
@@ -168,5 +189,33 @@ describe('AccountEraseDialog (native) — submitting / error (B17: no silent sto
         renderDialog({ phrase: PHRASE, submitError: true, submitting: true });
 
         expect(screen.queryByText(/couldn’t start erasing/i)).toBeNull();
+    });
+});
+
+// `docs/design/compactHeightLayout.md` §9 (A7): sideways, the keyboard covered the phrase field and both actions, and
+// nothing moved them. The dialog now sits on the design system's `DialogFrame`.
+describe('AccountEraseDialog (native) — the keyboard', () => {
+    it('keeps the phrase field and both actions in the keyboard avoider, in a region whose first tap lands', () => {
+        renderDialog({ phrase: PHRASE });
+
+        for (const control of [
+            screen.getByLabelText('Confirmation phrase'),
+            screen.getByRole('button', { name: 'Erase my data' }),
+            screen.getByRole('button', { name: 'Cancel' }),
+        ]) {
+            expect(control.closest('[data-keyboard-avoider]')).not.toBeNull();
+            expect(control.closest('[data-scroll-region]')?.getAttribute('data-scroll-region')).toBe('handled');
+        }
+    });
+
+    // A native dialog carries no name of its own: its header names it, so the title is said once
+    // (`docs/design/nativeContainerNames.md` N1).
+    it('is a dialog named by its title header alone, so the title is said once', () => {
+        renderDialog();
+
+        const dialog = screen.getByRole('dialog');
+
+        expect(within(dialog).getByRole('heading', { name: 'Erase my data' })).toBeTruthy();
+        expect(dialog.getAttribute('aria-label')).toBeNull();
     });
 });

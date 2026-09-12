@@ -1,0 +1,10 @@
+{
+    "upstreams": {
+        "table": {
+            "upstream": "Norwegian Food Composition Table 2026.xlsx",
+            "upstreamSha256": "91af92552975dcb259735e833639f8aacd7cf4674b5c7321e7271224000c247c"
+        }
+    },
+    "extract": "matvaretabellenExtract2026.jsonl",
+    "extractSha256": "fdf7c85a1071d85ada72472d2841e2442babc538ce08080e91baa9bd03f53eb8"
+}

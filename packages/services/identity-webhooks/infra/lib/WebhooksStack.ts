@@ -1,0 +1,1003 @@
+import {
+    CfnOutput,
+    Duration,
+    Fn,
+    SecretValue,
+    Stack,
+    type StackProps,
+    aws_apigateway as apigw,
+    aws_certificatemanager as acm,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
+    aws_ec2 as ec2,
+    aws_events as events,
+    aws_events_targets as events_targets,
+    aws_iam as iam,
+    aws_lambda as lambda,
+    aws_lambda_event_sources as lambda_event_sources,
+    aws_logs as logs,
+    aws_logs_destinations as logsDestinations,
+    aws_rds as rds,
+    aws_route53 as route53,
+    aws_route53_targets as route53_targets,
+    aws_s3 as s3,
+    aws_secretsmanager as secretsmanager,
+    aws_sns as sns,
+    aws_sqs as sqs,
+    aws_ssm as ssm,
+} from 'aws-cdk-lib';
+import { existsSync } from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { Construct } from 'constructs';
+
+import {
+    AcceptedNagFindings,
+    NODE_LAMBDA_RUNTIME,
+    acceptNagFindings,
+    subscribeAlarmEmail,
+} from '@radicle-co/infra-shared/security';
+import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+
+import { erasureSsmPath, getAuthSecretName, getErasureSigningSecretName, ssmParamPath } from './config.js';
+
+/**
+ * How often the scheduled queue backstop runs.
+ *
+ * ⛔ THIS AND `QUEUE_CHECK_INTERVAL_MINUTES` IN `src/common/queueEscalation.ts` ARE ONE CADENCE. The
+ * handler upserts its cron monitor with that interval on every check-in, so a rule firing less often than
+ * the monitor expects reports a missed check-in every interval — a permanently-failing monitor for a check
+ * running exactly as designed, which is how a real alert gets muted.
+ *
+ * ⚠️ Not imported, because `infra/` and `src/` are separate TypeScript programs here and a runtime module
+ * must not depend on a CDK app. `src/common/__tests__/queueCheckCadence.test.ts` READS both sides instead,
+ * rather than either copying the other.
+ */
+const QUEUE_CHECK_INTERVAL = Duration.minutes(5);
+
+export interface WebhooksStackProps extends StackProps {
+    /**
+     * Email that receives this stack's alarms (R3.2 / plan U11). Supplied per-stage from
+     * `COST_ALERT_EMAIL` / the `costAlertEmail` context in `infra/bin/app.ts`; when omitted the topic is
+     * created with NO subscription, so no address is ever baked into a committed template (this repo is
+     * public).
+     */
+    readonly alertEmail?: string;
+
+    /**
+     * Whether this stack creates its CloudWatch alarms. Resolved at SYNTH time from `ALARMS_ENABLED`, which
+     * the deploy pipeline reads from `/kitchensink/{stage}/observability/alarms-enabled`; the default is OFF,
+     * so a sandbox or `pr-{N}` preview provisions none.
+     *
+     * ⛔ REQUIRED rather than optional — an optional prop lets a call site keep the old behaviour by saying
+     * nothing. And never read from SSM inside CDK: `valueForStringParameter` resolves at DEPLOY time and
+     * returns a token, so gating on it compiles, deploys, and does nothing. Both rules are enforced by
+     * `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+     */
+    readonly alarmsEnabled: boolean;
+
+    readonly stage: string;
+    readonly domainName: string;
+    readonly vpcId: string;
+    readonly lambdaSecurityGroupId: string;
+    readonly databaseSecurityGroupId: string;
+    readonly authSecretArn: string;
+    readonly migrationPlanSecretArn: string;
+    readonly dbInstanceIdentifier: string;
+    readonly dbEndpoint: string;
+    /** A STRING — it is a CloudFormation import, and `Number()` of a token is `NaN`. */
+    readonly dbPort: string;
+    /** The identity database's name (`kitchensink-data-{stage}:DatabaseName`). */
+    readonly dbName: string;
+    /** The instance's `DbiResourceId`, which `rds-db:connect` is scoped by. */
+    readonly dbResourceId: string;
+    readonly deletionQueueArn: string;
+    /**
+     * The deletion queue's dead-letter queue, imported ONLY so this stack can alarm on its depth.
+     *
+     * ⛔ The DLQ is DECLARED in `DataStack` (which owns no alarms and no SNS topic) while every identity alarm
+     * — and the topic they publish to — lives here. Nothing imported it until now, which is why
+     * `deletionWorker.ts` could promise "the DLQ and its alarm" for months without one existing.
+     */
+    readonly deletionDlqArn: string;
+    readonly mediaBucketName: string;
+    readonly archiveBucketName: string;
+    readonly hostedZoneId: string;
+    readonly zoneName: string;
+}
+
+export class WebhooksStack extends Stack {
+    public readonly apiUrl: string;
+
+    public constructor(scope: Construct, id: string, props: WebhooksStackProps) {
+        super(scope, id, props);
+
+        const deployStage = props.stage;
+        const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', { vpcId: props.vpcId });
+        const lambdaSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
+            this,
+            'ImportedLambdaSg',
+            props.lambdaSecurityGroupId,
+        );
+        // ⛔ NOT the master credential. The RDS MASTER, `identity_app`, is a member of `rds_superuser`, so a flaw
+        // in any Lambda logged in as it would reach every database on the instance. Every DB-bound Lambda here
+        // logs in as `identity_service`, a data-only role, by RDS IAM (the role split,
+        // `docs/plans/2026-09-11-database-role-split.md`); the instance is imported only so `grantConnect` can
+        // scope `rds-db:connect` to exactly that db-user.
+        const database = rds.DatabaseInstance.fromDatabaseInstanceAttributes(this, 'ImportedDatabase', {
+            instanceIdentifier: props.dbInstanceIdentifier,
+            instanceResourceId: props.dbResourceId,
+            instanceEndpointAddress: props.dbEndpoint,
+            port: 5432,
+            securityGroups: [
+                ec2.SecurityGroup.fromSecurityGroupId(this, 'ImportedDbSg', props.databaseSecurityGroupId),
+            ],
+        });
+        const databaseEnv: Record<string, string> = {
+            DB_HOST: props.dbEndpoint,
+            DB_PORT: props.dbPort,
+            DB_NAME: props.dbName,
+            DB_USERNAME: DATABASE_ROLES.identity.app,
+        };
+        // `authSecretArn` is the data stack's name-based, suffix-LESS `SecretArn` export (the secret is
+        // imported there via `fromSecretNameV2`). Import it as a PARTIAL ARN so `grantRead` appends the
+        // `-??????` wildcard that matches the secret's real ARN — a `secretCompleteArn` grants the exact
+        // suffix-less resource, which the runtime GetSecretValue fallback (below) would be denied on.
+        // (The migration secret is CDK-created and exports a full ARN, so it stays complete.)
+        const authSecretKey = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedAuthSecret', {
+            secretPartialArn: props.authSecretArn,
+        });
+        const deletionQueue = sqs.Queue.fromQueueArn(this, 'ImportedDeletionQueue', props.deletionQueueArn);
+        // Imported for the depth alarm below and nothing else: this stack is granted no action on it, and the
+        // worker reaches its DLQ through SQS's own redrive, never through an API call of ours.
+        const deletionDlq = sqs.Queue.fromQueueArn(this, 'ImportedDeletionDlq', props.deletionDlqArn);
+        const mediaBucket = s3.Bucket.fromBucketName(this, 'ImportedMediaBucket', props.mediaBucketName);
+        const archiveBucket = s3.Bucket.fromBucketName(this, 'ImportedArchiveBucket', props.archiveBucketName);
+        const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
+            hostedZoneId: props.hostedZoneId,
+            zoneName: props.zoneName,
+        });
+        const certificate = new acm.Certificate(this, 'WebhooksCertificate', {
+            domainName: props.domainName,
+            validation: acm.CertificateValidation.fromDns(hostedZone),
+        });
+
+        const customDomain = new apigw.DomainName(this, 'IdentityApiDomain', {
+            domainName: props.domainName,
+            certificate,
+            endpointType: apigw.EndpointType.REGIONAL,
+            securityPolicy: apigw.SecurityPolicy.TLS_1_2,
+        });
+
+        const isValidStage =
+            ['dev', 'staging', 'prod', 'test', 'sandbox'].includes(deployStage) ||
+            deployStage.startsWith('sandbox-') ||
+            deployStage.startsWith('mr-') ||
+            deployStage.startsWith('pr-');
+
+        if (!isValidStage) {
+            throw new Error(
+                `Invalid STAGE="${deployStage}". Must be dev, staging, prod, test, sandbox, or sandbox-* / mr-* / pr-*.`,
+            );
+        }
+
+        const currentFile = fileURLToPath(import.meta.url);
+        const infraDir = path.dirname(currentFile);
+        const possiblePaths = [
+            path.resolve(infraDir, '../../../../services/identity-webhooks/dist'),
+            path.resolve(infraDir, '../../../../packages/services/identity-webhooks/dist'),
+            path.resolve(infraDir, '../../../dist'),
+        ];
+        const distPath = possiblePaths.find((p) => existsSync(p)) ?? possiblePaths[0];
+        const runtime = NODE_LAMBDA_RUNTIME;
+        const architecture = lambda.Architecture.X86_64;
+        const identityStage = deployStage === 'prod' ? 'prod' : 'sandbox';
+
+        // The global handle-sync topic (W8-a.2): the user.updated webhook publishes a rename here. Imported
+        // from the DataStack export (per-stage global — prod/sandbox baseline).
+        const handleSyncTopic = sns.Topic.fromTopicArn(
+            this,
+            'ImportedHandleSyncTopic',
+            Fn.importValue(`kitchensink-data-${identityStage}:HandleSyncTopicArn`),
+        );
+        const ssmValue = (service: 'clerk' | 'sentry', key: string): string =>
+            ssm.StringParameter.valueForStringParameter(this, ssmParamPath(identityStage, service, key));
+
+        // Sentry config injected as plain Lambda env. Per-service DSN value comes from SSM at deploy
+        // (KTD6); STAGE drives the Sentry environment; SENTRY_RELEASE is the commit SHA passed by CI
+        // (U11) so source maps resolve, falling back to the stage when run outside CI.
+        const sentryTracesSampleRate = deployStage === 'prod' ? '0.1' : '1.0';
+        const sentryRelease = process.env['SENTRY_RELEASE'] ?? deployStage;
+        const sentryEnv: Record<string, string> = {
+            STAGE: deployStage,
+            SENTRY_DSN: ssmValue('sentry', 'webhook-dsn'),
+            SENTRY_TRACES_SAMPLE_RATE: sentryTracesSampleRate,
+            SENTRY_RELEASE: sentryRelease,
+        };
+
+        const commonEnv: Record<string, string> = {
+            NODE_ENV: 'production',
+            // debug:auth flow tracing — on in sandbox, off in prod (flip to '1' to debug a prod issue).
+            DEBUG_AUTH: deployStage === 'prod' ? '0' : '1',
+            ...databaseEnv,
+            AUTH_SECRET_ARN: authSecretKey.secretArn,
+            IDP_JWKS_URL: ssmValue('clerk', 'jwks-url'),
+            IDP_ISSUER: ssmValue('clerk', 'issuer'),
+            IDP_AUDIENCE: ssmValue('clerk', 'audience'),
+            DELETION_QUEUE_URL: deletionQueue.queueUrl,
+            DELETION_QUEUE_ARN: deletionQueue.queueArn,
+            MEDIA_BUCKET_NAME: mediaBucket.bucketName,
+            ARCHIVE_BUCKET_NAME: archiveBucket.bucketName,
+            ...sentryEnv,
+        };
+
+        // The deletion-worker + reconciliation Lambdas call the Clerk backend SDK, which needs the
+        // secret key. Embed it at deploy (CFN dynamic reference) like the webhook signing secret, so
+        // identityClient reads IDP_SECRET_KEY directly with no runtime GetSecretValue.
+        const clerkBackendEnv: Record<string, string> = {
+            ...commonEnv,
+            IDP_SECRET_KEY: SecretValue.secretsManager(getAuthSecretName(identityStage), {
+                jsonField: 'SECRET_KEY',
+            }).unsafeUnwrap(),
+        };
+
+        // CR-002 / U4b — the cross-service erasure fan-out config for the deletion-worker + the new
+        // erasure-reconciliation Lambda. The EdDSA PRIVATE signing key is embedded at deploy (CFN dynamic
+        // reference) from the per-stage erasure secret, so `serviceErasureToken.ts` signs with no runtime
+        // GetSecretValue — exactly the IDP_SECRET_KEY embed pattern above. The recipe/food origins are
+        // non-secret, resolved from SSM at deploy. See the deferred key-provisioning seam on
+        // `getErasureSigningSecretName`: until ops provisions the keypair + URLs, the fan-out fails CLOSED
+        // (loud DLQ + the ErasureIncomplete alarm), never silently.
+        const erasureFanoutEnv: Record<string, string> = {
+            SERVICE_ERASURE_SIGNING_KEY: SecretValue.secretsManager(getErasureSigningSecretName(identityStage), {
+                jsonField: 'SIGNING_KEY',
+            }).unsafeUnwrap(),
+            RECIPE_SERVICE_BASE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                erasureSsmPath(identityStage, 'recipe-base-url'),
+            ),
+            FOOD_SERVICE_BASE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                erasureSsmPath(identityStage, 'food-base-url'),
+            ),
+        };
+
+        const webhooksLogGroup = new logs.LogGroup(this, 'WebhooksLogGroup', {
+            retention: logs.RetentionDays.ONE_MONTH,
+        });
+
+        // ARCH-IT-7: one least-privilege role PER function instead of a single union role shared by all
+        // four Lambdas. The old shared role granted the UNION of every permission (DB-secret read,
+        // auth-secret read, SQS send AND consume, media + archive bucket read/write) to functionally
+        // distinct handlers, so e.g. the migration runner could send/consume SQS and read/write both
+        // buckets it never touches. Each role below grants ONLY what that handler's code actually calls
+        // (verified against the handler sources): every Lambda is VPC-attached (to reach the private
+        // RDS) and writes to the shared webhooks log group, so `makeLambdaRole` factors out just that
+        // common base; the resource grants are added per function.
+        //
+        // NOTE: none of these handlers touch S3 — the only S3 caller in the identity codebase is the
+        // avatar-upload controller, which runs in the ECS service, not any Lambda — so no bucket grant
+        // is issued here (the media/archive bucket NAMES are still passed as env vars, above).
+        const vpcAccessManagedPolicy = iam.ManagedPolicy.fromAwsManagedPolicyName(
+            'service-role/AWSLambdaVPCAccessExecutionRole',
+        );
+
+        const makeLambdaRole = (id: string, description: string): iam.Role => {
+            const role = new iam.Role(this, id, {
+                assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+                description,
+                managedPolicies: [vpcAccessManagedPolicy],
+            });
+            webhooksLogGroup.grantWrite(role);
+
+            return role;
+        };
+
+        // webhook (handlers/identityWebhook.ts): connects as identity_service (getDb) and enqueues deletion jobs
+        // to SQS (SendMessage). It calls the Clerk backend SDK (setExternalId), which prefers the
+        // deploy-embedded IDP_SECRET_KEY but can fall back to a runtime GetSecretValue on the auth
+        // secret — so the auth-secret read grant is retained (removing it reintroduces the user.created
+        // 502 the embed fixed). No SQS consume, no buckets.
+        const webhookRole = makeLambdaRole('WebhookLambdaRole', 'Least-privilege role for the Clerk webhook Lambda');
+        database.grantConnect(webhookRole, DATABASE_ROLES.identity.app);
+        authSecretKey.grantRead(webhookRole);
+        deletionQueue.grantSendMessages(webhookRole);
+        handleSyncTopic.grantPublish(webhookRole);
+
+        // deletion-worker (handlers/deletionWorker.ts): connects as identity_service (getDb) and drains the SQS
+        // deletion queue. CR-002: it now calls the Clerk backend SDK (banUser/unbanUser on closure/
+        // reactivation events) — the secret is deploy-embedded in clerkBackendEnv (IDP_SECRET_KEY), but the
+        // auth-secret read grant is retained for identityClient's runtime GetSecretValue fallback, matching
+        // the webhook/reconciliation roles. It does not send to SQS. (The SqsEventSource below also grants
+        // consume; the explicit grant states the intent.)
+        const deletionWorkerRole = makeLambdaRole(
+            'DeletionWorkerLambdaRole',
+            'Least-privilege role for the SQS deletion-worker Lambda',
+        );
+        database.grantConnect(deletionWorkerRole, DATABASE_ROLES.identity.app);
+        authSecretKey.grantRead(deletionWorkerRole);
+        deletionQueue.grantConsumeMessages(deletionWorkerRole);
+
+        // tombstone-sweep (handlers/tombstoneSweep.ts, CR-002 KTD-3): connects as identity_service (getDb) to scrub
+        // expired tombstones, calls the Clerk backend SDK (deleteUser) — so it needs the auth-secret read
+        // fallback — and enqueues the recipe/food erasure legs to the deletion queue (SendMessage). Runs on
+        // its own schedule, off no queue.
+        const tombstoneSweepRole = makeLambdaRole(
+            'TombstoneSweepLambdaRole',
+            'Least-privilege role for the scheduled 12-month tombstone-sweep Lambda',
+        );
+        database.grantConnect(tombstoneSweepRole, DATABASE_ROLES.identity.app);
+        authSecretKey.grantRead(tombstoneSweepRole);
+        deletionQueue.grantSendMessages(tombstoneSweepRole);
+
+        // reconciliation (handlers/reconciliation.ts): connects as identity_service and lists Clerk users via the
+        // backend SDK, which (like the webhook) may fall back to a runtime GetSecretValue on the auth
+        // secret — so the auth-secret read grant is retained. It runs on a schedule, not off SQS, and
+        // touches no queue or bucket.
+        const reconciliationRole = makeLambdaRole(
+            'ReconciliationLambdaRole',
+            'Least-privilege role for the scheduled reconciliation Lambda',
+        );
+        database.grantConnect(reconciliationRole, DATABASE_ROLES.identity.app);
+        authSecretKey.grantRead(reconciliationRole);
+
+        // erasure-reconciliation (handlers/erasureReconciliation.ts, CR-002 R7 completion contract):
+        // connects as identity_service (getDb) to scan `status='erased'` rows and RE-DRIVES the recipe + food erasure legs
+        // over HTTPS (egress via the VPC/NAT to the shared ALB). It does NOT call the Clerk SDK, drains no
+        // SQS, and touches no bucket — so no auth-secret read, no queue grant. The EdDSA signing key is
+        // deploy-embedded (erasureFanoutEnv), so no runtime GetSecretValue grant is needed for it either.
+        const erasureReconciliationRole = makeLambdaRole(
+            'ErasureReconciliationLambdaRole',
+            'Least-privilege role for the scheduled erasure-completion reconciliation Lambda (DB read only)',
+        );
+        database.grantConnect(erasureReconciliationRole, DATABASE_ROLES.identity.app);
+
+        // ⛔ NO migration role here any more, and none should come back. The schema-migration runner moved
+        // to `IdentityServiceStack` (with its own slim role) because a migration must be applied BEFORE the
+        // ECS service that depends on it starts serving, and the only construct that orders those two is an
+        // in-stack `triggers.Trigger` with the service taking a `DependsOn`. This is a different CDK app,
+        // and it deploys AFTER the identity service — it imports that stack's log-group export below — so a
+        // runner here could only ever run once the new tasks were already live against the old schema. For
+        // identity that is a failed sign-in, not a degraded read.
+
+        const webhookFn = new lambda.Function(this, 'WebhookFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/identityWebhook.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: webhookRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(30),
+            memorySize: 512,
+            environment: {
+                // clerkBackendEnv (not commonEnv): handleUserCreated calls setExternalId via the Clerk
+                // backend SDK, which needs IDP_SECRET_KEY. Without it, identityClient falls through to a
+                // runtime GetSecretValue on the auth secret that the role can't read → AccessDenied →
+                // every user.created 502s.
+                ...clerkBackendEnv,
+                // The handle-sync topic the user.updated route publishes renames to (W8-a.2).
+                HANDLE_SYNC_TOPIC_ARN: handleSyncTopic.topicArn,
+                // Embed the Clerk webhook signing secret as a Lambda env var, resolved from Secrets
+                // Manager at *deploy* time via a CloudFormation dynamic reference — not fetched at
+                // runtime. The handler reads `IDP_WEBHOOK_SECRET` directly, so this removes a
+                // per-cold-start GetSecretValue call. The literal never lands in the synthesized
+                // template (only the `{{resolve:secretsmanager:...}}` token does); CloudFormation
+                // resolves it into the function config at deploy. The signing secret does not rotate,
+                // so a stale embedded value is not a concern.
+                IDP_WEBHOOK_SECRET: SecretValue.secretsManager(getAuthSecretName(identityStage), {
+                    jsonField: 'WEBHOOK_SIGNING_SECRET',
+                }).unsafeUnwrap(),
+            },
+            logGroup: webhooksLogGroup,
+        });
+
+        const deletionWorkerFn = new lambda.Function(this, 'DeletionWorkerFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/deletionWorker.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: deletionWorkerRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(30),
+            memorySize: 512,
+            // clerkBackendEnv (ban/unban) + the CR-002 erasure fan-out config (recipe + food legs).
+            environment: { ...clerkBackendEnv, ...erasureFanoutEnv },
+            logGroup: webhooksLogGroup,
+        });
+
+        // The deletion worker drains the SQS deletion queue (handlers/deletionWorker.ts iterates
+        // event.Records). This source previously sat on the reconciliation function — a copy-paste
+        // swap that left deletions running through the reconciliation handler (which ignores SQS
+        // records) and reconciliation never running at all.
+        deletionWorkerFn.addEventSource(
+            new lambda_event_sources.SqsEventSource(deletionQueue, {
+                batchSize: 1,
+            }),
+        );
+
+        const reconciliationFn = new lambda.Function(this, 'ReconciliationFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/reconciliation.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: reconciliationRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(30),
+            memorySize: 512,
+            environment: clerkBackendEnv,
+            logGroup: webhooksLogGroup,
+        });
+
+        // Nightly Clerk<->DB drift repair, and the primary backfill safety net for users that slip
+        // past both creation paths. handlers/reconciliation.ts is typed for ScheduledEvent; it must
+        // run on a schedule, NOT off the deletion queue. 07:00 UTC = low-traffic window.
+        new events.Rule(this, 'ReconciliationSchedule', {
+            schedule: events.Schedule.cron({ minute: '0', hour: '7' }),
+            targets: [new events_targets.LambdaFunction(reconciliationFn)],
+        });
+
+        // CR-002 KTD-3: the 12-month tombstone → erasure sweep. Finds closed (tombstoned) accounts past the
+        // retention window and erases them (identity scrub + Clerk deleteUser + audit + recipe/food erasure
+        // legs). Runs daily (the handler applies the 12-month cutoff itself), on a distinct schedule from
+        // reconciliation. 03:00 UTC = low-traffic window, offset from reconciliation's 07:00.
+        const tombstoneSweepFn = new lambda.Function(this, 'TombstoneSweepFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/tombstoneSweep.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: tombstoneSweepRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            environment: clerkBackendEnv,
+            logGroup: webhooksLogGroup,
+        });
+
+        new events.Rule(this, 'TombstoneSweepSchedule', {
+            schedule: events.Schedule.cron({ minute: '0', hour: '3' }),
+            targets: [new events_targets.LambdaFunction(tombstoneSweepFn)],
+        });
+
+        // CR-002 R7 — the erasure completion-contract reconciliation. DISTINCT from the provisioning
+        // reconciliation above: it scans `status='erased'` identities and re-drives the idempotent recipe +
+        // food erasure legs, emitting the `ErasureIncomplete` metric a lost/stuck leg trips. Runs daily at
+        // 05:00 UTC — offset from the tombstone-sweep (03:00) and the provisioning reconciliation (07:00) so
+        // the three scheduled jobs don't contend. Timeout is generous: it re-drives two HTTP legs per erased
+        // identity.
+        const erasureReconciliationFn = new lambda.Function(this, 'ErasureReconciliationFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/erasureReconciliation.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: erasureReconciliationRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            // commonEnv (DB coordinates) + the fan-out config (signing key + recipe/food origins). No Clerk secret.
+            environment: { ...commonEnv, ...erasureFanoutEnv },
+            logGroup: webhooksLogGroup,
+        });
+
+        new events.Rule(this, 'ErasureReconciliationSchedule', {
+            schedule: events.Schedule.cron({ minute: '0', hour: '5' }),
+            targets: [new events_targets.LambdaFunction(erasureReconciliationFn)],
+        });
+
+        // ── THE SCHEDULED BACKSTOP (plan U12, R29/R30) ────────────────────────────────────────────────
+        //
+        // ⛔ IDENTITY'S OWED WORK IS THE KIND NOBODY NOTICES. A closure or reactivation whose provider leg
+        // never applied leaves an account that is banned in this database and active at Clerk, or the reverse;
+        // an owed handle sync leaves a stale display name on every recipe an author has published. Both look
+        // exactly like a converged account from anywhere except a query that compares the intent to what was
+        // applied — which is what this function runs, and nothing else in this stack does.
+        //
+        // ⛔ ITS OWN ROLE, holding `sqs:GetQueueAttributes` and NOTHING ELSE on the deletion queue. That queue
+        // carries GDPR Art. 17 erasure, and `queueProducerRegister.test.ts` keeps it consumable by exactly one
+        // role — a backstop that could receive would be the second, taking an erasure out of the hands of the
+        // consumer that guard exists to protect.
+        const queueCheckRole = makeLambdaRole(
+            'QueueCheckRole',
+            'Least-privilege role for the scheduled queue backstop (DB read + queue attributes only)',
+        );
+        database.grantConnect(queueCheckRole, DATABASE_ROLES.identity.app);
+
+        // ⛔ `grant` with ONE action, never `grantConsumeMessages`. The bundled grant reads as innocuous — "it
+        // only needs to look at the queue" — while handing this role `ReceiveMessage` and `DeleteMessage`, and
+        // a bundled grant is exactly what U12's verification is written to catch.
+        deletionQueue.grant(queueCheckRole, 'sqs:GetQueueAttributes');
+        deletionDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes');
+
+        const queueCheckFn = new lambda.Function(this, 'QueueCheckFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/queueCheck.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: queueCheckRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            // One indexed read and two queue attribute calls. Generous against a cold start and a first
+            // connection, and far inside the schedule below.
+            timeout: Duration.seconds(60),
+            memorySize: 512,
+            // ⛔ ONE AT A TIME. Two concurrent runs would read the same rows and raise the same escalation
+            // twice, and a backstop that double-reports is a backstop whose counts nobody trusts.
+            reservedConcurrentExecutions: 1,
+            environment: {
+                ...commonEnv,
+                ...sentryEnv,
+                DELETION_QUEUE_URL: deletionQueue.queueUrl,
+                DELETION_DLQ_URL: deletionDlq.queueUrl,
+            },
+            logGroup: webhooksLogGroup,
+        });
+
+        // The rate is `QUEUE_CHECK_INTERVAL` — see its docstring for why it is not imported from `src/`.
+        new events.Rule(this, 'QueueCheckSchedule', {
+            schedule: events.Schedule.rate(QUEUE_CHECK_INTERVAL),
+            targets: [new events_targets.LambdaFunction(queueCheckFn)],
+        });
+
+        // Somewhere for the alarms below to page. This stack had NO alarm action at all: its single alarm
+        // changed state and told nobody, which is the same failure `IdentityServiceStack.ts` records having
+        // already fixed once ("A4: alarms previously had no action wired, so they fired silently").
+        // Subscriptions are managed out-of-band per stage, as they are for the identity and food topics.
+        const alarmTopic = new sns.Topic(this, 'WebhooksAlarmTopic', {
+            enforceSSL: true,
+            displayName: `Identity webhooks alarms (${deployStage})`,
+        });
+        // R3.2 / U11 — every alarm must reach a human. Absent address = no subscription, never a
+        // synth failure: an account that has not configured a recipient must still deploy.
+        subscribeAlarmEmail(alarmTopic, props.alertEmail);
+
+        // ⛔ WITHOUT THIS EVERY ALARM BELOW FIRES AND REACHES NOBODY. `enforceSSL: true` above makes CDK
+        // attach an `AWS::SNS::TopicPolicy`, which REPLACES the SNS DEFAULT document — and the statement it
+        // replaces is the implicit account `Allow` that is the only reason a same-account CloudWatch alarm
+        // could publish here at all. Nothing fails at deploy: the topic exists, the action is attached, the
+        // diff is clean, and the sole symptom is an `Action  Failed to execute action` line in an alarm
+        // history nobody reads. That is how a correctly-firing production crash-loop alarm stayed silent for
+        // 14.2 days. `packages/infra/global/__tests__/alarmTopicPublishGrant.test.ts` carries the measured
+        // account and asserts this grant on every alarm topic in the repository.
+        alarmTopic.addToResourcePolicy(
+            new iam.PolicyStatement({
+                sid: 'AllowCloudWatchAlarmPublish',
+                effect: iam.Effect.ALLOW,
+                principals: [new iam.ServicePrincipal('cloudwatch.amazonaws.com')],
+                actions: ['sns:Publish'],
+                resources: [alarmTopic.topicArn],
+                // Confused-deputy guard, mirroring `CostGuardrailsStack`'s budgets/cost-anomaly grants: only
+                // CloudWatch acting for THIS account may publish to this topic.
+                conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
+            }),
+        );
+        const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
+
+        // ⛔ THE ALARMS ARE GATED; THE TOPIC ABOVE IS NOT — CloudWatch bills per alarm above a 10-alarm free
+        // tier this account is already over, while SNS bills per publish, so a topic nothing publishes to
+        // costs nothing. Gating it would thread an `SnsAction | undefined` through every alarm for $0. The
+        // reasoning and the enforcement live in `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+        if (props.alarmsEnabled) {
+            /**
+             * The dimensions `emitMetric` (`src/common/observability.ts`) attaches to EVERY metric it publishes.
+             *
+             * ⛔ AN ALARM ON ONE OF THESE METRICS MUST SELECT THESE DIMENSIONS. The EMF directive is
+             * `Dimensions: [['service', 'metric', ...Object.keys(dimensions)]]`, and EMF publishes ONLY the
+             * dimension sets the directive lists — CloudWatch does not also roll the datapoints up under an empty
+             * dimension set. A dimensionless alarm therefore subscribes to a series that has never received a single
+             * datapoint, and with `treatMissingData: NOT_BREACHING` it sits in a confident, permanent `OK`.
+             *
+             * That is not hypothetical: the `ErasureIncomplete` alarm below was written dimensionless and had been
+             * dead since the day it was authored. Both deployed alarms
+             * (`kitchensink-erasure-incomplete-{prod,sandbox}`) reported `Dimensions: []` with the state reason "no
+             * datapoints were received for 2 periods and 2 missing datapoints were treated as [NonBreaching]".
+             *
+             * The ALARM is the side that was fixed, not the emitter: the dimension set is the emitter's published
+             * contract for every other metric, and adding a second (empty) dimension set to the directive would
+             * double the number of billed custom metrics to make one alarm's omission work. `service` and `metric`
+             * carry the emitter's own literals — `metric` is redundant with the CloudWatch metric name, and if it is
+             * ever dropped from the emitter these alarms must change in the same commit;
+             * `serviceInfraWiringInvariants.test.ts` (W4) now fails if they drift apart.
+             */
+            const EMITTER_NAMESPACE = 'KitchenSink/IdentityWebhooks';
+            const emitterDimensions = (metricName: string): Record<string, string> => ({
+                service: 'identity-webhooks',
+                metric: metricName,
+            });
+
+            // R7 detective control: alarm when ANY erased identity's recipe/food leg is still incomplete. The
+            // handler emits `ErasureIncomplete` (a count) every run — including 0, so a cleared backlog resets
+            // the alarm. A silently half-erased account is a GDPR Art. 17 failure, so a single incomplete owner
+            // for two consecutive daily runs pages.
+            const erasureIncompleteAlarm = new cloudwatch.Alarm(this, 'ErasureIncompleteAlarm', {
+                alarmName: `kitchensink-erasure-incomplete-${deployStage}`,
+                alarmDescription:
+                    'CR-002 R7: one or more identities reached status=erased but their recipe/food erasure leg is not complete.',
+                metric: new cloudwatch.Metric({
+                    namespace: EMITTER_NAMESPACE,
+                    metricName: 'ErasureIncomplete',
+                    dimensionsMap: emitterDimensions('ErasureIncomplete'),
+                    statistic: cloudwatch.Stats.MAXIMUM,
+                    period: Duration.days(1),
+                }),
+                threshold: 0,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                evaluationPeriods: 2,
+                datapointsToAlarm: 2,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            });
+            erasureIncompleteAlarm.addAlarmAction(alarmAction);
+
+            /**
+             * Webhook REJECTIONS, alarmed per `reason`. The counter was emitted and watched by nothing at all.
+             *
+             * `handlerPipeline.ts` records `emitMetric('IdentityWebhookRejected', 1, { reason })` on every rejected
+             * payload, and its own docstring explains why `reason` is a dimension rather than a branch: "an alert can
+             * threshold signature noise (this endpoint is public and unauthenticated by design, so it receives
+             * internet background scanning) separately from shape failures, which are the ones that mean Clerk's
+             * contract moved". That alert did not exist, so a rejection was indistinguishable from a success.
+             *
+             * Two alarms rather than one, because a single threshold over both reasons is useless in both directions:
+             * set it low and scanner noise pages continuously; set it high and a total contract break is buried.
+             */
+            const rejectionMetric = (reason: string): cloudwatch.Metric =>
+                new cloudwatch.Metric({
+                    namespace: EMITTER_NAMESPACE,
+                    metricName: 'IdentityWebhookRejected',
+                    dimensionsMap: { ...emitterDimensions('IdentityWebhookRejected'), reason },
+                    statistic: cloudwatch.Stats.SUM,
+                    period: Duration.minutes(5),
+                });
+
+            // `shape` = the payload verified its SIGNATURE and then failed the zod schema, i.e. this really is Clerk
+            // and Clerk's contract has moved. There is no benign cause and no volume at which it is acceptable, so a
+            // single occurrence in one period pages. It is also the rejection that returns 200 (the payload is
+            // acknowledged, not retried), so nothing else in the system will ever raise it.
+            const shapeRejectionAlarm = new cloudwatch.Alarm(this, 'WebhookShapeRejectionAlarm', {
+                alarmName: `kitchensink-webhook-rejected-shape-${deployStage}`,
+                alarmDescription:
+                    "Clerk's user webhook payload failed schema validation after a valid signature — their contract has changed and users are no longer syncing.",
+                metric: rejectionMetric('shape'),
+                threshold: 0,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                evaluationPeriods: 1,
+                datapointsToAlarm: 1,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            });
+            shapeRejectionAlarm.addAlarmAction(alarmAction);
+
+            // `signature` = svix rejected the headers. Sporadically this is background scanning of a public
+            // endpoint and must never page. SUSTAINED it is the outage worth catching: a rotated/stale
+            // `SIGNING_SECRET` rejects every genuine webhook, so no user is provisioned or updated at all.
+            //
+            // The threshold discriminates on DURATION rather than magnitude, which is what separates the two
+            // causes: scanning is bursty, a stale secret is continuous. 15 minutes of sustained failures. The
+            // magnitude is a deliberate starting point rather than a measured one — there is no rejection-rate
+            // history to fit it to yet — so tune it from the metric once it has run, and treat a flapping alarm
+            // here as a signal to raise the threshold, never to delete the alarm.
+            const signatureRejectionAlarm = new cloudwatch.Alarm(this, 'WebhookSignatureRejectionAlarm', {
+                alarmName: `kitchensink-webhook-rejected-signature-${deployStage}`,
+                alarmDescription:
+                    'Sustained svix signature rejections on the Clerk webhook — likely a stale SIGNING_SECRET, in which case NO user is being synced. Sporadic rejections are internet scanning and do not reach this threshold.',
+                metric: rejectionMetric('signature'),
+                threshold: 20,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                evaluationPeriods: 3,
+                datapointsToAlarm: 3,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            });
+            signatureRejectionAlarm.addAlarmAction(alarmAction);
+
+            // ⛔ THE DRAIN'S OWN FAILURE, WHICH IT HAS BEEN EMITTING WITH NOTHING WATCHING (plan U15).
+            // `logForwarder.ts` publishes `LogForwarderFailure` on both of its failure paths — a missing DSN
+            // and a forward error — and no alarm read it. That is the worst shape an observability component
+            // can fail in: when the drain stops, the SYMPTOM is an absence of logs, and an absence is what a
+            // healthy quiet system looks like. Nobody notices a silent Sentry project until they go looking
+            // during an incident, which is the moment the logs are most needed and least present.
+            //
+            // ⚠️ `missing_dsn` is a CONFIGURATION fault that fires on every invocation, while
+            // `forward_error` is transient — so this watches the SUM across reasons rather than one of them,
+            // and discriminates on duration: three consecutive five-minute periods with failures is a drain
+            // that is down, not a Sentry hiccup.
+            const logForwarderFailureAlarm = new cloudwatch.Alarm(this, 'LogForwarderFailureAlarm', {
+                alarmName: `kitchensink-log-forwarder-failure-${deployStage}`,
+                alarmDescription:
+                    'The CloudWatch->Sentry log forwarder is failing. Its symptom is an ABSENCE of logs in Sentry, which is indistinguishable from a quiet system — so this alarm is the only thing that reports it.',
+                metric: new cloudwatch.Metric({
+                    namespace: EMITTER_NAMESPACE,
+                    metricName: 'LogForwarderFailure',
+                    dimensionsMap: emitterDimensions('LogForwarderFailure'),
+                    statistic: cloudwatch.Stats.SUM,
+                    period: Duration.minutes(5),
+                }),
+                threshold: 0,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                evaluationPeriods: 3,
+                datapointsToAlarm: 3,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            });
+            logForwarderFailureAlarm.addAlarmAction(alarmAction);
+
+            // ⛔ THE DELETION DLQ'S DEPTH, WHICH `deletionWorker.ts` HAS PROMISED TWICE AND NOBODY BUILT. Its
+            // module docstring and its default branch both tell the reader an unhandled message "must reach
+            // the DLQ and its alarm"; no alarm existed anywhere in the tree. The queue and DLQ are declared in
+            // `DataStack`, which owns no alarms, and every identity alarm lives here — so the promise fell in
+            // the gap between two stacks and stayed there.
+            //
+            // ⚠️ Read the dimension, not the emitter's pair: this watches an AWS/SQS series keyed on
+            // `QueueName`, not one of `emitMetric`'s EMF metrics, so the `emitterDimensions` helper above does
+            // NOT apply to it.
+            //
+            // A single message here is already a failed ban or unban — the database says `tombstoned` while
+            // Clerk keeps minting sessions, or a reactivated user stays locked out — so the threshold is one
+            // rather than a rate. `maxReceiveCount` is 5 (DataStack), and the worker's own retries have
+            // already been spent by the time anything lands here.
+            const deletionDlqDepthAlarm = new cloudwatch.Alarm(this, 'DeletionDlqDepthAlarm', {
+                alarmName: `kitchensink-deletion-dlq-depth-${deployStage}`,
+                alarmDescription:
+                    'A Clerk closure, reactivation or erasure message exhausted its retries and reached the deletion DLQ. The database and the identity provider have diverged for that user until it is redriven.',
+                metric: deletionDlq.metricApproximateNumberOfMessagesVisible({
+                    statistic: cloudwatch.Stats.MAXIMUM,
+                    period: Duration.minutes(5),
+                }),
+                threshold: 1,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+                evaluationPeriods: 1,
+                datapointsToAlarm: 1,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            });
+            deletionDlqDepthAlarm.addAlarmAction(alarmAction);
+        }
+
+        // ⛔ The in-VPC schema migration runner used to be declared HERE, as `MigrationFunction`, exporting
+        // `{stackName}:MigrationFunctionName` for the deploy pipeline to invoke. Both are gone, and neither
+        // should be recreated in this stack — see the note where its role used to be built. The runner and
+        // its export now live in `IdentityServiceStack`
+        // (`kitchensink-identity-service-{stage}:IdentityMigrationFunctionName`), which is what both
+        // pipelines resolve. The SQL never moved: `packages/services/identity/src/database/migrations` was
+        // always its home, and this package's `esbuild.mjs` no longer copies it.
+
+        const apiLogGroup = new logs.LogGroup(this, 'IdentityWebhooksApiLogGroup', {
+            retention: logs.RetentionDays.ONE_MONTH,
+        });
+
+        // CloudWatch -> Sentry log drain (U5). The forwarder runs outside the VPC (direct egress to
+        // Sentry's OTLP endpoint) and is intentionally NOT subscribed to its own log group.
+        const logForwarderLogGroup = new logs.LogGroup(this, 'LogForwarderLogGroup', {
+            retention: logs.RetentionDays.ONE_MONTH,
+        });
+        const logForwarderRole = new iam.Role(this, 'LogForwarderRole', {
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+            description: 'Execution role for the CloudWatch->Sentry log forwarder',
+            managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
+        });
+        logForwarderLogGroup.grantWrite(logForwarderRole);
+
+        const logForwarderFn = new lambda.Function(this, 'LogForwarderFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/logForwarder.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: logForwarderRole,
+            timeout: Duration.seconds(15),
+            memorySize: 256,
+            environment: {
+                NODE_ENV: 'production',
+                STAGE: deployStage,
+                // Single, stage-agnostic log-drain DSN (one Sentry project for all stages); the
+                // forwarder tags each record's environment from the source log group name.
+                LOG_DRAIN_DSN: ssm.StringParameter.valueForStringParameter(
+                    this,
+                    ssmParamPath('global', 'sentry', 'log-drain-dsn'),
+                ),
+                SENTRY_DSN: ssmValue('sentry', 'webhook-dsn'),
+                SENTRY_TRACES_SAMPLE_RATE: sentryTracesSampleRate,
+                SENTRY_RELEASE: sentryRelease,
+            },
+            logGroup: logForwarderLogGroup,
+        });
+
+        // Exclude routine Lambda platform lines and EMF metric payloads at the filter level (KTD2);
+        // one filter per group (the non-adjustable quota is 2/group, and all targets have zero).
+        const drainDestination = new logsDestinations.LambdaDestination(logForwarderFn);
+        const drainPattern = logs.FilterPattern.literal('-START -END -REPORT -"_aws"');
+        const drainTargets: Array<{ id: string; logGroup: logs.ILogGroup }> = [
+            { id: 'WebhooksLogDrain', logGroup: webhooksLogGroup },
+            { id: 'WebhooksApiLogDrain', logGroup: apiLogGroup },
+            // ⛔ IMPORTED FROM `kitchensink-service-logs-{stage}`, NOT from the identity service — and the
+            // difference is load-bearing, not cosmetic. ADR-0028 (2026-08-30) made
+            // `kitchensink-identity-service-{stage}` RECLAIMABLE so the shared sandbox ALB it pins can be
+            // released; this stack must SURVIVE, because `e2e-web`'s Clerk fixture blocks on its webhook.
+            //
+            // This line previously read `Fn.importValue('kitchensink-identity-service-…')`, which made a
+            // persistent stack import from a reclaimable one. CloudFormation refuses that outright:
+            //
+            //     Delete canceled. Cannot delete export
+            //       kitchensink-identity-service-sandbox:IdentityServiceLogGroupName
+            //     as it is in use by kitchensink-identity-webhooks-sandbox.
+            //
+            // The group now lives in a stack that outlives both of us and still deploys first, so
+            // producer-before-consumer is preserved without pinning a stack that has to be deletable.
+            // `reclaimableStackImports.test.ts` fails if this is ever pointed back.
+            {
+                id: 'EcsServiceLogDrain',
+                logGroup: logs.LogGroup.fromLogGroupName(
+                    this,
+                    'ImportedEcsServiceLogGroup',
+                    Fn.importValue(`kitchensink-service-logs-${deployStage}:IdentityServiceLogGroupName`),
+                ),
+            },
+        ];
+
+        for (const target of drainTargets) {
+            new logs.SubscriptionFilter(this, target.id, {
+                logGroup: target.logGroup,
+                destination: drainDestination,
+                filterPattern: drainPattern,
+                filterName: 'forward-app-logs',
+            });
+        }
+
+        // ⛔ THE FORWARDER'S OWN GROUP IS NOT DRAINED, and its absence above is a decision rather than an
+        // oversight (plan U15). A filter on `logForwarderLogGroup` would feed this Lambda its own output:
+        // every forwarded batch writes a line, which the filter forwards, which writes a line. It is in the
+        // RUNTIME register (`logDrainRegister.ts`) so that a line arriving by any other route is identified
+        // rather than tagged `unknown` — identifying a group and subscribing to it are different questions,
+        // and only the second loops.
+
+        // ── The drain reaches every other stack's groups (plan U15, ADR-0042) ──
+        //
+        // ⛔ The FILTER is created by the stack that OWNS the group, not here, because a subscription filter
+        // is a property of the group and CloudFormation will not let one stack attach to another's resource
+        // without importing it — which is how this stack ended up pinning a reclaimable stack once already
+        // (see `EcsServiceLogDrain` above). So this stack publishes what those stacks need — the forwarder's
+        // ARN — and grants CloudWatch Logs permission to invoke it for THIS account's log groups.
+        //
+        // ⚠️ The permission is granted ONCE and scoped by `sourceAccount`, not per group. A `CfnPermission`
+        // per subscribing group would have to be declared here, in the stack that does not know them — which
+        // is the coupling this split exists to avoid — and `logs.amazonaws.com` from our own account is
+        // already a bounded principal.
+        new lambda.CfnPermission(this, 'LogForwarderCrossStackInvoke', {
+            action: 'lambda:InvokeFunction',
+            functionName: logForwarderFn.functionArn,
+            principal: 'logs.amazonaws.com',
+            sourceAccount: this.account,
+        });
+
+        // ⛔ THE DESCRIPTION SAYS "NEVER IMPORTED" ON PURPOSE, and it is not pedantry: this string ships into
+        // CloudFormation and is what an operator reads in the console beside the export, during exactly the
+        // incident where acting on it costs the most. It used to say "imported by every stack that owns a
+        // drained group", which was true and is now the instruction that RECREATES the deadlock — an
+        // `Fn.importValue` here waits for a stack the same pipeline deploys later, at any stage, forever
+        // (ADR-0042). `logDrainRegister.test.ts` refuses any source that imports it.
+        new CfnOutput(this, 'LogForwarderArn', {
+            value: logForwarderFn.functionArn,
+            description:
+                'CloudWatch->Sentry log forwarder; RESOLVED BY CI into LOG_FORWARDER_ARN, never imported (ADR-0042)',
+            exportName: `${this.stackName}:LogForwarderArn`,
+        });
+
+        const api = new apigw.RestApi(this, 'IdentityWebhooksApi', {
+            restApiName: `kitchensink-identity-webhooks-${deployStage}`,
+            description: 'Identity webhooks API for Clerk user events',
+            deployOptions: {
+                stageName: 'v1',
+                accessLogDestination: new apigw.LogGroupLogDestination(apiLogGroup),
+                // `jsonWithStandardFields()` emits `$context.resourcePath`, which is `/webhooks/users` for
+                // BOTH base-path mappings — so a real delivery cannot be attributed to the canonical
+                // `api/v1` path or the deprecated `v1` alias. Three genuine Clerk deliveries were observed
+                // in production and were indistinguishable on exactly this point, which is what blocks
+                // retiring the alias (ADR-0011): you cannot prove Clerk has stopped using it. `$context.path`
+                // is the full incoming path and resolves that; `$context.domainName` additionally separates
+                // the custom domain from the raw execute-api host. Asserted by WebhooksStack.test.ts.
+                accessLogFormat: apigw.AccessLogFormat.custom(
+                    JSON.stringify({
+                        requestId: '$context.requestId',
+                        ip: '$context.identity.sourceIp',
+                        user: '$context.identity.user',
+                        caller: '$context.identity.caller',
+                        requestTime: '$context.requestTime',
+                        httpMethod: '$context.httpMethod',
+                        domainName: '$context.domainName',
+                        path: '$context.path',
+                        resourcePath: '$context.resourcePath',
+                        status: '$context.status',
+                        protocol: '$context.protocol',
+                        responseLength: '$context.responseLength',
+                    }),
+                ),
+                loggingLevel: apigw.MethodLoggingLevel.ERROR,
+                throttlingBurstLimit: 100,
+                throttlingRateLimit: 50,
+            },
+            defaultCorsPreflightOptions: {
+                allowOrigins: apigw.Cors.ALL_ORIGINS,
+                allowHeaders: ['Content-Type', 'Authorization'],
+                allowMethods: apigw.Cors.ALL_METHODS,
+            },
+        });
+
+        // The webhook's public path is (custom-domain base path) + (resource path `webhooks/users`), so the
+        // version prefix is owned HERE, not by the Lambda. ONE mapping, `api/v1` — every HTTP endpoint in the
+        // platform is served under `/api/{version}/`, making the webhook `POST /api/v1/webhooks/users`.
+        //
+        // A multi-level base path cannot use `addBasePathMapping` (`AWS::ApiGateway::BasePathMapping` rejects
+        // multi-level and CDK throws); it must go through `addApiMapping` → `AWS::ApiGatewayV2::ApiMapping`.
+        // AWS allows that only on a REGIONAL domain with a TLS 1.2+ security policy — both set on
+        // `customDomain` above; do not downgrade either or synth will fail.
+        //
+        // A second, single-level `v1` alias used to sit beside this one and was marked un-removable, because
+        // the endpoint URL lives in the Clerk DASHBOARD (outside this repo) and nothing could prove Clerk had
+        // stopped using it: the access log emitted only `$context.resourcePath`, which is `/webhooks/users`
+        // for BOTH mappings. Adding `$context.path` above resolved that. Retired 2026-08-07 on measured
+        // evidence — a driven user.created/user.deleted pair on EACH Clerk instance arrived 3/3 on
+        // `/api/v1/webhooks/users` (prod and sandbox), with zero `/v1/...` deliveries; Svix posts to ONE
+        // configured URL per endpoint, so that identifies the URL rather than sampling it. If user sync ever
+        // stops, a `404` on `/v1/webhooks/users` is the signature — check the dashboard's endpoint list
+        // first. See ADR-0011 and `WebhooksStack.test.ts`.
+        customDomain.addApiMapping(api.deploymentStage, { basePath: 'api/v1' });
+
+        new route53.ARecord(this, 'IdentityApiAliasRecord', {
+            zone: hostedZone,
+            recordName: props.domainName,
+            target: route53.RecordTarget.fromAlias(new route53_targets.ApiGatewayDomain(customDomain)),
+        });
+
+        const webhookIntegration = new apigw.LambdaIntegration(webhookFn);
+
+        // The Clerk user-event webhook is the only route on this API: POST /api/v1/webhooks/users
+        // (registration.identity[.sandbox].commise.app/api/v1/webhooks/users — the `api/v1` base path
+        // mapped above; the old `/v1` alias was retired 2026-08-07). Per Clerk's model it is public (no
+        // API GW authorizer) and authenticated by its svix signature inside the Lambda, which dispatches
+        // on the event `type`. Subscribe a Dashboard endpoint's user.* events here.
+        const webhooksResource = api.root.addResource('webhooks');
+        const usersWebhookResource = webhooksResource.addResource('users');
+        const usersWebhookMethod = usersWebhookResource.addMethod('POST', webhookIntegration, {
+            authorizationType: apigw.AuthorizationType.NONE,
+        });
+
+        // AwsSolutions-APIG4 + -COG4 accepted on THIS method only (never the whole API): the route is
+        // authenticated by the svix HMAC signature the Lambda verifies before doing any work, and a gateway
+        // authorizer would make Clerk unable to call it at all. Justification in @radicle-co/infra-shared/security.
+        acceptNagFindings(usersWebhookMethod, AcceptedNagFindings.CLERK_WEBHOOK_VERIFIES_ITS_OWN_SIGNATURE);
+
+        // AwsSolutions-APIG3 accepted: a WAFv2 web ACL is not proportionate to one signature-verified route
+        // against a $300/month account budget (ADR-0008). Deferred, not dismissed.
+        acceptNagFindings(api.deploymentStage, AcceptedNagFindings.REST_API_EDGE_CONTROLS_NOT_PROPORTIONATE);
+
+        api.addGatewayResponse('Default4xx', {
+            type: apigw.ResponseType.DEFAULT_4XX,
+            responseHeaders: {
+                'Access-Control-Allow-Origin': "'*'",
+                'Access-Control-Allow-Headers': "'Content-Type,Authorization'",
+            },
+        });
+        api.addGatewayResponse('Default5xx', {
+            type: apigw.ResponseType.DEFAULT_5XX,
+            responseHeaders: {
+                'Access-Control-Allow-Origin': "'*'",
+                'Access-Control-Allow-Headers': "'Content-Type,Authorization'",
+            },
+        });
+
+        this.apiUrl = api.url;
+
+        new ssm.StringParameter(this, 'SsmWebhooksApiUrl', {
+            parameterName: `/kitchensink/identity/${deployStage}/webhooks/api/url`,
+            stringValue: this.apiUrl,
+        });
+
+        new CfnOutput(this, 'WebhooksApiUrl', {
+            value: this.apiUrl,
+        });
+    }
+}

@@ -4,7 +4,7 @@
  * A custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design
  * system: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy
  * from `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the
- * form wrapped in a `SafeAreaView` + `KeyboardAvoidingView` so the keyboard never occludes the inputs. It
+ * form wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs. It
  * mirrors the web `<SignIn>` flow the custom form must otherwise reproduce: `signIn.create` →
  * `signIn.password`, and — when the instance requires new-device verification — an email-code step
  * (`sendCode` → a `oneTimeCode` field → `verifyCode`) before `setActive`.
@@ -12,13 +12,14 @@
 import { useClerk, useSignIn } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
 import { Input } from '@commise/ui/input';
+import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
 import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { mobileMessages } from '../i18n/messages.js';
@@ -147,7 +148,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
 
     return (
         <SafeAreaView style={styles.safe}>
-            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <KeyboardAvoider style={styles.flex}>
                 <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                     <Text style={styles.brand}>{t.brand}</Text>
 
@@ -219,13 +220,15 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                         </Button>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     flex: { flex: 1 },
     container: {
         flexGrow: 1,

@@ -1,7 +1,7 @@
 /**
  * @module components/AuthGate — the app-wide authentication gate (the root's render map).
  *
- * Selects the surface for the CURRENT {@link AuthState} derived by `@commise/features-account` (the same
+ * Selects the surface for the CURRENT `AuthState` derived by `@commise/features-account` (the same
  * derivation web uses, so the two platforms cannot disagree on which sessions are blocked): a named loading
  * affordance while the session resolves, the sign-in form when signed out, a localized notice for a blocked or
  * failed session, and the app itself once authenticated.

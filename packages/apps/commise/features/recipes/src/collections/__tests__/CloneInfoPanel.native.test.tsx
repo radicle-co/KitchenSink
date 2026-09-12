@@ -91,3 +91,16 @@ describe('CloneInfoPanel (native) — no resolved owner or name', () => {
         expect(onViewSource).toHaveBeenCalledWith('col_source_1');
     });
 });
+
+/**
+ * `docs/design/nativeContainerNames.md` N1 rule 2: the panel's header says its name, so the panel carries none and the
+ * header is the one node that says it (N4).
+ */
+describe('CloneInfoPanel (native) — N1: the panel’s name is said once, by its header', () => {
+    it('says "Clone Info" through one header, and no node is labelled with it', () => {
+        renderPanel();
+
+        expect(screen.getAllByRole('heading', { name: 'Clone Info' })).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Clone Info')).toEqual([]);
+    });
+});

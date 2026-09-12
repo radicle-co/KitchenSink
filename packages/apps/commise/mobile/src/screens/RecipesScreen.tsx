@@ -12,13 +12,14 @@
  * history, collection detail/create/rename) is a full-screen push with its own back/cancel affordance.
  */
 import type { JSX } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { BackHandler, StyleSheet, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RecipeSourceTab } from '@commise/features-recipes/source-tabs/mobile';
+import { RecipeSourceTab } from '@commise/features-recipes/source-tab/mobile';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { BackInterceptProvider } from '@commise/ui/back-intercept';
+import { useFrameCollapsed } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 
 import { mobileMessages } from '../i18n/messages.js';
@@ -26,6 +27,8 @@ import { CollectionDetailScreen } from './CollectionDetailScreen.js';
 import { CollectionFormScreen } from './CollectionFormScreen.js';
 import { CollectionRecipePickerScreen } from './CollectionRecipePickerScreen.js';
 import { CollectionsScreen } from './CollectionsScreen.js';
+import { ParseIngredientsScreen } from './ParseIngredientsScreen.js';
+import { ParseJobReviewScreen } from './ParseJobReviewScreen.js';
 import { RecipeCreateScreen } from './RecipeCreateScreen.js';
 import { RecipeDetailScreen } from './RecipeDetailScreen.js';
 import { RecipeDiscoveryScreen } from './RecipeDiscoveryScreen.js';
@@ -43,6 +46,11 @@ type Surface =
     | { readonly id: 'collections' }
     | { readonly id: 'detail'; readonly recipeId: string }
     | { readonly id: 'create' }
+    // Plan U9's two parse surfaces. TWO members, not one carrying an optional id: pasting and reviewing are
+    // different screens with different props, and an optional `jobId` would make "review with no job"
+    // representable — a state the review screen cannot render and nothing would stop a caller pushing.
+    | { readonly id: 'parse' }
+    | { readonly id: 'parseReview'; readonly jobId: string }
     | { readonly id: 'edit'; readonly recipeId: string }
     | { readonly id: 'versions'; readonly recipeId: string }
     | { readonly id: 'collectionDetail'; readonly collectionId: string }
@@ -77,7 +85,7 @@ function TabBar({
     const labels: Record<TabId, string> = { list: t.myRecipes, discovery: t.discover, collections: t.collections };
 
     return (
-        <View accessibilityRole="tablist" style={styles.tabBar}>
+        <View collapsable={false} accessibilityRole="tablist" style={styles.tabBar}>
             {TAB_IDS.map((tab) => (
                 <RecipeSourceTab
                     key={tab}
@@ -112,6 +120,7 @@ export interface RecipesScreenProps {
  */
 export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX.Element {
     const insets = useSafeAreaInsets();
+    const collapsed = useFrameCollapsed();
     const [stack, setStack] = useState<readonly Surface[]>(
         initialRecipeId === undefined
             ? [{ id: 'list' }]
@@ -131,25 +140,6 @@ export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX
     const current = stack[stack.length - 1] ?? { id: 'list' };
     const screen = renderSurface(current, nav);
 
-    // Hardware back must navigate WITHIN the app's surface stack, not exit it: without this handler RN's
-    // default pops the single Android activity, so a back press (or a stray back event) from any pushed
-    // surface — recipe detail, editor, a collection — drops the user straight to the launcher. Return `true`
-    // to consume the event while there's a surface to pop; return `false` on the root so the OS default
-    // (leave the app) still applies from a top-level tab.
-    useEffect(() => {
-        const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-            if (stack.length > 1) {
-                nav.back();
-
-                return true;
-            }
-
-            return false;
-        });
-
-        return () => subscription.remove();
-    }, [stack.length, nav]);
-
     // Apply the top safe-area inset so the tab bar + screen headings clear the status bar (without it the
     // top row renders UNDER the status bar — a visual defect, and the occluded nodes drop out of the
     // accessibility hierarchy, which also makes them invisible to screen readers and to Maestro E2E).
@@ -157,18 +147,63 @@ export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX
     // bar. Without the bottom inset, the foot of a scroll (e.g. the recipe detail's owner actions) renders
     // under the 3-button nav bar — the left-aligned "Delete recipe" action overlaps the nav bar's back
     // button, so a tap there fires BACK (popping the detail) instead of opening the confirm.
-    const containerStyle = [styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }];
+    //
+    // ⚠️ `paddingBottom` is now load-bearing for a control in ANOTHER package. The recipe list's create dial
+    // (`@commise/features-recipes`'s `SpeedDial.native.tsx`) pins its FAB inside this padded box while
+    // opening its menu in a modal WINDOW, which spans the whole display and inherits none of this — so the
+    // menu re-adds `insets.bottom` itself to line up. Drop or change this padding when a real navigator
+    // lands and the FAB slides under the gesture bar while its menu stays put, opening a visible gap.
+    //
+    // The SIDE insets too: in landscape a camera cutout or the 3-button navigation bar sits on a side edge, and the
+    // bar is drawn translucent over content, so the dial's FAB and the wizard's Next would sit under it.
+    const containerStyle = [
+        styles.container,
+        { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right },
+    ];
 
-    if (isTab(current)) {
-        return (
-            <View style={containerStyle}>
-                <TabBar current={current.id} onSelect={nav.selectTab} />
-                {screen}
-            </View>
-        );
-    }
+    // ONE tree for tab and pushed surfaces, so hiding the tab bar shifts no sibling: `screen` keeps its index, and a
+    // focused search field in it keeps its node and its keyboard. The tab bar steps aside while the frames collapse —
+    // a window compact in height with a keyboard open (`docs/design/compactHeightLayout.md` §5) — so the results keep
+    // their room, iOS's own convention for a search in progress.
+    const body = (
+        <View style={containerStyle}>
+            {isTab(current) && !collapsed ? <TabBar current={current.id} onSelect={nav.selectTab} /> : null}
+            {screen}
+        </View>
+    );
 
-    return <View style={containerStyle}>{screen}</View>;
+    // ⛔ HARDWARE BACK IS THE SURFACE'S TO REFUSE, NOT THIS SCREEN'S TO ANSWER UNCONDITIONALLY.
+    //
+    // This used to be a bare `BackHandler` subscription here that called `nav.back()` whenever the stack had
+    // anything to pop. It was right about the destination and wrong about the authority: the recipe editor's
+    // OWN back arrow routes through the wizard's discard guard and asks before losing unsaved work, while the
+    // system button popped the surface with no dialog at all — the same screen, left two different ways, one
+    // of which silently destroyed a draft (create as well as edit).
+    //
+    // `BackInterceptProvider` owns the one subscription now and offers each press to the mounted surfaces
+    // first (`@commise/ui/back-intercept`); this callback is the TERMINAL link, reached only when nothing
+    // claimed it. Its rule is unchanged and still exactly right: consume the event while there is a surface to
+    // pop, and decline at the root so the OS default (leave the app) still applies from a top-level tab.
+    //
+    // A fresh closure over the CURRENT `stack` every render is safe — the provider reads it through an effect
+    // event, so the subscription itself never re-registers. Do NOT "optimise" this into a `setStack` updater
+    // that reports back whether it popped: a state updater is not guaranteed to run synchronously, and the
+    // resulting wrong answer to the OS is invisible until it is not.
+    return (
+        <BackInterceptProvider
+            onUnhandled={() => {
+                if (stack.length > 1) {
+                    nav.back();
+
+                    return true;
+                }
+
+                return false;
+            }}
+        >
+            {body}
+        </BackInterceptProvider>
+    );
 }
 
 /** Navigation intents handed to each screen (a tiny stack API — no library). */
@@ -187,6 +222,7 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                 <RecipeListScreen
                     onSelectRecipe={(recipeId) => nav.push({ id: 'detail', recipeId })}
                     onCreateRecipe={() => nav.push({ id: 'create' })}
+                    onPasteIngredients={() => nav.push({ id: 'parse' })}
                 />
             );
         case 'discovery':
@@ -222,6 +258,28 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                 <RecipeCreateScreen
                     onCreated={(recipeId) => nav.reset([{ id: 'list' }, { id: 'detail', recipeId }])}
                     onCancel={nav.back}
+                />
+            );
+        case 'parse':
+            // ⛔ `reset`, not `push`: the paste form is spent once its job exists, and leaving it on the
+            // stack means a Back press lands on text that would create a SECOND job from the same paste.
+            // The web container replaces its route for exactly this reason.
+            return (
+                <ParseIngredientsScreen
+                    onCreated={(jobId) => nav.reset([{ id: 'list' }, { id: 'parseReview', jobId }])}
+                    onBack={nav.back}
+                />
+            );
+        case 'parseReview':
+            return (
+                <ParseJobReviewScreen
+                    jobId={surface.jobId}
+                    // ⛔ THE LIST STAYS BENEATH IT. `nav.reset([{ id: 'parse' }])` left a stack of ONE, and
+                    // the hardware-back handler above returns `false` at the root — so on Android a cook who
+                    // pressed "Start over" and then Back was dropped straight out of the app. Same rule the
+                    // seeded detail stack follows, and the same one `onCreated` one line up already applies.
+                    onStartOver={() => nav.reset([{ id: 'list' }, { id: 'parse' }])}
+                    onBack={nav.back}
                 />
             );
         case 'edit':
@@ -265,7 +323,9 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    container: { flex: 1, backgroundColor: 'transparent' },
     tabBar: {
         flexDirection: 'row',
         gap: nativeTokens.spacing[2],

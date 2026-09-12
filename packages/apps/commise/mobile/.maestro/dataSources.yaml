@@ -1,0 +1,39 @@
+# The Data sources sheet (curated plan R55, U25; design §S16): a signed-in cook opens it from account settings, finds
+# USDA and Ciqual with their licence links, and closes it back to where they were.
+#
+# The sheet reads `GET /api/v1/foods/sources` from food-service directly (plan 002 S5, `EXPO_PUBLIC_FOOD_API_URL`).
+#
+# It assumes a stage whose catalog cites USDA and Ciqual — every deployed stage once the seed has run (R31), since
+# both are cited by the committed seed. Selectors are visible text and accessibility labels only.
+
+appId: io.commise.mobile
+---
+# Sign in (idempotent) and land on the Home widget surface.
+- runFlow: auth/signinHome.yaml
+
+# Into the account hub, where "Food data" sits before the danger zone.
+- tapOn: 'Profile'
+- scrollUntilVisible:
+      element: 'Account settings'
+      direction: DOWN
+- tapOn: 'Account settings'
+- scrollUntilVisible:
+      element: 'Food data'
+      direction: DOWN
+- tapOn: 'Data sources'
+
+# The sheet: its title, both intro sentences, and the sources a stored value cites.
+- assertVisible: 'Data sources'
+- assertVisible: 'The nutrition figures in this app come from these public food databases.'
+- scrollUntilVisible:
+      element: 'USDA'
+      direction: DOWN
+- assertVisible: 'CC0 1.0 Universal, license for USDA'
+- scrollUntilVisible:
+      element: 'Ciqual'
+      direction: DOWN
+- assertVisible: 'Licence Ouverte / Open Licence 2.0, license for Ciqual'
+
+# Close returns the cook to account settings.
+- tapOn: 'Close data sources'
+- assertVisible: 'Food data'

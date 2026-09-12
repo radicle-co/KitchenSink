@@ -149,3 +149,19 @@ describe('CollectionDetail (native) — mutation error (B17: no frozen no-op)', 
         expect(screen.queryByText(/couldn’t/)).toBeNull();
     });
 });
+
+/**
+ * `docs/design/nativeContainerNames.md` N1 rule 2: the members header says the view's name, so the view carries none
+ * and the header is the one node that says it (N4). Both bodies are checked: the header sits above either.
+ */
+describe('CollectionDetail (native) — N1: the members’ name is said once, by its header', () => {
+    it.each([
+        ['with members', makeCollectionWithRecipes()],
+        ['empty', makeCollectionWithRecipes({ recipes: [] })],
+    ])('says "Recipes" through one header, and no node is labelled with it (%s)', (_body, collection) => {
+        renderDetail({ collection });
+
+        expect(screen.getAllByRole('heading', { name: 'Recipes' })).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Recipes')).toEqual([]);
+    });
+});

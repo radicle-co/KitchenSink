@@ -1,13 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Text } from 'react-native';
+import { AccessibilityInfo, Text } from 'react-native';
 import type { ReactElement } from 'react';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
 import { palette } from '../../tokens/colors.js';
 import { glass, gradient, toNativeGradient } from '../../tokens/gradients.js';
+
+// react-native-web does not implement `sendAccessibilityEvent`; the focus request reads its calls.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+});
 
 /**
  * Button (native) — rendered via react-native-web under jsdom. Mirrors the web leaf's behavioural coverage
@@ -18,7 +25,10 @@ import { glass, gradient, toNativeGradient } from '../../tokens/gradients.js';
 
 const markerIcon: ReactElement = <Text>ICON_MARKER</Text>;
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+});
 
 describe('Button (native)', () => {
     it('renders an accessible button whose name is the label', () => {
@@ -129,6 +139,24 @@ describe('Button (native)', () => {
         const button = screen.getByRole('button', { name: 'Save changes' });
         const surface = withMinHeight(button, '44px');
         expect(surface).not.toBeNull();
+    });
+
+    /**
+     * E2 I2 — the radius is HALF the minimum height (§S13), not a full pill: on a pill, a label that wraps at a large
+     * font scale runs past the curve. Read off the pill's own computed style, so a change to the floor moves both.
+     */
+    it('rounds the pill to half its minimum height, so a wrapped label stays inside the curve', () => {
+        render(
+            <Button icon={markerIcon} onPress={vi.fn()}>
+                Save changes
+            </Button>,
+        );
+
+        const pill = withMinHeight(screen.getByRole('button', { name: 'Save changes' }), '44px');
+        const style = getComputedStyle(pill ?? document.body);
+
+        expect(pill).not.toBeNull();
+        expect(Number.parseFloat(style.borderTopLeftRadius)).toBe(Number.parseFloat(style.minHeight) / 2);
     });
 
     it('shows a real spinner and hides the icon when busy (no layout shift), still labelled', () => {
@@ -255,6 +283,27 @@ describe('Button (native)', () => {
         // at rest (the pressed/reduce-motion outputs are proven in pressedScale.test.ts).
         expect(screen.getByRole('button', { name: 'Save changes' }).style.transform).toBe('scale(1)');
     });
+
+    /** `width` (R9, `docs/design/rowEditorOpenDecisions.md`): passed to the `PressScale` that owns the pressable. */
+    it('leaves its size to the parent when no width is given', () => {
+        render(
+            <Button icon={markerIcon} onPress={vi.fn()}>
+                Done
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'Done' }).style.alignSelf).toBe('');
+    });
+
+    it('stretches across its parent under fill', () => {
+        render(
+            <Button icon={markerIcon} onPress={vi.fn()} width="fill">
+                Done
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'Done' }).style.alignSelf).toBe('stretch');
+    });
 });
 
 /**
@@ -264,12 +313,14 @@ describe('Button (native)', () => {
  */
 function withMinHeight(root: HTMLElement, minHeight: string): HTMLElement | null {
     const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
     return candidates.find((el) => getComputedStyle(el).minHeight === minHeight) ?? null;
 }
 
 /** The sibling of {@link withMinHeight} for the tier's bordered surface (RNW compiles borders the same way). */
 function withBorderWidth(root: HTMLElement, borderWidth: string): HTMLElement | null {
     const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
     return candidates.find((el) => getComputedStyle(el).borderTopWidth === borderWidth) ?? null;
 }
 
@@ -284,3 +335,28 @@ function rgb(hex: string): string {
 function rgba(color: string): string {
     return color.replace(/\s+/g, ' ');
 }
+
+describe('Button (native) — a focus request', () => {
+    const requested = (focusRequested: boolean, onFocusRequestHandled = vi.fn()) => (
+        <Button icon={markerIcon} focusRequested={focusRequested} onFocusRequestHandled={onFocusRequestHandled}>
+            Add ingredient
+        </Button>
+    );
+
+    it('moves the screen-reader cursor to the button and acknowledges, once', () => {
+        const handled = vi.fn();
+        const { rerender } = render(requested(false, handled));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
+
+        rerender(requested(true, handled));
+        rerender(requested(true, handled));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(1);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('button', { name: 'Add ingredient' }),
+            'focus',
+        );
+        expect(handled).toHaveBeenCalledTimes(1);
+    });
+});

@@ -1,7 +1,7 @@
 /**
  * @module screens/AccountSettings — the mobile account hub (security + sign-out + danger zone), U2 rebuild.
  *
- * Reachable from the profile surface's "Account settings" action ({@link import('./AppRoot.js').AppRoot}
+ * Reachable from the profile surface's "Account settings" action (`AppRoot`
  * wires it as a top-level destination). It is the single home for account-level actions: the signed-in
  * identity, the IdP-hosted security note, SIGN OUT, and the shared {@link AccountDangerZone} — which presents
  * CLOSE (recoverable) and ERASE (irreversible) as two DISTINCT actions through the design-system
@@ -16,12 +16,13 @@
  * told nothing, with no way to retry (ADR-0009 / B17).
  */
 import { useUser } from '@clerk/expo';
+import { DataSourcesScreen, DataSourcesSettingsLink } from '@commise/features-recipes/data-sources/mobile';
 import { Button } from '@commise/ui/button';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
 import { Feather } from '@expo/vector-icons';
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -38,6 +39,10 @@ export interface AccountSettingsScreenProps {
 export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps = {}): JSX.Element {
     const { account: t } = useMessages(mobileMessages);
     const { user } = useUser();
+    // The Data sources sheet (curated U25, design §S16). Each close advances `sourcesClosed`, which takes the
+    // reading cursor back to the link that opened it.
+    const [sourcesOpen, setSourcesOpen] = useState(false);
+    const [sourcesClosed, setSourcesClosed] = useState(0);
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -67,15 +72,29 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps = {
                 </View>
 
                 <View style={styles.section}>
+                    <DataSourcesSettingsLink onOpen={() => setSourcesOpen(true)} returnFocusSignal={sourcesClosed} />
+                </View>
+
+                <View style={styles.section}>
                     <AccountDangerZone />
                 </View>
             </ScrollView>
+            {sourcesOpen ? (
+                <DataSourcesScreen
+                    onRequestClose={() => {
+                        setSourcesOpen(false);
+                        setSourcesClosed((count) => count + 1);
+                    }}
+                />
+            ) : null}
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     container: {
         flexGrow: 1,
         gap: nativeTokens.spacing[3],

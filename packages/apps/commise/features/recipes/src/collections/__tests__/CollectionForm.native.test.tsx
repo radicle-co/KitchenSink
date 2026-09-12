@@ -114,3 +114,19 @@ describe('CollectionForm (native) — PLACEHOLDER text clears the AA body-text f
         ).toBeGreaterThanOrEqual(4.5);
     });
 });
+
+/**
+ * `docs/design/nativeContainerNames.md` N1 rule 2: the form's title header says the card's name, so the card carries
+ * none and the header is the one node that says it (N4). The title follows the mode, so both modes are checked.
+ */
+describe('CollectionForm (native) — N1: the card’s name is said once, by its title header', () => {
+    it.each([
+        ['create', 'New collection'],
+        ['rename', 'Rename collection'],
+    ] as const)('says the %s title through one header, and no node is labelled with it', (mode, title) => {
+        renderForm({ mode });
+
+        expect(screen.getAllByRole('heading', { name: title })).toHaveLength(1);
+        expect(screen.queryAllByLabelText(title)).toEqual([]);
+    });
+});

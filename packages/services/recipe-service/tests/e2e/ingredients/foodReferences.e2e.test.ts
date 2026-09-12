@@ -1,0 +1,83 @@
+/**
+ * U18 — the cross-service reference check's recipe half against the REAL app + database.
+ *
+ * Two claims only this tier can prove: the grouped join counts LIVE recipes only (a soft-deleted
+ * recipe's reference dies with it), and the authenticated route enumerates the CALLER's own recipe ids
+ * while a stranger's referencing recipe stays a count.
+ */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import pg from 'pg';
+
+import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
+import { asPrincipal } from '../../support/asPrincipal.js';
+import { ensureFoodLookup, insertIngredientLine } from '../../support/lineChain.js';
+import { recipeDb } from '../../support/roleDb.js';
+
+const OWNER = '01JFOODREFSOWNER000000000A';
+const STRANGER = '01JFOODREFSSTRANGER000000A';
+const FOOD_ID = 'food-refs-test-0001';
+const roleDb = recipeDb();
+
+describe('food references (integration, U18)', () => {
+    let booted: BootedRecipeApp;
+    let baseUrl: string;
+    let pool: pg.Pool;
+
+    beforeAll(async () => {
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: OWNER });
+        baseUrl = booted.baseUrl;
+        pool = new pg.Pool({ connectionString: roleDb.appUrl, max: 2 });
+    });
+
+    afterAll(async () => {
+        // Lines cascade from their recipes; the binding goes last because a line holds it under `RESTRICT`.
+        await pool.query(`DELETE FROM recipes WHERE owner_id IN ($1, $2)`, [OWNER, STRANGER]);
+        await pool.query(`DELETE FROM food_lookups WHERE food_id = $1`, [FOOD_ID]);
+        await pool.end();
+        await booted.close();
+    });
+
+    /** Seed a recipe referencing FOOD_ID via THE binding for that food (one per food — the
+     *  `idx_food_lookups_food_id` unique means every referencing recipe shares it, exactly as in production). */
+    async function seedReferencingRecipe(ownerId: string, deleted: boolean): Promise<string> {
+        const lookupId = await ensureFoodLookup(pool, { arm: 'shared', foodId: FOOD_ID });
+        const recipe = await pool.query(
+            `INSERT INTO recipes (owner_id, title, prep_time_minutes, cook_time_minutes, total_time_minutes,
+                                  servings, deleted_at)
+             VALUES ($1, 'Referencing dish', 5, 5, 10, 2, CASE WHEN $2 THEN now() ELSE NULL END)
+             RETURNING id`,
+            [ownerId, deleted],
+        );
+        await insertIngredientLine(pool, {
+            recipeId: recipe.rows[0].id as string,
+            foodLookupId: lookupId,
+            quantity: 1,
+            unit: 'cup',
+        });
+
+        return recipe.rows[0].id as string;
+    }
+
+    it('counts every LIVE referencing recipe, enumerates only the caller`s own, and ignores soft-deleted ones', async () => {
+        const own = await seedReferencingRecipe(OWNER, false);
+        await seedReferencingRecipe(STRANGER, false);
+        await seedReferencingRecipe(OWNER, true); // soft-deleted — must not count
+
+        const res = await fetch(`${baseUrl}/api/v1/ingredients/food-references/${FOOD_ID}`);
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ total: 2, ownRecipeIds: [own] });
+
+        // The stranger sees the same total and THEIR own id — never the other user's.
+        await asPrincipal(STRANGER, async () => {
+            const theirs = (await (await fetch(`${baseUrl}/api/v1/ingredients/food-references/${FOOD_ID}`)).json()) as {
+                total: number;
+                ownRecipeIds: string[];
+            };
+
+            expect(theirs.total).toBe(2);
+            expect(theirs.ownRecipeIds).not.toContain(own);
+            expect(theirs.ownRecipeIds).toHaveLength(1);
+        });
+    });
+});

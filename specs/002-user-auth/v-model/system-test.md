@@ -663,49 +663,49 @@ Each test case MUST identify its technique by name:
 
 ## Test Case Summary
 
-| STP ID    | Component                          | Technique                  | STS Count |
-| --------- | ---------------------------------- | -------------------------- | --------- |
-| STP-001-A | SYS-001 Web Auth Client            | Interface Contract Testing | 2         |
-| STP-001-B | SYS-001 Web Auth Client            | Interface Contract Testing | 2         |
-| STP-001-C | SYS-001 Web Auth Client            | Boundary Value Analysis    | 1         |
-| STP-002-A | SYS-002 Mobile Auth Client         | Equivalence Partitioning   | 2         |
-| STP-002-B | SYS-002 Mobile Auth Client         | Interface Contract Testing | 1         |
-| STP-003-A | SYS-003 Social Login Provider      | Interface Contract Testing | 2         |
-| STP-003-B | SYS-003 Social Login Provider      | Fault Injection            | 1         |
-| STP-004-A | SYS-004 Token Refresh Handler      | Interface Contract Testing | 1         |
-| STP-004-B | SYS-004 Token Refresh Handler      | Fault Injection            | 2         |
+| STP ID    | Component                             | Technique                  | STS Count |
+| --------- | ------------------------------------- | -------------------------- | --------- |
+| STP-001-A | SYS-001 Web Auth Client               | Interface Contract Testing | 2         |
+| STP-001-B | SYS-001 Web Auth Client               | Interface Contract Testing | 2         |
+| STP-001-C | SYS-001 Web Auth Client               | Boundary Value Analysis    | 1         |
+| STP-002-A | SYS-002 Mobile Auth Client            | Equivalence Partitioning   | 2         |
+| STP-002-B | SYS-002 Mobile Auth Client            | Interface Contract Testing | 1         |
+| STP-003-A | SYS-003 Social Login Provider         | Interface Contract Testing | 2         |
+| STP-003-B | SYS-003 Social Login Provider         | Fault Injection            | 1         |
+| STP-004-A | SYS-004 Token Refresh Handler         | Interface Contract Testing | 1         |
+| STP-004-B | SYS-004 Token Refresh Handler         | Fault Injection            | 2         |
 | STP-005-A | SYS-005 Post-Registration IdP Handler | Interface Contract Testing | 1         |
 | STP-005-B | SYS-005 Post-Registration IdP Handler | Interface Contract Testing | 1         |
 | STP-005-C | SYS-005 Post-Registration IdP Handler | Fault Injection            | 2         |
-| STP-006-A | SYS-006 Provisioning Service       | Interface Contract Testing | 1         |
-| STP-006-B | SYS-006 Provisioning Service       | Equivalence Partitioning   | 1         |
-| STP-007-A | SYS-007 Reconciliation Job         | Interface Contract Testing | 1         |
-| STP-007-B | SYS-007 Reconciliation Job         | Fault Injection            | 1         |
-| STP-008-A | SYS-008 Profile View               | Interface Contract Testing | 2         |
-| STP-009-A | SYS-009 Account Edit Handler       | Interface Contract Testing | 1         |
-| STP-009-B | SYS-009 Account Edit Handler       | Boundary Value Analysis    | 2         |
-| STP-010-A | SYS-010 Account Deletion Handler   | Boundary Value Analysis    | 2         |
-| STP-010-B | SYS-010 Account Deletion Handler   | Interface Contract Testing | 1         |
-| STP-011-A | SYS-011 Password Reset Flow        | Interface Contract Testing | 2         |
-| STP-012-A | SYS-012 MFA Enrollment Flow        | Interface Contract Testing | 1         |
-| STP-012-B | SYS-012 MFA Enrollment Flow        | Equivalence Partitioning   | 1         |
-| STP-013-A | SYS-013 Social Account Linking     | Interface Contract Testing | 1         |
-| STP-013-B | SYS-013 Social Account Linking     | Boundary Value Analysis    | 1         |
-| STP-014-A | SYS-014 User Impersonation         | Interface Contract Testing | 1         |
-| STP-014-B | SYS-014 User Impersonation         | Equivalence Partitioning   | 1         |
-| STP-015-A | SYS-015 API Gateway JWT Authorizer | Interface Contract Testing | 1         |
-| STP-015-B | SYS-015 API Gateway JWT Authorizer | Equivalence Partitioning   | 2         |
-| STP-015-C | SYS-015 API Gateway JWT Authorizer | Equivalence Partitioning   | 1         |
-| STP-016-A | SYS-016 User Suspension            | Interface Contract Testing | 1         |
-| STP-016-B | SYS-016 User Suspension            | Interface Contract Testing | 1         |
-| STP-017-A | SYS-017 Observability & Logging    | Interface Contract Testing | 1         |
-| STP-017-B | SYS-017 Observability & Logging    | Fault Injection            | 1         |
-| STP-018-A | SYS-018 CDK Infrastructure Stack   | Interface Contract Testing | 1         |
-| STP-018-B | SYS-018 CDK Infrastructure Stack   | Boundary Value Analysis    | 1         |
-| STP-019-A | SYS-019 Shared Auth Types          | Interface Contract Testing | 1         |
-| STP-019-B | SYS-019 Shared Auth Types          | Equivalence Partitioning   | 1         |
-| STP-020-A | SYS-020 Auth UI Design System      | Interface Contract Testing | 1         |
-| STP-020-B | SYS-020 Auth UI Design System      | Equivalence Partitioning   | 1         |
+| STP-006-A | SYS-006 Provisioning Service          | Interface Contract Testing | 1         |
+| STP-006-B | SYS-006 Provisioning Service          | Equivalence Partitioning   | 1         |
+| STP-007-A | SYS-007 Reconciliation Job            | Interface Contract Testing | 1         |
+| STP-007-B | SYS-007 Reconciliation Job            | Fault Injection            | 1         |
+| STP-008-A | SYS-008 Profile View                  | Interface Contract Testing | 2         |
+| STP-009-A | SYS-009 Account Edit Handler          | Interface Contract Testing | 1         |
+| STP-009-B | SYS-009 Account Edit Handler          | Boundary Value Analysis    | 2         |
+| STP-010-A | SYS-010 Account Deletion Handler      | Boundary Value Analysis    | 2         |
+| STP-010-B | SYS-010 Account Deletion Handler      | Interface Contract Testing | 1         |
+| STP-011-A | SYS-011 Password Reset Flow           | Interface Contract Testing | 2         |
+| STP-012-A | SYS-012 MFA Enrollment Flow           | Interface Contract Testing | 1         |
+| STP-012-B | SYS-012 MFA Enrollment Flow           | Equivalence Partitioning   | 1         |
+| STP-013-A | SYS-013 Social Account Linking        | Interface Contract Testing | 1         |
+| STP-013-B | SYS-013 Social Account Linking        | Boundary Value Analysis    | 1         |
+| STP-014-A | SYS-014 User Impersonation            | Interface Contract Testing | 1         |
+| STP-014-B | SYS-014 User Impersonation            | Equivalence Partitioning   | 1         |
+| STP-015-A | SYS-015 API Gateway JWT Authorizer    | Interface Contract Testing | 1         |
+| STP-015-B | SYS-015 API Gateway JWT Authorizer    | Equivalence Partitioning   | 2         |
+| STP-015-C | SYS-015 API Gateway JWT Authorizer    | Equivalence Partitioning   | 1         |
+| STP-016-A | SYS-016 User Suspension               | Interface Contract Testing | 1         |
+| STP-016-B | SYS-016 User Suspension               | Interface Contract Testing | 1         |
+| STP-017-A | SYS-017 Observability & Logging       | Interface Contract Testing | 1         |
+| STP-017-B | SYS-017 Observability & Logging       | Fault Injection            | 1         |
+| STP-018-A | SYS-018 CDK Infrastructure Stack      | Interface Contract Testing | 1         |
+| STP-018-B | SYS-018 CDK Infrastructure Stack      | Boundary Value Analysis    | 1         |
+| STP-019-A | SYS-019 Shared Auth Types             | Interface Contract Testing | 1         |
+| STP-019-B | SYS-019 Shared Auth Types             | Equivalence Partitioning   | 1         |
+| STP-020-A | SYS-020 Auth UI Design System         | Interface Contract Testing | 1         |
+| STP-020-B | SYS-020 Auth UI Design System         | Equivalence Partitioning   | 1         |
 
 **Total Test Cases (STP)**: 41
 **Total Test Scenarios (STS)**: 47

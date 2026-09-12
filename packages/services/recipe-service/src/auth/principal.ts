@@ -6,6 +6,8 @@
  */
 import type { Request } from 'express';
 
+import type { ContainmentSubject } from '../common/containmentPolicy.js';
+
 /**
  * The verified principal behind a request.
  *
@@ -15,7 +17,7 @@ import type { Request } from 'express';
  * `@kitchensink/clerk-verify` as `userId`. The Clerk `sub` is retained for trace/audit ONLY and is
  * **never** an owner key.
  */
-export interface Principal {
+export interface Principal extends ContainmentSubject {
     /** App-user ULID (identity's `users.id`) from the token's `external_id` claim — THE owner key. */
     readonly userId: string;
     /** Clerk subject (`identity_id`) — retained for trace/audit only, NEVER an owner key. */
@@ -34,9 +36,32 @@ export interface Principal {
     readonly scopes: string[];
     /** Authorization permissions from the token's signed `public_metadata` (empty = no privilege). */
     readonly permissions: string[];
+    /*
+     * ⛔ `principalKind` and `containment` arrive through `ContainmentSubject` (ADR-0040), REQUIRED rather than
+     * optional: `principalKind` is `test` exactly when the verified token carries `public_metadata.testPrincipal ===
+     * true`, and `containment` is this stage's `TEST_PRINCIPAL_CONTAINMENT`. Every policy that could let test data
+     * reach real data takes both, so a Principal that omitted them would silently default a test principal to real.
+     */
 }
 
-/** An Express request augmented by {@link import('./auth.middleware.js').AuthMiddleware} with the verified principal. */
+/**
+ * The slice of a verified principal a service needs to ACT for it under containment (ADR-0040): the owner key plus
+ * the two facts `evaluateContainment` decides on. A `Pick`, never a second declaration, so it cannot drift from what
+ * the middleware verified.
+ */
+export type ActingPrincipal = Pick<Principal, 'userId' | 'principalKind' | 'containment'>;
+
+/**
+ * Narrow a verified principal to the slice a service may act on under containment. Pure.
+ *
+ * @param principal - The verified principal.
+ * @returns Its owner key, principal kind, and the stage's containment mode — nothing else.
+ */
+export function actingPrincipalOf(principal: Principal): ActingPrincipal {
+    return { userId: principal.userId, principalKind: principal.principalKind, containment: principal.containment };
+}
+
+/** An Express request augmented by `AuthMiddleware` with the verified principal. */
 export interface AuthenticatedRequest extends Request {
     /** Present only after the middleware has verified the token (or applied the dev bypass). */
     principal?: Principal;

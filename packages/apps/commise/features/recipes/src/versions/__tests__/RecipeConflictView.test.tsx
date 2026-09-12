@@ -11,10 +11,14 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { useState } from 'react';
 
+import type { IngredientVariantPart } from '@kitchensink/recipe-core';
+
+import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import type { ConflictDiff } from '../conflictDiff.js';
 import { makeVersionConflictSide } from '../__fixtures__/index.js';
 import { RecipeConflictView } from '../RecipeConflictView.js';
-import type { RecipeConflictViewProps, RecipeMergeSelections } from '../model.js';
+import type { RecipeConflictViewProps } from '../conflictView.js';
+import type { RecipeMergeSelections } from '../merge.js';
 
 afterEach(() => {
     cleanup();
@@ -25,7 +29,6 @@ const noop = () => undefined;
 
 const server = makeVersionConflictSide({
     versionNumber: 6,
-    deviceLabel: 'iPhone',
     updatedAt: '2026-05-09T14:30:00.000Z',
 });
 const base = makeVersionConflictSide({ versionNumber: 5 });
@@ -129,11 +132,12 @@ describe('RecipeConflictView (web) — structure', () => {
 });
 
 describe('RecipeConflictView (web) — per-side banner (X3)', () => {
-    it('renders the server banner with version, relative time, and device', () => {
+    it('renders the server banner with version and relative time, and no device clause', () => {
         freezeClock();
         renderConflict();
 
-        expect(screen.getByText('Server version (v6): Saved 2 minutes ago on iPhone')).toBeTruthy();
+        // The WHOLE string, so the 2026-08-26 ruling's removal of the ` on {device}` suffix stays removed.
+        expect(screen.getByText('Server version (v6): Saved 2 minutes ago')).toBeTruthy();
     });
 
     it('renders the user’s own banner as local unsaved changes', () => {
@@ -143,33 +147,34 @@ describe('RecipeConflictView (web) — per-side banner (X3)', () => {
         expect(screen.getByText('Your version: local unsaved changes')).toBeTruthy();
     });
 
-    it('omits the device clause when the server side carries no deviceLabel', () => {
-        freezeClock();
-        renderConflict({ server: { ...server, deviceLabel: undefined } });
-
-        expect(screen.getByText('Server version (v6): Saved 2 minutes ago')).toBeTruthy();
-        expect(screen.queryByText(/on iPhone/)).toBeNull();
-    });
-
     it('renders the server banner BEFORE the your-version banner (X7 — server-first ordering)', () => {
         freezeClock();
         renderConflict();
 
-        const serverBanner = screen.getByText('Server version (v6): Saved 2 minutes ago on iPhone');
+        const serverBanner = screen.getByText('Server version (v6): Saved 2 minutes ago');
         const mineBanner = screen.getByText('Your version: local unsaved changes');
 
-        // eslint-disable-next-line no-bitwise
         expect(serverBanner.compareDocumentPosition(mineBanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('escapes an untrusted deviceLabel as text — renders no element from it', () => {
+    /**
+     * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution. This guard used to fire its
+     * markup payload at the server side's device label. That field is gone and the banner now renders only a
+     * version NUMBER and a formatted relative time — neither user-controlled — so aiming the payload there
+     * would have made the case vacuous. It is re-aimed at a diff ROW VALUE instead, which is the untrusted
+     * recipe text this surface still renders, so the conflict view keeps an XSS guard rather than losing one.
+     */
+    it('escapes an untrusted diff value as text — renders no element from it', () => {
         freezeClock();
         const { container } = render(
             <RecipeConflictView
                 {...({
-                    server: { ...server, deviceLabel: '<img src=x onerror=alert(1)>' },
+                    server,
                     base,
-                    diff,
+                    diff: {
+                        ...diff,
+                        rows: [{ ...diff.rows[0]!, theirs: '<img src=x onerror=alert(1)>' }],
+                    },
                     versionsBehind: 1,
                     isResolving: false,
                     selections: {},
@@ -235,27 +240,27 @@ describe('RecipeConflictView (web) — "Discard and close" header exit (wirefram
 });
 
 describe('RecipeConflictView (web) — two-column per-side summary cards (wireframe gap #2)', () => {
-    // A distinct `updatedAt`/`deviceLabel` on `base` (the fixture default otherwise matches `server`'s own
-    // "iPhone" / same timestamp) so the SERVER and YOUR-version cards' Saved/Device lines are individually
-    // addressable, not two identical strings.
-    const distinctBase = { ...base, deviceLabel: 'MacBook', updatedAt: '2026-05-08T10:00:00.000Z' };
+    // A distinct `updatedAt` on `base` (the fixture default otherwise matches `server`'s own timestamp) so
+    // the SERVER and YOUR-version cards' Saved lines are individually addressable, not two identical
+    // strings. The cards' "Device:" row went with the 2026-08-26 owner ruling.
+    const distinctBase = { ...base, updatedAt: '2026-05-08T10:00:00.000Z' };
 
-    it('renders the SERVER card with its heading, Saved, and Device lines', () => {
+    it('renders the SERVER card with its heading and Saved line', () => {
         freezeClock();
         renderConflict({ base: distinctBase });
 
         expect(screen.getByText('Server version (v6)')).toBeTruthy();
         expect(screen.getByText('Saved: May 9, 2026, 2:30 PM')).toBeTruthy();
-        expect(screen.getByText('Device: iPhone')).toBeTruthy();
+        // The 2026-08-26 ruling removed the card's device row; nothing on a card may reintroduce it.
+        expect(screen.queryByText(/^Device:/)).toBeNull();
     });
 
-    it('renders the YOUR-version card from `base`, with its OWN heading, Saved, and Device lines', () => {
+    it('renders the YOUR-version card from `base`, with its OWN heading and Saved line', () => {
         freezeClock();
         renderConflict({ base: distinctBase });
 
         expect(screen.getByText('Your version (v5)')).toBeTruthy();
         expect(screen.getByText('Saved: May 8, 2026, 10:00 AM')).toBeTruthy();
-        expect(screen.getByText('Device: MacBook')).toBeTruthy();
     });
 
     it('renders the SERVER card BEFORE the YOUR-version card (X7 — server-first ordering)', () => {
@@ -265,19 +270,17 @@ describe('RecipeConflictView (web) — two-column per-side summary cards (wirefr
         const serverHeading = screen.getByText('Server version (v6)');
         const yourHeading = screen.getByText('Your version (v5)');
 
-        // eslint-disable-next-line no-bitwise
         expect(serverHeading.compareDocumentPosition(yourHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('falls back to a version-less YOUR-version heading, with no Saved/Device rows, when base is undefined (evicted)', () => {
+    it('falls back to a version-less YOUR-version heading, with no Saved row, when base is undefined (evicted)', () => {
         freezeClock();
         renderConflict({ base: undefined });
 
         expect(screen.getByText('Your version')).toBeTruthy();
         expect(screen.queryByText('Your version (v5)')).toBeNull();
-        // Only the SERVER card's Saved/Device lines are present — no fabricated ones for the your-version card.
+        // Only the SERVER card's Saved line is present — no fabricated one for the your-version card.
         expect(screen.getAllByText(/^Saved:/)).toHaveLength(1);
-        expect(screen.getAllByText(/^Device:/)).toHaveLength(1);
     });
 });
 
@@ -328,15 +331,28 @@ describe('RecipeConflictView (web) — A/B/C option cards (X2)', () => {
 });
 
 describe('RecipeConflictView (web) — isResolving disables the resolver while a resolve is in flight (double-submit fix)', () => {
-    it('disables all three option cards while isResolving, combined with (not replacing) the stale-base gate', () => {
+    /**
+     * REWRITTEN from native `disabled`: the control the cook just pressed goes busy, and a real browser drops focus
+     * to <body> the moment a focused control is natively disabled (WCAG 2.2 SC 2.4.3). It stays focusable and
+     * `aria-disabled` (`busyControlProps`), and the press is refused — so every card is refused, not just marked.
+     */
+    it('busies all three option cards while isResolving, focusable and refusing every press', async () => {
         freezeClock();
-        renderConflict({ isResolving: true });
+        const user = userEvent.setup({ delay: null });
+        const onKeepServer = vi.fn();
+        const onOverwrite = vi.fn();
+        renderConflict({ isResolving: true, onKeepServer, onOverwrite });
 
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep server version' }).disabled).toBe(true);
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
-            true,
-        );
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Merge manually' }).disabled).toBe(true);
+        for (const name of ['Keep server version', 'Overwrite with your version', 'Merge manually']) {
+            const card = screen.getByRole<HTMLButtonElement>('button', { name });
+            expect(card.disabled).toBe(false);
+            expect(card.getAttribute('aria-disabled')).toBe('true');
+            await user.click(card);
+        }
+
+        expect(onKeepServer).not.toHaveBeenCalled();
+        expect(onOverwrite).not.toHaveBeenCalled();
+        expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
     });
 
     it('a double-click on Overwrite while isResolving fires onOverwrite at most once (the second click is a no-op because disabled)', async () => {
@@ -409,7 +425,9 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
         );
 
         const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
-        expect(save.disabled).toBe(true);
+        // REWRITTEN from `disabled`: Save is the control just pressed, so it keeps focus while busy (SC 2.4.3).
+        expect(save.disabled).toBe(false);
+        expect(save.getAttribute('aria-disabled')).toBe('true');
 
         await user.click(save);
         expect(onMerge).not.toHaveBeenCalled();
@@ -508,7 +526,6 @@ describe('RecipeConflictView (web) — changed-only diff panel with markers + le
         const serverValue = screen.getByText('Latest saved version: Weeknight Pasta');
         const mineValue = screen.getByText('Your version: My Draft Title');
 
-        // eslint-disable-next-line no-bitwise
         expect(serverValue.compareDocumentPosition(mineValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
@@ -813,6 +830,30 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         );
     });
 
+    it('keeps a stale-blocked Overwrite natively disabled while another option resolves — out of the tab order', () => {
+        // The cook cannot have pressed a blocked card, so the in-flight resolve belongs to another option and
+        // the blocked card has no focus to keep. Busy must not promote it to a focusable `aria-disabled` control:
+        // if the resolve then failed with focus on it, the card would become natively disabled under the cursor.
+        freezeClock();
+        renderConflict({ versionsBehind: 11, isResolving: true });
+
+        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' });
+        expect(overwrite.disabled).toBe(true);
+        expect(overwrite.getAttribute('aria-disabled')).toBeNull();
+        expect(overwrite.getAttribute('aria-busy')).toBeNull();
+    });
+
+    it('dims a busy card and a blocked card to the same level, so one screen shows one "unavailable"', () => {
+        freezeClock();
+        renderConflict({ versionsBehind: 11, isResolving: true });
+
+        const overwrite = screen.getByRole('button', { name: 'Overwrite with your version' });
+        const keepServer = screen.getByRole('button', { name: 'Keep server version' });
+        expect(overwrite.className).toContain('disabled:opacity-50');
+        expect(keepServer.className).toContain('aria-disabled:opacity-50');
+        expect(keepServer.className).not.toContain('aria-disabled:opacity-60');
+    });
+
     it('blocks Save merged version in the merge panel until confirmed, alongside the selection gate', async () => {
         freezeClock();
         const user = userEvent.setup({ delay: null });
@@ -887,5 +928,244 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         expect(overwrite.disabled).toBe(false);
         await user.click(overwrite);
         expect(onOverwrite).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Curated U15 (`docs/design/ingredientSpecialization.md` §S1, R25, R27): an ingredient row draws each side's dotted line
+ * under that side's value, and a name that includes a variant-bound value includes all its parts. The rows below are
+ * the shapes `computeConflictDiff` produces: one identity whose sides froze the same parts, one whose sides froze
+ * different parts, one side of a rebind (the other side has no such line), and a line whose cook-written words hold a
+ * comma-joined phrase — the comma detector's positive control. The native mirror asserts the same set.
+ */
+describe('RecipeConflictView (web) — a variant-bound ingredient row (curated U15)', () => {
+    const FLAT: readonly IngredientVariantPart[] = [
+        { attribute: 'cut', text: 'flat half' },
+        { attribute: 'grade', text: 'select' },
+    ];
+    const flat = ['flat half', 'select'] as const;
+    const variantDiff: ConflictDiff = {
+        rows: [
+            {
+                key: 'ingredients:ing_flat',
+                fieldKind: 'ingredient',
+                marker: 'conflict',
+                base: '2 lb beef brisket',
+                mine: '3 lb beef brisket',
+                theirs: '4 lb beef brisket',
+                mineChanged: true,
+                theirsChanged: true,
+                baseVariantParts: flat,
+                mineVariantParts: flat,
+                theirsVariantParts: flat,
+            },
+            {
+                key: 'ingredients:ing_chuck',
+                fieldKind: 'ingredient',
+                marker: 'conflict',
+                base: '1 lb beef chuck',
+                mine: '2 lb beef chuck',
+                theirs: '5 lb beef chuck',
+                mineChanged: true,
+                theirsChanged: true,
+                mineVariantParts: ['boneless'],
+                theirsVariantParts: ['boneless', 'choice'],
+            },
+            {
+                key: 'ingredients:ing_point',
+                fieldKind: 'ingredient',
+                marker: 'changed',
+                mine: '',
+                theirs: '6 lb beef brisket',
+                mineChanged: false,
+                theirsChanged: true,
+                theirsVariantParts: ['point half', 'choice'],
+            },
+            {
+                key: 'ingredients:ing_butter',
+                fieldKind: 'ingredient',
+                marker: 'changed',
+                base: '200 g Butter',
+                mine: '200 g Butter (flat half, select)',
+                theirs: '200 g Butter',
+                mineChanged: true,
+                theirsChanged: false,
+            },
+        ],
+        hasConflict: true,
+        isEmpty: false,
+    };
+    const fallbackDiff: ConflictDiff = {
+        rows: [
+            {
+                key: 'ingredients:ing_flat',
+                fieldKind: 'ingredient',
+                marker: 'conflict',
+                mine: '3 lb beef brisket',
+                theirs: '4 lb beef brisket',
+                mineChanged: true,
+                theirsChanged: true,
+                mineVariantParts: flat,
+                theirsVariantParts: ['flat half', 'choice'],
+            },
+        ],
+        hasConflict: true,
+        isEmpty: false,
+    };
+
+    /** The parts shown under `root`, in document order: each part is a `lang="en"` span of the dotted line. */
+    const shownParts = (root: Element): readonly (string | null)[] =>
+        Array.from(root.querySelectorAll('[lang="en"]')).map((part) => part.textContent);
+
+    /** The block that holds one side's value text and its dotted line. */
+    const sideOf = (text: string): HTMLElement => {
+        const side = screen.getByText(text).parentElement;
+
+        if (side === null) {
+            throw new Error(`No side holds "${text}".`);
+        }
+
+        return side;
+    };
+
+    /** The `<label>` an option's text and dotted line sit in. */
+    const labelOf = (radio: HTMLInputElement): HTMLLabelElement => {
+        const label = radio.labels?.[0];
+
+        if (label === undefined) {
+            throw new Error('The radio has no label.');
+        }
+
+        return label;
+    };
+
+    /** The diff-panel list item that holds `text`. */
+    const itemOf = (text: string): HTMLElement => {
+        const item = screen.getByText(text).closest('li');
+
+        if (item === null) {
+            throw new Error(`No list item holds "${text}".`);
+        }
+
+        return item;
+    };
+
+    describe('the changed-fields panel', () => {
+        it('draws each side its own dotted line, under its value, when every side froze the same parts', () => {
+            freezeClock();
+            renderConflict({ diff: variantDiff });
+
+            expect(shownParts(sideOf('Was: 2 lb beef brisket'))).toEqual(['flat half', 'select']);
+            expect(shownParts(sideOf('Latest saved version: 4 lb beef brisket'))).toEqual(['flat half', 'select']);
+            expect(shownParts(sideOf('Your version: 3 lb beef brisket'))).toEqual(['flat half', 'select']);
+            const value = screen.getByText('Latest saved version: 4 lb beef brisket');
+            const firstPart = sideOf('Latest saved version: 4 lb beef brisket').querySelector('[lang="en"]');
+            expect(firstPart === null ? 0 : value.compareDocumentPosition(firstPart)).toBe(
+                Node.DOCUMENT_POSITION_FOLLOWING,
+            );
+        });
+
+        it('shows each side the parts IT froze when the sides differ, and none under a base that froze none', () => {
+            freezeClock();
+            renderConflict({ diff: variantDiff });
+
+            expect(shownParts(sideOf('Was: 1 lb beef chuck'))).toEqual([]);
+            expect(shownParts(sideOf('Latest saved version: 5 lb beef chuck'))).toEqual(['boneless', 'choice']);
+            expect(shownParts(sideOf('Your version: 2 lb beef chuck'))).toEqual(['boneless']);
+        });
+
+        it('draws no dotted line for a side that has no such line', () => {
+            freezeClock();
+            renderConflict({ diff: variantDiff });
+
+            // The side that holds the line shows its parts, and the row shows nothing else: none under the empty side.
+            expect(shownParts(sideOf('Latest saved version: 6 lb beef brisket'))).toEqual(['point half', 'choice']);
+            expect(shownParts(itemOf('Latest saved version: 6 lb beef brisket'))).toEqual(['point half', 'choice']);
+        });
+
+        it('draws mine and theirs, and no "Was" line, on a base-evicted row', () => {
+            freezeClock();
+            renderConflict({ diff: fallbackDiff });
+
+            expect(screen.queryByText(/^Was:/)).toBeNull();
+            expect(shownParts(sideOf('Latest saved version: 4 lb beef brisket'))).toEqual(['flat half', 'choice']);
+            expect(shownParts(sideOf('Your version: 3 lb beef brisket'))).toEqual(['flat half', 'select']);
+        });
+
+        it('finds a comma-joined label in the cook’s own words (the control), and none from a dotted line', () => {
+            freezeClock();
+            renderConflict({ diff: variantDiff });
+
+            expect(commaJoinedTexts(itemOf('Your version: 200 g Butter (flat half, select)'), FLAT)).toHaveLength(1);
+            expect(commaJoinedTexts(itemOf('Your version: 3 lb beef brisket'), FLAT)).toEqual([]);
+        });
+    });
+
+    describe('the merge panel', () => {
+        const enterMerge = async (user: UserEvent) => {
+            await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        };
+
+        it('names each option with its own side’s parts and draws them under its value inside the option', async () => {
+            freezeClock();
+            const user = userEvent.setup({ delay: null });
+            renderControlledConflict({ diff: variantDiff });
+            await enterMerge(user);
+
+            const group = screen.getByRole('radiogroup', { name: 'Ingredient: 5 lb beef chuck, boneless, choice' });
+            const server = within(group).getByRole('radio', {
+                name: 'Latest saved version: 5 lb beef chuck, boneless, choice',
+            }) as HTMLInputElement;
+            const mine = within(group).getByRole('radio', {
+                name: 'Your version: 2 lb beef chuck, boneless',
+            }) as HTMLInputElement;
+
+            expect(shownParts(labelOf(server))).toEqual(['boneless', 'choice']);
+            expect(shownParts(labelOf(mine))).toEqual(['boneless']);
+        });
+
+        it('keeps the visible legend plain: the parts are in the name and under the options, never in the legend', async () => {
+            freezeClock();
+            const user = userEvent.setup({ delay: null });
+            renderControlledConflict({ diff: variantDiff });
+            await enterMerge(user);
+
+            const group = screen.getByRole('radiogroup', { name: 'Ingredient: 4 lb beef brisket, flat half, select' });
+
+            expect(group.querySelector('legend')?.textContent).toBe('Ingredient: 4 lb beef brisket');
+        });
+
+        it('names a rebind row by the side that holds the line, and the empty side by its value alone', async () => {
+            freezeClock();
+            const user = userEvent.setup({ delay: null });
+            renderControlledConflict({ diff: variantDiff });
+            await enterMerge(user);
+
+            const group = screen.getByRole('radiogroup', {
+                name: 'Ingredient: 6 lb beef brisket, point half, choice',
+            });
+            const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
+
+            expect(radios.map((radio) => radio.getAttribute('aria-label'))).toEqual([
+                'Latest saved version: 6 lb beef brisket, point half, choice',
+                'Your version: ',
+            ]);
+            expect(shownParts(group)).toEqual(['point half', 'choice']);
+        });
+
+        it('shows no comma-joined label inside an option, while the cook’s own comma-joined words still read', async () => {
+            freezeClock();
+            const user = userEvent.setup({ delay: null });
+            renderControlledConflict({ diff: variantDiff });
+            await enterMerge(user);
+
+            const brisket = screen.getByRole('radiogroup', {
+                name: 'Ingredient: 4 lb beef brisket, flat half, select',
+            });
+            const butter = screen.getByRole('radiogroup', { name: 'Ingredient: 200 g Butter' });
+
+            expect(commaJoinedTexts(butter, FLAT)).toHaveLength(1);
+            expect(commaJoinedTexts(brisket, FLAT)).toEqual([]);
+        });
     });
 });

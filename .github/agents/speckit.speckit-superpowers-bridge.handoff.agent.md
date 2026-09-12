@@ -2,9 +2,9 @@
 description: Create or update the Superpowers implementation handoff state
 ---
 
-
 <!-- Extension: speckit-superpowers-bridge -->
 <!-- Config: .specify/extensions/speckit-superpowers-bridge/ -->
+
 # Superpowers Handoff
 
 Create `.specify/superpowers-handoff.json` so Spec Kit artifacts explicitly hand implementation to Superpowers.
@@ -14,17 +14,17 @@ Create `.specify/superpowers-handoff.json` so Spec Kit artifacts explicitly hand
 1. Resolve the active feature directory from `.specify/feature.json`.
 2. Verify the feature has `spec.md`, `plan.md`, and `tasks.md`.
 3. Write `.specify/superpowers-handoff.json` with:
-   - `feature_directory`
-   - `source_of_truth`
-   - `supersedes: ["speckit.implement"]`
-   - `executor: "superpowers"`
-   - Superpowers capabilities for implementation discipline
-   - `status`
-   - `artifact_owner`
-   - `review_only_agents`
+    - `feature_directory`
+    - `source_of_truth`
+    - `supersedes: ["speckit.implement"]`
+    - `executor: "superpowers"`
+    - Superpowers capabilities for implementation discipline
+    - `status`
+    - `artifact_owner`
+    - `review_only_agents`
 4. Tell the implementation agent to invoke the bridge:
-   - Codex: `$speckit-superpowers-bridge`
-   - Claude Code: `/speckit-superpowers-bridge`
+    - Codex: `$speckit-superpowers-bridge`
+    - Claude Code: `/speckit-superpowers-bridge`
 
 ## Execution
 

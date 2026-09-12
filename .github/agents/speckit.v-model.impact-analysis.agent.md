@@ -1,22 +1,22 @@
 ---
 description: Run deterministic impact analysis to identify all V-Model artifacts affected
-  by a change to one or more IDs.
+    by a change to one or more IDs.
 handoffs:
-- label: View Traceability Matrix
-  agent: speckit.v-model.trace
-  prompt: Build the full traceability matrix to see current coverage
-  send: true
-- label: Run Peer Review
-  agent: speckit.v-model.peer-review
-  prompt: Review the affected artifacts identified by impact analysis
+    - label: View Traceability Matrix
+      agent: speckit.v-model.trace
+      prompt: Build the full traceability matrix to see current coverage
+      send: true
+    - label: Run Peer Review
+      agent: speckit.v-model.peer-review
+      prompt: Review the affected artifacts identified by impact analysis
 scripts:
-  sh: .specify/scripts/bash/impact-analysis.sh
-  ps: .specify/scripts/powershell/impact-analysis.ps1
+    sh: .specify/scripts/bash/impact-analysis.sh
+    ps: .specify/scripts/powershell/impact-analysis.ps1
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -34,6 +34,7 @@ This command implements the **IEEE 828-2012 §6.3 Configuration Control** proces
 This command is invoked directly via the script, not through AI generation:
 
 ### Bash
+
 ```bash
 # Downward traversal (default): what depends on REQ-001?
 .specify/scripts/bash/impact-analysis.sh --downward REQ-001 specs/<feature>/v-model
@@ -52,6 +53,7 @@ This command is invoked directly via the script, not through AI generation:
 ```
 
 ### PowerShell
+
 ```powershell
 # Downward traversal (default)
 .specify/scripts/powershell/impact-analysis.ps1 -Downward -Ids REQ-001 -VModelDir specs/<feature>/v-model
@@ -70,26 +72,26 @@ The script produces an **Impact Analysis Report** containing:
 1. **Changed IDs** — The IDs specified by the user with their V-Model level
 2. **Suspect Artifacts** — All affected IDs organized by V-Model level
 3. **Lifecycle State Detection** — Any `[DEPRECATED]`, `[SUSPECT]`, or `[MODIFIED]` tags found on the changed IDs or their downstream dependents. The report distinguishes between:
-   - **Already deprecated** — the changed ID carries a `[DEPRECATED — Superseded by X-NNN]` or `[DEPRECATED — Withdrawn: <reason>]` tag; downstream artifacts inheriting from it should also be deprecated or re-parented
-   - **Already suspect** — the changed ID or a dependent carries a `[SUSPECT — Parent X-NNN {deprecated|modified}]` tag indicating an unresolved lifecycle review
-   - **Newly impacted** — artifacts that are not yet tagged but trace to a changed ID; these are candidates for `[SUSPECT]` tagging in their respective V-Model commands
+    - **Already deprecated** — the changed ID carries a `[DEPRECATED — Superseded by X-NNN]` or `[DEPRECATED — Withdrawn: <reason>]` tag; downstream artifacts inheriting from it should also be deprecated or re-parented
+    - **Already suspect** — the changed ID or a dependent carries a `[SUSPECT — Parent X-NNN {deprecated|modified}]` tag indicating an unresolved lifecycle review
+    - **Newly impacted** — artifacts that are not yet tagged but trace to a changed ID; these are candidates for `[SUSPECT]` tagging in their respective V-Model commands
 4. **Blast Radius** — Statistics showing the count of affected artifacts per level, broken down by lifecycle state (active, deprecated, suspect)
 5. **Re-validation Order** — Ordered list of artifacts that should be re-validated, excluding fully deprecated chains (all downstream artifacts already deprecated)
 
 ### Traversal Modes
 
-| Mode | Flag | Description |
-|------|------|-------------|
+| Mode     | Flag                   | Description                                          |
+| -------- | ---------------------- | ---------------------------------------------------- |
 | Downward | `--downward` (default) | Traces from changed IDs to all downstream dependents |
-| Upward | `--upward` | Traces from changed IDs to all upstream parents |
-| Full | `--full` | Both directions, with upstream/downstream separation |
+| Upward   | `--upward`             | Traces from changed IDs to all upstream parents      |
+| Full     | `--full`               | Both directions, with upstream/downstream separation |
 
 ### Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | Analysis completed successfully |
-| 1 | Error (invalid args, no artifacts, no valid IDs) |
+| Code | Meaning                                          |
+| ---- | ------------------------------------------------ |
+| 0    | Analysis completed successfully                  |
+| 1    | Error (invalid args, no artifacts, no valid IDs) |
 
 ### Lifecycle-Aware Analysis
 
@@ -99,17 +101,15 @@ The impact analysis script detects lifecycle tags when traversing the dependency
 - When a **changed ID** is `[MODIFIED]` (content updated in-place), all direct downstream dependents are listed as candidates for `[SUSPECT]` tagging.
 - When a **downstream artifact** already carries a `[SUSPECT]` tag, the report notes it as **"pre-existing suspect"** and includes the original suspect reason.
 - The **JSON output** (`--json`) includes a `lifecycle` object:
-  ```json
-  {
-    "lifecycle": {
-      "deprecated_changed": ["REQ-003"],
-      "suspect_found": ["SYS-005", "ARCH-007"],
-      "unresolved_cascades": [
-        {"source": "REQ-003", "active_dependents": ["ATP-003-A", "SYS-005"]}
-      ]
+    ```json
+    {
+        "lifecycle": {
+            "deprecated_changed": ["REQ-003"],
+            "suspect_found": ["SYS-005", "ARCH-007"],
+            "unresolved_cascades": [{ "source": "REQ-003", "active_dependents": ["ATP-003-A", "SYS-005"] }]
+        }
     }
-  }
-  ```
+    ```
 
 ## Quality Criteria
 
@@ -124,8 +124,8 @@ The impact analysis script detects lifecycle tags when traversing the dependency
 
 This command is governed by the following standard for change impact analysis:
 
-| Standard | Full Name | Role in this Command |
-|----------|-----------|----------------------|
+| Standard          | Full Name                                                                      | Role in this Command                                                                                                                                                                                                                                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **IEEE 828-2012** | IEEE Standard for Configuration Management in Systems and Software Engineering | Configuration management governance: defines the change management process — change request submission, impact evaluation, change control board review, and change disposition. The suspect-artifact classification, propagation scope, and rework prioritization in this command are grounded in IEEE 828 §6.3 (Configuration Control). |
 
 > **Domain extensions:** If a domain overlay is loaded, additional domain-specific change impact requirements apply (e.g., ISO 26262-8 §8 Safety-Impacted Item Assessment and ASIL re-evaluation, DO-178C §7 Software Change Control with problem reporting, IEC 62304 §6 Software Maintenance and §8 CM per safety class). These are defined in the domain overlay files.

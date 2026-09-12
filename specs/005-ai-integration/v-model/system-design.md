@@ -69,14 +69,14 @@ External User / Agent Platform
 
 ### External Interfaces
 
-| Component | Interface Name                   | Protocol         | Input                                                                                         | Output                                                                  | Error Handling                                                 |
+| Component | Interface Name | Protocol | Input | Output | Error Handling |
 | --------- | -------------------------------- | ---------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------- |
-| SYS-001   | Provider Config CRUD             | REST             | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ providerId: string, provider: string, maskedKey: string }` (Derived) | 400 validation error; 409 conflict if provider already set     |
-| SYS-002   | Recipe Generation Request        | REST             | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ recipe: RecipeDraft }` within 15 s (Derived)                         | 504 timeout; 422 if no provider configured; 402 if not premium |
-| SYS-004   | OAuth Authorization Endpoint     | OAuth 2.0 / REST | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Authorization code → access token exchange (Derived)                    | 400 invalid_request; 401 unauthorized; 403 access_denied       |
-| SYS-005   | Agent Recipes Read               | REST             | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ recipes: Recipe[] }` structured JSON (Derived)                       | 401 unauthorized; 403 forbidden (wrong scope)                  |
-| SYS-005   | Agent Recipe Create              | REST             | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ recipeId: string }` of created recipe (Derived)                      | 401 unauthorized; 403 forbidden; 422 validation error          |
-| SYS-006   | Instruction Optimization Request | REST             | Derived — supports cross-cutting implementation constraints for traced parent system behavior | 'streamline' }` (Derived)                                               | `{ optimizedInstructions: string[] }`                          | 402 if not premium; 422 if recipe not owned by user; 504 timeout |
+| SYS-001 | Provider Config CRUD | REST | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ providerId: string, provider: string, maskedKey: string }` (Derived) | 400 validation error; 409 conflict if provider already set |
+| SYS-002 | Recipe Generation Request | REST | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ recipe: RecipeDraft }` within 15 s (Derived) | 504 timeout; 422 if no provider configured; 402 if not premium |
+| SYS-004 | OAuth Authorization Endpoint | OAuth 2.0 / REST | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Authorization code → access token exchange (Derived) | 400 invalid_request; 401 unauthorized; 403 access_denied |
+| SYS-005 | Agent Recipes Read | REST | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ recipes: Recipe[] }` structured JSON (Derived) | 401 unauthorized; 403 forbidden (wrong scope) |
+| SYS-005 | Agent Recipe Create | REST | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ recipeId: string }` of created recipe (Derived) | 401 unauthorized; 403 forbidden; 422 validation error |
+| SYS-006 | Instruction Optimization Request | REST | Derived — supports cross-cutting implementation constraints for traced parent system behavior | 'streamline' }`(Derived)                                               |`{ optimizedInstructions: string[] }` | 402 if not premium; 422 if recipe not owned by user; 504 timeout |
 
 ### Internal Interfaces
 

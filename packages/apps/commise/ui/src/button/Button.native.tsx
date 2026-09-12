@@ -10,7 +10,8 @@
  *
  * Two touch/loading behaviours mirror the web leaf in the native idiom:
  *  - **Touch target** — the pill carries `minHeight: 44` (comfortable touch) with vertical padding from
- *    `nativeTokens`, so short labels still hit a 44pt target.
+ *    `nativeTokens`, so short labels still hit a 44pt target. Its radius is half that floor, so a wrapped label
+ *    stays inside the curve.
  *  - **Busy** — the `busy` prop swaps the icon slot for a real `ActivityIndicator` in place (no layout
  *    shift) and disables the control (so an in-flight action cannot be double-fired).
  *
@@ -20,16 +21,25 @@
  * (round-2 R7). Secondary/destructive stay flat surfaces: `secondary` is the mockups' CORAL-outlined glass
  * degraded to `glass.subtle`'s own solid fallback (RN has no `backdrop-filter`), `destructive` an
  * error-toned outline.
+ *
+ * @pattern The same `ButtonProps` contract rendered with a `StyleSheet`, composing `PressScale` — which owns the
+ *     `Pressable`, so the accessible button is ONE element rather than a nested pair.
+ * @pattern Adapter over the screen-reader focus API — a level-triggered focus request moves the cursor to the
+ *     `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form).
  */
 import { LinearGradient } from 'expo-linear-gradient';
-import type { FC, ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, type FC, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { glass, gradient, toNativeGradient } from '../tokens/gradients.js';
 import { nativeTokens } from '../tokens/native.js';
 import { palette } from '../tokens/colors.js';
 import { PressScale } from '../pressScale/index.js';
+import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import type { ButtonProps, ButtonVariant } from './props.js';
+
+/** The comfortable 44pt touch floor every tier keeps. */
+const MIN_TOUCH_HEIGHT = 44;
 
 /** The native projection of the brand CTA gradient (seafoam → ocean-dark) — computed once, module-level. */
 const brandGradient = toNativeGradient(gradient.brand);
@@ -49,7 +59,23 @@ export const Button: FC<ButtonProps> = ({
     disabled = false,
     busy = false,
     accessibilityLabel,
+    width = 'auto',
+    focusRequested = false,
+    onFocusRequestHandled,
 }) => {
+    const node = useRef<View>(null);
+    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
+    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
+
+    useEffect(() => {
+        if (!focusRequested) {
+            return;
+        }
+
+        moveScreenReaderFocus(node.current);
+        acknowledgeFocusRequest();
+    }, [focusRequested]);
+
     // A busy control is also disabled so an in-flight action cannot be double-fired.
     const inactive = disabled || busy;
 
@@ -80,11 +106,13 @@ export const Button: FC<ButtonProps> = ({
 
     return (
         <PressScale
+            ref={node}
             onPress={onPress}
             disabled={inactive}
             busy={busy}
             accessibilityRole="button"
             accessibilityLabel={resolveAccessibilityLabel(accessibilityLabel, children)}
+            width={width}
         >
             {pill}
         </PressScale>
@@ -97,9 +125,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         // Comfortable 44pt touch target with tokenized vertical padding.
-        minHeight: 44,
+        minHeight: MIN_TOUCH_HEIGHT,
         gap: nativeTokens.spacing[2],
-        borderRadius: nativeTokens.radius.full,
+        // HALF the floor, not a full pill (E2 I2, §S13): one line still reads as a pill, and a label that wraps at a
+        // large font scale makes a rounded rectangle whose words stay inside the curve.
+        borderRadius: MIN_TOUCH_HEIGHT / 2,
         paddingVertical: nativeTokens.spacing[3],
         paddingHorizontal: nativeTokens.spacing[5],
     },

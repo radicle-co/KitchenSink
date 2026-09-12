@@ -1,60 +1,71 @@
 /**
- * Component tests for the mobile RecipeEditScreen (react-native-web under jsdom). The screen loads the recipe
- * via (mocked) `useRecipe`, seeds the editor from it, and wires submit to (mocked) `useUpdateRecipe`, carrying
+ * Component tests for the mobile RecipeEditScreen (react-native-web under jsdom). The screen reads the recipe through
+ * a suspense read under `QueryBoundary` (REWRITTEN for that conversion: the recipe is SEEDED into a real query cache, or
+ * `getRecipeById` on the client stub stays pending or rejects, where the old file mocked `useRecipe`), seeds the editor
+ * from it, and wires submit to (mocked) `useUpdateRecipe`, carrying
  * the loaded `currentVersion` as `expectedVersion`. Covers loading, error, the seeded ready state, the save
  * path, and — the concurrent-edit conflict resolution (T070/W7) — entering conflict mode on a 409 (the
  * server-first banner + A/B/C option cards, W7 Task 3), Option B ("overwrite") re-submitting against the
  * server's fresh version (with a repeat-conflict staying in conflict mode), Option C ("merge") re-submitting
  * the field-by-field merged draft, and Option A ("keep server") exiting conflict without a write. Conflict
- * resolution mirrors the web container.
+ * resolution mirrors the web container. A Change food rebind the server refuses for a moved version opens the same
+ * conflict view.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as rtlRender, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactElement } from 'react';
 
-import type { RecipeDetail, RecipeSnapshot, VersionConflictSide } from '@kitchensink/recipe-core';
-import { VersionConflictError } from '@kitchensink/recipe-service-client';
+import {
+    FoodResolutionStatus,
+    type RecipeDetail,
+    type RecipeSnapshot,
+    type VersionConflictSide,
+} from '@kitchensink/recipe-core';
+import { NotFoundError, VersionConflictError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
     useConfirmPhotoUpload,
     useCreateIngredient,
     useCreatePhotoUploadUrl,
     useDeleteRecipePhoto,
-    useRecipe,
     useRecipePhotos,
     useAddIngredientByFood,
-    useSuggestIngredients,
     useUpdateRecipe,
 } from '@kitchensink/recipe-service-client/hooks';
 
-import type { UseRecipeEditorResult } from '@commise/features-recipes/hooks';
-
 import { mobileMessages } from '../../src/i18n/messages.js';
+import { makeQuietFoodClient, withFoodClient } from '@commise/test-utils';
+import { BackInterceptProvider } from '@commise/ui/back-intercept';
+
 import { RecipeEditScreen } from '../../src/screens/RecipeEditScreen.js';
-import { makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { makeIngredientView, makeRecipeDetail } from '../__fixtures__/recipes.js';
 
-const { useRecipeEditorMock } = vi.hoisted(() => ({ useRecipeEditorMock: vi.fn() }));
-
-// Partial mock: every OTHER export (`usePollIngredientStatus`, `useRecipePhotoUpload`, `useIngredientResolver`)
-// stays the REAL implementation — the picker/poller/uploader children this screen renders depend on them.
-// `useRecipeEditor` itself defaults to delegating to the REAL hook too (still exercised end-to-end against the
-// mocked `useRecipe`/`useUpdateRecipe` below, for every existing test); only the seed-gap regression test
-// overrides it with `mockReturnValueOnce`, to construct — deterministically, without racing React's effect
-// flush — the exact `query.isLoading: false` + `state.status: 'loading'` combination a committed render can
-// land on between a successful query and the hook's (real, synchronous-in-tests) seed-once effect.
-vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@commise/features-recipes/hooks')>();
-    useRecipeEditorMock.mockImplementation(actual.useRecipeEditor);
-
-    return { ...actual, useRecipeEditor: useRecipeEditorMock };
-});
+const { getRecipeByIdMock, rebindMutateAsync } = vi.hoisted(() => ({
+    getRecipeByIdMock: vi.fn(),
+    // The rebind command a Change food on a stored line sends; inert unless a test answers it.
+    rebindMutateAsync: vi.fn(),
+}));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useRecipe: vi.fn(),
+    // Plan 002 V1 B7 — the row editor's commit port reads these two as well. The variant admission is inert; the rebind
+    // is the hoisted spy, which `beforeEach` leaves pending.
+    useAddIngredientByFoodVariant: () => ({ mutateAsync: () => new Promise(() => undefined), isPaused: false }),
+    useRebindIngredientLine: () => ({ mutateAsync: rebindMutateAsync, isPaused: false }),
+    // Plan 002 V1 B5 — the editor's one background nutrition read. Answered empty: these suites do not read figures.
+    useIngredientFoodNutrition: () => ({
+        data: { entries: [] },
+        isPlaceholderData: false,
+        isError: false,
+        refetch: async () => undefined,
+    }),
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    // The screen's suspense read goes through this client's `getRecipeById`, via the query cache.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined, getRecipeById: getRecipeByIdMock }),
     useUpdateRecipe: vi.fn(),
-    useSuggestIngredients: vi.fn(),
     useAddIngredientByFood: vi.fn(),
     useCreateIngredient: vi.fn(),
-    // The ingredient picker + editor also read the async-resolution hooks; inert idle defaults keep them in
-    // the search branch (this screen never drives an UNRESOLVED disambiguation or a poll-after-add).
+    // The row editor also reads the add-by-name and status hooks; inert idle defaults keep them idle (this screen
+    // never drives a poll-after-add).
     useAddIngredientByName: () => ({
         mutate: () => undefined,
         isPending: false,
@@ -62,8 +73,6 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
         reset: () => undefined,
     }),
     useIngredientStatus: () => ({ data: undefined }),
-    useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
-    useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
     // The screen now mounts the RecipePhotoUploader below the editor; stub its photo hooks so the screen's
     // own render paths (this suite) don't reach the network. The uploader has its own dedicated test.
     useRecipePhotos: vi.fn(),
@@ -73,9 +82,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useReorderRecipePhotos: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
 }));
 
-const useRecipeMock = vi.mocked(useRecipe);
 const useUpdateRecipeMock = vi.mocked(useUpdateRecipe);
-const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);
 const useAddIngredientByFoodMock = vi.mocked(useAddIngredientByFood);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 const useRecipePhotosMock = vi.mocked(useRecipePhotos);
@@ -83,14 +90,28 @@ const useCreatePhotoUploadUrlMock = vi.mocked(useCreatePhotoUploadUrl);
 const useConfirmPhotoUploadMock = vi.mocked(useConfirmPhotoUpload);
 const useDeleteRecipePhotoMock = vi.mocked(useDeleteRecipePhoto);
 
-function recipeResult(overrides: Partial<ReturnType<typeof useRecipe>> = {}): ReturnType<typeof useRecipe> {
-    return {
-        isLoading: false,
-        isError: false,
-        data: undefined,
-        refetch: vi.fn(),
-        ...overrides,
-    } as unknown as ReturnType<typeof useRecipe>;
+/** The request cache each test renders over. */
+let queryClient: QueryClient;
+
+/** Put a SETTLED recipe in the cache, so the screen's suspense read renders it with no fetch. */
+function seedRecipe(recipe: RecipeDetail): void {
+    queryClient.setQueryData(recipeQueries({} as never).detail(recipe.id).queryKey, recipe);
+}
+
+/**
+ * Render `ui` over the test's query cache, inside the back-intercept provider.
+ *
+ * The editor installs a hardware-back interceptor, and `useBackIntercept` THROWS without a provider above it
+ * — deliberately, so a back guard can never be silently absent. In the app that provider is `RecipesScreen`'s,
+ * which wraps every pushed surface; here it is supplied directly. `onUnhandled` answers `false`, standing in
+ * for a host with nothing left to pop.
+ */
+function render(ui: ReactElement, food = makeQuietFoodClient()) {
+    return rtlRender(
+        <BackInterceptProvider onUnhandled={() => false}>
+            <QueryClientProvider client={queryClient}>{withFoodClient(ui, food)}</QueryClientProvider>
+        </BackInterceptProvider>,
+    );
 }
 
 function updateMutation(
@@ -165,7 +186,6 @@ function toVersionConflictSide(detail: RecipeDetail): VersionConflictSide {
 
     return {
         versionNumber: detail.currentVersion,
-        deviceLabel: 'iPhone',
         updatedAt: '2026-05-09T14:30:00.000Z',
         snapshot,
     };
@@ -179,34 +199,32 @@ function conflictError(currentVersion: number, conflictingVersion: number, their
 }
 
 /**
- * Navigate the (seeded, valid) edit wizard to step 4 (Photos) and click the footer Publish primary. U6 moved
+ * Navigate the (seeded, valid) edit wizard to step 4 (Review) and click the action bar's Publish primary.
  * Publish from an always-present top-bar button to the ONE contextual footer primary, live only on step 4;
- * every seeded edit fixture here is fully valid, so the `Next` footer primary advances cleanly to Photos.
+ * Every seeded edit fixture here is fully valid, so `Next` advances cleanly to Review.
  */
 function publish(): void {
     fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
     fireEvent.click(screen.getByLabelText(/Next: Instructions/));
-    fireEvent.click(screen.getByLabelText(/Next: Photos/));
+    fireEvent.click(screen.getByLabelText(/Next: Review/));
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 }
 
 afterEach(cleanup);
 
 beforeEach(() => {
-    useRecipeMock.mockReset();
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    rebindMutateAsync.mockReset();
+    rebindMutateAsync.mockReturnValue(new Promise(() => undefined));
+    // Unseeded, the read stays pending — the loading state.
+    getRecipeByIdMock.mockReset();
+    getRecipeByIdMock.mockReturnValue(new Promise(() => {}));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     useUpdateRecipeMock.mockReset();
-    useSuggestIngredientsMock.mockReset();
     useAddIngredientByFoodMock.mockReset();
     useCreateIngredientMock.mockReset();
     useUpdateRecipeMock.mockReturnValue(updateMutation());
-    // Search Stage 2: the picker reads the BLENDED envelope, not a bare array. These screen suites do not
-    // exercise the typeahead, so an empty, healthy-catalog envelope plus an inert admit mutation is enough.
-    useSuggestIngredientsMock.mockReturnValue({
-        isLoading: false,
-        isError: false,
-        isSuccess: true,
-        data: { suggestions: [], catalogAvailability: 'ok' },
-    } as unknown as ReturnType<typeof useSuggestIngredients>);
+    // These screen suites do not exercise the search (the food fixture answers it), so an inert admit is enough.
     useAddIngredientByFoodMock.mockReturnValue({
         mutate: vi.fn(),
         isPending: false,
@@ -238,16 +256,12 @@ beforeEach(() => {
 
 describe('RecipeEditScreen — loading and error', () => {
     it('shows the loading indicator while the recipe loads', () => {
-        useRecipeMock.mockReturnValue(recipeResult({ isLoading: true }));
-
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
     });
 
     it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
-        useRecipeMock.mockReturnValue(recipeResult({ isLoading: true }));
-
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
 
         const label = mobileMessages.en.recipes.detailLoading;
@@ -255,66 +269,105 @@ describe('RecipeEditScreen — loading and error', () => {
         expect(screen.getByText(label)).toBeTruthy();
     });
 
-    it('shows an alert when the recipe fails to load', () => {
-        useRecipeMock.mockReturnValue(recipeResult({ isError: true }));
+    it('shows an alert with a retry that loads the editor when the recipe fails to load', async () => {
+        getRecipeByIdMock
+            .mockRejectedValueOnce(new Error('network down'))
+            .mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
 
-        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(await screen.findByRole('alert')).toBeTruthy();
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: mobileMessages.en.recipes.detailRetry }));
+        });
+
+        expect(((await screen.findByLabelText('Title')) as HTMLInputElement).value).toBe('Weeknight Pasta');
     });
 
-    // Regression for the seed-gap false-alert bug: on a SUCCESSFUL load there is a committed render where
-    // `query.isLoading` is already false (data present) but the hook's seed-once effect has not yet run, so
-    // `editor.state.status` is still `'loading'`. That combination must route to the SAME loading affordance as
-    // the network fetch — never to the error/alert branch, which would announce a false load-failure to screen
-    // readers on every successful edit-open. `useRecipeEditor` itself is overridden (see the mock above) to
-    // construct this exact combination deterministically — a real render's seed effect flushes synchronously
-    // within `act()`/`render()`, so it converges to `'editing'` before any query could observe the transient
-    // state through the real hook.
-    it('shows the loading affordance — never the error alert — at the seed-gap between query success and the seed effect', () => {
-        useRecipeMock.mockReturnValue(recipeResult({ isLoading: false, isError: false, data: makeRecipeDetail() }));
-        useRecipeEditorMock.mockReturnValueOnce({
-            state: { status: 'loading' },
-            values: undefined,
-            errors: {},
-            setValues: vi.fn(),
-            setField: vi.fn(),
-            submit: vi.fn(),
-            submitError: false,
-            query: { isLoading: false, isError: false, error: undefined, refetch: vi.fn() },
-            resolutions: {
-                overwrite: vi.fn(),
-                keepServer: vi.fn(),
-                merge: vi.fn(),
-                setMergeSelections: vi.fn(),
-            },
-        } as unknown as UseRecipeEditorResult);
+    it('shows a not-found alert with no retry — only the way back — for a recipe that does not exist', async () => {
+        getRecipeByIdMock.mockRejectedValue(new NotFoundError());
+        const onCancel = vi.fn();
 
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={onCancel} />);
+
+        expect(await screen.findByText(mobileMessages.en.recipes.detailNotFound)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: mobileMessages.en.recipes.detailRetry })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: mobileMessages.en.recipes.back }));
+        expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ keeps the editor AND the draft when a background refetch of the recipe fails', async () => {
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Weeknight Pasta Deluxe' } });
 
+        // A focus or reconnect refetch that fails over the cached recipe: it does not throw into the boundary.
+        getRecipeByIdMock.mockRejectedValue(new Error('network down'));
+        await act(async () => {
+            await queryClient.refetchQueries({ queryKey: recipeQueries({} as never).detail('rec_1').queryKey });
+        });
+
+        // Swapping the editor for the load alert would unmount the wizard and throw the cook's draft away; a stale
+        // base is caught at save by the 409 conflict view instead.
         expect(screen.queryByRole('alert')).toBeNull();
-        expect(screen.queryByText('We couldn’t load this recipe.')).toBeNull();
-        expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
+        expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('Weeknight Pasta Deluxe');
+    });
+
+    it('⛔ remounts a fresh editor seeded from the NEW recipe when the screen is handed another id', () => {
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta' }));
+        seedRecipe(makeRecipeDetail({ id: 'rec_2', title: 'Sunday Roast' }));
+        const { rerender } = render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Unsaved edit' } });
+
+        // Mirrors `render`'s own tree — a `rerender` that drops the back-intercept provider unmounts the
+        // guard the editor installs, which is a different change from the one under test here.
+        rerender(
+            <BackInterceptProvider onUnhandled={() => false}>
+                <QueryClientProvider client={queryClient}>
+                    {withFoodClient(<RecipeEditScreen recipeId="rec_2" onSaved={vi.fn()} onCancel={vi.fn()} />)}
+                </QueryClientProvider>
+            </BackInterceptProvider>,
+        );
+
+        expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('Sunday Roast');
     });
 });
 
 describe('RecipeEditScreen — ready state', () => {
     it('seeds the editor from the loaded recipe', () => {
-        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ title: 'Weeknight Pasta' }) }));
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.getByText('Step 1 of 4')).toBeTruthy();
         expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('Weeknight Pasta');
     });
+
+    it('⛔ keeps the editor on screen while the photo read is still pending', () => {
+        // A non-suspension check. The photo hook is module-mocked here, so this pins the pending SHAPE a plain
+        // `useQuery` hands the uploader, not the hook's implementation: a pending read must render inside the
+        // editor. Were the uploader's read a suspense read with no `<Suspense>` of its own, the editor's boundary
+        // would catch it and swap the whole wizard for the recipe's loading indicator.
+        useRecipePhotosMock.mockReturnValue({
+            data: undefined,
+            isLoading: true,
+            isError: false,
+        } as unknown as ReturnType<typeof useRecipePhotos>);
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+        expect(useRecipePhotosMock).toHaveBeenCalledWith('rec_1');
+        expect(screen.getByText('Step 1 of 4')).toBeTruthy();
+        expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('Weeknight Pasta');
+        expect(screen.queryByLabelText('Loading recipe…')).toBeNull();
+    });
 });
 
 describe('RecipeEditScreen — save', () => {
     it('runs the update mutation carrying the expected version, then reports the id', () => {
         const updated = makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta' });
-        useRecipeMock.mockReturnValue(
-            recipeResult({ data: makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', currentVersion: 3 }) }),
-        );
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', currentVersion: 3 }));
         const mutate = vi.fn((_vars: unknown, options?: { onSuccess?: (recipe: typeof updated) => void }) =>
             options?.onSuccess?.(updated),
         );
@@ -333,7 +386,7 @@ describe('RecipeEditScreen — save', () => {
     });
 
     it('surfaces the generic save-error alert for a non-conflict failure', () => {
-        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ id: 'rec_1' }) }));
+        seedRecipe(makeRecipeDetail({ id: 'rec_1' }));
         useUpdateRecipeMock.mockReturnValue(updateMutation({ isError: true, error: new Error('network') as never }));
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
@@ -344,7 +397,7 @@ describe('RecipeEditScreen — save', () => {
 
     it('does not surface the generic save-error alert for a version conflict', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1' });
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        seedRecipe(loaded);
         // Enriched (carries a `server` side) — a well-formed 409, NOT the un-enriched `conflictDataUnavailable`
         // case (its own dedicated test below), so only `submitError`'s own exclusion is under test here.
         useUpdateRecipeMock.mockReturnValue(
@@ -364,8 +417,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
     it('enters conflict mode on a version conflict, showing the server-first banner and the three option cards — built from the 409 itself, never a refetch', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3, servings: 4 });
         const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5, servings: 8 });
-        const refetch = vi.fn();
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded, refetch }));
+        seedRecipe(loaded);
         useUpdateRecipeMock.mockReturnValue(
             updateMutation({ mutate: mutateWith([{ type: 'conflict', error: conflictError(5, 3, theirs) }]) as never }),
         );
@@ -374,13 +426,12 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         publish();
 
         expect(await screen.findByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
-        expect(screen.getByText(/^Server version \(v5\): Saved .* on iPhone$/)).toBeTruthy();
+        expect(screen.getByText(/^Server version \(v5\): Saved .*ago$/u)).toBeTruthy();
         expect(screen.getByText('Your version: local unsaved changes')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Keep server version' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Overwrite with your version' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Merge manually' })).toBeTruthy();
         expect(screen.getByText(/Server Saved Recipe/)).toBeTruthy();
-        expect(refetch).not.toHaveBeenCalled();
     });
 
     // Phantom fast-path (W7 Task 2, wired through the screen in Task 6): a 409 whose 3-way diff is EMPTY (the
@@ -391,7 +442,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe Deluxe', currentVersion: 3 });
         const theirs = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe Deluxe', currentVersion: 5 });
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        seedRecipe(loaded);
         const mutate = mutateWith([
             { type: 'conflict', error: conflictError(5, 3, theirs) },
             { type: 'success', recipe: saved },
@@ -413,7 +464,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
         const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5 });
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        seedRecipe(loaded);
         const mutate = mutateWith([
             { type: 'conflict', error: conflictError(5, 3, theirs) },
             { type: 'success', recipe: saved },
@@ -441,7 +492,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
         const theirsV5 = makeRecipeDetail({ id: 'rec_1', title: 'Saved At Five', currentVersion: 5 });
         const theirsV6 = makeRecipeDetail({ id: 'rec_1', title: 'Saved At Six', currentVersion: 6 });
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        seedRecipe(loaded);
         const mutate = mutateWith([
             { type: 'conflict', error: conflictError(5, 3, theirsV5) },
             { type: 'conflict', error: conflictError(6, 5, theirsV6) },
@@ -471,7 +522,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
             servings: 8,
         });
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        seedRecipe(loaded);
         const mutate = mutateWith([
             { type: 'conflict', error: conflictError(5, 3, theirs) },
             { type: 'success', recipe: saved },
@@ -510,7 +561,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
     it('Option A (keep server) discards without a write, then navigates via onCancel (never reports a saved id)', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
         const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5 });
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        seedRecipe(loaded);
         const mutate = mutateWith([{ type: 'conflict', error: conflictError(5, 3, theirs) }]);
         useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: mutate as never }));
         const onSaved = vi.fn();
@@ -533,7 +584,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
     it('"Discard and close" exits the conflict view WITHOUT submitting any resolution, then navigates via onCancel', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
         const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5 });
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        seedRecipe(loaded);
         const mutate = mutateWith([{ type: 'conflict', error: conflictError(5, 3, theirs) }]);
         useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: mutate as never }));
         const onSaved = vi.fn();
@@ -561,7 +612,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
     // straight off the mutation's OWN return value (mirroring `submitError`, see the hook's JSDoc), so the
     // fixture sets that return value statically, the SAME pattern the generic save-error test above uses.
     it('shows a localized, actionable error when the 409 cannot be resolved into a conflict view, and stays editing (retryable)', () => {
-        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ id: 'rec_1' }) }));
+        seedRecipe(makeRecipeDetail({ id: 'rec_1' }));
         useUpdateRecipeMock.mockReturnValue(
             updateMutation({
                 isError: true,
@@ -577,5 +628,58 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         // the U6 chrome the step-1 primary is the footer "Next", not Publish (Publish is the step-4 primary).
         expect(screen.getByLabelText(/Next: Ingredients/)).toBeTruthy();
         expect(screen.getByLabelText('Title')).toBeTruthy();
+    });
+});
+
+/**
+ * `docs/design/rowEditorOpenDecisions.md` item 4 ("A `409`: the editor's existing conflict state") and P8, blueprint
+ * decision 7, ADR-0045: Change food on a STORED line is one rebind command at the version the draft is built on. When
+ * another writer moved the recipe on, the server refuses it, the conflict view opens, and nothing is saved.
+ */
+describe('RecipeEditScreen — a rebind refused for a moved version (blueprint decision 7, ADR-0045)', () => {
+    const PEPPER = { id: 'food_pepper', name: 'Black pepper', score: 0.9 } as const;
+
+    it('a Change food rebind refused because another writer moved the version on opens the conflict view, and saves nothing', async () => {
+        const loaded = makeRecipeDetail({
+            id: 'rec_1',
+            title: 'Garlic supper',
+            currentVersion: 1,
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: '00000000-0000-4000-8000-0000000000a1',
+                    name: 'Garlic',
+                    foodId: 'food_garlic',
+                    resolutionStatus: FoodResolutionStatus.RESOLVED,
+                }),
+            ],
+        });
+        // Another writer saved version 2 while the editor was open.
+        const theirs = makeRecipeDetail({ ...loaded, title: 'Garlic supper, theirs', currentVersion: 2 });
+        const save = vi.fn();
+        seedRecipe(loaded);
+        useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: save as never }));
+        rebindMutateAsync.mockRejectedValue(conflictError(2, 1, theirs));
+
+        render(
+            <RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />,
+            makeQuietFoodClient([PEPPER]),
+        );
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Garlic' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Change food' }));
+        fireEvent.change(screen.getByLabelText('Ingredient 1 name'), { target: { value: 'pepper' } });
+        const pepper = await screen.findByRole('button', { name: PEPPER.name });
+
+        await act(async () => {
+            fireEvent.click(pepper);
+        });
+
+        expect(await screen.findByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
+        expect(rebindMutateAsync).toHaveBeenCalledExactlyOnceWith({
+            id: 'rec_1',
+            position: 0,
+            body: { expectedVersion: 1, target: { kind: 'catalogFood', foodId: PEPPER.id } },
+        });
+        expect(save).not.toHaveBeenCalled();
     });
 });

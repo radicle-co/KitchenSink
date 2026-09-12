@@ -2,7 +2,7 @@
  * @module components/account/AvatarField — the profile screen's avatar control (U2).
  *
  * Replaces the old "paste an image URL" text box with a real device flow, modelled on
- * {@link import('../RecipePhotoUploader.js').RecipePhotoUploader}: a design-system {@link Button} opens
+ * `RecipePhotoUploader`: a design-system {@link Button} opens
  * `expo-image-picker`, the picked asset's bytes are read as a Blob, client-validated against the same
  * 5 MB / JPEG-PNG-WebP allowlist the identity presign enforces (so an obviously-invalid pick fails fast,
  * before any request), uploaded via {@link useAvatarUpload}, and the durable public URL is handed back
@@ -134,7 +134,12 @@ export const AvatarField: FC<AvatarFieldProps> = ({ value, onChange, messages })
                         accessibilityLabel={messages.imageLabel}
                     />
                 ) : (
-                    <View style={styles.placeholder} accessibilityRole="image" accessibilityLabel={messages.imageLabel}>
+                    <View
+                        accessible
+                        style={styles.placeholder}
+                        accessibilityRole="image"
+                        accessibilityLabel={messages.imageLabel}
+                    >
                         <Feather name="user" size={28} color={palette.slate} />
                     </View>
                 )}

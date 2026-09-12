@@ -4,14 +4,17 @@
  * "see all recipes" → `onOpenRecipes`, and a "Recent recipes" CARD tap → `onOpenRecipe` (that recipe's detail).
  * It owns no widget logic itself — the surface resolves, curates, and renders the registered Home widgets; this
  * screen only supplies the device chrome (status-bar inset) and navigation.
+ *
+ * ⚠️ So it is PRESENTATIONAL, which a file under `src/screens/` is not expected to be: every other screen
+ * here mounts a query or a statechart. This one reads a safe-area inset and passes three callbacks straight
+ * through. The child that decides — `HomeWidgetSurface` — is where a read belongs; one added here would be
+ * in the wrong place.
  */
 import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { palette } from '@commise/ui';
-
-import { HomeWidgetSurface } from '../components/home/index.js';
+import { HomeWidgetSurface } from '../components/home/HomeWidgetSurface.js';
 
 /** Props for {@link HomeScreen}. */
 export interface HomeScreenProps {
@@ -27,16 +30,19 @@ export interface HomeScreenProps {
  * The Home landing screen.
  *
  * @param props - The `onOpenRecipes`, `onOpenRecipe` and `onOpenProfile` navigation intents.
- * @returns The Home widget surface under the top safe-area inset.
+ * @returns The Home widget surface inside the top and side safe-area insets.
  */
 export function HomeScreen({ onOpenRecipes, onOpenRecipe, onOpenProfile }: HomeScreenProps): JSX.Element {
     const insets = useSafeAreaInsets();
 
     // Apply the top safe-area inset so the top bar clears the status bar (without it the top row renders
     // UNDER the status bar — a visual defect, and the occluded nodes drop out of the accessibility hierarchy,
-    // which also makes them invisible to screen readers and to Maestro E2E).
+    // which also makes them invisible to screen readers and to Maestro E2E). The side insets too: in landscape a
+    // camera cutout or the 3-button navigation bar sits on a side edge, drawn over content.
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View
+            style={[styles.container, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}
+        >
             <HomeWidgetSurface
                 onSeeAllRecipes={onOpenRecipes}
                 onSelectRecipe={onOpenRecipe}
@@ -47,5 +53,7 @@ export function HomeScreen({ onOpenRecipes, onOpenRecipe, onOpenProfile }: HomeS
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    container: { flex: 1, backgroundColor: 'transparent' },
 });

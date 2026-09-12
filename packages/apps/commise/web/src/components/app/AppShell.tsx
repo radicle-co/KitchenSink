@@ -19,6 +19,14 @@
  * already has it — and an id-keyed copy record makes a surface without a title a COMPILE error instead of a
  * blank bar. `titleId` is optional and defaults to Home, so a caller that says nothing behaves exactly as
  * before. See `components/app/shellSurfaces.ts` for why surfaces are a separate axis from nav destinations.
+ *
+ * ⚠️ It is ORCHESTRATION, and exactly ONE line makes it so: `useUserProfile()`, the read that puts the
+ * signed-in cook's name in the top bar. Everything else here is layout, so the component reads as a wrapper
+ * and the split between it and {@link HomeChrome} — which owns no data at all — is invisible unless stated.
+ * The rule the pair encodes: data enters the chrome HERE, and never below.
+ *
+ * @pattern Composition root binding the signed-in profile read and the app-wide capability set to the pure
+ *     `HomeChrome` shell — the one place chrome learns who is signed in and what is deployed.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
@@ -46,6 +54,12 @@ export interface AppShellProps {
      * per-surface — so an un-migrated caller renders exactly what it did before.
      */
     readonly titleId?: ShellSurfaceId;
+    /**
+     * Whether this surface owns the bottom edge — see `HomeChromeProps.focusedTask`. Set by the recipe
+     * wizard routes, whose pinned action bar the tab bar would otherwise cover completely.
+     */
+    readonly focusedTask?: boolean;
+
     /** The surface content rendered in the shell's `<main>` landmark. */
     readonly children: ReactNode;
 }
@@ -57,7 +71,12 @@ export interface AppShellProps {
  * @param props - The active destination id, the surface title id, and the surface content.
  * @returns The surface wrapped in the shared navigation chrome.
  */
-export const AppShell: FC<AppShellProps> = ({ activeId, titleId = DEFAULT_SHELL_SURFACE_ID, children }) => {
+export const AppShell: FC<AppShellProps> = ({
+    activeId,
+    titleId = DEFAULT_SHELL_SURFACE_ID,
+    focusedTask = false,
+    children,
+}) => {
     const { home } = useMessages(webMessages);
     const locale = useLocale();
     const displayName = useUserProfile().data?.user.displayName;
@@ -70,6 +89,7 @@ export const AppShell: FC<AppShellProps> = ({ activeId, titleId = DEFAULT_SHELL_
             liveCapabilities={LIVE_CAPABILITIES}
             activeId={activeId}
             displayName={displayName}
+            focusedTask={focusedTask}
         >
             {children}
         </HomeChrome>

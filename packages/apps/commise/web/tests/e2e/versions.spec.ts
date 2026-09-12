@@ -3,7 +3,14 @@ import type { Page } from '@playwright/test';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, makeRecipeVersion, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { simulateOutage } from './utils/outage';
+import {
+    E2E_INGREDIENT_IDS,
+    makeRecipeDetail,
+    makeRecipeVersion,
+    mockRecipeApi,
+    readViewerAppId,
+} from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -34,8 +41,8 @@ const RECIPE_ID = 'rec_pasta';
 const oliveOil = {
     id: 'ri_1',
     recipeId: RECIPE_ID,
-    ingredientId: 'ing_olive_oil',
-    quantity: 2,
+    ingredientId: E2E_INGREDIENT_IDS.oliveOil,
+    quantity: { kind: 'exact', value: 2 } as const,
     unit: 'tbsp',
     sortOrder: 1,
     ingredientName: 'Olive oil',
@@ -62,7 +69,7 @@ const v3Snapshot: RecipeSnapshot = {
     ...v2Snapshot,
     version: 3,
     description: 'A fast, comforting pasta dinner with roasted garlic.',
-    ingredients: [{ ...oliveOil, quantity: 3 }],
+    ingredients: [{ ...oliveOil, quantity: { kind: 'exact', value: 3 } }],
 };
 
 const v1 = makeRecipeVersion({
@@ -79,7 +86,6 @@ const v2 = makeRecipeVersion({
     versionNumber: 2,
     snapshot: v2Snapshot,
     editorHandle: 'chef_e2e',
-    deviceLabel: 'iPhone 15',
     createdAt: '2026-01-02T00:00:00.000Z',
 });
 const v3 = makeRecipeVersion({
@@ -88,13 +94,11 @@ const v3 = makeRecipeVersion({
     versionNumber: 3,
     snapshot: v3Snapshot,
     editorHandle: 'chef_e2e',
-    deviceLabel: 'MacBook Pro',
     createdAt: '2026-01-03T00:00:00.000Z',
 });
 
-/** Seed the mock with the recipe (`currentVersion: 3`, consistent with `v3`) and its 3-version history, and
- *  navigate to its version-history route. */
-async function openVersionHistory(page: Page): Promise<void> {
+/** Seed the mock with the recipe (`currentVersion: 3`, consistent with `v3`) and its 3-version history. */
+async function seedVersionHistory(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
     const recipe = makeRecipeDetail({
         id: RECIPE_ID,
@@ -112,7 +116,11 @@ async function openVersionHistory(page: Page): Promise<void> {
         recipes: [recipe],
         recipeVersions: { [RECIPE_ID]: [v1, v2, v3] },
     });
+}
 
+/** Seed the recipe and its versions, navigate to its version-history route, and wait for the history. */
+async function openVersionHistory(page: Page): Promise<void> {
+    await seedVersionHistory(page);
     await page.goto(route(`/recipes/${RECIPE_ID}/versions`));
     await expect(page.getByRole('heading', { name: 'Version history' })).toBeVisible();
 }
@@ -128,13 +136,34 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await expect(page.getByText('Current version')).toBeVisible();
         await expect(page.getByRole('button', { name: 'Restore version 3' })).toHaveCount(0);
 
-        // v2's row: `by @{handle} (from {device})` attribution, plus the changed-fields summary versus its
-        // immediately-prior sibling (v1) — only the title differs between v1 and v2.
-        await expect(page.getByText('by @chef_e2e (from iPhone 15)')).toBeVisible();
-        await expect(page.getByText('Changed: Title')).toBeVisible();
+        // v2's row: `by @{handle}` attribution, plus the changed-fields summary versus its immediately-prior
+        // sibling (v1) — only the title differs between v1 and v2.
+        //
+        // ⚠️ REWRITTEN (this run), and the reason is the point. The ` (from {device})` half of the old
+        // assertion went with the 2026-08-26 owner ruling that deleted device attribution — but that suffix
+        // was also the only thing making each row's attribution text UNIQUE, so an unscoped
+        // `getByText('by @chef_e2e')` became a 3-element strict-mode violation the moment it was dropped.
+        // Scoping each claim to the row it is about is what the assertion always meant; it was passing on an
+        // accident of the copy. Per-row scoping also makes this STRONGER than before — "Changed: Title" is
+        // now pinned to v2 rather than to "somewhere on the page", so a summary rendered against the wrong
+        // sibling would fail here instead of passing.
 
-        // v1 is the earliest version — nothing to diff against.
-        await expect(page.getByText('Initial version')).toBeVisible();
+        // Scoped by the row's OWN "Version N" label element, not by a `hasText` substring: the row's
+        // concatenated text content runs the label straight into the timestamp ("Version 2Jan 3, 2026"), so a
+        // text-prefix match has no word boundary to anchor on and would silently match the wrong row.
+        const rowFor = (version: number) =>
+            page.getByRole('listitem').filter({ has: page.getByText(`Version ${version}`, { exact: true }) });
+
+        // All three rows carry the attribution — the property the old single assertion could only sample.
+        await expect(page.getByText('by @chef_e2e')).toHaveCount(3);
+
+        await expect(rowFor(2).getByText('by @chef_e2e')).toBeVisible();
+        await expect(rowFor(2).getByText('Changed: Title')).toBeVisible();
+
+        // v1 is the earliest version — nothing to diff against, so it gets the initial-version note and no
+        // changed-fields summary at all.
+        await expect(rowFor(1).getByText('Initial version')).toBeVisible();
+        await expect(rowFor(1).getByText(/^Changed: /u)).toHaveCount(0);
     });
 
     test('previews a past version’s content and its changed-from-current summary', async ({ page }) => {
@@ -198,5 +227,113 @@ test.describe('recipe version history (W6 Task 6)', () => {
         // observable as v3 losing its current status and becoming restorable again, once the container's
         // post-restore refetch of the version list lands.
         await expect(page.getByRole('button', { name: 'Restore version 3' })).toBeVisible();
+    });
+
+    // The history suspends under ONE boundary, so its retry must reset the boundary AND the failed query and
+    // issue a real second request. The wait is real: a `503` is what the shared retry policy retries (about
+    // 7 s of TanStack's default backoff) before the boundary sees it.
+    test('recovers from a failed history read when Try again succeeds', async ({ page }) => {
+        await signInWithTicket(page);
+        await seedVersionHistory(page);
+        const outage = await simulateOutage(page, new RegExp(`/api/v1/recipes/${RECIPE_ID}/versions(?:\\?|$)`));
+
+        await page.goto(route(`/recipes/${RECIPE_ID}/versions`));
+        const loadError = page.getByRole('alert').filter({ hasText: 'We couldn’t load the version history.' });
+        await expect(loadError).toBeVisible({ timeout: 15_000 });
+
+        outage.end();
+        await page.getByRole('button', { name: 'Try again' }).click();
+
+        await expect(page.getByRole('heading', { name: 'Version history' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Restore version 1' })).toBeVisible();
+    });
+});
+
+/**
+ * Curated U15 (`docs/design/ingredientSpecialization.md` §S1): the version preview shows a variant-bound line's root
+ * name with the dotted line under it, from the parts the version froze, and a root-bound line's name alone. The screen
+ * never shows the parts as a comma-joined label; the cook's own comma-joined words on another line are the control.
+ */
+test.describe('version preview — a variant-bound line (curated U15)', () => {
+    const BRISKET_RECIPE_ID = 'db000000-0000-4000-8000-0000000000c1';
+    const line = (over: Partial<RecipeSnapshot['ingredients'][number]>) => ({
+        ...oliveOil,
+        recipeId: BRISKET_RECIPE_ID,
+        ...over,
+    });
+    const brisketV1: RecipeSnapshot = {
+        ...v1Snapshot,
+        title: 'Braised Brisket',
+        ingredients: [
+            line({ id: 'ri_root', quantity: { kind: 'exact', value: 1 }, unit: 'lb', ingredientName: 'beef brisket' }),
+            line({
+                id: 'ri_variant',
+                ingredientId: 'db000000-0000-4000-8000-0000000000c2',
+                sortOrder: 2,
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'lb',
+                ingredientName: 'beef brisket',
+                variantParts: [
+                    { attribute: 'cut', text: 'flat half' },
+                    { attribute: 'grade', text: 'select' },
+                    { attribute: 'cookingMethod', text: 'braised' },
+                ],
+            }),
+            line({
+                id: 'ri_control',
+                ingredientId: 'db000000-0000-4000-8000-0000000000c3',
+                sortOrder: 3,
+                displayText: 'flat half, select',
+            }),
+        ],
+    };
+    const brisketV2: RecipeSnapshot = { ...brisketV1, version: 2, description: 'Slow and low.' };
+
+    test('previews the root name with the dotted line under it, and never a comma-joined label', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                makeRecipeDetail({
+                    id: BRISKET_RECIPE_ID,
+                    ownerId: viewerId,
+                    title: 'Braised Brisket',
+                    currentVersion: 2,
+                }),
+            ],
+            recipeVersions: {
+                [BRISKET_RECIPE_ID]: [
+                    makeRecipeVersion({
+                        id: 'ver_b1',
+                        recipeId: BRISKET_RECIPE_ID,
+                        versionNumber: 1,
+                        snapshot: brisketV1,
+                    }),
+                    makeRecipeVersion({
+                        id: 'ver_b2',
+                        recipeId: BRISKET_RECIPE_ID,
+                        versionNumber: 2,
+                        snapshot: brisketV2,
+                    }),
+                ],
+            },
+        });
+
+        await page.goto(route(`/recipes/${BRISKET_RECIPE_ID}/versions`));
+        await page.getByRole('button', { name: 'Preview version 1' }).click();
+
+        const lines = page.getByRole('dialog').getByRole('listitem');
+        const variant = lines.filter({ hasText: '2 lb beef brisket' });
+        const root = lines.filter({ hasText: '1 lb beef brisket' });
+
+        for (const part of ['flat half', 'select', 'braised']) {
+            await expect(variant).toContainText(part);
+        }
+
+        await expect(variant).toContainText('flat half ·');
+        await expect(variant).not.toContainText('flat half, select');
+        await expect(root).not.toContainText('·');
+        await expect(lines.filter({ hasText: 'Olive oil' })).toContainText('flat half, select');
     });
 });

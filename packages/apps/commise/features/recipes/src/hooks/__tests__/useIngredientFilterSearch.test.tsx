@@ -3,22 +3,25 @@
  * (FR-006 gap #3). Pins the exact transitions the filter bar's container relies on: idle -> searching ->
  * results (empty/populated/error), the 2-character trigger + ~300ms debounce (REQ-057, reused verbatim), and
  * that NEITHER `addIngredientByName`/`createIngredient`/`resolveIngredient` NOR any candidate-disambiguation
- * hook is ever invoked — the deliberate scope cut from `useIngredientResolver` documented in the hook's
- * module doc. The recipe-service-client hooks are mocked, so no QueryClient/backend is needed.
+ * hook is ever invoked — the deliberate scope cut from the editor's entry documented in the hook's module doc. The recipe-service-client hooks are mocked, so no QueryClient/backend is needed.
  */
 import { act, renderHook } from '@testing-library/react';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
+import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
 
 const { useSearchIngredientsMock } = vi.hoisted(() => ({
     useSearchIngredientsMock: vi.fn(),
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useSearchIngredients: useSearchIngredientsMock,
 }));
 
-import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '../ingredientResolver.model.js';
+import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '../ingredientSearchDebounce.js';
 import { useIngredientFilterSearch } from '../useIngredientFilterSearch.js';
 
 function idleSearch(): Record<string, unknown> {
@@ -41,22 +44,74 @@ function settleDebounce(): void {
     });
 }
 
+/**
+ * Curated U9: a full filter hides the search box, so a query typed before the last add must stop searching rather
+ * than keep fetching behind the note.
+ */
+describe('useIngredientFilterSearch — a full filter', () => {
+    it('is full and asks nothing, even with a searchable query', () => {
+        const { result } = renderHook(() => useIngredientFilterSearch(MAX_SEARCH_FOOD_FILTERS));
+
+        act(() => result.current.setQuery('chicken'));
+        settleDebounce();
+
+        expect(result.current.viewState).toEqual({ kind: 'full', max: MAX_SEARCH_FOOD_FILTERS });
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('chicken', undefined, { enabled: false });
+    });
+
+    it('searches again once a place frees', () => {
+        const { result, rerender } = renderHook(({ count }) => useIngredientFilterSearch(count), {
+            initialProps: { count: MAX_SEARCH_FOOD_FILTERS },
+        });
+
+        act(() => result.current.setQuery('chicken'));
+        settleDebounce();
+        rerender({ count: MAX_SEARCH_FOOD_FILTERS - 1 });
+
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('chicken', undefined, { enabled: true });
+    });
+});
+
 describe('useIngredientFilterSearch — idle -> searching -> results', () => {
     it('starts idle with a blank query', () => {
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         expect(result.current.viewState).toEqual({ kind: 'idle' });
         expect(result.current.query).toBe('');
     });
 
-    it('never enables search below the 2-character trigger (REQ-057)', () => {
-        const { result } = renderHook(() => useIngredientFilterSearch());
+    it('never enables search below the FR-010a minimum, and says so instead', () => {
+        // ⚠️ REWRITTEN for 003-FR-010a (plan U37), not weakened. It asserted `idle` under the retired
+        // 2-character client trigger; the request-suppression half — the thing this hook exists to get
+        // right — is unchanged and still asserted. What is new is the view state: below the minimum the
+        // bar must TELL the cook, so `idle` (an untouched box) would now be the wrong answer.
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('c'));
         settleDebounce();
 
-        expect(result.current.viewState).toEqual({ kind: 'idle' });
+        expect(result.current.viewState).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
         expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('c', undefined, { enabled: false });
+    });
+
+    it('still suppresses the request at TWO characters — the boundary moved, the suppression did not', () => {
+        // The case above passed before U37 at one character too. This is the one that fails if the
+        // minimum silently slips back to 2.
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
+
+        act(() => result.current.setQuery('eg'));
+        settleDebounce();
+
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('eg', undefined, { enabled: false });
+    });
+
+    it('enables search at exactly three characters, so `egg` and `ham` still work', () => {
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
+
+        act(() => result.current.setQuery('egg'));
+        settleDebounce();
+
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('egg', undefined, { enabled: true });
     });
 
     it('moves to searching once a query crosses the threshold and is in flight', () => {
@@ -66,7 +121,7 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
             isSuccess: false,
             data: undefined,
         });
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('chi'));
 
@@ -76,7 +131,7 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
     it('stays searching until the debounce settles, even if the mocked search already has data', () => {
         const hit = makeIngredient({ id: 'ing_1', name: 'Chicken' });
         useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, isSuccess: true, data: [hit] });
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('chi'));
         // No settleDebounce() — asserting DURING the debounce window.
@@ -87,7 +142,7 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
     it('moves to results with the ranked matches once the search settles', () => {
         const hit = makeIngredient({ id: 'ing_1', name: 'Chicken' });
         useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, isSuccess: true, data: [hit] });
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('chi'));
         settleDebounce();
@@ -97,7 +152,7 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
 
     it('reports an empty settled result set (no matches)', () => {
         useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, isSuccess: true, data: [] });
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('zzz'));
         settleDebounce();
@@ -112,7 +167,7 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
             isSuccess: false,
             data: undefined,
         });
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('chi'));
         settleDebounce();
@@ -121,34 +176,45 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
     });
 
     it('trims whitespace-only queries back to idle', () => {
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('   '));
 
         expect(result.current.viewState).toEqual({ kind: 'idle' });
     });
 
-    it('re-ranks the mocked search results by match quality (prefix > substring)', () => {
-        const substring = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
-        const prefix = makeIngredient({ id: 'ing_1', name: 'Spinach' });
+    /**
+     * ⚠️ REWRITTEN for plan U5 — this is the SAME case, asserting the opposite.
+     *
+     * It asserted that the hook re-ranked the server's results by `prefix > substring`. That mechanism
+     * (`rankIngredientResults`) is retired: the server now owns the order, scoring relevance with a tiered
+     * sort key instead of approximating it from string shape. Retiring it here and not on the server would
+     * have made the filter WORSE, which is why the plan requires both in one release. See
+     * `food-service/tests/rankingTiers.integration.test.ts` for where the ordering is now proven (plan 002 moved
+     * ingredient search to food-service).
+     */
+    it("renders the server's order UNMODIFIED — the filter no longer re-ranks (U5)", () => {
+        // Deliberately the order the retired client sort would have INVERTED.
+        const first = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
+        const second = makeIngredient({ id: 'ing_1', name: 'Spinach' });
         useSearchIngredientsMock.mockReturnValue({
             isLoading: false,
             isError: false,
             isSuccess: true,
-            data: [substring, prefix],
+            data: [first, second],
         });
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('spin'));
         settleDebounce();
 
-        expect(result.current.viewState).toMatchObject({ results: [prefix, substring] });
+        expect(result.current.viewState).toMatchObject({ results: [first, second] });
     });
 });
 
 describe('useIngredientFilterSearch — read-only scope cut (no resolver machinery)', () => {
     it('never calls anything but useSearchIngredients from the recipe-service-client hooks module', () => {
-        const { result } = renderHook(() => useIngredientFilterSearch());
+        const { result } = renderHook(() => useIngredientFilterSearch(0));
 
         act(() => result.current.setQuery('chicken'));
         settleDebounce();

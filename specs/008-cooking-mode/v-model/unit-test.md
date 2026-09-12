@@ -47,7 +47,23 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-001 — CookingModeScreen
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File**: `src/features/cooking-mode/screens/CookingModeScreen.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/useCookingSession.ts`,
+`packages/apps/commise/features/cooking/src/CookingModeScreen.tsx` / `.native.tsx`
+**Test Source File**: `packages/apps/commise/features/cooking/src/__tests__/useCookingSession.test.tsx` (42 tests),
+`.../__tests__/CookingModeScreen.test.tsx` (23) and `.../__tests__/CookingModeScreen.native.test.tsx` (23)
+
+> **Corrected 2026-08-09 (`UTP-001-D`, `UTP-001-E`, `UTP-001-F`).** `UTS-001-D1` and `UTS-001-E1` asserted calls into modules that do not exist —
+> `StepNavigationController.initialise(0, 2)` on mount and `TimerEngine.reset()` on unmount — the class design retired at MOD-004 /
+> MOD-006; see the MOD-001 correction note in `module-design.md`. They are rewritten against the shipped orchestrator: the wake lock
+> arrives as an INJECTED port, the session is opened by `createSession`, and unmount releases the lock **without** touching the
+> timers, because the running `CookingTimer[]` is part of the persisted session and each remainder is derived from `startedAt`.
+> `UTP-001-F` was retitled to the shipped command names (`goToNextStep` / `goToPreviousStep`) and its "`StepNavigationController`
+> real instance" mock note dropped — the reducer is pure, so there was never anything to instantiate. The ids, the case letters and
+> the scenario COUNTS are unchanged, so no coverage total moves.
+>
+> **Not corrected in this pass:** `UTP-001-A`, `UTP-001-B`, `UTP-001-C`, `UTP-001-G` and `UTP-001-H` still arrange an
+> `AuthGuard` → `RecipeDataAdapter` → `OfflineRecipeCache` mount chain that the feature never built (Cooking Mode receives the
+> recipe as a prop and issues no request at all). They are left visible rather than deleted or silently rewritten.
 
 ---
 
@@ -84,37 +100,39 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-#### UTP-001-D — Mount: Happy path initialises all services
+#### UTP-001-D — Mount: Happy path opens the session and holds the screen awake
 
 **Technique**: Statement & Branch Coverage (Algorithmic/Logic View — success path)
-**Mocks**: Auth OK; adapter returns `[step1, step2]`; all services stubbed
+**Mocks**: In-memory `CookingSessionStore` (empty); injected `WakeLockPort` with `acquire` / `release` spies; `recipe` supplied as
+`{ status: 'ready', steps, ingredients }` — the screen fetches nothing, so there is no adapter to stub
 
-| Scenario   | Arrange                                           | Act             | Assert                                                                                                                                          |
-| ---------- | ------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| UTS-001-D1 | All dependencies succeed; adapter returns 2 steps | Mount component | `ScreenWakeLockManager.acquire` called; `StepNavigationController.initialise(0, 2)` called; `state.ready = true`; `<StepDisplayPanel>` rendered |
-
----
-
-#### UTP-001-E — Unmount: Services are torn down
-
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `ON_UNMOUNT` branch)
-**Mocks**: All mount dependencies succeed; `TimerEngine.reset` spy; `ScreenWakeLockManager.release` spy
-
-| Scenario   | Arrange                        | Act               | Assert                                                                           |
-| ---------- | ------------------------------ | ----------------- | -------------------------------------------------------------------------------- |
-| UTS-001-E1 | Component mounted successfully | Unmount component | `TimerEngine.reset()` called once; `ScreenWakeLockManager.release()` called once |
+| Scenario   | Arrange                                                                      | Act                                        | Assert                                                                                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-001-D1 | Storage holds no session for this recipe; the recipe is `ready` with 3 steps | Mount, then settle the async restore chain | The injected `wakeLock` port is acquired exactly once and not released; `createSession` opens at `currentStepIndex = 0`; the `step` surface renders step 1 of 3. Nothing is acquired while still restoring |
 
 ---
 
-#### UTP-001-F — State: stepIndex updates on goNext / goPrev
+#### UTP-001-E — Unmount: The wake lock is released, the session is not reset
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `goNext` / `goPrev` functions)
-**Mocks**: All mount dependencies succeed; `StepNavigationController` real instance
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — effect cleanup / phase gate)
+**Mocks**: As UTP-001-D; `release` spy on the injected `WakeLockPort`
 
-| Scenario   | Arrange                                 | Act             | Assert                |
-| ---------- | --------------------------------------- | --------------- | --------------------- |
-| UTS-001-F1 | Component ready with 3 steps at index 0 | Call `goNext()` | `state.stepIndex = 1` |
-| UTS-001-F2 | Component ready at index 1              | Call `goPrev()` | `state.stepIndex = 0` |
+| Scenario   | Arrange                                        | Act               | Assert                                                                                                                                                                                 |
+| ---------- | ---------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-001-E1 | A live session with at least one timer running | Unmount component | The injected `release` is called exactly once; **no timer is reset or cancelled** — the running `CookingTimer[]` stays in the persisted session so a resume derives the true remainder |
+
+---
+
+#### UTP-001-F — State: the rendered position updates on the navigation commands
+
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `goToNextStep` / `goToPreviousStep`)
+**Mocks**: None for the transition itself — MOD-004 is pure and is exercised for real; only the storage and wake-lock ports are
+injected fakes
+
+| Scenario   | Arrange                                       | Act                       | Assert                                                                      |
+| ---------- | --------------------------------------------- | ------------------------- | --------------------------------------------------------------------------- |
+| UTS-001-F1 | A live session for a 3-step recipe at index 0 | Call `goToNextStep()`     | `surface.stepIndex` is `1`, and the step just left is recorded as completed |
+| UTS-001-F2 | A live session at index 1                     | Call `goToPreviousStep()` | `surface.stepIndex` is `0`, and `completedSteps` is NOT unwound (FR-033)    |
 
 ---
 
@@ -155,7 +173,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-002 — StepDisplayPanel
 
 **Parent Architecture Modules**: ARCH-002
-**Target Source File**: `src/features/cooking-mode/components/StepDisplayPanel.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/components/StepDisplayPanel.tsx`
 
 ---
 
@@ -205,7 +223,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-003 — StepTransitionAnimator
 
 **Parent Architecture Modules**: ARCH-003
-**Target Source File**: `src/features/cooking-mode/components/StepTransitionAnimator.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/components/StepTransitionAnimator.tsx`
 
 ---
 
@@ -263,104 +281,212 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-### MOD-004 — StepNavigationController
+### MOD-004 — CookingSessionReducer
 
 **Parent Architecture Modules**: ARCH-004
-**Target Source File**: `src/features/cooking-mode/controllers/StepNavigationController.ts`
+**Target Source File**: `packages/shared/cooking/src/session.ts`
+**Test Source File**: `packages/shared/cooking/src/__tests__/session.test.ts`
+
+> **Corrected 2026-08-09.** `UTP-004-A`…`UTP-004-H` previously exercised a stateful `StepNavigationController` class —
+> `controller.initialise(0, 3)`, `getState().stepIndex`, "no callback fired" — that does not exist and is not the approved design;
+> see the correction note under MOD-004 in `module-design.md`. Every one of those scenarios was unrunnable against the shipped pure
+> reducer. The cases below are transcribed from the shipped suite. Case **letters are carried over where the intent is genuinely
+> the same** (A invalid `totalSteps`, B the opening state, C last-step clamp, D first-step clamp, E normal navigation, G state
+> transitions, H `totalSteps` BVA); **I…M are added** for behaviour the class-shaped plan had no equivalent of — validated jumps,
+> the no-duplicate property, purity, JSON round trip, pause/resume. **`UTP-004-F` (unsubscribe) is retired**: a pure function emits
+> nothing, so it has no analogue. Its letter is deliberately left unused rather than reassigned, so an external reference to
+> `UTP-004-F` resolves to a retirement and not to a different test. Totals: **12 test cases, 51 scenario ids, 58 executing tests**
+> (two cases are parameterised — see the notes under UTP-004-A and UTP-004-I), all passing.
 
 ---
 
-#### UTP-004-A — initialise: invalid totalSteps throws
+#### UTP-004-A — createSession rejects an unusable step count
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `totalSteps < 1` branch)
+**Technique**: Equivalence Partitioning + Boundary Value Analysis (Internal Data Structures — `totalSteps`, integer `>= 1`)
+**Mocks**: none (pure module)
 
-| Scenario   | Arrange           | Act                            | Assert                                    |
-| ---------- | ----------------- | ------------------------------ | ----------------------------------------- |
-| UTS-004-A1 | `totalSteps = 0`  | `controller.initialise(0, 0)`  | Throws `Error("totalSteps must be >= 1")` |
-| UTS-004-A2 | `totalSteps = -1` | `controller.initialise(0, -1)` | Throws `Error("totalSteps must be >= 1")` |
+| Scenario   | Arrange                                                       | Act                                                               | Assert                                                                                                                 |
+| ---------- | ------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| UTS-004-A1 | `totalSteps = 0`, then `-1` (min−1 and below)                 | `createSession({ recipeId: 'recipe-01', totalSteps, startedAt })` | Throws; `isInvalidTotalStepsError(thrown)` is `true`                                                                   |
+| UTS-004-A2 | `totalSteps = 1.5`, `NaN`, `Infinity` (non-integer partition) | Same call                                                         | Throws; `isInvalidTotalStepsError(thrown)` is `true` — one `Number.isInteger` guard covers all three                   |
+| UTS-004-A3 | `totalSteps = 0`                                              | Same call                                                         | Thrown value matches `{ name: 'InvalidTotalStepsError', totalSteps: 0 }`; `isInvalidStepIndexError(thrown)` is `false` |
 
----
-
-#### UTP-004-B — initialise: stepIndex is clamped
-
-**Technique**: Boundary Value Analysis (Internal Data Structures — `stepIndex ∈ [0, totalSteps - 1]`)
-
-| Scenario   | Arrange                            | Act                            | Assert                                      |
-| ---------- | ---------------------------------- | ------------------------------ | ------------------------------------------- |
-| UTS-004-B1 | `stepIndex = -1`, `totalSteps = 3` | `controller.initialise(-1, 3)` | `getState().stepIndex = 0` (clamped to min) |
-| UTS-004-B2 | `stepIndex = 5`, `totalSteps = 3`  | `controller.initialise(5, 3)`  | `getState().stepIndex = 2` (clamped to max) |
-| UTS-004-B3 | `stepIndex = 1`, `totalSteps = 3`  | `controller.initialise(1, 3)`  | `getState().stepIndex = 1` (no clamp)       |
+> A1 and A2 share one parameterised `it.each` over the five values, so this case runs **6 tests** across 3 scenario ids. Each
+> asserts the specific guard rather than a bare `.toThrow()`, which would also pass against an unimplemented stub.
 
 ---
 
-#### UTP-004-C — goNext: boundary clamp at last step
+#### UTP-004-B — createSession opens the session at the first step (REQ-008)
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `stepIndex >= totalSteps - 1` branch)
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `createSession` success path)
+**Mocks**: none (pure module)
 
-| Scenario   | Arrange                                                    | Act                   | Assert                                                |
-| ---------- | ---------------------------------------------------------- | --------------------- | ----------------------------------------------------- |
-| UTS-004-C1 | Initialised with `totalSteps=3`; navigate to `stepIndex=2` | `controller.goNext()` | `getState().stepIndex` remains `2`; no callback fired |
-
----
-
-#### UTP-004-D — goPrev: boundary clamp at first step
-
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `stepIndex <= 0` branch)
-
-| Scenario   | Arrange                      | Act                   | Assert                                                |
-| ---------- | ---------------------------- | --------------------- | ----------------------------------------------------- |
-| UTS-004-D1 | Initialised at `stepIndex=0` | `controller.goPrev()` | `getState().stepIndex` remains `0`; no callback fired |
+| Scenario   | Arrange          | Act                | Assert                                                                                                                                                               |
+| ---------- | ---------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-004-B1 | `totalSteps = 5` | `createSession(…)` | Result `toStrictEqual` `{ recipeId, startedAt, currentStepIndex: 0, completedSteps: [], checkedIngredientIds: [], scaleFactor: 1, activeTimers: [] }` — whole object |
+| UTS-004-B2 | `totalSteps = 5` | `createSession(…)` | `'pausedAt' in session` is `false` — the key is **omitted**, not `undefined`, so a persisted session is deep-equal to its restored copy                              |
 
 ---
 
-#### UTP-004-E — goNext / goPrev: normal navigation notifies callbacks
+#### UTP-004-C — advance clamps at the last step
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `NOTIFY_ALL` path)
+**Technique**: Boundary Value Analysis (Internal Data Structures — `currentStepIndex ∈ [0, totalSteps - 1]`)
+**Mocks**: none (pure module)
 
-| Scenario   | Arrange                                                           | Act                   | Assert                                               |
-| ---------- | ----------------------------------------------------------------- | --------------------- | ---------------------------------------------------- |
-| UTS-004-E1 | Initialised at `stepIndex=0`, `totalSteps=3`; callback registered | `controller.goNext()` | Callback called with `1`; `getState().stepIndex = 1` |
-| UTS-004-E2 | At `stepIndex=1`                                                  | `controller.goPrev()` | Callback called with `0`; `getState().stepIndex = 0` |
-
----
-
-#### UTP-004-F — onStepChange: unsubscribe removes callback
-
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `REMOVE` path)
-
-| Scenario   | Arrange                                          | Act                   | Assert                                |
-| ---------- | ------------------------------------------------ | --------------------- | ------------------------------------- |
-| UTS-004-F1 | Callback registered; unsubscribe function called | `controller.goNext()` | Callback NOT called after unsubscribe |
+| Scenario   | Arrange                                                        | Act                    | Assert                                                                                                            |
+| ---------- | -------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| UTS-004-C1 | 3-step session advanced twice (at index 2)                     | `advance(atLast, 3)`   | `currentStepIndex` stays `2`; `completedSteps` is `[0, 1, 2]` — the final step is still recorded                  |
+| UTS-004-C2 | 3-step session already holding `[0, 1, 2]`                     | `advance(finished, 3)` | Result `toStrictEqual` the input — the terminal advance is idempotent, not a growing duplicate list               |
+| UTS-004-C3 | `totalSteps = 1` (single-step recipe)                          | `advance(session, 1)`  | `currentStepIndex = 0`; `completedSteps = [0]` — completes without ever moving                                    |
+| UTS-004-C4 | Restored session with `currentStepIndex = 7`; recipe now has 3 | `advance(stale, 3)`    | `currentStepIndex = 2`; `completedSteps = [2]` — a stale index is repaired into range, not walked further off end |
 
 ---
 
-#### UTP-004-G — State Transition: Uninitialised → AtFirst → Middle → AtLast
+#### UTP-004-D — goBack clamps at the first step (REQ-003)
 
-**Technique**: State Transition Testing (State Machine View)
+**Technique**: Boundary Value Analysis (Internal Data Structures — lower bound of `currentStepIndex`)
+**Mocks**: none (pure module)
 
-| Scenario   | Arrange          | Act                                          | Assert                                              |
-| ---------- | ---------------- | -------------------------------------------- | --------------------------------------------------- |
-| UTS-004-G1 | Fresh controller | `initialise(0, 3)` → `goNext()` → `goNext()` | States: `Uninitialised → AtFirst → Middle → AtLast` |
-| UTS-004-G2 | At `AtLast`      | `goNext()`                                   | Remains `AtLast` (no-op)                            |
-| UTS-004-G3 | At `AtFirst`     | `goPrev()`                                   | Remains `AtFirst` (no-op)                           |
+| Scenario   | Arrange                                                 | Act                | Assert                                                                                                        |
+| ---------- | ------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| UTS-004-D1 | Session at index 1                                      | `goBack(atSecond)` | `currentStepIndex = 0`                                                                                        |
+| UTS-004-D2 | Fresh session at index 0                                | `goBack(session)`  | Result `toStrictEqual` the input — a value no-op at the lower boundary                                        |
+| UTS-004-D3 | 3-step session at index 2 with `completedSteps = [0,1]` | `goBack(atLast)`   | `currentStepIndex = 1`; `completedSteps` still `[0, 1]` — FR-033: reviewing reveals progress, never undoes it |
+| UTS-004-D4 | Corrupt restored session with `currentStepIndex = -4`   | `goBack(corrupt)`  | `currentStepIndex = 0` — repaired rather than propagated                                                      |
+
+---
+
+#### UTP-004-E — advance moves forward and records the departed step (REQ-002)
+
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `advance` success path)
+**Mocks**: none (pure module)
+
+| Scenario   | Arrange                                                            | Act                               | Assert                                                                                                      |
+| ---------- | ------------------------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| UTS-004-E1 | Fresh 3-step session                                               | `advance(session, 3)`             | `currentStepIndex = 1`; `completedSteps = [0]`                                                              |
+| UTS-004-E2 | Fresh 3-step session                                               | `advance(advance(session, 3), 3)` | `currentStepIndex = 2`; `completedSteps = [0, 1]` — progress accumulates across the recipe                  |
+| UTS-004-E3 | Session with `checkedIngredientIds = ['ing-1']`, `scaleFactor = 2` | `advance(session, 3)`             | `recipeId`, `startedAt`, `checkedIngredientIds`, `scaleFactor`, `activeTimers` all unchanged                |
+| UTS-004-E4 | Fresh 3-step session                                               | `advance(session, 0)`             | `isInvalidTotalStepsError(thrown)` is `true` — every boundary-taking transition re-validates the step count |
+
+---
+
+#### UTP-004-G — sessionStatus derives the statechart position
+
+**Technique**: State Transition Testing (State Machine View) + Equivalence Partitioning (`SessionStatus` enum)
+**Mocks**: none (pure module)
+
+| Scenario    | Arrange                                                            | Act                                     | Assert                                                                                          |
+| ----------- | ------------------------------------------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| UTS-004-G1  | Fresh 3-step session                                               | `sessionStatus(session, 3)`             | `'idle'`                                                                                        |
+| UTS-004-G2  | Session advanced once                                              | `sessionStatus(advanced, 3)`            | `'cooking'`                                                                                     |
+| UTS-004-G3  | Advanced then `goBack` — index 0 again, `completedSteps = [0]`     | `sessionStatus(back, 3)`                | `'cooking'`, **not** `'idle'` — position alone must not decide the status                       |
+| UTS-004-G4  | Advanced then paused                                               | `sessionStatus(paused, 3)`              | `'paused'`                                                                                      |
+| UTS-004-G5  | The same session resumed                                           | `sessionStatus(resume(paused), 3)`      | `'cooking'`                                                                                     |
+| UTS-004-G6  | A **fresh** session paused                                         | `sessionStatus(paused, 3)` then resumed | `'paused'`, then `'idle'` after `resume` — the overlay does not destroy the underlying state    |
+| UTS-004-G7  | Advanced through all three steps                                   | `sessionStatus(finished, 3)`            | `'complete'`                                                                                    |
+| UTS-004-G8  | At the last step, `completedSteps = [0, 1]`                        | `sessionStatus(atLast, 3)`              | `'cooking'` — reaching the last step is not yet completing it                                   |
+| UTS-004-G9  | Finished session, then `goBack`                                    | `sessionStatus(goBack(finished), 3)`    | `'complete'` — reviewing after finishing does not un-finish                                     |
+| UTS-004-G10 | Finished session, then paused                                      | `sessionStatus(paused, 3)`              | `'paused'` — pause outranks completion, because only pause is explicit state                    |
+| UTS-004-G11 | `currentStepIndex = 2`, `completedSteps = [0, 2]` (step 1 skipped) | `sessionStatus(partial, 3)`             | `'cooking'` — a partial set is not complete                                                     |
+| UTS-004-G12 | `completedSteps = [0, 1, 2]` but the recipe grew to 5 steps        | `sessionStatus(stale, 5)`               | `'cooking'` — completion is index **membership**, not a count, so ghost progress cannot fake it |
+| UTS-004-G13 | Any session                                                        | `sessionStatus(session, -1)`            | `isInvalidTotalStepsError(thrown)` is `true`                                                    |
 
 ---
 
 #### UTP-004-H — BVA: totalSteps boundary values
 
 **Technique**: Boundary Value Analysis (Internal Data Structures — `totalSteps >= 1`)
+**Mocks**: none (pure module)
 
-| Scenario   | Arrange                      | Act                  | Assert                                                   |
-| ---------- | ---------------------------- | -------------------- | -------------------------------------------------------- |
-| UTS-004-H1 | `totalSteps = 1` (min valid) | `initialise(0, 1)`   | No throw; `getState() = { stepIndex: 0, totalSteps: 1 }` |
-| UTS-004-H2 | `totalSteps = 200` (max)     | `initialise(0, 200)` | No throw; `getState().totalSteps = 200`                  |
+| Scenario   | Arrange                      | Act                                                | Assert                           |
+| ---------- | ---------------------------- | -------------------------------------------------- | -------------------------------- |
+| UTS-004-H1 | `totalSteps = 1` (min valid) | `createSession(…)`                                 | No throw; `currentStepIndex = 0` |
+| UTS-004-H2 | `totalSteps = 200`           | `createSession(…)` → `sessionStatus(session, 200)` | No throw; status is `'idle'`     |
+
+---
+
+#### UTP-004-I — goToStep validates the requested index
+
+**Technique**: Boundary Value Analysis + Error Guessing (Error Handling View — `InvalidStepIndexError`)
+**Mocks**: none (pure module)
+
+| Scenario   | Arrange              | Act                                                           | Assert                                                                                    |
+| ---------- | -------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| UTS-004-I1 | Fresh 3-step session | `goToStep(session, 2, 3)`                                     | `currentStepIndex = 2`                                                                    |
+| UTS-004-I2 | Fresh 3-step session | `goToStep(session, 0, 3)` and `goToStep(session, 2, 3)`       | Both range boundaries accepted                                                            |
+| UTS-004-I3 | Fresh 3-step session | `goToStep(session, 2, 3)`                                     | `completedSteps` stays `[]` — skipping over steps is not the same as cooking them         |
+| UTS-004-I4 | Fresh 3-step session | `goToStep(session, index, 3)` for `3, -1, 1.5, NaN, Infinity` | `isInvalidStepIndexError(thrown)` is `true` for each — max+1, min−1 and the non-integers  |
+| UTS-004-I5 | Fresh 3-step session | `goToStep(session, 9, 3)`                                     | Thrown value matches `{ name: 'InvalidStepIndexError', index: 9, totalSteps: 3 }`         |
+| UTS-004-I6 | Fresh 3-step session | `goToStep(session, 0, 0)`                                     | `isInvalidTotalStepsError(thrown)` is `true` — the step count is checked before the index |
+
+> UTS-004-I4 is a parameterised `it.each` over five indices, so this case runs **10 tests** across 6 scenario ids.
+
+---
+
+#### UTP-004-J — completedSteps never contains duplicates
+
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `withStepRecorded` membership branch)
+**Mocks**: none (pure module)
+
+| Scenario   | Arrange              | Act                                            | Assert                                                                                 |
+| ---------- | -------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
+| UTS-004-J1 | Fresh 3-step session | `advance` → `goBack` → `advance`               | `completedSteps` is `[0]` (recorded once); `currentStepIndex = 1`                      |
+| UTS-004-J2 | Fresh 3-step session | Two advances, two `goBack`s, then two advances | `completedSteps` is `[0, 1]`; `new Set(completedSteps).size === completedSteps.length` |
+
+---
+
+#### UTP-004-K — every transition is pure
+
+**Technique**: Invariant Assertion / Strict Isolation (frozen inputs — a stray `push` throws rather than passing quietly)
+**Mocks**: none (pure module)
+
+| Scenario   | Arrange                                                    | Act                                                                            | Assert                                                                                          |
+| ---------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| UTS-004-K1 | A deep-frozen session, `structuredClone`d before the calls | `advance`, `goBack`, `goToStep`, `pause`, `resume`, `sessionStatus` all called | The session `toStrictEqual` its pre-call clone — no transition mutates its input                |
+| UTS-004-K2 | A deep-frozen session                                      | Each transition invoked                                                        | Every result is `not.toBe` the input — a new object, never the same reference                   |
+| UTS-004-K3 | A session already holding `completedSteps = [0]`           | `advance(session, 3)`                                                          | `next.completedSteps` is `not.toBe` `session.completedSteps`; the old session still reads `[0]` |
+
+---
+
+#### UTP-004-L — a session survives a JSON round trip
+
+**Technique**: Invariant Assertion (serialization — the invariant FR-033's session resume depends on)
+**Mocks**: none (pure module)
+
+| Scenario   | Arrange                                          | Act                                  | Assert                                                                                  |
+| ---------- | ------------------------------------------------ | ------------------------------------ | --------------------------------------------------------------------------------------- |
+| UTS-004-L1 | Mid-navigation session with a checked ingredient | `JSON.parse(JSON.stringify(midway))` | Restored copy `toStrictEqual` the original                                              |
+| UTS-004-L2 | A paused session                                 | `JSON.parse(JSON.stringify(paused))` | Restored copy `toStrictEqual` the original, `pausedAt` included; still reads `'paused'` |
+| UTS-004-L3 | A restored mid-navigation session                | `advance(restored, 3)`               | `currentStepIndex = 2`; `completedSteps = [0, 1]` — navigation continues correctly      |
+
+---
+
+#### UTP-004-M — pause and resume
+
+**Technique**: State Transition Testing (State Machine View — the `paused` overlay)
+**Mocks**: none (pure module)
+
+| Scenario   | Arrange                         | Act                                         | Assert                                                                          |
+| ---------- | ------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------- |
+| UTS-004-M1 | Session advanced once           | `pause(midway, '2026-08-09T10:30:00.000Z')` | `pausedAt` recorded; `currentStepIndex` and `completedSteps` untouched          |
+| UTS-004-M2 | A paused session                | `resume(paused)`                            | `'pausedAt' in resumed` is `false` — the key is deleted, not set to `undefined` |
+| UTS-004-M3 | Session advanced once           | `resume(pause(midway, …))`                  | Result `toStrictEqual` the pre-pause session (FR-033)                           |
+| UTS-004-M4 | A session that was never paused | `resume(session)`                           | Result `toStrictEqual` the input — safe, not an error                           |
+| UTS-004-M5 | A session paused at 10:30       | `pause(first, '2026-08-09T11:00:00.000Z')`  | `pausedAt` is the later timestamp — the most recent pause wins                  |
+
+---
+
+#### UTP-004-F — RETIRED (2026-08-09)
+
+The class design's `onStepChange` unsubscribe path. A pure reducer emits nothing, so the case has no analogue; the letter is
+retained as a tombstone and MUST NOT be reassigned.
 
 ---
 
 ### MOD-005 — GestureInputAdapter
 
 **Parent Architecture Modules**: ARCH-005
-**Target Source File**: `src/features/cooking-mode/adapters/GestureInputAdapter.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/adapters/GestureInputAdapter.tsx`
 
 ---
 
@@ -425,115 +551,147 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-006 — TimerEngine
 
 **Parent Architecture Modules**: ARCH-006
-**Target Source File**: `src/features/cooking-mode/services/TimerEngine.ts`
+**Target Source File**: `packages/shared/cooking/src/timerEngine.ts`
+**Test Source File**: `packages/shared/cooking/src/__tests__/timerEngine.test.ts`
+
+> **Corrected 2026-08-09.** `UTP-006-A`…`UTP-006-I` previously exercised a `setInterval`-driven **single-timer class** —
+> `engine.start(0)`, `clearInterval` spies, a `remaining` seconds counter, `engine.reset()`, and an
+> `'idle' | 'running' | 'paused' | 'done'` status enum — that does not exist and is not the approved design; see the correction note
+> under MOD-006 in `module-design.md`. Every one of those scenarios was unrunnable against the shipped pure engine, and because the
+> old plan modelled **no concurrency at all**, the entire multi-timer surface (`startTimer` / `cancelTimer` / `completedTimers`,
+> and therefore HAZ-008) had no unit coverage whatsoever. The cases below are transcribed from the shipped suite. Three cases are
+> **retired**, their letters left unused rather than reassigned: `UTP-006-G` (status-enum state transitions), `UTP-006-H`
+> (`durationSeconds` BVA) and `UTP-006-I` (status-enum partitioning) — with the enum and the tick gone, their intent now lives
+> inside UTP-006-A (duration boundaries), UTP-006-C (the completion boundary) and UTP-006-D (the pause/resume transitions).
+> `UTP-006-F` is **repurposed**: it no longer covers `tick`, it now carries the D-002 safety invariant, which is what that letter
+> denotes in the shipped suite. Totals: **6 test cases, 47 scenario ids, 53 executing tests** (two cases are parameterised — see the
+> notes under UTP-006-A and UTP-006-B), all passing.
 
 ---
 
-#### UTP-006-A — start: invalid durationSeconds is rejected
+#### UTP-006-A — createTimerFromStep converts SECONDS to milliseconds
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `durationSeconds <= 0` branch)
-**Mocks**: `setInterval` spy; `LOG_WARNING` spy
+**Technique**: Statement & Branch Coverage + Boundary Value Analysis (Algorithmic/Logic View — `createTimerFromStep`; `timerSeconds > 0`)
+**Mocks**: none (pure module — `nowIso` is an input, so no fake timers are required)
 
-| Scenario   | Arrange      | Act                | Assert                                                                  |
-| ---------- | ------------ | ------------------ | ----------------------------------------------------------------------- |
-| UTS-006-A1 | Fresh engine | `engine.start(0)`  | `LOG_WARNING` called; `setInterval` NOT called; status remains `'idle'` |
-| UTS-006-A2 | Fresh engine | `engine.start(-1)` | Same: warning logged, no interval                                       |
+| Scenario   | Arrange                                                    | Act                                                       | Assert                                                                                                           |
+| ---------- | ---------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| UTS-006-A1 | The canonical REQ-004 step: `timerSeconds = 1500` (25 min) | `createTimerFromStep(bakeStep, START)`                    | `durationMs` is exactly `1_500_000`                                                                              |
+| UTS-006-A2 | `timerSeconds` of `1`, `90`, `3600`                        | `createTimerFromStep(…)`                                  | `1_000`, `90_000`, `3_600_000` — the factor is exactly `1000`, **not** `60` and not `60_000` (minutes)           |
+| UTS-006-A3 | The canonical step                                         | `createTimerFromStep(bakeStep, START)`                    | Whole object equals `{ id, label: step.instruction, stepNumber, durationMs, startedAt: START, isPaused: false }` |
+| UTS-006-A4 | `nowIso = '2026-08-07T13:00:00.000+01:00'`                 | `createTimerFromStep(bakeStep, nowIso)`                   | `startedAt` normalised to canonical UTC `'2026-08-07T12:00:00.000Z'`                                             |
+| UTS-006-A5 | A step with `timerSeconds` omitted                         | `createTimerFromStep(stepWithoutTimer, START)`            | `isStepHasNoTimerError(thrown)` is `true` — the common, expected case                                            |
+| UTS-006-A6 | `timerSeconds` of `0`, `-1`, `0.5`, `NaN`, `Infinity`      | `createTimerFromStep({ …bakeStep, timerSeconds }, START)` | `isInvalidTimerDurationError(thrown)` is `true` for each — `0` is rejected, not started-and-instantly-done       |
+| UTS-006-A7 | `nowIso = 'not-a-timestamp'`                               | `createTimerFromStep(bakeStep, nowIso)`                   | `isInvalidTimestampError(thrown)` is `true`                                                                      |
+| UTS-006-A8 | A copy of the step                                         | `createTimerFromStep(step, START)`                        | The step is unchanged afterwards (REQ-CN-001 — Cooking Mode never mutates recipe data)                           |
 
----
-
-#### UTP-006-B — start: already running is a no-op
-
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `status == 'running'` branch)
-
-| Scenario   | Arrange                 | Act                      | Assert                                                      |
-| ---------- | ----------------------- | ------------------------ | ----------------------------------------------------------- |
-| UTS-006-B1 | Engine started with 60s | `engine.start(30)` again | `setInterval` called only once total; `remaining` unchanged |
+> UTS-006-A6 is a parameterised `it.each` over five durations, so this case runs **12 tests** across 8 scenario ids.
 
 ---
 
-#### UTP-006-C — start from paused resumes without resetting remaining
+#### UTP-006-B — remainingMs counts down and clamps
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `status != 'paused'` branch)
+**Technique**: Boundary Value Analysis + Error Guessing (Internal Data Structures — remaining ∈ `[0, durationMs]`)
+**Mocks**: none (pure module)
 
-| Scenario   | Arrange                                     | Act                | Assert                                                               |
-| ---------- | ------------------------------------------- | ------------------ | -------------------------------------------------------------------- |
-| UTS-006-C1 | Engine started 60s, paused at 40s remaining | `engine.start(60)` | `remaining` stays `40` (not reset to 60); status becomes `'running'` |
+| Scenario    | Arrange                                                   | Act                                             | Assert                                                                                            |
+| ----------- | --------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| UTS-006-B1  | 25-minute timer started at `12:00:00.000Z`                | `remainingMs(timer, START)`                     | The full `1_500_000` ms remains                                                                   |
+| UTS-006-B2  | Same timer                                                | `remainingMs(timer, '12:10:00.000Z')`           | `900_000` — exactly 15 minutes                                                                    |
+| UTS-006-B3  | Same timer                                                | `remainingMs(timer, '12:24:59.999Z')`           | `1` ms (max−1 boundary of elapsed time)                                                           |
+| UTS-006-B4  | Same timer                                                | `remainingMs(timer, '12:25:00.000Z')`           | `0` at exactly the duration                                                                       |
+| UTS-006-B5  | Same timer, 15 minutes past the end                       | `remainingMs(timer, '12:40:00.000Z')`           | `0`, and `>= 0` — an overrun clamps and never goes negative                                       |
+| UTS-006-B6  | `nowIso` **before** `startedAt` (NTP / manual correction) | `remainingMs(timer, '11:55:00.000Z')`           | Clamped to `durationMs` — never more time than the timer was set for                              |
+| UTS-006-B7  | Paused timer with `pausedRemainingMs = 900_000`           | `remainingMs(paused, …)` at 12:10 and 12:40     | `900_000` both times — frozen while wall-clock time passes                                        |
+| UTS-006-B8  | A running timer and a paused timer                        | `remainingMs(…, '')` / `remainingMs(…, 'nope')` | `isInvalidTimestampError(thrown)` on **both** branches — the contract does not differ by path     |
+| UTS-006-B9  | Timer with `startedAt = '2026-13-45'`                     | `remainingMs(corrupt, START)`                   | `isInvalidTimestampError(thrown)` is `true`                                                       |
+| UTS-006-B10 | Timer with `isPaused = true` and no `pausedRemainingMs`   | `remainingMs(corrupt, START)`                   | `isInvalidTimerStateError(thrown)` is `true` — a corrupt restore is refused, not silently resumed |
+| UTS-006-B11 | `durationMs` of `NaN`, `Infinity`, `-1`                   | `remainingMs({ …timer, durationMs }, START)`    | `isInvalidTimerStateError(thrown)` is `true` for each                                             |
 
----
-
-#### UTP-006-D — pause: only pauses when running
-
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `status != 'running'` branch)
-
-| Scenario   | Arrange            | Act              | Assert                                                         |
-| ---------- | ------------------ | ---------------- | -------------------------------------------------------------- |
-| UTS-006-D1 | Engine in `'idle'` | `engine.pause()` | No state change; `clearInterval` NOT called                    |
-| UTS-006-D2 | Engine running     | `engine.pause()` | `clearInterval` called; status = `'paused'`; listener notified |
-
----
-
-#### UTP-006-E — reset: clears interval and resets all state
-
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `reset` function)
-
-| Scenario   | Arrange                         | Act              | Assert                                                                        |
-| ---------- | ------------------------------- | ---------------- | ----------------------------------------------------------------------------- |
-| UTS-006-E1 | Engine running at 30s remaining | `engine.reset()` | `clearInterval` called; `remaining = 0`; `status = 'idle'`; listener notified |
+> UTS-006-B11 is a parameterised `it.each` over three durations, so this case runs **13 tests** across 11 scenario ids.
 
 ---
 
-#### UTP-006-F — tick: decrements remaining and transitions to done at 0
+#### UTP-006-C — isComplete at the exact boundary
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `tick` function)
-**Mocks**: `setInterval` replaced with manual tick trigger; `AudioAlertService.play` spy
+**Technique**: Boundary Value Analysis (the REQ-006 alert trigger — max−1, max, max+1)
+**Mocks**: none (pure module)
 
-| Scenario   | Arrange                   | Act            | Assert                                                                                        |
-| ---------- | ------------------------- | -------------- | --------------------------------------------------------------------------------------------- |
-| UTS-006-F1 | Engine started with 2s    | Trigger 1 tick | `remaining = 1`; status = `'running'`; listener notified                                      |
-| UTS-006-F2 | Engine at `remaining = 1` | Trigger 1 tick | `remaining = 0`; `clearInterval` called; status = `'done'`; `AudioAlertService.play()` called |
-
----
-
-#### UTP-006-G — State Transition: idle → running → paused → running → done
-
-**Technique**: State Transition Testing (State Machine View)
-
-| Scenario   | Arrange      | Act                                          | Assert                                             |
-| ---------- | ------------ | -------------------------------------------- | -------------------------------------------------- |
-| UTS-006-G1 | Fresh engine | `start(2)` → `pause()` → `start(2)` → tick×2 | States: `idle → running → paused → running → done` |
-| UTS-006-G2 | Engine done  | `reset()`                                    | Status = `'idle'`                                  |
+| Scenario   | Arrange                                   | Act                                   | Assert                                                         |
+| ---------- | ----------------------------------------- | ------------------------------------- | -------------------------------------------------------------- |
+| UTS-006-C1 | 25-minute timer                           | `isComplete(timer, '12:24:59.999Z')`  | `false` — not complete one millisecond early                   |
+| UTS-006-C2 | Same timer                                | `isComplete(timer, '12:25:00.000Z')`  | `true` from the exact instant the duration elapses             |
+| UTS-006-C3 | Same timer                                | `isComplete(timer, '12:40:00.000Z')`  | `true` — still complete after an overrun                       |
+| UTS-006-C4 | Timer paused with `pausedRemainingMs = 1` | `isComplete(paused, '12:40:00.000Z')` | `false` — a paused timer never completes, however long it sits |
+| UTS-006-C5 | Timer paused with `pausedRemainingMs = 0` | `isComplete(paused, '12:25:00.000Z')` | `true` — paused at zero is complete                            |
 
 ---
 
-#### UTP-006-H — BVA: durationSeconds boundaries
+#### UTP-006-D — pause/resume preserves remaining time exactly
 
-**Technique**: Boundary Value Analysis (Internal Data Structures — `durationSeconds > 0`)
+**Technique**: State Transition Testing (State Machine View — `Running ⇄ Paused`) + Error Guessing
+**Mocks**: none (pure module)
 
-| Scenario   | Arrange                                          | Act                  | Assert                           |
-| ---------- | ------------------------------------------------ | -------------------- | -------------------------------- |
-| UTS-006-H1 | `durationSeconds = 0` (min-1)                    | `engine.start(0)`    | Rejected; warning logged         |
-| UTS-006-H2 | `durationSeconds = 1` (min valid)                | `engine.start(1)`    | Timer starts; `remaining = 1`    |
-| UTS-006-H3 | `durationSeconds = 3600` (1 hour, practical max) | `engine.start(3600)` | Timer starts; `remaining = 3600` |
+| Scenario    | Arrange                                        | Act                                                        | Assert                                                                                                       |
+| ----------- | ---------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| UTS-006-D1  | 25-minute timer, 10 minutes elapsed            | `pauseTimer(timer, '12:10:00.000Z')`                       | `isPaused` `true`; `pausedRemainingMs` `900_000`; `durationMs` untouched                                     |
+| UTS-006-D2  | A copy of the running timer                    | `pauseTimer(original, …)`                                  | The input timer is unchanged — pause does not mutate                                                         |
+| UTS-006-D3  | Paused at 12:10                                | `resumeTimer(paused, '12:30:00.000Z')`                     | `remainingMs` at 12:30 is exactly `900_000`; `isPaused` `false`; `pausedRemainingMs` `undefined`             |
+| UTS-006-D4  | Paused then resumed                            | Inspect the resumed timer                                  | `Object.hasOwn(resumed, 'pausedRemainingMs')` is `false` — the marker is dropped, not left stale             |
+| UTS-006-D5  | Paused at 12:10 (15:00 left), resumed at 12:30 | `remainingMs` / `isComplete` at 12:35, 12:44:59.999, 12:45 | `600_000`; `false`; `true` — the deadline moves by exactly the paused interval, not a millisecond either way |
+| UTS-006-D6  | Three 1-minute pause/resume cycles             | `isComplete` at 12:27:59.999 and 12:28:00.000              | `false` then `true` — repeated cycles accumulate no drift                                                    |
+| UTS-006-D7  | An already-paused timer                        | `pauseTimer(paused, '12:40:00.000Z')`                      | Returns the **same reference** — a repeated tap cannot re-capture, therefore cannot alter, the frozen time   |
+| UTS-006-D8  | A running timer                                | `resumeTimer(timer, '12:10:00.000Z')`                      | Returns the same reference — resuming a running timer is a no-op                                             |
+| UTS-006-D9  | `isPaused = true` with no `pausedRemainingMs`  | `resumeTimer(corrupt, …)`                                  | `isInvalidTimerStateError(thrown)` is `true`                                                                 |
+| UTS-006-D10 | A running and a paused timer                   | `pauseTimer(…, 'nope')` / `resumeTimer(…, 'nope')`         | `isInvalidTimestampError(thrown)` on both                                                                    |
 
 ---
 
-#### UTP-006-I — Equivalence Partitioning: status enum
+#### UTP-006-E — concurrent timers
 
-**Technique**: Equivalence Partitioning (Internal Data Structures — `status: 'idle' | 'running' | 'paused' | 'done'`)
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `startTimer` / `cancelTimer` / `completedTimers`) + Error Guessing
+**Mocks**: none (pure module — the timer set is a caller-owned array)
 
-| Scenario   | Arrange              | Act       | Assert                    |
-| ---------- | -------------------- | --------- | ------------------------- |
-| UTS-006-I1 | Status = `'idle'`    | `pause()` | No-op                     |
-| UTS-006-I2 | Status = `'running'` | `pause()` | Transitions to `'paused'` |
-| UTS-006-I3 | Status = `'paused'`  | `pause()` | No-op                     |
-| UTS-006-I4 | Status = `'done'`    | `pause()` | No-op                     |
+| Scenario    | Arrange                                   | Act                                                    | Assert                                                                                                    |
+| ----------- | ----------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| UTS-006-E1  | `[bakeTimer]`                             | `startTimer(timers, boilTimer)`                        | Returns `[bakeTimer, boilTimer]`; the caller's array still reads `[bakeTimer]`                            |
+| UTS-006-E2  | `[bakeTimer]`                             | `startTimer(timers, { …bakeTimer, startedAt: later })` | `isDuplicateTimerIdError(thrown)` is `true`; the array is untouched — rejected, not silently deduped      |
+| UTS-006-E3  | A 25-minute and a 5-minute timer running  | `remainingMs` on each at 12:08                         | `1_020_000` and `0` — the two countdowns are independent                                                  |
+| UTS-006-E4  | Same pair, the bake timer paused at 12:05 | `remainingMs` on each at 12:08                         | `1_200_000` (frozen) and `0` — pausing one leaves the other running                                       |
+| UTS-006-E5  | `[bakeTimer, boilTimer]`                  | `cancelTimer(timers, 'step-bake')`                     | Returns `[boilTimer]`; the caller's array is unchanged                                                    |
+| UTS-006-E6  | `[bakeTimer]`                             | `cancelTimer(timers, 'step-missing')`                  | `isUnknownTimerError(thrown)` is `true` — a silent no-op would leave a "cancelled" timer running to alert |
+| UTS-006-E7  | `[bakeTimer, boilTimer]`                  | `completedTimers(timers, 12:08)` then `12:40`          | `[boilTimer]`, then `[bakeTimer, boilTimer]` — finished only, in source order                             |
+| UTS-006-E8  | The same pair, both still running         | `completedTimers(timers, 12:04)`                       | `[]`                                                                                                      |
+| UTS-006-E9  | An empty timer list                       | `completedTimers([], START)`                           | `[]`                                                                                                      |
+| UTS-006-E10 | A timer paused before its window elapsed  | `completedTimers([paused], 12:40)`                     | `[]` — a paused timer is never reported complete just because wall-clock time passed                      |
+
+---
+
+#### UTP-006-F — SAFETY: yield scaling never reaches a timer (D-002)
+
+**Technique**: Invariant Assertion / Static Inspection (structural, so a later edit reintroducing the dependency fails the suite)
+**Mocks**: none — the module source itself is the fixture
+
+| Scenario   | Arrange                                 | Act                                    | Assert                                                                                              |
+| ---------- | --------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| UTS-006-F1 | The module's own source, read from disk | Filter its `import` lines              | At least one import exists, and **none** matches `/scal/i` — the invariant is structural            |
+| UTS-006-F2 | The module's eight exported functions   | Read `Function.length` on each         | Every arity is `2` — a scale factor could only arrive as an extra argument, so none can be smuggled |
+| UTS-006-F3 | The module's own source                 | Regex for `Date.now(` and `new Date()` | Neither appears — the engine never reads the ambient clock (the determinism invariant)              |
+
+---
+
+#### UTP-006-G, UTP-006-H, UTP-006-I — RETIRED (2026-08-09)
+
+The class design's status-enum state machine, `durationSeconds` BVA and status-enum equivalence partitioning. The enum and the
+`setInterval` tick no longer exist; the surviving intent is covered by UTP-006-A, UTP-006-C and UTP-006-D. These letters are
+tombstones and MUST NOT be reassigned.
 
 ---
 
 ### MOD-007 — TimerDisplayWidget
 
 **Parent Architecture Modules**: ARCH-007
-**Target Source File**: `src/features/cooking-mode/components/TimerDisplayWidget.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/components/TimerDisplayWidget.tsx`
 
 ---
 
@@ -597,7 +755,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-008 — AudioAlertService
 
 **Parent Architecture Modules**: ARCH-008
-**Target Source File**: `src/features/cooking-mode/services/AudioAlertService.ts`
+**Target Source File**: `packages/apps/commise/features/cooking/src/services/AudioAlertService.ts`
 
 ---
 
@@ -681,7 +839,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-009 — ScreenWakeLockManager
 
 **Parent Architecture Modules**: ARCH-009
-**Target Source File**: `src/features/cooking-mode/services/ScreenWakeLockManager.ts`
+**Target Source File**: `packages/shared/cooking/src/services/ScreenWakeLockManager.ts`
 
 ---
 
@@ -767,7 +925,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-010 — OfflineRecipeCache
 
 **Parent Architecture Modules**: ARCH-010
-**Target Source File**: `src/features/cooking-mode/services/OfflineRecipeCache.ts`
+**Target Source File**: `packages/shared/cooking/src/services/OfflineRecipeCache.ts`
 
 ---
 
@@ -852,7 +1010,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-011 — RecipeDataAdapter
 
 **Parent Architecture Modules**: ARCH-011
-**Target Source File**: `src/features/cooking-mode/adapters/RecipeDataAdapter.ts`
+**Target Source File**: `packages/shared/cooking/src/adapters/RecipeDataAdapter.ts`
 
 ---
 
@@ -941,7 +1099,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-012 — AuthGuard
 
 **Parent Architecture Modules**: ARCH-012
-**Target Source File**: `src/features/cooking-mode/guards/AuthGuard.ts`
+**Target Source File**: `packages/apps/commise/features/cooking/src/guards/AuthGuard.ts`
 
 ---
 
@@ -1016,7 +1174,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-013 — ErrorBoundary
 
 **Parent Architecture Modules**: ARCH-013
-**Target Source File**: `src/features/cooking-mode/components/ErrorBoundary.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/components/ErrorBoundary.tsx`
 
 ---
 
@@ -1087,7 +1245,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-014 — StructuredLogger
 
 **Parent Architecture Modules**: ARCH-013
-**Target Source File**: `src/features/cooking-mode/utils/Logger.ts`
+**Target Source File**: `packages/shared/cooking/src/utils/Logger.ts`
 
 ---
 
@@ -1163,7 +1321,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-015 — TypeScriptStrictConfig [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File**: `src/features/cooking-mode/tsconfig.json`
+**Target Source File**: `packages/apps/commise/features/cooking/src/tsconfig.json`
 **Note**: Compile-time configuration artifact. Verified by `tsc --noEmit` in CI. No executable unit test cases.
 
 ---
@@ -1171,7 +1329,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-016 — ESLintNoAnyRule [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File**: `src/features/cooking-mode/.eslintrc.json`
+**Target Source File**: `packages/apps/commise/features/cooking/src/.eslintrc.json`
 **Note**: Lint-time configuration artifact. Verified by `eslint` in CI. No executable unit test cases.
 
 ---
@@ -1179,7 +1337,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-017 — AccessibilityLintRules [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File**: `src/features/cooking-mode/.eslintrc.json`
+**Target Source File**: `packages/apps/commise/features/cooking/src/.eslintrc.json`
 **Note**: Lint-time configuration artifact. Verified by `eslint` with `jsx-a11y` and `react-native-a11y` plugins in CI. No executable unit test cases.
 
 ---
@@ -1187,7 +1345,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-018 — AccessibilityRuntimeChecks [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File**: `src/features/cooking-mode/utils/a11yChecks.ts`
+**Target Source File**: `packages/shared/cooking/src/utils/a11yChecks.ts`
 
 ---
 
@@ -1243,29 +1401,144 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
+### MOD-019 — IngredientCheckoffState
+
+**Parent Architecture Modules**: ARCH-015
+**Target Source File**: `packages/shared/cooking/src/controllers/IngredientCheckoffState.ts`
+
+---
+
+#### UTP-019-A — toggleIngredient: adds, removes, and isolates
+
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `state CONTAINS id` branch)
+**Mocks**: none (pure function)
+
+| Scenario   | Arrange                             | Act                        | Assert                                                          |
+| ---------- | ----------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| UTS-019-A1 | `state = []`, recipe has `i1,i2,i3` | `toggleIngredient([], i1)` | Returns `[i1]`                                                  |
+| UTS-019-A2 | `state = [i1]`                      | `toggleIngredient(_, i1)`  | Returns `[]` (removal branch)                                   |
+| UTS-019-A3 | `state = [i1, i2]`                  | `toggleIngredient(_, i3)`  | Returns `[i1, i2, i3]`; `i1`/`i2` positions unchanged           |
+| UTS-019-A4 | `state = [i1]`                      | `toggleIngredient(_, i2)`  | Input array is **not** mutated — original still `[i1]` (purity) |
+
+#### UTP-019-B — toggleIngredient: rejects unknown ingredient
+
+**Technique**: Equivalence Partitioning (invalid partition)
+**Mocks**: none
+
+| Scenario   | Arrange                     | Act                             | Assert                                           |
+| ---------- | --------------------------- | ------------------------------- | ------------------------------------------------ |
+| UTS-019-B1 | recipe has `i1`; state `[]` | `toggleIngredient([], "ghost")` | Throws `UnknownIngredientError`; state unchanged |
+| UTS-019-B2 | recipe has `i1`; state `[]` | `toggleIngredient([], "")`      | Throws `UnknownIngredientError`                  |
+
+#### UTP-019-C — reconcile: drops ghost ids on restore
+
+**Technique**: Boundary Value Analysis
+**Mocks**: none
+
+| Scenario   | Arrange                                    | Act                      | Assert                        |
+| ---------- | ------------------------------------------ | ------------------------ | ----------------------------- |
+| UTS-019-C1 | state `[i1, i2]`; recipe now only has `i1` | `reconcile(state, [i1])` | Returns `[i1]` — `i2` dropped |
+| UTS-019-C2 | state `[]`; recipe has `i1`                | `reconcile([], [i1])`    | Returns `[]`                  |
+| UTS-019-C3 | state `[i1]`; recipe unchanged             | `reconcile(state, [i1])` | Returns `[i1]` unchanged      |
+
+#### UTP-019-D — state is JSON-round-trippable (REQ-013 / plan.md §2)
+
+**Technique**: Statement Coverage (serialization invariant)
+**Mocks**: none
+
+| Scenario   | Arrange          | Act                                 | Assert                                                          |
+| ---------- | ---------------- | ----------------------------------- | --------------------------------------------------------------- |
+| UTS-019-D1 | state `[i1, i2]` | `JSON.parse(JSON.stringify(state))` | Deep-equals `[i1, i2]` — **fails if the field is ever a `Set`** |
+
+---
+
+### MOD-020 — YieldScalingState
+
+**Parent Architecture Modules**: ARCH-015
+**Target Source File**: `packages/shared/cooking/src/controllers/YieldScalingState.ts`
+
+---
+
+#### UTP-020-A — setScaleFactor: accepts allowed, rejects everything else
+
+**Technique**: Equivalence Partitioning + BVA
+**Mocks**: none
+
+| Scenario   | Arrange | Act                   | Assert                               |
+| ---------- | ------- | --------------------- | ------------------------------------ |
+| UTS-020-A1 | —       | `setScaleFactor(0.5)` | Returns `0.5`                        |
+| UTS-020-A2 | —       | `setScaleFactor(2)`   | Returns `2`                          |
+| UTS-020-A3 | —       | `setScaleFactor(1.5)` | Throws `UnsupportedScaleFactorError` |
+| UTS-020-A4 | —       | `setScaleFactor(0)`   | Throws `UnsupportedScaleFactorError` |
+| UTS-020-A5 | —       | `setScaleFactor(-1)`  | Throws `UnsupportedScaleFactorError` |
+
+#### UTP-020-B — scaleQuantity: multiplies correctly
+
+**Technique**: Equivalence Partitioning
+**Mocks**: none
+
+| Scenario   | Arrange | Act                       | Assert                        |
+| ---------- | ------- | ------------------------- | ----------------------------- |
+| UTS-020-B1 | —       | `scaleQuantity(200, 2)`   | Returns `400`                 |
+| UTS-020-B2 | —       | `scaleQuantity(200, 0.5)` | Returns `100`                 |
+| UTS-020-B3 | —       | `scaleQuantity(200, 1)`   | Returns `200`                 |
+| UTS-020-B4 | —       | `scaleQuantity(0, 2)`     | Returns `0`                   |
+| UTS-020-B5 | —       | `scaleQuantity(NaN, 2)`   | Throws `InvalidQuantityError` |
+
+#### UTP-020-C — advisory tracks the factor (REQ-015)
+
+**Technique**: Statement & Branch Coverage
+**Mocks**: none
+
+| Scenario   | Arrange | Act                                | Assert          |
+| ---------- | ------- | ---------------------------------- | --------------- |
+| UTS-020-C1 | —       | `shouldShowNotScaledAdvisory(1)`   | Returns `false` |
+| UTS-020-C2 | —       | `shouldShowNotScaledAdvisory(2)`   | Returns `true`  |
+| UTS-020-C3 | —       | `shouldShowNotScaledAdvisory(0.5)` | Returns `true`  |
+
+#### UTP-020-D — SAFETY: scaling never reaches timer state (REQ-015 / D-002)
+
+**Technique**: Invariant Assertion / Strict Isolation
+**Mocks**: `TimerEngine` spy
+
+| Scenario   | Arrange                                                        | Act                                       | Assert                                                                                       |
+| ---------- | -------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| UTS-020-D1 | `TimerEngine` holding a step with `timerSeconds = 1500`, spied | `setScaleFactor(2)`, then `0.5`, then `1` | `timerSeconds` reads `1500` after every call; **zero** calls recorded on the TimerEngine spy |
+| UTS-020-D2 | Module under test                                              | Static inspection of MOD-020's imports    | MOD-020 imports no timer module — the invariant is structural, not merely behavioural        |
+
+---
+
 ## Coverage Summary
 
-| MOD       | Module Name                | Test Cases | Scenarios | Techniques Applied                                   |
-| --------- | -------------------------- | ---------- | --------- | ---------------------------------------------------- |
-| MOD-001   | CookingModeScreen          | 9 (A–I)    | 14        | S&B, State Transition, BVA, Strict Isolation         |
-| MOD-002   | StepDisplayPanel           | 4 (A–D)    | 7         | S&B, BVA                                             |
-| MOD-003   | StepTransitionAnimator     | 5 (A–E)    | 7         | S&B, State Transition, BVA                           |
-| MOD-004   | StepNavigationController   | 8 (A–H)    | 14        | S&B, BVA, State Transition                           |
-| MOD-005   | GestureInputAdapter        | 5 (A–E)    | 10        | S&B, BVA                                             |
-| MOD-006   | TimerEngine                | 9 (A–I)    | 17        | S&B, State Transition, BVA, Equivalence Partitioning |
-| MOD-007   | TimerDisplayWidget         | 5 (A–E)    | 10        | S&B, Equivalence Partitioning, BVA                   |
-| MOD-008   | AudioAlertService          | 7 (A–G)    | 11        | S&B, State Transition, Equivalence Partitioning      |
-| MOD-009   | ScreenWakeLockManager      | 7 (A–G)    | 11        | S&B, Equivalence Partitioning, State Transition      |
-| MOD-010   | OfflineRecipeCache         | 7 (A–G)    | 9         | S&B, BVA                                             |
-| MOD-011   | RecipeDataAdapter          | 7 (A–G)    | 14        | S&B, BVA                                             |
-| MOD-012   | AuthGuard                  | 6 (A–F)    | 9         | S&B, Equivalence Partitioning                        |
-| MOD-013   | ErrorBoundary              | 6 (A–F)    | 8         | S&B, State Transition                                |
-| MOD-014   | StructuredLogger           | 6 (A–F)    | 13        | S&B, Equivalence Partitioning                        |
-| MOD-015   | TypeScriptStrictConfig     | — (CI)     | —         | Compile-time enforcement                             |
-| MOD-016   | ESLintNoAnyRule            | — (CI)     | —         | Lint-time enforcement                                |
-| MOD-017   | AccessibilityLintRules     | — (CI)     | —         | Lint-time enforcement                                |
-| MOD-018   | AccessibilityRuntimeChecks | 4 (A–D)    | 13        | S&B, Equivalence Partitioning                        |
-| **Total** |                            | **100**    | **167**   |                                                      |
+| MOD       | Module Name                | Test Cases    | Scenarios | Techniques Applied                                                                        |
+| --------- | -------------------------- | ------------- | --------- | ----------------------------------------------------------------------------------------- |
+| MOD-001   | CookingModeScreen          | 9 (A–I)       | 14        | S&B, State Transition, BVA, Strict Isolation                                              |
+| MOD-002   | StepDisplayPanel           | 4 (A–D)       | 7         | S&B, BVA                                                                                  |
+| MOD-003   | StepTransitionAnimator     | 5 (A–E)       | 7         | S&B, State Transition, BVA                                                                |
+| MOD-004   | CookingSessionReducer      | 12 (A–E, G–M) | 51        | S&B, BVA, State Transition, Equivalence Partitioning, Error Guessing, Invariant Assertion |
+| MOD-005   | GestureInputAdapter        | 5 (A–E)       | 10        | S&B, BVA                                                                                  |
+| MOD-006   | TimerEngine                | 6 (A–F)       | 47        | S&B, BVA, State Transition, Error Guessing, Invariant Assertion                           |
+| MOD-007   | TimerDisplayWidget         | 5 (A–E)       | 10        | S&B, Equivalence Partitioning, BVA                                                        |
+| MOD-008   | AudioAlertService          | 7 (A–G)       | 11        | S&B, State Transition, Equivalence Partitioning                                           |
+| MOD-009   | ScreenWakeLockManager      | 7 (A–G)       | 11        | S&B, Equivalence Partitioning, State Transition                                           |
+| MOD-010   | OfflineRecipeCache         | 7 (A–G)       | 9         | S&B, BVA                                                                                  |
+| MOD-011   | RecipeDataAdapter          | 7 (A–G)       | 14        | S&B, BVA                                                                                  |
+| MOD-012   | AuthGuard                  | 6 (A–F)       | 9         | S&B, Equivalence Partitioning                                                             |
+| MOD-013   | ErrorBoundary              | 6 (A–F)       | 8         | S&B, State Transition                                                                     |
+| MOD-014   | StructuredLogger           | 6 (A–F)       | 13        | S&B, Equivalence Partitioning                                                             |
+| MOD-015   | TypeScriptStrictConfig     | — (CI)        | —         | Compile-time enforcement                                                                  |
+| MOD-016   | ESLintNoAnyRule            | — (CI)        | —         | Lint-time enforcement                                                                     |
+| MOD-017   | AccessibilityLintRules     | — (CI)        | —         | Lint-time enforcement                                                                     |
+| MOD-018   | AccessibilityRuntimeChecks | 4 (A–D)       | 13        | S&B, Equivalence Partitioning                                                             |
+| MOD-019   | IngredientCheckoffState    | 4 (A–D)       | 10        | S&B, Equivalence Partitioning, BVA                                                        |
+| MOD-020   | YieldScalingState          | 4 (A–D)       | 15        | Equivalence Partitioning, BVA, Invariant Assertion                                        |
+| **Total** |                            | **104**       | **259**   |                                                                                           |
+
+> **Corrected 2026-08-09.** MOD-004 and MOD-006 were regenerated from the shipped suites — see the correction notes in their
+> sections above — moving MOD-004 from 8 cases / 14 scenarios to 12 / 51 and MOD-006 from 9 / 17 to 6 / 47. The **Scenarios**
+> column counts scenario **ids**; MOD-004 and MOD-006 run 58 and 53 executing vitest cases respectively, because four of their
+> cases are parameterised `it.each` blocks. The previous **Test Cases** total of `108` also did not match its own column, which
+> summed to `103`; the total is now the true column sum.
 
 ## Traceability
 
@@ -1286,6 +1559,8 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 | UTP-013-\* | MOD-013 | ARCH-013    |
 | UTP-014-\* | MOD-014 | ARCH-013    |
 | UTP-018-\* | MOD-018 | ARCH-014    |
+| UTP-019-\* | MOD-019 | ARCH-015    |
+| UTP-020-\* | MOD-020 | ARCH-015    |
 
 ## Mock Registry
 

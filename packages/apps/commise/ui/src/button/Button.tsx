@@ -1,7 +1,9 @@
+'use client';
+
 /**
  * @module @commise/ui/button — the web design-system {@link Button}.
  *
- * A labelled action control styled to the Commise mockups: a pill with an icon + text and a real visible
+ * A presentational, labelled action control styled to the Commise mockups: a pill with an icon + text and a real visible
  * surface for every tier (filled primary CTA, bordered secondary, bordered error-toned destructive) — never
  * naked text. Consumes the shared {@link ButtonProps} contract; the native leaf (`Button.native.tsx`)
  * mirrors it. Classes reference `@commise/ui` design tokens exposed as Tailwind utilities by the consuming
@@ -15,12 +17,21 @@
  *    mouse density (`py-2.5`, ~40px) is unchanged on desktop. (The WCAG-AA bar 2.5.8/24px is already met;
  *    this is a comfort bump for touch, not a desktop change.)
  *  - **Busy** — the `busy` prop swaps the icon slot for a real spinner in place (no layout shift) and
- *    disables the control; and the whole button is wrapped in {@link PressScale} for a motion-safe
- *    press-scale.
+ *    marks the control unavailable without disabling it natively (see `busyControlProps`); and the whole
+ *    button is wrapped in {@link PressScale} for a motion-safe press-scale, which a busy button does not play.
+ *
+ * `'use client'`: the focus request is an effect, and feature leaves that render this button are reachable from App
+ * Router server pages through their package's index (caught by `next build`, not by typecheck).
+ *
+ * @pattern Value Object contract (`ButtonProps`) rendered as a `props → JSX` leaf, composed with the
+ *     `PressScale` Decorator — the tier is a discriminated `variant`, never a boolean that switches behaviour.
+ * @pattern Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one
+ *     reason this leaf holds a ref: `.focus()` has no declarative form.
  */
-import type { FC } from 'react';
+import { useEffect, useEffectEvent, useRef, type FC } from 'react';
 
 import { PressScale } from '../pressScale/index.js';
+import { busyControlProps } from './busyControlProps.js';
 import type { ButtonProps } from './props.js';
 import { buttonSurfaceClass } from './surfaceClass.js';
 
@@ -54,21 +65,40 @@ export const Button: FC<ButtonProps> = ({
     disabled = false,
     busy = false,
     accessibilityLabel,
-}) => (
-    <PressScale>
-        <button
-            type={type}
-            onClick={onPress}
-            // A busy control is also disabled so an in-flight action cannot be double-fired.
-            disabled={disabled || busy}
-            aria-busy={busy || undefined}
-            aria-label={accessibilityLabel}
-            className={buttonSurfaceClass(variant)}
-        >
-            <span aria-hidden="true" className="inline-flex shrink-0 items-center">
-                {busy ? <Spinner /> : icon}
-            </span>
-            <span>{children}</span>
-        </button>
-    </PressScale>
-);
+    width = 'auto',
+    focusRequested = false,
+    onFocusRequestHandled,
+}) => {
+    const node = useRef<HTMLButtonElement>(null);
+    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
+    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
+
+    useEffect(() => {
+        if (!focusRequested) {
+            return;
+        }
+
+        node.current?.focus();
+        acknowledgeFocusRequest();
+    }, [focusRequested]);
+
+    return (
+        <PressScale width={width}>
+            <button
+                ref={node}
+                type={type}
+                // ⛔ BUSY IS NOT NATIVE `disabled` — the control that goes busy is the one just pressed, and a browser
+                // drops focus from a disabled control. The rule, and why the click is cancelled, is `busyControlProps`'s.
+                {...busyControlProps({ busy, blocked: disabled, onClick: () => onPress?.() })}
+                aria-label={accessibilityLabel}
+                // `fill`: the wrapper stretches, so the button takes its whole width; `justify-center` centres the label.
+                className={width === 'fill' ? `${buttonSurfaceClass(variant)} w-full` : buttonSurfaceClass(variant)}
+            >
+                <span aria-hidden="true" className="inline-flex shrink-0 items-center">
+                    {busy ? <Spinner /> : icon}
+                </span>
+                <span>{children}</span>
+            </button>
+        </PressScale>
+    );
+};

@@ -1,0 +1,115 @@
+{"key":"1000","name":"Pastis (anise-flavoured spirit)","basis":"per100g","values":{"CHOAVL":"2.86","ENERC_KCAL":"274","ENERC_KJ":"1140","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"1001","name":"Fruit brandy or eau-de-vie","basis":"per100g","values":{"CHOAVL":"0.63","ENERC_KCAL":"233","ENERC_KJ":"966","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"10017","name":"Clam, raw","basis":"per100g","values":{"CHOAVL":"2.66","ENERC_KCAL":"80.5","ENERC_KJ":"339","FAT":"2.65","FIBTG":"0","PROCNT":"11.5"}}
+{"key":"1002","name":"Gin","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"265","ENERC_KJ":"1100","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"1003","name":"Liqueur","basis":"per100g","values":{"CHOAVL":"25.4","ENERC_KCAL":"225","ENERC_KJ":"944","FAT":"0.23","FIBTG":"0","PROCNT":"0.1"}}
+{"key":"10038","name":"Shrimp or prawn, frozen, raw","basis":"per100g","values":{"CHOAVL":"0.74","ENERC_KCAL":"105","ENERC_KJ":"443","FAT":"0.9","PROCNT":"23.4"},"traces":["FIBTG"]}
+{"key":"10039","name":"Crab, raw","basis":"per100g","values":{"CHOAVL":"0.027","ENERC_KCAL":"104","ENERC_KJ":"438","FAT":"2.86","FIBTG":"0","PROCNT":"19.5"}}
+{"key":"1004","name":"Rum","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"234","ENERC_KJ":"969","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"1005","name":"Whisky","basis":"per100g","values":{"CHOAVL":"0.096","ENERC_KCAL":"252","ENERC_KJ":"1050","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"1007","name":"Wine-based aperitif","basis":"per100g","values":{"CHOAVL":"11.3","ENERC_KCAL":"137","ENERC_KJ":"573","FAT":"0","FIBTG":"0","PROCNT":"0.054"}}
+{"key":"1015","name":"Marsala wine","basis":"per100g","values":{"CHOAVL":"27.9","ENERC_KCAL":"211","ENERC_KJ":"887","FAT":"0","FIBTG":"0","PROCNT":"0.1"}}
+{"key":"1023","name":"Brandy, Armagnac or Cognac type","basis":"per100g","values":{"CHOAVL":"0.76","ENERC_KCAL":"222","ENERC_KJ":"922","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"1026","name":"Sake or rice wine","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"113","ENERC_KJ":"467","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"11000","name":"Garlic, raw","basis":"per100g","values":{"CHOAVL":"18.6","ENERC_KCAL":"109","ENERC_KJ":"462","FIBTG":"5.8","PROCNT":"5.31"},"traces":["FAT"]}
+{"key":"11002","name":"Chervil, raw","basis":"per100g","values":{"CHOAVL":"6.25","ENERC_KCAL":"48.3","ENERC_KJ":"203","FAT":"0.55","FIBTG":"2.55","PROCNT":"3.31"}}
+{"key":"11004","name":"Gherkin, pickled in vinegar","basis":"per100g","values":{"CHOAVL":"0.78","ENERC_KCAL":"16","ENERC_KJ":"67.8","FIBTG":"1.5","PROCNT":"1.06"},"traces":["FAT"]}
+{"key":"11013","name":"Mustard","basis":"per100g","values":{"CHOAVL":"4.33","ENERC_KCAL":"151","ENERC_KJ":"628","FAT":"11.2","PROCNT":"6.92"},"traces":["FIBTG"]}
+{"key":"11014","name":"Parsley, fresh","basis":"per100g","values":{"CHOAVL":"4.1","ENERC_KCAL":"42.5","ENERC_KJ":"178","FAT":"0.63","FIBTG":"4.3","PROCNT":"2.97"}}
+{"key":"11015","name":"Black pepper, powder","basis":"per100g","values":{"CHOAVL":"39.9","ENERC_KCAL":"331","ENERC_KJ":"1380","FAT":"7.5","FIBTG":"25.3","PROCNT":"13.3"}}
+{"key":"11016","name":"Horseradish, raw","basis":"per100g","values":{"CHOAVL":"7.79","ENERC_KCAL":"73.2","ENERC_KJ":"307","FAT":"0.45","FIBTG":"7.5","PROCNT":"5.25"}}
+{"key":"11017","name":"Salt, white (sea, igneous or rock), no fortification","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"0","ENERC_KJ":"0","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"11019","name":"White pepper, powder","basis":"per100g","values":{"CHOAVL":"48.3","ENERC_KCAL":"313","ENERC_KJ":"1320","FAT":"2.12","FIBTG":"26.2","PROCNT":"12.1"}}
+{"key":"11021","name":"Mustard, with grains","basis":"per100g","values":{"CHOAVL":"2.2","ENERC_KCAL":"142","ENERC_KJ":"591","FAT":"9.9","FIBTG":"4.5","PROCNT":"6.6"}}
+{"key":"11025","name":"Cinnamon, powder","basis":"per100g","values":{"CHOAVL":"27.5","ENERC_KCAL":"243","ENERC_KJ":"1010","FAT":"1.24","FIBTG":"53.1","PROCNT":"3.99"}}
+{"key":"11042","name":"Cumin, seed","basis":"per100g","values":{"CHOAVL":"33.7","ENERC_KCAL":"427","ENERC_KJ":"1780","FAT":"22.3","FIBTG":"10.5","PROCNT":"17.8"}}
+{"key":"11044","name":"Salt, with celery","basis":"per100g","values":{"CHOAVL":"4.14","ENERC_KCAL":"49","ENERC_KJ":"204","FAT":"2.53","FIBTG":"1.19","PROCNT":"1.81"}}
+{"key":"11048","name":"Nutmeg","basis":"per100g","values":{"CHOAVL":"27.4","ENERC_KCAL":"506","ENERC_KJ":"2090","FAT":"36.3","FIBTG":"20.8","PROCNT":"5.84"}}
+{"key":"11049","name":"Paprika, powder","basis":"per100g","values":{"CHOAVL":"18.8","ENERC_KCAL":"318","ENERC_KJ":"1320","FAT":"12.9","FIBTG":"34.9","PROCNT":"14.1"}}
+{"key":"11052","name":"Cloves","basis":"per100g","values":{"CHOAVL":"31.6","ENERC_KCAL":"335","ENERC_KJ":"1390","FAT":"13","FIBTG":"33.9","PROCNT":"5.97"}}
+{"key":"11060","name":"Herbes de Provence, dried","basis":"per100g","values":{"CHOAVL":"23.1","ENERC_KCAL":"283","ENERC_KJ":"1170","FAT":"7.2","FIBTG":"40.1","PROCNT":"11.5"}}
+{"key":"11069","name":"Sage, fresh","basis":"per100g","values":{"CHOAVL":"0.97","ENERC_KCAL":"34.9","ENERC_KJ":"145","FIBTG":"7","PROCNT":"4"},"traces":["FAT"]}
+{"key":"11075","name":"Cardamom, powder","basis":"per100g","values":{"CHOAVL":"40.5","ENERC_KCAL":"321","ENERC_KJ":"1340","FAT":"6.7","FIBTG":"28","PROCNT":"10.8"}}
+{"key":"11080","name":"Herbs, fresh (average)","basis":"per100g","values":{"CHOAVL":"4.69","ENERC_KCAL":"51.2","ENERC_KJ":"214","FAT":"0.93","FIBTG":"5.53","PROCNT":"3.26"}}
+{"key":"11082","name":"Salt, pure sea salt, no fortification","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"0","ENERC_KJ":"0","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"11083","name":"Salt, sea salt, grey, no fortification","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"0","ENERC_KJ":"0","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"11088","name":"Cayenne pepper, powder","basis":"per100g","values":{"CHOAVL":"29.4","ENERC_KCAL":"376","ENERC_KJ":"1560","FAT":"17.3","FIBTG":"27.2","PROCNT":"12"}}
+{"key":"11092","name":"Tarragon, fresh","basis":"per100g","values":{"CHOAVL":"4.1","FIBTG":"6.2","PROCNT":"3.8"}}
+{"key":"11104","name":"Soy sauce, prepacked","basis":"per100g","values":{"CHOAVL":"1.72","ENERC_KCAL":"39.9","ENERC_KJ":"170","FIBTG":"0.9","PROCNT":"7.25"},"traces":["FAT"]}
+{"key":"11108","name":"Salad dressing, olive oil (50-75% fat), prepacked","basis":"per100g","values":{"CHOAVL":"3.03","ENERC_KCAL":"471","ENERC_KJ":"1940","FAT":"50.5","FIBTG":"0.53","PROCNT":"0.7"}}
+{"key":"11112","name":"Harissa (hot spicy sauce), prepacked","basis":"per100g","values":{"CHOAVL":"7.3","ENERC_KCAL":"76.4","ENERC_KJ":"318","FAT":"2.9","FIBTG":"5.1","PROCNT":"2.72"}}
+{"key":"11132","name":"Curry sauce, warm, prepacked","basis":"per100g","values":{"CHOAVL":"10.6","ENERC_KCAL":"77.4","ENERC_KJ":"324","FAT":"3.16","FIBTG":"1.28","PROCNT":"1.02"}}
+{"key":"11220","name":"Vinegar, red wine","basis":"per100g","values":{"ENERC_KCAL":"20.6","ENERC_KJ":"89","FAT":"0","FIBTG":"0","PROCNT":"0.25"},"traces":["CHOAVL"]}
+{"key":"11304","name":"Veal stock, prepacked","basis":"per100g","values":{"CHOAVL":"2.4","ENERC_KCAL":"40.9","ENERC_KJ":"171","FAT":"2.05","FIBTG":"0.1","PROCNT":"3.15"}}
+{"key":"11510","name":"Rainbow sprinkles","basis":"per100g","values":{"CHOAVL":"95.6","ENERC_KCAL":"389","ENERC_KJ":"1650","FAT":"0.15","FIBTG":"0.5","PROCNT":"1.16"}}
+{"key":"12524","name":"Gorgonzola cheese, from cow's milk","basis":"per100g","values":{"ENERC_KCAL":"318","ENERC_KJ":"1320","FAT":"26.9","FIBTG":"0","PROCNT":"19.5"},"traces":["CHOAVL"]}
+{"key":"12761","name":"Asiago cheese, from cow's milk","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"356","ENERC_KJ":"1480","FAT":"25.6","FIBTG":"0","PROCNT":"32.1"}}
+{"key":"13032","name":"Olive, black, in brine","basis":"per100g","values":{"ENERC_KCAL":"173","ENERC_KJ":"709","FAT":"17.2","FIBTG":"6.2","PROCNT":"1.38"},"traces":["CHOAVL"]}
+{"key":"13033","name":"Olive, green, in brine","basis":"per100g","values":{"CHOAVL":"0.61","ENERC_KCAL":"164","ENERC_KJ":"677","FAT":"16.6","FIBTG":"3.6","PROCNT":"1.13"}}
+{"key":"13034","name":"Orange, flesh without skin, without seeds, raw","basis":"per100g","values":{"CHOAVL":"8.03","ENERC_KCAL":"42","ENERC_KJ":"177","FIBTG":"2.7","PROCNT":"0.75"},"traces":["FAT"]}
+{"key":"13077","name":"Rambutan, flesh without skin, pitted, raw","basis":"per100g","values":{"CHOAVL":"20","FAT":"0.21","FIBTG":"0.9","PROCNT":"0.65"}}
+{"key":"13184","name":"Olive (average)","basis":"per100g","values":{"CHOAVL":"0.65","ENERC_KCAL":"165","ENERC_KJ":"680","FAT":"16.6","FIBTG":"3.83","PROCNT":"1.29"}}
+{"key":"13186","name":"Olives, black (average food)","basis":"per100g","values":{"CHOAVL":"0.26","ENERC_KCAL":"182","ENERC_KJ":"744","FAT":"18","FIBTG":"6.46","PROCNT":"1.41"}}
+{"key":"16550","name":"Duck fat","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"898","ENERC_KJ":"3690","FAT":"99.8","FIBTG":"0","PROCNT":"0"}}
+{"key":"17270","name":"Olive oil, extra virgin","basis":"per100g","values":{"ENERC_KCAL":"899","ENERC_KJ":"3700","FAT":"99.9","FIBTG":"0","PROCNT":"0.25"},"traces":["CHOAVL"]}
+{"key":"18025","name":"Kombucha, prepacked","basis":"per100g","values":{"CHOAVL":"1.45","ENERC_KCAL":"6.61","ENERC_KJ":"28.2","PROCNT":"0.25"},"traces":["FAT","FIBTG"]}
+{"key":"18341","name":"Carbonated beverage, apple content >=  50% and <99%, no added sugars","basis":"per100g","values":{"CHOAVL":"7.5","ENERC_KCAL":"30","ENERC_KJ":"128","FAT":"0","FIBTG":"0","PROCNT":"0"}}
+{"key":"19410","name":"Cream 30% fat, thick, refrigerated","basis":"per100g","values":{"CHOAVL":"1.38","ENERC_KCAL":"285","ENERC_KJ":"1170","FAT":"29.9","PROCNT":"2.32"},"traces":["FIBTG"]}
+{"key":"19508","name":"Fermented milk drink, flavoured, with sugar(s)","basis":"per100g","values":{"CHOAVL":"10.7","ENERC_KCAL":"65.9","ENERC_KJ":"279","FAT":"0.89","FIBTG":"0.14","PROCNT":"3.16"}}
+{"key":"19584","name":"Mascarpone cheese, from cow's milk","basis":"per100g","values":{"CHOAVL":"3.1","ENERC_KCAL":"369","ENERC_KJ":"1520","FAT":"37","PROCNT":"6"},"traces":["FIBTG"]}
+{"key":"19590","name":"Mozzarella cheese, from cow's milk","basis":"per100g","values":{"CHOAVL":"0.7","ENERC_KCAL":"227","ENERC_KJ":"942","FAT":"17.7","FIBTG":"0","PROCNT":"16.5"}}
+{"key":"19644","name":"Quark, plain, 0% fat","basis":"per100g","values":{"CHOAVL":"4.22","ENERC_KCAL":"48.4","ENERC_KJ":"206","FIBTG":"0.042","PROCNT":"7.34"},"traces":["FAT"]}
+{"key":"19863","name":"Tzatziki, with yogurt, prepacked","basis":"per100g","values":{"CHOAVL":"3.8","ENERC_KCAL":"138","ENERC_KJ":"571","FAT":"10.9","PROCNT":"6.19"}}
+{"key":"20019","name":"Cucumber, flesh and skin, raw","basis":"per100g","values":{"CHOAVL":"2.87","ENERC_KCAL":"16.8","ENERC_KJ":"71","FAT":"0.11","FIBTG":"0.5","PROCNT":"0.65"}}
+{"key":"20041","name":"Sweet pepper, green, yellow or red, raw","basis":"per100g","values":{"CHOAVL":"3.5","ENERC_KCAL":"22.6","ENERC_KJ":"95.1","FAT":"0.27","FIBTG":"1.5","PROCNT":"0.8"}}
+{"key":"20061","name":"French bean, raw","basis":"per100g","values":{"CHOAVL":"4.14","ENERC_KCAL":"31.9","ENERC_KJ":"134","FAT":"0.22","FIBTG":"2.7","PROCNT":"1.83"}}
+{"key":"20070","name":"French bean, frozen, raw","basis":"per100g","values":{"CHOAVL":"4.76","ENERC_KCAL":"33.1","ENERC_KJ":"139","FAT":"0.21","FIBTG":"2.6","PROCNT":"1.79"}}
+{"key":"20155","name":"Artichoke, globe, heart, canned, drained","basis":"per100g","values":{"CHOAVL":"2.31","ENERC_KCAL":"24.2","ENERC_KJ":"101","FIBTG":"3.2","PROCNT":"1.8"},"traces":["FAT"]}
+{"key":"20172","name":"Tomato, cherry, raw","basis":"per100g","values":{"CHOAVL":"5.62","ENERC_KCAL":"31.8","ENERC_KJ":"135","FIBTG":"1.2","PROCNT":"1.31"},"traces":["FAT"]}
+{"key":"20272","name":"Mesclun or salads, mix of baby leaves","basis":"per100g","values":{"CHOAVL":"2.5","ENERC_KCAL":"22","ENERC_KJ":"92.5","FAT":"0","FIBTG":"2","PROCNT":"2"}}
+{"key":"20275","name":"Sweet pepper, red, canned, drained","basis":"per100g","values":{"CHOAVL":"4.5","ENERC_KCAL":"26.3","ENERC_KJ":"111","FAT":"0.2","FIBTG":"1.35","PROCNT":"0.96"}}
+{"key":"20525","name":"Red kidney bean, dried","basis":"per100g","values":{"CHOAVL":"46.1","ENERC_KCAL":"314","ENERC_KJ":"1330","FAT":"1.06","FIBTG":"15.2","PROCNT":"22.5"}}
+{"key":"2076","name":"Apple nectar","basis":"per100g","values":{"CHOAVL":"10.9","ENERC_KCAL":"44.9","ENERC_KJ":"191","FAT":"0.075","FIBTG":"0.1","PROCNT":"0.14"}}
+{"key":"20987","name":"Laver (Porphyra sp.), dried or dehydrated","basis":"per100g","values":{"CHOAVL":"11.7","ENERC_KCAL":"257","ENERC_KJ":"1070","FAT":"1.77","FIBTG":"36.8","PROCNT":"30.2"}}
+{"key":"20990","name":"Kombu or Japanese kelp (Saccharina japonica), dried or dehydrated","basis":"per100g","values":{"CHOAVL":"24.9","ENERC_KCAL":"222","ENERC_KJ":"925","FAT":"2.56","FIBTG":"34.1","PROCNT":"7.89"}}
+{"key":"25181","name":"Fresh pasta, stuffed with cheese (e.g. ravioli, prepacked, raw","basis":"per100g","values":{"CHOAVL":"37.3","ENERC_KCAL":"268","ENERC_KJ":"1130","FAT":"7.69","FIBTG":"2.23","PROCNT":"11.3"}}
+{"key":"25605","name":"Greek-style marinated mushrooms, prepacked","basis":"per100g","values":{"CHOAVL":"3.53","ENERC_KCAL":"76.3","ENERC_KJ":"316","FAT":"5.47","FIBTG":"2.35","PROCNT":"2.07"}}
+{"key":"25620","name":"Guacamole, prepacked","basis":"per100g","values":{"CHOAVL":"4.64","ENERC_KCAL":"191","ENERC_KJ":"787","FAT":"17.2","FIBTG":"4.84","PROCNT":"1.82"}}
+{"key":"25629","name":"Salad, veggie, bulgur and/or quinoa-based, with vegetables, prepacked","basis":"per100g","values":{"CHOAVL":"17.4","ENERC_KCAL":"168","ENERC_KJ":"704","FAT":"8.3","FIBTG":"3.3","PROCNT":"3.79"}}
+{"key":"26029","name":"Fish, breaded, frozen, raw","basis":"per100g","values":{"CHOAVL":"15.6","ENERC_KCAL":"163","ENERC_KJ":"687","FAT":"6.14","FIBTG":"0.9","PROCNT":"11"}}
+{"key":"26036","name":"Salmon, raw, farmed","basis":"per100g","values":{"ENERC_KCAL":"193","ENERC_KJ":"806","FAT":"12.4","PROCNT":"20.5"},"traces":["CHOAVL","FIBTG"]}
+{"key":"26048","name":"Hake, fillet, frozen, raw","basis":"per100g","values":{"CHOAVL":"1.7","ENERC_KCAL":"88.8","ENERC_KJ":"374","FAT":"2.4","FIBTG":"0","PROCNT":"15.1"}}
+{"key":"26095","name":"Whiting, raw","basis":"per100g","values":{"ENERC_KCAL":"79.2","ENERC_KJ":"336","FAT":"0.47","FIBTG":"0","PROCNT":"18.8"},"traces":["CHOAVL"]}
+{"key":"26232","name":"Atlantic herring, smoked, in oil","basis":"per100g","values":{"CHOAVL":"2","ENERC_KCAL":"168","ENERC_KJ":"699","FAT":"11","FIBTG":"0","PROCNT":"15.1"}}
+{"key":"26259","name":"Coleslaw salad, with sauce, prepacked","basis":"per100g","values":{"CHOAVL":"5.78","ENERC_KCAL":"105","ENERC_KJ":"435","FAT":"8.1","FIBTG":"3","PROCNT":"0.94"}}
+{"key":"26264","name":"Gnocchi, from potato, raw","basis":"per100g","values":{"CHOAVL":"35","ENERC_KCAL":"176","ENERC_KJ":"744","FAT":"1.42","FIBTG":"2.2","PROCNT":"4.66"}}
+{"key":"27019","name":"Tilapia, raw","basis":"per100g","values":{"ENERC_KCAL":"91.6","ENERC_KJ":"387","FAT":"2.13","FIBTG":"0","PROCNT":"18.1"},"traces":["CHOAVL"]}
+{"key":"27029","name":"Trout, smoked, farmed","basis":"per100g","values":{"CHOAVL":"3.17","ENERC_KCAL":"171","ENERC_KJ":"717","FAT":"7.69","FIBTG":"0.28","PROCNT":"22.3"}}
+{"key":"28530","name":"Pig's ear, brined","basis":"per100g","values":{"CHOAVL":"0.6","ENERC_KCAL":"228","ENERC_KJ":"950","FAT":"15.1","FIBTG":"0","PROCNT":"22.5"}}
+{"key":"28812","name":"Dry-cured ham","basis":"per100g","values":{"CHOAVL":"0.48","ENERC_KCAL":"230","ENERC_KJ":"961","FAT":"12.6","PROCNT":"28.7"},"traces":["FIBTG"]}
+{"key":"28844","name":"Dry-cured ham, from Parma","basis":"per100g","values":{"CHOAVL":"0.3","ENERC_KCAL":"248","ENERC_KJ":"1040","FAT":"15.4","FIBTG":"0","PROCNT":"27.2"}}
+{"key":"28858","name":"Pancetta","basis":"per100g","values":{"CHOAVL":"2.49","ENERC_KCAL":"349","ENERC_KJ":"1450","FAT":"28.8","FIBTG":"0","PROCNT":"20.2"}}
+{"key":"30351","name":"Salami, pure pork","basis":"per100g","values":{"CHOAVL":"0.75","ENERC_KCAL":"446","ENERC_KJ":"1840","FAT":"41.5","FIBTG":"0.5","PROCNT":"17"}}
+{"key":"31014","name":"Fruit jelly or fruit paste","basis":"per100g","values":{"CHOAVL":"76.6","ENERC_KCAL":"336","ENERC_KJ":"1420","FAT":"1.8","FIBTG":"3.9","PROCNT":"1.69"}}
+{"key":"31017","name":"Sugar, brown","basis":"per100g","values":{"CHOAVL":"98.1","ENERC_KCAL":"393","ENERC_KJ":"1670","FAT":"0","FIBTG":"0","PROCNT":"0.12"}}
+{"key":"31059","name":"Hard candy and lollipop","basis":"per100g","values":{"CHOAVL":"95.3","ENERC_KCAL":"384","ENERC_KJ":"1630","FAT":"0.18","FIBTG":"0.91","PROCNT":"0.16"}}
+{"key":"31124","name":"Hard candy (necklace, whistle, lollipop, drop), with dextrose","basis":"per100g","values":{"CHOAVL":"91.1","ENERC_KCAL":"376","ENERC_KJ":"1600","FAT":"1.35","FIBTG":"0","PROCNT":"0.018"}}
+{"key":"36017","name":"Chicken, breast, without skin, raw","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"110","ENERC_KJ":"464","FAT":"1.5","FIBTG":"0","PROCNT":"23.4"}}
+{"key":"36300","name":"Turkey, meat and skin, raw","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"137","ENERC_KJ":"577","FAT":"5.64","FIBTG":"0","PROCNT":"21.6"}}
+{"key":"37001","name":"Pizza dough, prepacked, raw","basis":"per100g","values":{"CHOAVL":"44.2","ENERC_KCAL":"240","ENERC_KJ":"1020","FAT":"3.45","FIBTG":"2.2","PROCNT":"7.05"}}
+{"key":"39524","name":"Sorbet, in box","basis":"per100g","values":{"CHOAVL":"28.7","ENERC_KCAL":"122","ENERC_KJ":"519","FAT":"0.56","FIBTG":"0.99","PROCNT":"0.41"}}
+{"key":"4000","name":"Tapioca, raw","basis":"per100g","values":{"CHOAVL":"87.8","ENERC_KCAL":"354","ENERC_KJ":"1500","FAT":"0.02","FIBTG":"0.9","PROCNT":"0.19"}}
+{"key":"4090","name":"Potato starch","basis":"per100g","values":{"CHOAVL":"86.3","ENERC_KCAL":"348","ENERC_KJ":"1480","FAT":"0.2","FIBTG":"0.55","PROCNT":"0"}}
+{"key":"5207","name":"Champagne","basis":"per100g","values":{"CHOAVL":"1.4","ENERC_KCAL":"76.1","ENERC_KJ":"316","FAT":"0","FIBTG":"0","PROCNT":"0.3"}}
+{"key":"6102","name":"Beef, round, raw","basis":"per100g","values":{"CHOAVL":"0","ENERC_KCAL":"187","ENERC_KJ":"779","FAT":"11.5","FIBTG":"0","PROCNT":"20.7"}}
+{"key":"6311","name":"Beef, oxtail, raw","basis":"per100g","values":{"CHOAVL":"0.23","ENERC_KCAL":"203","ENERC_KJ":"849","FAT":"12.9","FIBTG":"0","PROCNT":"21.5"}}
+{"key":"7100","name":"French bread, country-style","basis":"per100g","values":{"CHOAVL":"50","ENERC_KCAL":"253","ENERC_KJ":"1070","FAT":"1.3","FIBTG":"4.3","PROCNT":"7.52"}}
+{"key":"7500","name":"Breadcrumbs","basis":"per100g","values":{"CHOAVL":"74.3","ENERC_KCAL":"365","ENERC_KJ":"1550","FAT":"1.6","FIBTG":"5.4","PROCNT":"9.41"}}
+{"key":"7740","name":"Brioche, plain, prepacked","basis":"per100g","values":{"CHOAVL":"52.7","ENERC_KCAL":"356","ENERC_KJ":"1500","FAT":"12.1","FIBTG":"2.09","PROCNT":"7.99"}}
+{"key":"7742","name":"Brioche, plain, from bakery","basis":"per100g","values":{"CHOAVL":"50.7","ENERC_KCAL":"420","ENERC_KJ":"1760","FAT":"19.1","PROCNT":"11.3"},"traces":["FIBTG"]}
+{"key":"7746","name":"Brioche (average)","basis":"per100g","values":{"CHOAVL":"52.1","ENERC_KCAL":"363","ENERC_KJ":"1530","FAT":"13","FIBTG":"1.94","PROCNT":"8.41"}}
+{"key":"9102","name":"Rice, wholegrain, raw","basis":"per100g","values":{"CHOAVL":"71.4","ENERC_KCAL":"350","ENERC_KJ":"1480","FAT":"2.8","FIBTG":"5","PROCNT":"7.02"}}
+{"key":"9119","name":"Rice, basmati, raw","basis":"per100g","values":{"CHOAVL":"78.4","ENERC_KCAL":"351","ENERC_KJ":"1490","FAT":"0.63","FIBTG":"1.06","PROCNT":"7.08"}}
+{"key":"9614","name":"Polenta or maize/corn semolina, pre-cooked, raw","basis":"per100g","values":{"CHOAVL":"74","ENERC_KCAL":"350","ENERC_KJ":"1480","FAT":"1.8","FIBTG":"3.2","PROCNT":"7.88"}}
+{"key":"9615","name":"Polenta or maize/corn semolina, cooked, no added salt","basis":"per100g","values":{"CHOAVL":"16.9","ENERC_KCAL":"76.1","ENERC_KJ":"323","FIBTG":"1.6","PROCNT":"1.38"},"traces":["FAT"]}
+{"key":"96778","name":"Pizza dough, prepacked, cooked","basis":"per100g","values":{"CHOAVL":"54.6","ENERC_KCAL":"321","ENERC_KJ":"1360","FAT":"7.1","FIBTG":"2.5","PROCNT":"7.75"}}

@@ -6,29 +6,50 @@
  * `RECIPE_NOT_FOUND`, pagination `hasMore`, and the T033 optimistic-concurrency check
  * (`VERSION_CONFLICT` with `details.currentVersion`). No database is involved.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { BadRequestException, HttpException } from '@nestjs/common';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
-import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, RecipeVisibility, recipeIngredientViewSchema } from '@kitchensink/recipe-core';
 
 import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
-import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
+import type { IngredientRow } from '../../database/schema/index.js';
+import type { FoodLookupsDal } from '../../ingredients/dal/foodLookups.dal.js';
+import {
+    fakeFoodLookupsDal,
+    makeRootArm,
+    makeUnresolvedArm,
+} from '../../ingredients/__fixtures__/foodLookups.fixture.js';
 import type { RatingsDal } from '../../ratings/dal/ratings.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
 import {
-    makeRecipeIngredientRow,
+    makeIngredientLineRow,
     makeRecipePhotoRow,
     makeRecipeRow,
     makeRecipeStepRow,
 } from '../../__fixtures__/index.js';
 import type { PhotosDal } from '../../photos/dal/photos.dal.js';
-import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
-import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
-import { fakeRatingsDal } from '../__fixtures__/ratings-dal.fixture.js';
-import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
-import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
+import { RECIPE_PHOTOS_CDN } from '../__fixtures__/photosDal.fixture.js';
+import { fakeRatingsDal } from '../__fixtures__/ratingsDal.fixture.js';
+import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
+import type { RecipeIngredientInputDto } from '../dto/createRecipe.dto.js';
+import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
+import { fakeRecipesDal, FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
+import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
+import { permissiveFoodIdOf } from '../__fixtures__/recipeDetailAssembler.fixture.js';
+import { RecipeDetailAssembler } from '../recipeDetail.assembler.js';
+
+/**
+ * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
+ *
+ * It answers `absent` — the honest degrade shape — rather than fabricating numbers, so a suite that starts
+ * depending on nutrition fails loudly here instead of quietly asserting invented values.
+ */
+const nutritionGatewayDouble = {
+    lookup: async (_caller: unknown, ids: readonly string[]) => ({ byFoodId: new Map(), unansweredIds: new Set(ids) }),
+} as never;
 
 const OWNER = '01J000000000000000000FREE0';
 const OTHER = '01J00000000000000000OTHER0';
@@ -40,8 +61,26 @@ function principal(overrides: Partial<Principal> = {}): Principal {
         sub: 'user_clerk_free',
         scopes: [],
         permissions: [],
+        principalKind: 'real',
+        containment: 'enforce',
         ...overrides,
     };
+}
+
+/** A signed test principal on an ENFORCING stage (ADR-0040) — premium, so C-004 alone would allow private. */
+function containedTestPrincipal(): Principal {
+    return principal({ permissions: [PREMIUM_PERMISSION], principalKind: 'test', containment: 'enforce' });
+}
+
+/** The code a thrown `apiError` carries, or `undefined` for anything else. */
+function apiErrorCode(error: unknown): string | undefined {
+    if (!(error instanceof HttpException)) {
+        return undefined;
+    }
+
+    const body = error.getResponse();
+
+    return typeof body === 'object' && body !== null && 'code' in body ? String(body.code) : undefined;
 }
 
 /** A premium principal — carries the `premium` permission the C-004 policy keys on. */
@@ -59,46 +98,20 @@ function aggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {})
     };
 }
 
-function fakeDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
-    return {
-        create: vi.fn(),
-        findById: vi.fn(),
-        findAll: vi.fn(),
-        update: vi.fn(),
-        softDelete: vi.fn(),
-        readConflict: vi.fn(),
-        ...overrides,
-    } as unknown as RecipesDal;
-}
-
-/** A catalog DAL whose `findByIds` resolves every requested id to a freeform ingredient (composition off-path). */
-function fakeIngredientsDal(overrides: Partial<IngredientsDal> = {}): IngredientsDal {
-    return {
-        findById: vi
-            .fn()
-            .mockResolvedValue(makeIngredient({ id: '00000000-0000-4000-8000-0000000000ff', name: 'Onion' })),
-        findByIds: vi
-            .fn()
-            .mockImplementation((ids: readonly string[]) =>
-                Promise.resolve(ids.map((id) => makeIngredient({ id, name: 'Onion' }))),
-            ),
-        ...overrides,
-    } as unknown as IngredientsDal;
-}
+/** The line id every {@link CREATE_DTO} line names. */
+const LINE_LOOKUP_ID = '00000000-0000-4000-8000-0000000000ff';
 
 /**
- * Construct the service with a permissive catalog DAL (overridable per test via the DAL arg). `ratingsDal`
- * defaults to an unrated-viewer stub; pass a `fakeRatingsDal(stars)` to exercise the `viewerRating` path.
+ * Construct the service over the fixture's permissive bindings (every binding is a shared root food food names
+ * "Onion"). `ratingsDal` defaults to an unrated-viewer stub; pass a `fakeRatingsDal(stars)` to exercise the
+ * `viewerRating` path.
  */
 function newService(dal: RecipesDal, ratingsDal: RatingsDal = fakeRatingsDal()): RecipesService {
-    return new RecipesService(
-        dal,
-        fakeIngredientsDal(),
-        makeFakeVersionsService(),
-        fakePhotosDal(),
-        RECIPE_PHOTOS_CDN,
-        ratingsDal,
-    );
+    return makeRecipesService({
+        dal: dal,
+        ratingsDal: ratingsDal,
+        foodNutrition: nutritionGatewayDouble,
+    });
 }
 
 /** Capture the error a rejected promise throws, or fail if it resolves. */
@@ -118,17 +131,17 @@ const CREATE_DTO: CreateRecipeDto = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1 }],
+    ingredients: [{ ingredientId: LINE_LOOKUP_ID, quantity: { kind: 'exact', value: 1 } }],
     steps: [{ instruction: 'Mix' }],
 };
 
 describe('RecipesService.create', () => {
     it('delegates to the DAL with the derived ingredientNamesText and maps the wire response', async () => {
         const created = aggregate();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(created) });
         const service = newService(dal);
 
-        const response = await service.create(principal(), CREATE_DTO);
+        const response = await service.create(principal(), CREATE_DTO, undefined);
 
         expect(dal.create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -137,6 +150,7 @@ describe('RecipesService.create', () => {
                 ingredientNamesText: 'Onion',
                 visibility: 'public',
             }),
+            FAKE_TX,
         );
         expect(response).toMatchObject({
             id: 'r-1',
@@ -149,28 +163,25 @@ describe('RecipesService.create', () => {
     });
 
     it('defaults visibility to public when the DTO omits it (free-tier)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
 
         // CREATE_DTO carries no `visibility`.
-        await newService(dal).create(principal(), CREATE_DTO);
+        await newService(dal).create(principal(), CREATE_DTO, undefined);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'public' }));
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'public' }), FAKE_TX);
     });
 
     it('records a version snapshot of the created recipe (FR-007b history populates)', async () => {
         const created = aggregate({ currentVersion: 1 });
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(created) });
+        const service = makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        });
 
-        await service.create(principal(), CREATE_DTO);
+        await service.create(principal(), CREATE_DTO, undefined);
 
         expect(versions.createSnapshot).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -182,71 +193,37 @@ describe('RecipesService.create', () => {
                     title: created.recipe.title,
                 }),
             }),
+            FAKE_TX,
         );
-    });
-
-    it('forwards the write-request deviceLabel onto the version snapshot (W8-a.6)', async () => {
-        const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
-
-        await service.create(principal(), { ...CREATE_DTO, deviceLabel: 'Pixel 8' });
-
-        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ deviceLabel: 'Pixel 8' }));
     });
 
     it('denormalizes the author handle from the token claims onto the recipe + version (W8-a.2)', async () => {
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
+        const service = makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        });
 
         // A principal carrying first/last-name claims → deriveDisplayName → "Ada Lovelace".
-        await service.create(principal({ firstName: 'Ada', lastName: 'Lovelace' }), CREATE_DTO);
+        await service.create(principal({ firstName: 'Ada', lastName: 'Lovelace' }), CREATE_DTO, undefined);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ authorHandle: 'Ada Lovelace' }));
-        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Ada Lovelace' }));
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ authorHandle: 'Ada Lovelace' }), FAKE_TX);
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ editorHandle: 'Ada Lovelace' }),
+            FAKE_TX,
+        );
     });
 
     it('omits the author handle when the claims yield no derivable name (→ column NULL) (W8-a.2)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
 
         // The default principal carries no first/last name.
-        await newService(dal).create(principal(), CREATE_DTO);
+        await newService(dal).create(principal(), CREATE_DTO, undefined);
 
         const createArg = (dal.create as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0];
         expect(createArg).not.toHaveProperty('authorHandle');
-    });
-
-    it('does NOT put a deviceLabel key on the snapshot when the write omits it (device stays unknown)', async () => {
-        const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
-
-        await service.create(principal(), CREATE_DTO);
-
-        const snapshotArg = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-        expect(snapshotArg).not.toHaveProperty('deviceLabel');
     });
 
     it('captures the FULL recipe content in the snapshot (faithful for restore)', async () => {
@@ -264,30 +241,27 @@ describe('RecipesService.create', () => {
             recipe,
             steps: [makeRecipeStepRow({ recipeId: 'r-9', stepNumber: 1, instruction: 'Chop', timerSeconds: 30 })],
             ingredients: [
-                makeRecipeIngredientRow({
+                makeIngredientLineRow({
                     recipeId: 'r-9',
-                    ingredientId: 'ing-1',
-                    ingredientName: 'Onion',
+                    foodLookupId: LINE_LOOKUP_ID,
                     quantity: '2.5',
                     unit: 'cup',
                     displayText: 'diced',
                     sortOrder: 0,
-                    isUserEntered: true,
                     userCalories: '40',
                 }),
             ],
         };
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        ).create(principal(), CREATE_DTO);
+        await makeRecipesService({
+            dal: dal,
+            // The line is a name the cook declared: the snapshot freezes it, and marks it as the cook's own.
+            lookups: fakeFoodLookupsDal(makeUnresolvedArm({ lookupId: LINE_LOOKUP_ID, failure: { name: 'Onion' } })),
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        }).create(principal(), CREATE_DTO, undefined);
 
         // Exact snapshot: every mapped field is pinned (numeric coercion, the `?? ''`/`?? 1` fallbacks,
         // and the conditional inclusion of displayText/timerSeconds/userCalories with null siblings
@@ -307,8 +281,8 @@ describe('RecipesService.create', () => {
                 {
                     id: created.ingredients[0]!.id,
                     recipeId: 'r-9',
-                    ingredientId: 'ing-1',
-                    quantity: 2.5,
+                    ingredientId: LINE_LOOKUP_ID,
+                    quantity: { kind: 'exact', value: 2.5 },
                     unit: 'cup',
                     displayText: 'diced',
                     sortOrder: 0,
@@ -319,36 +293,41 @@ describe('RecipesService.create', () => {
             ],
         });
     });
-
-    it('does NOT fail the create when snapshot recording throws (best-effort, logged not fatal)', async () => {
-        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    it('⛔ FAILS the create when the version row cannot be written', async () => {
+        // ⚠️ REWRITTEN (owner ruling 2026-09-06). This asserted the opposite — that a snapshot failure was
+        // swallowed so the create still returned 201 — on the reasoning that "the recipe has already
+        // committed, so a snapshot failure must NOT fail the user's save". That reasoning was accurate and
+        // was the defect: a recipe saved with a silent hole in its history, reported to the client as
+        // success. The stated safety net ("the reconciliation/worker path backstops a missed row") did not
+        // exist — `archiveSweeper` reads FROM the outbox and nothing reconstructs a missing version row.
+        //
+        // The old coverage did not move elsewhere; the behaviour it protected is gone deliberately. What
+        // replaces it is `__tests__/integration/versions/snapshotAtomicity.integration.test.ts`, which
+        // proves against a real database that the recipe row does not survive either — the half a mocked
+        // test cannot see, and the half that makes the reported failure honest.
         const versions = makeFakeVersionsService();
-        (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('snapshot boom'));
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
 
-        // The recipe committed; a version hiccup must be swallowed (logged), not propagated.
-        await expect(
-            new RecipesService(
-                dal,
-                fakeIngredientsDal(),
-                versions,
-                fakePhotosDal(),
-                RECIPE_PHOTOS_CDN,
-                fakeRatingsDal(),
-            ).create(principal(), CREATE_DTO),
-        ).resolves.toMatchObject({ id: 'r-1' });
-        expect(consoleError).toHaveBeenCalled();
+        versions.createSnapshot = vi.fn().mockRejectedValue(new Error('version row refused'));
 
-        consoleError.mockRestore();
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+        const service = makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        });
+
+        await expect(service.create(principal(), CREATE_DTO, undefined)).rejects.toThrow('version row refused');
     });
 
     // C-004 / FR-003 (ADV-3): a create is a `user_created` recipe with no substantive edit, so the
     // requested visibility MUST pass evaluateVisibility. Removing that gate (the mutation) lets a
     // free-tier caller persist `private`, which these two tests forbid.
     it('rejects a free-tier caller requesting private with INVALID_VISIBILITY and never touches the DAL', async () => {
-        const dal = fakeDal({ create: vi.fn() });
+        const dal = fakeRecipesDal({ create: vi.fn() });
 
-        const error = await catchError(newService(dal).create(principal(), { ...CREATE_DTO, visibility: 'private' }));
+        const error = await catchError(
+            newService(dal).create(principal(), { ...CREATE_DTO, visibility: 'private' }, undefined),
+        );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
         // The gate runs BEFORE any persistence — no private row is ever written.
@@ -356,26 +335,34 @@ describe('RecipesService.create', () => {
     });
 
     it('lets a premium caller create a private recipe', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
 
-        const response = await newService(dal).create(premiumPrincipal(), {
-            ...CREATE_DTO,
-            visibility: 'private',
-        });
+        const response = await newService(dal).create(
+            premiumPrincipal(),
+            {
+                ...CREATE_DTO,
+                visibility: 'private',
+            },
+            undefined,
+        );
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }));
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }), FAKE_TX);
         expect(response.visibility).toBe('private');
     });
 
     it('marks premium off the permissions claim, not scopes (a premium scope must not unlock private)', async () => {
-        const dal = fakeDal({ create: vi.fn() });
+        const dal = fakeRecipesDal({ create: vi.fn() });
 
         // `premium` sits in scopes, not permissions — the policy keys on permissions, so this is free-tier.
         const error = await catchError(
-            newService(dal).create(principal({ scopes: [PREMIUM_PERMISSION] }), {
-                ...CREATE_DTO,
-                visibility: 'private',
-            }),
+            newService(dal).create(
+                principal({ scopes: [PREMIUM_PERMISSION] }),
+                {
+                    ...CREATE_DTO,
+                    visibility: 'private',
+                },
+                undefined,
+            ),
         );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
@@ -383,10 +370,59 @@ describe('RecipesService.create', () => {
     });
 });
 
+describe('RecipesService.create — test-principal containment (ADR-0040)', () => {
+    it('⛔ refuses a contained test principal’s PUBLIC create with 403 TEST_PRINCIPAL_CONTAINED, before any write', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn() });
+
+        const error = await catchError(
+            newService(dal).create(containedTestPrincipal(), { ...CREATE_DTO, visibility: 'public' }, undefined),
+        );
+
+        expect(apiErrorCode(error)).toBe('TEST_PRINCIPAL_CONTAINED');
+        expect(error instanceof HttpException && error.getStatus()).toBe(403);
+        expect(dal.create).not.toHaveBeenCalled();
+    });
+
+    it('⛔ treats an OMITTED visibility as the public request it defaults to — no side door', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn() });
+
+        const error = await catchError(newService(dal).create(containedTestPrincipal(), CREATE_DTO, undefined));
+
+        expect(apiErrorCode(error)).toBe('TEST_PRINCIPAL_CONTAINED');
+        expect(dal.create).not.toHaveBeenCalled();
+    });
+
+    it('lets a contained test principal create a PRIVATE recipe — the owner-scoped path stays open', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
+
+        const response = await newService(dal).create(
+            containedTestPrincipal(),
+            { ...CREATE_DTO, visibility: 'private' },
+            undefined,
+        );
+
+        expect(response.visibility).toBe('private');
+    });
+
+    it('lets a test principal create a PUBLIC recipe where containment is off (sandbox and pr-{N})', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+
+        const response = await newService(dal).create(
+            principal({ principalKind: 'test', containment: 'off' }),
+            { ...CREATE_DTO, visibility: 'public' },
+            undefined,
+        );
+
+        expect(response.visibility).toBe('public');
+    });
+});
+
 describe('RecipesService.getById', () => {
     it('throws RECIPE_NOT_FOUND when the recipe does not exist', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(newService(dal).getById(OWNER, 'r-1'));
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(undefined) });
+        const error = await catchError(
+            newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' }),
+        );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
@@ -394,26 +430,38 @@ describe('RecipesService.getById', () => {
     it('throws RECIPE_NOT_FOUND (404, not 403) when a non-owner reads a private recipe (W8-a.4 IDOR)', async () => {
         // A private recipe the caller can't see is indistinguishable from a missing id — a 403 here would
         // confirm the id exists (an existence oracle). getById is the hottest such path.
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
-        const error = await catchError(newService(dal).getById(OTHER, 'r-1'));
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
+        const error = await catchError(
+            newService(dal).getById({ viewerId: OTHER, id: 'r-1', caller: undefined, budget: 'read' }),
+        );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('allows a non-owner to read a public recipe', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
 
-        const response = await newService(dal).getById(OTHER, 'r-1');
+        const response = await newService(dal).getById({
+            viewerId: OTHER,
+            id: 'r-1',
+            caller: undefined,
+            budget: 'read',
+        });
 
         expect(response.id).toBe('r-1');
     });
 
     it("includes the VIEWER's own rating as viewerRating, scoped to (recipe, viewer)", async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
         // The viewer (OTHER) has rated this recipe 4 stars.
         const ratingsDal = fakeRatingsDal(4);
 
-        const response = await newService(dal, ratingsDal).getById(OTHER, 'r-1');
+        const response = await newService(dal, ratingsDal).getById({
+            viewerId: OTHER,
+            id: 'r-1',
+            caller: undefined,
+            budget: 'read',
+        });
 
         expect(response.viewerRating).toBe(4);
         // Viewer-scoping pin: the lookup MUST use the VIEWER's id (OTHER), never the recipe's owner. If the
@@ -422,13 +470,131 @@ describe('RecipesService.getById', () => {
     });
 
     it('OMITS viewerRating when the viewer has not rated the recipe (never a fabricated 0)', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
         // Default stub: findStars resolves undefined (viewer has no rating).
-        const response = await newService(dal).getById(OTHER, 'r-1');
+        const response = await newService(dal).getById({
+            viewerId: OTHER,
+            id: 'r-1',
+            caller: undefined,
+            budget: 'read',
+        });
 
         expect(response.viewerRating).toBeUndefined();
         expect('viewerRating' in response).toBe(false);
     });
+});
+
+/**
+ * ⛔ THE AUTHORIZATION-ONLY READS — the cheap doors photos, versions and ratings use instead of `getById`.
+ *
+ * `getById` builds the whole detail (photos, the viewer's rating, the ingredient catalog, a food lookup,
+ * verification verdicts), and five internal callers were paying for all of it to answer "may this viewer act
+ * on this recipe?" and discard the body — logging a degraded-credential warning each time, because they had
+ * no caller to forward. These two answer that question from ONE row.
+ *
+ * Both halves are pinned: the IDOR semantics (404 for a recipe the caller cannot see, 403 only for one they
+ * can see but do not own), AND the cheapness — a method that merely wrapped `getById` would satisfy the first
+ * half, so each case also asserts the aggregate, the photos and the rating were never read.
+ */
+describe('RecipesService.findReadableRecipe / findOwnedRecipe', () => {
+    /** A service whose row read answers `row`, with spies on every read the detail build would make. */
+    function serviceOver(row: ReturnType<typeof makeRecipeRow> | undefined): {
+        service: RecipesService;
+        findById: ReturnType<typeof vi.fn>;
+        findStars: ReturnType<typeof vi.fn>;
+        findByRecipe: ReturnType<typeof vi.fn>;
+    } {
+        const findById = vi.fn();
+        const findStars = vi.fn();
+        const findByRecipe = vi.fn().mockResolvedValue([]);
+        const dal = fakeRecipesDal({ findById, findRowById: vi.fn().mockResolvedValue(row) });
+        const service = makeRecipesService({
+            dal,
+            ratingsDal: { findStars } as unknown as RatingsDal,
+            photosDal: { findByRecipe } as unknown as PhotosDal,
+            foodNutrition: nutritionGatewayDouble,
+        });
+
+        return { service, findById, findStars, findByRecipe };
+    }
+
+    const cases: ReadonlyArray<{
+        readonly name: string;
+        readonly row: ReturnType<typeof makeRecipeRow> | undefined;
+        readonly viewer: string;
+        readonly readable: RecipeErrorCode | 'row';
+        readonly owned: RecipeErrorCode | 'row';
+    }> = [
+        {
+            name: 'missing or tombstoned',
+            row: undefined,
+            viewer: OWNER,
+            readable: RecipeErrorCode.RECIPE_NOT_FOUND,
+            owned: RecipeErrorCode.RECIPE_NOT_FOUND,
+        },
+        {
+            name: "someone else's PRIVATE recipe",
+            row: makeRecipeRow({ id: 'r-1', ownerId: OWNER, visibility: 'private' }),
+            viewer: OTHER,
+            readable: RecipeErrorCode.RECIPE_NOT_FOUND,
+            owned: RecipeErrorCode.RECIPE_NOT_FOUND,
+        },
+        {
+            name: "someone else's public DRAFT",
+            row: makeRecipeRow({ id: 'r-1', ownerId: OWNER, visibility: 'public', status: 'draft' }),
+            viewer: OTHER,
+            readable: RecipeErrorCode.RECIPE_NOT_FOUND,
+            owned: RecipeErrorCode.RECIPE_NOT_FOUND,
+        },
+        {
+            name: "someone else's public published recipe",
+            row: makeRecipeRow({ id: 'r-1', ownerId: OWNER, visibility: 'public', status: 'published' }),
+            viewer: OTHER,
+            readable: 'row',
+            owned: RecipeErrorCode.NOT_OWNER,
+        },
+        {
+            name: 'the viewer’s own private recipe',
+            row: makeRecipeRow({ id: 'r-1', ownerId: OWNER, visibility: 'private' }),
+            viewer: OWNER,
+            readable: 'row',
+            owned: 'row',
+        },
+    ];
+
+    for (const { name, row, viewer, readable, owned } of cases) {
+        it(`findReadableRecipe — ${name} → ${readable === 'row' ? 'the row' : readable}`, async () => {
+            const { service, findById, findStars, findByRecipe } = serviceOver(row);
+            const outcome = service.findReadableRecipe(viewer, 'r-1');
+
+            if (readable === 'row') {
+                await expect(outcome).resolves.toBe(row);
+            } else {
+                const error = await catchError(outcome);
+                expect(isRecipeDomainError(error) && error.code).toBe(readable);
+            }
+
+            expect(findById).not.toHaveBeenCalled();
+            expect(findStars).not.toHaveBeenCalled();
+            expect(findByRecipe).not.toHaveBeenCalled();
+        });
+
+        it(`findOwnedRecipe — ${name} → ${owned === 'row' ? 'the row' : owned}`, async () => {
+            const { service, findById, findStars, findByRecipe } = serviceOver(row);
+            const outcome = service.findOwnedRecipe(viewer, 'r-1');
+
+            if (owned === 'row') {
+                await expect(outcome).resolves.toBe(row);
+            } else {
+                const error = await catchError(outcome);
+                expect(isRecipeDomainError(error) && error.code).toBe(owned);
+            }
+
+            expect(findById).not.toHaveBeenCalled();
+            expect(findStars).not.toHaveBeenCalled();
+            expect(findByRecipe).not.toHaveBeenCalled();
+        });
+    }
 });
 
 describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () => {
@@ -438,23 +604,20 @@ describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () =
             findByRecipe: vi.fn().mockResolvedValue(photoRows.map((r) => makeRecipePhotoRow(r))),
         } as unknown as PhotosDal;
 
-        return new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            makeFakeVersionsService(),
-            photosDal,
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
+        return makeRecipesService({
+            dal: dal,
+            photosDal: photosDal,
+            foodNutrition: nutritionGatewayDouble,
+        });
     }
 
     it("serves the cover from the first photo's THUMBNAIL, while the gallery keeps the full-size original", async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
         const s3Key = 'recipes/01JOWNER/r-1/photos/p1';
         const thumbnailKey = `${s3Key}.thumb.jpg`;
         const service = serviceWithPhotos(dal, [{ s3Key, thumbnailKey, sortOrder: 0 }]);
 
-        const response = await service.getById(OTHER, 'r-1');
+        const response = await service.getById({ viewerId: OTHER, id: 'r-1', caller: undefined, budget: 'read' });
 
         // The cover is the thumbnail — a mutation that served `s3Key` (the original) fails here.
         expect(response.coverPhotoUrl).toBe(`${RECIPE_PHOTOS_CDN}/${thumbnailKey}`);
@@ -463,11 +626,11 @@ describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () =
     });
 
     it('falls back to the original for a cover photo that has no thumbnail (pre-feature / degraded)', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
         const s3Key = 'recipes/01JOWNER/r-1/photos/p1';
         const service = serviceWithPhotos(dal, [{ s3Key, thumbnailKey: null, sortOrder: 0 }]);
 
-        const response = await service.getById(OTHER, 'r-1');
+        const response = await service.getById({ viewerId: OTHER, id: 'r-1', caller: undefined, budget: 'read' });
 
         expect(response.coverPhotoUrl).toBe(`${RECIPE_PHOTOS_CDN}/${s3Key}`);
     });
@@ -475,7 +638,7 @@ describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () =
 
 describe('RecipesService.list', () => {
     it('maps rows and computes hasMore from page/pageSize/total', async () => {
-        const dal = fakeDal({ findAll: vi.fn().mockResolvedValue({ rows: [aggregate()], total: 5 }) });
+        const dal = fakeRecipesDal({ findAll: vi.fn().mockResolvedValue({ rows: [aggregate()], total: 5 }) });
 
         const response = await newService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
 
@@ -490,7 +653,7 @@ describe('RecipesService.list', () => {
         // it happened to pass regardless of whether the DAL truly returned every remaining row. The
         // shared `toPageEnvelope` formula trusts the ACTUAL row count, so the fixture must be realistic:
         // pageSize=2 but only 1 row exists in total, so the DAL genuinely returns a short (1-row) page.
-        const dal = fakeDal({ findAll: vi.fn().mockResolvedValue({ rows: [aggregate()], total: 1 }) });
+        const dal = fakeRecipesDal({ findAll: vi.fn().mockResolvedValue({ rows: [aggregate()], total: 1 }) });
 
         const response = await newService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
 
@@ -499,32 +662,34 @@ describe('RecipesService.list', () => {
 });
 
 describe('RecipesService — difficulty passthrough (FR-001b)', () => {
-    /** The recorded arg the service handed the DAL for a create/update call. */
+    /** Read the object a DAL spy was called with, for a given call index. */
     function dalCallArg(fn: unknown, index: number): Record<string, unknown> {
-        return (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0][index] as Record<string, unknown>;
+        return (fn as { mock: { calls: unknown[][] } }).mock.calls[0]![index] as Record<string, unknown>;
     }
 
+    /** The recorded arg the service handed the DAL for a create/update call. */
+
     it('forwards a stated difficulty to the DAL on create', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ difficulty: 'medium' })) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ difficulty: 'medium' })) });
 
-        await newService(dal).create(principal(), { ...CREATE_DTO, difficulty: 'medium' });
+        await newService(dal).create(principal(), { ...CREATE_DTO, difficulty: 'medium' }, undefined);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ difficulty: 'medium' }));
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ difficulty: 'medium' }), FAKE_TX);
     });
 
     it('does NOT forward a difficulty key to the DAL create when the author stated none', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
 
         // CREATE_DTO carries no difficulty → the DAL create arg must omit the key (row stays NULL).
-        await newService(dal).create(principal(), CREATE_DTO);
+        await newService(dal).create(principal(), CREATE_DTO, undefined);
 
         expect(dalCallArg(dal.create, 0)).not.toHaveProperty('difficulty');
     });
 
     it('maps a persisted difficulty into the wire response (round-trips what was written)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ difficulty: 'hard' })) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ difficulty: 'hard' })) });
 
-        const response = await newService(dal).create(principal(), { ...CREATE_DTO, difficulty: 'hard' });
+        const response = await newService(dal).create(principal(), { ...CREATE_DTO, difficulty: 'hard' }, undefined);
 
         expect(response.difficulty).toBe('hard');
     });
@@ -534,12 +699,12 @@ describe('RecipesService — difficulty passthrough (FR-001b)', () => {
         ['null (clear)', { expectedVersion: 1, difficulty: null } as UpdateRecipeDto, null],
         ['absent (unchanged)', { expectedVersion: 1, title: 'Renamed' } as UpdateRecipeDto, undefined],
     ])('forwards difficulty=%s straight through to the DAL update', async (_label, patch, expected) => {
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
-        await newService(dal).update(principal(), 'r-1', patch);
+        await newService(dal).update(principal(), 'r-1', patch, undefined);
 
         // The three states must reach the DAL as three DISTINCT values (value / null / undefined) — the DAL
         // is what turns them into set / clear / leave-unchanged. Asserting the exact value (incl. the
@@ -548,100 +713,68 @@ describe('RecipesService — difficulty passthrough (FR-001b)', () => {
     });
 });
 
-describe('RecipesService — lead calories denormalization (W8-a.1)', () => {
-    /** The recorded arg the service handed the DAL for a create/update call. */
-    function dalCallArg(fn: unknown, index: number): Record<string, unknown> {
-        return (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0][index] as Record<string, unknown>;
+/*
+ * ⛔ The "lead calories denormalization (W8-a.1)" suite was REMOVED by plan U10. It asserted that create and
+ * update recomputed a DENORMALIZED column and forwarded it to the DAL — behaviour that no longer exists,
+ * because the column is dropped and the figure is derived on every detail read from food's live data.
+ * Keeping the tests would have pinned the design the unit deleted. The derivation is covered by
+ * `recipeRowToDomain.test.ts` and by the characterization suite in `@kitchensink/recipe-core`.
+ *
+ * What REPLACES it is the suite below — the other half of the same removal, which U10 left standing and
+ * ADR-0021 recorded as a "Follow-up owed".
+ */
+
+describe('RecipesService — ONE calorie representation on the detail read (ADR-0021 follow-up)', () => {
+    /**
+     * A recipe whose single line carries a USER OVERRIDE, so the per-serving figure is non-zero without any
+     * food lookup at all — the degraded gateway double stays honest and the arithmetic is fully determined:
+     * 250 kcal over the fixture's servings.
+     */
+    function overriddenAggregate(): RecipeAggregate {
+        const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, servings: 2 });
+
+        return {
+            recipe,
+            steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
+            ingredients: [
+                makeIngredientLineRow({
+                    recipeId: recipe.id,
+                    foodLookupId: 'ing-A',
+                    quantity: '1',
+                    unit: 'g',
+                    displayText: null,
+                    userCalories: '250',
+                    userProteinG: '26',
+                    userCarbsG: '0',
+                    userFatG: '15',
+                }),
+            ],
+        };
     }
 
-    /** A create DTO with one user-override line (200 cal), so nutrition is accountable without a catalog. */
-    const CREATE_WITH_CALORIES: CreateRecipeDto = {
-        ...CREATE_DTO,
-        servings: 2,
-        ingredients: [
-            { ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1, userCalories: 200 },
-        ],
-    };
+    it('⛔ reports calories ONCE — `nutrition.calories`, with no second `leadCaloriesPerServing` key', async () => {
+        // The drift class this closes: the detail read used to emit the SAME number twice, once inside
+        // `nutrition` and once as a top-level `leadCaloriesPerServing`. Two representations of one fact have
+        // no rule for which wins and no way to stay in step; DRY governs knowledge, and this is one piece of
+        // knowledge. A card's figure comes from `POST /api/v1/recipes/nutrition-batch` — never from here.
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(overriddenAggregate()) });
 
-    it('recomputes lead calories at write time and forwards it to the DAL create (200 cal / 2 servings = 100)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: '100' })) });
+        const detail = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
 
-        await newService(dal).create(principal(), CREATE_WITH_CALORIES);
-
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ leadCaloriesPerServing: 100 }));
+        expect(detail.nutrition?.calories).toBe(125);
+        expect(detail).not.toHaveProperty('leadCaloriesPerServing');
     });
 
-    it('OMITS the lead-calories key on create when the recipe has no accounted nutrition (column stays NULL)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+    it('emits no calorie key at all when nothing is accounted for (KTD-3b: absent, never a fabricated 0)', async () => {
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
 
-        // CREATE_DTO's single line has no userCalories and the catalog resolves no per-100g → nothing accounted.
-        await newService(dal).create(principal(), CREATE_DTO);
+        const detail = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
 
-        expect(dalCallArg(dal.create, 0)).not.toHaveProperty('leadCaloriesPerServing');
-    });
-
-    it('maps a persisted lead-calories value into the wire response (numeric string → number)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: '150' })) });
-
-        const response = await newService(dal).create(principal(), CREATE_WITH_CALORIES);
-
-        expect(response.leadCaloriesPerServing).toBe(150);
-    });
-
-    it('OMITS lead calories from the response (never 0) when the column is NULL', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: null })) });
-
-        const response = await newService(dal).create(principal(), CREATE_DTO);
-
-        expect(response.leadCaloriesPerServing).toBeUndefined();
-    });
-
-    it('recomputes lead calories on a servings-ONLY update (rescaling the existing lines)', async () => {
-        // Existing recipe: one 200-cal user-override line. A servings-only edit (no ingredients in the patch)
-        // must recompute the per-serving figure from the EXISTING lines against the new servings: 200/4 = 50.
-        const existing: RecipeAggregate = {
-            ...aggregate({ currentVersion: 1, servings: 2 }),
-            ingredients: [makeRecipeIngredientRow({ userCalories: '200' })],
-        };
-        const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(existing),
-            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
-        });
-
-        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, servings: 4 });
-
-        expect(dalCallArg(dal.update, 1)['leadCaloriesPerServing']).toBe(50);
-    });
-
-    it('does NOT touch the lead-calories column on an update that changes neither lines nor servings', async () => {
-        const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
-            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
-        });
-
-        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, title: 'Renamed' });
-
-        expect(dalCallArg(dal.update, 1)).not.toHaveProperty('leadCaloriesPerServing');
-    });
-
-    it('CLEARS lead calories (null) when an update removes the last accounted nutrition', async () => {
-        // Existing recipe has an accounted line; the patch replaces ingredients with a no-nutrition line →
-        // the recompute yields nothing accountable and must write `null` to clear the stale stored value.
-        const existing: RecipeAggregate = {
-            ...aggregate({ currentVersion: 1 }),
-            ingredients: [makeRecipeIngredientRow({ userCalories: '200' })],
-        };
-        const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(existing),
-            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
-        });
-
-        await newService(dal).update(principal(), 'r-1', {
-            expectedVersion: 1,
-            ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1 }],
-        });
-
-        expect(dalCallArg(dal.update, 1)['leadCaloriesPerServing']).toBeNull();
+        expect(detail).not.toHaveProperty('leadCaloriesPerServing');
+        // `nutrition.calories` is `0` here because the aggregate has no lines at all; the ACCOUNTED-NESS
+        // signal a reader acts on is `isComplete`, and for a card the `unaccounted` member of the deferred
+        // union. Neither is a second copy of the figure.
+        expect(detail.nutrition?.isComplete).toBe(true);
     });
 });
 
@@ -652,25 +785,32 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
     }
 
     it('a non-owner CANNOT read a public draft — 404 (indistinguishable from a missing id)', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
-        const error = await catchError(newService(dal).getById(OTHER, 'r-1'));
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
+        const error = await catchError(
+            newService(dal).getById({ viewerId: OTHER, id: 'r-1', caller: undefined, budget: 'read' }),
+        );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('the OWNER sees their own draft, and the projection reports status=draft', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
 
-        const response = await newService(dal).getById(OWNER, 'r-1');
+        const response = await newService(dal).getById({
+            viewerId: OWNER,
+            id: 'r-1',
+            caller: undefined,
+            budget: 'read',
+        });
 
         expect(response.status).toBe('draft');
     });
 
     it('a non-owner CANNOT clone a public draft — 404, never creating', async () => {
         const create = vi.fn();
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)), create });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)), create });
 
-        const error = await catchError(newService(dal).clone(principal({ userId: OTHER }), 'r-1'));
+        const error = await catchError(newService(dal).clone(principal({ userId: OTHER }), 'r-1', undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
         expect(create).not.toHaveBeenCalled();
@@ -679,15 +819,17 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
     it.each([
         [
             'update',
-            (s: RecipesService) => s.update(principal({ userId: OTHER }), 'r-1', { expectedVersion: 1, title: 'x' }),
+            (s: RecipesService) =>
+                s.update(principal({ userId: OTHER }), 'r-1', { expectedVersion: 1, title: 'x' }, undefined),
         ],
         ['delete', (s: RecipesService) => s.delete(OTHER, 'r-1')],
         [
             'setVisibility',
-            (s: RecipesService) => s.setVisibility(principal({ userId: OTHER }), 'r-1', RecipeVisibility.PRIVATE),
+            (s: RecipesService) =>
+                s.setVisibility(principal({ userId: OTHER }), 'r-1', RecipeVisibility.PRIVATE, undefined),
         ],
     ])('a non-owner mutation (%s) on a public draft returns 404, not 403 (no existence oracle)', async (_l, act) => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
 
         const error = await catchError(act(newService(dal)));
 
@@ -697,7 +839,7 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
     it('a viewable-but-not-owned recipe (public, published) still returns 403 on a mutation (not an oracle)', async () => {
         // W8-a.4: seeing ≠ owning. You can see a public published recipe you don't own, so a modify attempt
         // is a legitimate 403 — the id is not secret. Only the UNSEEABLE case is masked as 404.
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ ownerId: OWNER })) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ ownerId: OWNER })) });
 
         const error = await catchError(newService(dal).delete(OTHER, 'r-1'));
 
@@ -705,22 +847,74 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
     });
 
     it('Save-Draft: create forwards status=draft to the DAL', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
 
-        await newService(dal).create(principal(), { ...CREATE_DTO, status: 'draft' });
+        await newService(dal).create(principal(), { ...CREATE_DTO, status: 'draft' }, undefined);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }));
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }), FAKE_TX);
     });
 
     it('Publish: an owner update forwards status=published to the DAL', async () => {
-        const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(publicDraft(OWNER)),
+        // A draft that HAS content. The publish floor below is what makes that distinction load-bearing.
+        const draft = publicDraft(OWNER);
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue({
+                ...draft,
+                ingredients: [makeIngredientLineRow({ recipeId: 'r-1' })],
+            }),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
-        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' });
+        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' }, undefined);
 
-        expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ status: 'published' }));
+        expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ status: 'published' }), FAKE_TX);
+    });
+
+    /**
+     * The half of the publish floor the wire cannot enforce. `updateRecipeRequestSchema` rejects a body that
+     * publishes while SENDING an empty array, but a body that publishes without resending the arrays is
+     * indistinguishable from a legitimate one until you look at what is stored — so only the service can
+     * refuse it. Reachable only since drafts were allowed to be empty; before that, no empty recipe existed.
+     */
+    it('Publish is REFUSED when the stored draft is empty and the patch does not supply content', async () => {
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue({ ...publicDraft(OWNER), ingredients: [], steps: [] }),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        const error = await catchError(
+            newService(dal).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' }, undefined),
+        );
+
+        expect(error).toBeInstanceOf(BadRequestException);
+        // Nothing was written: the refusal precedes the DAL, so a rejected publish cannot bump the version.
+        expect(dal.update).not.toHaveBeenCalled();
+    });
+
+    it('Publish SUCCEEDS when the patch itself supplies the missing content', async () => {
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue({ ...publicDraft(OWNER), ingredients: [], steps: [] }),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        await newService(dal).update(
+            principal(),
+            'r-1',
+            {
+                expectedVersion: 1,
+                status: 'published',
+                ingredients: [
+                    {
+                        ingredientId: '00000000-0000-4000-8000-0000000000ff',
+                        quantity: { kind: 'exact', value: 1 },
+                    },
+                ],
+                steps: [{ instruction: 'Mix' }],
+            },
+            undefined,
+        );
+
+        expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ status: 'published' }), FAKE_TX);
     });
 });
 
@@ -728,29 +922,28 @@ describe('RecipesService.update', () => {
     const patch: UpdateRecipeDto = { expectedVersion: 1, title: 'Renamed' };
 
     it('throws RECIPE_NOT_FOUND when the recipe is absent', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(newService(dal).update(principal(), 'r-1', patch));
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(undefined) });
+        const error = await catchError(newService(dal).update(principal(), 'r-1', patch, undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws NOT_OWNER when the caller does not own the recipe', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
-        const error = await catchError(newService(dal).update(principal({ userId: OTHER }), 'r-1', patch));
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
+        const error = await catchError(newService(dal).update(principal({ userId: OTHER }), 'r-1', patch, undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
     });
 
     it('throws an ENRICHED VERSION_CONFLICT (server + base snapshots) when expectedVersion is stale (T033/W8-a.5)', async () => {
         const current = aggregate({ currentVersion: 5, title: 'Server title' });
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(current),
             // The coherent conflict read: current server aggregate + the base version (v3) the client edited from.
             readConflict: vi.fn().mockResolvedValue({
                 current,
                 baseVersion: {
                     versionNumber: 3,
-                    deviceLabel: 'Pixel 8',
                     createdAt: new Date('2026-07-19T00:00:00.000Z'),
                     snapshot: {
                         version: 3,
@@ -766,7 +959,9 @@ describe('RecipesService.update', () => {
             }),
         });
 
-        const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
+        const error = await catchError(
+            newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }, undefined),
+        );
 
         expect(isRecipeDomainError(error)).toBe(true);
 
@@ -776,7 +971,7 @@ describe('RecipesService.update', () => {
                 currentVersion: number;
                 conflictingVersion: number;
                 server: { versionNumber: number; snapshot: { title: string } };
-                base?: { versionNumber: number; deviceLabel?: string; snapshot: { title: string } };
+                base?: { versionNumber: number; snapshot: { title: string } };
             };
             expect(details.currentVersion).toBe(5);
             expect(details.conflictingVersion).toBe(3);
@@ -784,7 +979,6 @@ describe('RecipesService.update', () => {
             expect(details.server.versionNumber).toBe(5);
             expect(details.server.snapshot.title).toBe('Server title');
             expect(details.base?.versionNumber).toBe(3);
-            expect(details.base?.deviceLabel).toBe('Pixel 8');
             expect(details.base?.snapshot.title).toBe('Base title');
             // The pre-check reads the conflict material coherently, keyed on the client's expectedVersion.
             expect(dal.readConflict).toHaveBeenCalledWith('r-1', 3);
@@ -793,12 +987,14 @@ describe('RecipesService.update', () => {
 
     it('omits the base side when the edited-from version is evicted past the DB window (W8-a.5)', async () => {
         const current = aggregate({ currentVersion: 5 });
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(current),
             readConflict: vi.fn().mockResolvedValue({ current }), // no baseVersion row retained
         });
 
-        const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
+        const error = await catchError(
+            newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }, undefined),
+        );
 
         if (isRecipeDomainError(error)) {
             const details = error.details as {
@@ -815,14 +1011,16 @@ describe('RecipesService.update', () => {
 
     it('a CAS-miss race (pre-check passes, update matches 0 rows) also raises the enriched conflict (W8-a.5)', async () => {
         const current = aggregate({ currentVersion: 4 });
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             // Pre-check passes: findById still shows v3 (the client's expectedVersion) at read time...
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 3 })),
             update: vi.fn().mockResolvedValue(undefined), // ...but the CAS lost the race → 0 rows
             readConflict: vi.fn().mockResolvedValue({ current }),
         });
 
-        const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
+        const error = await catchError(
+            newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }, undefined),
+        );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.VERSION_CONFLICT);
         expect((isRecipeDomainError(error) && (error.details as { currentVersion: number }).currentVersion) || 0).toBe(
@@ -831,112 +1029,121 @@ describe('RecipesService.update', () => {
     });
 
     it('a CAS-miss where the row is genuinely GONE raises 404, not a conflict (W8-a.5)', async () => {
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 3 })),
             update: vi.fn().mockResolvedValue(undefined),
             readConflict: vi.fn().mockResolvedValue(undefined), // recipe vanished (tombstoned) since the pre-check
         });
 
-        const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
+        const error = await catchError(
+            newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }, undefined),
+        );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('updates when the version matches and returns the bumped recipe', async () => {
         const updated = aggregate({ currentVersion: 2 });
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(updated),
         });
         const service = newService(dal);
 
-        const response = await service.update(principal(), 'r-1', patch);
+        const response = await service.update(principal(), 'r-1', patch, undefined);
 
-        expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ title: 'Renamed' }));
+        expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ title: 'Renamed' }), FAKE_TX);
         expect(response.currentVersion).toBe(2);
     });
 
     it('records a version snapshot after a successful update', async () => {
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
+        const service = makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        });
 
-        await service.update(principal(), 'r-1', patch);
+        await service.update(principal(), 'r-1', patch, undefined);
 
         expect(versions.createSnapshot).toHaveBeenCalledWith(
             expect.objectContaining({ recipeId: 'r-1', versionNumber: 2, createdBy: OWNER }),
+            // ⛔ THE SAME handle the DAL write received — identity, not merely presence. A service
+            // that passed the base client instead would still typecheck against a loose mock.
+            FAKE_TX,
         );
     });
-
-    it('does NOT record a snapshot when the caller opts out (restore path avoids a double version)', async () => {
+    it('⛔ records a snapshot on EVERY update — the opt-out is gone, not merely unused', async () => {
+        // ⚠️ REWRITTEN. This asserted that `{ recordSnapshot: false }` suppressed the version write, for
+        // the restore path's benefit. That flag was the single path that could commit a recipe write with
+        // no version row — an opt-out of a system invariant, and granted to the one caller whose entire
+        // purpose is reconstructing history. It is deleted (owner ruling 2026-09-06); restore now states
+        // WHAT its version records via a `SnapshotDirective` instead of asking for none.
+        //
+        // The old coverage — "a restore does not write two versions at the same number" — did not move to
+        // another test; it stopped being reachable, because there is now exactly one writer.
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
+        const service = makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        });
+
+        await service.update(principal(), 'r-1', patch, undefined, {
+            snapshot: { changeSummary: 'Restored from version 1', baseVersion: 1 },
+        });
+
+        expect(versions.createSnapshot).toHaveBeenCalledTimes(1);
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ changeSummary: 'Restored from version 1', baseVersion: 1 }),
+            FAKE_TX,
         );
-
-        await service.update(principal(), 'r-1', patch, { recordSnapshot: false });
-
-        expect(versions.createSnapshot).not.toHaveBeenCalled();
     });
 
     it('records the editor handle (deriveDisplayName) on the update snapshot (W6 by-@handle attribution)', async () => {
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
+        const service = makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        });
 
         // An editor whose token claims derive to "Clara Oswald" — the same ONE rule create uses.
-        await service.update(principal({ firstName: 'Clara', lastName: 'Oswald' }), 'r-1', patch);
+        await service.update(principal({ firstName: 'Clara', lastName: 'Oswald' }), 'r-1', patch, undefined);
 
-        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Clara Oswald' }));
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ editorHandle: 'Clara Oswald' }),
+            FAKE_TX,
+        );
     });
 
     it('omits the editor handle on update when the principal has no derivable name (graceful, matches create)', async () => {
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
+        const service = makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        });
 
         // The default principal carries no first/last name → deriveDisplayName returns '' → the key is omitted
         // (NULL editor_handle), never persisted as an empty string.
-        await service.update(principal(), 'r-1', patch);
+        await service.update(principal(), 'r-1', patch, undefined);
 
         const input = vi.mocked(versions.createSnapshot).mock.calls[0]?.[0];
         expect(input).not.toHaveProperty('editorHandle');
@@ -945,14 +1152,14 @@ describe('RecipesService.update', () => {
 
 describe('RecipesService.delete', () => {
     it('throws RECIPE_NOT_FOUND when the recipe is absent', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(undefined) });
         const error = await catchError(newService(dal).delete(OWNER, 'r-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws NOT_OWNER for a non-owner', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
         const error = await catchError(newService(dal).delete(OTHER, 'r-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
@@ -960,7 +1167,7 @@ describe('RecipesService.delete', () => {
 
     it('soft-deletes when the caller owns the recipe', async () => {
         const softDelete = vi.fn().mockResolvedValue(true);
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()), softDelete });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()), softDelete });
 
         await newService(dal).delete(OWNER, 'r-1');
 
@@ -980,10 +1187,9 @@ function richAggregate(recipeOverrides: Partial<Parameters<typeof makeRecipeRow>
         recipe,
         steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix', timerSeconds: 45 })],
         ingredients: [
-            makeRecipeIngredientRow({
+            makeIngredientLineRow({
                 recipeId: recipe.id,
-                ingredientId: 'ing-A',
-                ingredientName: 'Onion',
+                foodLookupId: 'ing-A',
                 quantity: '2',
                 unit: 'cup',
                 displayText: 'diced',
@@ -995,24 +1201,30 @@ function richAggregate(recipeOverrides: Partial<Parameters<typeof makeRecipeRow>
 
 describe('RecipesService — response mapping fidelity (Tier-2)', () => {
     it('getById INCLUDES optional fields (description, cuisine, unit, notes, timerSeconds) when present', async () => {
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(richAggregate({ description: 'D', cuisine: 'Thai', deletedAt: null })),
         });
 
-        const res = await newService(dal).getById(OWNER, 'r-1');
+        const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
 
         expect(res.description).toBe('D');
         expect(res.cuisine).toBe('Thai');
         // An active recipe OMITS deletedAt (absent, not null) to match the optional Recipe.deletedAt contract.
         expect(res.deletedAt).toBeUndefined();
         expect(res.steps[0]).toEqual({ stepNumber: 1, instruction: 'Mix', timerSeconds: 45 });
+        // The name, the food id and the status are DERIVED by following the binding (plan 002 R9) — here the
+        // fixture's shared root food, which food names "Onion". A root line also says whether its root has a variant
+        // to pick (curated U9); the fixture's nutrition read answers nothing, so `false`.
         expect(res.ingredients[0]).toEqual({
             ingredientId: 'ing-A',
             name: 'Onion',
-            quantity: 2,
+            foodId: permissiveFoodIdOf('ing-A'),
+            hasVariants: false,
+            quantity: { kind: 'exact', value: 2 },
             unit: 'cup',
             notes: 'diced',
             isUserEntered: false,
+            resolutionStatus: 'RESOLVED',
         });
     });
 
@@ -1021,19 +1233,18 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
             recipe: makeRecipeRow({ id: 'r-2', ownerId: OWNER, description: null, cuisine: null, deletedAt: null }),
             steps: [makeRecipeStepRow({ recipeId: 'r-2', stepNumber: 1, instruction: 'Mix', timerSeconds: null })],
             ingredients: [
-                makeRecipeIngredientRow({
+                makeIngredientLineRow({
                     recipeId: 'r-2',
-                    ingredientId: 'ing-A',
-                    ingredientName: 'Salt',
+                    foodLookupId: 'ing-A',
                     quantity: '1',
                     unit: '',
                     displayText: null,
                 }),
             ],
         };
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(bare) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(bare) });
 
-        const res = await newService(dal).getById(OWNER, 'r-2');
+        const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-2', caller: undefined, budget: 'read' });
 
         expect(res).not.toHaveProperty('description');
         expect(res).not.toHaveProperty('cuisine');
@@ -1044,10 +1255,10 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
 
     it('reflects a tombstone deletedAt as an ISO string (not null) when set', async () => {
         const tombstoned = richAggregate({ deletedAt: new Date('2026-05-01T00:00:00.000Z') });
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(tombstoned) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(tombstoned) });
 
         // getById allows the owner to read their own (even tombstoned) recipe.
-        const res = await newService(dal).getById(OWNER, 'r-1');
+        const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
 
         expect(res.deletedAt).toBe('2026-05-01T00:00:00.000Z');
     });
@@ -1059,10 +1270,9 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             recipe: makeRecipeRow({ id: 'r-1', ownerId: OWNER, currentVersion: 1 }),
             steps: [makeRecipeStepRow({ recipeId: 'r-1', stepNumber: 1, instruction: 'Mix', timerSeconds: null })],
             ingredients: [
-                makeRecipeIngredientRow({
+                makeIngredientLineRow({
                     recipeId: 'r-1',
-                    ingredientId: 'ing-A',
-                    ingredientName: 'Beef',
+                    foodLookupId: LINE_LOOKUP_ID,
                     quantity: '3',
                     unit: 'g',
                     displayText: null,
@@ -1074,27 +1284,25 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             ],
         };
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        ).create(principal(), CREATE_DTO);
+        await makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        }).create(principal(), CREATE_DTO, undefined);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
         // Every user-nutrition field is present and coerced to a number; the null displayText is omitted.
         expect(snapshot.ingredients[0]).toEqual({
             id: created.ingredients[0]!.id,
             recipeId: 'r-1',
-            ingredientId: 'ing-A',
-            quantity: 3,
+            ingredientId: LINE_LOOKUP_ID,
+            quantity: { kind: 'exact', value: 3 },
             unit: 'g',
             sortOrder: 0,
-            ingredientName: 'Beef',
+            // The name the plan read from food for this binding — the fixture's shared "Onion".
+            ingredientName: 'Onion',
             isUserEntered: false,
             userCalories: 250,
             userProteinG: 26,
@@ -1122,16 +1330,13 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             ingredients: [],
         };
         const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        ).create(principal(), CREATE_DTO);
+        await makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        }).create(principal(), CREATE_DTO, undefined);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
         expect(snapshot.servings).toBe(2);
@@ -1141,15 +1346,32 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
 });
 
 describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2)', () => {
-    /** Run an update against a rich existing aggregate and report whether it was flagged substantive. */
-    async function isSubstantive(patch: Partial<UpdateRecipeDto>): Promise<boolean> {
-        const existing = richAggregate({ hasSubstantiveEdit: false, currentVersion: 1 });
-        const dal = fakeDal({
+    /**
+     * Run an update against a rich existing aggregate and report whether it was flagged substantive.
+     *
+     * `storedQuantity` overrides the persisted line's two quantity COLUMNS (strings, as `pg` surfaces
+     * `numeric`), so a case can state what the recipe already said before the patch — needed for the
+     * upper-bound cases, where the interesting comparison is range-against-range.
+     */
+    async function isSubstantive(
+        patch: Partial<UpdateRecipeDto>,
+        // ⚠️ WIDENED for U26/U27 from a quantity-only pair to any column override. The narrower type could
+        // not express "the STORED line already carries a preparation", which is the half of the comparison
+        // that proves CLEARING a field is an edit — an accept-only suite would pass against a
+        // `ingredientsChanged` that never looks at the stored side at all.
+        storedColumns: Partial<IngredientRow> = { quantity: '2', quantityHigh: null },
+    ): Promise<boolean> {
+        const base = richAggregate({ hasSubstantiveEdit: false, currentVersion: 1 });
+        const existing: RecipeAggregate = {
+            ...base,
+            ingredients: base.ingredients.map((line) => ({ ...line, ...storedColumns })),
+        };
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(existing),
             update: vi.fn().mockResolvedValue(existing),
         });
 
-        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, ...patch });
+        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, ...patch }, undefined);
 
         const updateArgs = (dal.update as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
 
@@ -1158,7 +1380,12 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
 
     // The existing rich aggregate: 1 step (instruction 'Mix', timer 45) + 1 ingredient
     // (ing-A, qty 2, unit 'cup', notes 'diced').
-    const SAME_INGREDIENT = { ingredientId: 'ing-A', name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced' };
+    const SAME_INGREDIENT = {
+        ingredientId: 'ing-A',
+        quantity: { kind: 'exact', value: 2 },
+        unit: 'cup',
+        notes: 'diced',
+    } as const satisfies RecipeIngredientInputDto;
     const SAME_STEP = { instruction: 'Mix', timerSeconds: 45 };
 
     it('metadata-only change (title) is NOT substantive', async () => {
@@ -1170,7 +1397,66 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
     });
 
     it('an ingredient QUANTITY-only change is substantive', async () => {
-        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, quantity: 3 }] })).toBe(true);
+        expect(
+            await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'exact', value: 3 } }] }),
+        ).toBe(true);
+    });
+
+    /**
+     * ⚠️ U8 — THE EDIT MOST LIKELY TO GO UNNOTICED, on the server side of the same trap the plan names for
+     * the client diff. `ingredientsChanged` is a positive field-by-field enumeration, so a new bound is
+     * invisible to it BY CONSTRUCTION and no compile error catches the omission. Widening `2 cups` to
+     * `2 to 3 cups` changes what a cook makes; it must mint a version and, under C-004, re-judge visibility.
+     */
+    it('widening an exact quantity into a RANGE is substantive', async () => {
+        expect(
+            await isSubstantive({
+                ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'range', low: 2, high: 3 } }],
+            }),
+        ).toBe(true);
+    });
+
+    it('changing ONLY a range’s upper bound is substantive', async () => {
+        expect(
+            await isSubstantive(
+                { ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'range', low: 2, high: 4 } }] },
+                {
+                    quantity: '2',
+                    quantityHigh: '3',
+                },
+            ),
+        ).toBe(true);
+    });
+
+    // ⛔ THE OTHER HALF, and the one a reference comparison would have broken silently: an identical range
+    // must NOT read as an edit. `!==` against a value object is `true` for every pair of distinct objects,
+    // so without `quantitiesEqual` every metadata-only PATCH would mint a version.
+    it('an identical RANGE patch is NOT substantive — the comparison is by value, not by reference', async () => {
+        expect(
+            await isSubstantive(
+                {
+                    ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'range', low: 2, high: 3 } }],
+                    steps: [SAME_STEP],
+                },
+                { quantity: '2', quantityHigh: '3' },
+            ),
+        ).toBe(false);
+    });
+
+    it('narrowing a RANGE back to an exact quantity is substantive', async () => {
+        expect(
+            await isSubstantive(
+                { ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'exact', value: 2 } }] },
+                {
+                    quantity: '2',
+                    quantityHigh: '3',
+                },
+            ),
+        ).toBe(true);
+    });
+
+    it('dropping a stated quantity to ABSENT is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'absent' } }] })).toBe(true);
     });
 
     it('an ingredient UNIT-only change is substantive', async () => {
@@ -1179,6 +1465,39 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
 
     it('an ingredient NOTES-only change is substantive', async () => {
         expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, notes: 'minced' }] })).toBe(true);
+    });
+
+    /**
+     * U26/U27 — the same trap as the range case above, one field further on. `ingredientsChanged` is a
+     * POSITIVE enumeration, so a line field it does not name is invisible to it and nothing fails to
+     * compile. Left out, an edit that changes ONLY how a cook chops the onion — or which section the line
+     * sits in — is saved with `hasSubstantiveEdit: false`: no version is minted, so the previous value is
+     * unrecoverable, and C-004 never re-judges visibility for a recipe whose content moved.
+     */
+    it('an ingredient PREPARATION-only change is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, preparation: 'roughly torn' }] })).toBe(true);
+    });
+
+    it('an ingredient GROUP-LABEL-only change is substantive — moving a line changes what the recipe says', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, groupLabel: 'For the topping' }] })).toBe(
+            true,
+        );
+    });
+
+    // ⛔ The other half, and the one a careless `!== undefined` comparison breaks: a patch that carries
+    // NEITHER field against a row that stores NEITHER must read as unchanged. Without the `?? null`
+    // normalization on both sides, `undefined !== null` makes every metadata-only PATCH mint a version.
+    it('a patch stating neither preparation nor group, against a line storing neither, is NOT substantive', async () => {
+        expect(await isSubstantive({ ingredients: [SAME_INGREDIENT], steps: [SAME_STEP] })).toBe(false);
+    });
+
+    // CLEARING is an edit too: removing "finely chopped" changes what a cook makes.
+    it('CLEARING a stored preparation is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [SAME_INGREDIENT] }, { preparation: 'finely chopped' })).toBe(true);
+    });
+
+    it('CLEARING a stored group label (ungrouping a line) is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [SAME_INGREDIENT] }, { groupLabel: 'For the marinade' })).toBe(true);
     });
 
     it('an ingredientId SWAP is substantive', async () => {
@@ -1205,17 +1524,34 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
 });
 
 describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
+    it('⛔ refuses a contained test principal’s flip to PUBLIC with 403 TEST_PRINCIPAL_CONTAINED (ADR-0040)', async () => {
+        const setVisibility = vi.fn();
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created', visibility: 'private' })),
+            setVisibility,
+        });
+
+        const error = await catchError(
+            newService(dal).setVisibility(containedTestPrincipal(), 'r-1', RecipeVisibility.PUBLIC, undefined),
+        );
+
+        expect(apiErrorCode(error)).toBe('TEST_PRINCIPAL_CONTAINED');
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
     it('throws RECIPE_NOT_FOUND when the recipe is absent', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(newService(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE));
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(undefined) });
+        const error = await catchError(
+            newService(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
+        );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws NOT_OWNER when the caller does not own the recipe', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
         const error = await catchError(
-            newService(dal).setVisibility(principal({ userId: OTHER }), 'r-1', RecipeVisibility.PRIVATE),
+            newService(dal).setVisibility(principal({ userId: OTHER }), 'r-1', RecipeVisibility.PRIVATE, undefined),
         );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
@@ -1223,12 +1559,14 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
 
     it('DENIES free-tier user_created → private (INVALID_VISIBILITY) and never touches the DAL', async () => {
         const setVisibility = vi.fn();
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
             setVisibility,
         });
 
-        const error = await catchError(newService(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE));
+        const error = await catchError(
+            newService(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
+        );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
         expect(setVisibility).not.toHaveBeenCalled();
@@ -1237,12 +1575,12 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
     it('ALLOWS premium user_created → private and persists it', async () => {
         const updated = aggregate({ sourceType: 'user_created', visibility: 'private' });
         const setVisibility = vi.fn().mockResolvedValue(updated);
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
             setVisibility,
         });
 
-        const res = await newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PRIVATE);
+        const res = await newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PRIVATE, undefined);
 
         expect(setVisibility).toHaveBeenCalledWith('r-1', 'private');
         expect(res.visibility).toBe('private');
@@ -1250,14 +1588,19 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
 
     it('derives premium from permissions, not scopes (a premium SCOPE must not unlock private)', async () => {
         const setVisibility = vi.fn();
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
             setVisibility,
         });
 
         // `premium` in scopes, not permissions → still free-tier → denied.
         const error = await catchError(
-            newService(dal).setVisibility(principal({ scopes: [PREMIUM_PERMISSION] }), 'r-1', RecipeVisibility.PRIVATE),
+            newService(dal).setVisibility(
+                principal({ scopes: [PREMIUM_PERMISSION] }),
+                'r-1',
+                RecipeVisibility.PRIVATE,
+                undefined,
+            ),
         );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
@@ -1266,13 +1609,13 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
 
     it('re-throws RECIPE_NOT_FOUND when the row vanished before the write (concurrent tombstone)', async () => {
         const setVisibility = vi.fn().mockResolvedValue(undefined);
-        const dal = fakeDal({
+        const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
             setVisibility,
         });
 
         const error = await catchError(
-            newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PUBLIC),
+            newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PUBLIC, undefined),
         );
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
@@ -1293,10 +1636,9 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
             }),
             steps: [makeRecipeStepRow({ recipeId: 'src', stepNumber: 1, instruction: 'Bake', timerSeconds: 600 })],
             ingredients: [
-                makeRecipeIngredientRow({
+                makeIngredientLineRow({
                     recipeId: 'src',
-                    ingredientId: 'ing-A',
-                    ingredientName: 'Flour',
+                    foodLookupId: 'ing-A',
                     quantity: '2',
                     unit: 'cup',
                     displayText: 'sifted',
@@ -1308,9 +1650,15 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
         const update = vi.fn();
         const setVisibility = vi.fn();
         const softDelete = vi.fn();
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create, update, setVisibility, softDelete });
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(source),
+            create,
+            update,
+            setVisibility,
+            softDelete,
+        });
 
-        await newService(dal).clone(principal(), 'src');
+        await newService(dal).clone(principal(), 'src', undefined);
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -1322,18 +1670,21 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
                 clonedFromId: 'src',
                 hasSubstantiveEdit: false,
                 visibility: 'public', // defaultCloneVisibility(imported_public)
+                // The clone keeps the BINDING and every fact about the line; it stores no name (plan 002 R9).
                 ingredients: [
-                    expect.objectContaining({
-                        ingredientId: 'ing-A',
-                        ingredientName: 'Flour',
-                        quantity: 2,
+                    {
+                        foodLookupId: 'ing-A',
+                        quantity: { kind: 'exact', value: 2 },
                         unit: 'cup',
                         displayText: 'sifted',
                         sortOrder: 0,
-                    }),
+                    },
                 ],
+                // The search text the CLONER's read gives the lines — the fixture names every food "Onion".
+                ingredientNamesText: 'Onion',
                 steps: [{ instruction: 'Bake', timerSeconds: 600 }],
             }),
+            FAKE_TX,
         );
         // The ORIGINAL is never touched.
         expect(update).not.toHaveBeenCalled();
@@ -1357,12 +1708,13 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
             ...source,
             recipe: makeRecipeRow({ id: 'c', ownerId: OWNER, visibility: 'private' }),
         });
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(source), create });
 
-        await newService(dal).clone(principal(), 'src');
+        await newService(dal).clone(principal(), 'src', undefined);
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({ visibility: 'private', sourceType: 'imported_paid' }),
+            FAKE_TX,
         );
     });
 
@@ -1379,12 +1731,13 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
             ingredients: [],
         };
         const create = vi.fn().mockResolvedValue({ ...source, recipe: makeRecipeRow({ id: 'c', ownerId: OWNER }) });
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(source), create });
 
-        await newService(dal).clone(principal(), 'src');
+        await newService(dal).clone(principal(), 'src', undefined);
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({ sourceAttribution: expect.stringContaining(OTHER) }),
+            FAKE_TX,
         );
     });
 
@@ -1396,29 +1749,29 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
             ingredients: [],
         };
         const create = vi.fn();
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(source), create });
 
-        const error = await catchError(newService(dal).clone(principal(), 'src'));
+        const error = await catchError(newService(dal).clone(principal(), 'src', undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
         expect(create).not.toHaveBeenCalled();
     });
 
     it('throws RECIPE_NOT_FOUND when the clone source does not exist', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(newService(dal).clone(principal(), 'missing'));
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(undefined) });
+        const error = await catchError(newService(dal).clone(principal(), 'missing', undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 });
 
-// ── S-R6: ingredient-line resolution is a SINGLE batch `findByIds`, never a serial per-line loop ────
-describe('RecipesService — ingredient-line resolution batching (S-R6)', () => {
+// ── S-R6: a write's bindings are read in ONE batch, never a serial per-line loop ────
+describe('RecipesService — a write reads its bindings in one batch (S-R6)', () => {
     const ID_A = '00000000-0000-4000-8000-0000000000a1';
     const ID_B = '00000000-0000-4000-8000-0000000000b2';
     const ID_C = '00000000-0000-4000-8000-0000000000c3';
 
-    /** A 3-line create DTO: A, B, then A again (a repeated ingredientId across two lines). */
+    /** A 3-line create DTO: A, B, then A again (a repeated binding across two lines). */
     const MULTI_LINE_DTO: CreateRecipeDto = {
         title: 'Stew',
         servings: 2,
@@ -1426,98 +1779,349 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
         ingredients: [
-            { ingredientId: ID_A, name: 'Carrot', quantity: 1 },
-            { ingredientId: ID_B, name: 'Potato', quantity: 2 },
-            { ingredientId: ID_A, name: 'Carrot', quantity: 3 },
+            { ingredientId: ID_A, quantity: { kind: 'exact', value: 1 } },
+            { ingredientId: ID_B, quantity: { kind: 'exact', value: 2 } },
+            { ingredientId: ID_A, quantity: { kind: 'exact', value: 3 } },
         ],
         steps: [{ instruction: 'Simmer' }],
     };
 
-    /** A catalog DAL whose `findByIds` resolves the given ids to named ingredients; `findById` must never fire. */
-    function catalogDal(entries: Record<string, string>): IngredientsDal {
-        return {
-            findById: vi.fn(),
-            findByIds: vi
-                .fn()
-                .mockImplementation((ids: readonly string[]) =>
-                    Promise.resolve(
-                        ids.filter((id) => id in entries).map((id) => makeIngredient({ id, name: entries[id]! })),
-                    ),
-                ),
-        } as unknown as IngredientsDal;
+    /** Shared root bindings for the given ids. */
+    function bindings(...ids: readonly string[]): FoodLookupsDal {
+        return fakeFoodLookupsDal(...ids.map((id) => makeRootArm({ lookupId: id, foodId: `food-${id}` })));
     }
 
-    function serviceWith(ingredientsDal: IngredientsDal): RecipesService {
-        return new RecipesService(
-            fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) }),
-            ingredientsDal,
-            makeFakeVersionsService(),
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
+    function serviceWith(
+        lookups: FoodLookupsDal,
+        dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) }),
+    ) {
+        return makeRecipesService({ dal, lookups, foodNutrition: nutritionGatewayDouble });
     }
 
-    it('resolves M lines with ONE findByIds call over the deduped ids — findById is never looped', async () => {
-        const ingredientsDal = catalogDal({ [ID_A]: 'Carrot', [ID_B]: 'Potato' });
+    it('reads every line’s binding in ONE call — never one call per line', async () => {
+        const lookups = bindings(ID_A, ID_B);
 
-        await serviceWith(ingredientsDal).create(principal(), MULTI_LINE_DTO);
+        await serviceWith(lookups).create(principal(), MULTI_LINE_DTO, undefined);
 
-        // resolveIngredientLines runs FIRST in `create` (before the lead-calories/detail-nutrition batch
-        // calls that legitimately also hit findByIds) — its call is a SINGLE batch over the 2 unique ids
-        // for the 3 input lines, not 3 separate per-line queries.
-        const calls = (ingredientsDal.findByIds as unknown as ReturnType<typeof vi.fn>).mock.calls;
-        expect(calls[0]).toEqual([[ID_A, ID_B]]);
-        // findByIds is never called once per line (which would be 3 calls of length-1 arrays) — every
-        // recorded call is a multi-id (or empty) batch.
-        expect(calls.every((call) => (call[0] as string[]).length !== 1)).toBe(true);
-        expect(ingredientsDal.findById).not.toHaveBeenCalled();
+        // The plan's read is the FIRST; the detail read's later one covers the (empty) persisted aggregate.
+        const calls = vi.mocked(lookups.findByIds).mock.calls;
+        expect(calls[0]?.[0]).toStrictEqual([ID_A, ID_B, ID_A]);
+        expect(calls.every((call) => call[0].length !== 1)).toBe(true);
     });
 
-    it('a line with an unknown ingredientId still throws unknownIngredient(id) (fail-fast preserved)', async () => {
-        // The catalog resolves B but not A — A's line must fail fast with the SAME error the old loop threw.
-        const ingredientsDal = catalogDal({ [ID_B]: 'Potato' });
+    it('a line naming a binding that does not exist throws UNKNOWN_INGREDIENT before anything is written', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn() });
 
-        const error = await catchError(serviceWith(ingredientsDal).create(principal(), MULTI_LINE_DTO));
+        const error = await catchError(serviceWith(bindings(ID_B), dal).create(principal(), MULTI_LINE_DTO, undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.UNKNOWN_INGREDIENT);
+        expect(dal.create).not.toHaveBeenCalled();
     });
 
-    it('resolves lines in INPUT order, and a duplicate id dedupes in the query but resolves BOTH lines', async () => {
-        const ingredientsDal = catalogDal({ [ID_A]: 'Carrot', [ID_B]: 'Potato', [ID_C]: 'Onion' });
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
-        const service = new RecipesService(
-            dal,
-            ingredientsDal,
-            makeFakeVersionsService(),
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
+    it('persists lines in INPUT order, and a repeated binding keeps BOTH of its lines', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        await serviceWith(bindings(ID_A, ID_B, ID_C), dal).create(
+            principal(),
+            {
+                ...MULTI_LINE_DTO,
+                ingredients: [
+                    { ingredientId: ID_C, quantity: { kind: 'exact', value: 1 } },
+                    { ingredientId: ID_A, quantity: { kind: 'exact', value: 2 } },
+                    { ingredientId: ID_B, quantity: { kind: 'exact', value: 3 } },
+                    { ingredientId: ID_A, quantity: { kind: 'exact', value: 4 } },
+                ],
+            },
+            undefined,
         );
 
-        await service.create(principal(), {
-            ...MULTI_LINE_DTO,
-            ingredients: [
-                { ingredientId: ID_C, name: 'Onion', quantity: 1 },
-                { ingredientId: ID_A, name: 'Carrot', quantity: 2 },
-                { ingredientId: ID_B, name: 'Potato', quantity: 3 },
-                { ingredientId: ID_A, name: 'Carrot', quantity: 4 },
-            ],
-        });
-
-        const createArg = (dal.create as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
-            ingredients: Array<{ ingredientId: string; sortOrder: number }>;
-        };
-        // Input order preserved (C, A, B, A) with sortOrder matching position — NOT catalog/query order.
-        expect(createArg.ingredients.map((line) => [line.ingredientId, line.sortOrder])).toEqual([
+        const createArg = vi.mocked(dal.create).mock.calls[0]![0];
+        // Input order preserved (C, A, B, A) with sortOrder matching position — NOT the read's order.
+        expect(createArg.ingredients.map((line) => [line.foodLookupId, line.sortOrder])).toEqual([
             [ID_C, 0],
             [ID_A, 1],
             [ID_B, 2],
             [ID_A, 3],
         ]);
-        // The duplicate id (ID_A) was deduped in the query...
-        expect(ingredientsDal.findByIds).toHaveBeenCalledWith([ID_C, ID_A, ID_B]);
-        // ...but BOTH of its lines still resolved (not dropped).
-        expect(createArg.ingredients.filter((line) => line.ingredientId === ID_A)).toHaveLength(2);
+    });
+});
+
+/*
+ * ⛔ The write-time lead-calorie suite was U10 REMOVED. It asserted that create/update recomputed a
+ * DENORMALIZED column and forwarded it to the DAL — behaviour that no longer exists, because the column is
+ * gone and the figure is derived on every detail read from food's live data instead. Keeping the tests
+ * would have pinned a design the unit deleted.
+ */
+
+/**
+ * U26/U27 — THE FIVE PLACES A NEW LINE FIELD HAS TO BE ADDED, and the ONE reason they need a suite of
+ * their own: **not one of them is enforced by the compiler.**
+ *
+ * `toIngredientResponse`, the planner's `toLineInput`, `toClonedLineInput` (clone), the version-snapshot
+ * builder and `ingredientsChanged` are each a POSITIVE field-by-field enumeration built from conditional
+ * spreads — the idiom TypeScript's excess-property check cannot see through. `ingredientsChanged`'s own
+ * docstring says so outright: _"a newly-modelled part of a quantity is invisible to it by construction and
+ * nothing would fail to compile."_ The clone mapper already shipped this exact defect once, for `sourceLine`,
+ * and `clone.service.test.ts` carries the pin that was added when it was noticed.
+ *
+ * So every case below is written to KILL a specific deletion. Removing the two fields from any one of the
+ * five sites must red exactly one of these and leave the rest green.
+ */
+describe('RecipesService — preparation + groupLabel travel with the line (U26/U27)', () => {
+    /** A one-line aggregate carrying both new columns populated. */
+    const groupedAggregate = (): RecipeAggregate => {
+        const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, deletedAt: null });
+
+        return {
+            recipe,
+            steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
+            ingredients: [
+                makeIngredientLineRow({
+                    recipeId: recipe.id,
+                    foodLookupId: 'ing-A',
+                    quantity: '2',
+                    unit: 'cup',
+                    displayText: '2 cups onion, finely chopped',
+                    preparation: 'finely chopped',
+                    groupLabel: 'For the marinade',
+                    sortOrder: 0,
+                }),
+            ],
+        };
+    };
+
+    it('the DETAIL read emits both fields when the columns carry them', async () => {
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
+
+        const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
+
+        expect(res.ingredients[0]).toMatchObject({
+            name: 'Onion',
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+        });
+    });
+
+    // ⛔ U26's headline assertion. The name is what a `food_id` resolves to in the catalog; the preparation
+    // is what THIS recipe does to it. A projection that concatenated them would produce a name matching no
+    // catalog row — and it is the shape `versions/model.ts`'s preview uses for `displayText`, so it is one
+    // copy-paste away at all times.
+    it('⛔ NEVER folds the preparation into the food NAME, on read', async () => {
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
+
+        const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
+
+        expect(res.ingredients[0]?.name).toBe('Onion');
+        expect(res.ingredients[0]?.name).not.toContain('finely chopped');
+    });
+
+    // ⛔ `notes` (the wire name for `display_text`) and `preparation` are DIFFERENT FACTS with different
+    // producers — U26 resolved that rather than renaming one into the other. This pins that both reach the
+    // wire independently, so a later "these look redundant, drop one" edit reds here.
+    it('emits `notes` and `preparation` as SEPARATE keys — U26 did not merge them', async () => {
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
+
+        const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
+
+        expect(res.ingredients[0]?.notes).toBe('2 cups onion, finely chopped');
+        expect(res.ingredients[0]?.preparation).toBe('finely chopped');
+    });
+
+    // ⛔ `null` → the key is OMITTED, never emitted as `''`. `recipeIngredientViewSchema` rejects `''`
+    // (`min(1)`), so emitting a blank is a body this server can write and no client can read — the exact
+    // break `notes` had before its `min(1)` landed.
+    it('OMITS both keys for an ungrouped, unprepared line rather than emitting `""`', async () => {
+        const bare: RecipeAggregate = {
+            recipe: makeRecipeRow({ id: 'r-2', ownerId: OWNER, deletedAt: null }),
+            steps: [makeRecipeStepRow({ recipeId: 'r-2', stepNumber: 1, instruction: 'Mix' })],
+            ingredients: [
+                makeIngredientLineRow({
+                    recipeId: 'r-2',
+                    foodLookupId: 'ing-A',
+                    preparation: null,
+                    groupLabel: null,
+                }),
+            ],
+        };
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(bare) });
+
+        const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-2', caller: undefined, budget: 'read' });
+
+        expect(res.ingredients[0]).not.toHaveProperty('preparation');
+        expect(res.ingredients[0]).not.toHaveProperty('groupLabel');
+    });
+
+    // ⛔ A whole recipe's read must parse under the PUBLISHED read schema, not merely look right in a
+    // `toMatchObject`. `recipeIngredientViewSchema` is a NON-STRICT `z.object`, which silently STRIPS an
+    // unlisted key — so a field added to the service and forgotten on the schema would vanish client-side
+    // with every server test green. Parsing through the schema is what detects that.
+    it('round-trips through the PUBLISHED read schema, which would otherwise strip an unlisted key', async () => {
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
+
+        const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
+        const parsed = recipeIngredientViewSchema.parse(res.ingredients[0]);
+
+        expect(parsed.preparation).toBe('finely chopped');
+        expect(parsed.groupLabel).toBe('For the marinade');
+    });
+
+    /** The lines `RecipesService.create` handed the DAL for the given body. */
+    const persistedLines = async (over: Partial<CreateRecipeDto>): Promise<Record<string, unknown>[]> => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        await newService(dal).create(principal(), { ...CREATE_DTO, ...over }, undefined);
+
+        return (dal.create as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].ingredients;
+    };
+
+    it('carries both from the CREATE body through to the persisted line', async () => {
+        const lines = await persistedLines({
+            ingredients: [
+                {
+                    ingredientId: '00000000-0000-4000-8000-0000000000ff',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    preparation: 'finely chopped',
+                    groupLabel: 'For the marinade',
+                },
+            ],
+        });
+
+        expect(lines[0]).toMatchObject({ preparation: 'finely chopped', groupLabel: 'For the marinade' });
+    });
+
+    it('OMITS both on the persisted line when the body states neither', async () => {
+        const lines = await persistedLines({});
+
+        expect(lines[0]).not.toHaveProperty('preparation');
+        expect(lines[0]).not.toHaveProperty('groupLabel');
+    });
+});
+
+/**
+ * ⛔ EVERY ROUTE STATES ITS FOOD-LATENCY BUDGET — required, so a new detail path is a compile error until it does.
+ *
+ * A response to a COMMITTED write (create, update, clone, visibility) is `'postCommit'`: its nutrition is extra
+ * information on a result that already succeeded, and a slow food service must not hold that success past the
+ * recipe client's own deadline. The GET detail is a READ and keeps `'read'`. Observed at the assembler seam,
+ * which is where the budget becomes a client choice.
+ */
+describe('RecipesService — the nutrition latency budget each route states', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    const budgetOf = (spy: ReturnType<typeof vi.spyOn>): unknown =>
+        (spy.mock.calls.at(-1)?.[2] as { budget?: unknown } | undefined)?.budget;
+
+    it("create answers on the 'postCommit' budget", async () => {
+        const spy = vi.spyOn(RecipeDetailAssembler.prototype, 'toDetailResponse');
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        await newService(dal).create(principal(), CREATE_DTO, undefined);
+
+        expect(budgetOf(spy)).toBe('postCommit');
+    });
+
+    it("update answers on the 'postCommit' budget", async () => {
+        const spy = vi.spyOn(RecipeDetailAssembler.prototype, 'toDetailResponse');
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        await newService(dal).update(
+            principal(),
+            'r-1',
+            { expectedVersion: 1, title: 'Renamed' } as UpdateRecipeDto,
+            undefined,
+        );
+
+        expect(budgetOf(spy)).toBe('postCommit');
+    });
+
+    it("setVisibility answers on the 'postCommit' budget", async () => {
+        const spy = vi.spyOn(RecipeDetailAssembler.prototype, 'toDetailResponse');
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            setVisibility: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+        });
+
+        await newService(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PUBLIC, undefined);
+
+        expect(budgetOf(spy)).toBe('postCommit');
+    });
+
+    it("clone answers on the 'postCommit' budget", async () => {
+        const spy = vi.spyOn(RecipeDetailAssembler.prototype, 'toDetailResponse');
+        const source = aggregate({ ownerId: OTHER, visibility: 'public', status: 'published' });
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(source),
+            create: vi.fn().mockResolvedValue({ ...source, recipe: makeRecipeRow({ id: 'c', ownerId: OWNER }) }),
+        });
+
+        await newService(dal).clone(principal(), 'r-1', undefined);
+
+        expect(budgetOf(spy)).toBe('postCommit');
+    });
+
+    it('getById answers on the budget its caller states', async () => {
+        const spy = vi.spyOn(RecipeDetailAssembler.prototype, 'toDetailResponse');
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const service = newService(dal);
+
+        await service.getById({ viewerId: OTHER, id: 'r-1', caller: undefined, budget: 'read' });
+        expect(budgetOf(spy)).toBe('read');
+
+        await service.getById({ viewerId: OTHER, id: 'r-1', caller: undefined, budget: 'postCommit' });
+        expect(budgetOf(spy)).toBe('postCommit');
+    });
+});
+
+/**
+ * `findEditableAggregate` — the one check a line-level command runs BEFORE it writes anything (plan 002 U5): the
+ * caller owns the recipe, and the version they edited is still the current one. The rebind resolves a food and
+ * records a correction before it re-saves the recipe, so both checks must come first.
+ */
+describe('RecipesService.findEditableAggregate', () => {
+    it('returns the aggregate to its owner at the current version', async () => {
+        const current = aggregate({ currentVersion: 4 });
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(current) });
+
+        await expect(newService(dal).findEditableAggregate(OWNER, 'r-1', 4, undefined)).resolves.toBe(current);
+    });
+
+    it.each([
+        ['a missing recipe', undefined, OWNER, RecipeErrorCode.RECIPE_NOT_FOUND],
+        [
+            'another cook’s PRIVATE recipe — 404, never confirming it exists',
+            aggregate({ visibility: 'private' }),
+            OTHER,
+            RecipeErrorCode.RECIPE_NOT_FOUND,
+        ],
+        ['another cook’s public recipe — 403', aggregate({ visibility: 'public' }), OTHER, RecipeErrorCode.NOT_OWNER],
+    ] as const)('refuses %s', async (_case, found, viewer, code) => {
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(found) });
+
+        const error = await catchError(newService(dal).findEditableAggregate(viewer, 'r-1', 1, undefined));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(code);
+    });
+
+    it('⛔ raises the SAME enriched VERSION_CONFLICT the update path raises when the version is stale', async () => {
+        const current = aggregate({ currentVersion: 5, title: 'Server title' });
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(current),
+            readConflict: vi.fn().mockResolvedValue({ current }),
+        });
+
+        const error = await catchError(newService(dal).findEditableAggregate(OWNER, 'r-1', 3, undefined));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.VERSION_CONFLICT);
+        expect(isRecipeDomainError(error) && error.details).toMatchObject({
+            currentVersion: 5,
+            conflictingVersion: 3,
+            server: { versionNumber: 5, snapshot: { title: 'Server title' } },
+        });
     });
 });

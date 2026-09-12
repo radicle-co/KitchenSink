@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/button — shared, platform-neutral prop + variant contract for the design-system
- * {@link Button}. The web (`Button.tsx`) and native (`Button.native.tsx`) leaves both implement this exact
+ * `Button`. The web (`Button.tsx`) and native (`Button.native.tsx`) leaves both implement this exact
  * surface; the bundler resolves the right leaf per platform at import time (`@commise/ui/button`).
  *
  * The Button is the app-wide standard for a labelled action control, and it encodes two invariants at the
@@ -12,6 +12,8 @@
  *     screen reader announces the label alone and name-based selection (RTL, Playwright, Maestro) is stable.
  */
 import type { ReactNode } from 'react';
+
+import type { PressScaleWidth } from '../pressScale/props.js';
 
 /**
  * The visual tiers. `primary` is a filled call-to-action; `secondary` is a bordered "surface" button
@@ -39,11 +41,18 @@ export interface ButtonProps {
      * (there is no form element); native submit buttons wire {@link onPress} instead. Defaults to `button`.
      */
     readonly type?: 'button' | 'submit';
-    /** Disables interaction and dims the control. */
+    /**
+     * Disables interaction and dims the control, for a rule the press did not cause. On web it yields to
+     * {@link busy}: a busy control is the one just pressed, so it stays focusable (see `busyControlProps`).
+     */
     readonly disabled?: boolean;
     /**
-     * Marks an in-flight action: the control is disabled (so it cannot be double-fired) and exposes a busy
-     * state to assistive tech (`aria-busy` on web, `accessibilityState.busy` on native).
+     * Marks an in-flight action: the control cannot be double-fired and exposes a busy state to assistive tech.
+     *
+     * ⚠️ The platforms reach "cannot double-fire" differently, on purpose. WEB: the button stays FOCUSABLE —
+     * `aria-disabled` + `aria-busy`, and the click is cancelled — because a real browser drops focus from a
+     * natively disabled control (WCAG 2.2 SC 2.4.3). NATIVE: the `Pressable` is disabled and exposes
+     * `accessibilityState.busy`; a disabled `Pressable` keeps screen-reader focus on device.
      */
     readonly busy?: boolean;
     /**
@@ -51,4 +60,17 @@ export interface ButtonProps {
      * or is insufficient on its own; prefer letting {@link children} own the name.
      */
     readonly accessibilityLabel?: string;
+    /**
+     * Sizing across the parent: `fill` fills a column with the label centred, and keeps content width in a row.
+     * Defaults to `auto`, which leaves the size to the parent. Passed through to `PressScale`, which owns the box.
+     */
+    readonly width?: PressScaleWidth;
+    /**
+     * A host asks for focus on the button: keyboard focus on web, the screen-reader cursor on native (the control after a
+     * removed last ingredient row, V1 sign-off item 11). A LEVEL, as on `Popover`: it stands until
+     * {@link onFocusRequestHandled} acknowledges it, so a button that mounts while the request stands still takes it.
+     */
+    readonly focusRequested?: boolean;
+    /** Called once the button has taken a requested focus; the host clears its request here. */
+    readonly onFocusRequestHandled?: () => void;
 }

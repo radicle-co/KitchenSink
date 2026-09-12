@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`6 — a job checks every origin it is given > discovers the jobs that are handed origins — an empty scan would pass everything below 1`] = `
+[
+  "_ci-heavy.yml::e2e-mobile-maestro",
+  "_ci.yml::e2e-web-report",
+  "deployedE2eTiers.yml::e2e-auth-boundary",
+  "deployedE2eTiers.yml::e2e-backend",
+  "deployedE2eTiers.yml::e2e-cross-service-linkage",
+  "deployedE2eTiers.yml::e2e-food",
+  "deployedE2eTiers.yml::e2e-identity-boot",
+  "deployedE2eTiers.yml::e2e-queue-guarantees",
+  "deployedE2eTiers.yml::e2e-recipe",
+  "deployedE2eTiers.yml::e2e-web",
+]
+`;

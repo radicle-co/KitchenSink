@@ -1,0 +1,57 @@
+appId: io.commise.mobile
+---
+# U13 — the ambiguity-review story (mobile). Mirror of the web Playwright `ambiguityReview.spec.ts` per the
+# cross-platform mandate: the surface's decision layer is shared, so what this flow proves on a device is the native
+# markup and the real tap path — badge → entry → open → a row per ambiguous LINE → pick → saved.
+#
+# Assumes an authenticated session against the live sandbox services AND a recipe the viewer OWNS carrying at least one
+# gate-AMBIGUOUS line (the seeded review fixture "Ambiguity Probe", whose line is `apple sauce`). The ambiguity state is
+# produced by the verification worker, not constructible from the app, so the flow stops at the labelled wait below
+# when the fixture is absent, and never passes without having opened the review.
+#
+# ⚠️ The pick is a real write: it re-points THAT line alone through the rebind command (owner ruling 2026-10-02, "Fix
+# one line at a time"), which makes a new version of the fixture recipe and leaves the line no longer AMBIGUOUS. So the
+# fixture must be seeded for each run, by the same seeding step `ingredientShortlist.yaml` waits on.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Ambiguity Probe'
+
+# The badge and the entry render from the detail's own resolutionStatus.
+- scrollUntilVisible:
+      element: 'Needs a pick'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Review ingredient matches'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Review ingredient matches'
+
+# One row per ambiguous line, named by its amount and its words ("1 cup apple sauce"); its shortlist is the food
+# search's for the line's words.
+- extendedWaitUntil:
+      visible:
+          text: '.+ apple sauce'
+          below: 'Review ingredient matches'
+      timeout: 30000
+      label: 'the owner’s recipe carries an AMBIGUOUS "apple sauce" line, and its review row is open'
+
+# The source's foods flow into the row with no press (plan 002 S7.8, ADR-0055 point 9).
+- extendedWaitUntil:
+      visible:
+          text: 'From USDA'
+      timeout: 40000
+      label: 'USDA answered the progressive search for "apple sauce" on this stage'
+# One pick, of a remote food: the review adopts it and re-points THAT line to the root (ADR-0055 point 10). The line
+# leaves the review and the surface says it saved.
+- scrollUntilVisible:
+      element: '.*, from USDA'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: '.*, from USDA'
+      index: 0
+- extendedWaitUntil:
+      visible: 'Saved — future recipes will use this match.'
+      timeout: 30000

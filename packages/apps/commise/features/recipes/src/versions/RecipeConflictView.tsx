@@ -3,7 +3,7 @@
 /**
  * @module @commise/features-recipes — web concurrent-edit conflict view (T070 / C-005 / W7 building block).
  *
- * `'use client'` is required: this leaf calls `useState` for the field-by-field merge mode, and it is
+ * `'use client'` is required: this leaf holds state (`useConflictView`) for the field-by-field merge mode, and it is
  * re-exported through the package barrel into the Next.js App-Router server tree (`app/[locale]/page.tsx`),
  * so without the directive `next build` fails the React Server Component boundary check (tsc/vitest do not
  * enforce it — only the production build does). No-op for the mobile `.native.tsx` variant (Metro ignores it).
@@ -16,7 +16,7 @@
  * text/role, never colour alone) and Server-then-Yours values (X7), plus a legend.
  *
  * Merge mode (Option C, W7 Task 5) renders ONLY `diff.rows` — the CHANGED fields/elements, one radiogroup
- * per row, Server FIRST then Yours (X7), reusing {@link import('./model.js').conflictRowLabel} so a merge
+ * per row, Server FIRST then Yours (X7), reusing `conflictRowLabel` so a merge
  * row can never disagree with the diff panel above on how it names itself. Selecting is the user's EXPLICIT
  * choice: no radio is pre-checked, so the running "Summary of choices" starts at zero and the Save/Resolve
  * action is GATED (X5) on at least one selection existing. A base that was evicted from version history, or
@@ -27,33 +27,53 @@
  * reports back via `onSelectionsChange` — this view owns no merge data of its own. Only the merge-panel-
  * visible toggle and the stale-confirm checkbox stay local (pure UI state, not data the machine needs) —
  * and BOTH reset whenever `server.versionNumber` changes, i.e. whenever a NEW conflict (not merely a
- * re-render of the SAME one) arrives on this component instance, so neither can leak across conflicts.
+ * re-render of the SAME one) arrives on this component instance, so neither can leak across conflicts. That
+ * state and its gates are `useConflictView`'s, shared with the native leaf.
  */
+
+// ⛔ NO `px-*` HERE. This renders inside `AppShell`'s `<main>`, which already supplies `px-4 md:px-6`, so a
+// second `px-4` doubled the gutter to 32px a side — at 320 that leaves 256px of content. The section keeps
+// `mx-auto max-w-3xl` because centering is its own job; the gutter is the shell's.
+import { busyControlProps } from '@commise/ui/button';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useEffect, useId, useState } from 'react';
+import { VariantPartsLine } from '@commise/ui/variant-parts-line';
+import { useId } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
-import type { ConflictMarker } from './conflictDiff.js';
+import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
+import { fillTemplate } from '../list/model.js';
 import {
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
-    conflictRowLabel,
-    fillTemplate,
+    LEGEND_MARKERS,
+    type ConflictOptionCardProps,
+    type DiscardAndCloseProps,
+    type RecipeConflictViewProps,
+    type SideValueProps,
+    type StaleBaseWarningProps,
+    type VersionSideCardProps,
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatYourCardHeading,
-    isConflictBaseStale,
-    type MergeSide,
-    type RecipeConflictViewProps,
-} from './model.js';
+} from './conflictView.js';
+import {
+    conflictMarkerGlyph,
+    conflictMarkerLabel,
+    conflictOptionLabel,
+    conflictOptionName,
+    conflictRowLabel,
+    conflictRowName,
+} from './diffLabels.js';
+import { useConflictView } from './useConflictView.js';
 
-/** The three markers, in the order the legend explains them (matching the wireframe's own `[=] [→] [!!]`
- *  order). */
-const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conflict'];
+/**
+ * How this view dims a control it will not act on, stated once for the natively disabled (a rule the press did
+ * not cause) and the busy (`aria-disabled`, a resolve in flight) states alike, so one screen shows one level of
+ * "unavailable". The shared `BUSY_CONTROL_CLASS` dims to 60%; this view has always dimmed to 50%.
+ */
+const UNAVAILABLE_CLASS =
+    'disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50';
 
 /**
  * One A/B/C option card — a title, a description, and the choice it fires. `aria-label` pins the button's
@@ -61,24 +81,27 @@ const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conf
  * text on too, e.g. "Keep server version Discard your local changes…"); `aria-describedby` still attaches
  * the description as the button's accessible DESCRIPTION, so assistive tech reads both, just not run
  * together as one name. `disabled` (W7 Task 5 / X6) is the stale-base confirm gate on Option B (Overwrite)
- * — Option A and C are never gated this way (see the module doc).
+ * — Option A and C are never gated this way (see the module doc). `busy` is a resolve in flight: a card the cook
+ * just pressed must keep focus, so it is `aria-disabled` with the press refused (`busyControlProps`), never native
+ * `disabled`. A blocked card stays natively `disabled` through a resolve: the cook cannot have pressed it, so it
+ * has no focus to keep and must not join the tab order only to be disabled again if the resolve fails.
  */
-const OptionCard: FC<{
-    readonly title: string;
-    readonly description: string;
-    readonly onChoose: () => void;
-    readonly disabled?: boolean;
-}> = ({ title, description, onChoose, disabled = false }) => {
+const OptionCard: FC<ConflictOptionCardProps & { readonly busy: boolean }> = ({
+    title,
+    description,
+    onChoose,
+    disabled = false,
+    busy,
+}) => {
     const descriptionId = useId();
 
     return (
         <button
             type="button"
-            onClick={onChoose}
-            disabled={disabled}
+            {...busyControlProps({ busy: busy && !disabled, blocked: disabled, onClick: onChoose })}
             aria-label={title}
             aria-describedby={descriptionId}
-            className="flex flex-1 flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:bg-pearl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-card"
+            className={`flex flex-1 flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:bg-pearl disabled:hover:bg-card aria-disabled:hover:bg-card ${UNAVAILABLE_CLASS}`}
         >
             <span aria-hidden="true" className="font-display text-body-lg font-semibold text-charcoal">
                 {title}
@@ -98,10 +121,7 @@ const OptionCard: FC<{
  * label` pins the accessible name to the label alone; the decorative leading glyph is `aria-hidden` (mirrors
  * `OptionCard`'s own name-vs-visible-content split).
  */
-const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndClose: () => void }> = ({
-    label,
-    onDiscardAndClose,
-}) => (
+const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndClose }) => (
     <button
         type="button"
         onClick={onDiscardAndClose}
@@ -120,16 +140,22 @@ const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndC
  * it (see `model.ts`'s own module note on why this is a SEPARATE rendering of the banner's data, not a
  * replacement for it).
  */
-const VersionSideCard: FC<{
-    readonly heading: string;
-    readonly savedLine?: string;
-    readonly deviceLine?: string;
-}> = ({ heading, savedLine, deviceLine }) => (
+const VersionSideCard: FC<VersionSideCardProps> = ({ heading, savedLine }) => (
     <div className="flex-1 rounded-2xl bg-card p-4 ring-1 ring-border">
         <p className="text-caption font-semibold uppercase tracking-wide text-charcoal">{heading}</p>
         {savedLine !== undefined && <p className="text-body-sm text-slate">{savedLine}</p>}
-        {deviceLine !== undefined && <p className="text-body-sm text-slate">{deviceLine}</p>}
     </div>
+);
+
+/**
+ * One side's value and, when that side is variant-bound, its dotted line under it (curated U15, R25), in a block of
+ * their own so the line reads with its side rather than the next one. Phrasing content, so it also fits in a `<label>`.
+ */
+const SideValue: FC<SideValueProps> = ({ children, parts }) => (
+    <span className="flex min-w-0 flex-col gap-1">
+        {children}
+        {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}
+    </span>
 );
 
 /**
@@ -137,12 +163,7 @@ const VersionSideCard: FC<{
  * options view (gates Overwrite) and the merge panel (gates Save merged version), so the two can never drift
  * on wording or behavior. `role="alert"` (mirrors `RecipeDeleteDialog`'s own alert-role warning surfaces).
  */
-const StaleBaseWarning: FC<{
-    readonly warning: string;
-    readonly confirmLabel: string;
-    readonly confirmed: boolean;
-    readonly onConfirmedChange: (confirmed: boolean) => void;
-}> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
+const StaleBaseWarning: FC<StaleBaseWarningProps> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
     <div role="alert" className="flex flex-col gap-2 rounded-2xl bg-warning/15 p-4 ring-1 ring-warning">
         <p className="text-body-sm text-charcoal">{warning}</p>
         <label className="flex items-center gap-2 text-body-sm font-medium text-charcoal">
@@ -171,53 +192,25 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 }) => {
     const { conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
-    // Whether the merge panel is showing is pure UI navigation (not data the `useRecipeEditor` machine needs)
-    // — it stays local. So is the stale-base confirm checkbox (W7 Task 5 / X6) — a fresh acknowledgment for
-    // THIS conflict, not data the machine composes with. The per-field `selections` themselves are fully
-    // controlled by the caller.
-    const [merging, setMerging] = useState(false);
-    const [staleConfirmed, setStaleConfirmed] = useState(false);
-    // A NEW conflict (same component instance, new props — e.g. a retried Overwrite that 409'd again) must
-    // NOT inherit the PRIOR conflict's local UI state: without this reset, a confirmed-but-still-stale
-    // checkbox would silently authorize Overwrite/Save-merged on a conflict the user never actually
-    // confirmed (X6 robustness gap), and the merge panel would stay open showing the STALE conflict's rows.
-    // `server.versionNumber` is this conflict's stable identity token (a fresh 409 always carries the
-    // server's CURRENT version, so two DIFFERENT conflicts can never share one).
-    useEffect(() => {
-        setStaleConfirmed(false);
-        setMerging(false);
-    }, [server.versionNumber]);
+    const view = useConflictView({ server, base, versionsBehind, selections, onSelectionsChange });
+
     // Reading the clock is THIS component's own side effect (mirrors `HomeGreeting`'s split of "the caller
     // reads `new Date()`, the pure formatter only maps an instant to a string") — `formatServerBanner`/
     // `formatRelativeTimeAgo` stay pure and testable without freezing time.
     const now = new Date();
 
-    const optionLabel = (side: string, value: string): string =>
-        fillTemplate(conflict.mergeOptionLabel, { side, value });
-
-    const isStale = isConflictBaseStale(base, versionsBehind);
-    const hasSelection = Object.keys(selections).length > 0;
-    const staleWarning = isStale ? (
+    const staleWarning = view.isStale ? (
         <StaleBaseWarning
             warning={conflict.staleBaseWarning}
             confirmLabel={conflict.staleBaseConfirmLabel}
-            confirmed={staleConfirmed}
-            onConfirmedChange={setStaleConfirmed}
+            confirmed={view.staleConfirmed}
+            onConfirmedChange={view.setStaleConfirmed}
         />
     ) : null;
 
-    if (merging) {
-        // No default side: an absent key renders NEITHER radio checked, so the running summary — and the
-        // selection gate below — reflect only the user's EXPLICIT picks (an absent key still composes to
-        // "mine" downstream, in `composeConflictMerge` — this is a display/gating distinction, not a data one).
-        const sideOf = (key: string): MergeSide | undefined => selections[key];
-        const choose = (key: string, side: MergeSide): void => onSelectionsChange({ ...selections, [key]: side });
-        // `isResolving` (concurrency/double-submit fix) is combined with, not a replacement for, the existing
-        // selection + stale-base gates — any one of the three blocks the submit.
-        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed) || isResolving;
-
+    if (view.merging) {
         return (
-            <section aria-label={conflict.mergeHeading} className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+            <section aria-label={conflict.mergeHeading} className="mx-auto flex max-w-3xl flex-col gap-4 py-8">
                 <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
                 <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.mergeHeading}</h2>
                 <p className="text-body-md text-slate">{conflict.mergeExplanation}</p>
@@ -225,35 +218,33 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <div className="flex flex-col gap-3">
                     {diff.rows.map((row) => {
                         const label = conflictRowLabel(row, conflict);
-                        const current = sideOf(row.key);
+                        const current = view.sideOf(row.key);
 
                         return (
                             <fieldset
                                 key={row.key}
                                 role="radiogroup"
-                                aria-label={label}
-                                className="flex flex-col gap-1 rounded-2xl bg-card p-4 ring-1 ring-border"
+                                // The name carries a variant's parts (R27); the legend stays the plain label (R25).
+                                aria-label={conflictRowName(row, conflict)}
+                                className="flex flex-col gap-2 rounded-2xl bg-card p-4 ring-1 ring-border"
                             >
                                 <legend className="text-caption uppercase tracking-wide text-slate">{label}</legend>
                                 {/* Server FIRST, then Yours (X7). */}
-                                <label className="flex items-center gap-2 text-body-md text-charcoal">
-                                    <input
-                                        type="radio"
-                                        name={row.key}
-                                        checked={current === 'theirs'}
-                                        onChange={() => choose(row.key, 'theirs')}
-                                    />
-                                    {optionLabel(conflict.mergeServerLabel, row.theirs)}
-                                </label>
-                                <label className="flex items-center gap-2 text-body-md text-charcoal">
-                                    <input
-                                        type="radio"
-                                        name={row.key}
-                                        checked={current === 'mine'}
-                                        onChange={() => choose(row.key, 'mine')}
-                                    />
-                                    {optionLabel(conflict.mergeMineLabel, row.mine)}
-                                </label>
+                                {(['theirs', 'mine'] as const).map((side) => (
+                                    <label key={side} className="flex items-start gap-2 text-body-md text-charcoal">
+                                        <input
+                                            type="radio"
+                                            name={row.key}
+                                            aria-label={conflictOptionName(row, side, conflict)}
+                                            checked={current === side}
+                                            onChange={() => view.choose(row.key, side)}
+                                            className="mt-1.5"
+                                        />
+                                        <SideValue parts={conflictSideParts(row, side)}>
+                                            <span>{conflictOptionLabel(row, side, conflict)}</span>
+                                        </SideValue>
+                                    </label>
+                                ))}
                             </fieldset>
                         );
                     })}
@@ -261,7 +252,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <p aria-live="polite" className="text-body-sm font-medium text-charcoal">
                     {formatMergeSummary(selections, conflict, locale)}
                 </p>
-                {!hasSelection && (
+                {!view.hasSelection && (
                     <p role="status" className="text-body-sm text-slate">
                         {conflict.mergeNoSelectionHint}
                     </p>
@@ -269,18 +260,20 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <div className="flex flex-wrap gap-3">
                     <button
                         type="button"
-                        onClick={() => onMerge(selections)}
-                        disabled={mergeDisabled}
-                        className="rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-seafoam"
+                        // The selection and stale-base gates are rules the press did not cause; a resolve in
+                        // flight follows the press, so Save keeps focus (`busyControlProps` owns the precedence).
+                        {...busyControlProps({
+                            busy: isResolving,
+                            blocked: view.mergeBlocked,
+                            onClick: () => onMerge(selections),
+                        })}
+                        className={`rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:hover:bg-seafoam aria-disabled:hover:bg-seafoam ${UNAVAILABLE_CLASS}`}
                     >
                         {conflict.mergeSubmit}
                     </button>
                     <button
                         type="button"
-                        onClick={() => {
-                            onSelectionsChange({});
-                            setMerging(false);
-                        }}
+                        onClick={view.leaveMerge}
                         className="rounded-full px-5 py-2 text-body-sm font-semibold text-charcoal ring-1 ring-border transition hover:bg-card"
                     >
                         {conflict.mergeBack}
@@ -291,7 +284,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     }
 
     return (
-        <section aria-label={conflict.heading} className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+        <section aria-label={conflict.heading} className="mx-auto flex max-w-3xl flex-col gap-4 py-8">
             <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
             <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.heading}</h2>
             <p className="text-body-md text-slate">{conflict.explanation}</p>
@@ -307,7 +300,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <VersionSideCard
                     heading={formatServerCardHeading(server, conflict)}
                     savedLine={formatVersionCardSavedLine(server, locale, conflict)}
-                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
                 />
                 <VersionSideCard
                     heading={formatYourCardHeading(base, conflict)}
@@ -315,7 +307,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         ? {}
                         : {
                               savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                              deviceLine: formatVersionCardDeviceLine(base, conflict),
                           })}
                 />
             </div>
@@ -323,27 +314,29 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}
             {staleWarning}
 
-            {/* Three A/B/C option cards (X2). `isResolving` (concurrency/double-submit fix) disables ALL
-                three — combined with, not replacing, Overwrite's existing stale-base gate — while a resolve
-                is in flight, so a rapid double-click cannot fire a second resolve before the first settles. */}
+            {/* Three A/B/C option cards (X2). `isResolving` (concurrency/double-submit fix) busies ALL three —
+                combined with, not replacing, Overwrite's existing stale-base gate — while a resolve is in flight,
+                so a rapid double-click cannot fire a second resolve before the first settles. Busy refuses the
+                press without natively disabling the card the cook just pressed. */}
             <div className="flex flex-col gap-4 sm:flex-row">
                 <OptionCard
                     title={conflict.optionServerTitle}
                     description={conflict.optionServerDescription}
                     onChoose={onKeepServer}
-                    disabled={isResolving}
+                    busy={isResolving}
                 />
                 <OptionCard
                     title={conflict.optionOverwriteTitle}
                     description={conflict.optionOverwriteDescription}
                     onChoose={onOverwrite}
-                    disabled={isResolving || (isStale && !staleConfirmed)}
+                    disabled={view.overwriteBlocked}
+                    busy={isResolving}
                 />
                 <OptionCard
                     title={conflict.optionMergeTitle}
                     description={conflict.optionMergeDescription}
-                    onChoose={() => setMerging(true)}
-                    disabled={isResolving}
+                    onChoose={view.startMerge}
+                    busy={isResolving}
                 />
             </div>
 
@@ -357,7 +350,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         {diff.rows.map((row) => (
                             <li
                                 key={row.key}
-                                className="flex flex-col gap-1 rounded-2xl bg-card p-3 ring-1 ring-border"
+                                className="flex flex-col gap-2 rounded-2xl bg-card p-3 ring-1 ring-border"
                             >
                                 <div className="flex items-center gap-2">
                                     <span
@@ -372,17 +365,20 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                     </span>
                                 </div>
                                 {row.base !== undefined && (
-                                    <p className="text-body-sm text-slate">
-                                        {fillTemplate(conflict.wasValueLabel, { value: row.base })}
-                                    </p>
+                                    <SideValue parts={conflictSideParts(row, 'base')}>
+                                        <span className="text-body-sm text-slate">
+                                            {fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                        </span>
+                                    </SideValue>
                                 )}
                                 {/* Server value FIRST, then Yours (X7). */}
-                                <p className="text-body-sm text-charcoal">
-                                    {optionLabel(conflict.mergeServerLabel, row.theirs)}
-                                </p>
-                                <p className="text-body-sm text-charcoal">
-                                    {optionLabel(conflict.mergeMineLabel, row.mine)}
-                                </p>
+                                {(['theirs', 'mine'] as const).map((side) => (
+                                    <SideValue key={side} parts={conflictSideParts(row, side)}>
+                                        <span className="text-body-sm text-charcoal">
+                                            {conflictOptionLabel(row, side, conflict)}
+                                        </span>
+                                    </SideValue>
+                                ))}
                             </li>
                         ))}
                     </ul>

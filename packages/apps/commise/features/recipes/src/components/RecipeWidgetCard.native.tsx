@@ -14,7 +14,7 @@ import type { RecipeWidgetCardProps } from './props.js';
  */
 export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, children }) => {
     return (
-        <View accessibilityRole="summary" accessibilityLabel={title} style={styles.card}>
+        <View collapsable={false} accessibilityRole="summary" style={styles.card}>
             <Text accessibilityRole="header" style={styles.title}>
                 {title}
             </Text>

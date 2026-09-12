@@ -11,8 +11,12 @@
  * no children renders the default full arrangement (the merged list/widget card), so a plain
  * `<RecipeCard recipe onSelect />` still works.
  *
- * Design rules encoded here (do not "simplify" them away):
- * - ABSENT difficulty / cuisine / calories / tags render NOTHING — never a default (FR-001b, CR-002).
+ * The parts DRAW the card's view (`./recipeCardView.ts`), which the Root derives once and both leaves share, so the
+ * rules below are decided there and drawn here. Design rules (do not "simplify" them away):
+ * - ABSENT difficulty / cuisine / tags render NOTHING — never a default (FR-001b, CR-002).
+ * - Nutrition is a SLOT, not a field: the per-serving figure is a deferred lookup that lands after the card,
+ *   so the composing surface decides what goes in the meta row (a `RecipeNutritionBoundary`, a settled chip,
+ *   or nothing) and the card stays pure and ignorant of loading. See `nutrition/` and `RecipeCardProps`.
  * - The PRO badge is driven by the materialized `usesPremiumCapability` flag — never re-derived (FR-003a).
  * - A DRAFT renders a "Draft" badge that REPLACES the visibility badge — never "Public" on a draft, which a
  *   free-tier draft (visibility='public', community-invisible) would make a lie.
@@ -24,45 +28,17 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { glass, toWebGlass } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
-import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
-import { createContext, useContext, type FC, type ReactNode } from 'react';
+import { useContext, type FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
-import { formatDurationMinutes } from '../list/model.js';
+import { STAR_COUNT, type DifficultyTone } from './model.js';
 import {
-    STAR_COUNT,
-    difficultyTone,
-    formatAverageRating,
-    formatCalories,
-    formatRatingCount,
-    formatRelativeTime,
-    toStarFills,
-    type DifficultyTone,
-    type RecipeCardModel,
-} from './model.js';
-
-/** Props for the shared recipe card. */
-export interface RecipeCardProps {
-    readonly recipe: RecipeCardModel;
-    /** When provided, the card is an actionable button that reports the recipe id (the list card). */
-    readonly onSelect?: (id: string) => void;
-    /** Custom arrangement of `RecipeCard.*` parts. Omit for the default merged card (list/widget). */
-    readonly children?: ReactNode;
-}
-
-/** The card's view-model, carried to the parts so no surface has to thread props through the arrangement. */
-const RecipeCardContext = createContext<RecipeCardModel | null>(null);
-
-/** Read the card view-model from the nearest {@link RecipeCard}. Throws if a part is rendered outside one. */
-function useCardModel(): RecipeCardModel {
-    const model = useContext(RecipeCardContext);
-
-    if (model === null) {
-        throw new Error('RecipeCard.* parts must be rendered inside a <RecipeCard>.');
-    }
-
-    return model;
-}
+    RecipeCardNutritionContext,
+    RecipeCardViewContext,
+    useCardView,
+    type RecipeCardProps,
+} from './recipeCardContext.js';
+import { recipeCardViewOf } from './recipeCardView.js';
 
 /**
  * Difficulty pill tone → Tailwind classes.
@@ -120,18 +96,23 @@ const Star: FC<{ filled: boolean }> = ({ filled }) => (
 
 /** The cover tile: the 4:3 cover photo (or a labelled placeholder) with the corner PRO badge. */
 const CardCover: FC = () => {
-    const { card } = useMessages(recipeMessages);
-    const recipe = useCardModel();
+    const { recipe, cover } = useCardView();
 
     return (
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-pearl">
             {recipe.coverPhotoUrl !== undefined ? (
                 // FOLLOW-UP-CR-001-A: full-size original into a thumbnail-sized tile (no derived variants).
-                <img src={recipe.coverPhotoUrl} alt={recipe.title} className="h-full w-full object-cover" />
+                //
+                // #140 — `alt=""` marks the cover DECORATIVE, removing it from the accessibility tree. It used
+                // to be `alt={recipe.title}`: the same accessible name as the `<article>` (and, on the
+                // actionable card, the `<button>`) wrapping it, so one card exposed the recipe's name on two
+                // nodes and a screen reader announced it twice. The model carries no alternative text for the
+                // photo and `CardTitle` already renders the title, so an empty alt loses nothing.
+                <img src={recipe.coverPhotoUrl} alt="" className="h-full w-full object-cover" />
             ) : (
                 <div
                     role="img"
-                    aria-label={card.noPhotoLabel}
+                    aria-label={cover.noPhotoLabel}
                     // A labelled `role="img"` is a MEANINGFUL graphic, so it is `slate`, not the `mist`
                     // hairline tone — see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
                     className="flex h-full w-full items-center justify-center text-slate"
@@ -146,15 +127,15 @@ const CardCover: FC = () => {
                     </svg>
                 </div>
             )}
-            {recipe.usesPremiumCapability && (
+            {cover.pro !== undefined && (
                 <span
-                    aria-label={card.proBadgeLabel}
+                    aria-label={cover.pro.label}
                     // `premium` is the brand GOLD. A white label on it is 2.23:1, and darkening the gold far
                     // enough to carry one turns it bronze — so the badge takes `charcoal` (5.70:1) and the
                     // gold survives intact. Same pairing on the native leaf's `pro` style.
                     className="absolute right-2 top-2 rounded-full bg-premium px-2 py-1 text-caption font-semibold text-charcoal"
                 >
-                    {card.proBadge}
+                    {cover.pro.text}
                 </span>
             )}
         </div>
@@ -163,49 +144,32 @@ const CardCover: FC = () => {
 
 /** The recipe title (clamped to two lines). */
 const CardTitle: FC = () => {
-    const recipe = useCardModel();
+    const { recipe } = useCardView();
 
     return <h3 className="line-clamp-2 font-display text-heading-md font-semibold text-charcoal">{recipe.title}</h3>;
 };
 
-/** The meta row: total time · servings · difficulty · cuisine · calories (each rendered only when present). */
+/** The meta row: total time · servings · nutrition slot · difficulty · cuisine (each only when present). */
 const CardMeta: FC = () => {
-    const { list, card } = useMessages(recipeMessages);
-    const locale = useLocale();
-    const recipe = useCardModel();
-    const duration = formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes);
-    const difficultyLabel: Record<RecipeDifficulty, string> = {
-        [RecipeDifficulty.EASY]: card.difficultyEasy,
-        [RecipeDifficulty.MEDIUM]: card.difficultyMedium,
-        [RecipeDifficulty.HARD]: card.difficultyHard,
-    };
+    const { recipe, meta } = useCardView();
+    const nutrition = useContext(RecipeCardNutritionContext);
 
     return (
         <div className="flex flex-wrap items-center gap-3 text-body-sm text-slate">
-            <span
-                aria-label={card.timeLabel.replace('{minutes}', String(recipe.totalTimeMinutes))}
-                className="flex items-center gap-1"
-            >
+            <span aria-label={meta.timeLabel} className="flex items-center gap-1">
                 <ClockIcon />
-                {duration}
+                {meta.duration}
             </span>
-            <span
-                aria-label={card.servingsLabel.replace('{count}', String(recipe.servings))}
-                className="flex items-center gap-1"
-            >
+            <span aria-label={meta.servingsLabel} className="flex items-center gap-1">
                 <PeopleIcon />
                 {recipe.servings}
             </span>
-            {recipe.leadCaloriesPerServing !== undefined && (
-                <span>
-                    {card.caloriesLabel.replace('{calories}', formatCalories(recipe.leadCaloriesPerServing, locale))}
-                </span>
-            )}
-            {recipe.difficulty !== undefined && (
+            {nutrition}
+            {meta.difficulty !== undefined && (
                 <span
-                    className={`rounded-full px-2 py-0.5 text-caption font-semibold ${TONE_CLASS[difficultyTone(recipe.difficulty)]}`}
+                    className={`rounded-full px-2 py-0.5 text-caption font-semibold ${TONE_CLASS[meta.difficulty.tone]}`}
                 >
-                    {difficultyLabel[recipe.difficulty]}
+                    {meta.difficulty.label}
                 </span>
             )}
             {recipe.cuisine !== undefined && (
@@ -227,67 +191,45 @@ const CardMeta: FC = () => {
  * never happened.
  */
 const CardBadges: FC = () => {
-    const { card } = useMessages(recipeMessages);
-    const locale = useLocale();
-    const recipe = useCardModel();
-    const isDraft = recipe.status === RecipeStatus.DRAFT;
-    // Reading the clock is THIS component's own side effect (mirrors `RecipeConflictView`'s split of "the
-    // caller reads `new Date()`, the pure formatter only maps an instant to a string") — `formatRelativeTime`
-    // stays pure and testable without freezing time.
-    const now = new Date().toISOString();
-    const wasEdited = recipe.updatedAt !== recipe.createdAt;
-    const relativeTime = formatRelativeTime(wasEdited ? recipe.updatedAt : recipe.createdAt, now, locale, card.justNow);
-    const timestampLabel = (wasEdited ? card.editedRelative : card.createdRelative).replace('{time}', relativeTime);
+    const { badges } = useCardView();
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            {recipe.currentVersion > 1 && (
+            {badges.version !== undefined && (
                 <span
-                    aria-label={card.versionLabel.replace('{version}', String(recipe.currentVersion))}
+                    aria-label={badges.version.label}
                     className="rounded-full bg-pearl px-2 py-0.5 text-caption font-medium text-slate"
                 >
-                    {card.versionBadge.replace('{version}', String(recipe.currentVersion))}
+                    {badges.version.text}
                 </span>
             )}
-            {isDraft ? (
+            {badges.status.kind === 'draft' ? (
                 <span className="rounded-full bg-warning px-2 py-0.5 text-caption font-semibold text-charcoal">
-                    {card.draftBadge}
+                    {badges.status.text}
                 </span>
             ) : (
                 // Same tint-on-tint contrast contract as the cuisine badge above.
                 <span className="rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-ocean-dark">
-                    {recipe.visibility === RecipeVisibility.PUBLIC ? card.visibilityPublic : card.visibilityPrivate}
+                    {badges.status.text}
                 </span>
             )}
-            <span className="text-caption text-slate">{timestampLabel}</span>
+            <span className="text-caption text-slate">{badges.timestamp}</span>
         </div>
     );
 };
 
 /** The star rating row: display-only. Rated → a labelled star group; unrated → an honest "not yet rated". */
 const CardRating: FC = () => {
-    const { card } = useMessages(recipeMessages);
-    const locale = useLocale();
-    const recipe = useCardModel();
+    const { rating } = useCardView();
 
-    if (recipe.averageRating === undefined || recipe.ratingCount === 0) {
-        return <span className="text-body-sm text-slate">{card.unrated}</span>;
+    if (rating.kind === 'unrated') {
+        return <span className="text-body-sm text-slate">{rating.text}</span>;
     }
 
-    const ratings = formatRatingCount(
-        recipe.ratingCount,
-        { one: card.ratingCountOne, other: card.ratingCountOther },
-        locale,
-    );
-    const label = card.ratingSummary
-        .replace('{average}', formatAverageRating(recipe.averageRating, locale))
-        .replace('{ratings}', ratings);
-    const fills = toStarFills(recipe.averageRating);
-
     return (
-        <div role="img" aria-label={label} className="flex items-center gap-1">
+        <div role="img" aria-label={rating.label} className="flex items-center gap-1">
             {Array.from({ length: STAR_COUNT }, (_value, index) => (
-                <Star key={index} filled={fills[index] ?? false} />
+                <Star key={index} filled={rating.fills[index] ?? false} />
             ))}
         </div>
     );
@@ -295,7 +237,7 @@ const CardRating: FC = () => {
 
 /** The tag chips (rendered only when the recipe has tags). */
 const CardTags: FC = () => {
-    const recipe = useCardModel();
+    const { recipe } = useCardView();
 
     if (recipe.tags.length === 0) {
         return null;
@@ -370,18 +312,26 @@ const CARD_GLASS = toWebGlass(glass.card, true);
 /**
  * The shared recipe card (compound-component Root). `onSelect` present → an actionable button (list); absent
  * → a non-interactive article (the Home widget). Either way the outer element is named by the recipe title,
- * and the view-model is provided to the `RecipeCard.*` parts via context.
+ * and the card's view is derived here once and provided to the `RecipeCard.*` parts via context.
  *
  * U8: the actionable form wraps its button in {@link PressScale} for a tactile, reduce-motion-safe press
  * shrink. `PressScale` (web) is an `inline-flex` span whose child drives the scale, so the article is a
  * `grid` — blockifying the span into a grid item that stretches to the full cell width, preserving the
  * card's layout while adding only motion.
  */
-const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => {
-    const content = children ?? <DefaultCardContent />;
+const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, nutrition = null, children }) => {
+    const copy = useMessages(recipeMessages);
+    const locale = useLocale();
+    // Reading the clock is the Root's own side effect, so `recipeCardViewOf` stays pure and testable without freezing time.
+    const view = recipeCardViewOf(recipe, copy, locale, new Date().toISOString());
+    const content = (
+        <RecipeCardNutritionContext.Provider value={nutrition}>
+            {children ?? <DefaultCardContent />}
+        </RecipeCardNutritionContext.Provider>
+    );
 
     return (
-        <RecipeCardContext.Provider value={recipe}>
+        <RecipeCardViewContext.Provider value={view}>
             {onSelect === undefined ? (
                 <article aria-label={recipe.title} className={CARD_SHELL} style={CARD_GLASS}>
                     {content}
@@ -403,7 +353,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => 
                     </PressScale>
                 </article>
             )}
-        </RecipeCardContext.Provider>
+        </RecipeCardViewContext.Provider>
     );
 };
 

@@ -2215,7 +2215,7 @@ FUNCTION fieldsFromSource(foodId, source): { field: string }[]
 **Parent ARCH**: ARCH-018 (**Parent SYS**: SYS-019)
 **Type**: Stateful (scheduled task; compares per-item versions, re-enqueues only changed items)
 **Runtime**: **Fargate scheduled task** triggered by the EventBridge `IngestionScheduled` rule (not a VPC Lambda) in the food-service deployment unit (Node.js 22.x); idle-drain background work that yields to live demand. Fargate runs in public subnets with `assignPublicIp` and egresses via the Internet Gateway, off the NAT path (ADR-0004 — egress/compute-placement rationale; ADR-0004 is the NAT-minimization ADR, not a refresh ADR).
-**Target source file**: `packages/services/food-service/src/refresh/change-refresh.consumer.ts`
+**Target source file**: `packages/services/food-service/src/refresh/changeRefresh.consumer.ts`
 
 > **(New.)** Change-driven refresh that runs as a **Fargate scheduled task** (triggered by the EventBridge
 > `IngestionScheduled` rule). For `RESOLVED` foods, re-fetches each backing source item via its adapter

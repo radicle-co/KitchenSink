@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Ingredient row — rev 4 (design study, NOT production code)</title>
+        <!--
+            ⛔ DESIGN ARTEFACT. NOT PRODUCTION CODE. Not imported by anything, not bundled, not a component.
+            Companion to `ingredientRowOneLine.html` (rev 3), which this revision CORRECTS.
+
+            ⛔ REV 4 — TWO CORRECTIONS, MEASURED TOGETHER.
+
+            1. PROTECTED QUALIFIERS. Rev 3's own prose said the surviving qualifiers are "raw/cooked, the
+               cut, boneless/bone-in, canned/frozen/fresh, none of which a cook can lose" — and its
+               recommended block C4 then rendered `Beef, chuck, shoulder clod` from a string ending
+               `…, cooked, grilled`. A protected class is now frozen BEFORE any fit rate was computed,
+               by a MEASURED rule: a tail segment is protected iff its median relative |Δ kcal/100 g|
+               against SR Legacy sibling foods is ≥ 10% over ≥ 8 measurable pairs.
+               ⛔ That rule also expelled four segments from rev-3's own O1 DROP set that move energy
+               by ~20–25%: `separable lean and fat` (20.3%, n=564), `separable lean only` (20.4%, n=566),
+               `meat only` (23.0%, n=88), `meat and skin` (23.5%, n=94) — plus `prepared` (44.5%),
+               `solids and liquids` (25.0%) and `N% lean meat` (21.2%).
+
+            2. THE ICON COLUMN CARRIES MORE THAN ONE SLOT. The owner ruled that BOTH `Change food` and
+               `Create my own food` live in the row's icon column, never in a popover — and `Remove` is
+               already a peer control on the shipped row (`RecipeIngredientsFields.tsx:264-275`). The
+               worst state (`NOT_FOUND`) therefore needs FOUR simultaneous controls, not three.
+
+            ⛔ AND A THIRD, FOUND WHILE RE-MEASURING: rev 3's headline figures were not reproducible.
+            Its caption claims "98.8% … at 390 px with ZERO ambiguity", but no uniqueness predicate
+            exists in any surviving script, and the figure reproduces EXACTLY (98.9%) only with the
+            uniqueness gate OFF. With the gate ON — the thing the caption asserts — the same method
+            gives 83.6%. The C4 render is the tell: `Beef, chuck, shoulder clod` is what the
+            gate-off path produces.
+
+            Every food name below is a REAL string from the USDA SR Legacy corpus in
+            `.local-sandbox/fdc/FoodData_Central_sr_legacy_food_csv_2018-04/food.csv`, and every
+            displayed label is the one the rev-4 shortener actually emits at that width.
+            Colours are the real tokens from `packages/apps/commise/ui/src/tokens/colors.ts`.
+        -->
+        <style>
+            :root {
+                --charcoal: #2d3436;
+                --slate: #636e72;
+                --mist: #b2bec3;
+                --pearl: #f5f5f5;
+                --seafoam: #31807a;
+                --sand: #faf6f0;
+                --warning: #f5b041;
+                --border: rgba(178, 190, 195, 0.3);
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: var(--sand);
+                color: var(--charcoal);
+            }
+            .harness {
+                padding: 24px 12px;
+            }
+            .caption {
+                font-size: 12px;
+                color: var(--slate);
+                margin: 0 0 6px;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                text-transform: uppercase;
+            }
+            .note {
+                font-size: 12px;
+                color: var(--slate);
+                margin: 4px 0 16px;
+                line-height: 1.45;
+                max-width: 780px;
+            }
+            .viewport {
+                width: 320px;
+                margin: 0 0 28px;
+                outline: 1px dashed var(--mist);
+            }
+            .viewport.w390 {
+                width: 390px;
+            }
+            .viewport.w768 {
+                width: 768px;
+            }
+            .page {
+                padding: 0 16px;
+            }
+            .card {
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                padding: 24px;
+            }
+            h2.section {
+                font-size: 20px;
+                font-weight: 600;
+                margin: 0 0 12px;
+            }
+            ul.lines {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+
+            /* ── THE REV-4 ROW ──────────────────────────────────────────────────────────────────
+               One text flow (bold measure + label), with the control column FLOATED right so that
+               wrapped lines past the column's height recover the full width. */
+            li.row {
+                display: block;
+                padding: 10px 0;
+                border-bottom: 1px solid var(--border);
+                min-height: 44px;
+                position: relative;
+            }
+            li.row:last-child {
+                border-bottom: 0;
+            }
+            .ctl {
+                float: right;
+                margin-left: 8px;
+                display: flex;
+                gap: 4px;
+            }
+            .icon {
+                /* ⛔ 44×44 of LAYOUT, not 24 with a ::after hit area. Measured: two adjacent
+                   24px boxes with `::after{inset:-10px}` overlap by 12px and the shared band
+                   resolves to ONE of them only. The trick does not survive a second control. */
+                width: 44px;
+                height: 44px;
+                flex: 0 0 auto;
+                border-radius: 999px;
+                border: 1px solid var(--border);
+                background: #fff;
+                color: var(--slate);
+                font-size: 15px;
+                line-height: 42px;
+                text-align: center;
+                cursor: pointer;
+                padding: 0;
+            }
+            .icon.warn {
+                border-color: var(--warning);
+                background: rgba(245, 176, 65, 0.25);
+                color: var(--charcoal);
+                font-weight: 700;
+            }
+            .icon.dots {
+                letter-spacing: 1px;
+            }
+            .icon:focus-visible {
+                outline: 2px solid var(--seafoam);
+                outline-offset: 2px;
+            }
+            li.row p {
+                margin: 0;
+                font-size: 15px;
+                line-height: 1.35;
+                color: var(--charcoal);
+            }
+            li.row p b {
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            .statusline {
+                display: block;
+                font-size: 13px;
+                color: var(--slate);
+                margin-top: 2px;
+            }
+
+            /* The open menu. Not a popover: role="menu", one disclosure target. */
+            .menu {
+                position: absolute;
+                right: 0;
+                top: calc(100% - 4px);
+                z-index: 5;
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 14px;
+                box-shadow: 0 8px 24px rgba(45, 52, 54, 0.14);
+                padding: 6px;
+                min-width: 210px;
+                display: flex;
+                flex-direction: column;
+            }
+            .menu button {
+                display: block;
+                width: 100%;
+                text-align: left;
+                background: none;
+                border: 0;
+                font: inherit;
+                font-size: 15px;
+                color: var(--charcoal);
+                padding: 11px 12px;
+                border-radius: 10px;
+                min-height: 44px;
+                cursor: pointer;
+            }
+            .menu button:first-child {
+                font-weight: 600;
+            }
+            .menu button.danger {
+                color: #8c2f1c;
+            }
+            .menu button:focus-visible {
+                outline: 2px solid var(--seafoam);
+                outline-offset: -2px;
+            }
+            .menu hr {
+                border: 0;
+                border-top: 1px solid var(--border);
+                margin: 4px 8px;
+            }
+
+            /* Comparison harness for the rejected no-menu layout. */
+            .four .ctl {
+                gap: 4px;
+            }
+            .tag {
+                display: inline-block;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                padding: 2px 7px;
+                border-radius: 999px;
+                vertical-align: 2px;
+            }
+            .tag.bad {
+                background: rgba(192, 82, 56, 0.12);
+                color: #8c2f1c;
+            }
+            .tag.good {
+                background: rgba(49, 128, 122, 0.12);
+                color: var(--seafoam);
+            }
+            table.m {
+                border-collapse: collapse;
+                font-size: 12px;
+                margin: 0 0 22px;
+            }
+            table.m th,
+            table.m td {
+                border: 1px solid var(--border);
+                padding: 5px 9px;
+                text-align: right;
+            }
+            table.m th:first-child,
+            table.m td:first-child {
+                text-align: left;
+            }
+            table.m th {
+                background: var(--pearl);
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="harness">
+            <!-- ═════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">1 — The defect, rendered: rev-3's recommended block C4 at 320 px</p>
+            <p class="note">
+                These are rev 3's own C4 labels. ⛔ Row 1's source string ends
+                <em>…, separable lean and fat, trimmed to 0" fat, all grades, cooked, grilled</em>; row 2's ends
+                <em>meat only, cooked, roasted</em>; row 3's ends <em>solids and liquids</em>. A cook reading these
+                cannot tell raw from grilled — measured at a median <strong>20.0%</strong> difference in kcal/100 g
+                across 90 direct raw↔cooked sibling pairs, reaching <strong>83.7%</strong>
+                (Oat bran). The uniqueness predicate cannot see this: every label below IS globally unique.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="row">
+                                <span class="ctl"><button class="icon" aria-label="About this food">i</button></span>
+                                <p>
+                                    <b>2 lb</b> Beef, chuck, shoulder clod
+                                    <span class="tag bad">lost: cooked, grilled</span>
+                                </p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"><button class="icon" aria-label="About this food">i</button></span>
+                                <p>
+                                    <b>1 lb</b> Chicken, breast, cooked, roasted
+                                    <span class="tag bad">lost: meat only</span>
+                                </p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"><button class="icon" aria-label="About this food">i</button></span>
+                                <p>
+                                    <b>1 cup</b> Beans, snap, green, canned, regular pack
+                                    <span class="tag bad">lost: solids and liquids</span>
+                                </p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">2 — ⛔ The layout the owner's ruling actually requires, with NO menu, 320 px</p>
+            <p class="note">
+                Worst state (<code>NOT_FOUND</code>): status · Change food · Create my own food · Remove. Four controls
+                at the 44 px floor this spec adopted = 196 px of a 238 px row, leaving 42 px on line 1. ⛔ Rendered:
+                only the MEASURE fits beside them — the food's name starts below the control strip on every row, so the
+                thing a cook is reading never begins where they look. ⛔ Measured weighted-mean row height over the 120
+                heaviest real ingredient occurrences:
+                <strong>93 px at 320 px</strong> (70 px at 390 px) — roughly four text lines' worth per ingredient.
+            </p>
+            <div class="viewport four">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="row">
+                                <span class="ctl">
+                                    <button class="icon warn" aria-label="Problem with this ingredient">!</button>
+                                    <button class="icon" aria-label="Change food">⇄</button>
+                                    <button class="icon" aria-label="Create my own food">＋</button>
+                                    <button class="icon" aria-label="Remove ingredient">🗑</button></span
+                                >
+                                <p>
+                                    <b>2 lb</b> Beef, chuck, shoulder clod, shoulder top and center steaks, separable
+                                    lean and fat, cooked, grilled
+                                </p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl">
+                                    <button class="icon warn" aria-label="Problem with this ingredient">!</button>
+                                    <button class="icon" aria-label="Change food">⇄</button>
+                                    <button class="icon" aria-label="Create my own food">＋</button>
+                                    <button class="icon" aria-label="Remove ingredient">🗑</button></span
+                                >
+                                <p><b>1 cup</b> Milk, whole, 3.25% milkfat, +vitamin D</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">
+                3 — ✅ RECOMMENDED: status stays visible, ACTIONS collapse behind one overflow trigger
+            </p>
+            <p class="note">
+                Two controls, 100 px. The status glyph is <strong>not an action</strong> — it is the at-a-glance signal
+                that a row has a problem, and the trigger for the nutrition panel (flow F2, "frequent"). Burying it
+                would tax the frequent read to save space for occasional actions. Everything that <em>is</em> an action
+                — Change food, Create my own food, Remove — goes behind <code>⋮</code>. ⚠️ Against today's SHIPPED row
+                this is one control more, not fewer (today carries only <code>Remove</code>); against the four the
+                ruling requires, it is two fewer, and <code>Remove</code> — today's only row-level action — moves inside
+                it. ⛔ Weighted-mean row height at 320 px: <strong>64 px</strong>, against 93 px for block 2.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <h2 class="section">Ingredients</h2>
+                        <ul class="lines">
+                            <li class="row">
+                                <span class="ctl">
+                                    <button class="icon" aria-label="About Flour, wheat" aria-expanded="false">
+                                        i
+                                    </button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for Flour, wheat"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>2 cups</b> Flour, wheat</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl">
+                                    <button
+                                        class="icon"
+                                        aria-label="About Milk, whole, 3.25% milkfat, with added vitamin D"
+                                        aria-expanded="false"
+                                    >
+                                        i
+                                    </button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for Milk"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 cup</b> Milk, whole, 3.25% milkfat, +vitamin D</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl">
+                                    <button
+                                        class="icon"
+                                        aria-label="About Chicken, breast, meat only, cooked, roasted"
+                                        aria-expanded="false"
+                                    >
+                                        i
+                                    </button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for Chicken"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p>
+                                    <b>1 lb</b> Chicken, breast, meat only, cooked, roasted
+                                    <span class="tag good">state kept</span>
+                                </p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl">
+                                    <button
+                                        class="icon"
+                                        aria-label="About Beef, chuck, shoulder clod"
+                                        aria-expanded="false"
+                                    >
+                                        i
+                                    </button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for Beef"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p>
+                                    <b>2 lb</b> Beef, chuck, shoulder clod, shoulder top and center steaks, separable
+                                    lean and fat, cooked, grilled <span class="tag good">state kept</span>
+                                </p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl">
+                                    <button class="icon" aria-label="About Oil, olive" aria-expanded="false">i</button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for Oil, olive"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>3 tbsp</b> Oil, olive</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl">
+                                    <button class="icon" aria-label="About Salt" aria-expanded="false">i</button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for Salt"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 tsp</b> Salt</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl">
+                                    <button class="icon" aria-label="About Broccoli, raw" aria-expanded="false">
+                                        i
+                                    </button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for Broccoli"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 cup</b> Broccoli, raw</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">4 — The state with the most controls (<code>NOT_FOUND</code>), menu open, 320 px</p>
+            <p class="note">
+                The status glyph stays reachable in one tap; the remedy the state calls for is the menu's FIRST item. ⚠️
+                The cost of the menu is one extra tap on the remedy path — stated and accepted, because the remedy is
+                occasional (F3/F4) and the signal is not.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="row">
+                                <span class="ctl">
+                                    <button
+                                        class="icon warn"
+                                        aria-label="Problem with ingredient 1"
+                                        aria-expanded="false"
+                                    >
+                                        !
+                                    </button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for ingredient 1"
+                                        aria-haspopup="menu"
+                                        aria-expanded="true"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p>
+                                    <b>200 g</b> gochujang
+                                    <span class="statusline"
+                                        >We searched the food database and there's no match for this.</span
+                                    >
+                                </p>
+                                <div class="menu" role="menu" aria-label="Actions for ingredient 1">
+                                    <button role="menuitem">Create my own food</button>
+                                    <button role="menuitem">Change food</button>
+                                    <hr />
+                                    <button role="menuitem" class="danger">Remove ingredient</button>
+                                </div>
+                            </li>
+                            <li class="row" style="margin-top: 160px">
+                                <span class="ctl">
+                                    <button class="icon" aria-label="About Sugars, granulated" aria-expanded="false">
+                                        i
+                                    </button>
+                                    <button
+                                        class="icon dots"
+                                        aria-label="Actions for Sugars"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 cup</b> Sugars, granulated</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">5 — The recommended row at 390 px and 768 px</p>
+            <div class="viewport w390">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>2 cups</b> Flour, wheat</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 cup</b> Milk, whole, 3.25% milkfat, +vitamin D</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 lb</b> Chicken, breast, meat only, cooked, roasted</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p>
+                                    <b>2 lb</b> Beef, chuck, shoulder clod, shoulder top and center steaks, separable
+                                    lean and fat, cooked, grilled
+                                </p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 cup</b> Beans, snap, green, canned, regular pack, solids and liquids</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 tsp</b> Salt</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="viewport w768">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>2 cups</b> Flour, wheat, all-purpose</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 lb</b> Chicken, breast, meat only, cooked, roasted</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p>
+                                    <b>2 lb</b> Beef, chuck, shoulder clod, shoulder top and center steaks, separable
+                                    lean and fat, cooked, grilled
+                                </p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" aria-label="About">i</button
+                                    ><button class="icon dots" aria-label="Actions" aria-haspopup="menu">
+                                        ⋮
+                                    </button></span
+                                >
+                                <p><b>1 cup</b> Beans, snap, green, canned, regular pack, solids and liquids</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">6 — 200% text (WCAG 1.4.4), 320 px viewport, recommended layout</p>
+            <p class="note">
+                Text doubled to 30 px; the control column stays at its fixed 100 px, because a touch target is specified
+                in CSS px and does not scale with text. ⛔ One line survives for
+                <strong>0.0%</strong> of occasions here — the row is a wrapping row by construction at this setting, and
+                the requirement is "no loss of content", which it meets.
+            </p>
+            <div class="viewport" style="font-size: 200%">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" style="font-size: 22px" aria-label="About">i</button
+                                    ><button
+                                        class="icon dots"
+                                        style="font-size: 22px"
+                                        aria-label="Actions"
+                                        aria-haspopup="menu"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p style="font-size: 30px"><b>2 cups</b> Flour, wheat</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" style="font-size: 22px" aria-label="About">i</button
+                                    ><button
+                                        class="icon dots"
+                                        style="font-size: 22px"
+                                        aria-label="Actions"
+                                        aria-haspopup="menu"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p style="font-size: 30px"><b>1 lb</b> Chicken, breast, meat only, cooked, roasted</p>
+                            </li>
+                            <li class="row">
+                                <span class="ctl"
+                                    ><button class="icon" style="font-size: 22px" aria-label="About">i</button
+                                    ><button
+                                        class="icon dots"
+                                        style="font-size: 22px"
+                                        aria-label="Actions"
+                                        aria-haspopup="menu"
+                                    >
+                                        ⋮
+                                    </button></span
+                                >
+                                <p style="font-size: 30px"><b>1 tsp</b> Salt</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">7 — The measurement</p>
+            <p class="note">
+                Share of real ingredient <em>occurrences</em> that hold one line, weighted by WWEIA day-1 consumption ×
+                FNDDS <code>input_food</code>, n = 2,014 distinct ingredient names. ⛔ Column 1 is what rev 3 reported;
+                it is reproducible only with the uniqueness gate OFF.
+            </p>
+            <table class="m">
+                <tr>
+                    <th>Layout / method</th>
+                    <th>320 px</th>
+                    <th>390 px</th>
+                    <th>768 px</th>
+                </tr>
+                <tr>
+                    <td>rev-3 column (32 px), gate OFF — <em>the published figure</em></td>
+                    <td>93.2%</td>
+                    <td>97.5%</td>
+                    <td>100.0%</td>
+                </tr>
+                <tr>
+                    <td>rev-3 column (32 px), gate ON — <em>what its caption claims</em></td>
+                    <td>61.3%</td>
+                    <td>78.1%</td>
+                    <td>99.6%</td>
+                </tr>
+                <tr>
+                    <td>rev-3 column, gate ON, <strong>+ protected qualifiers</strong></td>
+                    <td>61.0%</td>
+                    <td>77.3%</td>
+                    <td>99.6%</td>
+                </tr>
+                <tr>
+                    <td><strong>REV 4 recommended</strong> — 2-control column (100 px), gate ON, protected</td>
+                    <td><strong>22.1%</strong></td>
+                    <td><strong>62.4%</strong></td>
+                    <td><strong>99.0%</strong></td>
+                </tr>
+                <tr>
+                    <td>REV 4 recommended at 200% text</td>
+                    <td>0.0%</td>
+                    <td>11.7%</td>
+                    <td>81.8%</td>
+                </tr>
+                <tr>
+                    <td>Owner-ruled layout with NO menu (196 px column)</td>
+                    <td>0.0%</td>
+                    <td>13.1%</td>
+                    <td>96.2%</td>
+                </tr>
+            </table>
+            <p class="note">
+                ⛔ <strong>Isolated decomposition</strong>, one change at a time, in the recommended 100 px column. ⚠️
+                Protection and the truncation POLICY are separated, because rev 4 changed both: rev 3 popped from the
+                end, rev 4 pops the rightmost <em>droppable</em> segment, stepping over a protected one instead of
+                stopping at it.
+            </p>
+            <table class="m">
+                <tr>
+                    <th>Change, applied cumulatively (column 100 px)</th>
+                    <th>320 px</th>
+                    <th>390 px</th>
+                    <th>768 px</th>
+                </tr>
+                <tr>
+                    <td>0 &nbsp;published method — gate OFF, no protection</td>
+                    <td>83.0%</td>
+                    <td>94.4%</td>
+                    <td>100.0%</td>
+                </tr>
+                <tr>
+                    <td>1 &nbsp;+ uniqueness gate ON <em>(rev 3's own claim, never run)</em></td>
+                    <td>25.6% <strong>(−57.4)</strong></td>
+                    <td>62.7% <strong>(−31.7)</strong></td>
+                    <td>99.2%</td>
+                </tr>
+                <tr>
+                    <td>2 &nbsp;+ protected class, rev-3's end-pop policy — <strong>protection alone</strong></td>
+                    <td>22.0% <strong>(−3.6)</strong></td>
+                    <td>56.9% <strong>(−5.8)</strong></td>
+                    <td>98.9%</td>
+                </tr>
+                <tr>
+                    <td>3 &nbsp;+ mid-drop truncation policy — <strong>REV 4 as recommended</strong></td>
+                    <td>22.1% <strong>(+0.1)</strong></td>
+                    <td>62.4% <strong>(+5.5)</strong></td>
+                    <td>99.0%</td>
+                </tr>
+            </table>
+            <p class="note">
+                ⚠️ So the honest statement is <strong>not</strong> "the protected class is free". Protection on its own
+                costs <strong>3.6 points at 320 px and 5.8 at 390 px</strong>; the mid-drop policy — which is part of
+                the same design, because protection has to redirect truncation rather than block it — recovers
+                <strong>5.5 of the 5.8</strong> at 390 px. Net, the two together cost 0.3 points at 320 px and are
+                slightly <em>positive</em> at 390 px. ⛔ The 36- and 71-point falls are the uniqueness gate and the icon
+                column, not the class of qualifiers a cook cannot lose. ⚠️
+                <strong>The protected class is nearly free</strong>, because protection redirects truncation to a middle
+                segment instead of blocking it:
+                <em
+                    >Beef, chuck, shoulder clod, shoulder top and center steaks, separable lean and fat, cooked,
+                    grilled</em
+                >
+                drops the cut phrase before it drops the state.
+            </p>
+        </div>
+    </body>
+</html>

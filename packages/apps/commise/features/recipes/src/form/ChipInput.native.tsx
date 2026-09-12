@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-recipes/form/ChipInput — native token (chip) input for the recipe form's tags +
- * dietary-flags fields (U6). The React Native leaf of {@link import('./ChipInput.js').ChipInput} — same
+ * dietary-flags fields (U6). The React Native leaf of `ChipInput` — same
  * controlled contract and same pure transitions ({@link addChip}/{@link removeChipAt}), RN primitives.
  * Replaces the old single comma-separated `TextInput` (`values.tags.join(', ')` → `parseCommaList`): the
  * committed chips live in the form's `values`, only the in-progress draft is local state, and each entry
@@ -8,10 +8,11 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette, tint } from '@commise/ui';
+import { TextInput } from '@commise/ui/text-input';
 import { Feather } from '@expo/vector-icons';
 import type { FC } from 'react';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeFormMessages } from './messages.js';

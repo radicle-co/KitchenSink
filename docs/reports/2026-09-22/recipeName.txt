@@ -1,0 +1,981 @@
+R53b RECIPE FORM OF A ROOT NAME, measured over every root name that has a FoodOn term.
+
+==============================================================================================================
+POPULATION K: every kindExamples root (USDA's FoodOn name)
+==============================================================================================================
+root names with a FoodOn term: 2036   bracket with 1 qualifier(s): 1028, bracket with 2 qualifier(s): 185, bracket with 3 qualifier(s): 11, malformed bracket (left unchanged): 1, no bracket: 811
+  piece-of prefix: 211   "(dish)": 3   already plural head word (WordNet): 28
+  qualifier occurrences by treatment: reorder after 72, reorder before 552, reorder bracket 23, state (as-bought) 768, state (cooked) 16
+  distinct qualifiers kept in brackets (too long or numeric to prepend): 1% fat; canned with tomato juice; granulated and powdered; nonfat milk solids added; vitamin a and d added; vitamin a and d fortified; vitamin a and vitamin d fortified; vitamin d fortified; whole cut or pieces
+  "unprepared" as a qualifier: 0 occurrences (the owner's "possibly" is moot for names);  "uncooked": 8;  "cooked": 16;  "raw": 760
+  collisions BEFORE any rewrite (same key already): 1 groups [['lambs quarter leaf', 'lambs quarters leaf']]
+  ⛔ STATE TWINS: 440 groups (885 roots) are the same FoodOn name apart from raw/cooked/uncooked, e.g. [['sweet potato', 'sweet potato (cooked)', 'sweet potato (raw)'], ['piece of moose meat', 'piece of moose meat (raw)'], ['piece of bearded seal meat', 'piece of bearded seal meat (raw)']].  FoodOn models the raw form as a SEPARATE term, and USDA files raw items under it, so any rule that drops "raw" must say which twin keeps the plain name.
+  what the UNMARKED twin holds (its members' USDA descriptions), which decides whether the plain name should go to it:
+       391  all members processed (cooked/canned/frozen/...)
+        28  some members say neither raw nor a process word
+        18  a mix of raw and processed members
+         1  all members raw
+  reorder puts a qualifier in front that reads wrong there (JUDGEMENT, list below; overrule it by editing READS_WRONG_IN_FRONT): 91 roots;  plus "piece of" roots without S1: 211
+
+  A  owner literal: drop raw/uncooked/unprepared/cooked
+    names changed: 1215 of 2036 (59.7%)
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 440 groups, 886 roots (43.5%);  same words in any order: 440 groups
+       share of eating weight in collided roots: 13.2%;  elected-kcal gap: median 23%, groups over 10%: 355
+       cause: state word dropped (raw/cooked twin)              440 groups
+
+  B  as-bought only: drop raw/uncooked/unprepared, KEEP cooked
+    names changed: 1215 of 2036 (59.7%)
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 433 groups, 868 roots (42.6%);  same words in any order: 433 groups
+       share of eating weight in collided roots: 11.9%;  elected-kcal gap: median 22%, groups over 10%: 347
+       cause: state word dropped (raw/cooked twin)              433 groups
+
+  C  = A + S1 (drop "piece of") + S2 (drop "(dish)")
+    names changed: 1265 of 2036 (62.1%)
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 445 groups, 915 roots (44.9%);  same words in any order: 445 groups
+       share of eating weight in collided roots: 13.9%;  elected-kcal gap: median 23%, groups over 10%: 361
+       cause: state word dropped (raw/cooked twin)              421 groups
+       cause: FoodOn-ism dropped (S1 "piece of" / S2 "dish")     24 groups
+
+  D  = B + S1 + S2
+    names changed: 1265 of 2036 (62.1%)
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 438 groups, 897 roots (44.1%);  same words in any order: 438 groups
+       share of eating weight in collided roots: 12.5%;  elected-kcal gap: median 23%, groups over 10%: 353
+       cause: state word dropped (raw/cooked twin)              414 groups
+       cause: FoodOn-ism dropped (S1 "piece of" / S2 "dish")     24 groups
+
+  artefact check: collision groups under A whose roots share a FoodOn IRI (one term split by a drifted name, not a real collision): 4 [['pork butt steak', 'pork butt steak (raw)'], ['green plantain', 'green plantain (raw)', 'plantain (green)'], ['sesbania flower', 'sesbania flower (raw)']]
+
+  collision groups that dropping "cooked" ADDS on top of the as-bought drop (A but not B): 11
+      "sweet potato" <- sweet potato [182 kcal] | sweet potato (cooked) [90 kcal] | sweet potato (raw) [86 kcal]
+      "blackeyed pea" <- blackeyed pea [139 kcal] | blackeyed pea (cooked) [97 kcal]
+      "yellow bean" <- yellow bean [20 kcal] | yellow bean (cooked) [28 kcal]
+      "brown rice kernel" <- brown rice kernel (cooked) [147 kcal] | brown rice kernel (raw) [370 kcal]
+      "long-grain white rice" <- long-grain white rice [374 kcal] | long-grain white rice (cooked) [130 kcal] | long-grain white rice (uncooked) [365 kcal]
+      "pinto bean" <- pinto bean [114 kcal] | pinto bean (cooked) [162 kcal]
+      "khorasan wheat kernel" <- khorasan wheat kernel (cooked) [132 kcal] | khorasan wheat kernel (raw) [337 kcal]
+      "spelt kernel" <- spelt kernel [338 kcal] | spelt kernel (cooked) [127 kcal]
+      "green pea" <- green pea [77 kcal] | green pea (cooked) [78 kcal] | green pea (raw) [81 kcal]
+      "potato" <- potato [105 kcal] | potato (cooked) [86 kcal] | potato (raw) [77 kcal]
+      "haddock" <- haddock (cooked) [90 kcal] | haddock (raw) [74 kcal]
+
+  A+GUARD  = owner literal: drop raw/uncooked/unprepared/cooked, state word kept wherever dropping it collides
+    names changed: 1215 of 2036 (59.7%)   state words kept by the guard on 447 roots
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 1 groups, 2 roots (0.1%);  same words in any order: 1 groups
+       share of eating weight in collided roots: 0.0%;  elected-kcal gap: median 61%, groups over 10%: 1
+       cause: same words already (case, order or plural only)     1 groups
+       residual: "green plantain" <- green plantain | plantain (green)
+       ⚠️ cost: 447 recipe names keep a state word, carrying 7.4% of eating weight; the most eaten: "cooked long-grain white rice", "raw tomato", "raw onion", "raw carrot root", "raw blueberry", "raw celery stalk", "raw broccoli floret", "raw sweet red bell pepper", "raw tangerine", "raw cabbage head"
+
+  C+GUARD  = = A + S1 (drop "piece of") + S2 (drop "(dish)"), state word kept wherever dropping it collides
+    names changed: 1265 of 2036 (62.1%)   state words kept by the guard on 456 roots
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 23 groups, 46 roots (2.3%);  same words in any order: 23 groups
+       share of eating weight in collided roots: 0.8%;  elected-kcal gap: median 8%, groups over 10%: 11
+       cause: FoodOn-ism dropped (S1 "piece of" / S2 "dish")     22 groups
+       cause: same words already (case, order or plural only)     1 groups
+       residual: "turkey wing with skin" <- piece of turkey wing (with skin) | piece(s) of turkey wing (with skin)
+       residual: "green plantain" <- green plantain | plantain (green)
+       residual: "okra pod" <- okra pod | piece of okra pod
+       residual: "onion" <- onion | piece(s) of onion
+       residual: "potato" <- piece(s) of potato | potato
+       residual: "beef" <- piece of beef | piece(s) of beef
+       residual: "chicken liver" <- chicken liver | piece(s) of chicken liver
+       residual: "turkey skin" <- piece of turkey skin | piece(s) of turkey skin
+       residual: "raw turkey breast with skin" <- piece of turkey breast (with skin, raw) | piece(s) of turkey breast (with skin, raw)
+       residual: "skinless raw turkey breast" <- piece of turkey breast (skinless, raw) | piece(s) of turkey breast (skinless, raw)
+       residual: "skinless turkey meat" <- piece of turkey meat (skinless) | piece(s) of turkey meat (skinless)
+       residual: "raw turkey wing with skin" <- piece of turkey wing (with skin, raw) | piece(s) of turkey wing (with skin, raw)
+       residual: "skinless raw turkey drumstick" <- piece of turkey drumstick (skinless, raw) | piece(s) of turkey drumstick (skinless, raw)
+       residual: "raw turkey skin" <- piece of turkey skin (raw) | piece(s) of turkey skin (raw)
+       residual: "turkey breast with skin" <- piece of turkey breast (with skin) | piece(s) of turkey breast (with skin)
+       residual: "skinless turkey breast" <- piece of turkey breast (skinless) | piece(s) of turkey breast (skinless)
+       residual: "skinless raw turkey wing" <- piece of turkey wing (skinless, raw) | piece(s) of turkey wing (skinless, raw)
+       residual: "skinless turkey wing" <- piece of turkey wing (skinless) | piece(s) of turkey wing (skinless)
+       residual: "skinless turkey drumstick" <- piece of turkey drumstick (skinless) | piece(s) of turkey drumstick (skinless)
+       residual: "skinless raw turkey thigh" <- piece of turkey thigh (skinless, raw) | piece(s) of turkey thigh (skinless, raw)
+       residual: "skinless turkey thigh" <- piece of turkey thigh (skinless) | piece(s) of turkey thigh (skinless)
+       residual: "turkey breast" <- piece of turkey breast | turkey breast
+       residual: "chicken breast" <- chicken breast | piece of chicken breast
+       ⚠️ cost: 456 recipe names keep a state word, carrying 7.7% of eating weight; the most eaten: "cooked long-grain white rice", "raw tomato", "raw onion", "raw carrot root", "raw blueberry", "raw celery stalk", "raw broccoli floret", "raw sweet red bell pepper", "raw tangerine", "raw cabbage head"
+
+  ⚠️ A+GUARD is stable only while the catalog does not change: 241 guarded names dropped a state word and now EQUAL the label of an edible FoodOn term that is NOT in this catalog. A data update that brings that term in turns each into a collision, and the guard then renames the food on reseed (e.g. 'Blue mussel (raw)' -> 'Blue mussel', 'Fuji apple (raw)' -> 'Fuji apple', 'Gala apple (raw)' -> 'Gala apple', 'Golden Delicious apple (raw)' -> 'Golden Delicious apple').
+
+  ⚠️ K root names that are NOT the current FoodOn label of their own IRI: 61 (USDA's snapshot of the name has drifted), e.g. ['Pimento', 'adzuki bean (raw, mature)', 'aspartame', 'atlantic salmon (raw)', 'baby lima bean (raw, mature)', 'beef ribeye fillet']
+==============================================================================================================
+POPULATION P: foodOnMappingPatch.csv accepted + added (current FoodOn label)
+==============================================================================================================
+root names with a FoodOn term: 1863   bracket with 1 qualifier(s): 897, bracket with 2 qualifier(s): 163, bracket with 3 qualifier(s): 11, no bracket: 792
+  piece-of prefix: 202   "(dish)": 5   already plural head word (WordNet): 30
+  qualifier occurrences by treatment: reorder after 65, reorder before 487, reorder bracket 22, state (as-bought) 669, state (cooked) 13
+  distinct qualifiers kept in brackets (too long or numeric to prepend): 1% fat; canned with tomato juice; nonfat milk solids added; vitamin a and d added; vitamin a and d fortified; vitamin a and vitamin d fortified; vitamin d fortified; whole cut or pieces
+  "unprepared" as a qualifier: 0 occurrences (the owner's "possibly" is moot for names);  "uncooked": 7;  "cooked": 13;  "raw": 662
+  collisions BEFORE any rewrite (same key already): 0 groups []
+  ⛔ STATE TWINS: 373 groups (750 roots) are the same FoodOn name apart from raw/cooked/uncooked, e.g. [['sweet potato', 'sweet potato (cooked)', 'sweet potato (raw)'], ['piece of moose meat', 'piece of moose meat (raw)'], ['piece of bearded seal meat', 'piece of bearded seal meat (raw)']].  FoodOn models the raw form as a SEPARATE term, and USDA files raw items under it, so any rule that drops "raw" must say which twin keeps the plain name.
+  what the UNMARKED twin holds (its members' USDA descriptions), which decides whether the plain name should go to it:
+       326  all members processed (cooked/canned/frozen/...)
+        27  some members say neither raw nor a process word
+        18  a mix of raw and processed members
+         1  all members raw
+  reorder puts a qualifier in front that reads wrong there (JUDGEMENT, list below; overrule it by editing READS_WRONG_IN_FRONT): 74 roots;  plus "piece of" roots without S1: 202
+
+  A  owner literal: drop raw/uncooked/unprepared/cooked
+    names changed: 1062 of 1863 (57.0%)
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 373 groups, 750 roots (40.3%);  same words in any order: 373 groups
+       share of eating weight in collided roots: 14.4%;  elected-kcal gap: median 23%, groups over 10%: 303
+       cause: state word dropped (raw/cooked twin)              373 groups
+
+  B  as-bought only: drop raw/uncooked/unprepared, KEEP cooked
+    names changed: 1062 of 1863 (57.0%)
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 369 groups, 738 roots (39.6%);  same words in any order: 369 groups
+       share of eating weight in collided roots: 12.8%;  elected-kcal gap: median 22%, groups over 10%: 298
+       cause: state word dropped (raw/cooked twin)              369 groups
+
+  C  = A + S1 (drop "piece of") + S2 (drop "(dish)")
+    names changed: 1106 of 1863 (59.4%)
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 374 groups, 771 roots (41.4%);  same words in any order: 374 groups
+       share of eating weight in collided roots: 15.1%;  elected-kcal gap: median 23%, groups over 10%: 307
+       cause: state word dropped (raw/cooked twin)              354 groups
+       cause: FoodOn-ism dropped (S1 "piece of" / S2 "dish")     20 groups
+
+  D  = B + S1 + S2
+    names changed: 1106 of 1863 (59.4%)
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 370 groups, 759 roots (40.7%);  same words in any order: 370 groups
+       share of eating weight in collided roots: 13.6%;  elected-kcal gap: median 23%, groups over 10%: 302
+       cause: state word dropped (raw/cooked twin)              350 groups
+       cause: FoodOn-ism dropped (S1 "piece of" / S2 "dish")     20 groups
+
+  artefact check: collision groups under A whose roots share a FoodOn IRI (one term split by a drifted name, not a real collision): 0 []
+
+  collision groups that dropping "cooked" ADDS on top of the as-bought drop (A but not B): 8
+      "sweet potato" <- sweet potato [182 kcal] | sweet potato (cooked) [90 kcal] | sweet potato (raw) [86 kcal]
+      "yellow bean" <- yellow bean [20 kcal] | yellow bean (cooked) [28 kcal]
+      "long-grain white rice" <- long-grain white rice [374 kcal] | long-grain white rice (cooked) [130 kcal] | long-grain white rice (uncooked) [365 kcal]
+      "pinto bean" <- pinto bean [114 kcal] | pinto bean (cooked) [162 kcal]
+      "green pea" <- green pea [77 kcal] | green pea (cooked) [78 kcal] | green pea (raw) [81 kcal]
+      "potato" <- potato [105 kcal] | potato (cooked) [86 kcal] | potato (raw) [77 kcal]
+      "haddock" <- haddock (cooked) [90 kcal] | haddock (raw) [74 kcal]
+      "farina" <- farina [369 kcal] | farina (cooked) [53 kcal]
+
+  A+GUARD  = owner literal: drop raw/uncooked/unprepared/cooked, state word kept wherever dropping it collides
+    names changed: 1062 of 1863 (57.0%)   state words kept by the guard on 378 roots
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 0 groups, 0 roots (0.0%);  same words in any order: 0 groups
+       ⚠️ cost: 378 recipe names keep a state word, carrying 8.0% of eating weight; the most eaten: "cooked long-grain white rice", "raw tomato", "raw onion", "raw carrot root", "raw blueberry", "raw sweet green bell pepper", "raw broccoli floret", "raw sweet red bell pepper", "raw tangerine", "raw cabbage head"
+
+  C+GUARD  = = A + S1 (drop "piece of") + S2 (drop "(dish)"), state word kept wherever dropping it collides
+    names changed: 1106 of 1863 (59.4%)   state words kept by the guard on 384 roots
+    ⛔ NEW collisions (two DIFFERENT roots, one recipe name): 21 groups, 42 roots (2.3%);  same words in any order: 21 groups
+       share of eating weight in collided roots: 0.9%;  elected-kcal gap: median 8%, groups over 10%: 10
+       cause: FoodOn-ism dropped (S1 "piece of" / S2 "dish")     21 groups
+       residual: "sockeye salmon" <- piece of sockeye salmon | sockeye salmon
+       residual: "turkey wing with skin" <- piece of turkey wing (with skin) | piece(s) of turkey wing (with skin)
+       residual: "onion" <- onion | piece(s) of onion
+       residual: "potato" <- piece(s) of potato | potato
+       residual: "beef" <- piece of beef | piece(s) of beef
+       residual: "turkey skin" <- piece of turkey skin | piece(s) of turkey skin
+       residual: "raw turkey breast with skin" <- piece of turkey breast (with skin, raw) | piece(s) of turkey breast (with skin, raw)
+       residual: "skinless raw turkey breast" <- piece of turkey breast (skinless, raw) | piece(s) of turkey breast (skinless, raw)
+       residual: "skinless turkey meat" <- piece of turkey meat (skinless) | piece(s) of turkey meat (skinless)
+       residual: "raw turkey wing with skin" <- piece of turkey wing (with skin, raw) | piece(s) of turkey wing (with skin, raw)
+       residual: "skinless raw turkey drumstick" <- piece of turkey drumstick (skinless, raw) | piece(s) of turkey drumstick (skinless, raw)
+       residual: "raw turkey skin" <- piece of turkey skin (raw) | piece(s) of turkey skin (raw)
+       residual: "turkey breast with skin" <- piece of turkey breast (with skin) | piece(s) of turkey breast (with skin)
+       residual: "skinless turkey breast" <- piece of turkey breast (skinless) | piece(s) of turkey breast (skinless)
+       residual: "skinless raw turkey wing" <- piece of turkey wing (skinless, raw) | piece(s) of turkey wing (skinless, raw)
+       residual: "skinless turkey wing" <- piece of turkey wing (skinless) | piece(s) of turkey wing (skinless)
+       residual: "skinless turkey drumstick" <- piece of turkey drumstick (skinless) | piece(s) of turkey drumstick (skinless)
+       residual: "skinless raw turkey thigh" <- piece of turkey thigh (skinless, raw) | piece(s) of turkey thigh (skinless, raw)
+       residual: "skinless turkey thigh" <- piece of turkey thigh (skinless) | piece(s) of turkey thigh (skinless)
+       residual: "turkey breast" <- piece of turkey breast | turkey breast
+       residual: "chicken breast" <- chicken breast | piece of chicken breast
+       ⚠️ cost: 384 recipe names keep a state word, carrying 8.3% of eating weight; the most eaten: "cooked long-grain white rice", "raw tomato", "raw onion", "raw carrot root", "raw blueberry", "raw sweet green bell pepper", "raw broccoli floret", "raw sweet red bell pepper", "raw tangerine", "raw cabbage head"
+
+  ⚠️ A+GUARD is stable only while the catalog does not change: 225 guarded names dropped a state word and now EQUAL the label of an edible FoodOn term that is NOT in this catalog. A data update that brings that term in turns each into a collision, and the guard then renames the food on reseed (e.g. 'Blue mussel (raw)' -> 'Blue mussel', 'Bosc pear (raw)' -> 'Bosc pear', 'Fuji apple (raw)' -> 'Fuji apple', 'Gala apple (raw)' -> 'Gala apple').
+
+==============================================================================================================
+EXAMPLES, population K.  "FoodOn root" -> A: owner literal  | B: keeps "cooked" | C: A + S1 + S2  (B/C shown only where they differ from A)
+==============================================================================================================
+
+[1] The 40 most-eaten roots:
+    "table salt"  ->  A: "table salt"   [0 kcal]
+    "tap water"  ->  A: "tap water"   [0 kcal]
+    "sugar (granulated)"  ->  A: "granulated sugar"   [387 kcal]
+    "coffee beverage"  ->  A: "coffee beverage"   [1 kcal]
+    "chicken egg (shell on)"  ->  A: "shell on chicken egg"   [143 kcal]
+    "white wheat flour (all purpose)"  ->  A: "all purpose white wheat flour"   [364 kcal]
+    "banana (raw)"  ->  A: "banana"   [89 kcal]
+    "butter (salted)"  ->  A: "salted butter"   [717 kcal]
+    "lowfat cow milk (fortified)"  ->  A: "fortified lowfat cow milk"   [50 kcal]
+    "cow whole milk 3.5% fat (vitamin d fortified)"  ->  A: "cow whole milk 3.5% fat (vitamin d fortified)"   [61 kcal]
+    "long-grain white rice (cooked)"  ->  A: "long-grain white rice"   | B: "cooked long-grain white rice"   [130 kcal]
+    "quick oats"  ->  A: "quick oats"   [379 kcal]
+    "crisphead lettuce (raw)"  ->  A: "crisphead lettuce"   [14 kcal]
+    "red leaf lettuce (raw)"  ->  A: "red leaf lettuce"   [13 kcal]
+    "lettuce leaf (raw)"  ->  A: "lettuce leaf"   [15 kcal]
+    "tomato (raw)"  ->  A: "tomato"   [18 kcal]
+    "onion (raw)"  ->  A: "onion"   [40 kcal]
+    "pasta"  ->  A: "pasta"   [158 kcal]
+    "Fuji apple (raw)"  ->  A: "Fuji apple"   [63 kcal]
+    "Red Delicious apple (raw)"  ->  A: "Red Delicious apple"   [59 kcal]
+    "Golden Delicious apple (raw)"  ->  A: "Golden Delicious apple"   [57 kcal]
+    "Granny Smith apple (raw)"  ->  A: "Granny Smith apple"   [58 kcal]
+    "Gala apple (raw)"  ->  A: "Gala apple"   [57 kcal]
+    "black tea (steeped)"  ->  A: "steeped black tea"   [1 kcal]
+    "canola oil"  ->  A: "canola oil"   [884 kcal]
+    "potato (baked)"  ->  A: "baked potato"   [93 kcal]
+    "bacon (fried)"  ->  A: "fried bacon"   [468 kcal]
+    "peanut butter (creamy)"  ->  A: "creamy peanut butter"   [598 kcal]
+    "carrot root (raw)"  ->  A: "carrot root"   [41 kcal]
+    "strawberry (raw)"  ->  A: "strawberry"   [32 kcal]
+    "yellow mustard (prepared)"  ->  A: "prepared yellow mustard"   [60 kcal]
+    "lemon juice (unpasteurized)"  ->  A: "unpasteurized lemon juice"   [22 kcal]
+    "half and half"  ->  A: "half and half"   [131 kcal]
+    "beef (ground)"  ->  A: "ground beef"   [256 kcal]
+    "seedless raisin (dried)"  ->  A: "dried seedless raisin"   [299 kcal]
+    "ham (sliced, cooked)"  ->  A: "sliced ham"   | B: "sliced cooked ham"   [107 kcal]
+    "pork sausage link"  ->  A: "pork sausage link"   [325 kcal]
+    "avocado (raw)"  ->  A: "avocado"   [160 kcal]
+    "cucumber (raw)"  ->  A: "cucumber"   [15 kcal]
+    "almond"  ->  A: "almond"   [598 kcal]
+
+[2] Every qualifier treatment, the worst first:
+    "refried beans (dish)"  ->  A: "dish refried beans"   | C: "refried beans"   [89 kcal]
+    "lowfat cow milk (1% fat, vitamin a and d added)"  ->  A: "lowfat cow milk (1% fat, vitamin a and d added)"   [42 kcal]
+    "piece of chicken breast (skinless)"  ->  A: "skinless piece of chicken breast"   | C: "skinless chicken breast"   [144 kcal]
+    "piece of chicken meat (skinless)"  ->  A: "skinless piece of chicken meat"   | C: "skinless chicken meat"   [193 kcal]
+    "kidney bean (mature)"  ->  A: "mature kidney bean"   [127 kcal]
+    "lima bean (immature)"  ->  A: "immature lima bean"   [103 kcal]
+    "white wheat flour (all purpose)"  ->  A: "all purpose white wheat flour"   [364 kcal]
+    "tomato (canned)"  ->  A: "canned tomato"   [38 kcal]
+    "beef (ground, raw)"  ->  A: "ground beef"   [254 kcal]
+    "beef (ground)"  ->  A: "ground beef"   [256 kcal]
+    "long-grain white rice (cooked)"  ->  A: "long-grain white rice"   | B: "cooked long-grain white rice"   [130 kcal]
+    "black tea (steeped)"  ->  A: "steeped black tea"   [1 kcal]
+    "potato (baked)"  ->  A: "baked potato"   [93 kcal]
+    "ham (cured)"  ->  A: "cured ham"   [117 kcal]
+    "bacon (whole cut or pieces)"  ->  A: "bacon (whole cut or pieces)"   [407 kcal]
+    "barley cereal (infant food, dry)"  ->  A: "infant food dry barley cereal"   [376 kcal]
+    "beef top round steak (cap off, boneless, raw)"  ->  A: "cap off boneless beef top round steak"   [129 kcal]
+    "beef top round steak (cap off, raw)"  ->  A: "cap off beef top round steak"   [129 kcal]
+    "brazilnut (shell off, dried)"  ->  A: "shell off dried brazilnut"   [659 kcal]
+    "cashew nut (shell off, oil roasted)"  ->  A: "shell off oil roasted cashew nut"   [581 kcal]
+    "chicken carcass (with giblets and neck)"  ->  A: "chicken carcass with giblets and neck"   [157 kcal]
+    "chicken carcass (with giblets and neck, raw)"  ->  A: "chicken carcass with giblets and neck"   [232 kcal]
+    "chicken egg (shell off, raw)"  ->  A: "shell off chicken egg"   [147 kcal]
+    "chicken egg (shell off, solids, dried)"  ->  A: "shell off solids dried chicken egg"   [592 kcal]
+    "chicken egg (shell on)"  ->  A: "shell on chicken egg"   [143 kcal]
+    "chicken egg (shell on, hard boiled)"  ->  A: "shell on hard boiled chicken egg"   [155 kcal]
+    "cockle (shell on, raw)"  ->  A: "shell on cockle"   [79 kcal]
+    "cow milk (reduced fat, Without added Vitamin A, nonfat milk solids added)"  ->  A: "reduced fat cow milk Without added Vitamin A (nonfat milk solids added)"   [56 kcal]
+    "cow milk (reduced fat, vitamin A and D fortified, nonfat milk solids added)"  ->  A: "reduced fat cow milk (vitamin A and D fortified, nonfat milk solids added)"   [51 kcal]
+    "lamb sirloin half (shank off, semi-boneless)"  ->  A: "shank off semi-boneless lamb sirloin half"   [281 kcal]
+    "lamb sirloin half (shank off, semi-boneless, raw)"  ->  A: "shank off semi-boneless lamb sirloin half"   [254 kcal]
+    "lowfat cow milk (1% fat, vitamin A and D fortified, nonfat milk solids added )"  ->  A: "lowfat cow milk (1% fat, vitamin A and D fortified, nonfat milk solids added)"   [43 kcal]
+    "potato flakes (granulated and powdered)"  ->  A: "potato flakes (granulated and powdered)"   [372 kcal]
+    "skim milk (vitamin A and D fortified, nonfat milk solids added)"  ->  A: "skim milk (vitamin A and D fortified, nonfat milk solids added)"   [37 kcal]
+    "sunflower seed (shell off, roasted)"  ->  A: "shell off roasted sunflower seed"   [582 kcal]
+    "tomato (canned with tomato juice)"  ->  A: "tomato (canned with tomato juice)"   [16 kcal]
+    "cow milk (reduced fat, vitamin A and D fortified, protein fortified)"  ->  A: "reduced fat protein fortified cow milk (vitamin A and D fortified)"   [56 kcal]
+    "piece of chicken breast (skinless, boneless, raw)"  ->  A: "skinless boneless piece of chicken breast"   | C: "skinless boneless chicken breast"   [120 kcal]
+    "piece of poultry meat (mechanically deboned, skinless, raw)"  ->  A: "mechanically deboned skinless piece of poultry meat"   | C: "mechanically deboned skinless poultry meat"   [199 kcal]
+    "piece of poultry meat (mechanically deboned, with skin, raw)"  ->  A: "mechanically deboned piece of poultry meat with skin"   | C: "mechanically deboned poultry meat with skin"   [272 kcal]
+    "potato (peeled, boiled, mashed)"  ->  A: "peeled boiled mashed potato"   [106 kcal]
+    "piece(s) of lamb meat (mechanically deboned"  ->  A: "piece(s) of lamb meat (mechanically deboned"   [276 kcal]
+
+[2b] Every distinct qualifier the rule moves IN FRONT of the head (103), with its count and one output, so the reorder can be judged qualifier by qualifier:
+      77  dried                    "acorn (dried)" -> "dried acorn"
+      62  skinless                 "piece of canada goose breast (skinless, raw)" -> "skinless piece of canada goose breast"
+      59  mature                   "Red California kidney bean (mature)" -> "mature Red California kidney bean"
+      57  canned                   "apple (sliced, canned)" -> "sliced canned apple"
+      33  ground                   "allspice (ground)" -> "ground allspice"
+      28  frozen                   "asparagus (frozen)" -> "frozen asparagus"
+      25  boneless                 "New York chop (boneless)" -> "boneless New York chop"
+      14  immature                 "baby lima bean (immature)" -> "immature baby lima bean"
+       8  unpasteurized            "acerola juice (unpasteurized)" -> "unpasteurized acerola juice"
+       7  dry                      "almond (dry, roasted)" -> "dry roasted almond"
+       7  sprouted                 "kidney bean (raw, sprouted)" -> "sprouted kidney bean"
+       6  instant                  "brown rice cereal (dry, instant)" -> "dry instant brown rice cereal"
+       6  mechanically deboned     "piece of beef (mechanically deboned, raw)" -> "mechanically deboned piece of beef"
+       5  bone-in                  "beef strip loin (bone-in)" -> "bone-in beef strip loin"
+       5  enriched                 "cornmeal (degerminated, enriched)" -> "degerminated enriched cornmeal"
+       5  reduced fat              "cow milk (reduced fat, Without added Vitamin A, nonfat milk solids added)" -> "reduced fat cow milk Without added Vitamin A (nonfat milk solids added)"
+       5  shell off                "brazilnut (shell off, dried)" -> "shell off dried brazilnut"
+       5  steeped                  "Oolong tea (steeped)" -> "steeped Oolong tea"
+       4  cubed                    "piece of lamb meat (cubed)" -> "cubed piece of lamb meat"
+       4  decaffeinated            "black tea (decaffeinated)" -> "decaffeinated black tea"
+       4  dehydrated               "peach (dehydrated)" -> "dehydrated peach"
+       4  peeled                   "apple (raw, peeled)" -> "peeled apple"
+       3  boiled                   "cranberry bean (mature, boiled)" -> "mature boiled cranberry bean"
+       3  bottled                  "mineral water (bottled)" -> "bottled mineral water"
+       3  cured                    "beef cut (cured)" -> "cured beef cut"
+       3  defatted                 "peanut flour (defatted)" -> "defatted peanut flour"
+       3  dish                     "blue corn mush (dish)" -> "dish blue corn mush"
+       3  fortified                "lowfat cow milk (fortified)" -> "fortified lowfat cow milk"
+       3  reconstituted            "apple juice (reconstituted)" -> "reconstituted apple juice"
+       3  roasted                  "almond (dry, roasted)" -> "dry roasted almond"
+       3  shell on                 "chicken egg (shell on)" -> "shell on chicken egg"
+       3  sun-dried                "chili pepper (sun-dried)" -> "sun-dried chili pepper"
+       2  calcium-fortified        "apple juice (calcium-fortified)" -> "calcium-fortified apple juice"
+       2  cap off                  "beef top round steak (cap off, boneless, raw)" -> "cap off boneless beef top round steak"
+       2  chilled                  "orange juice (chilled)" -> "chilled orange juice"
+       2  chopped                  "ham (chopped)" -> "chopped ham"
+       2  degerminated             "cornmeal (degerminated, enriched)" -> "degerminated enriched cornmeal"
+       2  durum wheat              "semolina (durum wheat)" -> "durum wheat semolina"
+       2  edible                   "babassu oil (edible)" -> "edible babassu oil"
+       2  french-fried             "potato (french-fried)" -> "french-fried potato"
+       2  fried                    "bacon (fried)" -> "fried bacon"
+       2  hydrogenated             "menhaden oil (hydrogenated)" -> "hydrogenated menhaden oil"
+       2  mashed                   "pea (mashed)" -> "mashed pea"
+       2  oil roasted              "cashew nut (shell off, oil roasted)" -> "shell off oil roasted cashew nut"
+       2  pearled                  "barley (pearled)" -> "pearled barley"
+       2  pickled                  "beet (pickled, canned)" -> "pickled canned beet"
+       2  protein fortified        "cow milk (reduced fat, vitamin A and D fortified, protein fortified)" -> "reduced fat protein fortified cow milk (vitamin A and D fortified)"
+       2  salted                   "butter (salted)" -> "salted butter"
+       2  semi-boneless            "lamb sirloin half (shank off, semi-boneless)" -> "shank off semi-boneless lamb sirloin half"
+       2  shank off                "lamb sirloin half (shank off, semi-boneless)" -> "shank off semi-boneless lamb sirloin half"
+       2  sliced                   "apple (sliced, canned)" -> "sliced canned apple"
+       2  strained                 "green bean (strained)" -> "strained green bean"
+       2  unsweetened              "pineapple juice (unsweetened)" -> "unsweetened pineapple juice"
+       1  air-popped               "popcorn (air-popped)" -> "air-popped popcorn"
+       1  all purpose              "white wheat flour (all purpose)" -> "all purpose white wheat flour"
+       1  baked                    "potato (baked)" -> "baked potato"
+       1  calcium-reduced          "nonfat dry milk (calcium-reduced)" -> "calcium-reduced nonfat dry milk"
+       1  chunky                   "peanut butter (chunky)" -> "chunky peanut butter"
+       1  creamy                   "peanut butter (creamy)" -> "creamy peanut butter"
+       1  cut fresh                "pork (cut fresh)" -> "cut fresh pork"
+       1  deboned                  "piece(s) of chicken meat (deboned, canned)" -> "deboned canned piece(s) of chicken meat"
+       1  dry roasted              "pecan (dry roasted)" -> "dry roasted pecan"
+       1  fermented                "tofu (fermented)" -> "fermented tofu"
+       1  finely chopped           "apple (finely chopped)" -> "finely chopped apple"
+       1  freeze-dried             "parsley leaf (freeze-dried)" -> "freeze-dried parsley leaf"
+       1  frozen concentrate       "apple juice drink (frozen concentrate)" -> "frozen concentrate apple juice drink"
+       1  full fat                 "soybean flour (full fat)" -> "full fat soybean flour"
+       1  fully hydrogenated       "soybean oil (fully hydrogenated)" -> "fully hydrogenated soybean oil"
+       1  golden                   "hominy (golden, canned)" -> "golden canned hominy"
+       1  granulated               "sugar (granulated)" -> "granulated sugar"
+       1  green                    "plantain (green)" -> "green plantain"
+       1  hard boiled              "chicken egg (shell on, hard boiled)" -> "shell on hard boiled chicken egg"
+       1  high fructose            "corn syrup (high fructose)" -> "high fructose corn syrup"
+       1  hulled                   "barley (hulled)" -> "hulled barley"
+       1  infant food              "barley cereal (infant food, dry)" -> "infant food dry barley cereal"
+       1  kippered                 "king salmon (kippered)" -> "kippered king salmon"
+       1  light                    "butter (light)" -> "light butter"
+       1  light meat               "tuna (light meat, canned)" -> "light meat canned tuna"
+       1  low fat                  "soybean flour (low fat)" -> "low fat soybean flour"
+       1  low linolenic            "soybean oil (low linolenic)" -> "low linolenic soybean oil"
+       1  low sodium               "cow milk (low sodium)" -> "low sodium cow milk"
+       1  microwaved               "popcorn (microwaved)" -> "microwaved popcorn"
+       1  minced                   "pork meat (minced)" -> "minced pork meat"
+       1  oat-based                "breakfast cereal (oat-based)" -> "oat-based breakfast cereal"
+       1  partially hydrogenated   "canola oil (partially hydrogenated)" -> "partially hydrogenated canola oil"
+       1  partly hydrogenated      "soybean oil (partly hydrogenated)" -> "partly hydrogenated soybean oil"
+       1  pasteurized              "chicken egg white (pasteurized, frozen)" -> "pasteurized frozen chicken egg white"
+       1  poached                  "chicken egg (poached)" -> "poached chicken egg"
+       1  potassium fortified      "soy protein isolate (potassium fortified)" -> "potassium fortified soy protein isolate"
+       1  powdered                 "sugar (powdered)" -> "powdered sugar"
+       1  prepared                 "yellow mustard (prepared)" -> "prepared yellow mustard"
+       1  quick                    "corn grits (quick)" -> "quick corn grits"
+       1  seedless                 "grape (seedless, canned)" -> "seedless canned grape"
+       1  self-rising              "white cornmeal (self-rising)" -> "self-rising white cornmeal"
+       1  smoked                   "ham (smoked)" -> "smoked ham"
+       1  solids                   "chicken egg (shell off, solids, dried)" -> "shell off solids dried chicken egg"
+       1  sweetened                "coconut (sweetened, dried)" -> "sweetened dried coconut"
+       1  unbleached               "white wheat flour (unbleached, enriched)" -> "unbleached enriched white wheat flour"
+       1  unpasterized             "yellow passion fruit juice (unpasterized)" -> "unpasterized yellow passion fruit juice"
+       1  unsalted                 "butter (unsalted)" -> "unsalted butter"
+       1  whipped                  "butter (whipped, salted)" -> "whipped salted butter"
+       1  white                    "hominy (white, canned)" -> "white canned hominy"
+       1  whole kernel             "sunflower seed (whole kernel)" -> "whole kernel sunflower seed"
+
+[3] The 30 worst NEW collisions under A, by eating weight (440 groups in all; appendix lists every one):
+  "long-grain white rice"  <- state word dropped (raw/cooked twin); elected-kcal gap 65%
+      long-grain white rice                                     374 kcal   eaten weight            0
+      long-grain white rice (cooked)                            130 kcal   eaten weight   55,398,422
+      long-grain white rice (uncooked)                          365 kcal   eaten weight    7,177,603
+  "onion"  <- state word dropped (raw/cooked twin); elected-kcal gap 9%
+      onion                                                      44 kcal   eaten weight   15,858,658
+      onion (raw)                                                40 kcal   eaten weight   42,613,824
+  "tomato"  <- state word dropped (raw/cooked twin); elected-kcal gap 0%
+      tomato                                                     18 kcal   eaten weight            0
+      tomato (raw)                                               18 kcal   eaten weight   46,708,001
+  "carrot root"  <- state word dropped (raw/cooked twin); elected-kcal gap 10%
+      carrot root                                                37 kcal   eaten weight   11,342,138
+      carrot root (raw)                                          41 kcal   eaten weight   29,393,744
+  "blueberry"  <- state word dropped (raw/cooked twin); elected-kcal gap 11%
+      blueberry                                                  51 kcal   eaten weight   11,373,907
+      blueberry (raw)                                            57 kcal   eaten weight   20,101,543
+  "broccoli floret"  <- state word dropped (raw/cooked twin); elected-kcal gap 18%
+      broccoli floret                                            28 kcal   eaten weight   13,040,258
+      broccoli floret (raw)                                      34 kcal   eaten weight   14,106,448
+  "ground beef"  <- state word dropped (raw/cooked twin); elected-kcal gap 1%
+      beef (ground)                                             256 kcal   eaten weight   25,752,410
+      beef (ground, raw)                                        254 kcal   eaten weight      451,792
+  "almond"  <- state word dropped (raw/cooked twin); elected-kcal gap 3%
+      almond                                                    598 kcal   eaten weight   22,133,506
+      almond (raw)                                              579 kcal   eaten weight    3,946,410
+  "celery stalk"  <- state word dropped (raw/cooked twin); elected-kcal gap 22%
+      celery stalk                                               18 kcal   eaten weight            0
+      celery stalk (raw)                                         14 kcal   eaten weight   18,683,142
+  "skinless piece of chicken meat"  <- state word dropped (raw/cooked twin); elected-kcal gap 38%
+      piece of chicken meat (skinless)                          193 kcal   eaten weight   15,070,920
+      piece of chicken meat (skinless, raw)                     119 kcal   eaten weight            0
+  "pork fat"  <- state word dropped (raw/cooked twin); elected-kcal gap 1%
+      pork fat                                                  626 kcal   eaten weight   12,962,984
+      pork fat (raw)                                            632 kcal   eaten weight            0
+  "yellow sweet corn kernel"  <- state word dropped (raw/cooked twin); elected-kcal gap 6%
+      yellow sweet corn kernel                                   81 kcal   eaten weight    8,513,193
+      yellow sweet corn kernel (raw)                             86 kcal   eaten weight    3,809,457
+  "sweet red bell pepper"  <- state word dropped (raw/cooked twin); elected-kcal gap 0%
+      sweet red bell pepper                                      26 kcal   eaten weight            0
+      sweet red bell pepper ( raw)                               26 kcal   eaten weight   11,465,049
+  "tangerine"  <- state word dropped (raw/cooked twin); elected-kcal gap 28%
+      tangerine                                                  38 kcal   eaten weight            0
+      tangerine (raw)                                            53 kcal   eaten weight   11,082,429
+  "cashew nut"  <- state word dropped (raw/cooked twin); elected-kcal gap 4%
+      cashew nut                                                574 kcal   eaten weight    9,258,366
+      cashew nut (raw)                                          553 kcal   eaten weight            0
+  "cabbage head"  <- state word dropped (raw/cooked twin); elected-kcal gap 8%
+      cabbage head                                               23 kcal   eaten weight            0
+      cabbage head (raw)                                         25 kcal   eaten weight    8,414,387
+  "pistachio nut"  <- state word dropped (raw/cooked twin); elected-kcal gap 2%
+      pistachio nut                                             572 kcal   eaten weight    7,307,426
+      pistachio nut (raw)                                       560 kcal   eaten weight            0
+  "mature black turtle bean"  <- state word dropped (raw/cooked twin); elected-kcal gap 61%
+      black turtle bean (mature)                                132 kcal   eaten weight    6,888,226
+      black turtle bean (raw, mature)                           341 kcal   eaten weight      412,964
+  "green pea"  <- state word dropped (raw/cooked twin); elected-kcal gap 5%
+      green pea                                                  77 kcal   eaten weight            0
+      green pea (cooked)                                         78 kcal   eaten weight    6,271,877
+      green pea (raw)                                            81 kcal   eaten weight      780,068
+  "pecan"  <- state word dropped (raw/cooked twin); elected-kcal gap 3%
+      pecan                                                     710 kcal   eaten weight            0
+      pecan (raw)                                               691 kcal   eaten weight    7,036,954
+  "green bean pod"  <- state word dropped (raw/cooked twin); elected-kcal gap 11%
+      green bean pod                                             35 kcal   eaten weight            0
+      green bean pod (raw)                                       31 kcal   eaten weight    6,694,239
+  "skinless boneless piece of chicken breast"  <- state word dropped (raw/cooked twin); elected-kcal gap 21%
+      piece of chicken breast (skinless, boneless)              151 kcal   eaten weight            0
+      piece of chicken breast (skinless, boneless, raw)         120 kcal   eaten weight    6,692,518
+  "piece of chicken wing with skin"  <- state word dropped (raw/cooked twin); elected-kcal gap 26%
+      piece of chicken wing (with skin)                         257 kcal   eaten weight    6,683,957
+      piece of chicken wing (with skin, raw)                    191 kcal   eaten weight            0
+  "boneless New York chop"  <- state word dropped (raw/cooked twin); elected-kcal gap 1%
+      New York chop (boneless)                                  173 kcal   eaten weight    6,501,073
+      New York chop (boneless, raw)                             172 kcal   eaten weight            0
+  "piece of chicken drumstick with skin"  <- state word dropped (raw/cooked twin); elected-kcal gap 16%
+      piece of chicken drumstick (with skin)                    191 kcal   eaten weight    5,836,538
+      piece of chicken drumstick (with skin, raw)               161 kcal   eaten weight            0
+  "beef top round steak"  <- state word dropped (raw/cooked twin); elected-kcal gap 20%
+      beef top round steak                                      204 kcal   eaten weight    5,447,825
+      beef top round steak (raw)                                164 kcal   eaten weight            0
+  "mature red kidney bean"  <- state word dropped (raw/cooked twin); elected-kcal gap 62%
+      red kidney bean (mature)                                  127 kcal   eaten weight    5,063,911
+      red kidney bean (raw, mature)                             337 kcal   eaten weight            0
+  "zucchini squash"  <- state word dropped (raw/cooked twin); elected-kcal gap 0%
+      zucchini squash                                            17 kcal   eaten weight      327,733
+      zucchini squash (raw)                                      17 kcal   eaten weight    4,653,880
+  "pork butt steak"  <- state word dropped (raw/cooked twin); elected-kcal gap 30%
+      pork butt steak                                           267 kcal   eaten weight    4,705,101
+      pork butt steak (raw)                                     186 kcal   eaten weight            0
+  "bone-in beef strip loin"  <- state word dropped (raw/cooked twin); elected-kcal gap 43%
+      beef strip loin (bone-in)                                 264 kcal   eaten weight    4,604,915
+      beef strip loin (bone-in, raw)                            150 kcal   eaten weight            0
+
+[4] A seeded random sample of 30 changed names (seed 20260922):
+    "piece of chicken neck (with skin)"  ->  A: "piece of chicken neck with skin"   | C: "chicken neck with skin"   [247 kcal]
+    "blueberry (canned)"  ->  A: "canned blueberry"   [107 kcal]
+    "serrano pepper (raw)"  ->  A: "serrano pepper"   [32 kcal]
+    "Strawberry guava (raw)"  ->  A: "Strawberry guava"   [69 kcal]
+    "skim milk (vitamin A and D fortified, protein fortified)"  ->  A: "protein fortified skim milk (vitamin A and D fortified)"   [41 kcal]
+    "beef strip petite roast (raw)"  ->  A: "beef strip petite roast"   [170 kcal]
+    "turkey gizzard (raw)"  ->  A: "turkey gizzard"   [111 kcal]
+    "soybean oil (fully hydrogenated)"  ->  A: "fully hydrogenated soybean oil"   [884 kcal]
+    "banana (raw)"  ->  A: "banana"   [89 kcal]
+    "beef retail cut (raw)"  ->  A: "beef retail cut"   [157 kcal]
+    "pork shoulder blade roast (boneless)"  ->  A: "boneless pork shoulder blade roast"   [287 kcal]
+    "piece(s) of scallop (raw)"  ->  A: "piece(s) of scallop"   | C: "scallop"   [69 kcal]
+    "beef inside skirt steak (raw)"  ->  A: "beef inside skirt steak"   [174 kcal]
+    "soy protein isolate (potassium fortified)"  ->  A: "potassium fortified soy protein isolate"   [321 kcal]
+    "grapefruit (raw)"  ->  A: "grapefruit"   [42 kcal]
+    "chili pepper (sun-dried)"  ->  A: "sun-dried chili pepper"   [324 kcal]
+    "sunflower seed (whole kernel)"  ->  A: "whole kernel sunflower seed"   [582 kcal]
+    "spaghetti squash (raw)"  ->  A: "spaghetti squash"   [31 kcal]
+    "breakfast cereal (oat-based)"  ->  A: "oat-based breakfast cereal"   [362 kcal]
+    "tahitian taro leaf (raw)"  ->  A: "tahitian taro leaf"   [44 kcal]
+    "fireweed leaf (raw)"  ->  A: "fireweed leaf"   [103 kcal]
+    "piece of pheasant breast (skinless, raw)"  ->  A: "skinless piece of pheasant breast"   | C: "skinless pheasant breast"   [133 kcal]
+    "cow milk (reduced fat, vitamin A and D fortified, nonfat milk solids added)"  ->  A: "reduced fat cow milk (vitamin A and D fortified, nonfat milk solids added)"   [51 kcal]
+    "lychee (raw)"  ->  A: "lychee"   [66 kcal]
+    "lamb liver (raw)"  ->  A: "lamb liver"   [139 kcal]
+    "non-carbonated water (bottled)"  ->  A: "bottled non-carbonated water"   [0 kcal]
+    "blue corn mush (dish)"  ->  A: "dish blue corn mush"   | C: "blue corn mush"   [54 kcal]
+    "piece of poultry meat (mechanically deboned, with skin, raw)"  ->  A: "mechanically deboned piece of poultry meat with skin"   | C: "mechanically deboned poultry meat with skin"   [272 kcal]
+    "piece of dark chicken meat (skinless, raw)"  ->  A: "skinless piece of dark chicken meat"   | C: "skinless dark chicken meat"   [125 kcal]
+    "beef pancreas (raw)"  ->  A: "beef pancreas"   [235 kcal]
+
+[5] A+GUARD names one data update away from a collision (241): the name equals an edible FoodOn term that no catalog food maps to yet:
+    "Blue mussel (raw)" -> "Blue mussel"  is also FoodOn's  ['blue mussel']
+    "Fuji apple (raw)" -> "Fuji apple"  is also FoodOn's  ['Fuji apple']
+    "Gala apple (raw)" -> "Gala apple"  is also FoodOn's  ['Gala apple']
+    "Golden Delicious apple (raw)" -> "Golden Delicious apple"  is also FoodOn's  ['Golden Delicious apple']
+    "Granny Smith apple (raw)" -> "Granny Smith apple"  is also FoodOn's  ['Granny Smith apple']
+    "Red Delicious apple (raw)" -> "Red Delicious apple"  is also FoodOn's  ['Red Delicious apple']
+    "Strawberry guava (raw)" -> "Strawberry guava"  is also FoodOn's  ['strawberry guava']
+    "Zespri SunGold kiwifruit (raw)" -> "Zespri SunGold kiwifruit"  is also FoodOn's  ['Zespri SunGold kiwifruit']
+    "acerola (raw)" -> "acerola"  is also FoodOn's  ['acerola']
+    "agar (raw)" -> "agar"  is also FoodOn's  ['agar']
+    "alaska pollock (raw)" -> "alaska pollock"  is also FoodOn's  ['alaska pollock']
+    "alfalfa sprout (raw)" -> "alfalfa sprout"  is also FoodOn's  ['alfalfa sprout']
+    "apricot (raw)" -> "apricot"  is also FoodOn's  ['apricot']
+    "arrowroot (raw)" -> "arrowroot"  is also FoodOn's  ['arrowroot']
+    "arugula leaf (raw)" -> "arugula leaf"  is also FoodOn's  ['arugula leaf']
+    "asian pear (raw)" -> "asian pear"  is also FoodOn's  ['asian pear']
+    "atlantic cod (raw)" -> "atlantic cod"  is also FoodOn's  ['atlantic cod']
+    "atlantic croaker (raw)" -> "atlantic croaker"  is also FoodOn's  ['atlantic croaker']
+    "atlantic halibut (raw)" -> "atlantic halibut"  is also FoodOn's  ['atlantic halibut']
+    "atlantic herring (raw)" -> "atlantic herring"  is also FoodOn's  ['atlantic herring']
+    "atlantic mackerel (raw)" -> "atlantic mackerel"  is also FoodOn's  ['atlantic mackerel']
+    "atlantic salmon (raw)" -> "atlantic salmon"  is also FoodOn's  ['atlantic salmon']
+    "atlantic wolffish (raw)" -> "atlantic wolffish"  is also FoodOn's  ['atlantic wolffish']
+    "avocado (raw)" -> "avocado"  is also FoodOn's  ['avocado']
+    "banana (raw)" -> "banana"  is also FoodOn's  ['banana']
+
+APPENDIX: every NEW collision under A (440 groups), recipe name <- roots [elected kcal]:
+  "Alaska blueberry"  <- Alaska blueberry [44] | Alaska blueberry (raw) [61]
+  "New Zealand spinach leaf"  <- New Zealand spinach leaf [12] | New Zealand spinach leaf (raw) [14]
+  "acorn squash"  <- acorn squash [56] | acorn squash (raw) [40]
+  "agave"  <- agave [135] | agave (raw) [68]
+  "almond"  <- almond [598] | almond (raw) [579]
+  "amaranth leaf"  <- amaranth leaf [21] | amaranth leaf (raw) [23]
+  "amaranth seed"  <- amaranth seed [102] | amaranth seed (raw) [371]
+  "apple"  <- apple [48] | apple (raw) [52]
+  "arrowhead"  <- arrowhead [78] | arrowhead (raw) [99]
+  "artichoke head"  <- artichoke head [53] | artichoke head (raw) [47]
+  "asparagus bean"  <- asparagus bean [47] | asparagus bean (raw) [47]
+  "asparagus spear"  <- asparagus spear [22] | asparagus spear (raw) [20]
+  "bamboo shoot"  <- bamboo shoot [19] | bamboo shoot (raw) [27]
+  "beef T-bone steak"  <- beef T-bone steak [230] | beef T-bone steak (raw) [215]
+  "beef back rib"  <- beef back rib [341] | beef back rib (raw) [305]
+  "beef blade chuck roast"  <- beef blade chuck roast [291] | beef blade chuck roast (raw) [230]
+  "beef bolar blade"  <- beef bolar blade [193] | beef bolar blade (raw) [129]
+  "beef bottom round roast"  <- beef bottom round roast [187] | beef bottom round roast (raw) [128]
+  "beef bottom round steak"  <- beef bottom round steak [217] | beef bottom round steak (raw) [187]
+  "beef brain"  <- beef brain [196] | beef brain (raw) [143]
+  "beef brisket"  <- beef brisket [251] | beef brisket (raw) [253]
+  "beef brisket flat half"  <- beef brisket flat half [213] | beef brisket flat half (raw) [194]
+  "beef brisket point half"  <- beef brisket point half [250] | beef brisket point half (raw) [163]
+  "beef chuck"  <- beef chuck [191] | beef chuck (raw) [128]
+  "beef chuck arm roast"  <- beef chuck arm roast [283] | beef chuck arm roast (raw) [139]
+  "beef chuck eye roast"  <- beef chuck eye roast [229] | beef chuck eye roast (raw) [173]
+  "beef chuck eye roll"  <- beef chuck eye roll [252] | beef chuck eye roll (raw) [181]
+  "beef chuck eye steak"  <- beef chuck eye steak [267] | beef chuck eye steak (raw) [216]
+  "beef chuck tender steak"  <- beef chuck tender steak [181] | beef chuck tender steak (raw) [127]
+  "beef country-style rib"  <- beef country-style rib [285] | beef country-style rib (raw) [196]
+  "beef culotte steak"  <- beef culotte steak [238] | beef culotte steak (raw) [179]
+  "beef denver steak"  <- beef denver steak [227] | beef denver steak (raw) [178]
+  "beef eye of round"  <- beef eye of round [168] | beef eye of round (raw) [129]
+  "beef eye of round roast"  <- beef eye of round roast [167] | beef eye of round roast (raw) [124]
+  "beef eye of round steak"  <- beef eye of round steak [158] | beef eye of round steak (raw) [124]
+  "beef fat"  <- beef fat [731] | beef fat (raw) [685]
+  "beef flank"  <- beef flank [208] | beef flank (raw) [161]
+  "beef flank steak"  <- beef flank steak [194] | beef flank steak (raw) [149]
+  "beef heart"  <- beef heart [165] | beef heart (raw) [112]
+  "beef inside skirt steak"  <- beef inside skirt steak [245] | beef inside skirt steak (raw) [174]
+  "beef kidney"  <- beef kidney [158] | beef kidney (raw) [99]
+  "beef large end rib roast"  <- beef large end rib roast [355] | beef large end rib roast (raw) [333]
+  "beef liver"  <- beef liver [175] | beef liver (raw) [135]
+  "beef lung"  <- beef lung [120] | beef lung (raw) [92]
+  "beef outside skirt steak"  <- beef outside skirt steak [282] | beef outside skirt steak (raw) [222]
+  "beef oyster blade"  <- beef oyster blade [196] | beef oyster blade (raw) [155]
+  "beef pancreas"  <- beef pancreas [271] | beef pancreas (raw) [235]
+  "beef porterhouse steak"  <- beef porterhouse steak [276] | beef porterhouse steak (raw) [208]
+  "beef prime rib roast"  <- beef prime rib roast [352] | beef prime rib roast (raw) [322]
+  "beef retail cut"  <- beef retail cut [259] | beef retail cut (raw) [157]
+  "beef rib"  <- beef rib [197] | beef rib (raw) [146]
+  "beef ribeye cap steak"  <- beef ribeye cap steak [246] | beef ribeye cap steak (raw) [180]
+  "beef ribeye petite roast"  <- beef ribeye petite roast [178] | beef ribeye petite roast (raw) [133]
+  "beef ribeye roll"  <- beef ribeye roll [286] | beef ribeye roll (raw) [225]
+  "beef ribeye steak"  <- beef ribeye steak [291] | beef ribeye steak (raw) [173]
+  "beef round"  <- beef round [235] | beef round (raw) [195]
+  "beef shank"  <- beef shank [196] | beef shank (raw) [147]
+  "beef shank cross-cut"  <- beef shank cross-cut [201] | beef shank cross-cut (raw) [128]
+  "beef short rib"  <- beef short rib [471] | beef short rib (raw) [390]
+  "beef shoulder petite tender medallion"  <- beef shoulder petite tender medallion [181] | beef shoulder petite tender medallion (raw) [144]
+  "beef shoulder roast"  <- beef shoulder roast [196] | beef shoulder roast (raw) [127]
+  "beef sirloin tip"  <- beef sirloin tip [178] | beef sirloin tip (raw) [189]
+  "beef sirloin tip center steak"  <- beef sirloin tip center steak [177] | beef sirloin tip center steak (raw) [143]
+  "beef sirloin tip roast"  <- beef sirloin tip roast [188] | beef sirloin tip roast (raw) [145]
+  "beef sirloin tip side steak"  <- beef sirloin tip side steak [168] | beef sirloin tip side steak (raw) [129]
+  "beef small end rib roast"  <- beef small end rib roast [291] | beef small end rib roast (raw) [254]
+  "beef spleen"  <- beef spleen [145] | beef spleen (raw) [105]
+  "beef strip petite roast"  <- beef strip petite roast [213] | beef strip petite roast (raw) [170]
+  "beef sweetbread"  <- beef sweetbread [318] | beef sweetbread (raw) [303]
+  "beef tenderloin"  <- beef tenderloin [202] | beef tenderloin (raw) [146]
+  "beef tenderloin roast"  <- beef tenderloin roast [188] | beef tenderloin roast (raw) [151]
+  "beef tenderloin steak"  <- beef tenderloin steak [198] | beef tenderloin steak (raw) [148]
+  "beef thymus"  <- beef thymus [319] | beef thymus (raw) [236]
+  "beef tongue"  <- beef tongue [284] | beef tongue (raw) [243]
+  "beef top blade steak"  <- beef top blade steak [202] | beef top blade steak (raw) [143]
+  "beef top round"  <- beef top round [225] | beef top round (raw) [173]
+  "beef top round steak"  <- beef top round steak [204] | beef top round steak (raw) [164]
+  "beef top sirloin petite roast"  <- beef top sirloin petite roast [170] | beef top sirloin petite roast (raw) [128]
+  "beef top sirloin steak"  <- beef top sirloin steak [203] | beef top sirloin steak (raw) [135]
+  "beef tri-tip roast"  <- beef tri-tip roast [201] | beef tri-tip roast (raw) [157]
+  "bison ribeye steak"  <- bison ribeye steak [177] | bison ribeye steak (raw) [116]
+  "bison shoulder clod"  <- bison shoulder clod [193] | bison shoulder clod (raw) [119]
+  "bison top round steak"  <- bison top round steak [174] | bison top round steak (raw) [122]
+  "bitter gourd leaf"  <- bitter gourd leaf [34] | bitter gourd leaf (raw) [30]
+  "bitter gourd pod"  <- bitter gourd pod [19] | bitter gourd pod (raw) [17]
+  "blackeyed pea"  <- blackeyed pea [139] | blackeyed pea (cooked) [97]
+  "blueberry"  <- blueberry [51] | blueberry (raw) [57]
+  "bone-in beef strip loin"  <- beef strip loin (bone-in) [264] | beef strip loin (bone-in, raw) [150]
+  "bone-in beef tenderloin steak"  <- beef tenderloin steak (bone-in) [267] | beef tenderloin steak (bone-in, raw) [158]
+  "boneless New York chop"  <- New York chop (boneless) [173] | New York chop (boneless, raw) [172]
+  "boneless New York roast"  <- New York roast (boneless) [192] | New York roast (boneless, raw) [166]
+  "boneless beef chuck short rib"  <- beef chuck short rib (boneless) [305] | beef chuck short rib (boneless, raw) [227]
+  "boneless beef strip steak"  <- beef strip steak (boneless) [198] | beef strip steak (boneless, raw) [163]
+  "boneless beef top round roast"  <- beef top round roast (boneless) [160] | beef top round roast (boneless, raw) [124]
+  "boneless beef top round steak"  <- beef top round steak (boneless) [167] | beef top round steak (boneless, raw) [124]
+  "boneless lamb sirloin chop"  <- lamb sirloin chop (boneless) [235] | lamb sirloin chop (boneless, raw) [208]
+  "boneless pork sirloin chop"  <- pork sirloin chop (boneless) [170] | pork sirloin chop (boneless, raw) [133]
+  "borage flower"  <- borage flower [25] | borage flower (raw) [21]
+  "breadfruit seed"  <- breadfruit seed [207] | breadfruit seed (raw) [191]
+  "broccoli floret"  <- broccoli floret [28] | broccoli floret (raw) [34]
+  "brown rice kernel"  <- brown rice kernel (cooked) [147] | brown rice kernel (raw) [370]
+  "brussels sprout"  <- brussels sprout [36] | brussels sprout (raw) [43]
+  "buffalo top round steak"  <- buffalo top round steak [146] | buffalo top round steak (raw) [97]
+  "burdock root"  <- burdock root [88] | burdock root (raw) [72]
+  "butchery cut of beefalo"  <- butchery cut of beefalo [188] | butchery cut of beefalo (raw) [143]
+  "butchery cut of rabbit"  <- butchery cut of rabbit [206] | butchery cut of rabbit (raw) [136]
+  "butternut squash"  <- butternut squash [40] | butternut squash (raw) [45]
+  "cabbage head"  <- cabbage head [23] | cabbage head (raw) [25]
+  "cardoon stalk"  <- cardoon stalk [22] | cardoon stalk (raw) [17]
+  "carrot root"  <- carrot root [37] | carrot root (raw) [41]
+  "cashew nut"  <- cashew nut [574] | cashew nut (raw) [553]
+  "celeriac root"  <- celeriac root [27] | celeriac root (raw) [42]
+  "celery stalk"  <- celery stalk [18] | celery stalk (raw) [14]
+  "chayote"  <- chayote [24] | chayote (raw) [19]
+  "chicken carcass with giblets"  <- chicken carcass (with giblets) [194] | chicken carcass (with giblets, raw) [130]
+  "chicken carcass with giblets and neck"  <- chicken carcass (with giblets and neck) [157] | chicken carcass (with giblets and neck, raw) [232]
+  "chicken gizzard"  <- chicken gizzard [154] | chicken gizzard (raw) [94]
+  "chicken heart"  <- chicken heart [185] | chicken heart (raw) [153]
+  "chicken liver"  <- chicken liver [172] | chicken liver (raw) [119]
+  "chili pepper"  <- chili pepper [21] | chili pepper (raw) [40]
+  "chinese chestnut"  <- chinese chestnut [239] | chinese chestnut (raw) [224]
+  "chive leaf"  <- chive leaf [311] | chive leaf (raw) [30]
+  "chrysanthemum leaf"  <- chrysanthemum leaf [20] | chrysanthemum leaf (raw) [24]
+  "cowpea leaf"  <- cowpea leaf [22] | cowpea leaf (raw) [29]
+  "cowpea pod"  <- cowpea pod [34] | cowpea pod (raw) [44]
+  "cubed piece of lamb meat"  <- piece of lamb meat (cubed) [223] | piece of lamb meat (cubed, raw) [134]
+  "cubed piece of veal meat"  <- piece of veal meat (cubed) [188] | piece of veal meat (cubed, raw) [109]
+  "daikon"  <- daikon [17] | daikon (raw) [18]
+  "dock leaf"  <- dock leaf [20] | dock leaf (raw) [22]
+  "edamame pod"  <- edamame pod [121] | edamame pod (raw) [147]
+  "edible pea pod"  <- edible pea pod [42] | edible pea pod (raw) [42]
+  "eggplant"  <- eggplant [35] | eggplant (raw) [25]
+  "elk eye of round roast"  <- elk eye of round roast [148] | elk eye of round roast (raw) [98]
+  "emu fan fillet"  <- emu fan fillet [154] | emu fan fillet (raw) [103]
+  "emu full rump"  <- emu full rump [168] | emu full rump (raw) [112]
+  "emu inside drum"  <- emu inside drum [156] | emu inside drum (raw) [108]
+  "european chestnut"  <- european chestnut [245] | european chestnut (raw) [213]
+  "fiddlehead leaf"  <- fiddlehead leaf [34] | fiddlehead leaf (raw) [34]
+  "gai lan"  <- gai lan [22] | gai lan (raw) [26]
+  "garden cress leaf"  <- garden cress leaf [23] | garden cress leaf (raw) [32]
+  "ginkgo nut"  <- ginkgo nut [111] | ginkgo nut (raw) [182]
+  "grape leaf"  <- grape leaf [69] | grape leaf (raw) [93]
+  "green bean pod"  <- green bean pod [35] | green bean pod (raw) [31]
+  "green cauliflower floret"  <- green cauliflower floret [32] | green cauliflower floret (raw) [31]
+  "green pea"  <- green pea [77] | green pea (cooked) [78] | green pea (raw) [81]
+  "green plantain"  <- green plantain [309] | green plantain (raw) [152] | plantain (green) [121]
+  "ground beef"  <- beef (ground) [256] | beef (ground, raw) [254]
+  "ground bison meat"  <- bison meat (ground) [179] | bison meat (ground, raw) [223]
+  "ground chicken meat"  <- chicken meat (ground) [130] | chicken meat (ground, raw) [143]
+  "ground deer meat"  <- deer meat (ground) [187] | deer meat (ground, raw) [157]
+  "ground elk meat"  <- elk meat (ground) [193] | elk meat (ground, raw) [172]
+  "ground emu meat"  <- emu meat (ground) [163] | emu meat (ground, raw) [134]
+  "ground lamb meat"  <- lamb meat (ground) [283] | lamb meat (ground, raw) [282]
+  "ground ostrich meat"  <- ostrich meat (ground) [175] | ostrich meat (ground, raw) [165]
+  "ground pork meat"  <- pork meat (ground) [301] | pork meat (ground, raw) [218]
+  "ground turkey meat"  <- turkey meat (ground) [203] | turkey meat (ground, raw) [148]
+  "ground veal meat"  <- veal meat (ground) [215] | veal meat (ground, raw) [197]
+  "haddock"  <- haddock (cooked) [90] | haddock (raw) [74]
+  "hubbard squash"  <- hubbard squash [50] | hubbard squash (raw) [40]
+  "immature broad bean"  <- broad bean (immature) [62] | broad bean (raw, immature) [72]
+  "immature hyacinth bean"  <- hyacinth bean (immature) [50] | hyacinth bean (raw, immature) [50]
+  "immature lima bean"  <- lima bean (immature) [103] | lima bean (raw, immature) [113]
+  "immature pigeon pea"  <- pigeon pea (immature) [111] | pigeon pea (immature, raw) [136]
+  "immature winged bean"  <- winged bean (immature) [38] | winged bean (raw, immature) [49]
+  "japanese chestnut"  <- japanese chestnut [201] | japanese chestnut (raw) [154]
+  "jicama tuber"  <- jicama tuber [38] | jicama tuber (raw) [38]
+  "kale leaf"  <- kale leaf [44] | kale leaf (raw) [35]
+  "khorasan wheat kernel"  <- khorasan wheat kernel (cooked) [132] | khorasan wheat kernel (raw) [337]
+  "kohlrabi stem"  <- kohlrabi stem [29] | kohlrabi stem (raw) [27]
+  "lamb brain"  <- lamb brain [154] | lamb brain (raw) [122]
+  "lamb breast"  <- lamb breast [270] | lamb breast (raw) [149]
+  "lamb chump"  <- lamb chump [142] | lamb chump (raw) [121]
+  "lamb external fat"  <- lamb external fat [538] | lamb external fat (raw) [487]
+  "lamb fat"  <- lamb fat [639] | lamb fat (raw) [648]
+  "lamb flap"  <- lamb flap [376] | lamb flap (raw) [337]
+  "lamb foreshank"  <- lamb foreshank [243] | lamb foreshank (raw) [195]
+  "lamb heart"  <- lamb heart [185] | lamb heart (raw) [122]
+  "lamb kidney"  <- lamb kidney [112] | lamb kidney (raw) [97]
+  "lamb leg"  <- lamb leg [234] | lamb leg (raw) [206]
+  "lamb liver"  <- lamb liver [220] | lamb liver (raw) [139]
+  "lamb loin"  <- lamb loin [316] | lamb loin (raw) [273]
+  "lamb loin saddle"  <- lamb loin saddle [162] | lamb loin saddle (raw) [273]
+  "lamb lung"  <- lamb lung [113] | lamb lung (raw) [95]
+  "lamb neck chop"  <- lamb neck chop [307] | lamb neck chop (raw) [231]
+  "lamb netted shoulder"  <- lamb netted shoulder [287] | lamb netted shoulder (raw) [252]
+  "lamb pancreas"  <- lamb pancreas [234] | lamb pancreas (raw) [152]
+  "lamb retail cut"  <- lamb retail cut [294] | lamb retail cut (raw) [232]
+  "lamb rib"  <- lamb rib [253] | lamb rib (raw) [240]
+  "lamb seam fat"  <- lamb seam fat [554] | lamb seam fat (raw) [459]
+  "lamb shank half"  <- lamb shank half [217] | lamb shank half (raw) [185]
+  "lamb shoulder"  <- lamb shoulder [283] | lamb shoulder (raw) [251]
+  "lamb shoulder arm"  <- lamb shoulder arm [279] | lamb shoulder arm (raw) [243]
+  "lamb shoulder blade"  <- lamb shoulder blade [278] | lamb shoulder blade (raw) [244]
+  "lamb sirloin half"  <- lamb sirloin half [284] | lamb sirloin half (raw) [261]
+  "lamb spleen"  <- lamb spleen [156] | lamb spleen (raw) [101]
+  "lamb square-cut shoulder chop"  <- lamb square-cut shoulder chop [255] | lamb square-cut shoulder chop (raw) [275]
+  "lamb sweetbread"  <- lamb sweetbread [144] | lamb sweetbread (raw) [72]
+  "lamb tenderloin"  <- lamb tenderloin [157] | lamb tenderloin (raw) [120]
+  "lamb testicle"  <- lamb testicle [125] | lamb testicle (raw) [68]
+  "lamb tongue"  <- lamb tongue [272] | lamb tongue (raw) [225]
+  "lambs quarter leaf"  <- lambs quarter leaf [48] | lambs quarters leaf [32] | lambs quarters leaf (raw) [47]
+  "leek"  <- leek [31] | leek (raw) [61]
+  "leg of lamb"  <- leg of lamb [159] | leg of lamb (raw) [121]
+  "leg of lamb center cut"  <- leg of lamb center cut [215] | leg of lamb center cut (raw) [195]
+  "lentil"  <- lentil [101] | lentil (raw) [352]
+  "long grain brown rice kernel"  <- long grain brown rice kernel [123] | long grain brown rice kernel (uncooked) [367]
+  "long-grain white rice"  <- long-grain white rice [374] | long-grain white rice (cooked) [130] | long-grain white rice (uncooked) [365]
+  "lotus root"  <- lotus root [66] | lotus root (raw) [74]
+  "macadamia nut"  <- macadamia nut [716] | macadamia nut (raw) [718]
+  "malabar spinach leaf"  <- malabar spinach leaf [23] | malabar spinach leaf (raw) [19]
+  "mature Red California kidney bean"  <- Red California kidney bean (mature) [124] | Red California kidney bean (raw, mature) [330]
+  "mature adzuki bean"  <- adzuki bean (mature) [128] | adzuki bean (raw, mature) [329]
+  "mature asparagus bean"  <- asparagus bean (mature) [118] | asparagus bean (raw, mature) [347]
+  "mature baby lima bean"  <- baby lima bean (mature) [126] | baby lima bean (raw, mature) [335]
+  "mature black gram bean"  <- black gram bean (mature) [105] | black gram bean (raw, mature) [341]
+  "mature black turtle bean"  <- black turtle bean (mature) [132] | black turtle bean (raw, mature) [341]
+  "mature blackeyed pea"  <- blackeyed pea (mature) [116] | blackeyed pea (raw, mature) [336]
+  "mature broad bean"  <- broad bean (mature) [110] | broad bean (raw, mature) [341]
+  "mature catjang pea"  <- catjang pea (mature) [117] | catjang pea (raw, mature) [343]
+  "mature chickpea"  <- chickpea (mature) [164] | chickpea (raw, mature) [378]
+  "mature cranberry bean"  <- cranberry bean (mature) [136] | cranberry bean (raw, mature) [335]
+  "mature great northern bean"  <- great northern bean (mature) [118] | great northern bean (raw, mature) [339]
+  "mature hyacinth bean"  <- hyacinth bean (mature) [117] | hyacinth bean (raw, mature) [344]
+  "mature kidney bean"  <- kidney bean (mature) [127] | kidney bean (raw, mature) [333]
+  "mature lima bean"  <- lima bean (mature) [115] | lima bean (raw, mature) [338]
+  "mature moth bean"  <- moth bean (mature) [117] | moth bean (raw, mature) [343]
+  "mature mung bean"  <- mung bean (mature) [105] | mung bean (raw, mature) [347]
+  "mature navy bean"  <- navy bean (mature) [140] | navy bean (raw, mature) [337]
+  "mature pink bean"  <- pink bean (mature) [149] | pink bean (raw, mature) [343]
+  "mature pinto bean"  <- pinto bean (mature) [143] | pinto bean (raw, mature) [347]
+  "mature red kidney bean"  <- red kidney bean (mature) [127] | red kidney bean (raw, mature) [337]
+  "mature soybean"  <- soybean (mature) [469] | soybean (raw, mature) [446]
+  "mature white bean"  <- white bean (mature) [139] | white bean (raw, mature) [336]
+  "mature winged bean"  <- winged bean (mature) [147] | winged bean (raw, mature) [409]
+  "mature yellow bean"  <- yellow bean (mature) [144] | yellow bean (raw, mature) [345]
+  "medium-grain brown rice kernel"  <- medium-grain brown rice kernel [112] | medium-grain brown rice kernel (uncooked) [362]
+  "medium-grain white rice"  <- medium-grain white rice [130] | medium-grain white rice (uncooked) [360]
+  "moringa leaf"  <- moringa leaf [60] | moringa leaf (raw) [64]
+  "moringa pod"  <- moringa pod [36] | moringa pod (raw) [37]
+  "mountain yam"  <- mountain yam [82] | mountain yam (raw) [67]
+  "mustard greens"  <- mustard greens [26] | mustard greens (raw) [27]
+  "mustard spinach leaf"  <- mustard spinach leaf [16] | mustard spinach leaf (raw) [22]
+  "nalta jute leaf"  <- nalta jute leaf [37] | nalta jute leaf (raw) [37]
+  "napa cabbage head"  <- napa cabbage head [30] | napa cabbage head (raw) [16]
+  "oat bran"  <- oat bran [43] | oat bran (raw) [246]
+  "onion"  <- onion [44] | onion (raw) [40]
+  "ostrich inside leg"  <- ostrich inside leg [141] | ostrich inside leg (raw) [111]
+  "ostrich inside strip"  <- ostrich inside strip [164] | ostrich inside strip (raw) [127]
+  "ostrich outside strip"  <- ostrich outside strip [156] | ostrich outside strip (raw) [120]
+  "ostrich oyster"  <- ostrich oyster [159] | ostrich oyster (raw) [125]
+  "ostrich tip"  <- ostrich tip [145] | ostrich tip (raw) [114]
+  "ostrich top loin"  <- ostrich top loin [155] | ostrich top loin (raw) [119]
+  "parsnip"  <- parsnip [71] | parsnip (raw) [75]
+  "pattypan squash"  <- pattypan squash [16] | pattypan squash (raw) [18]
+  "pea"  <- pea [98] | pea (raw) [124]
+  "pearled barley"  <- barley (pearled) [123] | barley (pearled, uncooked) [352]
+  "pecan"  <- pecan [710] | pecan (raw) [691]
+  "piece of antelope meat"  <- piece of antelope meat [150] | piece of antelope meat (raw) [114]
+  "piece of bear meat"  <- piece of bear meat [259] | piece of bear meat (raw) [161]
+  "piece of bearded seal meat"  <- piece of bearded seal meat [351] | piece of bearded seal meat (raw) [186]
+  "piece of beaver meat"  <- piece of beaver meat [212] | piece of beaver meat (raw) [146]
+  "piece of bison meat"  <- piece of bison meat [143] | piece of bison meat (raw) [109]
+  "piece of chicken back with skin"  <- piece of chicken back (with skin) [300] | piece of chicken back (with skin, raw) [319]
+  "piece of chicken breast with skin"  <- piece of chicken breast (with skin) [197] | piece of chicken breast (with skin, raw) [172]
+  "piece of chicken drumstick with skin"  <- piece of chicken drumstick (with skin) [191] | piece of chicken drumstick (with skin, raw) [161]
+  "piece of chicken leg with skin"  <- piece of chicken leg (with skin) [220] | piece of chicken leg (with skin, raw) [214]
+  "piece of chicken meat with skin"  <- piece of chicken meat (with skin) [175] | piece of chicken meat (with skin, raw) [234]
+  "piece of chicken neck with skin"  <- piece of chicken neck (with skin) [247] | piece of chicken neck (with skin, raw) [297]
+  "piece of chicken skin"  <- piece of chicken skin [443] | piece of chicken skin (raw) [349]
+  "piece of chicken thigh with skin"  <- piece of chicken thigh (with skin) [232] | piece of chicken thigh (with skin, raw) [221]
+  "piece of chicken wing with skin"  <- piece of chicken wing (with skin) [257] | piece of chicken wing (with skin, raw) [191]
+  "piece of dark turkey meat with skin"  <- piece of dark turkey meat (with skin) [206] | piece of dark turkey meat (with skin, raw) [166]
+  "piece of deer meat"  <- piece of deer meat [158] | piece of deer meat (raw) [120]
+  "piece of duck meat with skin"  <- piece of duck meat (with skin) [337] | piece of duck meat (with skin, raw) [404]
+  "piece of elk meat"  <- piece of elk meat [146] | piece of elk meat (raw) [111]
+  "piece of goat meat"  <- piece of goat meat [143] | piece of goat meat (raw) [109]
+  "piece of goose meat with skin"  <- piece of goose meat (with skin) [305] | piece of goose meat (with skin, raw) [371]
+  "piece of horse meat"  <- piece of horse meat [175] | piece of horse meat (raw) [133]
+  "piece of light chicken meat with skin"  <- piece of light chicken meat (with skin) [222] | piece of light chicken meat (with skin, raw) [186]
+  "piece of light turkey meat"  <- piece of light turkey meat [147] | piece of light turkey meat (raw) [114]
+  "piece of light turkey meat with skin"  <- piece of light turkey meat (with skin) [177] | piece of light turkey meat (with skin, raw) [161]
+  "piece of moose meat"  <- piece of moose meat [134] | piece of moose meat (raw) [103]
+  "piece of muskrat meat"  <- piece of muskrat meat [234] | piece of muskrat meat (raw) [162]
+  "piece of rabbit meat"  <- piece of rabbit meat [173] | piece of rabbit meat (raw) [114]
+  "piece of reindeer meat"  <- piece of reindeer meat [167] | piece of reindeer meat (raw) [127]
+  "piece of squirrel meat"  <- piece of squirrel meat [173] | piece of squirrel meat (raw) [120]
+  "piece of swordfish"  <- piece of swordfish [172] | piece of swordfish (raw) [144]
+  "piece of tilefish"  <- piece of tilefish [147] | piece of tilefish (raw) [96]
+  "piece of turkey back with skin"  <- piece of turkey back (with skin) [244] | piece of turkey back (with skin, raw) [206]
+  "piece of turkey breast with skin"  <- piece of turkey breast (with skin) [189] | piece of turkey breast (with skin, raw) [157]
+  "piece of turkey leg with skin"  <- piece of turkey leg (with skin) [208] | piece of turkey leg (with skin, raw) [144]
+  "piece of turkey skin"  <- piece of turkey skin [482] | piece of turkey skin (raw) [407]
+  "piece of turkey wing with skin"  <- piece of turkey wing (with skin) [229] | piece of turkey wing (with skin, raw) [197]
+  "piece of walrus meat"  <- piece of walrus meat [251] | piece of walrus meat (raw) [282]
+  "piece of water buffalo meat"  <- piece of water buffalo meat [131] | piece of water buffalo meat (raw) [99]
+  "piece of whelk"  <- piece of whelk [275] | piece of whelk (raw) [137]
+  "piece of wild boar meat"  <- piece of wild boar meat [160] | piece of wild boar meat (raw) [122]
+  "piece(s) of beef"  <- piece(s) of beef [449] | piece(s) of beef (raw) [406]
+  "piece(s) of scallop"  <- piece(s) of scallop [99] | piece(s) of scallop (raw) [69]
+  "piece(s) of turkey breast with skin"  <- piece(s) of turkey breast (with skin) [164] | piece(s) of turkey breast (with skin, raw) [155]
+  "piece(s) of turkey skin"  <- piece(s) of turkey skin [414] | piece(s) of turkey skin (raw) [380]
+  "piece(s) of turkey wing with skin"  <- piece(s) of turkey wing (with skin) [235] | piece(s) of turkey wing (with skin, raw) [202]
+  "pig foot"  <- pig foot [238] | pig foot (raw) [212]
+  "pinto bean"  <- pinto bean [114] | pinto bean (cooked) [162]
+  "pistachio nut"  <- pistachio nut [572] | pistachio nut (raw) [560]
+  "plantain"  <- plantain [155] | plantain (raw) [122]
+  "plum"  <- plum [91] | plum (raw) [46]
+  "pokeberry shoot"  <- pokeberry shoot [20] | pokeberry shoot (raw) [23]
+  "pork arm roast"  <- pork arm roast [280] | pork arm roast (raw) [193]
+  "pork brain"  <- pork brain [138] | pork brain (raw) [127]
+  "pork brisket point"  <- pork brisket point [162] | pork brisket point (raw) [127]
+  "pork butt steak"  <- pork butt steak [267] | pork butt steak (raw) [186]
+  "pork ear"  <- pork ear [166] | pork ear (raw) [234]
+  "pork fat"  <- pork fat [626] | pork fat (raw) [632]
+  "pork heart"  <- pork heart [148] | pork heart (raw) [118]
+  "pork kidney"  <- pork kidney [151] | pork kidney (raw) [100]
+  "pork leg"  <- pork leg [273] | pork leg (raw) [245]
+  "pork leg cap steak"  <- pork leg cap steak [158] | pork leg cap steak (raw) [123]
+  "pork leg center slice"  <- pork leg center slice [203] | pork leg center slice (raw) [195]
+  "pork leg shank half"  <- pork leg shank half [232] | pork leg shank half (raw) [193]
+  "pork leg sirloin half"  <- pork leg sirloin half [182] | pork leg sirloin half (raw) [120]
+  "pork liver"  <- pork liver [165] | pork liver (raw) [134]
+  "pork loin"  <- pork loin [209] | pork loin (raw) [143]
+  "pork loin back ribs"  <- pork loin back ribs [292] | pork loin back ribs (raw) [224]
+  "pork loin blade chop"  <- pork loin blade chop [222] | pork loin blade chop (raw) [194]
+  "pork loin blade roast"  <- pork loin blade roast [217] | pork loin blade roast (raw) [157]
+  "pork loin country-style ribs"  <- pork loin country-style ribs [247] | pork loin country-style ribs (raw) [189]
+  "pork lung"  <- pork lung [99] | pork lung (raw) [85]
+  "pork pancreas"  <- pork pancreas [219] | pork pancreas (raw) [199]
+  "pork petite tender"  <- pork petite tender [155] | pork petite tender (raw) [128]
+  "pork retail cut"  <- pork retail cut [235] | pork retail cut (raw) [134]
+  "pork shoulder"  <- pork shoulder [230] | pork shoulder (raw) [236]
+  "pork sirloin chop"  <- pork sirloin chop [222] | pork sirloin chop (raw) [168]
+  "pork sirloin tip roast"  <- pork sirloin tip roast [156] | pork sirloin tip roast (raw) [113]
+  "pork small intestine"  <- pork small intestine [233] | pork small intestine (raw) [182]
+  "pork spareribs"  <- pork spareribs [397] | pork spareribs (raw) [277]
+  "pork spleen"  <- pork spleen [149] | pork spleen (raw) [100]
+  "pork stomach"  <- pork stomach [157] | pork stomach (raw) [159]
+  "pork tail"  <- pork tail [396] | pork tail (raw) [378]
+  "pork tenderloin"  <- pork tenderloin [143] | pork tenderloin (raw) [109]
+  "pork tongue"  <- pork tongue [271] | pork tongue (raw) [225]
+  "porterhouse chop"  <- porterhouse chop [209] | porterhouse chop (raw) [170]
+  "portobello mushroom"  <- portobello mushroom [29] | portobello mushroom (raw) [22]
+  "potato"  <- potato [105] | potato (cooked) [86] | potato (raw) [77]
+  "prairie turnip"  <- prairie turnip [129] | prairie turnip (raw) [156]
+  "prickly pear pad"  <- prickly pear pad [91] | prickly pear pad (raw) [16]
+  "pumpkin"  <- pumpkin [20] | pumpkin (raw) [26]
+  "pumpkin flower"  <- pumpkin flower [15] | pumpkin flower (raw) [15]
+  "pumpkin leaf"  <- pumpkin leaf [21] | pumpkin leaf (raw) [19]
+  "purslane leaf"  <- purslane leaf [18] | purslane leaf (raw) [20]
+  "rapini leaf"  <- rapini leaf [25] | rapini leaf (raw) [22]
+  "red cabbage head"  <- red cabbage head [29] | red cabbage head (raw) [31]
+  "red potato"  <- red potato [87] | red potato (raw) [70]
+  "ribeye chop"  <- ribeye chop [222] | ribeye chop (raw) [186]
+  "rutabaga"  <- rutabaga [30] | rutabaga (raw) [37]
+  "salsify root"  <- salsify root [68] | salsify root (raw) [82]
+  "savoy cabbage head"  <- savoy cabbage head [24] | savoy cabbage head (raw) [27]
+  "sesbania flower"  <- sesbania flower [22] | sesbania flower (raw) [27]
+  "shallot"  <- shallot [348] | shallot (raw) [72]
+  "shank off semi-boneless lamb sirloin half"  <- lamb sirloin half (shank off, semi-boneless) [281] | lamb sirloin half (shank off, semi-boneless, raw) [254]
+  "shiitake mushroom"  <- shiitake mushroom [56] | shiitake mushroom (raw) [34]
+  "short-grain white rice"  <- short-grain white rice [130] | short-grain white rice (uncooked) [358]
+  "skinless boneless piece of chicken breast"  <- piece of chicken breast (skinless, boneless) [151] | piece of chicken breast (skinless, boneless, raw) [120]
+  "skinless piece of chicken back"  <- piece of chicken back (skinless) [239] | piece of chicken back (skinless, raw) [137]
+  "skinless piece of chicken drumstick"  <- piece of chicken drumstick (skinless) [155] | piece of chicken drumstick (skinless, raw) [116]
+  "skinless piece of chicken leg"  <- piece of chicken leg (skinless) [185] | piece of chicken leg (skinless, raw) [120]
+  "skinless piece of chicken meat"  <- piece of chicken meat (skinless) [193] | piece of chicken meat (skinless, raw) [119]
+  "skinless piece of chicken neck"  <- piece of chicken neck (skinless) [229] | piece of chicken neck (skinless, raw) [154]
+  "skinless piece of chicken thigh"  <- piece of chicken thigh (skinless) [179] | piece of chicken thigh (skinless, raw) [121]
+  "skinless piece of chicken wing"  <- piece of chicken wing (skinless) [203] | piece of chicken wing (skinless, raw) [126]
+  "skinless piece of dark chicken meat"  <- piece of dark chicken meat (skinless) [205] | piece of dark chicken meat (skinless, raw) [125]
+  "skinless piece of duck meat"  <- piece of duck meat (skinless) [201] | piece of duck meat (skinless, raw) [135]
+  "skinless piece of goose meat"  <- piece of goose meat (skinless) [238] | piece of goose meat (skinless, raw) [161]
+  "skinless piece of light chicken meat"  <- piece of light chicken meat (skinless) [173] | piece of light chicken meat (skinless, raw) [137]
+  "skinless piece of turkey back"  <- piece of turkey back (skinless) [173] | piece of turkey back (skinless, raw) [113]
+  "skinless piece of turkey breast"  <- piece of turkey breast (skinless) [147] | piece of turkey breast (skinless, raw) [114]
+  "skinless piece of turkey drumstick"  <- piece of turkey drumstick (skinless) [139] | piece of turkey drumstick (skinless, raw) [109]
+  "skinless piece of turkey thigh"  <- piece of turkey thigh (skinless) [165] | piece of turkey thigh (skinless, raw) [108]
+  "skinless piece of turkey wing"  <- piece of turkey wing (skinless) [147] | piece of turkey wing (skinless, raw) [115]
+  "skinless piece(s) of turkey breast"  <- piece(s) of turkey breast (skinless) [136] | piece(s) of turkey breast (skinless, raw) [114]
+  "skinless piece(s) of turkey drumstick"  <- piece(s) of turkey drumstick (skinless) [173] | piece(s) of turkey drumstick (skinless, raw) [118]
+  "skinless piece(s) of turkey meat"  <- piece(s) of turkey meat (skinless) [169] | piece(s) of turkey meat (skinless, raw) [115]
+  "skinless piece(s) of turkey thigh"  <- piece(s) of turkey thigh (skinless) [159] | piece(s) of turkey thigh (skinless, raw) [116]
+  "skinless piece(s) of turkey wing"  <- piece(s) of turkey wing (skinless) [170] | piece(s) of turkey wing (skinless, raw) [112]
+  "sour cherry"  <- sour cherry [36] | sour cherry (raw) [50]
+  "spaghetti squash"  <- spaghetti squash [27] | spaghetti squash (raw) [31]
+  "spanish peanut"  <- spanish peanut [579] | spanish peanut (raw) [570]
+  "spelt kernel"  <- spelt kernel [338] | spelt kernel (cooked) [127]
+  "spinach leaf"  <- spinach leaf [23] | spinach leaf (raw) [23]
+  "sponge gourd"  <- sponge gourd [56] | sponge gourd (raw) [20]
+  "straightneck squash"  <- straightneck squash [25] | straightneck squash (raw) [19]
+  "sweet cherry"  <- sweet cherry [46] | sweet cherry (raw) [63]
+  "sweet potato"  <- sweet potato [182] | sweet potato (cooked) [90] | sweet potato (raw) [86]
+  "sweet potato leaf"  <- sweet potato leaf [35] | sweet potato leaf (raw) [42]
+  "sweet red bell pepper"  <- sweet red bell pepper [26] | sweet red bell pepper ( raw) [26]
+  "swiss chard leaf"  <- swiss chard leaf [20] | swiss chard leaf (raw) [19]
+  "tahitian taro leaf"  <- tahitian taro leaf [44] | tahitian taro leaf (raw) [44]
+  "tangerine"  <- tangerine [38] | tangerine (raw) [53]
+  "taro leaf"  <- taro leaf [24] | taro leaf (raw) [112]
+  "taro shoot"  <- taro shoot [14] | taro shoot (raw) [11]
+  "tinda"  <- tinda [16] | tinda (raw) [26]
+  "tofu"  <- tofu [270] | tofu (raw) [144]
+  "tomato"  <- tomato [18] | tomato (raw) [18]
+  "turkey carcass with giblets"  <- turkey carcass (with giblets) [173] | turkey carcass (with giblets, raw) [124]
+  "turkey gizzard"  <- turkey gizzard [155] | turkey gizzard (raw) [111]
+  "turkey heart"  <- turkey heart [174] | turkey heart (raw) [140]
+  "turkey liver"  <- turkey liver [189] | turkey liver (raw) [128]
+  "turnip"  <- turnip [22] | turnip (raw) [28]
+  "valencia peanut"  <- valencia peanut [589] | valencia peanut (raw) [570]
+  "veal breast"  <- veal breast [266] | veal breast (raw) [208]
+  "veal foreshank"  <- veal foreshank [177] | veal foreshank (raw) [123]
+  "veal heart"  <- veal heart [186] | veal heart (raw) [110]
+  "veal kidney"  <- veal kidney [163] | veal kidney (raw) [99]
+  "veal liver"  <- veal liver [193] | veal liver (raw) [140]
+  "veal loin"  <- veal loin [159] | veal loin (raw) [177]
+  "veal pancreas"  <- veal pancreas [256] | veal pancreas (raw) [182]
+  "veal retail cut"  <- veal retail cut [231] | veal retail cut (raw) [144]
+  "veal rib"  <- veal rib [228] | veal rib (raw) [162]
+  "veal shoulder"  <- veal shoulder [199] | veal shoulder (raw) [130]
+  "veal shoulder arm"  <- veal shoulder arm [201] | veal shoulder arm (raw) [132]
+  "veal shoulder blade"  <- veal shoulder blade [198] | veal shoulder blade (raw) [148]
+  "veal sirloin"  <- veal sirloin [204] | veal sirloin (raw) [152]
+  "veal spleen"  <- veal spleen [129] | veal spleen (raw) [98]
+  "veal thymus"  <- veal thymus [125] | veal thymus (raw) [101]
+  "veal top round"  <- veal top round [183] | veal top round (raw) [117]
+  "virginia peanut"  <- virginia peanut [578] | virginia peanut (raw) [563]
+  "wasabi root"  <- wasabi root [292] | wasabi root (raw) [109]
+  "water morning glory leaf"  <- water morning glory leaf [20] | water morning glory leaf (raw) [19]
+  "wax bean"  <- wax bean [35] | wax bean (raw) [33]
+  "white glutinous rice"  <- white glutinous rice [97] | white glutinous rice (uncooked) [370]
+  "white mushroom"  <- white mushroom [28] | white mushroom (raw) [22]
+  "white potato"  <- white potato [92] | white potato (raw) [69]
+  "white sweet corn kernel"  <- white sweet corn kernel [80] | white sweet corn kernel (raw) [86]
+  "wild rice kernel"  <- wild rice kernel [101] | wild rice kernel (raw) [357]
+  "winter melon"  <- winter melon [14] | winter melon (raw) [13]
+  "yam"  <- yam [116] | yam (raw) [118]
+  "yellow bean"  <- yellow bean [20] | yellow bean (cooked) [28]
+  "yellow sweet corn kernel"  <- yellow sweet corn kernel [81] | yellow sweet corn kernel (raw) [86]
+  "zucca melon"  <- zucca melon [15] | zucca melon (raw) [14]
+  "zucchini squash"  <- zucchini squash [17] | zucchini squash (raw) [17]

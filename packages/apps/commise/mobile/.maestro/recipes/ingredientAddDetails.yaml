@@ -1,0 +1,101 @@
+appId: io.commise.mobile
+---
+# Curated U15 on a device (`docs/design/ingredientSpecialization.md` §S7, F1, AE1): a cook adds a detail to a
+# root-bound line from the row's `⋮`, finds it by searching, changes it and removes it, and the line shows the root's
+# name with the detail under it. Mobile mirror of the web Playwright `ingredientAddDetails.spec.ts`.
+#
+# It runs against the PR's deployed sandbox (ADR-0032): the details sheet reads the root from the food service, and
+# the root is a KTD-16 seed root, `boneless skinless chicken breasts`, whose live variants come from the catalog seed
+# (ADR-0051). A stage without that root, or whose batch read does not report its variants, fails at a labelled step
+# that names the cause; the flow never skips. Calories and the option count come from the seed, so they are matched
+# as patterns. On the create form a pick is a `by-food-variant` admission into the draft (blueprint decision 7).
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Add Details'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+
+# The root, from the food catalog, through the trailing field. A prefix, so the field's own text never matches the
+# option's name.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'boneless skinless chicken brea'
+- extendedWaitUntil:
+      visible:
+          text: 'boneless skinless chicken breasts'
+      timeout: 30000
+      label: 'KTD-16 root "boneless skinless chicken breasts" is in this stage’s food catalog'
+- tapOn: 'boneless skinless chicken breasts'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+
+# Add, by search. `Add details` is offered only when food's batch read says the root has a live variant.
+- tapOn: 'Actions for boneless skinless chicken breasts'
+- extendedWaitUntil:
+      visible:
+          text: 'Add details'
+      timeout: 20000
+      label: 'the root reports live variants (hasVariants), so its ⋮ offers Add details'
+- tapOn: 'Add details'
+- extendedWaitUntil:
+      visible:
+          text: 'Search .* options'
+      timeout: 30000
+      label: 'the details sheet read the root’s variants from the food service (a long list has search)'
+- tapOn: 'Search .* options'
+- inputText: 'fried'
+- tapOn: 'fried, .*'
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts, fried'
+      timeout: 30000
+- assertVisible: 'fried'
+
+# Change it.
+- tapOn: 'Actions for boneless skinless chicken breasts, fried'
+- tapOn: 'Edit details'
+- tapOn: 'Search .* options'
+- inputText: 'roasted'
+- tapOn: 'roasted, .*'
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts, roasted'
+      timeout: 30000
+- assertNotVisible: 'Actions for boneless skinless chicken breasts, fried'
+
+# Remove it: the line is the root again.
+- tapOn: 'Actions for boneless skinless chicken breasts, roasted'
+- tapOn: 'Edit details'
+- scrollUntilVisible:
+      element: 'Remove details'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Remove details'
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts'
+      timeout: 30000
+- assertNotVisible: 'Actions for boneless skinless chicken breasts, roasted'
+
+# Leave without saving: the explicit Discard, as `ingredientRemove.yaml` does.
+- pressKey: Back
+- assertVisible: 'Discard unsaved changes?'
+- tapOn: 'Discard changes'
+- assertVisible: 'Recipes'

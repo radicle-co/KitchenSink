@@ -1,0 +1,19 @@
+/**
+ * THE REGRESSION FIXTURE. Every `.parse(` in this file is `Date.parse` or `JSON.parse`, so a textual search
+ * for `\.(parse|safeParse)\(` reports this client as validating its responses. It validates nothing.
+ */
+import { thingResponseSchema } from '@kitchensink/schema-thing';
+import type { ThingResponse } from '@kitchensink/schema-thing';
+
+export async function getThing(fetchImpl: typeof fetch): Promise<ThingResponse> {
+    const response = await fetchImpl('/api/v1/things/1');
+    const text = await response.text();
+    const parsed = JSON.parse(text) as ThingResponse & { createdAt: string };
+    const createdAtMs = Date.parse(parsed.createdAt);
+
+    return createdAtMs > 0 ? parsed : parsed;
+}
+
+export function readThing(payload: unknown): unknown {
+    return thingResponseSchema.parse(payload);
+}

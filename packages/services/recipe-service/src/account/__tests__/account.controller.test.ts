@@ -14,7 +14,7 @@
  *     → `describe('the request body')` / `describe('the response')`
  *
  * The `401`-on-missing-principal path lives in `@OwnerId()` itself
- * (`auth/__tests__/current-principal.decorator.test.ts`); the wire status codes (`202`/`410`) are pinned
+ * (`auth/__tests__/currentPrincipal.decorator.test.ts`); the wire status codes (`202`/`410`) are pinned
  * over real HTTP by the integration tier (T137).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -22,13 +22,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AccountController } from '../account.controller.js';
 import type { ErasureService } from '../erasure.service.js';
 import type { AccountExportService } from '../export.service.js';
-import type { AccountExport } from '../dto/export.dto.js';
+import type { AccountExport } from '../account.schema.js';
+import type { Principal } from '../../auth/principal.js';
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, type ErasureRequestDto } from '../dto/erasure.dto.js';
 
 type ServiceMock = { [K in keyof ErasureService]: ReturnType<typeof vi.fn> };
 type ExportMock = { [K in keyof AccountExportService]: ReturnType<typeof vi.fn> };
 
 const OWNER = 'owner-1';
+/** The verified principal the decorator resolves. Its acting slice is what the erasure service decides on. */
+const PRINCIPAL: Principal = {
+    userId: OWNER,
+    sub: 'user_clerk',
+    scopes: [],
+    permissions: [],
+    principalKind: 'real',
+    containment: 'enforce',
+};
+const ACTING = { userId: OWNER, principalKind: 'real', containment: 'enforce' } as const;
 const ACCEPTED = { jobId: '00000000-0000-4000-8000-0000000000e1', status: 'queued' } as const;
 const EXPORT_DOC: AccountExport = {
     exportedAt: '2026-07-24T00:00:00.000Z',
@@ -56,19 +67,19 @@ beforeEach(() => {
 
 describe('the owner key', () => {
     it('passes the authenticated owner id through to the service', async () => {
-        await controller.requestErasure(OWNER, {} as ErasureRequestDto);
+        await controller.requestErasure(PRINCIPAL, {} as ErasureRequestDto);
 
-        expect(erasure.requestErasure).toHaveBeenCalledExactlyOnceWith(OWNER, {});
+        expect(erasure.requestErasure).toHaveBeenCalledExactlyOnceWith(ACTING, {});
     });
 
     it('IGNORES an ownerId smuggled in the body — erasure is only ever scoped to the caller', async () => {
         const hostile = { ownerId: 'victim-2', confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE };
 
-        await controller.requestErasure(OWNER, hostile as ErasureRequestDto);
+        await controller.requestErasure(PRINCIPAL, hostile as ErasureRequestDto);
 
         const [ownerArg] = erasure.requestErasure.mock.calls[0] ?? [];
-        expect(ownerArg).toBe(OWNER);
-        expect(ownerArg).not.toBe('victim-2');
+        expect(ownerArg).toEqual(ACTING);
+        expect(ownerArg).not.toMatchObject({ userId: 'victim-2' });
     });
 });
 
@@ -78,17 +89,17 @@ describe('the request body', () => {
         // ValidationPipe rejects a present-but-empty body and ErasureService rejects an absent one — both
         // proven over the wire in the T137 integration tier. Here we only pin that the controller forwards
         // whatever it is given (undefined included) to the service unchanged.
-        await controller.requestErasure(OWNER, undefined);
+        await controller.requestErasure(PRINCIPAL, undefined);
 
-        expect(erasure.requestErasure).toHaveBeenCalledExactlyOnceWith(OWNER, undefined);
+        expect(erasure.requestErasure).toHaveBeenCalledExactlyOnceWith(ACTING, undefined);
     });
 
     it('forwards a supplied confirmation phrase to the service for validation', async () => {
         const body: ErasureRequestDto = { confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE };
 
-        await controller.requestErasure(OWNER, body);
+        await controller.requestErasure(PRINCIPAL, body);
 
-        expect(erasure.requestErasure).toHaveBeenCalledExactlyOnceWith(OWNER, body);
+        expect(erasure.requestErasure).toHaveBeenCalledExactlyOnceWith(ACTING, body);
     });
 });
 
@@ -115,7 +126,7 @@ describe('GET /api/v1/account/export', () => {
 
 describe('the response', () => {
     it('returns the service result verbatim — exactly { jobId, status }, no invented fields', async () => {
-        const result = await controller.requestErasure(OWNER, {} as ErasureRequestDto);
+        const result = await controller.requestErasure(PRINCIPAL, {} as ErasureRequestDto);
 
         expect(result).toEqual(ACCEPTED);
         expect(Object.keys(result).sort()).toEqual(['jobId', 'status']);
@@ -125,6 +136,6 @@ describe('the response', () => {
         const failure = new Error('boom');
         erasure.requestErasure.mockRejectedValue(failure);
 
-        await expect(controller.requestErasure(OWNER, {} as ErasureRequestDto)).rejects.toBe(failure);
+        await expect(controller.requestErasure(PRINCIPAL, {} as ErasureRequestDto)).rejects.toBe(failure);
     });
 });

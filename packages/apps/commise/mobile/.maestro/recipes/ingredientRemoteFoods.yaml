@@ -1,0 +1,142 @@
+appId: io.commise.mobile
+---
+# Remote foods on a device (plan 002 S7.8, ADR-0055 points 9 and 10). Mobile mirror of the web Playwright
+# `ingredientRemoteFoods.spec.ts` create and Change food stories. Replaces `ingredientUsdaSearch.yaml`, whose
+# "Search USDA" option is gone: a source's foods now flow into the same list as the database's, with no button
+# (owner ruling 2026-10-02).
+#
+# Assumes an authenticated session and the app pointed at the PR's deployed sandbox, like `create.yaml`.
+#
+# WHAT THIS FLOW ASSERTS, which only a device can:
+#
+#   1. The USDA group arrives BY ITSELF. Nothing is pressed between typing and the group showing, and the old
+#      option is not on screen.
+#   2. ⛔ It APPENDS: the cook's own food, listed before it arrived, is still listed after.
+#   3. A remote pick lands on the line as ONE command: the adopt, then the line's write. The trailing add row admits
+#      the root; Change food on that line picks a second remote food the same way.
+#   4. The recipe publishes with the remote foods on it (Publish rejects a line whose binding does not resolve).
+#
+# ⚠️ An upstream that is really down, or rate-limiting this stage, fails this flow at the labelled waits. That is the
+# honest result for a tier that proves the deployed system. The list's states when a source cannot answer are the
+# component tier's (`entryCombobox.test.ts`, `RecipeIngredientsFields.rowEditor.native.test.tsx`) and the web
+# Playwright `ingredientSearchDegraded.spec.ts`.
+#
+# It spends two remote picks from the signer's source budget, and leaves one published recipe, which the next flow's
+# reset deletes.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Remote Foods'
+
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients). With no lines yet, the trailing field sits right below the rail.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+
+# A PREFIX of the run's probe food `Flour` (`e2e-seed provision`), so "Your foods" has something to keep. Deliberately
+# 'Flou', not 'Flour': the field's own value is matchable text.
+- inputText: 'Flou'
+- extendedWaitUntil:
+      visible:
+          text: 'Your foods'
+      timeout: 30000
+
+# ⛔ No press: the source's group arrives on its own. Maestro's text match ignores case, so `FROM USDA` matches. It is
+# scrolled to rather than waited for: on a stage whose catalog seed matches the words, the catalog group above it
+# starts the source's group below the fold.
+- scrollUntilVisible:
+      element:
+          text: 'From USDA'
+      direction: DOWN
+      timeout: 40000
+      label: 'USDA answered the progressive search for "flou" on this stage'
+- assertNotVisible: 'Search USDA for .*'
+# It appended: the cook's own food is still listed.
+- scrollUntilVisible:
+      element: 'Flour, your food'
+      direction: UP
+      timeout: 20000
+
+# One remote pick. Its name ends in its source (`hitName`), which no database option's does.
+- scrollUntilVisible:
+      element: '.*, from USDA'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: '.*, from USDA'
+      index: 0
+- extendedWaitUntil:
+      visible:
+          text: 'Ingredient 1 name'
+      timeout: 40000
+      label: 'the remote pick adopted its food and the add row admitted the root'
+
+# Change food on that line, to a second remote food. The field opens on the food's name with the caret at its end, so
+# the name is erased first.
+- tapOn: 'Actions for .*'
+- tapOn: 'Change food'
+- eraseText: 60
+- inputText: 'butter'
+- scrollUntilVisible:
+      element:
+          text: 'From USDA'
+      direction: DOWN
+      timeout: 40000
+      label: 'USDA answered the progressive search for "butter" on this stage'
+- scrollUntilVisible:
+      element: '.*, from USDA'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: '.*, from USDA'
+      index: 0
+# The pick closed the list and left Change food. The row's glyph is named for the line's food, so it names butter
+# only once the second remote pick has moved the line (before it, it names the flour food).
+- extendedWaitUntil:
+      visible:
+          text: 'About .*[Bb]utter.*'
+      timeout: 40000
+      label: 'the second remote pick moved the line to its root'
+- assertNotVisible: '.*, from USDA'
+
+# Finish the recipe, so the remote foods are proven usable.
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      # DOWN, not UP: advancing a step returns the scroller to the TOP (`useScrollResetOnChange`).
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Whisk and rest.'
+- scrollUntilVisible:
+      element: 'Next: Review'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Review'
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Remote Foods.*'
+      timeout: 40000

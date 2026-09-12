@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { configureAsyncUtilBudget } from '@commise/test-utils/async-util-budget';
 
 // jsdom does not implement `URL.createObjectURL`/`revokeObjectURL` (a real-browser-only API the recipe photo
 // upload queue uses to mint a per-file preview thumbnail — w3/e4). Stub them globally, once, so no individual
@@ -16,3 +17,5 @@ if (typeof URL.createObjectURL !== 'function') {
 if (typeof URL.revokeObjectURL !== 'function') {
     (URL as unknown as { revokeObjectURL: (url: string) => void }).revokeObjectURL = () => undefined;
 }
+
+configureAsyncUtilBudget();

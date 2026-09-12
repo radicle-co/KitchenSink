@@ -3,12 +3,17 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 
+import { getDictionary } from '@/i18n/getDictionary';
+
 import { AccountContent } from './AccountContent';
 
-export const metadata: Metadata = {
-    title: 'Account Settings | Commise',
-    description: 'Manage your account settings',
-};
+/** The tab's title and the shared link's description, in the request's locale. */
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale } = await params;
+    const { title, description } = getDictionary(locale).pageMetadata.account;
+
+    return { title, description };
+}
 
 // L9: like every AppShell-hosted route, this renders the authenticated nav shell (whose Clerk-backed hooks
 // require a live session) and reads the caller's own token via `auth()` — so it is per-request dynamic, not

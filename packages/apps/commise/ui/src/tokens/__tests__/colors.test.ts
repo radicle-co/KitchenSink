@@ -98,6 +98,7 @@ const ACCENT_TIERS = [
     'sky',
     'success',
     'warning',
+    'warning-dark',
     'error',
     'error-dark',
     'premium',
@@ -117,6 +118,7 @@ const BRAND_HUE: Readonly<Record<(typeof ACCENT_TIERS)[number], number>> = {
     sky: 228.7,
     success: 158.2,
     warning: 75.3,
+    'warning-dark': 75.3,
     error: 34.6,
     'error-dark': 34.6,
     premium: 67.1,
@@ -167,6 +169,32 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
             ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
         },
     );
+
+    // `warning-dark` is the amber in FOREGROUND position: the "why this is disabled" note under a visibility
+    // toggle, a parse row's caution status, a picker's terminal notice. `warning` itself is 1.88:1 on white —
+    // far under the floor, and under even the 3:1 SC 1.4.11 graphic floor — so it is a FILL only.
+    //
+    // ⛔ There is deliberately NO `warning/10`-tint assertion here, and its absence is not the omission
+    // `error-dark`'s block above exists to prevent. Every warning-tinted surface in the product carries
+    // `text-charcoal`; the amber is never painted on its own tint, so that pairing has no call site to measure.
+    // The red's case is the opposite — its alert copy sits INSIDE the `error/10` banner — which is why the tint
+    // is asserted there and not here.
+    it.each(['white', 'sand', 'pearl'] as const)('warning-dark reads as text on %s', (surface) => {
+        expect(wcagContrast(palette['warning-dark'], palette[surface])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    });
+
+    // The same anti-swap invariant the reds carry: one hue, lightness apart, foreground darker. Without it a
+    // re-theme could swap them — every ratio above would still pass while every `bg-warning` chip lost its
+    // charcoal label and every `text-warning-dark` note went light — or collapse them back into one token.
+    it('warning-dark is the same amber as warning, strictly darker', () => {
+        const fill = toOklch(palette.warning);
+        const foreground = toOklch(palette['warning-dark']);
+
+        expect(Math.abs((foreground?.h ?? Number.NaN) - (fill?.h ?? Number.NaN))).toBeLessThanOrEqual(
+            HUE_TOLERANCE_DEGREES,
+        );
+        expect(foreground?.l).toBeLessThan(fill?.l ?? 0);
+    });
 
     // The two reds must stay ONE hue apart in LIGHTNESS only, with the foreground one darker. Without this a
     // re-theme could swap them (every ratio above would still pass, while every `bg-error` fill lost its white

@@ -1,200 +1,152 @@
 # Sync-Verify Report: Feature 006-meal-planning
 
-**Run Date**: 2026-06-02
-**Mode**: Pre-implementation 7-layer sync-verify scan
-**Scan Directive**: L1, L2, L3, L4, L7 active; L5 skipped; L6 INFO
-**Evidence Base**: Read-only absolute paths under `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/`
+**Run Date**: 2026-08-02 (supersedes 2026-06-02)
+**Mode**: Pre-implementation 8-layer sync-verify scan
+**Scan Directive**: L1–L8 all active
+**Evidence Base**: `/home/brandon/Development/KitchenSink/.worktrees/006-meal-planning/specs/006-meal-planning/` **and**
+the repository at `main`
+
+> **Two corrections to the previous run's method.**
+>
+> 1. **Its evidence base was a stale worktree** — `/.worktrees/002-user-auth/specs/006-meal-planning/`. That worktree is
+>    now prunable. A scan reading a different checkout than the one being changed can be green about content nobody
+>    ships.
+> 2. **L5 was skipped and L6 downgraded to INFO by directive**, so the two layers most likely to surface drift were the
+>    two that could not fail. L6's own note — "MOD-001..MOD-022 target `src/meal-planning/` (pre-impl, no files exist)"
+>    — recorded the defect (an unrooted path outside any workspace) and classified it as informational.
+>
+> This run enables every layer and adds **L8 (artifacts ↔ codebase)**.
 
 ---
 
 ## Executive Summary
 
-| Layer | Direction | Status | Findings |
-|-------|-----------|--------|----------|
-| L1 | spec.md self-consistency | ✅ PASS | All FR/NFR/SC IDs defined; dependencies and edge cases listed. |
-| L2 | plan.md ↔ spec.md | ✅ PASS | All 6 FRs covered; all 4 Must-Have stories have ≥1 task. |
-| L3 | tasks.md ↔ plan.md | ✅ PASS | 38 tasks map to 8 plan phases; dependency order respected. |
-| L4 | product-spec/ ↔ spec.md | ✅ PASS | FR/NFR/SC coverage consistent; MoSCoW traceable. One WARNING noted. |
-| L5 | research/ ↔ product-spec/ | ⏭️ SKIP | Per scan directive. |
-| L6 | v-model/ ↔ spec.md | ℹ️ INFO | REQ-001..REQ-010 map to FR-022..027; MOD-001..MOD-022 target `src/meal-planning/` (pre-impl, no files exist). |
-| L7 | Cross-cutting artifacts ↔ all layers | ✅ PASS | Checklist 16/16 passed; verify-report.md found 0 CRITICAL. |
+| Layer  | Direction                     | Status  | Findings                                                                                      |
+| ------ | ----------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| L1     | `spec.md` self-consistency    | ✅ PASS | 42 requirement ids defined and referenced; 11 Clarifications; 5 SCs; edge cases each resolved |
+| L2     | `plan.md` ↔ `spec.md`         | ✅ PASS | Every Phase-1 FR has an architectural home; deferrals explicit                                |
+| L3     | `tasks.md` ↔ `plan.md`        | ✅ PASS | 72 tasks over the plan's 12 phases; **one** numbering system                                  |
+| L4     | `product-spec/` ↔ `spec.md`   | ✅ PASS | FR/NFR/SC coverage consistent; MoSCoW traceable; both platforms                               |
+| L5     | `research/` ↔ `product-spec/` | ✅ PASS | **No longer skipped.** Superseded answers marked with corrections                             |
+| L6     | `v-model/` ↔ `spec.md`        | ✅ PASS | **No longer INFO.** 37/37 Phase-1 requirements traced; 0 missing matrix cells                 |
+| L7     | Cross-cutting artifacts       | ✅ PASS | All MAJOR gates closed 2026-08-02; the index edit is applied                                  |
+| **L8** | Artifacts ↔ **codebase**      | ✅ PASS | 13 codebase checks, all passing                                                               |
 
-**Current Counts**: **0 CRITICAL**, **1 WARNING**, **0 EXPECTED-GAP**, **6 PASSED**.
+**Counts**: **0 CRITICAL** · **0 WARNING** · **0 EXPECTED-GAP (docs)** · **1 EXPECTED-GAP (no implementation)** ·
+**8 PASSED**
 
-**Overall**: ✅ PASS for pre-implementation. L6 flagged INFO because no implementation files exist yet (deterministic missing-impl = INFO per directive).
+**Overall**: ✅ **PASS** — cleared to begin implementation (2026-08-02).
 
 ---
 
 ## Findings by Layer
 
-### L1 — spec.md Self-Consistency
+### L1 — `spec.md` self-consistency · ✅ PASS
 
-**Status**: ✅ PASS
+- **FR coverage**: FR-022..FR-039. FR-022/023/024 and FR-028..FR-039 are Phase-1; FR-025/026/027 are marked deferred
+  with blockers named. Ids are unique and none is orphaned.
+- **NFR coverage**: NFR-001..NFR-007 (up from 4). NFR-005 (test mandate), NFR-006 (latency) and NFR-007 (parity) are new
+  and each map to a v-model requirement.
+- **Success criteria**: SC-006-001..005 (up from 1). Three are CI-checkable.
+- **Clarifications**: 11, each resolving an open question or a codebase mismatch. Every one is traced in
+  `traceability-matrix.md` Matrix F.
+- **Edge cases**: 8, each with a named resolution — no bare questions left dangling.
+- **Dependency table**: matches reality — 003 is downgraded from Required to Indirect; 005 and 010 are marked
+  "Required for Phase 2 — NOT BUILT".
 
-- **FR Coverage**: FR-022, FR-023, FR-024, FR-025, FR-026, FR-027 present and unambiguous.
-- **NFR Coverage**: NFR-001 (strict TypeScript), NFR-002 (JSDoc), NFR-003 (a11y queryability), NFR-004 (non-color-only state) present.
-- **Success Criterion**: SC-008 (< 10 min plan-to-grocery workflow) present with measurable target.
-- **Dependencies**: Upstream 001, 002, 003 marked Required; 005 Referenced; 007, 009 Downstream; 010 Referenced. No contradictions.
-- **Edge Cases**: 30+ day plan scalability identified.
+### L2 — `plan.md` ↔ `spec.md` · ✅ PASS
 
----
+Every Phase-1 FR maps to a package, a data-model element or an API contract. The plan additionally carries the two
+artifacts `CLAUDE.md` mandates and the May plan lacked: a **pattern register** and a **Complexity Tracking** table.
+Deferred FRs appear in the plan only as an explicit Phase-2 note, with no architecture built for them.
 
-### L2 — plan.md ↔ spec.md (Technical Alignment)
+### L3 — `tasks.md` ↔ `plan.md` · ✅ PASS
 
-**Status**: ✅ PASS
+72 tasks map onto the plan's 12-step implementation order. The May run passed this layer while the file contained **two
+parallel numbering systems**; the scan counted only `TASK-001`–`TASK-038` and reported "38 tasks map to 8 plan phases".
+Now: one system, and every task path resolves inside a real workspace.
 
-| Spec Requirement | Plan Coverage | Evidence |
-|------------------|---------------|----------|
-| FR-022 (Create meal plans) | `meal_plans` table, CRUD endpoints | plan.md §2, §3; TASK-001, TASK-005–013 |
-| FR-023 (Assign recipes) | `meal_plan_entries` table, entry endpoints | plan.md §2; TASK-002, TASK-007, TASK-014–015 |
-| FR-024 (Nutrition summaries) | `meal_plan_nutrition` table, NutritionCalculatorService | plan.md §2; TASK-003, TASK-016–017, TASK-019 |
-| FR-025 (AI suggestions) | `POST /v1/meal-plans/{id}/recipes/suggestions` | plan.md §3; TASK-030 |
-| FR-026 (Auto-generate) | Auto-generation endpoint | plan.md §3; TASK-031 |
-| FR-027 (Waste optimization) | Optimization endpoint | plan.md §3; TASK-032 |
-| NFR-001 | Strict TypeScript enforcement | TASK-038 |
-| NFR-002 | JSDoc on exports | TASK-006, TASK-007, TASK-008, etc. |
-| NFR-003 | `aria-label` / `role` on UI controls | TASK-022, TASK-023, TASK-025 |
-| NFR-004 | Icon + text redundancy | TASK-022, TASK-023, TASK-025, TASK-027 |
-| SC-008 | Grocery handoff endpoint + UI | TASK-028, TASK-029 |
+### L4 — `product-spec/` ↔ `spec.md` · ✅ PASS
 
-**Must-Have Story Coverage Check** (product-spec MoSCoW):
-- US-006-001 (Create Plan) → FR-022 → covered by 7 tasks.
-- US-006-002 (Assign Meals) → FR-023 → covered by 6 tasks (backend + frontend).
-- US-006-003 (View Nutrition) → FR-024 → covered by 5 tasks.
-- US-006-004 (Complete Workflow) → SC-008 → covered by 2 tasks.
+Stories, journeys, wireframes and metrics all reference current FR ids. The two previously-"inferred" stories are
+resolved: templates promoted to FR-028, family sizing to FR-030. Six wireframes cover both platforms; the May set had
+five, all web.
 
-All 4 Must-Have stories have ≥1 task. No Must-Have orphan.
+### L5 — `research/` ↔ `product-spec/` · ✅ PASS _(previously skipped)_
 
----
+`research.md` RQ-6/7/9 are marked superseded with the corrections recorded in a Reconciliation section rather than
+deleted. `codebase-analysis.md` is rewritten from the repository. `tech-stack.md` records the library-first gate and the
+three reversals. No research conclusion now contradicts the product spec.
 
-### L3 — tasks.md ↔ plan.md (Task Alignment)
+### L6 — `v-model/` ↔ `spec.md` · ✅ PASS _(previously INFO)_
 
-**Status**: ✅ PASS
+All ten v-model artifacts regenerated. REQ-001..REQ-020, REQ-NF-001..009, REQ-IF-001..008 and REQ-CN-001..005 trace to
+SYS → ARCH → MOD → tests. Module target paths are now rooted in real workspaces — the May run's `src/meal-planning/`
+paths, which it reported as INFO, are gone. 0 missing matrix cells, against 41.
 
-| plan.md Phase | tasks.md Tasks | Count |
-|---------------|----------------|-------|
-| Phase 1 — DB/Schema | TASK-001 to TASK-004 | 4 |
-| Phase 2 — Backend CRUD | TASK-005 to TASK-015 | 11 |
-| Phase 3 — Nutrition | TASK-016 to TASK-019 | 4 |
-| Phase 4 — Frontend | TASK-020 to TASK-027 | 8 |
-| Phase 5 — Grocery | TASK-028 to TASK-029 | 2 |
-| Phase 6 — AI | TASK-030 to TASK-033 | 4 |
-| Phase 7 — Lock/Finalize | TASK-034 | 1 |
-| Phase 8 — Tests | TASK-035 to TASK-038 | 4 |
+### L7 — Cross-cutting artifacts · ✅ PASS
 
-- **Dependency Order**: tasks.md respects plan.md phase ordering (Schema → Backend → Nutrition → Frontend → Grocery → AI → Lock → Tests).
-- **No Reverse Dependencies**: TASK-038 (strict audit) depends on "All implementation tasks," consistent with being last.
-- **Phase 4 Frontend tasks** reference `@dnd-kit/core` and `src/meal-planning/*` paths, which match plan.md component architecture.
+| Finding | Detail                                                                                                          |
+| ------- | --------------------------------------------------------------------------------------------------------------- |
+| W-003   | ✅ **CLOSED** — the three MAJOR findings resolved by owner ruling 2026-08-02 (plus PRF-006-16)                  |
+| W-004   | ✅ **CLOSED** — every id enumerated; 341 → 357 scenarios, 63 → 81 component tests, 19-test double-count removed |
+| W-005   | ✅ **CLOSED** — index rows now `Deferred`, with status definitions, a deferral note and review rule 5           |
+| W-006   | ✅ **CLOSED** — task sizing decided in plan.md, so the figure is derived; billing confirmation at T070          |
 
----
+The checklist is 20/20. The release audit is correctly **BLOCKED** — on work not yet done, rather than on documents
+disagreeing.
 
-### L4 — product-spec/ ↔ spec.md (Product Alignment)
+### L8 — Artifacts ↔ codebase · ✅ PASS _(new layer)_
 
-**Status**: ✅ PASS (with 1 WARNING)
-
-- product-spec.md vision, personas, epics, and MoSCoW stories map cleanly to FR-022..027.
-- user-journey.md sequence diagrams reference FR-022..027 correctly.
-- metrics.md defines per-story metrics tied to FR-022..027 and SC-008.
-- wireframes/ README.md lists 5 wireframe files matching planned screens.
-
-**WARNING — W-001 (Forward Drift)**:
-- **Issue**: `product-spec.md` includes inferred stories **US-006-008** (Template/Recurring) and **US-006-009** (Family Size Presets) under "Could Have" and "Won't Have (current explicit scope)."
-- **Root Cause**: `spec.md` does not contain explicit FR IDs for templates, recurrence, or family-sizing controls.
-- **Impact**: Low. Artifacts self-label these as inferred; no false claim of canonical requirement.
-- **Recommendation**: During revalidation, promote explicit FR(s) if product intent is to include them.
-- **Already documented** in verify-report.md as W-001 and W-002.
+13 checks against `main`, all passing. Full table in [`verify-report.md`](./verify-report.md) §L8. Highlights: every
+package path is inside a real workspace glob; `RecipeNutrition` carries no fibre; `subscriptionTier` is not a token
+claim; the Home widget contract and the anticipated package name exist as described; no Redis exists anywhere.
 
 ---
 
-### L5 — research/ ↔ product-spec/
+## Drift Analysis
 
-**Status**: ⏭️ SKIP
+### Forward drift (earlier artifacts not reflected in later ones)
 
-Per scan directive: L5 skipped. Research artifacts exist and were used to bootstrap product-spec in verify-report.md.
+**None detected.** Every Clarification propagates to plan, v-model, tasks and product-spec — verified by Matrix F.
 
----
+### Backward drift (later decisions that should update earlier artifacts)
 
-### L6 — v-model/ ↔ spec.md (V-Model Alignment)
+**Two, both resolved by this regeneration:**
 
-**Status**: ℹ️ INFO
+1. The decision to reuse `@kitchensink/recipe-core/nutrition` (a plan-level decision) required changing `spec.md`
+   FR-024 and the research RQ-7 answer. Both updated.
+2. The decision to defer FR-025/026/027 required marking the product-spec's Avery persona as unserved in Phase 1 rather
+   than leaving it implying coverage. Updated.
 
-**Rationale**: Pre-implementation scan; no source files exist yet. V-Model artifacts are forward-specification only.
-
-- **REQ Coverage**: v-model/requirements.md defines REQ-001..REQ-010 mapping to FR-022..027 and edge/quality concerns.
-- **SYS↔REQ Traceability**: system-design.md decomposes into SYS-001..SYS-008 with explicit parent REQ lists.
-- **ARCH↔SYS Traceability**: architecture-design.md maps ARCH-001..ARCH-022 to SYS components.
-- **MOD↔ARCH Traceability**: module-design.md maps MOD-001..MOD-022 to ARCH modules with target source files under `src/meal-planning/`.
-- **Missing Implementation**: All MOD target files (`src/meal-planning/controllers/*.ts`, `src/meal-planning/services/*.ts`, etc.) are **not yet present**. This is expected and flagged INFO only per directive.
+**Resolved 2026-08-02**: W-005 — the cross-feature FR index now reflects the deferral, and a new review rule prevents the same staleness recurring.
 
 ---
 
-### L7 — Cross-Cutting Artifacts ↔ All Layers
+## Comparison with the 2026-06-02 run
 
-**Status**: ✅ PASS
+| Measure                    | 2026-06-02                   | 2026-08-02                     |
+| -------------------------- | ---------------------------- | ------------------------------ |
+| Layers active              | 5 of 7 (L5 skipped, L6 INFO) | **8 of 8**                     |
+| Codebase consulted         | **No**                       | **Yes**                        |
+| Evidence base              | a stale worktree             | this worktree + `main`         |
+| CRITICAL                   | 0                            | 0                              |
+| WARNING                    | 1                            | 4                              |
+| Requirements               | 23                           | 42                             |
+| Missing traceability cells | not measured                 | 0 (was 41 in the audit)        |
+| Task numbering systems     | 2 (only 1 counted)           | 1                              |
+| Mobile artifacts           | 0                            | wireframe + 29 tests + 6 flows |
 
-| Artifact | Check | Result |
-|----------|-------|--------|
-| checklists/requirements.md | 16 checklist items | ✅ All passed on 2026-04-15 |
-| verify-report.md | 0 CRITICAL / 3 WARNING / 1 EXPECTED-GAP / 5 PASSED | ✅ Consistent with this scan |
-| review.md | Revalidation state | ⏳ Pending initial human review (expected) |
-| .forge-status.yml | Phase states | Research/Plan/Tasks/Bridge/V-Model complete; revalidation pending; implement not started |
-
-**Monorepo Path Check**:
-- Valid refs found: `packages/apps/commise/web`, `packages/apps/commise/mobile`.
-- No invalid `apps/X` refs discovered. All `src/` refs in v-model are relative to expected workspace layout.
-
----
-
-## CRITICAL Findings
-
-_None._
-
-No contradictions were found that would invalidate plan, tasks, or product-spec against the canonical `spec.md`.
+More warnings is the improvement. The 2026-06-02 run reported one warning because five of the eight layers either did
+not run or could not fail.
 
 ---
 
-## WARNING Findings
+## Recommendations
 
-### W-001: Inferred stories lack explicit FR IDs in spec.md
+1. ✅ Done — W-003 closed by owner ruling 2026-08-02.
+2. ✅ Done — the W-005 index edit is applied, with review rule 5 added so it cannot recur silently.
+3. **Still standing**: keep **L8 mandatory** in every future run for this feature. Skipping the codebase layer is what
+   allowed a fully green report to sit on top of a plan targeting a directory that does not exist.
 
-- **Where**: `product-spec/product-spec.md` lines 138–143; `product-spec/README.md` line 70; `verify-report.md` W-001, W-002.
-- **Description**: US-006-008 (Template/Recurring Workflow) and US-006-009 (Family Size Presets) are referenced in personas and journeys but do not have upstream FR IDs in `spec.md`.
-- **Impact**: Low — artifacts correctly self-label as inferred/out-of-scope.
-- **Fix**: Add FR-028 (Templates) and FR-029 (Family Sizing) to `spec.md` if product intent is to implement; otherwise keep as documented deferred scope.
-
----
-
-## Evidence Log
-
-| Artifact | Absolute Path | Lines | Key Content Verified |
-|----------|---------------|-------|----------------------|
-| spec.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/spec.md` | 92 | FR-022..027, NFR-001..004, SC-008 |
-| plan.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/plan.md` | 200+ | Data model, API contracts, architecture overview |
-| tasks.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/tasks.md` | 663 | 38 tasks, dependency table |
-| product-spec/product-spec.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/product-spec/product-spec.md` | 158 | MoSCoW stories, personas, out-of-scope |
-| product-spec/user-journey.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/product-spec/user-journey.md` | 90+ | Journey A/B/C with FR references |
-| product-spec/metrics.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/product-spec/metrics.md` | 80+ | Story-level metrics mapped to FRs |
-| v-model/requirements.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/v-model/requirements.md` | 92 | REQ-001..REQ-010 |
-| v-model/module-design.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/v-model/module-design.md` | 200+ | MOD-001..MOD-022 with target source files |
-| v-model/traceability-matrix.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/v-model/traceability-matrix.md` | 200+ | REQ ↔ AT ↔ ATS mappings |
-| verify-report.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/verify-report.md` | 80+ | Prior scan results |
-| checklists/requirements.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/checklists/requirements.md` | 35 | 16/16 checklist items passed |
-| .forge-status.yml | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/.forge-status.yml` | 100+ | Phase completion states |
-
----
-
-## Layer Definitions
-
-| Layer | Description | Status in This Scan |
-|-------|-------------|---------------------|
-| L1 | `spec.md` self-consistency | ✅ PASS |
-| L2 | `plan.md` ↔ `spec.md` technical alignment | ✅ PASS |
-| L3 | `tasks.md` ↔ `plan.md` task coverage | ✅ PASS |
-| L4 | `product-spec/` ↔ `spec.md` product alignment | ✅ PASS |
-| L5 | `research/` ↔ `product-spec/` research grounding | ⏭️ SKIP |
-| L6 | `v-model/` ↔ `spec.md` + code traceability | ℹ️ INFO |
-| L7 | Cross-cutting artifacts (`checklists/`, `review.md`, `verify-report.md`, `.forge-status.yml`) | ✅ PASS |
-
----
-
-*Report generated by Sisyphus-Junior. Read-only scan; no code changes made.*
+**All warnings are now closed.** T068–T070 remain in `tasks.md` as post-deploy confirmations, not as findings.

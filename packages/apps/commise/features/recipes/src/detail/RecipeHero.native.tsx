@@ -1,8 +1,8 @@
 /**
  * @module @commise/features-recipes — native recipe-detail HERO cover (the RN leaf of RecipeHero).
  *
- * Same contract and same two designed states as {@link import('./RecipeHero.js').RecipeHero}: the mockup
- * (`screen-recipe-detail`) opens the recipe with the cover photo under a bottom-up scrim, and a recipe with no
+ * Same contract and same two designed states as `RecipeHero`: the mockup
+ * (`screenRecipeDetail`) opens the recipe with the cover photo under a bottom-up scrim, and a recipe with no
  * cover gets a DELIBERATE branded placeholder rather than nothing. Both legs derive from the shared tokens —
  * the scrim from `gradient.scrim`, the placeholder surface from `gradient.hero`, the geometry from
  * `nativeTokens.mediaHeight` — so the two platforms cannot drift on the treatment.
@@ -35,17 +35,27 @@
  * omitting the hero entirely: the labelled placeholder is the only thing that tells a non-sighted reader the
  * recipe has no photo, and dropping the element would remove that signal along with the space.
  *
- * Pure `props → JSX`: no fetching, no state, no navigation. The mockup's overlaid back/share/save controls are
+ * ## The window caps the box (`docs/design/compactHeightLayout.md` §8)
+ *
+ * Both boxes are `mediaBoxHeight(token, window height)`: at most 40% of the window's height. Upright nothing changes
+ * (0.4 × 851 is more than 256); on a phone held sideways the cover is 157 dp instead of about 70% of the window, so the
+ * recipe's title is on the first screen. The cover keeps its width and crops (`contentFit="cover"`), a banner.
+ *
+ * Presentational: no fetching, no state, no navigation; it reads only the window's height. The mockup's overlaid back/share/save controls are
  * NOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.
+ *
+ * @pattern Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the
+ *     shared gradient and geometry tokens so the two cannot drift.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { mediaBoxHeight } from '@commise/ui/layout';
 import { GradientSurface } from '@commise/ui/surface';
 import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import type { FC } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import type { RecipeHeroProps } from './model.js';
@@ -58,6 +68,8 @@ const PLACEHOLDER_GLYPH_SIZE = 40;
 /** The recipe-detail hero cover (native), with its deliberate compact no-cover fallback. */
 export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
     const { card } = useMessages(recipeMessages);
+    const { height: windowHeight } = useWindowDimensions();
+    const coverHeight = { height: mediaBoxHeight(nativeTokens.mediaHeight.hero, windowHeight) };
 
     if (coverPhotoUrl === undefined) {
         return (
@@ -68,7 +80,10 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
                     accessible
                     accessibilityRole="image"
                     accessibilityLabel={card.noPhotoLabel}
-                    style={styles.placeholderBox}
+                    style={[
+                        styles.placeholderBox,
+                        { height: mediaBoxHeight(nativeTokens.mediaHeight.heroPlaceholder, windowHeight) },
+                    ]}
                 >
                     <Feather name="image" size={PLACEHOLDER_GLYPH_SIZE} color={palette.slate} />
                 </View>
@@ -77,16 +92,22 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
     }
 
     return (
-        <View style={styles.coverFrame}>
+        <View style={[styles.coverFrame, coverHeight]}>
             {/* FOLLOW-UP-CR-001-A applies here too: this is the full-size original, painted at hero size.
                 `accessibilityLabel` only (no `accessible`) — RNW copies it to the underlying <img alt>, giving
-                ONE named node, matching how the card's cover is labelled. */}
+                ONE named node.
+
+                This NO LONGER matches the card's cover, which #140 made decorative (it duplicated the name of
+                the pressable containing it). The hero is the same duplication class — the detail screen's <h1>
+                already carries the title — and is deliberately left as-is here because `recipeDetailHero.spec.ts`
+                identifies the hero BY this name to prove the image decoded (`naturalWidth > 0`). Making it
+                decorative is a follow-up that has to move that spec in the same change. */}
             <Image
                 accessibilityLabel={title}
                 source={{ uri: coverPhotoUrl }}
                 contentFit="cover"
                 cachePolicy="memory-disk"
-                style={styles.coverImage}
+                style={[styles.coverImage, coverHeight]}
             />
             {/* Decorative scrim, absolutely positioned over the cover exactly as the mockup draws it. It is
                 excluded from assistive tech by CONSTRUCTION rather than by an ARIA attribute: React Native only
@@ -105,11 +126,10 @@ const styles = StyleSheet.create({
     coverFrame: {
         position: 'relative',
         width: '100%',
-        height: nativeTokens.mediaHeight.hero,
         borderRadius: nativeTokens.radius.lg,
         overflow: 'hidden',
     },
-    coverImage: { width: '100%', height: nativeTokens.mediaHeight.hero },
+    coverImage: { width: '100%' },
     scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 },
     // The COMPACT band (see the module doc's PLATFORM-FORK note) — not the full `hero` box.
     placeholderSurface: {
@@ -119,7 +139,6 @@ const styles = StyleSheet.create({
     },
     placeholderBox: {
         width: '100%',
-        height: nativeTokens.mediaHeight.heroPlaceholder,
         alignItems: 'center',
         justifyContent: 'center',
     },

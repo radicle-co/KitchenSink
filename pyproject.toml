@@ -1,0 +1,59 @@
+# The Python house style — ruff (lint + format) and mypy (types), stated ONCE for the whole repository.
+#
+# ⛔ ONE root config rather than one per Python-holding workspace, and that is a decision, not laziness.
+# Two workspaces hold Python (`packages/services/ingredient-parser/src/handler.py` and
+# `packages/tools/cookbook-import/scripts/crfParse.py`), and a per-workspace copy of "how this repository
+# writes Python" is the drift DRY governs. It is also what the tools are built for: ruff resolves the
+# nearest config by walking UP from each file, and mypy does not walk up at all — so per-workspace scripts
+# would each need a relative `--config-file` whose depth differs by workspace group.
+#
+# ⛔ This file deliberately declares NO `[project]` table. It is a TOOL CONFIG, not a distributable Python
+# package: nothing here is ever `pip install`ed, and a `[project]` table would invite exactly that.
+#
+# `packages/infra/global/__tests__/pythonSourceChecks.test.ts` asserts this file exists, carries both tool
+# sections, and excludes none of the sources it is supposed to check.
+
+[tool.ruff]
+# Match Prettier's `printWidth` so the two languages read alike in the same review.
+line-length = 120
+# ⚠️ The FLOOR, not the Lambda's runtime. `handler.py` is deployed on python3.13 (ADR-0025), but it is ALSO
+# executed locally by `localCrfEngine.ts` on whatever `python3` a developer has, and `crfParse.py` runs on
+# the CI runner's. The engine declares `Requires-Python: <3.14,>=3.10`, so 3.10 is the oldest interpreter
+# any of this may meet — and targeting the newest would have pyupgrade rewrite code into syntax the oldest
+# cannot parse.
+target-version = "py310"
+extend-exclude = ["node_modules", "build", "dist", ".venv"]
+
+[tool.ruff.lint]
+# `E`/`W` pycodestyle, `F` pyflakes, `I` import order (the analogue of the repo's import-order rule),
+# `UP` pyupgrade, `B` bugbear, `SIM` simplify, `C4` comprehensions, `RET` returns, `PTH` pathlib,
+# `ANN` annotations, `D` docstrings, `S` bandit, `RUF` ruff's own.
+#
+# `ANN` and `D` are the two that matter most here and are the reason this is not the default set: the
+# TypeScript in this repository is `strict` with zero `any` and carries JSDoc on every exported symbol, and
+# Python held to a laxer bar would be the weakest link by construction rather than by argument.
+select = ["E", "W", "F", "I", "UP", "B", "BLE", "SIM", "C4", "RET", "PTH", "ANN", "D", "S", "RUF"]
+# `D203`/`D213` conflict with `D211`/`D212`; ruff's own docs say to pick one of each pair.
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-annotations]
+# `**kwargs: Any` on a boundary function is not the `any` the TypeScript rule forbids — that rule is about
+# giving up type information we HAVE. Requiring an annotation on `self` is noise.
+suppress-dummy-args = true
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+# ⚠️ REQUIRED, and not a weakening. The only third-party import in our Python is `ingredient_parser`, which
+# ships no `py.typed` marker — so mypy has no types to read from it whether or not it is installed, and
+# without this every run fails on `import-untyped` before reaching a single line of our own code. What is
+# checked is OUR side of that boundary: `crfParse.py`'s `parse_ingredient(line)` result is `Any`, and every
+# use we make of it still has to satisfy the annotations we wrote.
+ignore_missing_imports = true
+exclude = ["node_modules/", "build/", "dist/", "\\.venv/"]

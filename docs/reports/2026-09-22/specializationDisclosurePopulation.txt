@@ -1,0 +1,68 @@
+==============================================================================
+JOIN INTEGRITY (reported, never assumed) -- must agree with displayLabelComposition.py
+==============================================================================
+  SR Legacy foods                      : 7793
+  ... carrying a FoodOn name           : 4126  (53%)
+  protected tokens (IMPORTED)          : 877
+  SR foods with any consumption weight : 1469
+  ⛔ eating occasions whose food HAS a root : 63.5%
+  ⛔ ... NO root -> keeps today's long name : 36.5%
+
+NAME LENGTH IN CHARACTERS -- what the re-grain actually buys the row
+  today: USDA description, covered foods   median    56   p90   102   max   134
+  after: bare FoodOn root                  median    19   p90    30   max    78
+  after: composed label                    median    37   p90    62   max   103
+  ⛔ EATEN but NO root (unchanged)          median    42   p90    75   max   134
+  ⛔ CONSUMPTION-WEIGHTED median, whole eaten catalog:
+      today  (USDA description)          :  33 ch
+      after  (root where one exists)     :  20 ch
+
+==============================================================================
+A. grain = COMPOSED LABEL (committed report key)
+==============================================================================
+  roots (labels)                       : 2872
+  ... naming exactly ONE food          : 2223
+  ... naming 2+ foods                  : 649
+  ... of those, energy measurable      : 647
+  ⛔ ... spread >= 10%                 : 244  (38% of measurable)
+  group-size histogram (2+)            : n=2:363, n=3:182, n=4:34, n=5:14, n=6:35, n=7:7, n=8:6, n=9:3, n=10:1, n=12:2, n=28:1, n=29:1
+  --- CONSUMPTION-WEIGHTED share of SR-attributable eating occasions ---
+  root has NO specialization          :  42.0%  <- affordance inert, must not look broken
+  ⛔ default in force, spread >= 10%   :   5.7%  <- THE DISCLOSURE POPULATION
+  default in force, spread <  10%     :   7.7%  <- safe to default silently
+  default in force, energy unknown    :   8.0%  <- no figures, so no wrong number
+  the eight roots carrying the most consumption weight:
+      2.0% of occasions  spread 200.0%  n=3   DISCLOSE  coffee beverage
+      1.0% of occasions  spread   2.8%  n=4   silent    white wheat flour (all purpose)
+      0.7% of occasions  spread   5.5%  n=6   silent    long-grain white rice (cooked)
+      0.7% of occasions  spread   2.1%  n=2   silent    quick oats, dry
+      0.6% of occasions  spread  18.7%  n=5   DISCLOSE  pasta, cooked
+      0.5% of occasions  spread   0.0%  n=2   silent    black tea (steeped)
+      0.5% of occasions  spread   1.8%  n=5   silent    canola oil
+      0.4% of occasions  spread   1.7%  n=3   silent    peanut butter (creamy)
+
+==============================================================================
+B. grain = BARE FoodOn NAME (the owner's "just pick ham")
+==============================================================================
+  roots (labels)                       : 2036
+  ... naming exactly ONE food          : 1315
+  ... naming 2+ foods                  : 721
+  ... of those, energy measurable      : 719
+  ⛔ ... spread >= 10%                 : 476  (66% of measurable)
+  group-size histogram (2+)            : n=2:357, n=3:128, n=4:71, n=5:28, n=6:52, n=7:24, n=8:14, n=9:3, n=10:8, n=11:5, n=12:10, n=13:7, n=14:4, n=16:3, n=17:2, n=18:1, n=19:1, n=23:1, n=36:1, n=90:1
+  --- CONSUMPTION-WEIGHTED share of SR-attributable eating occasions ---
+  root has NO specialization          :  37.9%  <- affordance inert, must not look broken
+  ⛔ default in force, spread >= 10%   :  11.9%  <- THE DISCLOSURE POPULATION
+  default in force, spread <  10%     :   5.7%  <- safe to default silently
+  default in force, energy unknown    :   8.0%  <- no figures, so no wrong number
+  the eight roots carrying the most consumption weight:
+      2.0% of occasions  spread 200.0%  n=3   DISCLOSE  coffee beverage
+      1.0% of occasions  spread   2.8%  n=4   silent    white wheat flour (all purpose)
+      0.7% of occasions  spread   5.5%  n=6   silent    long-grain white rice (cooked)
+      0.7% of occasions  spread 136.9%  n=3   DISCLOSE  quick oats
+      0.6% of occasions  spread  95.6%  n=7   DISCLOSE  pasta
+      0.5% of occasions  spread   0.0%  n=2   silent    black tea (steeped)
+      0.5% of occasions  spread   1.8%  n=5   silent    canola oil
+      0.5% of occasions  spread  72.2%  n=6   DISCLOSE  potato (baked)
+
+⚠️ Grain B discloses on +6.2 points more occasions than grain A. Coarser root = more collisions = more disclosure. Stated, not hidden.

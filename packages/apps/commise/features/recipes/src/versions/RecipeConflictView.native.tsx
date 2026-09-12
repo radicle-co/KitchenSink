@@ -2,7 +2,7 @@
  * @module @commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 / W7 building
  * block).
  *
- * The React Native leaf of {@link import('./RecipeConflictView.js').RecipeConflictView} — same FULLY
+ * The React Native leaf of `RecipeConflictView` — same FULLY
  * controlled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)
  * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the
  * changed-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row
@@ -13,45 +13,45 @@
  * least one EXPLICIT selection and — when the base is evicted or more than 10 versions behind (X6) — an
  * explicit stale-base confirm shared with Overwrite. Both the merge-panel toggle and the stale-confirm
  * checkbox are local UI state that resets whenever `server.versionNumber` changes (a NEW conflict on this
- * SAME instance). See the web leaf's own module doc for the full rationale; this file mirrors it exactly so
- * the two platforms cannot drift.
+ * SAME instance), held by `useConflictView`, which the web leaf shares. See the web leaf's own module doc for
+ * the full rationale.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useEffect, useState } from 'react';
 import type { FC } from 'react';
 import { palette } from '@commise/ui';
+import { VariantPartsLine, type VariantPartsLineProps } from '@commise/ui/variant-parts-line';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { ConflictMarker } from './conflictDiff.js';
+import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
+import { fillTemplate } from '../list/model.js';
 import {
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
-    conflictRowLabel,
-    fillTemplate,
+    LEGEND_MARKERS,
+    type ConflictOptionCardProps,
+    type DiscardAndCloseProps,
+    type RecipeConflictViewProps,
+    type SideValueProps,
+    type StaleBaseWarningProps,
+    type VersionSideCardProps,
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatYourCardHeading,
-    isConflictBaseStale,
-    type MergeSide,
-    type RecipeConflictViewProps,
-} from './model.js';
-
-/** The three markers, in the order the legend explains them (matching the wireframe's own `[=] [→] [!!]`
- *  order). */
-const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conflict'];
+} from './conflictView.js';
+import {
+    conflictMarkerGlyph,
+    conflictMarkerLabel,
+    conflictOptionLabel,
+    conflictOptionName,
+    conflictRowLabel,
+    conflictRowName,
+} from './diffLabels.js';
+import { useConflictView } from './useConflictView.js';
 
 /** One A/B/C option card — a title, a description, and the choice it fires. `disabled` (W7 Task 5 / X6) is
  *  the stale-base confirm gate on Option B (Overwrite) — Option A and C are never gated this way. */
-const OptionCard: FC<{
-    readonly title: string;
-    readonly description: string;
-    readonly onChoose: () => void;
-    readonly disabled?: boolean;
-}> = ({ title, description, onChoose, disabled = false }) => (
+const OptionCard: FC<ConflictOptionCardProps> = ({ title, description, onChoose, disabled = false }) => (
     <Pressable
         accessibilityRole="button"
         accessibilityLabel={title}
@@ -70,10 +70,7 @@ const OptionCard: FC<{
  * NEVER disabled: it is the escape hatch a hung `onOverwrite`/`onMerge` resolve must not be able to trap the
  * user behind (`useRecipeEditor`'s `discardAndClose` stays callable regardless of `isResolving`).
  */
-const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndClose: () => void }> = ({
-    label,
-    onDiscardAndClose,
-}) => (
+const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndClose }) => (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onDiscardAndClose} style={styles.option}>
         <Text style={styles.discardLabel}>
             {'‹ '}
@@ -87,33 +84,46 @@ const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndC
  * an optional "Saved:" line and an optional "Device:" line, omitted (never fabricated) when the underlying
  * side carries no such data. Rendered ONLY in the default (options) view.
  */
-const VersionSideCard: FC<{
-    readonly heading: string;
-    readonly savedLine?: string;
-    readonly deviceLine?: string;
-}> = ({ heading, savedLine, deviceLine }) => (
+const VersionSideCard: FC<VersionSideCardProps> = ({ heading, savedLine }) => (
     <View style={styles.versionCard}>
         <Text style={styles.versionCardHeading}>{heading}</Text>
         {savedLine !== undefined && <Text style={styles.versionCardLine}>{savedLine}</Text>}
-        {deviceLine !== undefined && <Text style={styles.versionCardLine}>{deviceLine}</Text>}
     </View>
 );
 
-/** One radio option in a merge row's chooser. */
+/**
+ * One side's value and, when that side is variant-bound, its dotted line under it (curated U15, R25), in a block of
+ * their own so the line reads with its side rather than the next one. See the web leaf's `SideValue`.
+ */
+const SideValue: FC<SideValueProps> = ({ children, parts }) => (
+    <View style={styles.side}>
+        {children}
+        {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}
+    </View>
+);
+
+/**
+ * One radio option in a merge row's chooser. `name` is its accessible name, which carries a variant's parts (R27);
+ * the Pressable's label hides its children from a screen reader, so the visible dotted line cannot say them.
+ */
 const MergeOption: FC<{
     readonly label: string;
+    readonly name: string;
+    readonly parts: VariantPartsLineProps['parts'] | undefined;
     readonly checked: boolean;
     readonly onSelect: () => void;
-}> = ({ label, checked, onSelect }) => (
+}> = ({ label, name, parts, checked, onSelect }) => (
     <Pressable
         accessibilityRole="radio"
-        accessibilityLabel={label}
+        accessibilityLabel={name}
         aria-checked={checked}
         onPress={onSelect}
         style={styles.option}
     >
         <View style={[styles.radioDot, checked && styles.radioDotChecked]} />
-        <Text style={styles.optionLabel}>{label}</Text>
+        <SideValue parts={parts}>
+            <Text style={styles.optionLabel}>{label}</Text>
+        </SideValue>
     </Pressable>
 );
 
@@ -124,13 +134,8 @@ const MergeOption: FC<{
  * `RecipeVersionList.native`'s convention — a ☑/☐ glyph for sighted readers PLUS an explicit `aria-checked`
  * for assistive tech, since react-native-web projects `accessibilityState` to nothing (#123).
  */
-const StaleBaseWarning: FC<{
-    readonly warning: string;
-    readonly confirmLabel: string;
-    readonly confirmed: boolean;
-    readonly onConfirmedChange: (confirmed: boolean) => void;
-}> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
-    <View accessibilityRole="alert" style={styles.staleWarning}>
+const StaleBaseWarning: FC<StaleBaseWarningProps> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
+    <View collapsable={false} accessibilityRole="alert" style={styles.staleWarning}>
         <Text style={styles.staleWarningText}>{warning}</Text>
         <Pressable
             accessibilityRole="checkbox"
@@ -166,46 +171,27 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 }) => {
     const { conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
-    // Whether the merge panel is showing, and the stale-base confirm checkbox, are pure UI navigation state
-    // (not data the `useRecipeEditor` machine needs) — they stay local. `selections` is fully controlled by
-    // the caller.
-    const [merging, setMerging] = useState(false);
-    const [staleConfirmed, setStaleConfirmed] = useState(false);
-    // A NEW conflict (same component instance, new props) must NOT inherit the PRIOR conflict's local UI
-    // state — see the web leaf's own note (X6 robustness gap). `server.versionNumber` is this conflict's
-    // stable identity token.
-    useEffect(() => {
-        setStaleConfirmed(false);
-        setMerging(false);
-    }, [server.versionNumber]);
+    const view = useConflictView({ server, base, versionsBehind, selections, onSelectionsChange });
+
     // Reading the clock is THIS component's own side effect — see the web leaf's own note.
     const now = new Date();
 
-    const optionLabel = (side: string, value: string): string =>
-        fillTemplate(conflict.mergeOptionLabel, { side, value });
-
-    const isStale = isConflictBaseStale(base, versionsBehind);
-    const hasSelection = Object.keys(selections).length > 0;
-    const staleWarning = isStale ? (
+    const staleWarning = view.isStale ? (
         <StaleBaseWarning
             warning={conflict.staleBaseWarning}
             confirmLabel={conflict.staleBaseConfirmLabel}
-            confirmed={staleConfirmed}
-            onConfirmedChange={setStaleConfirmed}
+            confirmed={view.staleConfirmed}
+            onConfirmedChange={view.setStaleConfirmed}
         />
     ) : null;
 
-    if (merging) {
-        // No default side: an absent key renders NEITHER radio checked — see the web leaf's own note on why
-        // this is a display/gating distinction, not a data one (`composeConflictMerge` still defaults to mine).
-        const sideOf = (key: string): MergeSide | undefined => selections[key];
-        const choose = (key: string, side: MergeSide): void => onSelectionsChange({ ...selections, [key]: side });
+    if (view.merging) {
         // `isResolving` (concurrency/double-submit fix) is combined with, not a replacement for, the existing
         // selection + stale-base gates — any one of the three blocks the submit.
-        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed) || isResolving;
+        const mergeDisabled = view.mergeBlocked || isResolving;
 
         return (
-            <View accessibilityLabel={conflict.mergeHeading} style={styles.container}>
+            <View style={styles.container}>
                 <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
                 <Text accessibilityRole="header" style={styles.heading}>
                     {conflict.mergeHeading}
@@ -214,34 +200,36 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 {staleWarning}
                 {diff.rows.map((row) => {
                     const label = conflictRowLabel(row, conflict);
-                    const current = sideOf(row.key);
+                    const current = view.sideOf(row.key);
 
                     return (
                         <View
+                            collapsable={false}
                             key={row.key}
                             accessibilityRole="radiogroup"
-                            accessibilityLabel={label}
+                            // The name carries a variant's parts (R27); the visible label stays plain (R25).
+                            accessibilityLabel={conflictRowName(row, conflict)}
                             style={styles.group}
                         >
                             <Text style={styles.fieldLabel}>{label}</Text>
                             {/* Server FIRST, then Yours (X7). */}
-                            <MergeOption
-                                label={optionLabel(conflict.mergeServerLabel, row.theirs)}
-                                checked={current === 'theirs'}
-                                onSelect={() => choose(row.key, 'theirs')}
-                            />
-                            <MergeOption
-                                label={optionLabel(conflict.mergeMineLabel, row.mine)}
-                                checked={current === 'mine'}
-                                onSelect={() => choose(row.key, 'mine')}
-                            />
+                            {(['theirs', 'mine'] as const).map((side) => (
+                                <MergeOption
+                                    key={side}
+                                    label={conflictOptionLabel(row, side, conflict)}
+                                    name={conflictOptionName(row, side, conflict)}
+                                    parts={conflictSideParts(row, side)}
+                                    checked={current === side}
+                                    onSelect={() => view.choose(row.key, side)}
+                                />
+                            ))}
                         </View>
                     );
                 })}
                 <Text accessibilityLiveRegion="polite" style={styles.summary}>
                     {formatMergeSummary(selections, conflict, locale)}
                 </Text>
-                {!hasSelection && (
+                {!view.hasSelection && (
                     <Text accessibilityLiveRegion="polite" style={styles.explanation}>
                         {conflict.mergeNoSelectionHint}
                     </Text>
@@ -258,10 +246,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={conflict.mergeBack}
-                    onPress={() => {
-                        onSelectionsChange({});
-                        setMerging(false);
-                    }}
+                    onPress={view.leaveMerge}
                     style={styles.secondaryButton}
                 >
                     <Text style={styles.secondaryLabel}>{conflict.mergeBack}</Text>
@@ -271,7 +256,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     }
 
     return (
-        <View accessibilityLabel={conflict.heading} style={styles.container}>
+        <View style={styles.container}>
             <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
             <Text accessibilityRole="header" style={styles.heading}>
                 {conflict.heading}
@@ -289,7 +274,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <VersionSideCard
                     heading={formatServerCardHeading(server, conflict)}
                     savedLine={formatVersionCardSavedLine(server, locale, conflict)}
-                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
                 />
                 <VersionSideCard
                     heading={formatYourCardHeading(base, conflict)}
@@ -297,7 +281,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         ? {}
                         : {
                               savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                              deviceLine: formatVersionCardDeviceLine(base, conflict),
                           })}
                 />
             </View>
@@ -318,18 +301,18 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 title={conflict.optionOverwriteTitle}
                 description={conflict.optionOverwriteDescription}
                 onChoose={onOverwrite}
-                disabled={isResolving || (isStale && !staleConfirmed)}
+                disabled={isResolving || view.overwriteBlocked}
             />
             <OptionCard
                 title={conflict.optionMergeTitle}
                 description={conflict.optionMergeDescription}
-                onChoose={() => setMerging(true)}
+                onChoose={view.startMerge}
                 disabled={isResolving}
             />
 
             {/* Changed-only diff panel with per-row markers + legend (W7 Task 4 / X1). */}
             {diff.rows.length > 0 ? (
-                <View accessibilityLabel={conflict.changedFieldsHeading} style={styles.changedFields}>
+                <View style={styles.changedFields}>
                     <Text accessibilityRole="header" style={styles.subheading}>
                         {conflict.changedFieldsHeading}
                     </Text>
@@ -346,20 +329,23 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 <Text style={styles.fieldLabel}>{conflictRowLabel(row, conflict)}</Text>
                             </View>
                             {row.base !== undefined && (
-                                <Text style={styles.changedFieldValue}>
-                                    {fillTemplate(conflict.wasValueLabel, { value: row.base })}
-                                </Text>
+                                <SideValue parts={conflictSideParts(row, 'base')}>
+                                    <Text style={styles.changedFieldValue}>
+                                        {fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                    </Text>
+                                </SideValue>
                             )}
                             {/* Server value FIRST, then Yours (X7). */}
-                            <Text style={styles.changedFieldValue}>
-                                {optionLabel(conflict.mergeServerLabel, row.theirs)}
-                            </Text>
-                            <Text style={styles.changedFieldValue}>
-                                {optionLabel(conflict.mergeMineLabel, row.mine)}
-                            </Text>
+                            {(['theirs', 'mine'] as const).map((side) => (
+                                <SideValue key={side} parts={conflictSideParts(row, side)}>
+                                    <Text style={styles.changedFieldValue}>
+                                        {conflictOptionLabel(row, side, conflict)}
+                                    </Text>
+                                </SideValue>
+                            ))}
                         </View>
                     ))}
-                    <View accessibilityLabel={conflict.legendHeading} style={styles.legend}>
+                    <View collapsable={false} accessibilityLabel={conflict.legendHeading} style={styles.legend}>
                         {LEGEND_MARKERS.map((marker) => (
                             <Text key={marker} style={styles.legendEntry}>
                                 {fillTemplate(conflict.legendEntryTemplate, {
@@ -449,14 +435,17 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(178, 190, 195, 0.3)',
         padding: 12,
-        gap: 2,
+        gap: 8,
     },
     changedFieldRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     marker: { fontSize: 13, fontVariant: ['tabular-nums'], color: palette.slate },
     changedFieldValue: { fontSize: 14, color: palette.charcoal },
     legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
     legendEntry: { fontSize: 12, color: palette.slate },
-    option: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+    // `flex-start`: the dot sits on the first line when the value wraps or a dotted line follows it.
+    option: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
+    // `flexShrink: 1`: React Native defaults it to 0, so beside the dot the text would not wrap inside the row.
+    side: { flexShrink: 1, gap: 4 },
     radioDot: {
         width: 18,
         height: 18,

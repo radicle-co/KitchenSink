@@ -34,7 +34,7 @@ export const spacing = {
  * (how much of a screen the cover claims) rather than a spacing step, so it is named rather than derived
  * from the 4px ramp.
  *
- * `hero` is the recipe-detail cover box: the mockup's `h-64` phone value (`screen-recipe-detail`).
+ * `hero` is the recipe-detail cover box: the mockup's `h-64` phone value (`screenRecipeDetail`).
  * `heroPlaceholder` is the deliberately COMPACT band the no-cover fallback paints on a phone — a full-height
  * empty gradient would claim most of a phone's first screen and push the title below the fold. Web keeps the
  * full box on both states because a desktop hero has the room; see `RecipeHero.native.tsx` for the rationale.

@@ -517,6 +517,160 @@ demotion) and `source_call_log` (per-source rolling-60-min window). No quota tab
 
 ## 3. API Contracts
 
+### 3.0 Contract ownership and drift (GR-015) — and the third-party exception this feature OWNS
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states only
+the **bindings for this feature**; the rule lives there and wins on any detail.
+
+**003 sits on both sides of the rule at once, and confusing them is the failure mode to avoid.** Our food
+service's own API is governed by §15-b (converge it). USDA FoodData Central's API is governed by §15-d (never
+converge it). One feature, two opposite obligations.
+
+| Role                                      | Binding for 003                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)      | `@kitchensink/food-service` — `packages/services/food-service/src/**/*.schema.ts`, beside its controller                                                                                                                                                                                          |
+| Schema package (generated, committed)     | `@kitchensink/schema-food` — `packages/schemas/food`. ⚠️ **CORRECTED 2026-08-12: it EXISTS** (this cell said "does not exist yet; being converged now") — 5 copied schema files and a derived `openapi.yaml` of **1,134 lines / 12 paths**; `wc -l` it rather than quoting, since it is generated |
+| Consuming client                          | `@kitchensink/food-service-client` — `packages/clients/food-service`                                                                                                                                                                                                                              |
+| Consuming services / apps                 | `@kitchensink/recipe-service` (ingredient resolution), `@commise/web`, `@commise/mobile`                                                                                                                                                                                                          |
+| **Third-party boundary (§15-d — EXEMPT)** | `@kitchensink/usda-client` — `packages/clients/usda`, whose `schemas.ts` is the **reference implementation**                                                                                                                                                                                      |
+
+\_(Read every `food__`identifier here as`ingredient\__`— the service holds ingredients, not dishes. The name
+is a deliberate non-rename; see`CLAUDE.md`.)\_
+
+#### The service's obligation
+
+- Every request/response shape of `/api/v1/foods/*` — add-by-name, read, status, candidates, resolve,
+  search, batch, refetch — is authored as **zod in the food service** at `src/**/*.schema.ts`, next to its
+  controller.
+- The service **validates its own requests with that same zod** via `nestjs-zod`'s `createZodDto`. The
+  batch endpoint's ≤100-name bound (FR-045) and the candidate-set membership check (FR-RES-2) belong in that
+  schema, so the client sees the same constraint the server enforces.
+- `packages/schemas/food` is **generated and committed** from those sources — `schemas.ts`, `types.ts`,
+  `contractHash.ts`, barrel, plus a **derived** `openapi.yaml`. Nothing in it is hand-edited.
+- A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** — no Drizzle schema, no DAO type, no
+  Nest symbol, and **nothing from `@kitchensink/usda-client`**. The upstream USDA shape and our wire shape are
+  different contracts and must not be joined by an import.
+
+#### The CLIENT's obligation — separately mandatory, and the half that got skipped
+
+`@kitchensink/food-service-client` shipped **144 lines** of independently declared wire types and imported
+nothing from the food service. So this is stated as its own obligation, not as a consequence:
+
+- The client imports its wire **types and zod** from `@kitchensink/schema-food`.
+- The client **declares no request or response body type of the food service.** Its own `types.ts` keeps
+  base URL/fetch config, retry and polling options, and its own error shapes — nothing that crosses the wire.
+- **`@kitchensink/recipe-service` is a client here too.** A service consuming another service is bound by
+  §15-b identically: recipe imports `@kitchensink/schema-food` and declares no food wire shapes.
+- A divergent consumer shape (an ingredient-picker view model, a resolution-status badge model) is **DERIVED**
+  with `Pick` / `Omit` / `Partial` over the wire type — never independently declared. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new food endpoint is not complete until its types are reachable from `@kitchensink/schema-food`.**
+
+#### Drift gates — inherited from GR-015 §15-c
+
+All three required: turbo `inputs`-driven rebuild of `schema-food` from the service's `*.schema.ts`; a
+**regenerate-and-diff CI gate**; and a `CONTRACT_HASH` **boot assertion**. The boot assertion is load-bearing
+for 003 specifically because the food service is consumed by a **separately deployed** recipe service — the
+one skew case neither the turbo layer nor CI can see.
+
+#### ⛔ THE EXCEPTION — USDA FoodData Central is a third-party API. NEVER converge it. (GR-015 §15-d)
+
+**`packages/clients/usda` is the reference implementation of the exception for the whole portfolio, and
+`packages/clients/usda/src/schemas.ts` must never be "converged".**
+
+- We do **not** serve USDA's API. There is no service of ours to own its type, and its contract can change
+  without telling us.
+- Therefore `@kitchensink/usda-client` **validates the raw upstream wire shape at the boundary with zod**,
+  the moment a body arrives, and **legitimately declares its own types**. The normalized public type it
+  returns **deliberately differs** from the raw upstream shape — that difference is the normalization, not
+  drift.
+- The same applies to **every other source adapter** this feature adds (§5 Workers & Source Adapters). Each
+  new upstream source gets its own boundary schema; none of them gets folded into `@kitchensink/schema-food`.
+- **No OpenAPI document is written for USDA or any other upstream source.**
+
+**Why deleting these schemas would be a security regression, not a cleanup:** the parse at the USDA boundary
+is what stands between an external party's JSON and our golden-record write path, provenance fields, and
+nutrient values. §15-b's reasoning does not reach here at all — duplication is only wrong when one side could
+have been derived from the other, and this side belongs to someone else. A contributor applying §15-b
+mechanically to this client replaces a checked parse with unchecked trust; that is the specific damage this
+paragraph exists to prevent.
+
+#### Status — RE-MEASURED 2026-08-12, and the first two bullets were WRONG
+
+- ✅ **`packages/schemas/food` EXISTS** — 5 copied schema files plus `contractHash.ts` and a derived
+  `openapi.yaml` (**1,134 lines / 12 paths**). ⚠️ This bullet previously read _"Food is being converged now.
+  `packages/schemas/food` does not exist yet."_
+- ✅ **`openapi.yaml` exists for ALL THREE services** — recipe **5,700** lines / 34 paths, food **1,134** / 12,
+  identity **760** / 10. ⚠️ This bullet previously read _"❌ No `openapi.yaml` exists for any service in this repo
+  yet."_ ⛔ All three are **generated**, so those line counts are timestamps, not facts: re-measure with `wc -l`
+  instead of quoting them onward. That is exactly how the **4,945 / 922 / 716** figures from 2026-08-11 ended up
+  laundered into a dozen documents a day after they stopped being true.
+- ✅ `packages/clients/usda`'s boundary schemas already exist and are **correct as-is** — they need no change
+  under GR-015 and must not be touched by the convergence work.
+
+### 3.0a Input validation (GR-016) — and 003's service is the portfolio's WORST case
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). GR-015 decides
+**who authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
+
+⛔ **Measured 2026-08-11: `@kitchensink/food-service` HAD `ZodValidationPipe` = 0 and `createZodDto` = 0 — no
+validation pipe at all.** It took `@Body() body: unknown` and hand-wrote a `safeParse` per method. The
+consequence was not hypothetical and not cosmetic: a **wrong-typed field**, a **missing field** and an
+**unknown key** all reported `{ error: 'Empty name' }`. Three different caller mistakes, one answer that fixes
+none of them.
+
+✅ **CORRECTED 2026-08-12 — that is HISTORY, and the paragraph above is deliberately kept in the past tense
+rather than deleted, because it is the argument for the rule.** Food now registers **`nestjs-zod`'s**
+`ZodValidationPipe` on the **`APP_PIPE`** token and declares **4** `createZodDto` classes over **4**
+`z.strictObject` schemas; its controllers hold **no** `safeParse` and **no** `@Body() body: unknown`. Committed in
+**`49a1df7f`** — ⛔ so do not re-schedule the convergence, and do not restore a per-method `safeParse` "as belt
+and braces" (§16-a.2: a second mechanism is a second error contract). The invariant is now held repo-wide by **G5**
+in `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which requires a `ZodValidationPipe`
+over every HTTP controller in every discovered deployable and runs with **no exception list at all**.
+
+- **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates,
+  resolve, search, **batch**, refetch, plus the admin surface — is parsed by the service's own `*.schema.ts`
+  zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **`@Body() body: unknown` is removed, not
+  wrapped**: it relocates the parse into the method body, where it is optional by construction. Validation
+  failure gets **one** path producing a `400` that names the offending field.
+- **The bounds already specified in this plan belong in that zod**, so the client sees the constraint the
+  server enforces: the batch endpoint's **≤100-name bound (FR-045)** and the candidate-set membership check
+  (FR-RES-2). A bound enforced in a service method but absent from the published schema is a bound the caller
+  cannot design against.
+- **Non-HTTP ingress is in scope.** The **change-refresh worker** and the SQS consumers
+  (`packages/services/food-service/src/worker/**`, `src/events/**`) parse their message payload against an
+  authored zod **before** it becomes a job — a queue body is a string the producer chose, and the resolution
+  pipeline writes golden records.
+- **003 is CALLED by another service, and by identity's Lambdas.** `@kitchensink/recipe-service` resolves
+  ingredients here, and identity's fan-out posts `POST /api/v1/internal/account/erasure`
+  (`packages/services/identity-webhooks/src/common/erasureFanout.ts`). Both inbound bodies are validated like
+  any other — **"internal" is not a synonym for "trusted"**, and this service is the one whose 401/403 posture
+  is already load-bearing (§2A).
+- **The floor.** Every input field writing a bounded column is validated at least as strictly as the column
+  can store — id/name lengths, status enums, nullability, and **where a nutrient or amount writes a
+  `numeric(p,s)` column, its precision and scale**. A value the column cannot hold is a `400` at the
+  boundary, never a failed `INSERT`.
+    - ⚠️ **Asserted, never derived.** No zod generated from Drizzle, and a `*.schema.ts` imports **no Drizzle
+      schema, no DAO type, and nothing from `@kitchensink/usda-client`** — the constraint §3.0 already states
+      is unchanged by GR-016. The two artifacts agree in **one direction only**: the wire bound is at least as
+      tight as the column.
+- **✅ The USDA boundary parse is REQUIRED by GR-016 as well as permitted by §15-d — the two rules agree
+  here.** §15-d says `@kitchensink/usda-client` **may** declare its own types and must validate the raw
+  upstream shape; GR-016 is what makes that parse **mandatory** for every source adapter, because USDA
+  responses are input to a write path. Nothing in GR-016 licenses converging those schemas.
+- **Unknown keys are a stated choice per surface** (`z.object` strips silently, `z.strictObject` rejects).
+  On add-by-name, silently dropping a misspelled field is how a caller gets a `202` for a request that did
+  not say what they meant. Portfolio default is **OPEN** (GR-016 OPEN-GR-016-B).
+- **No request-derived value reaches `sql.raw()`**; a request-selected sort or filter maps through a validated
+  enum to a closed allowlist of literals in code.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g) — do not "complete" it.** The food service validates no
+  responses, deliberately; the consumer-side parse (recipe, web, mobile) is where response checking lives for
+  now.
+
 ### Endpoints
 
 Auth column: **U** = user session token, **M** = M2M/service token, **scope** = additionally requires a

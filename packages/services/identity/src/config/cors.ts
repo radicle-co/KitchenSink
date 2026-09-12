@@ -1,23 +1,49 @@
-/** Structural subset of Nest's `CorsOptions` that this service sets (avoids a deep internal import). */
-export interface AppCorsOptions {
-    origin: string[] | boolean;
-    credentials: boolean;
-    allowedHeaders: string[];
-}
+/**
+ * CORS for the identity service: the adapter from this service's configuration to the shared policy.
+ *
+ * The policy itself (which origins a service admits, derived from the Clerk `azp` boundary, and why "closed" is an
+ * empty list) lives once, in `@kitchensink/clerk-verify`'s `resolveCorsPolicy`. This module decides only the one
+ * input that differs between services: whether the process is deployed. Identity keys that on `STAGE` through
+ * `isDeployedStage`, the same predicate its config schema and its auth-trace sink use.
+ *
+ * ⛔ PRECONDITION — THIS SERVICE IS BEARER-ONLY, AND THAT IS WHAT MAKES A PERMISSIVE ORIGIN SURVIVABLE.
+ * Nothing in `src/` reads a cookie: there is no `cookie-parser`, no `req.cookies`, no `__session` /
+ * `__client_uat` reader, and `AuthMiddleware` authenticates ONLY from `Authorization: Bearer` (Clerk's
+ * `__session` cookie is scoped to `commise.app`, not to `identity.*`). A malicious page therefore has no
+ * ambient credential to ride, which is why the loopback and preview-pattern branches are safe and why the
+ * anchored `azp` regex — not CORS — is the real trust boundary on sandbox (ADR-0001: the sandbox Clerk dev
+ * instance reflects any `Origin` regardless of what we send). **If a route ever reads a cookie, a session
+ * credential, or accepts a WebSocket upgrade, this precondition is broken and these branches must be
+ * re-derived before that route ships.** The one shared guard,
+ * `packages/infra/global/__tests__/bearerOnlyPrecondition.test.ts`, finds this package because it calls the shared
+ * policy, parses `src/` (AST, not grep — this very comment mentions `req.cookies`) and fails the build if the
+ * premise stops holding. See `docs/architecture/decisions/0047-shared-cors-policy.md`.
+ *
+ * @pattern Adapter over `resolveCorsPolicy` — translates `STAGE` into `deployed`
+ * @module
+ */
+import {
+    resolveCorsPolicy,
+    type CorsPolicy,
+    type CorsPolicyInput as SharedCorsPolicyInput,
+} from '@kitchensink/clerk-verify';
+
+import { isDeployedStage } from './env.schema.js';
+
+/** This service's CORS configuration, exactly as `main.ts` reads it from the environment. */
+export type CorsPolicyInput = Omit<SharedCorsPolicyInput, 'deployed' | 'credentials'> & {
+    /** `STAGE`: `prod`, `sandbox`, `pr-{N}`, or a non-deployed sentinel (`dev`/`test`/`local`). */
+    readonly stage: string;
+};
 
 /**
- * CORS for the identity service (U11/F3). The service had no `enableCors()` at all, so cross-origin
- * web/mobile → service calls were blocked outright.
+ * Resolve the CORS policy for this stage. Pure.
  *
- * The legitimate cross-origin callers are exactly the Clerk authorized parties (the web/mobile
- * origins also checked against the token `azp`), so reuse that allowlist rather than maintaining a
- * second one. The web client sends `credentials: 'include'`, so `credentials: true` is required —
- * which forbids a wildcard origin. On deployed stages we therefore pin the explicit party list; with
- * no parties configured (dev/local) we reflect the request origin (`true`). `sentry-trace`/`baggage`
- * are allowed so distributed-tracing headers survive the preflight (B1/B2).
+ * @param input - The stage's `STAGE` / `CLERK_*` configuration.
+ * @returns The named mode and the `cors` options to hand to `enableCors`.
  */
-export const buildCorsOptions = (authorizedParties: string[]): AppCorsOptions => ({
-    origin: authorizedParties.length > 0 ? authorizedParties : true,
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'sentry-trace', 'baggage'],
-});
+export function buildCorsPolicy(input: CorsPolicyInput): CorsPolicy {
+    const { stage, ...clerk } = input;
+
+    return resolveCorsPolicy({ ...clerk, deployed: isDeployedStage(stage) });
+}

@@ -1,0 +1,99 @@
+==============================================================================
+JOIN INTEGRITY (reported, never assumed)
+==============================================================================
+  SR Legacy foods (2018-04 frozen bundle)   :   7793
+  with energy (kcal/100 g)                  :   7793
+  fdc_ids carrying a FoodOn name (2026 full) :   4491  (all datasets)
+  ... that join to an SR Legacy food         :   4126
+  protected tokens measured                  :    877   (>= 10% median, >= 8 pairs)
+
+==============================================================================
+1. REPRODUCTION -- FoodOn name used ALONE as the display name (plan §6.6 failure 4)
+==============================================================================
+  SR Legacy foods with a FoodOn name        :   4126
+    gate 1 -- name unique in the catalog    :   1315  (32%)
+  foods whose USDA name carries a PROTECTED segment:   3645
+    the FoodOn name DROPS it                :   3061  (84%)
+
+==============================================================================
+2. THE NEW QUESTION -- COMPOSED label = FoodOn head + PROTECTED USDA tail
+==============================================================================
+  distinct composed labels                  :   2872
+    labels naming exactly ONE food          :   2223  (77%)
+    labels naming MORE THAN ONE food        :    649
+    foods inside a shared label             :   1903
+
+  group-size histogram (members per composed label):
+      1 member(s) :  2223 label(s)
+      2 member(s) :   363 label(s)
+      3 member(s) :   182 label(s)
+      4 member(s) :    34 label(s)
+      5 member(s) :    14 label(s)
+      6 member(s) :    35 label(s)
+      7 member(s) :     7 label(s)
+      8 member(s) :     6 label(s)
+      9 member(s) :     3 label(s)
+     10 member(s) :     1 label(s)
+     12 member(s) :     2 label(s)
+     28 member(s) :     1 label(s)
+     29 member(s) :     1 label(s)
+
+  ⛔ ENERGY SPREAD INSIDE A SHARED LABEL -- the safety question.
+     A label grouping members whose energy differs widely means the default member
+     silently decides whether a cook is right. Protected segments are in the label,
+     so any remaining spread is from qualifiers measurement did NOT protect.
+     shared labels with measurable energy on 2+ members :   647
+     ... whose min-to-max spread is >= 10%              :   244
+     worst 10:
+       200.0%  n=3   coffee beverage
+       200.0%  n=3   black tea (decaffeinated)
+       142.2%  n=2   taro leaf, cooked
+       134.9%  n=3   vanilla bean extract, vanilla extract
+       123.7%  n=2   yellow sweet corn kernel (raw)
+       123.7%  n=2   white sweet corn kernel (raw)
+       121.2%  n=8   ham (cured), pork
+       119.6%  n=3   reconstituted orange juice (from frozen concentrate), unsw
+       119.1%  n=4   white grapefruit juice, unsweetened
+       114.6%  n=4   green bean pod, cooked, boiled
+
+  10 widest groups, for inspection:
+    n=29  ham (cured), pork, separable lean and fat
+           <- Pork, cured, ham with natural juices, spiral slice, boneless, sepa
+           <- Pork, cured, ham with natural juices, slice, bone-in, separable le
+           <- Pork, cured, ham with natural juices, shank, bone-in, separable le
+    n=28  ham (cured), pork, separable lean only
+           <- Pork, cured, ham -- water added, rump, bone-in, separable lean onl
+           <- Pork, cured, ham -- water added, rump, bone-in, separable lean onl
+           <- Pork, cured, ham -- water added, shank, bone-in, separable lean on
+    n=12  beef small end rib roast, small end (ribs 10-12), separable le
+           <- Beef, rib, small end (ribs 10-12), separable lean and fat, trimmed
+           <- Beef, rib, small end (ribs 10-12), separable lean and fat, trimmed
+           <- Beef, rib, small end (ribs 10-12), separable lean and fat, trimmed
+    n=12  white wheat flour
+           <- Wheat flour, white (industrial), 10% protein, unbleached, enriched
+           <- Wheat flour, white (industrial), 11.5% protein, bleached, enriched
+           <- Wheat flour, white (industrial), 11.5% protein, bleached, unenrich
+    n=10  beef ribeye steak (raw), separable lean only
+           <- Beef, rib eye steak/roast, bone-in, lip-on, separable lean only, t
+           <- Beef, rib eye steak/roast, boneless, lip-on, separable lean only, 
+           <- Beef, rib eye steak/roast, boneless, lip-on, separable lean only, 
+    n=9   beef ribeye steak, separable lean only, cooked
+           <- Beef, rib eye steak, boneless, lip-on, separable lean only, trimme
+           <- Beef, rib eye steak, boneless, lip-on, separable lean only, trimme
+           <- Beef, rib eye steak, boneless, lip-on, separable lean only, trimme
+    n=9   beef ribeye steak (raw), separable lean and fat
+           <- Beef, rib eye steak/roast, bone-in, lip-on, separable lean and fat
+           <- Beef, rib eye steak/roast, bone-in, lip-on, separable lean and fat
+           <- Beef, rib eye steak/roast, boneless, lip-on, separable lean and fa
+    n=9   beef ribeye steak, separable lean and fat, cooked
+           <- Beef, rib eye steak, boneless, lip off, separable lean and fat, tr
+           <- Beef, rib eye steak, boneless, lip off, separable lean and fat, tr
+           <- Beef, rib eye steak, bone-in, lip-on, separable lean and fat, trim
+    n=8   ham (cured), pork
+           <- Pork, cured, ham, boneless, extra lean (approximately 5% fat), roa
+           <- Pork, cured, ham, boneless, regular (approximately 11% fat), roast
+           <- Pork, cured, separable fat (from ham and arm picnic), unheated
+    n=8   ham (cured), pork, whole, separable lean only
+           <- Pork, cured, ham, whole, separable lean only, unheated
+           <- Pork, cured, ham, whole, separable lean only, roasted
+           <- Pork, cured, ham and water product, whole, boneless, separable lea

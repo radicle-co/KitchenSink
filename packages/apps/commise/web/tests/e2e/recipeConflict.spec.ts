@@ -1,9 +1,15 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import type { RecipeDetail } from '@kitchensink/recipe-core';
+import type { IngredientVariant, RecipeDetail } from '@kitchensink/recipe-core';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, mockRecipeApi, readViewerAppId, type EnrichedConflictSeed } from './utils/recipeApi';
+import {
+    E2E_INGREDIENT_IDS,
+    makeRecipeDetail,
+    mockRecipeApi,
+    readViewerAppId,
+    type EnrichedConflictSeed,
+} from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -28,8 +34,13 @@ import { signInWithTicket } from './utils/auth';
  */
 
 /** Enter the conflict view: sign in, seed `rec_conflict`, edit its title, and lose the version race against
- *  `enrichedConflicts`. Returns the live store so a spec can assert what the resolution ultimately persisted. */
-async function enterConflict(page: Page, conflictSeed: EnrichedConflictSeed): Promise<Map<string, RecipeDetail>> {
+ *  `enrichedConflicts`. Returns the live store so a spec can assert what the resolution ultimately persisted.
+ *  `seedOver` overrides the seeded recipe, for a spec that needs particular lines. */
+async function enterConflict(
+    page: Page,
+    conflictSeed: EnrichedConflictSeed,
+    seedOver: Partial<RecipeDetail> = {},
+): Promise<Map<string, RecipeDetail>> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     const seed = makeRecipeDetail({
@@ -38,6 +49,7 @@ async function enterConflict(page: Page, conflictSeed: EnrichedConflictSeed): Pr
         title: 'Original Title',
         servings: 4,
         currentVersion: 1,
+        ...seedOver,
     });
     const store = await mockRecipeApi(page, {
         viewerId,
@@ -47,9 +59,10 @@ async function enterConflict(page: Page, conflictSeed: EnrichedConflictSeed): Pr
 
     await page.goto(route('/recipes/rec_conflict/edit'));
     await page.getByLabel('Title').fill('My Merged Title');
-    // Publish is the footer's FINAL-step primary (U6). The seed is fully valid, so jump to Photos (step 4) via
+    // Publish is the action bar's FINAL-step primary. The seed is fully valid, so jump to Review (step 4) via
     // the rail — forward navigation is ungated even with the unsaved title edit — and publish to lose the race.
-    await page.getByRole('button', { name: /Photos:/ }).click();
+    await page.getByRole('button', { name: /Review:/ }).click();
+    await expect(page.getByText('Step 4 of 4')).toBeVisible();
     await page.getByRole('button', { name: 'Publish' }).click();
 
     await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
@@ -58,14 +71,62 @@ async function enterConflict(page: Page, conflictSeed: EnrichedConflictSeed): Pr
 }
 
 test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () => {
+    // ⛔ THE LOST UPDATE, through the real UI. The unit suite pins which version the editor sends; only a browser
+    // proves the whole path a cook takes: the tab regains focus, TanStack refetches the recipe, and the cache now holds
+    // the OTHER device's version. A save that sent the cache's version would be accepted and overwrite their change.
+    test("a save after the other device's change was REFETCHED still names the version it edited, and overwrites nothing", async ({
+        page,
+    }) => {
+        await page.clock.install();
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const seed = makeRecipeDetail({
+            id: 'rec_conflict',
+            ownerId: viewerId,
+            title: 'Original Title',
+            servings: 4,
+            currentVersion: 1,
+        });
+        const store = await mockRecipeApi(page, { viewerId, recipes: [seed] });
+        const detailRead = (request: { method(): string; url(): string }): boolean =>
+            request.method() === 'GET' && /\/api\/v1\/recipes\/rec_conflict(?:\?|$)/u.test(request.url());
+
+        await page.goto(route('/recipes/rec_conflict/edit'));
+        await page.getByLabel('Title').fill('My Edit');
+
+        // The other device saves: servings 8, version 2.
+        store.set('rec_conflict', { ...seed, servings: 8, currentVersion: 2 });
+
+        // The detail read is 30 s fresh; jump past it, then refocus the tab so the editor's cache refetches v2.
+        const refetched = page.waitForRequest(detailRead);
+        await page.clock.fastForward('00:31');
+        await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+        await refetched;
+
+        const save = page.waitForRequest(
+            (request) =>
+                request.method() === 'PATCH' && /\/api\/v1\/recipes\/rec_conflict(?:\?|$)/u.test(request.url()),
+        );
+        await page.getByRole('button', { name: /Review:/ }).click();
+        await page.getByRole('button', { name: 'Publish' }).click();
+
+        expect((await save).postDataJSON()).toMatchObject({ expectedVersion: 1 });
+        // The refusal reached the cook as the conflict view. Without it, a mock that answered a bare 409 with no
+        // enriched sides would pass this test while the cook saw an unresolvable error.
+        await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
+        // The server refused the stale write, so the other device's change stands.
+        expect(store.get('rec_conflict')).toMatchObject({ currentVersion: 2, servings: 8 });
+    });
+
     test('the conflict shows the per-side banner and the changed-only diff (markers, Server before Yours)', async ({
         page,
     }) => {
-        await enterConflict(page, { serverChanges: { servings: 8 }, deviceLabel: 'Kitchen iPad' });
+        await enterConflict(page, { serverChanges: { servings: 8 } });
 
-        // Per-side banner (X3): server side names its version, when it saved, and which device — mine has no
-        // version of its own (never persisted).
-        await expect(page.getByText(/^Server version \(v2\): Saved \d+ minutes? ago on Kitchen iPad$/u)).toBeVisible();
+        // Per-side banner (X3): server side names its version and when it saved — mine has no version of its
+        // own (never persisted). The banner's trailing ` on {device}` clause went with the 2026-08-26 owner
+        // ruling; the `$` anchor is what keeps it from creeping back.
+        await expect(page.getByText(/^Server version \(v2\): Saved \d+ minutes? ago$/u)).toBeVisible();
         await expect(page.getByText('Your version: local unsaved changes')).toBeVisible();
 
         // Changed-only diff (X1/X7): title (mine changed it) and servings (theirs changed it) — Server's
@@ -200,5 +261,88 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
 
         await page.getByRole('checkbox', { name: 'I understand — continue anyway' }).check();
         await expect(overwriteButton).toBeEnabled();
+    });
+
+    /**
+     * Curated U15 (`docs/design/ingredientSpecialization.md` §S1, R25, R27). The other device re-picked the brisket's
+     * variant. A variant is part of the line's binding, so the merge shows two rows whose text reads the same, and only
+     * each side's dotted line tells them apart. The olive oil line's own words hold a comma-joined phrase, and the
+     * other device changed its amount, so its row is on screen: the control for the comma-joined negative.
+     */
+    test('a variant re-pick shows each side its own dotted line, in the diff and the merge panel', async ({ page }) => {
+        const brisket = (ingredientId: string, variant: IngredientVariant) => ({
+            ingredientId,
+            name: 'beef brisket',
+            foodId: 'food_beef_brisket',
+            variant,
+            quantity: { kind: 'exact', value: 2 } as const,
+            unit: 'lb',
+            isUserEntered: false,
+            resolutionStatus: 'RESOLVED' as const,
+        });
+        const oliveOil = (value: number) => ({
+            ingredientId: E2E_INGREDIENT_IDS.oliveOil,
+            name: 'Olive oil',
+            foodId: 'food_olive_oil',
+            notes: 'flat half, select',
+            quantity: { kind: 'exact', value } as const,
+            unit: 'tbsp',
+            isUserEntered: false,
+            resolutionStatus: 'RESOLVED' as const,
+        });
+        const flatHalf = brisket('66666666-6666-4666-8666-6666666666a1', {
+            id: 'var_brisket_flat',
+            parts: [
+                { attribute: 'cut', text: 'flat half' },
+                { attribute: 'grade', text: 'select' },
+            ],
+        });
+        const pointHalf = brisket('66666666-6666-4666-8666-6666666666a2', {
+            id: 'var_brisket_point',
+            parts: [
+                { attribute: 'cut', text: 'point half' },
+                { attribute: 'grade', text: 'choice' },
+            ],
+        });
+
+        await enterConflict(
+            page,
+            { serverChanges: { ingredients: [pointHalf, oliveOil(3)] } },
+            { ingredients: [flatHalf, oliveOil(1)] },
+        );
+
+        const diffPanel = page.getByRole('region', { name: 'Changed fields' });
+        const flatRow = diffPanel.getByRole('listitem').filter({ hasText: 'Was: 2 lb beef brisket' });
+        const pointRow = diffPanel.getByRole('listitem').filter({ hasText: 'point half' });
+
+        // Both rows read "2 lb beef brisket"; the dotted line under each side is what tells them apart.
+        await expect(flatRow).toContainText('Your version: 2 lb beef brisket');
+        await expect(flatRow).toContainText('flat half ·');
+        await expect(flatRow).not.toContainText('point half');
+        await expect(pointRow).toContainText('Latest saved version: 2 lb beef brisket');
+        await expect(pointRow).toContainText('point half ·');
+        await expect(pointRow).not.toContainText('flat half');
+        // Never a comma-joined label; the cook's own comma-joined words on the olive oil row prove the check can see one.
+        await expect(flatRow).not.toContainText('flat half, select');
+        await expect(pointRow).not.toContainText('point half, choice');
+        await expect(diffPanel.getByRole('listitem').filter({ hasText: 'Olive oil' }).first()).toContainText(
+            'flat half, select',
+        );
+
+        await page.getByRole('button', { name: 'Merge manually' }).click();
+
+        // The names carry the parts for a screen reader (R27); the visible text shows them as the dotted line.
+        const flatGroup = page.getByRole('radiogroup', { name: 'Ingredient: 2 lb beef brisket, flat half, select' });
+        const pointGroup = page.getByRole('radiogroup', { name: 'Ingredient: 2 lb beef brisket, point half, choice' });
+
+        await expect(
+            flatGroup.getByRole('radio', { name: 'Your version: 2 lb beef brisket, flat half, select' }),
+        ).toBeVisible();
+        await expect(
+            pointGroup.getByRole('radio', { name: 'Latest saved version: 2 lb beef brisket, point half, choice' }),
+        ).toBeVisible();
+        await expect(flatGroup).toContainText('flat half ·');
+        await expect(pointGroup).toContainText('point half ·');
+        await expect(pointGroup).not.toContainText('point half, choice');
     });
 });

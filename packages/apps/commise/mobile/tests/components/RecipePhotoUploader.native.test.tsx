@@ -36,12 +36,39 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { RecipePhotoUploader } from '../../src/components/RecipePhotoUploader.js';
 
+const { queueVerdict } = vi.hoisted(() => ({
+    // `refuseWith` set → the queue's `enqueue` answers `overCap` with that many slots left. Every other case runs
+    // the REAL queue. The refusal is not reachable through the real one from a leaf test: the add control is
+    // hidden at the cap and `picking` serialises picks, so a refusal needs the confirmed count to move while the
+    // picker is open — and the pick's closure still holds the pre-refetch `enqueue`. The leaf's job is to honour
+    // the verdict, and this knob is how that job is tested.
+    queueVerdict: { refuseWith: undefined as number | undefined },
+}));
+
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/features-recipes/hooks')>();
+
+    return {
+        ...actual,
+        useRecipePhotoUploadQueue: (...args: Parameters<typeof actual.useRecipePhotoUploadQueue>) => {
+            const queue = actual.useRecipePhotoUploadQueue(...args);
+            const refuseWith = queueVerdict.refuseWith;
+
+            return refuseWith === undefined
+                ? queue
+                : { ...queue, enqueue: () => ({ status: 'overCap' as const, remaining: refuseWith }) };
+        },
+    };
+});
+
 vi.mock('expo-image-picker', () => ({
     MediaTypeOptions: { Images: 'Images' },
     launchImageLibraryAsync: vi.fn(),
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipePhotos: vi.fn(),
     useCreatePhotoUploadUrl: vi.fn(),
     useConfirmPhotoUpload: vi.fn(),
@@ -111,6 +138,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+    queueVerdict.refuseWith = undefined;
     launchImageLibraryAsyncMock.mockReset();
     useRecipePhotosMock.mockReset();
     useCreatePhotoUploadUrlMock.mockReset();
@@ -137,6 +165,45 @@ describe('RecipePhotoUploader — rendering', () => {
 
         expect(screen.getByLabelText('Recipe photo 1')).toBeTruthy();
         expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();
+    });
+});
+
+/**
+ * U33 — a control is offered only where its action has somewhere to go.
+ *
+ * Before the recipe exists a pick can only land in the draft (`onPick`), and a draft cell can only be removed by
+ * its owner (`onRemoveDraft`). The create screen withholds both while its create is in flight, because the flush
+ * it issues on success hands over the draft as it stood when the save was pressed. An add control with no
+ * destination would enqueue against a recipe id of `''`; a Remove with no handler would do nothing.
+ */
+describe('RecipePhotoUploader — draft destination (U33)', () => {
+    const draft = { localId: 'draft-photo-1', fileName: 'draft.png', contentType: 'image/png', fileSize: 1 };
+
+    it('offers no add control when the recipe has no id and no pick destination is wired', () => {
+        render(<RecipePhotoUploader recipeId={null} />);
+
+        expect(screen.queryByRole('button', { name: 'Add photo' })).toBeNull();
+    });
+
+    it('offers the add control before the recipe exists when a pick destination is wired', () => {
+        render(<RecipePhotoUploader recipeId={null} onPick={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: 'Add photo' })).toBeTruthy();
+    });
+
+    it('offers no Remove on a draft cell when no draft remove handler is wired', () => {
+        render(<RecipePhotoUploader recipeId={null} pendingDrafts={[draft]} />);
+
+        expect(screen.queryByRole('button', { name: /Remove draft\.png/u })).toBeNull();
+    });
+
+    it('offers Remove on a draft cell, reporting its index, when the handler is wired', () => {
+        const onRemoveDraft = vi.fn();
+
+        render(<RecipePhotoUploader recipeId={null} pendingDrafts={[draft]} onRemoveDraft={onRemoveDraft} />);
+        fireEvent.click(screen.getByRole('button', { name: /Remove draft\.png/u }));
+
+        expect(onRemoveDraft).toHaveBeenCalledWith(0);
     });
 });
 
@@ -457,6 +524,7 @@ describe('RecipePhotoUploader — queueing a second pick while uploading (w3/e4)
             expiresIn: number;
             maxBytes: number;
         }) => void = () => {};
+
         const createMutateAsync = vi
             .fn()
             .mockImplementationOnce(
@@ -687,6 +755,21 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
 });
 
 describe('RecipePhotoUploader — photo cap', () => {
+    it('tells the cook how many fit when the queue refuses the pick, and uploads nothing', async () => {
+        queueVerdict.refuseWith = 0;
+        const createMutateAsync = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
+
+        expect(
+            await screen.findByText('That’s more photos than this recipe can hold — you can add 0 more.'),
+        ).toBeTruthy();
+        expect(createMutateAsync).not.toHaveBeenCalled();
+    });
+
     it('hides the add control once the recipe is at the 10-photo cap', () => {
         const photos = Array.from({ length: 10 }, (_unused, index) =>
             makePhoto({ id: `pht_${index + 1}`, order: index + 1 }),

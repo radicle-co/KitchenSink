@@ -69,6 +69,8 @@ export interface MobileMessages {
             readonly upgrade: string;
             /** The dismiss action. */
             readonly dismiss: string;
+            /** The accessible name of the nudge sheet's icon-only × close control. House form: "Close {thing}". */
+            readonly close: string;
         };
     };
     /** Copy for the sign-in / sign-up surface (U2). All auth copy is localized (repo mandate). */
@@ -174,7 +176,7 @@ export interface MobileMessages {
         readonly signOutFailed: string;
         /**
          * Alert shown when an account ERASURE was accepted (202) but the follow-up sign-out failed.
-         * Deliberately distinct from {@link signOutFailed} and from the erasure dialog's own submit error: the
+         * Deliberately distinct from `signOutFailed` and from the erasure dialog's own submit error: the
          * erasure DID succeed server-side, so telling the viewer to retry it would be a lie — the only
          * outstanding action is leaving the (now-destroyed) account's session.
          */
@@ -193,6 +195,10 @@ export interface MobileMessages {
         readonly detailLoading: string;
         /** Message shown when a recipe's detail fails to load. */
         readonly detailError: string;
+        /** Message shown when the recipe does not exist or is not the viewer's to see — no retry is offered. */
+        readonly detailNotFound: string;
+        /** Label of the retry affordance when a recipe's detail fails to load. */
+        readonly detailRetry: string;
         /** Label of the back affordance on the recipe-detail screen. */
         readonly back: string;
         /** Label of the owner action that opens the recipe editor. */
@@ -205,10 +211,15 @@ export interface MobileMessages {
         readonly visibilityUpgradeReason: string;
         /** Alert shown when creating a recipe fails. */
         readonly createError: string;
+        /**
+         * Shown after a successful create while chosen photos are still uploading (U33). A save is create-THEN-
+         * upload, and the cook must not be told it is one call.
+         */
+        readonly photosFlushingNotice: string;
+        /** The explicit "leave without the photos that would not upload" action (U33). */
+        readonly photosFinishWithout: string;
         /** Alert shown when saving recipe edits fails. */
         readonly saveError: string;
-        /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
-        readonly photosAfterCreateNotice: string;
         /** Title of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
         readonly createGuidanceTitle: string;
         /** Body of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
@@ -238,68 +249,22 @@ export interface MobileMessages {
         readonly unsupportedTypeError: string;
         /** Alert shown when Replace is pressed at the photo cap — a lossless swap needs a free slot (U6). */
         readonly replaceAtCapError: string;
-    };
-    readonly ingredientPicker: {
-        /** Section heading for the ingredient typeahead. */
-        readonly heading: string;
-        /** Accessible label for the ingredient search field. */
-        readonly searchLabel: string;
-        /** Placeholder shown inside the ingredient search field. */
-        readonly searchPlaceholder: string;
-        /** Accessible label for the search field's clear (×) control (U6). */
-        readonly searchClear: string;
-        /** Badge next to the search box naming the ingredient database it searches (C5, wireframe
-         *  recipe-edit.md:56 "[USDA database]"). */
-        readonly usdaBadge: string;
-        /** Styled (not-yet-wired) "Search USDA for …" seam label (U6; a separate USDA-autocomplete CR wires it;
-         *  contains `{query}`). */
-        readonly searchUsdaFor: string;
-        /** Short "coming soon" tag on the USDA-search seam (U6). */
-        readonly searchUsdaSoon: string;
-        /** Empty-state copy shown when a search returns no catalog matches. */
-        readonly empty: string;
-        /** Heading of the "your own previously-used ingredients" section of the blended typeahead (Stage 2). */
-        readonly ownSectionTitle: string;
-        /** Heading of the food-catalog (USDA-seeded golden records) section of the blended typeahead. */
-        readonly catalogSectionTitle: string;
-        /** Provenance badge on a food-catalog row (it is not yet one of the caller's ingredients). */
-        readonly catalogBadge: string;
-        /** Non-blocking notice shown when the food catalog is unreachable and only local matches rendered (F2). */
-        readonly catalogUnavailable: string;
-        /** Busy label shown while a picked food-catalog row is being added. */
-        readonly addingFromCatalog: string;
-        /** Message shown when adding a picked food-catalog row fails. */
-        readonly catalogAddError: string;
-        /** Primary "find nutrition" action for a typed name (addByName, the async-resolution entry point; contains `{query}`). */
-        readonly addByName: string;
-        /** Busy label shown while a food is being added by name (food-resolution in flight). */
-        readonly addingByName: string;
-        /** Message shown when adding a food by name fails. */
-        readonly addByNameError: string;
-        /** Create-a-freeform-ingredient (fallback) action template (contains `{query}`). */
-        readonly create: string;
-        /** Busy label shown while a freeform ingredient is being created. */
-        readonly creating: string;
-        /** Heading for the disambiguation panel of an `UNRESOLVED` match (contains `{name}`). */
-        readonly disambiguateTitle: string;
-        /** Busy label shown while disambiguation candidates load. */
-        readonly disambiguateLoading: string;
-        /** Message shown when loading disambiguation candidates fails. */
-        readonly disambiguateError: string;
-        /** Copy shown when an `UNRESOLVED` match has no candidates to choose from. */
-        readonly disambiguateEmpty: string;
-        /** Label of the action that leaves the disambiguation panel and returns to search. */
-        readonly disambiguateBack: string;
-        /** Busy label shown while the picked candidate resolves. */
-        readonly resolving: string;
-        /** Message shown when resolving the picked candidate fails. */
-        readonly resolveError: string;
+        /**
+         * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`), on the
+         * create screen and the edit uploader alike. The pick is refused WHOLE rather than truncated — see the
+         * web dictionary's twin for why.
+         */
+        readonly overCapError: string;
     };
     readonly collections: {
         /** Accessible label shown while a single collection is loading. */
         readonly detailLoading: string;
         /** Message shown when a collection fails to load. */
         readonly detailError: string;
+        /** Message shown when the collection does not exist or is not the viewer's to see — no retry is offered. */
+        readonly detailNotFound: string;
+        /** Label of the retry affordance when a collection fails to load. */
+        readonly detailRetry: string;
         /** Label of the back affordance on the collection-detail screen. */
         readonly back: string;
         /** Alert shown when saving a collection (create or rename) fails. */
@@ -317,8 +282,32 @@ export interface MobileMessages {
         readonly somethingWentWrong: string;
         /** Body copy for the root-level crash fallback (B18) — the app-wide safety net around `AppRoot`. */
         readonly rootErrorBody: string;
+        /** Body copy for the same fallback when Home is what crashed, where Back to Home is not offered. */
+        readonly rootErrorBodyHome: string;
         /** Label of the retry affordance on the root-level crash fallback. */
         readonly retry: string;
+        /** Label of the root fallback's way out of a crashed screen, back to Home. */
+        readonly backToHome: string;
+        /**
+         * The confirmation raised when a form with unsaved work is left — by its own back/cancel control or
+         * by Android's system back button, which are two entry points to ONE guard.
+         *
+         * ⛔ It is app-level copy rather than per-screen copy because the QUESTION is the same wherever it
+         * is asked; a per-screen copy of it is how one surface comes to ask something subtly different from
+         * its neighbour. It is deliberately NOT read from `@commise/features-recipes`'s `wizardMessages`:
+         * that dictionary is the recipe wizard's own, and a collections screen that consumed it would take
+         * a dependency on the wizard's whole catalogue to borrow four strings.
+         */
+        readonly discard: {
+            /** The dialog's heading, and its accessible name. */
+            readonly title: string;
+            /** Body copy, stating what confirming costs. */
+            readonly body: string;
+            /** The destructive confirm action. */
+            readonly confirm: string;
+            /** The cancel action — stay on the form, keep the work. */
+            readonly cancel: string;
+        };
     };
 }
 
@@ -364,6 +353,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
                 body: 'Upgrade to Commise Pro to use this feature.',
                 upgrade: 'See plans',
                 dismiss: 'Maybe later',
+                close: 'Close upgrade offer',
             },
         },
         auth: {
@@ -431,15 +421,17 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         recipes: {
             detailLoading: 'Loading recipe…',
             detailError: 'We couldn’t load this recipe.',
+            detailNotFound: 'We couldn’t find that recipe.',
+            detailRetry: 'Try again',
             back: 'Back',
             editAction: 'Edit recipe',
             deleteAction: 'Delete recipe',
             versionsAction: 'Version history',
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
+            photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
+            photosFinishWithout: 'Finish without the remaining photos',
             saveError: 'We couldn’t save your changes. Please try again.',
-            photosAfterCreateNotice:
-                'Publish your recipe to add photos — tap Publish below, then add photos from its page. Nothing here to do yet.',
             createGuidanceTitle: 'Let’s build your recipe',
             createGuidanceBody:
                 'Start with a title and the basics. You’ll add ingredients, steps, and photos as you go — tap Next when a step is ready.',
@@ -456,38 +448,13 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
             unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
             replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
-        },
-        ingredientPicker: {
-            heading: 'Add an ingredient',
-            searchLabel: 'Search ingredients',
-            searchPlaceholder: 'e.g. olive oil',
-            searchClear: 'Clear search',
-            usdaBadge: 'USDA database',
-            searchUsdaFor: 'Search USDA for “{query}”',
-            searchUsdaSoon: 'Soon',
-            empty: 'No matching ingredients. Create a new one below.',
-            ownSectionTitle: 'Your ingredients',
-            catalogSectionTitle: 'Food catalog',
-            catalogBadge: 'USDA',
-            catalogUnavailable: 'Showing your ingredients only — the food catalog is unavailable right now.',
-            addingFromCatalog: 'Adding from the food catalog…',
-            catalogAddError: 'We couldn’t add that food. Try again, or create a custom one below.',
-            addByName: 'Find nutrition for “{query}”',
-            addingByName: 'Finding nutrition…',
-            addByNameError: 'We couldn’t add that ingredient. Create a custom one below instead.',
-            create: 'Create “{query}”',
-            creating: 'Adding…',
-            disambiguateTitle: 'Which “{name}” did you mean?',
-            disambiguateLoading: 'Loading options…',
-            disambiguateError: 'We couldn’t load options for that ingredient.',
-            disambiguateEmpty: 'No options to choose from — create a custom one below.',
-            disambiguateBack: 'Back to search',
-            resolving: 'Resolving…',
-            resolveError: 'We couldn’t resolve that ingredient.',
+            overCapError: 'That’s more photos than this recipe can hold — you can add {count} more.',
         },
         collections: {
             detailLoading: 'Loading collection…',
             detailError: 'We couldn’t load this collection.',
+            detailNotFound: 'We couldn’t find that collection.',
+            detailRetry: 'Try again',
             back: 'Back',
             saveError: 'We couldn’t save this collection. Please try again.',
         },
@@ -498,8 +465,16 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         },
         common: {
             somethingWentWrong: 'Something went wrong',
-            rootErrorBody: 'We hit a snag loading this screen. Please try again.',
+            rootErrorBody: 'We hit a snag loading this screen. Try again, or go back to Home.',
+            rootErrorBodyHome: 'We hit a snag loading Home. Please try again.',
             retry: 'Try again',
+            backToHome: 'Back to Home',
+            discard: {
+                title: 'Discard unsaved changes?',
+                body: 'You have unsaved changes. Leaving now will discard them.',
+                confirm: 'Discard changes',
+                cancel: 'Keep editing',
+            },
         },
     },
 };

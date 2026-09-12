@@ -1,5 +1,7 @@
+import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { defineConfig, type Plugin } from 'vitest/config';
 
@@ -58,7 +60,9 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'jsdom',
-        setupFiles: ['./tests/setup.native.ts'],
+        setupFiles: [jsdomPolyfillsSetup, './tests/setup.native.ts'],
+        // Above `ASYNC_UTIL_TIMEOUT_MS` (`@commise/test-utils/async-util-budget`).
+        testTimeout: 15_000,
         include: ['tests/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
 
@@ -73,9 +77,15 @@ export default defineConfig({
         env: {
             EXPO_PUBLIC_RECIPE_API_URL: 'http://localhost:3000',
             EXPO_PUBLIC_IDENTITY_API_URL: 'http://localhost:4000',
+            EXPO_PUBLIC_FOOD_API_URL: 'http://localhost:3002',
         },
     },
     resolve: {
+        // ⛔ ONE react-native-web for the whole graph. This package installs its own copy while `@commise/ui`'s
+        // source resolves the hoisted one, so a design-system leaf rendered here ran on a DIFFERENT renderer copy
+        // than the app — and a `vi.mock('react-native')` in a suite replaced only the app's copy, leaving the
+        // design system's `AccessibilityInfo` real. Deduping resolves every importer to this package's copy.
+        dedupe: ['react-native-web'],
         alias: {
             'react-native': 'react-native-web',
             // `@expo/vector-icons` ships extensionless internal ESM imports that Vitest's strict Node ESM
@@ -94,12 +104,17 @@ export default defineConfig({
             // bridge to native views with no jsdom runtime — stub them; real gradient/blur is emulator-only.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'tests/stubs/expoLinearGradient.tsx'),
             'expo-blur': path.resolve(import.meta.dirname, 'tests/stubs/expoBlur.tsx'),
+            // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no
+            // `crypto` global); the stub answers Node's own UUIDs so picker suites run un-networked.
+            'expo-crypto': path.resolve(import.meta.dirname, 'tests/stubs/expoCrypto.ts'),
             // `react-native-safe-area-context` ships Flow-typed source that Vitest cannot parse at all
             // (`Unexpected token 'typeof'`), and bridges to a native module for the device's window insets.
-            // The shared `FullScreenSheet` recipe primitive reads `useSafeAreaInsets`, so every screen that
-            // composes a recipe feature leaf pulls it into the graph — stub it here rather than requiring
-            // each such test to remember a `vi.mock` (tests that DO mock it still win over this alias).
-            'react-native-safe-area-context': path.resolve(import.meta.dirname, 'tests/stubs/safeAreaContext.tsx'),
+            // The design system's `FullScreenSheet` (`@commise/ui/full-screen-sheet`) reads `useSafeAreaInsets`, so
+            // every screen that composes a recipe feature leaf pulls it into the graph — stub it here rather than
+            // requiring each such test to remember a `vi.mock` (tests that DO mock it still win over this alias).
+            'react-native-safe-area-context': fileURLToPath(
+                import.meta.resolve('@commise/ui/testing/safe-area-context'),
+            ),
         },
     },
 });

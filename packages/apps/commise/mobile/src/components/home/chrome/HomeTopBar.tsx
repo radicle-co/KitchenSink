@@ -55,6 +55,7 @@ export function HomeTopBar({ chrome, displayName, onOpenAccount }: HomeTopBarPro
             <View style={styles.affordances}>
                 {/* Present, labelled, and honestly gated — see the module docblock. */}
                 <View
+                    accessible
                     aria-disabled
                     accessibilityLabel={`${chrome.search}, ${chrome.comingSoonSuffix}`}
                     style={styles.affordance}
@@ -63,6 +64,7 @@ export function HomeTopBar({ chrome, displayName, onOpenAccount }: HomeTopBarPro
                 </View>
 
                 <View
+                    accessible
                     aria-disabled
                     accessibilityLabel={`${chrome.notifications}, ${chrome.comingSoonSuffix}`}
                     style={styles.affordance}

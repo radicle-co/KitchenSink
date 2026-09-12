@@ -1,0 +1,25 @@
+owl:Class declarations       :   40107   (OLS4 numberOfTerms = 40107)
+  ... with a label           :   39707
+  ... deprecated             :     610
+  FOODON_ native             :   29255
+parent edges (both routes)   :   47514
+synonym strings              :   19206   on 8275 classes
+
+=== the EDIBLE union (food product + food material) — the naming backbone ===
+  live labelled classes in branch :   20915
+  ... carrying >=1 synonym        :    1512
+  ... synonym strings in branch   :    3004
+
+  contamination check:
+    chondrichthyes       union=OUT   product=False material=False
+    restaurant           union=OUT   product=False material=False
+    bread                union=IN    product=False material=True
+    cheddar cheese       union=IN    product=True  material=True
+    soy sauce            (no label)
+    ham (cured)          union=IN    product=True  material=True
+    beef (ground)        union=IN    product=True  material=True
+    olive oil            union=IN    product=True  material=True
+    mayonnaise           union=IN    product=True  material=True
+
+  parents-within-branch :  0:17 1:19035 2:1495 3:351 4:14 5:3
+  ⛔ multi-parent        : 1863 of 20915 (9%) — a DAG, not a tree

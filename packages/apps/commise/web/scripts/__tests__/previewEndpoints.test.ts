@@ -217,9 +217,22 @@ describe('resolveBuildEndpoints', () => {
         }
     });
 
+    /** Plan 002 S5: the apps call food directly, and food is deployed per PR like recipe. */
+    it('resolves the FOOD endpoint per PR, and requires its template to be per-PR', () => {
+        const withFood = { ...PREVIEW, NEXT_PUBLIC_FOOD_API_URL_SANDBOX_TEMPLATE: 'https://food-pr-{pr}.commise.app' };
+
+        expect(resolveBuildEndpoints(withFood)['NEXT_PUBLIC_FOOD_API_URL']).toBe('https://food-pr-73.commise.app');
+        expect(() =>
+            resolveBuildEndpoints({
+                ...withFood,
+                NEXT_PUBLIC_FOOD_API_URL_SANDBOX_TEMPLATE: 'https://food.commise.app',
+            }),
+        ).toThrow(/\{pr\}/);
+    });
+
     it('does NOT require the identity template to be per-PR', () => {
         // Identity is the deliberate asymmetry: one shared, persistent sandbox service (tagged
-        // Environment=global, never torn down) that every preview signs in against. Demanding `{pr}` here
+        // tagged with its persistent tier, never torn down) that every preview signs in against. Demanding `{pr}` here
         // would be demanding a per-PR identity service, which is exactly what must NOT exist.
         expect(resolveBuildEndpoints(PREVIEW)['NEXT_PUBLIC_IDENTITY_API_URL']).toBe(
             'https://identity.sandbox.commise.app',

@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe delete-confirmation dialog (T068 building block).
  *
- * The React Native leaf of {@link import('./RecipeDeleteDialog.js').RecipeDeleteDialog} — same controlled,
+ * The React Native leaf of `RecipeDeleteDialog` — same controlled,
  * presentational contract: renders nothing while closed; when open it is an `alert`-role surface that names
  * the recipe and offers cancel/confirm, with the confirm action disabled and marked busy while `deleting`.
  *
@@ -16,10 +16,17 @@
  *
  * Cancel stays ENABLED while a delete is in flight: if the mutation hangs, disabling both actions would trap
  * the viewer in a modal with no way out.
+ *
+ * The window, the scrim, the safe area, the keyboard, the capped card that scrolls and the title are the design
+ * system's `DialogFrame` (`docs/design/compactHeightLayout.md` §9), as an interrupting `alert`.
+ *
+ * @pattern Adapter over the design-system `DialogFrame` — the platform expression of the web leaf's Radix
+ *     `AlertDialog` adapter, with the same controlled `props → JSX` contract.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
+import { DialogFrame } from '@commise/ui/dialog-frame';
 import { nativeTokens } from '@commise/ui/native';
 import { Feather } from '@expo/vector-icons';
 import type { FC } from 'react';
@@ -42,15 +49,14 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
 }) => {
     const { deleteDialog } = useMessages(recipeActionMessages);
 
-    if (!open) {
-        return null;
-    }
-
     return (
-        <View accessibilityRole="alert" accessibilityLabel={deleteDialog.title} style={styles.card}>
-            <Text accessibilityRole="header" style={styles.title}>
-                {deleteDialog.title}
-            </Text>
+        /* ⛔ A MODAL WINDOW, NOT AN INLINE BLOCK — and this is a CORRECTNESS fix, not presentation. As an inline block
+           this card rendered wherever it happened to sit in the caller's tree. When the owner actions moved into the
+           detail's title band, the trigger went with them and the card stayed the last child of the screen's
+           ScrollView — so tapping Delete opened a confirmation BELOW the hero, every ingredient, every step and the
+           rating block, i.e. off-screen with no visible response. The web leaf never had this failure because Radix
+           portals its `AlertDialog`; that asymmetry is exactly what an inline native "equivalent" hides. */
+        <DialogFrame open={open} onRequestClose={onCancel} title={deleteDialog.title} role="alert">
             <Text style={styles.body}>{fillTemplate(deleteDialog.body, { title: recipeTitle })}</Text>
             <View style={styles.actions}>
                 {/* The calmer bordered tier — it must never compete with the destructive action beside it. */}
@@ -73,21 +79,11 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
             </View>
             {deleting && <Text style={styles.body}>{deleteDialog.deletingLabel}</Text>}
             {error && !deleting && <Text style={styles.error}>{deleteDialog.error}</Text>}
-        </View>
+        </DialogFrame>
     );
 };
 
 const styles = StyleSheet.create({
-    card: {
-        backgroundColor: palette.white,
-        // `lg`, matching every other card surface in this feature — the previous 16 was off the radius scale.
-        borderRadius: nativeTokens.radius.lg,
-        borderWidth: 1,
-        borderColor: nativeTokens.borderSubtle,
-        padding: nativeTokens.spacing[5],
-        gap: nativeTokens.spacing[3],
-    },
-    title: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600', color: palette.charcoal },
     body: { fontSize: nativeTokens.fontSize.bodyMd, lineHeight: 22, color: palette.slate },
     // The buttons own their own surface, padding, and touch floor — this row only spaces them.
     actions: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },

@@ -152,7 +152,7 @@ the feature** (manifest field / `customElements` / blueprint) so there is no cen
   service is **cheap** (a normal controller alongside the existing `v1/...` routes); **enables backend
   self-advertise (L1 variant).** Caveat: no dynamic service registry — the BFF enumerates services by
   convention/priority (a known host list). _(Not a `.well-known` path — just a versioned endpoint.)_
-- **Codegen precedent**: `packages/ui/scripts/generate-theme.mjs` (tokens → CSS) proves the
+- **Codegen precedent**: `packages/ui/scripts/generateTheme.mjs` (tokens → CSS) proves the
   build-time-codegen shape is accepted — **but no generated file is committed anywhere** and there is
   **no Turbo `gen` task**. A committed `registry.generated.ts` would be a **new convention** (mild
   blocker: needs buy-in + a `codegen` task wired as `^codegen` in Turbo).
@@ -288,7 +288,7 @@ Its correct use for L1 is as the **build engine for the registry package**: use 
 (already in the repo) to build `@kitchensink/home-registry`, globbing the workspace for
 `commise.homeWidget` declarations and emitting `dist/registry.js` — this is where esbuild's glob
 discovery legitimately runs, _ahead of_ either app build. Both apps import the built package; Turbo
-`^build` regenerates it. Parallels `packages/ui/scripts/generate-theme.mjs` → `dist/theme.css`.
+`^build` regenerates it. Parallels `packages/ui/scripts/generateTheme.mjs` → `dist/theme.css`.
 
 Two consequences if we also adopt the rnx-kit esbuild serializer on mobile (recommended for bundle
 size once there are many code-split widgets):

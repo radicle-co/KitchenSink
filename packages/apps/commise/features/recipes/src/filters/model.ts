@@ -9,7 +9,7 @@
  * accepts these filters AND returns `facets`, and it facets exactly two dimensions — `dietaryFlags` and
  * `tags` — plus the caller-supplied `maxTotalTime` bound. `GET /api/v1/recipes` (the owner's library list) has
  * neither facets nor filter params, so the faceted bar belongs on the search-backed surface. The remaining
- * search params (`cuisine`, `maxPrepTime`, `maxCookTime`, `ingredientIds`) are forwarded by the client but
+ * search params (`cuisine`, `maxPrepTime`, `maxCookTime`, `foodIds`) are forwarded by the client but
  * are not faceted by the service, so nothing drives a chip for them yet — adding one is additive here and in
  * the service's facet CTE.
  *
@@ -17,20 +17,21 @@
  * (CLAUDE.md library-first): it percent-encodes values and round-trips repeated array params, which is the
  * exact wire shape the service's `SearchRecipesQueryDto` accepts (`?dietaryFlags=a&dietaryFlags=b`).
  *
- * **Ingredient filter (FR-006 gap #3).** `ingredientIds` is forwarded by the client and filtered by the
- * service (`search.dal.ts`'s `EXISTS … recipe_ingredients` clause), but — unlike `dietaryFlags`/`tags`/
- * `cuisine` — it is never faceted, and its values are opaque catalog ULIDs, not human-readable strings: a
- * chip needs a NAME to render, which the id alone cannot supply. So the filter state stores `{ id, name }`
- * pairs ({@link RecipeIngredientFilter}), populated only at SELECTION time (the typeahead result the user
- * picked carries its own name) — never re-derived from a bare id. The query string carries both `ingredientId`
- * and `ingredientName` as parallel repeated params (paired by position), so a reloaded/shared URL can render
- * the chip's label without a network round-trip to re-resolve the name.
+ * **Ingredient filter (FR-006 gap #3, plan 002 R45).** The filter keys on a FOOD: `foodIds` is forwarded by the
+ * client, and the service matches a recipe with a line bound to that food (a private food only for its author). It
+ * is never faceted, and its values are opaque food ids, not human-readable strings: a chip needs a NAME to render,
+ * which the id alone cannot supply. So the filter state stores `{ foodId, name }` pairs
+ * ({@link RecipeIngredientFilter}), populated only at SELECTION time (the typeahead result the user picked carries
+ * its own name) — never re-derived from a bare id. The query string carries both `foodId` and `foodName` as
+ * parallel repeated params (paired by position), so a reloaded/shared URL can render the chip's label without a
+ * network round-trip to re-resolve the name.
  */
 import type { Locale } from '@commise/i18n';
-import type { Ingredient, RecipeFacetCount, RecipeSearchParams } from '@kitchensink/recipe-core';
+import type { Ingredient, RecipeFacetCount } from '@kitchensink/recipe-core';
+import { MAX_SEARCH_FOOD_FILTERS, type RecipeSearchFacets, type RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import { fillTemplate } from '../list/model.js';
-import { meetsIngredientSearchThreshold } from '../hooks/ingredientResolver.model.js';
+import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 /** The facet dimensions the service aggregates (and the bar renders as chip groups). */
 export type FacetDimension = 'dietaryFlags' | 'tags';
@@ -45,7 +46,7 @@ export interface RecipeFilterState {
     readonly dietaryFlags?: readonly string[];
     readonly tags?: readonly string[];
     /**
-     * A single cuisine (S2). The search API filters by ONE exact cuisine (`RecipeSearchParams.cuisine` is a
+     * A single cuisine (S2). The search API filters by ONE exact cuisine (`RecipeSearchQuery.cuisine` is a
      * string, not an array), so this is single-select — never a multi-value array — even though the UI draws
      * cuisine as a facet group.
      */
@@ -57,8 +58,8 @@ export interface RecipeFilterState {
     /** Max total-time bound in minutes, on the {@link TIME_BUCKETS_MINUTES} ladder. */
     readonly maxTotalTime?: number;
     /**
-     * The selected ingredient filters (id + display name), resolved via the ingredient typeahead. Projects
-     * onto `RecipeSearchParams.ingredientIds` (ids only) for the wire. OR-narrowed, like the other array
+     * The selected ingredient filters (food id + display name), resolved via the ingredient typeahead. Projects
+     * onto `RecipeSearchQuery.foodIds` (ids only) for the wire. OR-narrowed, like the other array
      * dimensions (a recipe matches if it contains ANY selected ingredient).
      */
     readonly ingredients?: readonly RecipeIngredientFilter[];
@@ -76,12 +77,13 @@ type FilterDraft = {
 };
 
 /**
- * One ingredient selected as a filter constraint: the resolved catalog {@link Ingredient.id} the wire
- * filters on, plus the {@link Ingredient.name} the chip renders — opaque ids carry no human-readable label
- * on their own, so the name travels alongside it in filter state (see the module doc).
+ * One ingredient selected as a filter constraint: the {@link Ingredient.foodId} the wire filters on, plus the
+ * {@link Ingredient.name} the chip renders — opaque ids carry no human-readable label on their own, so the name
+ * travels alongside it in filter state (see the module doc). A name the cook declared has no food id, so it can
+ * never be a filter (R45).
  */
 export interface RecipeIngredientFilter {
-    readonly id: string;
+    readonly foodId: string;
     readonly name: string;
 }
 
@@ -98,16 +100,21 @@ export const TIME_BUCKETS_MINUTES: readonly number[] = [15, 30, 60];
 export const TOTAL_TIME_BUCKETS_MINUTES: readonly number[] = TIME_BUCKETS_MINUTES;
 
 /**
- * The facet counts the bar consumes — structurally the service's `RecipeSearchFacets` wire shape, but
- * declared here (over `RecipeFacetCount` from recipe-core) so this presentational package need not depend on
- * the HTTP client. The composing container passes the search response's `facets` straight in.
+ * The facet counts the FILTER BAR consumes — a deliberately NARROWER view-model DERIVED from the wire shape,
+ * not an independent declaration of it.
+ *
+ * It differs from `RecipeSearchFacets` in two ways that are real, not incidental:
+ *  - it covers only the three dimensions the bar renders as chips, omitting `totalTime` (which the bar offers
+ *    as a bound via {@link TIME_BUCKETS_MINUTES}, not as a facet value list);
+ *  - every dimension is OPTIONAL, because a container may render the bar before a search has resolved, or
+ *    pass a partial block — whereas the wire contract always carries all four (an empty dimension is `[]`).
+ *
+ * `Pick` + `Partial` over the generated wire type is what keeps those differences INTENTIONAL: adding,
+ * removing or renaming a facet dimension in the contract now fails this package's typecheck instead of
+ * silently leaving a stale hand-written copy behind. The previous declaration was structurally independent,
+ * which is how the server and client came to disagree about whether a facet block could be absent at all.
  */
-export interface RecipeFacets {
-    readonly dietaryFlags?: readonly RecipeFacetCount[];
-    readonly tags?: readonly RecipeFacetCount[];
-    /** Distinct cuisines in the match sample (W8-a.9) — drives the single-select Cuisine group (S2). */
-    readonly cuisine?: readonly RecipeFacetCount[];
-}
+export type RecipeFacets = Partial<Pick<RecipeSearchFacets, 'dietaryFlags' | 'tags' | 'cuisine'>>;
 
 /**
  * One rendered facet chip: a value, its match count (absent when the value is selected but the sampled
@@ -158,152 +165,112 @@ export function buildFacetChips(
     return chips;
 }
 
+/** The three time bounds — identical behaviour, one key apart, which is why they are a FIELD and not three functions. */
+export type TimeBoundField = 'maxTotalTime' | 'maxPrepTime' | 'maxCookTime';
+
 /**
- * Toggle a value in a facet dimension (AND-narrowing across dimensions, OR within one). Adds the value when
- * absent, removes it when present, and drops the dimension key entirely when it empties. Returns a new state
- * — never mutates the input. Pure.
+ * Every transition the filter state admits.
+ *
+ * DESIGN PATTERN: the variant half of a Visitor — {@link applyFilterAction}'s exhaustive switch is the other
+ * half, so adding a member here is a COMPILE error until it is handled rather than a silently ignored action.
+ */
+export type FilterAction =
+    | { readonly kind: 'toggleFacet'; readonly dimension: FacetDimension; readonly value: string }
+    | { readonly kind: 'setTimeBound'; readonly field: TimeBoundField; readonly minutes: number | undefined }
+    | { readonly kind: 'setCuisine'; readonly cuisine: string | undefined }
+    | { readonly kind: 'addIngredient'; readonly ingredient: RecipeIngredientFilter }
+    | { readonly kind: 'removeIngredient'; readonly foodId: string }
+    | { readonly kind: 'clearAll' };
+
+/**
+ * The state WITHOUT one key — the single expression of "clearing omits the key entirely".
+ *
+ * ⛔ A cleared time bound, a cleared cuisine, a facet whose last value was toggled off and an ingredient list
+ * whose last entry was removed all OMIT their key rather than carry `undefined` or `[]`, because both reach the
+ * wire and narrow the search to nothing — and `filtersToSearchParams` cannot tell an omitted key from a
+ * wrongly-present one. Every clearing branch of {@link applyFilterAction} goes through here.
  *
  * @param state - The current filter state.
- * @param dimension - The dimension to toggle within.
- * @param value - The facet value to toggle.
- * @returns The next filter state.
+ * @param key - The key to drop.
+ * @returns A new state without that key. Pure.
  */
-export function toggleFacetValue(
-    state: RecipeFilterState,
-    dimension: FacetDimension,
-    value: string,
-): RecipeFilterState {
-    const current = state[dimension] ?? [];
-    const next = current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value];
+function omitting(state: RecipeFilterState, key: keyof RecipeFilterState): RecipeFilterState {
+    const draft: FilterDraft = { ...state };
 
-    if (next.length === 0) {
-        const draft: FilterDraft = { ...state };
-        delete draft[dimension];
+    delete draft[key];
 
-        return draft;
-    }
-
-    return { ...state, [dimension]: next };
+    return draft;
 }
 
 /**
- * Set (or clear) the max-total-time bound. Clearing omits the key entirely, so it never reaches the wire as
- * `undefined`. Returns a new state — never mutates the input. Pure.
+ * Apply one {@link FilterAction} — the SINGLE entry point for every filter transition.
+ *
+ * DESIGN PATTERN: Visitor, as an exhaustive `switch` over a discriminated union (no class machinery needed —
+ * the union plus `satisfies never` IS the pattern here).
+ *
+ * ⛔ WHY ONE FUNCTION RATHER THAN EIGHT. A caller driving this state machine had to learn eight signatures,
+ * three of which differed only in which key they wrote, and reproduce the omit-the-key rule's consequences at
+ * each call site. Both platforms' discovery surfaces imported all eight and threaded them through
+ * `setFilters` callbacks, so the eight-name interface was paid for twice. One action type means a caller
+ * learns one thing, and a NEW transition is a union member the switch must handle rather than a ninth export
+ * every consumer has to discover.
+ *
+ * ⚠️ Returns the SAME object when nothing changed (a re-added ingredient, an absent id), so a React caller
+ * does not re-render every subscriber for a no-op. That property is asserted, not incidental.
  *
  * @param state - The current filter state.
- * @param minutes - The bound in minutes, or `undefined` to clear it.
- * @returns The next filter state.
+ * @param action - The transition to apply.
+ * @returns The next filter state — never the input, mutated. Pure.
  */
-export function setMaxTotalTime(state: RecipeFilterState, minutes: number | undefined): RecipeFilterState {
-    if (minutes === undefined) {
-        const draft: FilterDraft = { ...state };
-        delete draft.maxTotalTime;
+export function applyFilterAction(state: RecipeFilterState, action: FilterAction): RecipeFilterState {
+    switch (action.kind) {
+        case 'toggleFacet': {
+            const current = state[action.dimension] ?? [];
+            const next = current.includes(action.value)
+                ? current.filter((entry) => entry !== action.value)
+                : [...current, action.value];
 
-        return draft;
+            return next.length === 0 ? omitting(state, action.dimension) : { ...state, [action.dimension]: next };
+        }
+
+        case 'setTimeBound':
+            return action.minutes === undefined
+                ? omitting(state, action.field)
+                : { ...state, [action.field]: action.minutes };
+        case 'setCuisine':
+            // Single-select WITH an off state: re-selecting the current cuisine clears it.
+            return action.cuisine === undefined || state.cuisine === action.cuisine
+                ? omitting(state, 'cuisine')
+                : { ...state, cuisine: action.cuisine };
+
+        case 'addIngredient': {
+            const current = state.ingredients ?? [];
+
+            // Idempotent by `id` — the wire identity. A stale or renamed `name` is never compared. A full filter
+            // refuses the add: the server answers 400 past its bound, so the search would fail.
+            return isIngredientFilterFull(state) || current.some((entry) => entry.foodId === action.ingredient.foodId)
+                ? state
+                : { ...state, ingredients: [...current, action.ingredient] };
+        }
+
+        case 'removeIngredient': {
+            const current = state.ingredients ?? [];
+            const next = current.filter((entry) => entry.foodId !== action.foodId);
+
+            if (next.length === current.length) {
+                return state;
+            }
+
+            return next.length === 0 ? omitting(state, 'ingredients') : { ...state, ingredients: next };
+        }
+
+        case 'clearAll':
+            return EMPTY_RECIPE_FILTERS;
+        default:
+            // ⛔ EXHAUSTIVENESS, checked by the compiler: a new union member that nobody handled fails here
+            // rather than falling through and silently ignoring a user's action.
+            return action satisfies never;
     }
-
-    return { ...state, maxTotalTime: minutes };
-}
-
-/**
- * Set (or clear) the max-prep-time bound (S2). Clearing omits the key entirely. Pure.
- *
- * @param state - The current filter state.
- * @param minutes - The bound in minutes, or `undefined` to clear it.
- * @returns The next filter state.
- */
-export function setMaxPrepTime(state: RecipeFilterState, minutes: number | undefined): RecipeFilterState {
-    if (minutes === undefined) {
-        const draft: FilterDraft = { ...state };
-        delete draft.maxPrepTime;
-
-        return draft;
-    }
-
-    return { ...state, maxPrepTime: minutes };
-}
-
-/**
- * Set (or clear) the max-cook-time bound (REQ-030f). Clearing omits the key entirely. Pure.
- *
- * @param state - The current filter state.
- * @param minutes - The bound in minutes, or `undefined` to clear it.
- * @returns The next filter state.
- */
-export function setMaxCookTime(state: RecipeFilterState, minutes: number | undefined): RecipeFilterState {
-    if (minutes === undefined) {
-        const draft: FilterDraft = { ...state };
-        delete draft.maxCookTime;
-
-        return draft;
-    }
-
-    return { ...state, maxCookTime: minutes };
-}
-
-/**
- * Set (or clear) the single cuisine filter (S2). Selecting the already-selected cuisine clears it (a toggle),
- * so the single-select group has an "off" state. Clearing omits the key entirely. Pure.
- *
- * @param state - The current filter state.
- * @param cuisine - The cuisine to select, or `undefined` to clear.
- * @returns The next filter state.
- */
-export function setCuisine(state: RecipeFilterState, cuisine: string | undefined): RecipeFilterState {
-    if (cuisine === undefined || state.cuisine === cuisine) {
-        const draft: FilterDraft = { ...state };
-        delete draft.cuisine;
-
-        return draft;
-    }
-
-    return { ...state, cuisine };
-}
-
-/**
- * Add an ingredient filter (a typeahead pick). Idempotent — re-adding an already-selected id (matched by
- * `id`, the wire identity; a stale/renamed `name` is never used to compare) is a no-op, so a double-click
- * cannot duplicate a chip. Returns a new state — never mutates the input. Pure.
- *
- * @param state - The current filter state.
- * @param ingredient - The picked ingredient's id + display name.
- * @returns The next filter state.
- */
-export function addIngredientFilter(state: RecipeFilterState, ingredient: RecipeIngredientFilter): RecipeFilterState {
-    const current = state.ingredients ?? [];
-
-    if (current.some((entry) => entry.id === ingredient.id)) {
-        return state;
-    }
-
-    return { ...state, ingredients: [...current, ingredient] };
-}
-
-/**
- * Remove an ingredient filter by id (chip removal). A no-op if the id is not selected. Drops the `ingredients`
- * key entirely once it empties, so it never reaches the wire as `[]`. Returns a new state — never mutates the
- * input. Pure.
- *
- * @param state - The current filter state.
- * @param id - The catalog ingredient id to remove.
- * @returns The next filter state.
- */
-export function removeIngredientFilter(state: RecipeFilterState, id: string): RecipeFilterState {
-    const current = state.ingredients ?? [];
-    const next = current.filter((entry) => entry.id !== id);
-
-    if (next.length === current.length) {
-        return state;
-    }
-
-    if (next.length === 0) {
-        const draft: FilterDraft = { ...state };
-        delete draft.ingredients;
-
-        return draft;
-    }
-
-    return { ...state, ingredients: next };
 }
 
 /**
@@ -336,16 +303,7 @@ export function hasActiveFilters(state: RecipeFilterState): boolean {
 }
 
 /**
- * The empty filter state (clear-all). Pure.
- *
- * @returns {@link EMPTY_RECIPE_FILTERS}.
- */
-export function clearRecipeFilters(): RecipeFilterState {
-    return EMPTY_RECIPE_FILTERS;
-}
-
-/**
- * Project the filter state + search term onto the `RecipeSearchParams` the client forwards to
+ * Project the filter state + search term onto the published `RecipeSearchQuery` the client forwards to
  * `GET /api/v1/search/recipes`. Omits every empty dimension and a blank/whitespace query, so the request is a
  * pure subset — only what is actually constrained. Pure.
  *
@@ -353,8 +311,8 @@ export function clearRecipeFilters(): RecipeFilterState {
  * @param query - The raw search term (trimmed here).
  * @returns The search params to send.
  */
-export function filtersToSearchParams(state: RecipeFilterState, query: string): RecipeSearchParams {
-    const params: RecipeSearchParams = {};
+export function filtersToSearchParams(state: RecipeFilterState, query: string): RecipeSearchQuery {
+    const params: RecipeSearchQuery = {};
     const term = query.trim();
 
     if (term.length > 0) {
@@ -386,7 +344,7 @@ export function filtersToSearchParams(state: RecipeFilterState, query: string): 
     }
 
     if (state.ingredients && state.ingredients.length > 0) {
-        params.ingredientIds = state.ingredients.map((entry) => entry.id);
+        params.foodIds = state.ingredients.map((entry) => entry.foodId);
     }
 
     return params;
@@ -433,8 +391,8 @@ export function filtersToQueryString(state: RecipeFilterState, query: string): s
     }
 
     for (const entry of state.ingredients ?? []) {
-        params.append('ingredientId', entry.id);
-        params.append('ingredientName', entry.name);
+        params.append('foodId', entry.foodId);
+        params.append('foodName', entry.name);
     }
 
     return params.toString();
@@ -500,14 +458,14 @@ export function filtersFromQueryString(queryString: string): { filters: RecipeFi
 }
 
 /**
- * Parse the paired `ingredientId`/`ingredientName` repeated params into {@link RecipeIngredientFilter}s.
+ * Parse the paired `foodId`/`foodName` repeated params into {@link RecipeIngredientFilter}s.
  * Hostile-input safe: a mismatched pair count is truncated to the shorter list (never `undefined` paired
  * with a real id), a blank id or name drops that entry, and a repeated id keeps only its first occurrence —
  * a hand-edited URL cannot inject a malformed or duplicate chip. Pure.
  */
 function ingredientFiltersFromParams(params: URLSearchParams): RecipeIngredientFilter[] {
-    const ids = params.getAll('ingredientId');
-    const names = params.getAll('ingredientName');
+    const ids = params.getAll('foodId');
+    const names = params.getAll('foodName');
     const seen = new Set<string>();
     const ingredients: RecipeIngredientFilter[] = [];
 
@@ -520,7 +478,12 @@ function ingredientFiltersFromParams(params: URLSearchParams): RecipeIngredientF
         }
 
         seen.add(id);
-        ingredients.push({ id, name });
+        ingredients.push({ foodId: id, name });
+
+        // A shared URL past the bound keeps its first ingredients rather than failing the search.
+        if (ingredients.length === MAX_SEARCH_FOOD_FILTERS) {
+            break;
+        }
     }
 
     return ingredients;
@@ -567,20 +530,59 @@ export function formatFacetChipName(
 /**
  * The ingredient-filter typeahead's current view — a discriminated union so the bar renders it with an
  * exhaustive `switch`/branch set instead of re-deriving the state from raw query flags. Deliberately a
- * NARROWER union than `useIngredientResolver`'s `IngredientResolverViewState` (no `terminal`/
- * `disambiguating`/`resolving`): filtering never resolves nutrition or creates a catalog row, so those
- * states don't apply here — see `hooks/useIngredientFilterSearch.ts` for why that hook (and this view state)
- * is a deliberately separate, read-only composition of the SAME shared search primitives, not a reuse of the
- * full resolver.
- *  - `idle` — no query typed yet, or the query is below {@link meetsIngredientSearchThreshold}'s trigger.
+ * NARROWER union than the editor entry's `EntrySearchView` (`hooks/foodSuggestions.model.ts`): filtering never
+ * resolves nutrition or creates a catalog row — see `hooks/useIngredientFilterSearch.ts` for why that hook (and this
+ * view state) is a deliberately separate, read-only composition of the SAME shared search primitives.
+ *  - `idle` — no query typed yet: the box is untouched, so there is nothing to say about it.
+ *  - `tooShort` — something is typed, but fewer than {@link MIN_SEARCH_QUERY_LENGTH} characters
+ *    (003-FR-010a). Distinct from `idle` because FR-010a requires the cook to be told why nothing is
+ *    searched.
  *  - `searching` — a query is in flight, OR `trimmed` has crossed the threshold but the debounced query
- *    hasn't caught up to it yet (mirrors `deriveViewState`'s same fix — see that function's doc).
+ *    hasn't caught up to it yet, so the bar never flashes "no matches" before the search has run.
  *  - `results` — the search settled, with zero or more catalog matches (or an error).
  */
 export type IngredientFilterSearchViewState =
     | { readonly kind: 'idle' }
+    | { readonly kind: 'tooShort'; readonly minimum: number }
     | { readonly kind: 'searching' }
-    | { readonly kind: 'results'; readonly results: readonly Ingredient[]; readonly isError: boolean };
+    | { readonly kind: 'results'; readonly results: readonly FoodIngredient[]; readonly isError: boolean }
+    /** The filter holds `max` ingredients, the most one search may filter on: the bar offers no search. */
+    | { readonly kind: 'full'; readonly max: number };
+
+/**
+ * Whether the filter already holds as many ingredients as one search may filter on (curated U9). Search expands each
+ * filtered root to its live variants, one food read per root, so the server bounds the filter at
+ * `MAX_SEARCH_FOOD_FILTERS` and answers 400 past it.
+ *
+ * @param state - The filter state.
+ * @returns `true` when no further ingredient can be added. Pure.
+ */
+export function isIngredientFilterFull(state: RecipeFilterState): boolean {
+    return isIngredientFilterFullAt(state.ingredients?.length ?? 0);
+}
+
+/**
+ * Whether `count` selected ingredients fill the filter: the one statement of the bound.
+ *
+ * @param count - How many ingredients the filter holds.
+ * @returns `true` at or past `MAX_SEARCH_FOOD_FILTERS`. Pure.
+ */
+export function isIngredientFilterFullAt(count: number): boolean {
+    return count >= MAX_SEARCH_FOOD_FILTERS;
+}
+
+/** A search result that is a food — the only kind of result a recipe filter can key on (plan 002 R45). */
+export type FoodIngredient = Ingredient & { readonly foodId: string };
+
+/**
+ * Whether a search result is a food. A name the cook declared has no food id and cannot be a filter target. Pure.
+ *
+ * @param ingredient - A search result.
+ * @returns `true` when it carries a food id.
+ */
+function isFoodIngredient(ingredient: Ingredient): ingredient is FoodIngredient {
+    return ingredient.foodId !== undefined;
+}
 
 /** The raw query facts {@link deriveIngredientFilterSearchViewState} reduces to one view state. */
 export interface DeriveIngredientFilterSearchViewStateInput {
@@ -590,6 +592,8 @@ export interface DeriveIngredientFilterSearchViewStateInput {
     readonly results: readonly Ingredient[];
     readonly isLoading: boolean;
     readonly isError: boolean;
+    /** How many ingredients the filter already holds. */
+    readonly selectedCount: number;
 }
 
 /**
@@ -602,15 +606,21 @@ export interface DeriveIngredientFilterSearchViewStateInput {
 export function deriveIngredientFilterSearchViewState(
     input: DeriveIngredientFilterSearchViewStateInput,
 ): IngredientFilterSearchViewState {
-    if (!meetsIngredientSearchThreshold(input.trimmed)) {
-        return { kind: 'idle' };
+    // First: a full filter offers no search, so a query typed before the last add says nothing about this state.
+    if (isIngredientFilterFullAt(input.selectedCount)) {
+        return { kind: 'full', max: MAX_SEARCH_FOOD_FILTERS };
+    }
+
+    // Checked before the debounce window: below the minimum no request is ever issued, so `searching` would never end.
+    if (!meetsSearchMinimum(input.trimmed)) {
+        return input.trimmed.length === 0 ? { kind: 'idle' } : { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH };
     }
 
     if (input.isLoading || input.trimmed !== input.debouncedTrimmed) {
         return { kind: 'searching' };
     }
 
-    return { kind: 'results', results: input.results, isError: input.isError };
+    return { kind: 'results', results: input.results.filter(isFoodIngredient), isError: input.isError };
 }
 
 /** The ingredient-filter typeahead's live state, owned by the container's `useIngredientFilterSearch`. */
@@ -629,22 +639,11 @@ export interface RecipeFilterBarProps {
     readonly facets: RecipeFacets;
     /** The active filter state (drives selected/pressed chips and the clear-all summary). */
     readonly filters: RecipeFilterState;
-    /** Toggle a facet value within a multi-select dimension (dietary, tags). */
-    readonly onToggleFacet: (dimension: FacetDimension, value: string) => void;
-    /** Set the single-select cuisine, or clear it by re-selecting the active one / passing `undefined` (S2). */
-    readonly onSetCuisine: (cuisine: string | undefined) => void;
-    /** Set the max-prep-time bound, or clear it with `undefined` (S2). */
-    readonly onSetMaxPrepTime: (minutes: number | undefined) => void;
-    /** Set the max-cook-time bound, or clear it with `undefined` (REQ-030f). */
-    readonly onSetMaxCookTime: (minutes: number | undefined) => void;
-    /** Set the max-total-time bound, or clear it with `undefined`. */
-    readonly onSetMaxTotalTime: (minutes: number | undefined) => void;
     /** The ingredient-filter typeahead's live query + view state (FR-006 gap #3). */
     readonly ingredientSearch: RecipeIngredientSearchState;
-    /** Add a picked typeahead result as an ingredient filter. */
-    readonly onAddIngredientFilter: (ingredient: RecipeIngredientFilter) => void;
-    /** Remove a selected ingredient-filter chip by its catalog id. */
-    readonly onRemoveIngredientFilter: (id: string) => void;
-    /** Clear every active filter. */
-    readonly onClearAll: () => void;
+    /**
+     * Every filter change the cook makes, as a {@link FilterAction} for the container to apply with
+     * {@link applyFilterAction}. One intent channel: the leaf says WHAT was asked for, the reducer owns what it does.
+     */
+    readonly onFilterAction: (action: FilterAction) => void;
 }

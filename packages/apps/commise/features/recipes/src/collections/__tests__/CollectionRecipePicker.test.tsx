@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web collection recipe-picker — the ADD half of FR-009 (T072). Covers every branch
- * the picker renders: loading, load error + retry, empty (the caller owns no recipes), no-matches (a search
+ * Component tests for the web collection recipe-picker — the ADD half of FR-009 (T072). The picker is a frame
+ * (heading, Done, search) around one of three bodies: the loading body, the load-error body, or the settled
+ * candidates. Covers every branch: loading, load error + retry, empty (the caller owns no recipes), no-matches (a search
  * that narrows everything out — a DIFFERENT state to "no recipes"), populated, already-a-member, in-flight,
  * the post-add status announcement, and the add-failure alert.
  *
@@ -18,7 +19,10 @@ import { ringContrast, utilityContrast } from '@commise/test-utils';
 import { semantic } from '@commise/ui';
 
 import { CollectionRecipePicker } from '../CollectionRecipePicker.js';
-import type { CollectionRecipePickerProps } from '../model.js';
+import { CollectionRecipePickerCandidates } from '../CollectionRecipePickerCandidates.js';
+import { CollectionRecipePickerLoadError } from '../CollectionRecipePickerLoadError.js';
+import { CollectionRecipePickerLoading } from '../CollectionRecipePickerLoading.js';
+import type { CollectionRecipePickerCandidatesProps, CollectionRecipePickerProps } from '../model.js';
 
 afterEach(cleanup);
 
@@ -29,23 +33,52 @@ const RECIPES = [
     { id: 'rec_2', title: 'Sheet-Pan Chicken', totalTimeMinutes: 45, updatedAt: '2026-04-18T09:30:00.000Z' },
 ] as const;
 
-function renderPicker(overrides: Partial<CollectionRecipePickerProps> = {}) {
-    const props: CollectionRecipePickerProps = {
-        collectionName: 'Weeknight Dinners',
-        status: 'ready',
-        recipes: RECIPES,
-        memberRecipeIds: [],
-        query: '',
-        onQueryChange: noop,
-        onAdd: noop,
-        onRetry: noop,
-        onCreateRecipe: noop,
-        onDone: noop,
-        ...overrides,
-    };
-    render(<CollectionRecipePicker {...props} />);
+type FrameProps = Omit<CollectionRecipePickerProps, 'children'>;
 
-    return props;
+/** The frame's props, with the fixture collection and inert callbacks. */
+function frameProps(overrides: Partial<FrameProps> = {}): FrameProps {
+    return { collectionName: 'Weeknight Dinners', query: '', onQueryChange: noop, onDone: noop, ...overrides };
+}
+
+/** Render the frame around the settled candidates. */
+function renderPicker(overrides: Partial<FrameProps & CollectionRecipePickerCandidatesProps> = {}) {
+    const { collectionName, onQueryChange, onDone, ...candidates } = overrides;
+    const frame = frameProps({
+        ...(collectionName === undefined ? {} : { collectionName }),
+        ...(onQueryChange === undefined ? {} : { onQueryChange }),
+        ...(onDone === undefined ? {} : { onDone }),
+        ...(candidates.query === undefined ? {} : { query: candidates.query }),
+    });
+    render(
+        <CollectionRecipePicker {...frame}>
+            <CollectionRecipePickerCandidates
+                recipes={RECIPES}
+                memberRecipeIds={[]}
+                query={frame.query}
+                onAdd={noop}
+                onCreateRecipe={noop}
+                {...candidates}
+            />
+        </CollectionRecipePicker>,
+    );
+}
+
+/** Render the frame around the loading body. */
+function renderLoading() {
+    render(
+        <CollectionRecipePicker {...frameProps()}>
+            <CollectionRecipePickerLoading />
+        </CollectionRecipePicker>,
+    );
+}
+
+/** Render the frame around the load-error body. */
+function renderLoadError(onRetry: () => void = noop) {
+    render(
+        <CollectionRecipePicker {...frameProps()}>
+            <CollectionRecipePickerLoadError onRetry={onRetry} />
+        </CollectionRecipePicker>,
+    );
 }
 
 describe('CollectionRecipePicker (web) — chrome', () => {
@@ -89,14 +122,17 @@ describe('CollectionRecipePicker (web) — chrome', () => {
 
 describe('CollectionRecipePicker (web) — fetch states', () => {
     it('shows a busy status and no rows while loading', () => {
-        renderPicker({ status: 'loading', recipes: [] });
+        renderLoading();
 
         expect(screen.getByRole('status', { name: 'Loading your recipes' })).toBeTruthy();
         expect(screen.queryByRole('list')).toBeNull();
+        // The frame is the same in every state: the search field and Done stay put while the body changes.
+        expect(screen.getByRole('searchbox', { name: 'Search your recipes' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
     });
 
     it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
-        renderPicker({ status: 'loading', recipes: [] });
+        renderLoading();
 
         // A `role="status"` node rendered EMPTY is doubly broken: it is zero-height (nothing for a sighted
         // viewer, and Playwright resolves it as `hidden`) AND it is silent, because a live region announces
@@ -109,10 +145,11 @@ describe('CollectionRecipePicker (web) — fetch states', () => {
     it('shows an alert and retries on request when the load fails', async () => {
         const user = userEvent.setup();
         const onRetry = vi.fn();
-        renderPicker({ status: 'error', recipes: [], onRetry });
+        renderLoadError(onRetry);
 
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.queryByRole('list')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
@@ -260,7 +297,7 @@ describe('CollectionRecipePicker (web) — text controls clear the AA body-text 
     });
 
     it('keeps the load-error Retry control legible at rest AND over its hover tint', () => {
-        renderPicker({ status: 'error' });
+        renderLoadError();
         const retry = screen.getByRole('button', { name: 'Try again' });
 
         expect(utilityContrast(retry.className), 'Retry at rest').toBeGreaterThanOrEqual(4.5);

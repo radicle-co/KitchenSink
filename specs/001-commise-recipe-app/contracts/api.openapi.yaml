@@ -1,3 +1,38 @@
+# ⛔ SUPERSEDED — HAND-WRITTEN, VERIFIED BY NOTHING. NOT THE CONTRACT AUTHORITY.
+#
+# Per GR-015 / docs/CODING_STANDARDS.md §15 / ADR-0014, the recipe service AUTHORS its wire contract as
+# zod in packages/services/recipe-service/src/**/*.schema.ts, and the normative document is the
+# openapi.yaml DERIVED into packages/schemas/recipe (@kitchensink/schema-recipe).
+#
+# These 2810 lines of body are hand-maintained and nothing verifies them against the running service.
+# Where this file and the service's *.schema.ts disagree, THE SERVICE'S ZOD WINS.
+#
+# STATUS (2026-08-12, RE-MEASURED) — CORRECTS THE 2026-08-11 NOTE THIS REPLACES, AND ALSO CORRECTS THE
+# FIGURES OF ITS OWN FIRST REVISION, WHICH WENT STALE THE SAME DAY:
+#
+#   1. The replacement EXISTS. packages/schemas/recipe/openapi.yaml is generated, 5,700 lines, 34 paths,
+#      against this file's 32. It is no longer "superseded in principle" — it is superseded.
+#      ⚠️ The first revision of this note said 4,945 lines. That was true on 2026-08-11 and grew when the
+#      `versions` and `api-error` schema copies were derived in. A GENERATED document's line count is a
+#      moving target: re-measure with `wc -l`, never quote a number out of prose.
+#   2. The old note said "~57 source files" cite this document. That count included BUILD OUTPUT
+#      (.next/standalone/, dist/). Count citations with `git ls-files | xargs grep -l`, not a worktree glob.
+#      ⚠️ Re-measured 2026-09-17: ZERO files under packages/ — the consumer repointing (001 T186) is DONE
+#      and is now GUARDED, so it cannot regress: packages/infra/global/__tests__/recipeContractAuthority.test.ts
+#      fails on any file under packages/ that cites this path, discovering the set from `git ls-files`
+#      rather than from a list. The earlier 12 → 5 → 0 progression is exactly why it is a guard and not a
+#      figure in prose.
+#
+# What remains are the citations under specs/ and docs/, which belong to their own owners and are the only
+# reason this file is still here. Those are the HISTORICAL record discussing this document AS a document —
+# legitimate in a way a consumer citing it as authority is not. Two documents both claiming to be normative
+# TO A CONSUMER is the state §15 exists to end, and that state is now over.
+#
+# ⛔ DO NOT extend this file with a new endpoint, and do not "fix" a disagreement by editing it. Author the
+#    zod in the service and regenerate; `npm run contract:verify` is what makes the generated one true.
+#
+# See: docs/architecture/decisions/0014-service-owned-api-contracts.md
+#      specs/001-commise-recipe-app/plan.md → "API Contracts — ownership and drift (GR-015)"
 openapi: 3.0.3
 info:
     title: Commise Recipe Management API
@@ -453,9 +488,10 @@ paths:
                 Returns `202 Accepted` — deliberately NOT `201`. The ingredient ROW is created
                 synchronously, but the meaningful work — nutrition resolution of the linked food — is
                 asynchronous and NOT complete when this returns. `202` is the caller's signal to poll
-                `GET /api/v1/ingredients/{id}/status` (until `RESOLVED`) or to disambiguate an `UNRESOLVED`
-                row via `GET /api/v1/ingredients/{id}/candidates` + `POST /api/v1/ingredients/{id}/resolve`; the
-                body's `foodResolutionStatus` is authoritative. This is distinct from `POST /api/v1/ingredients`,
+                `GET /api/v1/ingredients/{id}/status` (until `RESOLVED`). An `UNRESOLVED` row is settled by
+                the cook picking a food from food-service's own search and the app rebinding the line
+                (`POST /api/v1/recipes/{id}/ingredients/{position}/rebind`, plan 002 S6/S7); the body's
+                `foodResolutionStatus` is authoritative. This is distinct from `POST /api/v1/ingredients`,
                 which is the synchronous (`201`) freeform (user-entered) create with no food resolution.
             operationId: addIngredientByName
             requestBody:
@@ -554,65 +590,6 @@ paths:
                     $ref: '#/components/responses/Unauthorized'
                 '404':
                     $ref: '#/components/responses/NotFound'
-
-    /api/v1/ingredients/{id}/candidates:
-        get:
-            tags: [Ingredients]
-            summary: List disambiguation candidates for an UNRESOLVED ingredient
-            description: |
-                The cross-source candidate set (via `foodClient.getCandidates`) the caller picks from to
-                resolve an `UNRESOLVED` food-backed ingredient. Empty for a freeform or non-`UNRESOLVED`
-                ingredient. Pick one (or more) and submit them to `POST /api/v1/ingredients/{id}/resolve`.
-            operationId: getIngredientCandidates
-            parameters:
-                - $ref: '#/components/parameters/IngredientId'
-            responses:
-                '200':
-                    description: The (non-expired) candidate set
-                    content:
-                        application/json:
-                            schema:
-                                type: array
-                                items:
-                                    $ref: '#/components/schemas/IngredientCandidate'
-                '401':
-                    $ref: '#/components/responses/Unauthorized'
-                '404':
-                    $ref: '#/components/responses/NotFound'
-
-    /api/v1/ingredients/{id}/resolve:
-        post:
-            tags: [Ingredients]
-            summary: Resolve an UNRESOLVED ingredient from a candidate pick
-            description: |
-                Resolves an `UNRESOLVED` food-backed ingredient from the chosen candidate id(s) (via
-                `foodClient.resolve`), then re-polls so the newly-`RESOLVED` golden-record nutrition is
-                persisted. Returns `200` with the resolved `Ingredient` (an update, not a creation). A
-                freeform ingredient (no linked food) is a no-op returning the ingredient unchanged.
-            operationId: resolveIngredient
-            parameters:
-                - $ref: '#/components/parameters/IngredientId'
-            requestBody:
-                required: true
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/ResolveIngredientRequest'
-            responses:
-                '200':
-                    description: The refreshed, resolved ingredient
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Ingredient'
-                '400':
-                    $ref: '#/components/responses/BadRequest'
-                '401':
-                    $ref: '#/components/responses/Unauthorized'
-                '404':
-                    $ref: '#/components/responses/NotFound'
-                '423':
-                    $ref: '#/components/responses/ErasureLocked'
 
     /api/v1/recipes/{id}/versions:
         get:
@@ -1536,44 +1513,6 @@ components:
                 updatedAt:
                     type: string
                     format: date-time
-
-        IngredientCandidate:
-            type: object
-            description: |
-                A single cross-source disambiguation candidate for an `UNRESOLVED` ingredient (mirrors the
-                food client's `CandidateView`). Source-agnostic: keyed by the candidate's own opaque handle,
-                never a USDA `fdcId`.
-            required: [candidateId, source, externalKey, name]
-            properties:
-                candidateId:
-                    type: string
-                    description: The candidate row id — the handle passed back to resolve.
-                source:
-                    type: string
-                    description: The source the candidate came from (e.g. `usda`).
-                externalKey:
-                    type: string
-                    description: That source's opaque key for the item (NOT surfaced as a user identifier).
-                name:
-                    type: string
-                    description: Candidate display name.
-                summary:
-                    type: string
-                    nullable: true
-                    description: One-line disambiguation hint, when present.
-
-        ResolveIngredientRequest:
-            type: object
-            required: [candidateIds]
-            description: The candidate id(s) the user picked to resolve an `UNRESOLVED` ingredient.
-            properties:
-                candidateIds:
-                    type: array
-                    minItems: 1
-                    maxItems: 20
-                    items:
-                        type: string
-                        minLength: 1
 
         RecipeNutrition:
             type: object
@@ -2741,7 +2680,6 @@ components:
                 s3Key: { type: string, nullable: true }
                 createdBy: { type: string }
                 changeSummary: { type: string, nullable: true }
-                deviceLabel: { type: string, nullable: true }
                 editorHandle: { type: string, nullable: true }
                 createdAt: { type: string, format: date-time }
 

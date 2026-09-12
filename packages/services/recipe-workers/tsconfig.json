@@ -12,6 +12,6 @@
     // `__tests__/**` (the LocalStack integration specs) and `src/**/__tests__` unit specs otherwise get NO
     // static analysis at all — `npm run typecheck`/`lint` would both silently skip them. A prior agent had
     // to typecheck an integration spec out-of-band precisely because it sat outside this project.
-    "include": ["src/**/*.ts", "__tests__/**/*.ts"],
+    "include": ["src/**/*.ts", "__tests__/**/*.ts", "tests/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

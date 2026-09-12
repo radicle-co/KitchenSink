@@ -24,6 +24,8 @@ export const SHELL_SURFACE_IDS = [
     'recipeDetail',
     'recipeEdit',
     'recipeVersions',
+    'recipeParse',
+    'recipeParseReview',
     'discover',
     'collections',
     'collectionNew',
@@ -33,6 +35,7 @@ export const SHELL_SURFACE_IDS = [
     'profile',
     'account',
     'settings',
+    'dataSources',
 ] as const;
 
 /** One shell-hosted surface. */

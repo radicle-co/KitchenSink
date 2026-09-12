@@ -1,6 +1,6 @@
 /**
  * Native component tests for {@link RecipeHero} — the recipe-detail lead cover treatment (mockup
- * `screen-recipe-detail`), rendered via react-native-web under jsdom.
+ * `screenRecipeDetail`), rendered via react-native-web under jsdom.
  *
  * BOTH states are covered, because the interesting one is the ABSENCE of a cover. A missing cover must look
  * DELIBERATE, and specifically must not be an `<Image>` with an empty `source` (which paints a broken-image
@@ -13,8 +13,8 @@
  * directions (compact present AND full-hero absent) so neither platform can silently drift into the other's
  * geometry.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { act, cleanup, render, screen } from '@testing-library/react';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { gradient, palette } from '@commise/ui';
@@ -23,7 +23,24 @@ import { nativeTokens } from '@commise/ui/native';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeHero } from '../RecipeHero.native.js';
 
-afterEach(cleanup);
+/** Resize the window: react-native-web's `Dimensions` reads the root element's height on a resize event. */
+function windowHeight(height: number): void {
+    Object.defineProperty(document.documentElement, 'clientHeight', { value: height, configurable: true });
+    act(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+}
+
+// An upright phone unless a test turns it: the hero's height is capped by the window (`compactHeightLayout.md` §8).
+beforeEach(() => windowHeight(851));
+
+afterEach(() => {
+    cleanup();
+    Reflect.deleteProperty(document.documentElement, 'clientHeight');
+    act(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+});
 
 const renderHero = (ui: React.ReactElement) => render(<LocaleProvider locale="en">{ui}</LocaleProvider>);
 
@@ -47,6 +64,13 @@ const SCRIM_FIRST_COLOR = gradient.scrim.stops[0].color;
  * geometry that ships. Mirrors the `appliedFontFamily` helper in `RecipeDetailView.native.test.tsx`.
  */
 function appliedStyle(element: Element, property: string): string | undefined {
+    // A size computed per render (the window-capped hero) lands inline, not in a compiled class.
+    const inline = (element as HTMLElement).style.getPropertyValue(property);
+
+    if (inline !== '') {
+        return inline;
+    }
+
     const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
     const sheets = document.styleSheets;
     let resolved: string | undefined;
@@ -93,6 +117,18 @@ describe('RecipeHero (native) — cover present', () => {
         expect(appliedStyle(screen.getByLabelText('Herb Risotto'), 'height')).toBe(
             `${nativeTokens.mediaHeight.hero}px`,
         );
+    });
+
+    // `docs/design/compactHeightLayout.md` §8: one media box takes at most 40% of the window's height. Sideways, the
+    // 256 dp hero was about 70% of the window and pushed the recipe's title off the first screen.
+    it('is capped at 40% of the window’s height on a phone held sideways, cropping rather than squeezing', () => {
+        windowHeight(393);
+        renderHero(<RecipeHero title="Herb Risotto" coverPhotoUrl="https://cdn/hero.jpg" />);
+
+        const cover = screen.getByLabelText('Herb Risotto');
+
+        expect(appliedStyle(cover, 'height')).toBe('157px');
+        expect(appliedStyle(cover.parentElement as Element, 'height')).toBe('157px');
     });
 
     it('lays a decorative scrim over the cover so the image foot stays tonally anchored', () => {

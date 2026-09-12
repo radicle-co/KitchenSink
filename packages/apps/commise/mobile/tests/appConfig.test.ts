@@ -28,6 +28,25 @@ function findPlugin(moduleName: string): PluginEntry | undefined {
     return plugins.find((entry) => (typeof entry === 'string' ? entry === moduleName : entry[0] === moduleName));
 }
 
+/**
+ * The app follows the device's orientation (WCAG 2.2 SC 1.3.4 Orientation; Android 16 ignores an orientation lock on
+ * large screens anyway, so a lock only made phones and tablets disagree).
+ *
+ * ⚠️ `'default'` is required, not merely "not portrait". Expo's Android `withOrientation` leaves the manifest
+ * untouched when the key is ABSENT, so a prebuilt `android/` tree keeps whatever lock it was generated with. Only
+ * `'default'` writes `android:screenOrientation="unspecified"`; on iOS it lists all four interface orientations.
+ */
+describe('app.json orientation', () => {
+    it('follows the device orientation instead of locking one', () => {
+        expect(appJson.expo.orientation).toBe('default');
+    });
+
+    it('does not restate the iOS orientations in infoPlist, which would override the setting above', () => {
+        expect(Object.keys(appJson.expo.ios.infoPlist)).not.toContain('UISupportedInterfaceOrientations');
+        expect(Object.keys(appJson.expo.ios.infoPlist)).not.toContain('UISupportedInterfaceOrientations~ipad');
+    });
+});
+
 describe('app.json expo plugins', () => {
     it('registers the @clerk/expo config plugin', () => {
         expect(findPlugin('@clerk/expo')).toBeDefined();

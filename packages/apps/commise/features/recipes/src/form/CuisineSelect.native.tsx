@@ -56,7 +56,7 @@ export const CuisineSelect: FC<CuisineSelectProps> = ({ value, onChange }) => {
                 <Feather name={open ? 'chevron-up' : 'chevron-down'} size={18} color={palette.slate} />
             </Pressable>
             {open && (
-                <View accessibilityRole="menu" style={styles.menu}>
+                <View collapsable={false} accessibilityRole="menu" style={styles.menu}>
                     {options.map((option) => {
                         const isSelected = option.value === value;
 

@@ -1,109 +1,128 @@
+'use client';
+
 /**
  * @module @commise/features-recipes — web recipe filter bar (FR-006 / W4 S2).
  *
- * Controlled, presentational, facet-driven filter bar built per W9-f **P9**: the facets are DATA — an ordered
- * list of {@link FacetDescriptor}s (`kind: 'multiChip' | 'singleChip' | 'timeBucket' | 'ingredientTypeahead'`)
- * — dispatched through a `kind → renderer` map, so a new facet is a descriptor entry, not a new JSX branch.
+ * Controlled, presentational, facet-driven filter bar built per W9-f **P9**: the facets are DATA, read into one view by
+ * `filterBarViewOf` (`./filterBarView.ts`, shared with the native leaf), and this leaf draws each facet's group by its
+ * kind, so a new facet is a descriptor entry, not a new JSX branch.
  * It renders Dietary + Tags (multi-select chips), Cuisine (single-select, since the search API filters by
  * ONE cuisine), the Prep-time + Cook-time (REQ-030f) + Total-time bucket ladders, and the Ingredients
- * typeahead (FR-006 gap #3). It fetches nothing and owns no state — not even for the ingredient typeahead:
- * the container owns `useIngredientFilterSearch` (`hooks/useIngredientFilterSearch.ts`) and passes its live
- * query + view state down as `ingredientSearch`, exactly like `facets`/`filters` are passed down, so this
- * component stays a pure `props -> JSX` renderer end to end. A group with no buckets/results and no active
- * selection is omitted (never offer an empty filter) — except the ingredient search box itself, which is
- * always offered (there is no facet count to gate it on).
+ * typeahead (FR-006 gap #3). It fetches nothing: the container owns `useIngredientFilterSearch`
+ * (`hooks/useIngredientFilterSearch.ts`) and passes its live query + view state down as `ingredientSearch`, exactly
+ * like `facets`/`filters` are passed down. A group with no buckets/results and no active selection is omitted (never
+ * offer an empty filter) — except the ingredient search slot, which always shows the search box or, when the filter
+ * is full, the note that replaces it.
+ *
+ * Where the facets go depends on the window (spec §S8.1a "Web below 640 px", `useFilterBarLayout`): inline in a window
+ * at least 640 px wide and 480 px tall, else in the design-system `Sheet` behind a `Filters` trigger, the native
+ * anatomy. While the window is unknown (server render, hydration) both render and CSS picks by the same query.
+ *
+ * Its state is UI state only: whether the Sheet is open, the layout it last drew, and focus intent (SC 2.4.3). The
+ * option or chip the cook pressed unmounts on every ingredient add and removal, so focus moves to whatever then holds
+ * the search slot once the press lands (`useIngredientPressLanding`); a filter a URL fills moves nothing. When the
+ * window changes layout, the control that held focus is gone, so focus moves to the new layout's control: the
+ * trigger, or the inline bar's first control. An open Sheet closes when the window leaves its layout.
+ *
+ * @pattern Visitor — an exhaustive switch over the facet group view's kinds
+ * @pattern Adapter over the DOM focus API — `useFocusOnSignal` and `focusIfLost`, driven by presses and crossings
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import type { Ingredient } from '@kitchensink/recipe-core';
-import type { FC, ReactElement } from 'react';
+import { Button } from '@commise/ui/button';
+import { focusIfLost, useFocusOnSignal } from '@commise/ui/dialog-focus';
+import { Sheet } from '@commise/ui/sheet';
+import { useEffect, useRef, useState, type FC, type ReactElement } from 'react';
 
-import { fillTemplate, formatRecipeCount } from '../list/model.js';
-import { filterMessages, type FilterMessages } from './messages.js';
-import {
-    TIME_BUCKETS_MINUTES,
-    buildFacetChips,
-    countActiveFilters,
-    formatFacetChipName,
-    hasActiveFilters,
-    type FacetDimension,
-    type RecipeFacetChip,
-    type RecipeFilterBarProps,
-} from './model.js';
+import { useIngredientPressLanding } from '../hooks/useIngredientPressLanding.js';
+import { fillTemplate } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
+import { CheckIcon } from '../wizard/icons.js';
+import { filterBarViewOf, type FacetChipView, type FacetGroupView } from './filterBarView.js';
+import { filterMessages } from './messages.js';
+import type { FilterAction, RecipeFilterBarProps } from './model.js';
+import { useFilterBarLayout } from './useFilterBarLayout.js';
+
+/**
+ * Shown only in the inline window, `FILTER_BAR_INLINE_QUERY` (`useFilterBarLayout.ts`) written as Tailwind's arbitrary
+ * variant: before hydration this is all that keeps the trigger and the inline bar apart.
+ */
+const INLINE_ONLY = 'hidden flex-col gap-3 [@media(min-width:40rem)_and_(min-height:30rem)]:flex';
+/** Hidden in the inline window, the same query. */
+const SHEET_LAYOUT_ONLY = '[@media(min-width:40rem)_and_(min-height:30rem)]:hidden';
+/** The native trigger's look (§S8.1a): white, the house border, a 44 px floor and a radius of half that. */
+const TRIGGER =
+    'inline-flex min-h-11 items-center gap-2 rounded-[calc(var(--spacing)*5.5)] border border-border bg-white px-4 ' +
+    'text-body-sm font-semibold text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam';
+/** The count badge: a 22 px floor in rem with padding, so it grows with the text (E2 I10). */
+const BADGE =
+    'inline-flex min-h-5.5 min-w-5.5 items-center justify-center rounded-full bg-seafoam px-1 py-0.5 text-overline ' +
+    'font-bold text-white';
 
 const CHIP_BASE =
     'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-body-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam';
 const CHIP_SELECTED = 'border-seafoam bg-seafoam text-white';
+/**
+ * An ingredient chip removes itself, and at the cap it is the only way forward (spec §S8.1a): a trailing × the eye
+ * reads (its accessible name already says "Remove {name}") and a 44 px touch height.
+ */
+const INGREDIENT_CHIP = 'inline-flex min-h-11 items-center gap-1.5';
 const CHIP_UNSELECTED = 'border-border bg-card text-charcoal hover:border-seafoam-light';
 
-/** The kinds of facet the render map knows how to draw. */
-type FacetKind = 'multiChip' | 'singleChip' | 'timeBucket' | 'ingredientTypeahead';
-
-/** One facet, expressed as DATA (P9). The render map dispatches on {@link kind}. */
-interface FacetDescriptor {
-    readonly id: string;
-    readonly kind: FacetKind;
-    readonly labelKey: keyof FilterMessages;
-    /** For `multiChip` — the multi-select dimension it toggles. */
-    readonly dimension?: FacetDimension;
-    /** For `timeBucket` — the single-value time bound it sets. */
-    readonly timeField?: 'maxPrepTime' | 'maxCookTime' | 'maxTotalTime';
-}
-
-/** The facets the bar offers, in display order. Adding a facet is a new entry here, never new JSX. */
-const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
-    { id: 'dietaryFlags', kind: 'multiChip', dimension: 'dietaryFlags', labelKey: 'dietaryLabel' },
-    { id: 'cuisine', kind: 'singleChip', labelKey: 'cuisineLabel' },
-    { id: 'tags', kind: 'multiChip', dimension: 'tags', labelKey: 'tagsLabel' },
-    { id: 'maxPrepTime', kind: 'timeBucket', timeField: 'maxPrepTime', labelKey: 'maxPrepTimeLabel' },
-    { id: 'maxCookTime', kind: 'timeBucket', timeField: 'maxCookTime', labelKey: 'maxCookTimeLabel' },
-    { id: 'maxTotalTime', kind: 'timeBucket', timeField: 'maxTotalTime', labelKey: 'maxTotalTimeLabel' },
-    { id: 'ingredients', kind: 'ingredientTypeahead', labelKey: 'ingredientsLabel' },
-];
-
-/** The `timeField` → setter map the `timeBucket` renderer dispatches on. */
-function timeSetterFor(
-    timeField: 'maxPrepTime' | 'maxCookTime' | 'maxTotalTime',
-    setters: {
-        onSetMaxPrepTime: (minutes: number | undefined) => void;
-        onSetMaxCookTime: (minutes: number | undefined) => void;
-        onSetMaxTotalTime: (minutes: number | undefined) => void;
-    },
-): (minutes: number | undefined) => void {
-    if (timeField === 'maxPrepTime') {
-        return setters.onSetMaxPrepTime;
-    }
-
-    if (timeField === 'maxCookTime') {
-        return setters.onSetMaxCookTime;
-    }
-
-    return setters.onSetMaxTotalTime;
-}
-
-export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
-    facets,
-    filters,
-    onToggleFacet,
-    onSetCuisine,
-    onSetMaxPrepTime,
-    onSetMaxCookTime,
-    onSetMaxTotalTime,
-    ingredientSearch,
-    onAddIngredientFilter,
-    onRemoveIngredientFilter,
-    onClearAll,
-}) => {
+export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ingredientSearch, onFilterAction }) => {
     const m = useMessages(filterMessages);
+    // The FR-010a minimum copy is shared by all four ingredient-search surfaces — see its message doc.
+    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const locale = useLocale();
-    const countLabels = { one: m.chipCountOne, other: m.chipCountOther };
+    const bar = filterBarViewOf({ facets, filters, viewState: ingredientSearch.viewState }, m, locale);
+    // One signal, two refs: only one of the note and the input is mounted, and it takes the focus once the press lands.
+    const landing = useIngredientPressLanding(filters.ingredients?.length ?? 0);
+    const fullNoteRef = useFocusOnSignal<HTMLParagraphElement>(landing.signal);
+    const searchInputRef = useFocusOnSignal<HTMLInputElement>(landing.signal);
 
-    const chipButton = (chip: RecipeFacetChip, onSelect: () => void): ReactElement => (
+    const layout = useFilterBarLayout();
+    const [open, setOpen] = useState(false);
+    const [drawnLayout, setDrawnLayout] = useState(layout);
+    const [crossedToInline, setCrossedToInline] = useState(0);
+    const [crossedToSheet, setCrossedToSheet] = useState(0);
+    const triggerRef = useFocusOnSignal<HTMLButtonElement>(crossedToSheet);
+    const inlineRef = useRef<HTMLDivElement>(null);
+
+    // The window changed layout. Learning it while hydrating is not a change: nothing was drawn by JS yet.
+    if (layout !== drawnLayout) {
+        setDrawnLayout(layout);
+
+        if (drawnLayout !== undefined && layout === 'inline') {
+            setOpen(false);
+            setCrossedToInline(crossedToInline + 1);
+        }
+
+        if (drawnLayout !== undefined && layout === 'sheet') {
+            setCrossedToSheet(crossedToSheet + 1);
+        }
+    }
+
+    // `.focus()` has no declarative form. The inline bar's first control is whichever facet renders first, so it is
+    // found when the crossing lands rather than held in a ref that facets arriving later would make stale.
+    useEffect(() => {
+        if (crossedToInline === 0) {
+            return;
+        }
+
+        focusIfLost(inlineRef.current?.querySelector<HTMLElement>('button, input'));
+    }, [crossedToInline]);
+
+    const pressIngredient = (action: FilterAction): void => {
+        landing.markPressed();
+        onFilterAction(action);
+    };
+
+    const chipButton = ({ chip, name, action }: FacetChipView): ReactElement => (
         <button
             key={chip.value}
             type="button"
             aria-pressed={chip.selected}
-            aria-label={formatFacetChipName(chip, countLabels, locale)}
-            onClick={onSelect}
+            aria-label={name}
+            onClick={() => onFilterAction(action)}
             className={`${CHIP_BASE} ${chip.selected ? CHIP_SELECTED : CHIP_UNSELECTED}`}
         >
             <span aria-hidden="true">{chip.value}</span>
@@ -122,161 +141,197 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
         </div>
     );
 
-    // The kind → renderer map: every facet is drawn by dispatching on its descriptor's `kind` (P9).
-    const renderers: Record<FacetKind, (descriptor: FacetDescriptor) => ReactElement | null> = {
-        multiChip: ({ dimension, labelKey }) => {
-            const chips = buildFacetChips(facets[dimension as 'dietaryFlags' | 'tags'], filters[dimension!] ?? []);
-
-            if (chips.length === 0) {
-                return null;
-            }
-
-            return group(
-                m[labelKey],
-                chips.map((chip) => chipButton(chip, () => onToggleFacet(dimension!, chip.value))),
-            );
-        },
-        singleChip: ({ labelKey }) => {
-            const chips = buildFacetChips(facets.cuisine, filters.cuisine !== undefined ? [filters.cuisine] : []);
-
-            if (chips.length === 0) {
-                return null;
-            }
-
-            return group(
-                m[labelKey],
-                chips.map((chip) => chipButton(chip, () => onSetCuisine(chip.value))),
-            );
-        },
-        timeBucket: ({ timeField, labelKey }) => {
-            const set = timeSetterFor(timeField!, { onSetMaxPrepTime, onSetMaxCookTime, onSetMaxTotalTime });
-
-            return group(
-                m[labelKey],
-                TIME_BUCKETS_MINUTES.map((minutes) => {
-                    const active = filters[timeField!] === minutes;
-
-                    return (
+    // Each facet group is drawn by its kind: an exhaustive switch over the view's union.
+    const drawGroup = (facet: FacetGroupView): ReactElement => {
+        switch (facet.kind) {
+            case 'chips':
+                return group(facet.label, facet.chips.map(chipButton));
+            case 'timeBuckets':
+                return group(
+                    facet.label,
+                    facet.buckets.map((bucket) => (
                         <button
-                            key={minutes}
+                            key={bucket.minutes}
                             type="button"
-                            aria-pressed={active}
-                            onClick={() => set(active ? undefined : minutes)}
-                            className={`${CHIP_BASE} ${active ? CHIP_SELECTED : CHIP_UNSELECTED}`}
+                            aria-pressed={bucket.active}
+                            onClick={() => onFilterAction(bucket.action)}
+                            className={`${CHIP_BASE} ${bucket.active ? CHIP_SELECTED : CHIP_UNSELECTED}`}
                         >
-                            {fillTemplate(m.timeBucket, { minutes })}
+                            {bucket.label}
                         </button>
-                    );
-                }),
-            );
-        },
-        ingredientTypeahead: ({ labelKey }) => {
-            const selected = filters.ingredients ?? [];
-            const selectedIds = new Set(selected.map((entry) => entry.id));
-            const { viewState } = ingredientSearch;
-            const visibleResults: readonly Ingredient[] =
-                viewState.kind === 'results'
-                    ? viewState.results.filter((ingredient) => !selectedIds.has(ingredient.id))
-                    : [];
+                    )),
+                );
+            case 'ingredients':
+                return group(facet.label, [
+                    <div key="typeahead" className="flex flex-col gap-2">
+                        {/* Full: the search would fail past the server's bound (curated U9), so the note replaces it and
+                        says how to free a place. The chips below stay. */}
+                        {facet.search.kind === 'full' ? (
+                            <p
+                                ref={fullNoteRef}
+                                tabIndex={-1}
+                                className="rounded-md text-body-sm text-slate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
+                            >
+                                {fillTemplate(m.ingredientFilterFull, { max: facet.search.max })}
+                            </p>
+                        ) : (
+                            <>
+                                <input
+                                    ref={searchInputRef}
+                                    type="search"
+                                    aria-label={m.ingredientSearchLabel}
+                                    placeholder={m.ingredientSearchPlaceholder}
+                                    value={ingredientSearch.query}
+                                    onChange={(event) => ingredientSearch.onQueryChange(event.target.value)}
+                                    // Placeholder text is TEXT: `placeholder:text-slate`, never `mist` (palette JSDoc,
+                                    // `@commise/ui`'s `tokens/colors.ts`). The `border-border` hairline stays `mist`-derived.
+                                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam"
+                                />
 
-            return group(m[labelKey], [
-                <div key="typeahead" className="flex flex-col gap-2">
-                    <input
-                        type="search"
-                        aria-label={m.ingredientSearchLabel}
-                        placeholder={m.ingredientSearchPlaceholder}
-                        value={ingredientSearch.query}
-                        onChange={(event) => ingredientSearch.onQueryChange(event.target.value)}
-                        // Placeholder text is TEXT: `placeholder:text-slate`, never `mist` (palette JSDoc,
-                        // `@commise/ui`'s `tokens/colors.ts`). The `border-border` hairline stays `mist`-derived.
-                        className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam"
-                    />
+                                {/* The label is the region's CONTENT, not only its `aria-label`: an empty `role="status"`
+                            node is zero-height (invisible to a sighted viewer) and silent (a live region
+                            announces content CHANGES, and there is none). Same doctrine as `RecipePhotoManager`
+                            and the mobile `LoadingState` — the contextual label doubles as the visible caption. */}
+                                {/* 003-FR-010a: something is typed but below the minimum. Deliberately NOT the
+                            no-matches copy — nothing was searched — and deliberately not a `role="status"`,
+                            because it is guidance about the input rather than the outcome of a request. */}
+                                {facet.search.kind === 'tooShort' && (
+                                    <p className="text-body-sm text-slate">
+                                        {fillTemplate(minimumCopy.tooShort, { minimum: facet.search.minimum })}
+                                    </p>
+                                )}
 
-                    {/* The label is the region's CONTENT, not only its `aria-label`: an empty `role="status"`
-                        node is zero-height (invisible to a sighted viewer) and silent (a live region
-                        announces content CHANGES, and there is none). Same doctrine as `RecipePhotoManager`
-                        and the mobile `LoadingState` — the contextual label doubles as the visible caption. */}
-                    {viewState.kind === 'searching' && (
-                        <p role="status" aria-label={m.ingredientSearching} className="text-body-sm text-slate">
-                            {m.ingredientSearching}
-                        </p>
-                    )}
-
-                    {viewState.kind === 'results' && viewState.isError && (
-                        <p role="alert" className="text-body-sm text-error-dark">
-                            {m.ingredientSearchError}
-                        </p>
-                    )}
-
-                    {viewState.kind === 'results' && !viewState.isError && visibleResults.length === 0 && (
-                        <p className="text-body-sm text-slate">{m.ingredientNoMatches}</p>
-                    )}
-
-                    {visibleResults.length > 0 && (
-                        <ul className="flex flex-col">
-                            {visibleResults.map((ingredient) => (
-                                <li key={ingredient.id}>
-                                    {/* Named by its ACTION ("Filter by Flour"), not the bare ingredient name:
-                                        the sibling search box already carries that exact string as its value,
-                                        so a bare name is not uniquely addressable — see the
-                                        `addIngredientFilter` message's doc for the failure that closes. */}
-                                    <button
-                                        type="button"
-                                        aria-label={fillTemplate(m.addIngredientFilter, { name: ingredient.name })}
-                                        onClick={() =>
-                                            onAddIngredientFilter({ id: ingredient.id, name: ingredient.name })
-                                        }
-                                        className="w-full rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl"
+                                {facet.search.kind === 'searching' && (
+                                    <p
+                                        role="status"
+                                        aria-label={m.ingredientSearching}
+                                        className="text-body-sm text-slate"
                                     >
-                                        {ingredient.name}
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                                        {m.ingredientSearching}
+                                    </p>
+                                )}
 
-                    {selected.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                            {selected.map((entry) => (
-                                <button
-                                    key={entry.id}
-                                    type="button"
-                                    aria-label={fillTemplate(m.removeIngredientFilter, { name: entry.name })}
-                                    onClick={() => onRemoveIngredientFilter(entry.id)}
-                                    className={`${CHIP_BASE} ${CHIP_SELECTED}`}
-                                >
-                                    <span aria-hidden="true">{entry.name}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>,
-            ]);
-        },
+                                {facet.search.kind === 'results' && facet.search.isError && (
+                                    <p role="alert" className="text-body-sm text-error-dark">
+                                        {m.ingredientSearchError}
+                                    </p>
+                                )}
+
+                                {facet.search.kind === 'results' &&
+                                    !facet.search.isError &&
+                                    facet.results.length === 0 && (
+                                        <p className="text-body-sm text-slate">{m.ingredientNoMatches}</p>
+                                    )}
+
+                                {facet.results.length > 0 && (
+                                    <ul className="flex flex-col">
+                                        {facet.results.map(({ ingredient, action }) => (
+                                            <li key={ingredient.id}>
+                                                {/* Named by its ACTION ("Filter by Flour"), not the bare ingredient name:
+                                            the sibling search box already carries that exact string as its value,
+                                            so a bare name is not uniquely addressable — see the
+                                            `addIngredientFilter` message's doc for the failure that closes. */}
+                                                <button
+                                                    type="button"
+                                                    aria-label={fillTemplate(m.addIngredientFilter, {
+                                                        name: ingredient.name,
+                                                    })}
+                                                    onClick={() => pressIngredient(action)}
+                                                    className="w-full rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl"
+                                                >
+                                                    {ingredient.name}
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </>
+                        )}
+
+                        {facet.selected.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {facet.selected.map(({ entry, action }) => (
+                                    <button
+                                        key={entry.foodId}
+                                        type="button"
+                                        aria-label={fillTemplate(m.removeIngredientFilter, { name: entry.name })}
+                                        onClick={() => pressIngredient(action)}
+                                        className={`${CHIP_BASE} ${CHIP_SELECTED} ${INGREDIENT_CHIP}`}
+                                    >
+                                        <span aria-hidden="true">{entry.name}</span>
+                                        <span aria-hidden="true">×</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>,
+                ]);
+        }
     };
 
-    return (
-        <div role="group" aria-label={m.barLabel} className="flex flex-col gap-3">
-            {FACET_DESCRIPTORS.map((descriptor) => (
-                <div key={descriptor.id}>{renderers[descriptor.kind](descriptor)}</div>
+    const facetBody = (
+        <>
+            {bar.slots.map((slot) => (
+                <div key={slot.id}>{slot.group === undefined ? null : drawGroup(slot.group)}</div>
             ))}
 
-            {hasActiveFilters(filters) && (
+            {bar.clearAllLabel !== undefined && (
                 <div>
                     <button
                         type="button"
-                        onClick={onClearAll}
+                        onClick={() => onFilterAction({ kind: 'clearAll' })}
                         // The LABEL is `ocean-dark` while the FOCUS RING stays seafoam — that split is the
                         // palette rule (see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`), not drift.
                         className="rounded-full px-3.5 py-1.5 text-body-sm font-semibold text-ocean-dark underline-offset-2 transition-colors motion-reduce:transition-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
                     >
-                        {formatRecipeCount(
-                            countActiveFilters(filters),
-                            { one: m.clearOne, other: m.clearOther },
-                            locale,
-                        )}
+                        {bar.clearAllLabel}
                     </button>
                 </div>
+            )}
+        </>
+    );
+    // The facets render in exactly one place: with the window unknown, the inline copy steps aside while the Sheet holds
+    // them, so the focus refs above always name one node.
+    const showInline = layout === 'inline' || (layout === undefined && !open);
+
+    return (
+        <div>
+            {layout !== 'inline' && (
+                <button
+                    ref={triggerRef}
+                    type="button"
+                    aria-label={bar.triggerLabel}
+                    onClick={() => setOpen(true)}
+                    className={`${TRIGGER} ${SHEET_LAYOUT_ONLY}`}
+                >
+                    <span>{m.filtersButton}</span>
+                    {bar.activeCount > 0 && <span className={BADGE}>{bar.activeCount}</span>}
+                </button>
+            )}
+
+            {showInline && (
+                <div ref={inlineRef} role="group" aria-label={m.barLabel} className={INLINE_ONLY}>
+                    {facetBody}
+                </div>
+            )}
+
+            {/* Unmounted, not merely closed, in the inline window: a closing Sheet keeps its content for one more
+                commit, and focus could not leave it for the inline bar until then. */}
+            {layout !== 'inline' && (
+                <Sheet
+                    open={open}
+                    onOpenChange={setOpen}
+                    title={m.barLabel}
+                    closeLabel={m.filtersClose}
+                    size="content"
+                    footer={
+                        <Button icon={<CheckIcon />} width="fill" onPress={() => setOpen(false)}>
+                            {m.filtersDone}
+                        </Button>
+                    }
+                >
+                    <div className="flex flex-col gap-3">{facetBody}</div>
+                </Sheet>
             )}
         </div>
     );

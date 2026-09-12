@@ -36,13 +36,21 @@ vi.mock('react-native-safe-area-context', () => ({
         createElement('div', { 'aria-label': 'safe-area-root' }, children as never),
 }));
 
+// The platform is react-native-web's unless a test sets it, so a case can ask what the avoider does on Android.
+const platform = vi.hoisted(() => ({ os: undefined as 'android' | 'ios' | undefined }));
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
-        KeyboardAvoidingView: ({ children }: { readonly children?: unknown }) =>
-            createElement('div', { 'aria-label': 'keyboard-avoiding' }, children as never),
+        Platform: {
+            ...actual.Platform,
+            get OS() {
+                return platform.os ?? actual.Platform.OS;
+            },
+        },
+        KeyboardAvoidingView: ({ children, behavior }: { readonly children?: unknown; readonly behavior?: string }) =>
+            createElement('div', { 'aria-label': 'keyboard-avoiding', 'data-behavior': behavior }, children as never),
     };
 });
 
@@ -82,9 +90,22 @@ beforeEach(() => {
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    platform.os = undefined;
 });
 
 describe('LoginScreen — chrome + design system', () => {
+    // An edge-to-edge Android window is not resized for the keyboard (E2 I6), so the avoider pads on both platforms; this
+    // screen padded on iOS only. The rule is `@commise/ui/keyboard-avoider`'s, the one avoider the apps use.
+    it.each(['android', 'ios'] as const)('pads its form above the keyboard on %s', (os) => {
+        platform.os = os;
+        const signIn = makeSignIn();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        useSignInMock.mockReturnValue({ signIn } as any);
+        renderLogin();
+
+        expect(screen.getByLabelText('keyboard-avoiding').getAttribute('data-behavior')).toBe('padding');
+    });
+
     it('renders the DS primary button, localized labelled fields, and the safe-area + keyboard-avoiding wrappers', () => {
         const signIn = makeSignIn();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

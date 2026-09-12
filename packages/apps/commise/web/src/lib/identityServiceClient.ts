@@ -5,24 +5,27 @@
  * mirroring `recipeServiceConfig.ts`'s role for the recipe client.
  *
  * The origin comes from the validated configuration in `@/config/env` (never hardcoded —
- * CODING_STANDARDS §12) and has deliberately NO default; `lib/apiClient.ts` (still used by the two
- * server-rendered pages that have not migrated to the typed client) imports
- * {@link IDENTITY_SERVICE_BASE_URL} from here rather than re-declaring its own, so the two never drift.
+ * CODING_STANDARDS §12) and has deliberately NO default.
+ *
+ * ⚠️ THIS IS NOW THE ONLY WEB PATH TO THE IDENTITY SERVICE. `lib/apiClient.ts` — a second hand-rolled
+ * transport that duplicated this file's origin, `credentials` policy and 401 redirect while validating no
+ * response (`JSON.parse(text) as T`) — has been DELETED, and the two server-rendered pages its own header
+ * described as "not migrated to the typed client" (`ProfileContent`, `AccountContent`) now call
+ * {@link createProfileServiceClient}. So there is one place a web identity call is configured, and its
+ * responses are parsed against `@kitchensink/schema-identity` (§15 / ADR-0014).
  *
  * This used to read `process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:4000'`. `NEXT_PUBLIC_*`
  * is inlined at BUILD time, so that fallback shipped in the deployed preview bundle and every signed-in
  * visitor's profile fetch hit their own machine. An unconfigured build now fails loudly instead.
  *
- * The redirect-on-401 + `credentials: 'include'` behavior reproduces `apiClient.ts`'s prior side effects
- * exactly (same observable behavior, DA10 is a shape refactor, not a behavior change) — but as an INJECTED
- * `onUnauthorized` callback + `credentials` option on `ProfileServiceClient`, not logic baked into the
- * shared, platform-agnostic client itself (mobile has no such redirect policy).
+ * The redirect-on-401 is an INJECTED `onUnauthorized` callback on `ProfileServiceClient`, not logic baked into the
+ * shared, platform-agnostic client itself (mobile has no such redirect policy). The client sends no cookies: identity
+ * authenticates by bearer only (ADR-0047).
  */
 import { ProfileServiceClient, type TokenSource } from '@commise/features-account';
 
 import { env } from '@/config/env';
-import { withBasePath } from '@/lib/basePath';
-import { navigateTo } from '@/lib/navigation';
+import { redirectToSignInOnce } from '@/lib/unauthorizedRedirect';
 
 /** The identity API base origin, from the validated environment. */
 export const IDENTITY_SERVICE_BASE_URL = env.NEXT_PUBLIC_IDENTITY_API_URL;
@@ -37,13 +40,11 @@ export function createProfileServiceClient(token: TokenSource): ProfileServiceCl
     return new ProfileServiceClient({
         baseUrl: IDENTITY_SERVICE_BASE_URL,
         token,
-        credentials: 'include',
-        onUnauthorized: () => {
-            if (typeof window !== 'undefined') {
-                // Prefix the sign-in target with the base path; `window.location.pathname` already carries
-                // the prefix (the browser is at /pr-{N}/…), so do NOT prefix the redirect_url value.
-                navigateTo(`${withBasePath('/sign-in')}?redirect_url=${encodeURIComponent(window.location.pathname)}`);
-            }
-        },
+        // ONE authoritative recovery policy — it used to be duplicated in `apiClient`, which is gone — and
+        // CIRCUIT-BROKEN: a 401 that
+        // survives the sign-in round trip (wrong Clerk instance, rotated verification key, `azp` mismatch)
+        // is not fixable by bouncing, so the second attempt is suppressed and the error surfaces to the
+        // consumer's boundary rather than looping the browser. See lib/unauthorizedRedirect.ts.
+        onUnauthorized: redirectToSignInOnce,
     });
 }

@@ -1,14 +1,15 @@
 /**
  * @module @commise/features-recipes — native collection form (T073 building block).
  *
- * The React Native leaf of {@link import('./CollectionForm.js').CollectionForm} — same controlled,
+ * The React Native leaf of `CollectionForm` — same controlled,
  * presentational create/rename contract, rendered with RN primitives. `mode` selects the title and submit
  * label; while `submitting`, the field and both actions are disabled to prevent duplicate submissions.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { TextInput } from '@commise/ui/text-input';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { collectionMessages } from './messages.js';
 import type { CollectionFormProps } from './model.js';
@@ -28,7 +29,7 @@ export const CollectionForm: FC<CollectionFormProps> = ({
     const hasError = error !== undefined && error.length > 0;
 
     return (
-        <View accessibilityLabel={title} style={styles.card}>
+        <View style={styles.card}>
             <Text accessibilityRole="header" style={styles.title}>
                 {title}
             </Text>

@@ -1,0 +1,230 @@
+ROOTS WITH KINDS: the 36 most eaten, kinds by calories per 100 g, * = default
+
+tap water   (3 kinds)
+  *    0  beverages, drinking
+       0  beverages, well
+       0  beverages, municipal
+
+coffee beverage   (3 kinds)
+       0  beverages, brewed, prepared with tap water, decaffeinated
+  *    1  beverages, brewed, prepared with tap water
+       2  beverages, brewed, breakfast blend
+
+white wheat flour (all purpose)   (4 kinds)
+     354  all-purpose, self-rising, enriched
+  *  364  all-purpose, enriched, bleached
+     364  all-purpose, enriched, calcium-fortified
+     364  all-purpose, unenriched
+
+long-grain white rice (cooked)   (6 kinds)
+     123  long-grain, parboiled, enriched
+     123  long-grain, parboiled, unenriched
+  *  130  long-grain, regular, enriched
+     130  long-grain, regular, unenriched, with salt
+     130  long-grain, regular, enriched, with salt
+         (+1 more)
+
+quick oats   (3 kinds)
+      71  cereals, regular and, unenriched, cooked with water includes boiling and microwaving, without salt
+     371  cereals, quaker, dry
+  *  379  cereals, regular and, not fortified, dry
+
+pasta   (7 kinds)
+     131  fresh-refrigerated, plain, cooked
+     157  cooked, enriched, with added salt
+     157  cooked, unenriched, with added salt
+     158  cooked, unenriched, without added salt
+  *  158  cooked, enriched, without added salt
+         (+2 more)
+
+black tea (steeped)   (2 kinds)
+  *    1  beverages, brewed, prepared with tap water
+       1  beverages, brewed, prepared with distilled water
+
+canola oil   (5 kinds)
+     884  vegetable, natreon, high stability, non trans, high oleic 70%
+  *  884  (same as the root)
+     884  industrial, with antifoaming agent, principal uses salads, woks and light frying
+     884  industrial, for salads, woks and light frying
+     900  industrial, high oleic
+
+potato (baked)   (6 kinds)
+  *   93  potatoes, flesh, without salt
+      93  potatoes, flesh and skin, without salt
+      93  potatoes, flesh and skin, with salt
+      93  potatoes, flesh, with salt
+     198  potatoes, skin, without salt
+         (+1 more)
+
+peanut butter (creamy)   (3 kinds)
+     588  smooth includes foods for usda's food distribution program
+     598  smooth style, without salt
+  *  598  smooth style, with salt includes foods for usda's food distribution program
+
+beef (ground)   (36 kinds)
+      81  babyfood, meat, junior
+      81  babyfood, meat, strained
+     144  97% lean meat 3% fat, patty, cooked, pan-broiled
+     153  97% lean meat 3% fat, patty, cooked, broiled
+     154  97% lean meat 3% fat, loaf, cooked, baked
+         (+31 more)
+
+pork sausage link   (7 kinds)
+     217  link/patty, reduced fat, unprepared
+     267  link/patty, reduced fat, cooked, pan-fried
+     288  link/patty, unprepared
+     309  smoked
+  *  325  link/patty, cooked, pan-fried
+         (+2 more)
+
+avocado (raw)   (2 kinds)
+     120  avocados, florida
+  *  160  avocados, all commercial varieties
+
+almond   (6 kinds)
+     590  nuts, almonds, blanched
+     594  nuts, almonds, honey roasted, unblanched
+  *  598  nuts, almonds, dry roasted, without salt added
+     607  nuts, almonds, oil roasted, with salt added
+     607  nuts, almonds, oil roasted, with salt added, smoke flavor
+         (+1 more)
+
+piece of turkey breast   (2 kinds)
+  *  106  sliced, prepackaged
+     109  low salt, prepackaged or deli, luncheon meat
+
+lowfat cow milk (1% fat, vitamin a and d added)   (2 kinds)
+  *   42  fluid, 1% milkfat, with
+      48  fluid, 1% milkfat, protein fortified, with
+
+yellow cornmeal   (4 kinds)
+     334  self-rising, bolted, plain, enriched
+     355  self-rising, degermed, enriched
+  *  370  degermed, unenriched
+     384  navajo
+
+vanilla bean extract   (3 kinds)
+      56  imitation, no alcohol
+     237  imitation, alcohol
+  *  288  (same as the root)
+
+tomato (canned)   (6 kinds)
+      16  tomatoes, red, ripe, packed in juice
+      26  tomatoes, red, ripe, stewed
+      32  tomatoes, crushed
+  *   38  products, puree, without salt added
+      38  products, puree, with salt added
+         (+1 more)
+
+refried beans (dish)   (5 kinds)
+      79  canned, fat-free
+      83  canned, vegetarian
+  *   89  canned, traditional, reduced sodium
+      90  canned, traditional style
+     156  restaurant, mexican
+
+apple juice (canned)   (2 kinds)
+  *   46  or bottled, unsweetened, without added ascorbic acid
+      48  or bottled, unsweetened, with added ascorbic acid, calcium, and potassium
+
+coffee (instant)   (3 kinds)
+       2  beverages, regular, prepared with water
+     352  beverages, regular, half the caffeine
+  *  353  beverages, regular, powder
+
+onion   (5 kinds)
+      26  onions, frozen, chopped, cooked, boiled, drained, with salt
+      28  onions, frozen, whole, cooked, boiled, drained, without salt
+      35  onions, frozen, whole, unprepared
+      42  onions, cooked, boiled, drained, with salt
+  *   44  onions, cooked, boiled, drained, without salt
+
+piece of chicken meat (skinless)   (9 kinds)
+     134  cornish game hens, only, cooked, roasted
+     167  roasting, only, cooked, roasted
+     172  broiler, rotisserie, bbq, drumstick, only
+     177  broilers or fryers, only, cooked, stewed
+     190  broilers or fryers, only, cooked, roasted
+         (+4 more)
+
+orange (raw)   (3 kinds)
+      46  oranges, florida
+  *   47  oranges, all commercial varieties
+      63  oranges, with peel
+
+piece of chicken breast (skinless)   (4 kinds)
+  *  144  broiler, rotisserie, bbq, meat only
+     151  broilers or fryers, meat only, cooked, stewed
+     165  broilers or fryers, meat only, cooked, roasted
+     187  broilers or fryers, meat only, cooked, fried
+
+broccoli floret (raw)   (2 kinds)
+      28  flower clusters
+  *   34  (same as the root)
+
+broccoli floret   (3 kinds)
+      26  frozen, chopped, unprepared
+  *   28  frozen, chopped, cooked, boiled, drained, without salt
+      35  cooked, boiled, drained, without salt
+
+coconut oil   (4 kinds)
+     880  industrial, hydrogenated, used for whipped toppings and coffee whiteners
+     884  industrial, confection fat, typical basis for ice cream coatings
+     884  industrial, principal uses candy coatings, sprays, roasting nuts
+  *  892  (same as the root)
+
+applesauce (canned)   (3 kinds)
+  *   42  unsweetened, with added ascorbic acid
+      42  unsweetened, without added ascorbic acid includes foods for usda's food distribution program
+      76  sweetened, with salt
+
+blueberry   (2 kinds)
+  *   51  blueberries, frozen, unsweetened includes foods for usda's food distribution program
+      57  blueberries, wild, frozen includes foods for usda's food distribution program
+
+carrot root   (4 kinds)
+      35  carrots, cooked, boiled, drained, with salt
+      35  carrots, cooked, boiled, drained, without salt
+  *   37  carrots, frozen, cooked, boiled, drained, without salt
+     341  dehydrated
+
+ham (cured)   (90 kinds)
+      91  pork, water added, shank, bone-in, separable lean only, unheated
+      95  pork, water added, rump, bone-in, separable lean only, unheated
+      95  pork, water added, slice, bone-in, separable lean only, unheated
+     103  pork, and water product, slice, bone-in, separable lean only, unheated
+     106  hormel, cure 81
+         (+85 more)
+
+olives (canned)   (4 kinds)
+      47  orange juice, unsweetened
+      81  ripe, jumbo-super colossal
+  *  116  ripe, small-extra large
+     145  pickled, or bottled, green
+
+green tea (steeped)   (2 kinds)
+       0  beverages, ready to drink, unsweetened
+  *    1  beverages, brewed, regular
+
+sweet green bell pepper   (7 kinds)
+      16  peppers, frozen, chopped, cooked, boiled, drained, with salt
+      18  peppers, frozen, chopped, boiled, drained, without salt
+      18  peppers, canned, solids and liquids
+      20  peppers, frozen, chopped, unprepared
+      26  peppers, cooked, boiled, drained, with salt
+         (+2 more)
+
+ROOTS WITH NO FoodOn TERM: the 12 most eaten; the root name is the source description
+
+  Water, bottled, generic
+  Bread, white, commercially prepared (includes soft bread crumbs)
+  Salad dressing, mayonnaise, regular
+  Cheese, cheddar (Includes foods for USDA's Food Distribution Program)
+  Rolls, hamburger or hotdog, plain
+  Beverages, carbonated, cola, regular
+  Catsup
+  Tortillas, ready-to-bake or -fry, flour, refrigerated
+  Beverages, carbonated, low calorie, cola or pepper-type, with aspartame, contains caffeine
+  Ice creams, vanilla
+  Cheese, mozzarella, low moisture, part-skim
+  Sauce, barbecue

@@ -11,9 +11,13 @@ import userEvent from '@testing-library/user-event';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { diffSnapshots, type SnapshotDiff } from '../diff.js';
-import type { VersionPreviewModalProps } from '../model.js';
+import type { VersionPreviewModalProps } from '../preview.js';
+import { recipeVersionMessages } from '../messages.js';
+import { recipeMessages } from '../../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { VersionPreviewModal } from '../VersionPreviewModal.native.js';
+import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
+import { BRISKET_FLAT_HALF_PARTS, BRISKET_FLAT_HALF_SPOKEN } from '../../detail/__fixtures__/variantLines.js';
 
 afterEach(cleanup);
 
@@ -31,7 +35,7 @@ const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngred
     id: 'ri_1',
     recipeId: 'rec_1',
     ingredientId: 'ing_1',
-    quantity: 200,
+    quantity: { kind: 'exact', value: 200 },
     unit: 'g',
     sortOrder: 1,
     ingredientName: 'Pasta',
@@ -48,11 +52,17 @@ const makeSnapshot = (overrides: Partial<RecipeSnapshot> = {}): RecipeSnapshot =
     cookTimeMinutes: 30,
     steps: [makeStep()],
     ingredients: [
-        makeIngredient({ id: 'ri_1', quantity: 200, unit: 'g', ingredientName: 'Pasta', userCalories: 420 }),
+        makeIngredient({
+            id: 'ri_1',
+            quantity: { kind: 'exact', value: 200 },
+            unit: 'g',
+            ingredientName: 'Pasta',
+            userCalories: 420,
+        }),
         makeIngredient({
             id: 'ri_2',
             ingredientId: 'ing_2',
-            quantity: 1,
+            quantity: { kind: 'exact', value: 1 },
             unit: 'cup',
             sortOrder: 2,
             ingredientName: 'Cherry tomatoes',
@@ -75,11 +85,17 @@ const populatedVersion = makeVersion();
 
 const currentSnapshot = makeSnapshot({
     ingredients: [
-        makeIngredient({ id: 'ri_1', quantity: 220, unit: 'g', ingredientName: 'Pasta', userCalories: 460 }),
+        makeIngredient({
+            id: 'ri_1',
+            quantity: { kind: 'exact', value: 220 },
+            unit: 'g',
+            ingredientName: 'Pasta',
+            userCalories: 460,
+        }),
         makeIngredient({
             id: 'ri_3',
             ingredientId: 'ing_3',
-            quantity: 2,
+            quantity: { kind: 'exact', value: 2 },
             unit: 'tbsp',
             sortOrder: 3,
             ingredientName: 'Basil',
@@ -377,5 +393,153 @@ describe('VersionPreviewModal (native) — dismissal', () => {
         await user.click(screen.getByRole('button', { name: 'Keep current version' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * A restore the server REFUSED (plan 002 R52; `namelessLineCopy.md` §5). The refusal shows INSIDE the preview —
+ * before this change a failed restore from the preview showed only in the list behind the dialog — and the lines
+ * it named are marked in words, by their snapshot position.
+ */
+describe('VersionPreviewModal (native) — a refused restore', () => {
+    const en = recipeVersionMessages.en;
+
+    it('⛔ shows the refusal inside the preview and marks each refused line', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: populatedVersion,
+                    restoreError: { kind: 'unrestorable', versionNumber: 10, positions: [1] },
+                })}
+            />,
+        );
+
+        expect(screen.getByRole('alert').textContent).toBe(en.preview.restoreUnrestorableErrorOne);
+        expect(screen.getAllByText(en.preview.lineCannotRestore)).toHaveLength(1);
+        expect(screen.getByText(/Cherry tomatoes/u).parentElement?.textContent).toContain(en.preview.lineCannotRestore);
+    });
+
+    it('⛔ shows a conflict or a generic failure inside the preview too', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({ version: populatedVersion, restoreError: { kind: 'generic', versionNumber: 10 } })}
+            />,
+        );
+
+        expect(screen.getByRole('alert').textContent).toBe(en.versionList.restoreGenericError);
+        expect(screen.queryByText(en.preview.lineCannotRestore)).toBeNull();
+    });
+
+    it('says nothing about ANOTHER version’s failed restore', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: populatedVersion,
+                    restoreError: { kind: 'unrestorable', versionNumber: 9, positions: [0] },
+                })}
+            />,
+        );
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByText(en.preview.lineCannotRestore)).toBeNull();
+    });
+
+    it('shows a line whose version saved no name by its stand-in', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: makeVersion({
+                        snapshot: makeSnapshot({ ingredients: [makeIngredient({ ingredientName: undefined })] }),
+                    }),
+                })}
+            />,
+        );
+
+        expect(screen.getByText(`200 g ${recipeMessages.en.ingredientLineName.notSavedInVersion}`)).toBeTruthy();
+    });
+});
+
+/** Curated U15 — see the web file: the same set, through react-native-web. */
+describe('VersionPreviewModal (native) — a variant-bound line (curated U15)', () => {
+    const parts = BRISKET_FLAT_HALF_PARTS;
+    const variantVersion = makeVersion({
+        snapshot: makeSnapshot({
+            ingredients: [
+                makeIngredient({
+                    id: 'ri_root',
+                    quantity: { kind: 'exact', value: 1 },
+                    unit: 'lb',
+                    ingredientName: 'beef brisket',
+                }),
+                makeIngredient({
+                    id: 'ri_variant',
+                    ingredientId: 'ing_variant',
+                    sortOrder: 2,
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'lb',
+                    ingredientName: 'beef brisket',
+                    variantParts: [...parts],
+                }),
+                makeIngredient({
+                    id: 'ri_control',
+                    ingredientId: 'ing_control',
+                    sortOrder: 3,
+                    ingredientName: 'Butter',
+                    displayText: 'flat half, separable lean and fat',
+                }),
+            ],
+        }),
+    });
+
+    /** The row that holds the line text `text`. */
+    const rowOf = (text: string): HTMLElement => {
+        const row = screen.getByText(text).parentElement;
+
+        if (row === null) {
+            throw new Error(`No row holds "${text}".`);
+        }
+
+        return row;
+    };
+
+    it('shows the root name, then every part on one dotted line under it', () => {
+        render(<VersionPreviewModal {...baseProps({ version: variantVersion })} />);
+
+        const line = screen.getByLabelText(BRISKET_FLAT_HALF_SPOKEN);
+        const name = screen.getByText('2 lb beef brisket');
+
+        expect(name.compareDocumentPosition(line)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(line.textContent).toContain('flat half ·');
+    });
+
+    it('shows the name only on a root-bound line (R28)', () => {
+        render(<VersionPreviewModal {...baseProps({ version: variantVersion })} />);
+
+        expect(screen.getAllByLabelText(BRISKET_FLAT_HALF_SPOKEN)).toHaveLength(1);
+        expect(rowOf('1 lb beef brisket').textContent).not.toContain('·');
+    });
+
+    it('finds a comma-joined label in the cook’s own words (the control), and none from the dotted line', () => {
+        render(<VersionPreviewModal {...baseProps({ version: variantVersion })} />);
+
+        expect(commaJoinedTexts(rowOf('200 g Butter (flat half, separable lean and fat)'), parts)).toHaveLength(1);
+        expect(commaJoinedTexts(rowOf('2 lb beef brisket'), parts)).toEqual([]);
+    });
+
+    // See the web file: the marker ends the line, after its details (`docs/design/readSurfacesEvaluation.md` D8).
+    it('puts a refused restore’s marker after the dotted line', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: variantVersion,
+                    restoreError: { kind: 'unrestorable', versionNumber: variantVersion.versionNumber, positions: [1] },
+                })}
+            />,
+        );
+
+        const line = screen.getByLabelText(BRISKET_FLAT_HALF_SPOKEN);
+        const marker = screen.getByText(recipeVersionMessages.en.preview.lineCannotRestore);
+
+        expect(line.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

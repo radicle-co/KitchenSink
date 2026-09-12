@@ -79,7 +79,7 @@ Guard applies to premium-gated dependencies:
 
 ### Choice
 
-Persist subscription state on `Account` + Stripe webhook idempotency table (`webhook_events`).
+Persist subscription state on `Account` + Stripe webhook idempotency table (**`stripe_webhook_events`** — ⚠️ superseded name, this file said `webhook_events`, which already ships for Clerk/svix dedup; ADR-0018).
 
 ### Rationale
 

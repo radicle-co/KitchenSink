@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native collection-actions sidebar (W5 Task 7 building block).
  *
- * The React Native leaf of {@link import('./CollectionActions.js').CollectionActions} — same presentational
+ * The React Native leaf of `CollectionActions` — same presentational
  * contract: Add Recipes, a clone-only Pull Updates action (FR-011), Clone Collection, and a two-stage,
  * `canGoPrivate`-gated (C1, FR-010) Public/Private visibility toggle with a Save action, rendered with RN
  * primitives. `canGoPrivate`/`disabledReason` arrive as plain, already-resolved values from the composing
@@ -54,7 +54,7 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
     };
 
     return (
-        <View accessibilityLabel={actions.heading} style={styles.container}>
+        <View collapsable={false} accessibilityLabel={actions.heading} style={styles.container}>
             <View style={styles.buttonStack}>
                 <Pressable
                     accessibilityRole="button"
@@ -89,7 +89,12 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                 </View>
             </View>
 
-            <View accessibilityRole="radiogroup" accessibilityLabel={actions.visibilityGroupLabel} style={styles.wrap}>
+            <View
+                collapsable={false}
+                accessibilityRole="radiogroup"
+                accessibilityLabel={actions.visibilityGroupLabel}
+                style={styles.wrap}
+            >
                 <View style={styles.segment}>
                     <Pressable
                         accessibilityRole="radio"
@@ -179,7 +184,7 @@ const styles = StyleSheet.create({
     optionDisabled: { opacity: 0.5 },
     optionLabel: { fontSize: 14, fontWeight: '500', color: palette.slate },
     optionLabelActive: { color: palette.charcoal, fontWeight: '600' },
-    reason: { fontSize: 13, color: palette.warning },
+    reason: { fontSize: 13, color: palette['warning-dark'] },
     saveButton: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 16 },
     saveLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
     saveLabelDisabled: { color: palette.slate },

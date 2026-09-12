@@ -1,5 +1,7 @@
+import { DataSourcesSettingsLink } from '@commise/features-recipes';
 import { resolveMessages } from '@commise/i18n';
 import { AppShell } from '@/components/app/AppShell';
+import { dataSourcesHref } from '@/components/app/dataSourcesHref';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { authMessages } from '@/components/auth/messages';
 import { pageContainer, pageHeading, sectionCard, sectionHeading } from '@/components/auth/authChrome';
@@ -10,7 +12,8 @@ import { pageContainer, pageHeading, sectionCard, sectionHeading } from '@/compo
  *
  * U3: settings now renders inside the shared {@link AppShell} (nav on desktop AND narrow — the bare,
  * nav-less route was a defect) with the design-system card idiom, and all copy resolves through
- * {@link authMessages}. The sign-out control is the shared DS `Button` via {@link LogoutButton}.
+ * {@link authMessages}. The sign-out control is the shared DS `Button` via {@link LogoutButton}. The Food data card
+ * links to the Data sources page (curated U25).
  */
 export function SettingsContent({ locale }: { locale: string }): React.ReactElement {
     const { settings } = resolveMessages(authMessages, locale);
@@ -27,6 +30,8 @@ export function SettingsContent({ locale }: { locale: string }): React.ReactElem
                         <LogoutButton />
                     </div>
                 </section>
+                {/* Curated U25 (design §S16): the way in to the Data sources page and its licences. */}
+                <DataSourcesSettingsLink href={dataSourcesHref(locale)} className={sectionCard} />
             </div>
         </AppShell>
     );

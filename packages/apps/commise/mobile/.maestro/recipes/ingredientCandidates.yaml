@@ -1,0 +1,105 @@
+appId: io.commise.mobile
+---
+# REWRITTEN for plan 002 S7.9. Row 6 on a device (`docs/design/ingredientStatusExplanation.md` SPECIFY.1 row 6;
+# `docs/design/rowEditorOpenDecisions.md` S7 list contract P12). Mobile mirror of the web Playwright
+# `ingredientRowEditor.spec.ts` row 6 stories: an `UNRESOLVED` line's glyph opens a list searched from the line's own
+# words, as row 7's is, with the source's foods flowing in, and one pick of a remote food puts it on THAT line.
+#
+# It runs against the PR's deployed sandbox (ADR-0032) on the create form. An `UNRESOLVED` line is made the way a cook
+# makes one: "Find nutrition for" admits the words by name, and a name food answers with several rows lands
+# `UNRESOLVED` and is committed as it is (`useLineCommit`). `halloumi` is such a name: USDA answers it with several
+# branded rows, and no root or synonym in the committed catalog seed (`food-service/src/foods/seed/data/
+# curatedCatalog.jsonl`, ADR-0051) contains it, so the seed cannot resolve it. ⛔ If the stage resolves it outright, the
+# flow stops at the labelled wait below and names that cause; it never passes without having opened the list.
+#
+# It spends one name lookup and one remote pick from the signer's source budget. Save Draft leaves one draft recipe,
+# which the next flow's reset deletes.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Row Candidates'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+
+# A row to work on: the run's probe food `Flour` (`e2e-seed provision`).
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Flou'
+- extendedWaitUntil:
+      visible:
+          text: 'Your foods'
+      timeout: 30000
+- tapOn: 'Flour, your food'
+- scrollUntilVisible:
+      element: 'Ingredient 1 quantity'
+      direction: DOWN
+      timeout: 30000
+
+# Change food to the words by name. The field opens on the food's name with the caret at its end, so the name is erased
+# first. The by-name option sits under "Not listed?", after the foods the list found.
+- tapOn: 'Actions for Flour'
+- tapOn: 'Change food'
+- eraseText: 20
+- inputText: 'halloumi'
+- scrollUntilVisible:
+      element: 'Find nutrition for “halloumi”'
+      direction: DOWN
+      timeout: 40000
+- tapOn: 'Find nutrition for “halloumi”'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Not resolved'
+      timeout: 40000
+      label: 'the name "halloumi" lands UNRESOLVED on this stage, so row 6 has a line to show'
+
+# The panel never opens by itself: nothing is listed until the cook presses the glyph.
+- assertNotVisible: 'None of these — search for a different food'
+- tapOn: 'About .*'
+# The panel's own sentence, not `Which “…” did you mean?`: that names the group of OUR database's foods, and a name lands
+# `UNRESOLVED` only when that same search found none (the cascade's lexical tier binds any hit), so it never shows here.
+# `ingredientShortlist.yaml` asserts it on an `AMBIGUOUS` line.
+- extendedWaitUntil:
+      visible:
+          text: 'We found more than one food this could be, and we need you to say which.'
+      timeout: 30000
+- assertVisible: 'None of these — search for a different food'
+# The line's own words were searched, and the source's foods arrived in the same panel, with no press.
+- extendedWaitUntil:
+      visible:
+          text: 'From USDA'
+      timeout: 40000
+      label: 'USDA answered the progressive search for the line’s words on this stage'
+
+# One remote pick: the panel adopts it and puts the root on the line, closes, and the row no longer says it is not
+# resolved.
+- scrollUntilVisible:
+      element: '.*, from USDA'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: '.*, from USDA'
+      index: 0
+- extendedWaitUntil:
+      notVisible:
+          text: 'None of these — search for a different food'
+      timeout: 40000
+- assertNotVisible: 'Not resolved'
+
+- tapOn: 'Save Draft'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Row Candidates.*'
+      timeout: 40000

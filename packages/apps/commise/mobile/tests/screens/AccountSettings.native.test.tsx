@@ -12,6 +12,9 @@
  * retryable. The command's own mechanism (load-safe wrapper + fail-closed post-condition) is covered in
  * `tests/hooks/useSignOutAndVerify.native.test.tsx`.
  */
+import { FoodServiceClient } from '@kitchensink/food-service-client';
+import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -32,7 +35,7 @@ vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({
     useSignOutAndVerify: () => ({ signOutAndVerify }),
 }));
 
-vi.mock('../../src/hooks/useUserProfile.js', () => ({
+vi.mock('../../src/hooks/useDeleteAccount.js', () => ({
     useDeleteAccount: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
 }));
 
@@ -56,6 +59,34 @@ afterEach(() => {
 });
 
 describe('AccountSettingsScreen', () => {
+    it('opens the Data sources sheet from Food data, before the danger zone, and Close returns (curated U25)', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: 'https://food.test',
+            fetch: () => Promise.reject(new Error('unstubbed network call')),
+        });
+
+        vi.spyOn(client, 'listSources').mockResolvedValue({ sources: [] });
+        render(
+            <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+                <FoodServiceProvider client={client} subject="user_1">
+                    <AccountSettingsScreen />
+                </FoodServiceProvider>
+            </QueryClientProvider>,
+        );
+
+        const foodData = screen.getByRole('heading', { name: 'Food data' });
+        const danger = screen.getByRole('button', { name: 'Close account' });
+
+        expect(foodData.compareDocumentPosition(danger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Data sources' })).toBeNull();
+
+        fireEvent.click(screen.getByRole('link', { name: 'Data sources' }));
+        expect(await screen.findByText('No data sources to show yet.')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close data sources' }));
+        await waitFor(() => expect(screen.queryByText('No data sources to show yet.')).toBeNull());
+    });
+
     it('renders the localized hub, the signed-in email, and the safe-area wrapper', () => {
         render(<AccountSettingsScreen />);
 

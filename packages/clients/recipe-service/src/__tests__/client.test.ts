@@ -19,16 +19,25 @@ import {
     PullDriftError,
     RecipeServiceClient,
     UnauthorizedError,
+    UnexpectedResponseError,
     VersionConflictError,
     isGoneError,
     isPullDriftError,
+    isSourceUnavailableError,
     isVersionConflictError,
 } from '../index.js';
-import { makePullDiff, makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { makeCreateRecipeRequest, makePullDiff, makeRecipeDetail } from '../__fixtures__/recipes.js';
 import { callsOf, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
+import { forceRefreshFlagsOf, mintingToken } from './utils/tokenDouble.js';
 
 const BASE = 'https://recipes.example.test';
 
+/**
+ * The client replays by the rule every client shares (`@kitchensink/retry-after/bearer-replay`): a refused request is
+ * sent again only with a bearer a fresh mint made different. These cases used a literal token, or a callback that
+ * always answers `'tok'`, and so pinned replays of the refused bearer itself; they now mint a new token per call, and
+ * the last two cases pin that the refused bearer is never sent again.
+ */
 describe('RecipeServiceClient — first-token sync-race retry', () => {
     const instantSleep = (): Promise<void> => Promise.resolve();
     const SYNC_PENDING = { code: IDENTITY_SYNC_PENDING_CODE, message: 'identity not yet available' };
@@ -39,32 +48,23 @@ describe('RecipeServiceClient — first-token sync-race retry', () => {
             { status: 401, body: SYNC_PENDING },
             { status: 200, body: recipe },
         ]);
-        const forceRefreshFlags: (boolean | undefined)[] = [];
-        const getToken = vi.fn((opts?: { forceRefresh?: boolean }) => {
-            forceRefreshFlags.push(opts?.forceRefresh);
-
-            return 'tok';
-        });
-        const client = new RecipeServiceClient({
-            baseUrl: BASE,
-            token: getToken,
-            fetch: fetchMock,
-            sleep: instantSleep,
-        });
+        const token = mintingToken();
+        const client = new RecipeServiceClient({ baseUrl: BASE, token, fetch: fetchMock, sleep: instantSleep });
 
         const result = await client.getRecipeById('rec_1');
 
         expect(result).toEqual(recipe);
         expect(callsOf(fetchMock)).toHaveLength(2);
         // First attempt uses the cached token; the retry forces a fresh mint.
-        expect(forceRefreshFlags).toEqual([false, true]);
+        expect(forceRefreshFlagsOf(token)).toEqual([false, true]);
+        expect(requestAt(fetchMock, 1).headers.get('authorization')).toBe('Bearer tok-2');
     });
 
     it('exhausts retries on persistent IDENTITY_SYNC_PENDING and throws UnauthorizedError', async () => {
         const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }]);
         const client = new RecipeServiceClient({
             baseUrl: BASE,
-            token: 'tok',
+            token: mintingToken(),
             fetch: fetchMock,
             maxIdentitySyncRetries: 2,
             sleep: instantSleep,
@@ -78,7 +78,7 @@ describe('RecipeServiceClient — first-token sync-race retry', () => {
         const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }]);
         const client = new RecipeServiceClient({
             baseUrl: BASE,
-            token: 'tok',
+            token: mintingToken(),
             fetch: fetchMock,
             maxIdentitySyncRetries: 0,
             sleep: instantSleep,
@@ -86,6 +86,24 @@ describe('RecipeServiceClient — first-token sync-race retry', () => {
 
         await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
         expect(callsOf(fetchMock)).toHaveLength(1);
+    });
+
+    it('never retries IDENTITY_SYNC_PENDING with a literal bearer, which cannot be minted again', async () => {
+        const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }]);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(callsOf(fetchMock)).toHaveLength(1);
+    });
+
+    it('does not retry IDENTITY_SYNC_PENDING when the fresh mint answers the refused token', async () => {
+        const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }]);
+        const token = vi.fn((_options?: { readonly forceRefresh?: boolean }) => 'tok');
+        const client = new RecipeServiceClient({ baseUrl: BASE, token, fetch: fetchMock, sleep: instantSleep });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(callsOf(fetchMock)).toHaveLength(1);
+        expect(token).toHaveBeenLastCalledWith({ forceRefresh: true });
     });
 });
 
@@ -125,7 +143,12 @@ describe('RecipeServiceClient — expired-token 401 force-refresh + bounded retr
             { status: 401, body: { code: 'TOKEN_EXPIRED', message: 'jwt expired' } },
             { status: 401, body: { code: 'TOKEN_EXPIRED', message: 'jwt expired' } },
         ]);
-        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: mintingToken(),
+            fetch: fetchMock,
+            sleep: instantSleep,
+        });
 
         await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
         // 1 initial + 1 bounded retry — the persistent-failure double would keep returning 401 forever if
@@ -136,10 +159,23 @@ describe('RecipeServiceClient — expired-token 401 force-refresh + bounded retr
     it('treats a 401 with NO body/code as ordinary too (still one bounded retry, not zero)', async () => {
         const recipe = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' });
         const fetchMock = sequenceFetch([{ status: 401 }, { status: 200, body: recipe }]);
-        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: mintingToken(),
+            fetch: fetchMock,
+            sleep: instantSleep,
+        });
 
         await expect(client.getRecipeById('rec_1')).resolves.toEqual(recipe);
         expect(callsOf(fetchMock)).toHaveLength(2);
+    });
+
+    it('never retries an ordinary 401 with a literal bearer, which cannot be minted again', async () => {
+        const fetchMock = sequenceFetch([{ status: 401 }, { status: 200, body: makeRecipeDetail({ id: 'rec_1' }) }]);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(callsOf(fetchMock)).toHaveLength(1);
     });
 
     it('leaves a non-401 error path unaffected (no extra retry)', async () => {
@@ -157,15 +193,17 @@ describe('RecipeServiceClient — request build + token attach', () => {
         const fetchMock = stubFetch(201, created);
         const client = new RecipeServiceClient({ baseUrl: `${BASE}/`, token: 'tok-123', fetch: fetchMock });
 
-        const input = {
+        // Built from the fixture factory rather than spelled inline: the client validates its OUTBOUND body
+        // against `createRecipeRequestSchema`, whose `ingredients`/`steps` are both `.min(1)`, so the empty
+        // arrays this used to send were a body the service answers `400` to — the assertion below would have
+        // pinned a request that could never have succeeded in production.
+        const input = makeCreateRecipeRequest({
             title: 'Soup',
-            ingredients: [],
-            steps: [],
             servings: 2,
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
             totalTimeMinutes: 15,
-        };
+        });
         const result = await client.createRecipe(input);
 
         expect(result).toEqual(created);
@@ -203,13 +241,17 @@ describe('RecipeServiceClient — request build + token attach', () => {
     });
 
     it('serializes list params and repeats array query params (search facets)', async () => {
+        // `facets: {}` here until `searchRecipes` began validating its response against the published
+        // `recipeSearchResponseSchema` — which caught it. All four facet dimensions are REQUIRED on the wire
+        // (the server always aggregates all four over the match sample; an empty dimension is `[]`, never an
+        // absent key — see `search.schema.ts`), so the old stub asserted a body the service never sends.
         const fetchMock = stubFetch(200, {
             results: [],
             total: 0,
             page: 1,
             pageSize: 20,
             hasMore: false,
-            facets: {},
+            facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
         });
         const client = new RecipeServiceClient({ baseUrl: BASE, fetch: fetchMock });
 
@@ -229,6 +271,73 @@ describe('RecipeServiceClient — request build + token attach', () => {
         const req = requestAt(fetchMock);
         expect(req.url).toBe(`${BASE}/api/v1/recipes/rec%2F1`);
         expect(req.method).toBe('DELETE');
+    });
+});
+
+describe('RecipeServiceClient — the served impact counts survive the client parse (ADR-0030 §8)', () => {
+    it('getRecipeById PRESERVES impact — the non-strict detail schema must not strip the new field', async () => {
+        // The exact regression class viewerRating suffered: a schema without the field's line would
+        // parse successfully and SILENTLY strip the counts the server served.
+        const detail = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' });
+        const served = { ...detail, impact: { saveCount: 3, viewCount: 7 } };
+        const fetchMock = stubFetch(200, served);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok-123', fetch: fetchMock });
+
+        const result = await client.getRecipeById('rec_1');
+
+        expect(result.impact).toEqual({ saveCount: 3, viewCount: 7 });
+    });
+
+    it('tolerates an ABSENT impact — old servers and the degrade path omit it', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' }));
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok-123', fetch: fetchMock });
+
+        const result = await client.getRecipeById('rec_1');
+
+        expect(result.impact).toBeUndefined();
+    });
+});
+
+describe('RecipeServiceClient — analytics ingest door (analytics plan U5)', () => {
+    const batch = {
+        events: [
+            {
+                type: 'query_outcome' as const,
+                eventId: '99999999-9999-4999-8999-000000000a01',
+                occurredAt: '2026-09-01T12:00:00.000Z',
+                query: 'salt',
+                served: [{ group: 'catalog' as const, label: 'Salt, table', foodId: 'food-1' }],
+                outcome: { kind: 'no_pick' as const },
+            },
+        ],
+    };
+
+    it('POSTs the batch to /ingest/v1/events with the bearer and keepalive (the leave-the-screen moment)', async () => {
+        const fetchMock = stubFetch(202, { accepted: 1, landed: 1 });
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok-123', fetch: fetchMock });
+
+        await client.emitAnalyticsEvents(batch);
+
+        const req = requestAt(fetchMock);
+        expect(req.url).toBe(`${BASE}/ingest/v1/events`);
+        expect(req.method).toBe('POST');
+        expect(req.headers.get('authorization')).toBe('Bearer tok-123');
+        expect(req.headers.get('content-type')).toBe('application/json');
+        expect(JSON.parse(req.body as string)).toEqual(batch);
+        // The keepalive flag is what lets a web flush survive navigation (KTD4b). RN ignores it — recorded
+        // in the emitter's docstring, and harmless here. Read off the Request itself: the client builds
+        // one so the double's `callsOf` recognizes the call.
+        const rawRequest = callsOf(fetchMock)[0]?.[0];
+        expect(rawRequest?.keepalive).toBe(true);
+    });
+
+    it('throws on a non-2xx so the CALLER decides to swallow — the transport never hides an outcome', async () => {
+        const fetchMock = stubFetch(429, { code: 'RATE_LIMITED', message: 'slow down' });
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok-123', fetch: fetchMock });
+
+        await expect(client.emitAnalyticsEvents(batch)).rejects.toThrow();
+        // At-most-once (origin R11): exactly one attempt, no retry machinery.
+        expect(callsOf(fetchMock)).toHaveLength(1);
     });
 });
 
@@ -283,9 +392,8 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
     });
 
     it('409 → VersionConflictError carrying the ENRICHED server + base snapshots (W8-a.5)', async () => {
-        const side = (versionNumber: number, title: string, deviceLabel?: string) => ({
+        const side = (versionNumber: number, title: string) => ({
             versionNumber,
-            ...(deviceLabel !== undefined ? { deviceLabel } : {}),
             updatedAt: '2026-07-19T00:00:00.000Z',
             snapshot: {
                 version: versionNumber,
@@ -306,7 +414,7 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
                 details: {
                     currentVersion: 7,
                     conflictingVersion: 5,
-                    server: side(7, 'Server title', 'Pixel 8'),
+                    server: side(7, 'Server title'),
                     base: side(5, 'Base title'),
                 },
             }),
@@ -320,7 +428,10 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
         const conflict = error as VersionConflictError;
         expect(conflict.server?.versionNumber).toBe(7);
         expect(conflict.server?.snapshot.title).toBe('Server title');
-        expect(conflict.server?.deviceLabel).toBe('Pixel 8');
+        // The per-side metadata the enriched body still carries. `deviceLabel` was asserted here until the
+        // 2026-08-26 owner ruling deleted it; `updatedAt` is what remains beside the version number, and it
+        // is what the conflict banner's relative time is computed from.
+        expect(conflict.server?.updatedAt).toBe('2026-07-19T00:00:00.000Z');
         expect(conflict.base?.versionNumber).toBe(5);
         expect(conflict.base?.snapshot.title).toBe('Base title');
     });
@@ -375,10 +486,43 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
             fetch: stubFetch(410, { code: 'ALREADY_ERASED', message: 'Account has already been erased' }),
         });
 
-        const error = await client.requestAccountErasure().catch((caught: unknown) => caught);
+        const error = await client
+            .requestAccountErasure({ confirmationPhrase: 'ERASE MY DATA' })
+            .catch((caught: unknown) => caught);
 
         expect(isGoneError(error)).toBe(true);
         expect((error as GoneError).status).toBe(410);
+    });
+
+    // The one ingredient-source refusal recipe still sends: food could not be asked, so nothing was done.
+    it('502 SOURCE_UNAVAILABLE → SourceUnavailableError', async () => {
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(502, { code: 'SOURCE_UNAVAILABLE', message: 'down' }),
+        });
+
+        const error = await client.getRecipeById('rec_1').catch((caught: unknown) => caught);
+
+        expect(isSourceUnavailableError(error)).toBe(true);
+    });
+
+    /*
+     * The resolve relay's codes left with it (plan 002 S7), so this build is not taught them. A body carrying one is
+     * a code from another build: it keeps its status and code on the generic error, as any untaught code does.
+     */
+    it.each([
+        [503, 'SOURCE_BUSY', { retryAfterSeconds: 60 }],
+        [429, 'REQUESTER_LIMIT_REACHED', { retryAfterSeconds: 1234 }],
+    ])('%i %s → UnexpectedResponseError keeping its status and code', async (status, code, details) => {
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(status, { code, message: 'refused', details }),
+        });
+
+        const error = await client.getRecipeById('rec_1').catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(UnexpectedResponseError);
+        expect(error).toMatchObject({ status, code, message: 'refused' });
     });
 
     it('PATCH update sends the body and returns the updated recipe on 200', async () => {

@@ -5,13 +5,22 @@
  * status→error mapping, the identity-sync retry, and transport edge cases) live in `client.test.ts` and
  * `client.transport.test.ts`. Transport is a mocked `fetch`; no real network is touched.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { RecipeServiceClient } from '../index.js';
+import { recipeSearchQuerySchema } from '@kitchensink/schema-recipe';
+import type { RecipeSearchQuery } from '@kitchensink/schema-recipe';
+
+import { InvalidRequestError, isNotFoundError, isVersionLineUnrestorableError, RecipeServiceClient } from '../index.js';
+import type { VersionLineUnrestorableError } from '../index.js';
 import {
+    FIXTURE_OTHER_PHOTO_UUID,
+    FIXTURE_OTHER_RECIPE_UUID,
+    FIXTURE_PHOTO_UUID,
+    FIXTURE_RECIPE_UUID,
     makeCollection,
     makeCollectionRecipeMembership,
     makeCollectionWithRecipes,
+    makeCreateRecipeRequest,
     makeErasureAccepted,
     makeIngredient,
     makePaginatedResponse,
@@ -43,15 +52,10 @@ describe('RecipeServiceClient — recipes', () => {
     it('createRecipe POSTs /api/v1/recipes with the draft body and returns the created detail (201)', async () => {
         const created = makeRecipeDetail({ id: 'rec_new' });
         const fetchMock = stubFetch(201, created);
-        const input = {
-            title: 'Tomato Soup',
-            ingredients: [],
-            steps: [],
-            servings: 4,
-            prepTimeMinutes: 10,
-            cookTimeMinutes: 20,
-            totalTimeMinutes: 30,
-        };
+        // A contract-valid draft: `createRecipeRequestSchema` requires at least one ingredient AND at least
+        // one step, and the client validates the outbound body, so the empty arrays this used to send were a
+        // `400` the service would never have accepted — the body asserted below is now one that it would.
+        const input = makeCreateRecipeRequest();
 
         const result = await makeClient(fetchMock).createRecipe(input);
 
@@ -191,42 +195,6 @@ describe('RecipeServiceClient — ingredients', () => {
         expect(requestAt(fetchMock).url).toBe(`${BASE}/api/v1/ingredients/search?q=tom`);
     });
 
-    it('suggestIngredients GETs /api/v1/ingredients/suggest with q + limit and returns the blended envelope (200)', async () => {
-        const envelope = {
-            suggestions: [
-                { provenance: 'local', ingredient: makeIngredient({ id: 'ing_a' }) },
-                { provenance: 'catalog', foodId: '01J0FOOD', name: 'Chicken breast, raw', score: 0.9 },
-            ],
-            catalogAvailability: 'ok',
-        };
-        const fetchMock = stubFetch(200, envelope);
-
-        const result = await makeClient(fetchMock).suggestIngredients('chick', 5);
-
-        expect(result).toEqual(envelope);
-        const req = requestAt(fetchMock);
-        expect(req.method).toBe('GET');
-        // Mutation guard: the BLENDED read must hit `/suggest`. Falling back to `/search` would silently
-        // un-blend the picker (and return an array where the caller expects an envelope).
-        expect(req.url).toBe(`${BASE}/api/v1/ingredients/suggest?q=chick&limit=5`);
-    });
-
-    it('suggestIngredients omits the limit query param when limit is not supplied', async () => {
-        const fetchMock = stubFetch(200, { suggestions: [], catalogAvailability: 'ok' });
-
-        await makeClient(fetchMock).suggestIngredients('chick');
-
-        expect(requestAt(fetchMock).url).toBe(`${BASE}/api/v1/ingredients/suggest?q=chick`);
-    });
-
-    it('suggestIngredients surfaces a degraded catalog as a SUCCESS, not an error (F2)', async () => {
-        const fetchMock = stubFetch(200, { suggestions: [], catalogAvailability: 'unavailable' });
-
-        const result = await makeClient(fetchMock).suggestIngredients('chick');
-
-        expect(result.catalogAvailability).toBe('unavailable');
-    });
-
     it('addIngredientByFood POSTs /api/v1/ingredients/by-food with { foodId } and returns the ingredient (200)', async () => {
         const admitted = makeIngredient({
             id: 'ing_admitted',
@@ -247,6 +215,25 @@ describe('RecipeServiceClient — ingredients', () => {
         expect(req.url).toBe(`${BASE}/api/v1/ingredients/by-food`);
         // And the body carries ONLY the opaque food id — never a client-chosen display name.
         expect(jsonBody(fetchMock)).toEqual({ foodId: '01J0FOOD' });
+    });
+
+    it('addIngredientByFoodVariant POSTs /api/v1/ingredients/by-food-variant with { foodVariantId } (curated U9)', async () => {
+        const bound = makeIngredient({
+            id: 'ing_flat',
+            name: 'Beef brisket',
+            foodId: '01J0ROOT',
+            variant: { id: '01J0VARIANT', parts: [{ attribute: 'cut', text: 'flat' }] },
+            foodResolutionStatus: 'RESOLVED',
+        });
+        const fetchMock = stubFetch(200, bound);
+
+        const result = await makeClient(fetchMock).addIngredientByFoodVariant('01J0VARIANT');
+
+        expect(result).toEqual(bound);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        expect(req.url).toBe(`${BASE}/api/v1/ingredients/by-food-variant`);
+        expect(jsonBody(fetchMock)).toEqual({ foodVariantId: '01J0VARIANT' });
     });
 
     it('addIngredientByFood treats a 202 (by-name poll status) as an error, not success', async () => {
@@ -304,34 +291,6 @@ describe('RecipeServiceClient — ingredients', () => {
         expect(req.method).toBe('GET');
         expect(req.url).toBe(`${BASE}/api/v1/ingredients/ing_p/status`);
     });
-
-    it('getIngredientCandidates GETs /api/v1/ingredients/{id}/candidates and returns the candidate list (200)', async () => {
-        const candidates = [
-            { candidateId: 'c1', source: 'usda', externalKey: 'k1', name: 'Quinoa, cooked', summary: null },
-        ];
-        const fetchMock = stubFetch(200, candidates);
-
-        const result = await makeClient(fetchMock).getIngredientCandidates('ing_u');
-
-        expect(result).toEqual(candidates);
-        const req = requestAt(fetchMock);
-        expect(req.method).toBe('GET');
-        expect(req.url).toBe(`${BASE}/api/v1/ingredients/ing_u/candidates`);
-    });
-
-    it('resolveIngredient POSTs /api/v1/ingredients/{id}/resolve with the picked ids and returns the resolved ingredient (200)', async () => {
-        const resolved = makeIngredient({ id: 'ing_u', foodResolutionStatus: 'RESOLVED' });
-        const fetchMock = stubFetch(200, resolved);
-
-        const result = await makeClient(fetchMock).resolveIngredient('ing_u', ['c1', 'c2']);
-
-        expect(result).toEqual(resolved);
-        const req = requestAt(fetchMock);
-        expect(req.method).toBe('POST');
-        expect(req.url).toBe(`${BASE}/api/v1/ingredients/ing_u/resolve`);
-        // Mutation guard: the exact picked ids must be sent — a wrong/dropped id fails this assertion.
-        expect(jsonBody(fetchMock)).toEqual({ candidateIds: ['c1', 'c2'] });
-    });
 });
 
 describe('RecipeServiceClient — versions', () => {
@@ -370,6 +329,59 @@ describe('RecipeServiceClient — versions', () => {
         expect(req.method).toBe('POST');
         expect(req.url).toBe(`${BASE}/api/v1/recipes/rec_1/versions/2/restore`);
         expect(req.body).toBeUndefined();
+    });
+
+    it('⛔ restoreRecipeVersion surfaces a 409 VERSION_LINE_UNRESTORABLE as its own error, naming the positions', async () => {
+        const fetchMock = stubFetch(409, {
+            code: 'VERSION_LINE_UNRESTORABLE',
+            message: 'This version cannot be restored.',
+            details: { positions: [0, 3] },
+        });
+
+        const error = await makeClient(fetchMock)
+            .restoreRecipeVersion('rec_1', 2)
+            .catch((caught: unknown) => caught);
+
+        expect(isVersionLineUnrestorableError(error)).toBe(true);
+        expect((error as VersionLineUnrestorableError).positions).toStrictEqual([0, 3]);
+        expect((error as VersionLineUnrestorableError).status).toBe(409);
+    });
+});
+
+describe('RecipeServiceClient — line rebind (plan 002 U5)', () => {
+    it('rebindIngredientLine POSTs the target to /ingredients/{position}/rebind and returns the detail (200)', async () => {
+        const detail = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
+        const fetchMock = stubFetch(200, detail);
+        const body = { expectedVersion: 3, target: { kind: 'catalogFood', foodId: 'food_1' } } as const;
+
+        const result = await makeClient(fetchMock).rebindIngredientLine('rec_1', 2, body);
+
+        expect(result).toEqual(detail);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        expect(req.url).toBe(`${BASE}/api/v1/recipes/rec_1/ingredients/2/rebind`);
+        expect(JSON.parse(req.body as string)).toStrictEqual(body);
+    });
+
+    it('rebinds a line to a VARIANT the cook picked — the `catalogVariant` target (curated U9)', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ id: 'rec_1', currentVersion: 4 }));
+        const body = { expectedVersion: 3, target: { kind: 'catalogVariant', foodVariantId: 'var_1' } } as const;
+
+        await makeClient(fetchMock).rebindIngredientLine('rec_1', 2, body);
+
+        expect(JSON.parse(requestAt(fetchMock).body as string)).toStrictEqual(body);
+    });
+
+    it('refuses a body the published schema rejects before sending it', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail());
+
+        await expect(
+            makeClient(fetchMock).rebindIngredientLine('rec_1', 0, {
+                expectedVersion: 1,
+                target: { kind: 'name', name: '   ' },
+            }),
+        ).rejects.toBeInstanceOf(InvalidRequestError);
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
 
@@ -422,16 +434,21 @@ describe('RecipeServiceClient — photos', () => {
     });
 
     it('reorderRecipePhotos PATCHes /photos/reorder with { photoIds } and returns the ordered photos (200)', async () => {
+        // The ids sent are v4 UUIDs because `reorderPhotosRequestSchema.photoIds` is
+        // `z.array(z.uuid({ version: 'v4' })).min(1)` — a `'pho_2'` token is not a photo id the service can
+        // resolve, so the old fixture asserted a reorder request that would have come back `400`. (The
+        // RESPONSE keeps readable ids: response id fields are deliberately `z.string().min(1)`.)
+        const desiredOrder = [FIXTURE_OTHER_PHOTO_UUID, FIXTURE_PHOTO_UUID];
         const reordered = [makeRecipePhoto({ id: 'pho_2', order: 1 }), makeRecipePhoto({ id: 'pho_1', order: 2 })];
         const fetchMock = stubFetch(200, reordered);
 
-        const result = await makeClient(fetchMock).reorderRecipePhotos('rec_1', ['pho_2', 'pho_1']);
+        const result = await makeClient(fetchMock).reorderRecipePhotos('rec_1', desiredOrder);
 
         expect(result).toEqual(reordered);
         const req = requestAt(fetchMock);
         expect(req.method).toBe('PATCH');
         expect(req.url).toBe(`${BASE}/api/v1/recipes/rec_1/photos/reorder`);
-        expect(jsonBody(fetchMock)).toEqual({ photoIds: ['pho_2', 'pho_1'] });
+        expect(jsonBody(fetchMock)).toEqual({ photoIds: desiredOrder });
     });
 });
 
@@ -513,13 +530,16 @@ describe('RecipeServiceClient — collections', () => {
         const membership = makeCollectionRecipeMembership();
         const fetchMock = stubFetch(201, membership);
 
-        const result = await makeClient(fetchMock).addRecipeToCollection('col_1', 'rec_1');
+        // `addRecipeToCollectionRequestSchema.recipeId` is `z.uuid()` (the `recipes.id uuid` column), so the
+        // BODY must carry a UUID — `'rec_1'` was never a resolvable recipe id. The collection id stays a
+        // readable token because it travels in the PATH, which this schema does not describe.
+        const result = await makeClient(fetchMock).addRecipeToCollection('col_1', FIXTURE_RECIPE_UUID);
 
         expect(result).toEqual(membership);
         const req = requestAt(fetchMock);
         expect(req.method).toBe('POST');
         expect(req.url).toBe(`${BASE}/api/v1/collections/col_1/recipes`);
-        expect(jsonBody(fetchMock)).toEqual({ recipeId: 'rec_1' });
+        expect(jsonBody(fetchMock)).toEqual({ recipeId: FIXTURE_RECIPE_UUID });
     });
 
     it('removeRecipeFromCollection DELETEs /{id}/recipes/{recipeId} and resolves void (204)', async () => {
@@ -611,7 +631,7 @@ describe('RecipeServiceClient — search & account', () => {
             maxPrepTime: 30,
             maxCookTime: 45,
             maxTotalTime: 60,
-            ingredientIds: ['ing_1', 'ing_2'],
+            foodIds: ['food_1', 'food_2'],
             page: 2,
             pageSize: 10,
             sortBy: 'relevance',
@@ -621,7 +641,7 @@ describe('RecipeServiceClient — search & account', () => {
         expect(requestAt(fetchMock).url).toBe(
             `${BASE}/api/v1/search/recipes?query=chicken+pie&cuisine=british` +
                 `&dietaryFlags=vegan&dietaryFlags=gluten_free&tags=dinner` +
-                `&maxPrepTime=30&maxCookTime=45&maxTotalTime=60&ingredientIds=ing_1&ingredientIds=ing_2` +
+                `&maxPrepTime=30&maxCookTime=45&maxTotalTime=60&foodIds=food_1&foodIds=food_2` +
                 `&page=2&pageSize=10&sortBy=relevance`,
         );
     });
@@ -632,6 +652,55 @@ describe('RecipeServiceClient — search & account', () => {
         await makeClient(fetchMock).searchRecipes();
 
         expect(requestAt(fetchMock).url).toBe(`${BASE}/api/v1/search/recipes`);
+    });
+
+    /*
+     * ── THE SEARCH REQUEST TYPE IS DERIVED, NOT DECLARED (§15.1, GR-015 §15-b.2/15-b.3, ADR-0014 rule 4) ──
+     *
+     * `searchRecipes` was typed with `recipe-core`'s hand-written `RecipeSearchParams`, the type half of a twin
+     * whose zod half (`recipeSearchParamsSchema`) had no callers at all — the same shape `CreateRecipeInput` and
+     * `UpdateRecipeInput` were deleted for, sitting five lines below the banner that declares them forbidden. The
+     * twin was strictly LOOSER than the contract (mutable arrays, no bounds, no coercion), so `typecheck` reported
+     * agreement between two representations that had never been compared.
+     *
+     * The two cases below are what make the convergence hold rather than merely happen once, and they are
+     * deliberately different in kind: the first pins the TYPE (a re-declared looser twin fails it, because
+     * `string[]` is not `readonly string[]`), the second pins the WIRE. Neither implies the other — a retyped
+     * method still compiles while sending the wrong fields, because a SPREAD is exempt from excess-property
+     * checking, which is exactly how a `visibility` key survived on the recipe PATCH body.
+     */
+    it('types searchRecipes with the published RecipeSearchQuery, not a local twin', () => {
+        expectTypeOf<Parameters<RecipeServiceClient['searchRecipes']>[0]>().toEqualTypeOf<
+            RecipeSearchQuery | undefined
+        >();
+    });
+
+    it('puts every field the published query declares on the wire, and no others', async () => {
+        const params: RecipeSearchQuery = {
+            query: 'chicken pie',
+            cuisine: 'british',
+            dietaryFlags: ['vegan'],
+            tags: ['dinner'],
+            maxPrepTime: 30,
+            maxCookTime: 45,
+            maxTotalTime: 60,
+            foodIds: ['food_1'],
+            page: 2,
+            pageSize: 10,
+            sortBy: 'relevance',
+        };
+        // ⚠️ RATCHET, and it must come first: every field is OPTIONAL, so a contract that grows a twelfth one
+        // would leave this case quietly exercising eleven and reporting success. Asserting the INPUT covers the
+        // published shape is what forces this test — and then the client — to be updated. Same device as
+        // `recipe-service`'s `contract/__tests__/openapi.test.ts`.
+        expect(Object.keys(params).sort()).toStrictEqual(Object.keys(recipeSearchQuerySchema.shape).sort());
+
+        const fetchMock = stubFetch(200, makeRecipeSearchResponse());
+        await makeClient(fetchMock).searchRecipes(params);
+
+        const sent = [...new URL(requestAt(fetchMock).url).searchParams.keys()];
+
+        expect([...new Set(sent)].sort()).toStrictEqual(Object.keys(recipeSearchQuerySchema.shape).sort());
     });
 
     it('requestAccountErasure POSTs /api/v1/account/erasure WITH a confirmation body and returns the job (202)', async () => {
@@ -651,7 +720,13 @@ describe('RecipeServiceClient — search & account', () => {
     it('requestAccountErasure forwards the per-recipe donate election (publishRecipeIds) in the body', async () => {
         const accepted = makeErasureAccepted({ status: 'queued' });
         const fetchMock = stubFetch(202, accepted);
-        const request = { confirmationPhrase: 'ERASE MY DATA', publishRecipeIds: ['rec-1', 'rec-2'] } as const;
+        // Each entry is a UUID because `erasureRequestSchema.publishRecipeIds` is `z.array(z.uuid())` — the
+        // election names `recipes.id` rows for the worker to publish, and `'rec-1'` names nothing. This
+        // fixture now exercises an election the service would actually honour.
+        const request = {
+            confirmationPhrase: 'ERASE MY DATA',
+            publishRecipeIds: [FIXTURE_RECIPE_UUID, FIXTURE_OTHER_RECIPE_UUID],
+        } as const;
 
         const result = await makeClient(fetchMock).requestAccountErasure(request);
 
@@ -661,11 +736,70 @@ describe('RecipeServiceClient — search & account', () => {
         expect(jsonBody(fetchMock)).toEqual(request);
     });
 
-    it('requestAccountErasure POSTs with NO body when no request is supplied', async () => {
-        const fetchMock = stubFetch(202, makeErasureAccepted());
+    it('requestAccountErasure PARSES the 202 body, so a server that changed its shape fails here not in the UI', async () => {
+        // Replaces a test that asserted the client POSTs with NO body when no request is supplied. That call
+        // is no longer expressible — the argument is required, because `confirmationPhrase` is the intent gate
+        // on an irreversible action and a bodyless request could only ever have produced a `400`.
+        //
+        // The property worth holding instead is that this boundary is now VALIDATED: it was the last
+        // `expectUnvalidated` call site in the client, so a `202` whose shape drifted used to be cast blindly
+        // to `ErasureRequestAcceptedResponse` and surface as `undefined` somewhere in the account UI.
+        const fetchMock = stubFetch(202, { jobId: 'job_1', status: 'not-a-status' });
 
-        await makeClient(fetchMock).requestAccountErasure();
+        await expect(
+            makeClient(fetchMock).requestAccountErasure({ confirmationPhrase: 'ERASE MY DATA' }),
+        ).rejects.toThrow();
+    });
+});
 
-        expect(requestAt(fetchMock).body).toBeUndefined();
+describe('RecipeServiceClient — test-principal self-purge (ADR-0040)', () => {
+    const JOB_ID = '0b9f7c1e-4a5d-4c7e-9f1a-2b3c4d5e6f70';
+
+    it('requestTestReset POSTs /api/v1/account/test-reset with NO body and returns the job (202)', async () => {
+        const fetchMock = stubFetch(202, { jobId: JOB_ID, status: 'queued' });
+
+        const result = await makeClient(fetchMock).requestTestReset();
+
+        expect(result).toEqual({ jobId: JOB_ID, status: 'queued' });
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        expect(req.url).toBe(`${BASE}/api/v1/account/test-reset`);
+        // The principal IS the token: a body would be a target to smuggle, and the contract declares none.
+        expect(req.body).toBeUndefined();
+    });
+
+    it('requestTestReset PARSES the 202 body — a terminal status is not a job a reset can wait on', async () => {
+        const fetchMock = stubFetch(202, { jobId: JOB_ID, status: 'completed' });
+
+        await expect(makeClient(fetchMock).requestTestReset()).rejects.toThrow();
+    });
+
+    it('requestTestReset maps the door’s 404 (not a registered test principal) to NotFoundError', async () => {
+        const fetchMock = stubFetch(404, { code: 'NOT_FOUND', message: 'Not found.' });
+
+        await expect(makeClient(fetchMock).requestTestReset()).rejects.toSatisfy(isNotFoundError);
+    });
+
+    it('getTestReset GETs /api/v1/account/test-reset/{jobId}, encoding the id, and returns the parsed job (200)', async () => {
+        const job = {
+            jobId: JOB_ID,
+            status: 'running',
+            createdAt: '2026-09-14T00:00:00.000Z',
+            updatedAt: '2026-09-14T00:00:01.000Z',
+        };
+        const fetchMock = stubFetch(200, job);
+
+        const result = await makeClient(fetchMock).getTestReset('a/b');
+
+        expect(result).toEqual(job);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('GET');
+        expect(req.url).toBe(`${BASE}/api/v1/account/test-reset/a%2Fb`);
+    });
+
+    it('getTestReset PARSES the 200 body', async () => {
+        const fetchMock = stubFetch(200, { jobId: JOB_ID, status: 'purging' });
+
+        await expect(makeClient(fetchMock).getTestReset(JOB_ID)).rejects.toThrow();
     });
 });

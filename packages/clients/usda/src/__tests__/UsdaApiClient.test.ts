@@ -9,9 +9,11 @@
  *
  * The HTTP layer is mocked via an injected `fetch` (`vi.fn()`); no network calls are made.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
+import { USDA_SEARCH_PARAMETERS } from '../searchParameters.js';
 import { UsdaApiClient } from '../UsdaApiClient.js';
+import type { UsdaApiClientOptions } from '../UsdaApiClient.js';
 import {
     isInvalidBatchSizeError,
     isUsdaNotFoundError,
@@ -27,23 +29,42 @@ type FetchMock = ReturnType<typeof vi.fn>;
 interface MockResponseInit {
     readonly status: number;
     readonly body?: unknown;
+    /** Response headers; omitted entirely when absent, so the no-headers double stays exercised. */
+    readonly headers?: Record<string, string>;
 }
 
 /** Build a minimal `Response`-shaped object the client can consume. */
-function mockResponse({ status, body }: MockResponseInit): Response {
+function mockResponse({ status, body, headers }: MockResponseInit): Response {
     return {
         ok: status >= 200 && status < 300,
         status,
         json: async () => body ?? {},
+        ...(headers !== undefined ? { headers: new Headers(headers) } : {}),
     } as unknown as Response;
 }
 
+/**
+ * The JSON body a request was sent with.
+ *
+ * @param init - The `fetch` init the client passed.
+ * @returns The parsed body.
+ * @throws {Error} when the request carried no string body.
+ */
+function sentBody(init: RequestInit | undefined): unknown {
+    if (typeof init?.body !== 'string') {
+        throw new Error('The client sent no JSON body.');
+    }
+
+    return JSON.parse(init.body);
+}
+
 /** Construct a client whose HTTP layer is the supplied mock. */
-function makeClient(fetchImpl: FetchMock): UsdaApiClient {
+function makeClient(fetchImpl: FetchMock, overrides?: Partial<UsdaApiClientOptions>): UsdaApiClient {
     return new UsdaApiClient({
         apiKey: 'test-key',
         baseUrl: 'https://api.nal.usda.gov/fdc/v1',
         fetchFn: fetchImpl as unknown as typeof fetch,
+        ...overrides,
     });
 }
 
@@ -192,13 +213,110 @@ describe('UsdaApiClient', () => {
             await expect(client.searchFoods('apple')).rejects.toSatisfy(isUsdaRateLimitError);
         });
 
+        // Rewritten for the POST search (ADR-0055 point 1): the page size travels in the JSON body as a number.
         it('requests exactly one batch-sized page (pageSize = the 20-key batch cap)', async () => {
             const fetchFn = vi.fn().mockResolvedValue(mockResponse({ status: 200, body: { totalHits: 0, foods: [] } }));
             const client = makeClient(fetchFn);
 
             await client.searchFoods('apple');
 
-            expect(fetchFn.mock.calls[0]?.[0]).toContain('pageSize=20');
+            expect(sentBody(fetchFn.mock.calls[0]?.[1])).toMatchObject({ pageSize: 20 });
+        });
+
+        // Rewritten for the POST search (ADR-0055 point 1 records why the GET form was dropped): the shared statement
+        // is the JSON body of one POST, its data types an array, and the key stays the only query parameter.
+        it('asks USDA for the shared search statement as the JSON body of one POST, keeping the key in the URL', async () => {
+            const fetchFn = vi.fn().mockResolvedValue(mockResponse({ status: 200, body: { totalHits: 0, foods: [] } }));
+            const client = makeClient(fetchFn, { apiKey: 'key with/reserved&chars' });
+
+            await client.searchFoods('crème fraîche');
+
+            expect(fetchFn).toHaveBeenCalledTimes(1);
+
+            const url = new URL(String(fetchFn.mock.calls[0]?.[0]));
+            const init: RequestInit | undefined = fetchFn.mock.calls[0]?.[1];
+
+            expect(init?.method).toBe('POST');
+            expect(`${url.origin}${url.pathname}`).toBe('https://api.nal.usda.gov/fdc/v1/foods/search');
+            expect([...url.searchParams]).toStrictEqual([['api_key', 'key with/reserved&chars']]);
+            expect(new Headers(init?.headers).get('content-type')).toBe('application/json');
+            expect(sentBody(init)).toStrictEqual({
+                query: 'crème fraîche',
+                pageSize: USDA_SEARCH_PARAMETERS.pageSize,
+                dataType: [...USDA_SEARCH_PARAMETERS.dataTypes],
+            });
+        });
+
+        it('takes the query alone, so a caller has no way to search differently', () => {
+            expectTypeOf<Parameters<UsdaApiClient['searchFoods']>>().toEqualTypeOf<[query: string]>();
+        });
+
+        // The search's `dataType` feeds exhaustive switches downstream (the adapter's lineage key), so a value USDA adds
+        // later must arrive as no data type at all, never as a member of the union it is not.
+        it('drops a data type it does not know, rather than passing it off as a known one', async () => {
+            const fetchFn = vi.fn().mockResolvedValue(
+                mockResponse({
+                    status: 200,
+                    body: {
+                        totalHits: 2,
+                        foods: [
+                            { fdcId: 1, description: 'A', dataType: 'Foundation' },
+                            { fdcId: 2, description: 'B', dataType: 'Agricultural Acquisition' },
+                        ],
+                    },
+                }),
+            );
+
+            const { foods } = await makeClient(fetchFn).searchFoods('a');
+
+            expect(foods.map((food) => food.dataType)).toEqual(['Foundation', undefined]);
+            expect(foods[1] !== undefined && 'dataType' in foods[1]).toBe(false);
+        });
+
+        // USDA's OpenAPI spec types `ndbNumber` as a string, but the live API sends an integer. These two hits are
+        // recorded from GET /foods/search?query=broccoli%20raw on 2026-10-01, trimmed to the fields read here.
+        it('reads each hit’s NDB number as a decimal string, from the integer the live API sends', async () => {
+            const fetchFn = vi.fn().mockResolvedValue(
+                mockResponse({
+                    status: 200,
+                    body: {
+                        totalHits: 2,
+                        foods: [
+                            { fdcId: 747447, description: 'Broccoli, raw', dataType: 'Foundation', ndbNumber: 11090 },
+                            { fdcId: 170379, description: 'Broccoli, raw', dataType: 'SR Legacy', ndbNumber: 11090 },
+                        ],
+                    },
+                }),
+            );
+
+            const { foods } = await makeClient(fetchFn).searchFoods('broccoli raw');
+
+            expect(foods.map((food) => food.ndbNumber)).toEqual(['11090', '11090']);
+        });
+
+        it.each<[string, unknown, string | undefined]>([
+            ['a digit string, as the spec types it', '11090', '11090'],
+            ['a digit string with leading zeros', '011090', '11090'],
+            ['an absent field', undefined, undefined],
+            ['zero', 0, undefined],
+            ['a negative number', -11090, undefined],
+            ['a fraction', 110.9, undefined],
+            ['an integer past the safe range', 2 ** 60, undefined],
+            ['a string that is not digits', '11090a', undefined],
+            ['an empty string', '', undefined],
+            ['null', null, undefined],
+            ['an object', { value: 11090 }, undefined],
+        ])('reads %s as its NDB number, and never fails the search over it', async (_label, ndbNumber, expected) => {
+            const hit = { fdcId: 747447, description: 'Broccoli, raw', dataType: 'Foundation', ndbNumber };
+            const fetchFn = vi
+                .fn()
+                .mockResolvedValue(mockResponse({ status: 200, body: { totalHits: 1, foods: [hit] } }));
+
+            const { foods } = await makeClient(fetchFn).searchFoods('broccoli');
+
+            expect(foods).toHaveLength(1);
+            expect(foods[0]?.ndbNumber).toBe(expected);
+            expect(foods[0] !== undefined && 'ndbNumber' in foods[0]).toBe(expected !== undefined);
         });
     });
 
@@ -238,5 +356,67 @@ describe('UsdaApiClient', () => {
 
             await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaTimeoutError);
         });
+    });
+
+    // ADR-0053 §4: the injected fetch may refuse a request BEFORE it reaches USDA (the food service's rate-limited
+    // transport, when a source is at its ceiling). That refusal is the caller's own typed error, not "USDA did not
+    // respond", so it must reach the caller unchanged rather than be re-read as a timeout.
+    describe('caller errors from the injected fetch', () => {
+        /** Stands in for the food service's `SourceBusyError`, which this package cannot import. */
+        class CallerBusyError extends Error {
+            public constructor() {
+                super('busy');
+                this.name = 'CallerBusyError';
+                Object.setPrototypeOf(this, CallerBusyError.prototype);
+            }
+        }
+
+        const isCallerBusy = (error: unknown): boolean => error instanceof CallerBusyError;
+
+        it.each([
+            ['getFood', (client: UsdaApiClient) => client.getFood(171688)],
+            ['getFoodsBatch', (client: UsdaApiClient) => client.getFoodsBatch([171688])],
+            ['searchFoods', (client: UsdaApiClient) => client.searchFoods('apple')],
+        ])('%s rethrows an error the caller claims as the same instance', async (_, call) => {
+            const refusal = new CallerBusyError();
+            const client = makeClient(vi.fn().mockRejectedValue(refusal), { isCallerError: isCallerBusy });
+
+            await expect(call(client)).rejects.toBe(refusal);
+        });
+
+        it('still reads an error the caller does not claim as a timeout, carrying it', async () => {
+            const cause = new TypeError('fetch failed');
+            const client = makeClient(vi.fn().mockRejectedValue(cause), { isCallerError: isCallerBusy });
+
+            const err = await client.getFood(171688).catch((error: unknown) => error);
+
+            expect(isUsdaTimeoutError(err)).toBe(true);
+            expect((err as UsdaTimeoutError).cause).toBe(cause);
+        });
+
+        it('claims nothing by default, so an unconfigured client keeps reading every foreign error as a timeout', async () => {
+            const client = makeClient(vi.fn().mockRejectedValue(new CallerBusyError()));
+
+            await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaTimeoutError);
+        });
+
+        it("never lets a caller's claim mask USDA's own answer", async () => {
+            const client = makeClient(vi.fn().mockResolvedValue(mockResponse({ status: 429 })), {
+                isCallerError: () => true,
+            });
+
+            await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaRateLimitError);
+        });
+    });
+});
+
+/**
+ * ADR-0053 §3: the food service builds this client over its rate-limited transport, and a client built over nothing
+ * would call USDA unmetered. `fetchFn` is therefore required, with no default, so that client does not compile.
+ */
+describe('UsdaApiClientOptions', () => {
+    it('requires the fetch every request goes through', () => {
+        expectTypeOf<{ apiKey: string }>().not.toExtend<UsdaApiClientOptions>();
+        expectTypeOf<{ apiKey: string; fetchFn: typeof fetch }>().toExtend<UsdaApiClientOptions>();
     });
 });

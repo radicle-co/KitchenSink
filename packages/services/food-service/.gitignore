@@ -1,5 +1,6 @@
 dist
 dist-lambda
+distSeed
 cdk.out
 cdk.context.json
 *.tsbuildinfo

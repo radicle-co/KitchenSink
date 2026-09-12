@@ -1,17 +1,17 @@
 ---
 name: speckit.product-forge.monitoring-setup
 description: 'Phase 9.5 (optional): produce real monitoring artifacts for a feature
-  — a dashboard, alert rules, and SLI/SLO definitions derived from plan NFRs and tracking-plan
-  events. Targets the configured backend (`telemetry.dashboards`: PostHog / Sentry;
-  NewRelic optional via the `newrelic-dashboard-builder` skill). When the matching
-  MCP is connected, creates the dashboard/alerts directly; otherwise writes provider-neutral
-  artifact stubs. Runs after release-readiness, before deploy. Use: "monitoring setup",
-  "build dashboard", "/speckit.product-forge.monitoring-setup"'
+    — a dashboard, alert rules, and SLI/SLO definitions derived from plan NFRs and tracking-plan
+    events. Targets the configured backend (`telemetry.dashboards`: PostHog / Sentry;
+    NewRelic optional via the `newrelic-dashboard-builder` skill). When the matching
+    MCP is connected, creates the dashboard/alerts directly; otherwise writes provider-neutral
+    artifact stubs. Runs after release-readiness, before deploy. Use: "monitoring setup",
+    "build dashboard", "/speckit.product-forge.monitoring-setup"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Monitoring Setup (Phase 9.5)
 
 You are the **Observability Architect** for Product Forge.
@@ -30,6 +30,7 @@ $ARGUMENTS
 ```
 
 Parse for:
+
 - Feature slug (required) — resolved to `FEATURE_DIR` via the Path-Resolution
   Contract `resolve(slug)` ([docs/runtime.md §12.2](../docs/runtime.md#12-path-resolution-contract));
   under the default `flat` strategy this is `{features_dir}/<slug>`.
@@ -74,11 +75,11 @@ Build the SLI list from three sources, in priority order:
 
 Produce a table:
 
-| SLI | Source | Target (SLO) | Measurement window |
-|-----|--------|--------------|--------------------|
-| p95 API latency | plan.md NFR | ≤ 300 ms | 5-minute rolling |
-| error rate | plan.md NFR | ≤ 0.5 % | 5-minute rolling |
-| session start → first event | tracking-plan | ≤ 2 s | 1-hour rolling |
+| SLI                         | Source        | Target (SLO) | Measurement window |
+| --------------------------- | ------------- | ------------ | ------------------ |
+| p95 API latency             | plan.md NFR   | ≤ 300 ms     | 5-minute rolling   |
+| error rate                  | plan.md NFR   | ≤ 0.5 %      | 5-minute rolling   |
+| session start → first event | tracking-plan | ≤ 2 s        | 1-hour rolling     |
 
 If a candidate lacks a numeric target, mark it `UNDEFINED` and include
 it as an action item instead of inventing a number.
@@ -126,14 +127,14 @@ Delegate to `newrelic-dashboard-builder` (if the skill is installed). Pass:
 Produce `{FEATURE_DIR}/monitoring/dashboard.json` — NerdGraph-compatible.
 
 If the skill is not installed, fall back to a templated JSON with TODOs and
-note: *"Provider skill missing — dashboard is a stub."*
+note: _"Provider skill missing — dashboard is a stub."_
 
 ### 2D: Unresolved / other providers
 
 If no provider resolved (`telemetry.dashboards: none` / unset, no `--provider`)
 or the provider has no wired branch, produce a provider-neutral templated
-`dashboard.json` with TODOs and note: *"No monitoring backend resolved —
-dashboard is a stub."*
+`dashboard.json` with TODOs and note: _"No monitoring backend resolved —
+dashboard is a stub."_
 
 ---
 
@@ -157,15 +158,15 @@ Generate `{FEATURE_DIR}/monitoring/alerts.yml`:
 # Alert policies derived from plan NFRs and tracking-plan thresholds.
 # Apply to the monitoring provider manually after review.
 policies:
-  - name: "{feature-slug} — error rate"
-    condition: "error_rate > 5% for 5 min"
-    severity: "P1"
-    notification_channels: ["{project default}"]
-    runbook: "docs/runbooks/{feature-slug}.md"
-  - name: "{feature-slug} — p95 latency"
-    condition: "p95_ms > {target}ms for 10 min"
-    severity: "P2"
-    notification_channels: ["{project default}"]
+    - name: '{feature-slug} — error rate'
+      condition: 'error_rate > 5% for 5 min'
+      severity: 'P1'
+      notification_channels: ['{project default}']
+      runbook: 'docs/runbooks/{feature-slug}.md'
+    - name: '{feature-slug} — p95 latency'
+      condition: 'p95_ms > {target}ms for 10 min'
+      severity: 'P2'
+      notification_channels: ['{project default}']
 ```
 
 Each alert references a runbook path; if the runbook does not exist,
@@ -181,16 +182,19 @@ Write `{FEATURE_DIR}/monitoring/slo.md`:
 # SLO for {Feature Name}
 
 ## SLIs
+
 {table from Step 1}
 
 ## Error budget
+
 - Target availability: {99.9 | 99.95 | custom} over {window}
 - Error budget: {1 - target} of total minutes in window
 - Budget burn policy:
-  - 2x burn rate for 1h → page on-call
-  - 1x burn rate for 6h → ticket
+    - 2x burn rate for 1h → page on-call
+    - 1x burn rate for 6h → ticket
 
 ## Out of scope
+
 {SLIs intentionally excluded and why}
 ```
 
@@ -202,16 +206,16 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  monitoring_setup:
-    status: "completed"
-    started_at: "{ISO}"
-    completed_at: "{ISO}"
-    digest_path: "monitoring/digest.md"
+    monitoring_setup:
+        status: 'completed'
+        started_at: '{ISO}'
+        completed_at: '{ISO}'
+        digest_path: 'monitoring/digest.md'
 monitoring:
-  dashboard_path: "monitoring/dashboard.json"
-  alerts_path: "monitoring/alerts.yml"
-  slo_path: "monitoring/slo.md"
-  provider: "{resolved telemetry.dashboards — posthog | sentry | newrelic | none}"
+    dashboard_path: 'monitoring/dashboard.json'
+    alerts_path: 'monitoring/alerts.yml'
+    slo_path: 'monitoring/slo.md'
+    provider: '{resolved telemetry.dashboards — posthog | sentry | newrelic | none}'
 ```
 
 Also produce a short `monitoring/digest.md` following the phase-digest

@@ -1,1966 +1,616 @@
 # Unit Test Plan: Meal Planning
 
 **Feature Branch**: `006-meal-planning`
-**Created**: 2026-05-09
+**Created**: 2026-05-09 | **Regenerated**: 2026-08-02
 **Status**: Draft
-**Source**: `specs/006-meal-planning/v-model/module-design.md`
+**Source**: [`v-model/module-design.md`](./module-design.md)
 
 ## Overview
 
-This document defines the Unit Test Plan for the Meal Planning feature. Every module design (`MOD-NNN`) in `module-design.md` has one or more Test Cases (`UTP-NNN-X`), and every Test Case has one or more executable Unit Scenarios (`UTS-NNN-X#`) in white-box Arrange/Act/Assert format.
+Every module design (`MOD-NNN`) has one or more Unit Test Cases (`UTP-NNN-X`), each with executable Unit Scenarios
+(`UTS-NNN-X#`) in white-box Arrange/Act/Assert form.
 
-Unit tests verify **internal module logic** — control flow, data transformations, state transitions, and variable boundaries. They do NOT test module boundaries (integration), user journeys (acceptance), or system-level behavior (system tests).
+Unit tests verify **internal module logic** — control flow, transformations, boundaries. They do not test module
+boundaries (integration), user journeys (acceptance) or system behaviour (system tests).
 
-MOD-022 is `[CROSS-CUTTING]` and build-time only; it has no runtime logic and is excluded from executable unit test cases (noted in its section).
+> **Regeneration note — two structural corrections, not just content edits.**
+>
+> 1. **Assert outcomes, not calls.** Many May scenarios ended in `service.getPlan called once with ('plan-1','user-1')`.
+>    `ENGINEERING_EXCELLENCE.md` → QSE §3 names that explicitly: _"'The mock was invoked with X' is weak; 'the persisted
+>    row now equals Y / the response body is Z / this specific error was thrown' is strong."_ Call-assertions survive
+>    here only for genuinely fire-and-forget effects — of which this feature has none. Every scenario below asserts a
+>    returned value, a thrown error type, or a persisted state.
+> 2. **Weight follows risk, not module count.** The May plan spread effort evenly across 22 controllers and adapters.
+>    The reconciled design concentrates all business rules in eight pure modules, so that is where the depth goes —
+>    including **property-based** tests, which the May plan had none of despite the rollup being a pure fold, the single
+>    most property-testable thing in the feature.
+>
+> Modules for deleted components (`MOD-009` cache, `MOD-017` USDA adapter, `MOD-010`–`MOD-015` AI/waste, `MOD-021`
+> premium guard, `MOD-018` Clerk adapter under the old numbering) have no successors. `MOD-024` is build-time only and
+> has no executable unit tests.
 
 ## ID Schema
 
-- **Unit Test Case**: `UTP-{NNN}-{X}` — where NNN matches the parent MOD, X is a letter suffix (A, B, C...)
-- **Unit Test Scenario**: `UTS-{NNN}-{X}{#}` — nested under the parent UTP, with numeric suffix (1, 2, 3...)
-- Example: `UTS-001-A1` → Scenario 1 of Test Case A verifying MOD-001
-- ID lineage: from `UTS-001-A1`, a regex extracts `UTP-001-A` and `MOD-001`. To find the `ARCH-NNN` ancestor, consult the "Parent Architecture Modules" field in `module-design.md`.
+- **Unit Test Case**: `UTP-{NNN}-{X}` — NNN matches the parent MOD; X is a letter.
+- **Unit Test Scenario**: `UTS-{NNN}-{X}{#}`.
+- Lineage: `UTS-004-A1` → `UTP-004-A` → `MOD-004` → `ARCH-004` (via module-design's Parent field).
 
 ## ISO 29119-4 White-Box Techniques
 
-Each test case MUST identify its technique by name and anchor to a specific module design view:
+| Technique                       | Source View              | What it tests                                             |
+| ------------------------------- | ------------------------ | --------------------------------------------------------- |
+| **Statement & Branch Coverage** | Algorithmic/Logic View   | Every line and both outcomes of every branch              |
+| **Boundary Value Analysis**     | Internal Data Structures | min−1, min, mid, max, max+1                               |
+| **Equivalence Partitioning**    | Internal Data Structures | Discrete types: unions, enums, booleans                   |
+| **Strict Isolation**            | Interface View           | External dependencies stubbed at the port                 |
+| **Error Guessing**              | Error Handling           | Negative paths, invalid input, dependency failure         |
+| **State Transition Testing**    | State Machine View       | Every transition, including invalid ones                  |
+| **Property-Based Testing**      | Algorithmic/Logic View   | **New.** Invariants over generated inputs, with shrinking |
 
-| Technique                       | Source View                   | What It Tests                                           |
-| ------------------------------- | ----------------------------- | ------------------------------------------------------- |
-| **Statement & Branch Coverage** | Algorithmic/Logic View        | Every line and every True/False branch outcome          |
-| **Boundary Value Analysis**     | Internal Data Structures      | Scalar variable boundaries: min-1, min, mid, max, max+1 |
-| **Equivalence Partitioning**    | Internal Data Structures      | Discrete non-scalar types: Booleans, Enums              |
-| **Strict Isolation**            | Architecture Interface View   | Every external dependency mocked/stubbed                |
-| **Error Guessing**              | Error Handling & Return Codes | Negative paths, invalid inputs, dependency exceptions   |
-| **State Transition Testing**    | State Machine View            | Every transition including invalid ones                 |
-
-## Unit Tests
-
----
-
-### MOD-001: MealPlanController
-
-**Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `src/meal-planning/controllers/meal-plan.controller.ts`
+**The acid test applies to every scenario**: _would this still pass if the production code were broken?_ Any scenario
+that would is rewritten, per `ENGINEERING_EXCELLENCE.md` → QSE §3.
 
 ---
 
-#### UTP-001-A — Branch Coverage: getMealPlan null-check
+## MOD-001: MealPlanIds
 
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF result IS NULL → THROW NotFoundException` branch in `getMealPlan`
+**Parent**: ARCH-001 · **Target**: `packages/shared/meal-plan-core/src/ids.ts`
 
-| Scenario | ID         | Description                                                  |
-| -------- | ---------- | ------------------------------------------------------------ |
-| 1        | UTS-001-A1 | Service returns a plan → controller returns it (true branch) |
-| 2        | UTS-001-A2 | Service returns null → controller throws NotFoundException   |
+#### UTP-001-A — Equivalence Partitioning: brand constructors parse and reject
+
+| Scenario   | Description                                                     |
+| ---------- | --------------------------------------------------------------- |
+| UTS-001-A1 | A valid UUID returns a branded value equal to the input string  |
+| UTS-001-A2 | An empty string throws `ZodError`                               |
+| UTS-001-A3 | A non-UUID string throws `ZodError`                             |
+| UTS-001-A4 | `isMealPlanId` narrows a valid value and rejects an invalid one |
 
 **UTS-001-A1**
 
 ```
-Arrange:
-  mealPlanService = mock({ getPlan: async () => ({ id: 'plan-1', name: 'Week 1' }) })
-  controller = new MealPlanController(mealPlanService)
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  result = await controller.getMealPlan('plan-1', authContext)
-Assert:
-  result.id === 'plan-1'
-  mealPlanService.getPlan called once with ('plan-1', 'user-1')
+Arrange: raw = '4f2a…-uuid'
+Act:     id = mealPlanId(raw)
+Assert:  id === raw                      // brand is compile-time only; runtime identity preserved
+         typeof id === 'string'
 ```
 
-**UTS-001-A2**
+#### UTP-001-B — Compile-time nominality (type-level test)
 
-```
-Arrange:
-  mealPlanService = mock({ getPlan: async () => null })
-  controller = new MealPlanController(mealPlanService)
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  call = () => controller.getMealPlan('plan-1', authContext)
-Assert:
-  call() rejects with NotFoundException
-  error.message === 'Plan not found'
-```
+| Scenario   | Description                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| UTS-001-B1 | Passing a `RecipeId` where `MealPlanId` is expected is a **compile error** (`expectTypeOf`) |
+
+This is a `vitest` type assertion, not a runtime test. Without it the brand is decoration — the whole point is that the
+transposition fails to compile.
 
 ---
 
-#### UTP-001-B — Strict Isolation: all handler methods delegate to service
+## MOD-002: DateRange
 
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: `createMealPlan`, `updateMealPlan`, `deleteMealPlan` — no business logic in controller
+**Parent**: ARCH-002 · **Target**: `packages/shared/meal-plan-core/src/dateRange.ts`
 
-| Scenario | ID         | Description                                            |
-| -------- | ---------- | ------------------------------------------------------ |
-| 1        | UTS-001-B1 | createMealPlan delegates to mealPlanService.createPlan |
-| 2        | UTS-001-B2 | updateMealPlan delegates to mealPlanService.updatePlan |
-| 3        | UTS-001-B3 | deleteMealPlan delegates to mealPlanService.deletePlan |
+#### UTP-002-A — Boundary Value Analysis: span limits
 
-**UTS-001-B1**
+**Technique**: BVA · **Covers**: the `SPAN_TOO_LONG` and `END_BEFORE_START` branches
 
-```
-Arrange:
-  mealPlanService = mock({ createPlan: async () => ({ id: 'plan-1' }) })
-  controller = new MealPlanController(mealPlanService)
-  body = { name: 'Week 1', startDate: '2026-06-01', endDate: '2026-06-07', slots: [] }
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  result = await controller.createMealPlan(body, authContext)
-Assert:
-  mealPlanService.createPlan called once with (body, 'user-1')
-  result.id === 'plan-1'
-```
+| Scenario   | Input               | Expected                                           |
+| ---------- | ------------------- | -------------------------------------------------- |
+| UTS-002-A1 | start = end (1 day) | constructs; `dayCount === 1`                       |
+| UTS-002-A2 | 2 days              | constructs; `dayCount === 2`                       |
+| UTS-002-A3 | exactly 90 days     | constructs; `dayCount === 90`                      |
+| UTS-002-A4 | 91 days             | throws `InvalidDateRangeError('SPAN_TOO_LONG')`    |
+| UTS-002-A5 | end = start − 1 day | throws `InvalidDateRangeError('END_BEFORE_START')` |
 
-**UTS-001-B2**
+**UTS-002-A3 / A4** are the mutation-sensitive pair: flipping `>` to `>=` in the span check breaks exactly one of them.
+A plan that tested only "7 days works" would survive that mutation.
 
-```
-Arrange:
-  mealPlanService = mock({ updatePlan: async () => ({ id: 'plan-1', name: 'Updated' }) })
-  controller = new MealPlanController(mealPlanService)
-  body = { name: 'Updated' }
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  result = await controller.updateMealPlan('plan-1', body, authContext)
-Assert:
-  mealPlanService.updatePlan called once with ('plan-1', body, 'user-1')
-  result.name === 'Updated'
-```
+#### UTP-002-B — Error Guessing: malformed input
 
-**UTS-001-B3**
+| Scenario   | Input                     | Expected                                              |
+| ---------- | ------------------------- | ----------------------------------------------------- |
+| UTS-002-B1 | `'2026-13-01'` (month 13) | throws `InvalidDateRangeError('NOT_A_CALENDAR_DATE')` |
+| UTS-002-B2 | `'2026-02-30'`            | throws — calendar-invalid, not merely malformed       |
+| UTS-002-B3 | `'2026-05-11T00:00:00Z'`  | throws — an **instant** is not a calendar date        |
+| UTS-002-B4 | `''`                      | throws                                                |
 
-```
-Arrange:
-  mealPlanService = mock({ deletePlan: async () => undefined })
-  controller = new MealPlanController(mealPlanService)
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  await controller.deleteMealPlan('plan-1', authContext)
-Assert:
-  mealPlanService.deletePlan called once with ('plan-1', 'user-1')
-```
+UTS-002-B3 is load-bearing: accepting an instant here is how HAZ-001 (time-zone day drift) gets in.
 
----
+#### UTP-002-C — DST and calendar correctness
 
-### MOD-002: MealPlanService
+**Technique**: Error Guessing + BVA · **Covers**: `dayCount`, `eachDate`
 
-**Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `src/meal-planning/services/meal-plan.service.ts`
+| Scenario   | Description                                                                                                |
+| ---------- | ---------------------------------------------------------------------------------------------------------- |
+| UTS-002-C1 | A range spanning a **spring-forward** transition yields the same `dayCount` as an equivalent non-DST range |
+| UTS-002-C2 | A range spanning a **fall-back** transition yields the same `dayCount`                                     |
+| UTS-002-C3 | Southern-hemisphere DST (e.g. `Australia/Sydney`) — same result                                            |
+| UTS-002-C4 | A range crossing 29 Feb in a leap year counts the extra day                                                |
+| UTS-002-C5 | A range crossing a year boundary counts correctly                                                          |
+| UTS-002-C6 | `eachDate` returns exactly `dayCount` dates, ordered, with no gaps or repeats                              |
 
----
+Run under at least three `TZ` values including one with a half-hour offset. A millisecond-arithmetic implementation
+passes UTC and fails these — which is the point.
 
-#### UTP-002-A — Branch Coverage: createPlan date-range and slot validation
+#### UTP-002-D — Locale week grouping
 
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF endDate <= startDate`, `IF dayCount > 365`, slot dayOffset/mealType validation branches
+| Scenario   | Locale  | Expected                                        |
+| ---------- | ------- | ----------------------------------------------- |
+| UTS-002-D1 | `en-GB` | first day of week is Monday                     |
+| UTS-002-D2 | `en-US` | first day of week is Sunday                     |
+| UTS-002-D3 | any     | the union of all weeks equals `eachDate(range)` |
 
-| Scenario | ID         | Description                                                      |
-| -------- | ---------- | ---------------------------------------------------------------- |
-| 1        | UTS-002-A1 | endDate == startDate → throws InvalidDateRangeException          |
-| 2        | UTS-002-A2 | endDate < startDate → throws InvalidDateRangeException           |
-| 3        | UTS-002-A3 | dayCount == 366 → throws InvalidDateRangeException (exceeds 365) |
-| 4        | UTS-002-A4 | dayCount == 365 → succeeds (boundary pass)                       |
-| 5        | UTS-002-A5 | slot.dayOffset < 0 → throws InvalidSlotException                 |
-| 6        | UTS-002-A6 | slot.dayOffset >= dayCount → throws InvalidSlotException         |
-| 7        | UTS-002-A7 | slot.mealType not in enum → throws InvalidSlotException          |
-| 8        | UTS-002-A8 | valid dto → calls repository.insert and returns plan             |
+#### UTP-002-E — Property-Based
 
-**UTS-002-A1**
-
-```
-Arrange:
-  repo = mock({ insert: jest.fn() })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-01', endDate: '2026-06-01', slots: [] }
-Act:
-  call = () => service.createPlan(dto, 'user-1')
-Assert:
-  call() rejects with InvalidDateRangeException
-  repo.insert not called
-```
-
-**UTS-002-A2**
-
-```
-Arrange:
-  repo = mock({ insert: jest.fn() })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-07', endDate: '2026-06-01', slots: [] }
-Act:
-  call = () => service.createPlan(dto, 'user-1')
-Assert:
-  call() rejects with InvalidDateRangeException
-```
-
-**UTS-002-A3**
-
-```
-Arrange:
-  repo = mock({ insert: jest.fn() })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-01-01', endDate: '2027-01-02', slots: [] }  // 366 days
-Act:
-  call = () => service.createPlan(dto, 'user-1')
-Assert:
-  call() rejects with InvalidDateRangeException('Plan may not exceed 365 days')
-```
-
-**UTS-002-A4**
-
-```
-Arrange:
-  repo = mock({ insert: async () => ({ id: 'plan-1' }) })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-01-01', endDate: '2027-01-01', slots: [] }  // exactly 365 days
-Act:
-  result = await service.createPlan(dto, 'user-1')
-Assert:
-  repo.insert called once
-  result.id === 'plan-1'
-```
-
-**UTS-002-A5**
-
-```
-Arrange:
-  repo = mock({ insert: jest.fn() })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-01', endDate: '2026-06-08', slots: [{ dayOffset: -1, mealType: 'BREAKFAST' }] }
-Act:
-  call = () => service.createPlan(dto, 'user-1')
-Assert:
-  call() rejects with InvalidSlotException('dayOffset out of range')
-```
-
-**UTS-002-A6**
-
-```
-Arrange:
-  repo = mock({ insert: jest.fn() })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-01', endDate: '2026-06-08', slots: [{ dayOffset: 7, mealType: 'BREAKFAST' }] }
-  // dayCount = 7, valid offsets 0..6
-Act:
-  call = () => service.createPlan(dto, 'user-1')
-Assert:
-  call() rejects with InvalidSlotException('dayOffset out of range')
-```
-
-**UTS-002-A7**
-
-```
-Arrange:
-  repo = mock({ insert: jest.fn() })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-01', endDate: '2026-06-08', slots: [{ dayOffset: 0, mealType: 'BRUNCH' }] }
-Act:
-  call = () => service.createPlan(dto, 'user-1')
-Assert:
-  call() rejects with InvalidSlotException('Unknown mealType')
-```
-
-**UTS-002-A8**
-
-```
-Arrange:
-  repo = mock({ insert: async () => ({ id: 'plan-1', name: 'Week 1' }) })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-01', endDate: '2026-06-08', slots: [{ dayOffset: 0, mealType: 'BREAKFAST' }] }
-Act:
-  result = await service.createPlan(dto, 'user-1')
-Assert:
-  repo.insert called once with object containing { userId: 'user-1' }
-  result.id === 'plan-1'
-```
+| Scenario   | Property                                                                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- |
+| UTS-002-E1 | For any valid range, `eachDate(range).length === dayCount(range)`                                                     |
+| UTS-002-E2 | For any valid range, `contains(range, d)` ⟺ `d ∈ eachDate(range)`                                                     |
+| UTS-002-E3 | For any `start` and `0 ≤ n ≤ 89`, `dateRange(start, addCalendarDays(start, n))` constructs and has `dayCount === n+1` |
 
 ---
 
-#### UTP-002-B — Boundary Value Analysis: dayCount boundary
+## MOD-003: MealSlot
 
-**Technique**: Boundary Value Analysis
-**Source View**: Internal Data Structures
-**Covers**: `dayCount` scalar boundary at 365 (max valid)
+**Parent**: ARCH-003 · **Target**: `packages/shared/meal-plan-core/src/mealSlot.ts`
 
-| Scenario | ID         | Description                             |
-| -------- | ---------- | --------------------------------------- |
-| 1        | UTS-002-B1 | dayCount = 364 → succeeds               |
-| 2        | UTS-002-B2 | dayCount = 365 → succeeds (max valid)   |
-| 3        | UTS-002-B3 | dayCount = 366 → throws (max+1 invalid) |
+#### UTP-003-A — Equivalence Partitioning
 
-**UTS-002-B1**
+| Scenario   | Input                             | Expected                            |
+| ---------- | --------------------------------- | ----------------------------------- |
+| UTS-003-A1 | each of the four valid slots      | `isMealSlot` true                   |
+| UTS-003-A2 | `'brunch'`                        | false                               |
+| UTS-003-A3 | `'Breakfast'` (wrong case)        | false — the union is case-sensitive |
+| UTS-003-A4 | `parseSlotSet([])`                | throws `EmptySlotSetError`          |
+| UTS-003-A5 | `parseSlotSet(['lunch','lunch'])` | throws `DuplicateSlotError`         |
+| UTS-003-A6 | `parseSlotSet(['brunch'])`        | throws `UnknownSlotError`           |
 
-```
-Arrange:
-  repo = mock({ insert: async () => ({ id: 'plan-1' }) })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-01-01', endDate: '2026-12-31', slots: [] }  // 364 days
-Act:
-  result = await service.createPlan(dto, 'user-1')
-Assert:
-  repo.insert called once
-```
+#### UTP-003-B — Ordering
 
-**UTS-002-B2**
+| Scenario   | Input                                    | Expected                                               |
+| ---------- | ---------------------------------------- | ------------------------------------------------------ |
+| UTS-003-B1 | `['snack','breakfast','dinner','lunch']` | `['breakfast','lunch','dinner','snack']`               |
+| UTS-003-B2 | any subset                               | ordered by `MEAL_SLOT_ORDER`, **never alphabetically** |
 
-```
-Arrange:
-  repo = mock({ insert: async () => ({ id: 'plan-1' }) })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-01-01', endDate: '2027-01-01', slots: [] }  // 365 days
-Act:
-  result = await service.createPlan(dto, 'user-1')
-Assert:
-  repo.insert called once
-```
-
-**UTS-002-B3**
-
-```
-Arrange:
-  repo = mock({ insert: jest.fn() })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-01-01', endDate: '2027-01-02', slots: [] }  // 366 days
-Act:
-  call = () => service.createPlan(dto, 'user-1')
-Assert:
-  call() rejects with InvalidDateRangeException
-  repo.insert not called
-```
+UTS-003-B2 fails an alphabetical sort (`breakfast, dinner, lunch, snack`) — the plausible-and-wrong implementation.
 
 ---
 
-#### UTP-002-C — Equivalence Partitioning: mealType enum
+## MOD-004: aggregatePlanNutrition — the deepest suite
 
-**Technique**: Equivalence Partitioning
-**Source View**: Internal Data Structures
-**Covers**: `mealType` enum {BREAKFAST, LUNCH, DINNER, SNACK} vs invalid values
+**Parent**: ARCH-004 · **Target**: `packages/shared/meal-plan-core/src/nutritionRollup.ts`
 
-| Scenario | ID         | Description                              |
-| -------- | ---------- | ---------------------------------------- |
-| 1        | UTS-002-C1 | mealType = 'BREAKFAST' → valid partition |
-| 2        | UTS-002-C2 | mealType = 'SNACK' → valid partition     |
-| 3        | UTS-002-C3 | mealType = 'BRUNCH' → invalid partition  |
+This module carries every nutrition rule in the feature and is pure, so it gets the heaviest coverage. It is also the
+prime target for mutation testing (`ENGINEERING_EXCELLENCE.md` → QSE §4).
 
-**UTS-002-C1**
+#### UTP-004-A — Statement & Branch Coverage: the fold
 
-```
-Arrange:
-  repo = mock({ insert: async () => ({ id: 'plan-1' }) })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-01', endDate: '2026-06-08', slots: [{ dayOffset: 0, mealType: 'BREAKFAST' }] }
-Act:
-  result = await service.createPlan(dto, 'user-1')
-Assert:
-  repo.insert called once
-```
+| Scenario   | Description                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| UTS-004-A1 | One entry, complete nutrition, `servings = 1` → totals equal the recipe's per-serving values          |
+| UTS-004-A2 | One entry, `servings = 3` → every macro exactly tripled                                               |
+| UTS-004-A3 | Two entries on one day → macros summed                                                                |
+| UTS-004-A4 | Entries across two days → each day totalled independently; plan total is their sum                    |
+| UTS-004-A5 | An entry whose recipe nutrition has `isComplete: false` → values counted, **day** `isComplete: false` |
+| UTS-004-A6 | An entry whose recipe maps to `null` (unreadable) → contributes **nothing**, day `isComplete: false`  |
+| UTS-004-A7 | An entry whose recipe id is **absent** from the map → same as A6                                      |
 
-**UTS-002-C2**
+**UTS-004-A6**
 
 ```
 Arrange:
-  repo = mock({ insert: async () => ({ id: 'plan-1' }) })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-01', endDate: '2026-06-08', slots: [{ dayOffset: 0, mealType: 'SNACK' }] }
+  range   = dateRange('2026-05-11','2026-05-12')
+  entries = [ entry(r1, '2026-05-11', 'dinner', servings 2),
+              entry(r2, '2026-05-11', 'lunch',  servings 1) ]
+  map     = Map([[r1, { calories:100, proteinG:10, carbsG:20, fatG:5, isComplete:true }],
+                 [r2, null]])
 Act:
-  result = await service.createPlan(dto, 'user-1')
+  result = aggregatePlanNutrition(range, entries, map)
 Assert:
-  repo.insert called once
+  result.perDay[0].totals   equals { calories:200, proteinG:20, carbsG:40, fatG:10 }   // r2 contributed NOTHING
+  result.perDay[0].isComplete === false                                                 // and destroyed completeness
+  result.planTotal.isComplete === false
 ```
 
-**UTS-002-C3**
+Asserting **both** halves matters: an implementation that skipped `r2` but left `isComplete: true` would produce a
+confidently wrong number (HAZ-032) and would pass a test that only checked the arithmetic.
 
-```
-Arrange:
-  repo = mock({ insert: jest.fn() })
-  service = new MealPlanService(repo)
-  dto = { startDate: '2026-06-01', endDate: '2026-06-08', slots: [{ dayOffset: 0, mealType: 'BRUNCH' }] }
-Act:
-  call = () => service.createPlan(dto, 'user-1')
-Assert:
-  call() rejects with InvalidSlotException
-```
+#### UTP-004-B — Absent vs. zero (HAZ-033)
 
----
+| Scenario   | Description                                                                                     |
+| ---------- | ----------------------------------------------------------------------------------------------- |
+| UTS-004-B1 | A day with **no entries** → `totals === undefined`, **not** a zeroed Macros object              |
+| UTS-004-B2 | A day with no entries → `isComplete === true` (nothing is unaccounted for)                      |
+| UTS-004-B3 | A plan with **no entries at all** → `planTotal.totals === undefined`, `isComplete === true`     |
+| UTS-004-B4 | A plan where every entry is orphaned → `planTotal.totals === undefined`, `isComplete === false` |
+| UTS-004-B5 | A genuine zero-calorie recipe → `totals` is **defined** with `calories: 0`                      |
 
-### MOD-003: MealPlanRepository
+B1 vs. B5 is the discrimination the whole design rests on: "nothing planned" and "planned, zero calories" must not
+render identically.
 
-**Parent Architecture Modules**: ARCH-003
-**Target Source File(s)**: `src/meal-planning/repositories/meal-plan.repository.ts`
+#### UTP-004-C — Shape completeness
 
----
+| Scenario   | Description                                                                    |
+| ---------- | ------------------------------------------------------------------------------ |
+| UTS-004-C1 | `perDay.length === dayCount(range)` for a 1-day plan                           |
+| UTS-004-C2 | …for a 90-day plan with entries on only two days — 88 empty days still present |
+| UTS-004-C3 | `perDay` is ordered ascending by date                                          |
+| UTS-004-C4 | An entry dated outside the range is **not** silently added as an extra day     |
 
-#### UTP-003-A — Branch Coverage: insert slot bulk path
+#### UTP-004-D — Boundary Value Analysis
 
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF data.slots.length > 0` branch in `insert`
+| Scenario   | Input                              | Expected                                          |
+| ---------- | ---------------------------------- | ------------------------------------------------- |
+| UTS-004-D1 | `servings = 1`                     | ×1                                                |
+| UTS-004-D2 | `servings = 99`                    | ×99, no overflow or precision loss                |
+| UTS-004-D3 | 360 entries (90 days × 4 slots)    | completes; totals equal a reference sum           |
+| UTS-004-D4 | macros with 2-dp fractional values | accumulated without drift beyond a stated epsilon |
 
-| Scenario | ID         | Description                                |
-| -------- | ---------- | ------------------------------------------ |
-| 1        | UTS-003-A1 | slots array empty → bulk insert NOT called |
-| 2        | UTS-003-A2 | slots array non-empty → bulk insert called |
+#### UTP-004-E — Property-Based
 
-**UTS-003-A1**
+| Scenario   | Property                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-004-E1 | **Order independence** — shuffling `entries` never changes the result                                                                             |
+| UTS-004-E2 | **Servings linearity** — multiplying every `servings` by _k_ multiplies every macro by exactly _k_                                                |
+| UTS-004-E3 | **Monotonic completeness** — if any contributing input is incomplete or missing, the day is incomplete; adding a complete entry never restores it |
+| UTS-004-E4 | **Additivity** — the plan total equals the sum of day totals, for any generated plan                                                              |
+| UTS-004-E5 | **Purity** — calling twice with the same inputs returns deep-equal results                                                                        |
 
-```
-Arrange:
-  db = mock with insert chain returning [{ id: 'plan-1' }] for mealPlansTable
-  repo = new MealPlanRepository(db)
-  data = { userId: 'user-1', name: 'Week 1', startDate: new Date('2026-06-01'), endDate: new Date('2026-06-08'), slots: [] }
-Act:
-  result = await repo.insert(data)
-Assert:
-  db.insert called once (mealPlansTable only)
-  result.id === 'plan-1'
-```
+#### UTP-004-F — Mutation gate
 
-**UTS-003-A2**
-
-```
-Arrange:
-  db = mock with two insert calls: first returns plan row, second returns slot rows
-  repo = new MealPlanRepository(db)
-  data = { userId: 'user-1', name: 'Week 1', startDate: new Date('2026-06-01'), endDate: new Date('2026-06-08'), slots: [{ dayOffset: 0, mealType: 'BREAKFAST' }] }
-Act:
-  result = await repo.insert(data)
-Assert:
-  db.insert called twice (mealPlansTable + mealSlotsTable)
-  result.id defined
-```
+Not a test but a required check: run mutation testing over this module. Surviving mutants on the `isComplete`
+propagation or the servings multiply are release blockers.
 
 ---
 
-#### UTP-003-B — Strict Isolation: findByIdAndUser enforces userId filter
+## MOD-005: mealPlanAccessPolicy
 
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: Row-level security — userId always included in WHERE clause
+**Parent**: ARCH-005 · **Target**: `packages/shared/meal-plan-core/src/mealPlanAccessPolicy.ts`
 
-| Scenario | ID         | Description                                    |
-| -------- | ---------- | ---------------------------------------------- |
-| 1        | UTS-003-B1 | Query includes both planId and userId in WHERE |
-| 2        | UTS-003-B2 | No matching row → returns null                 |
+#### UTP-005-A — Strict Isolation + Error Guessing: fail-closed
 
-**UTS-003-B1**
+| Scenario   | Viewer              | Resource owner | Expected                                       |
+| ---------- | ------------------- | -------------- | ---------------------------------------------- |
+| UTS-005-A1 | `{ id: 'u1' }`      | `'u1'`         | true                                           |
+| UTS-005-A2 | `{ id: 'u2' }`      | `'u1'`         | false                                          |
+| UTS-005-A3 | `{ id: undefined }` | `'u1'`         | **false** — an unresolved viewer can never own |
+| UTS-005-A4 | `{ id: '' }`        | `''`           | **false** — empty must not match empty         |
 
-```
-Arrange:
-  db = mock that captures WHERE predicates; returns [{ id: 'plan-1', userId: 'user-1' }]
-  repo = new MealPlanRepository(db)
-Act:
-  result = await repo.findByIdAndUser('plan-1', 'user-1')
-Assert:
-  WHERE clause contains eq(mealPlansTable.id, 'plan-1') AND eq(mealPlansTable.userId, 'user-1')
-  result.id === 'plan-1'
-```
-
-**UTS-003-B2**
-
-```
-Arrange:
-  db = mock that returns []
-  repo = new MealPlanRepository(db)
-Act:
-  result = await repo.findByIdAndUser('plan-999', 'user-1')
-Assert:
-  result === null
-```
+A3 and A4 are the security cases. An implementation using loose equality or a truthiness check passes A1/A2 and fails
+these.
 
 ---
 
-### MOD-004: RecipeAssignmentController
+## MOD-006: templateProjection
 
-**Parent Architecture Modules**: ARCH-004
-**Target Source File(s)**: `src/meal-planning/controllers/recipe-assignment.controller.ts`
+**Parent**: ARCH-006 · **Target**: `packages/shared/meal-plan-core/src/templateProjection.ts`
 
----
+#### UTP-006-A — Branch Coverage: skip reasons
 
-#### UTP-004-A — Strict Isolation: all handlers delegate to service
+| Scenario   | Description                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| UTS-006-A1 | All recipes readable, all offsets in range → all entries mapped, both skip counts `0`       |
+| UTS-006-A2 | One recipe unreadable → skipped, `unreadableRecipe === 1`, others still mapped              |
+| UTS-006-A3 | One offset ≥ span → skipped, `outOfRange === 1`                                             |
+| UTS-006-A4 | An entry both unreadable **and** out of range → counted **once**, under `unreadableRecipe`  |
+| UTS-006-A5 | Readability map missing an id entirely → treated as unreadable (**fail closed**)            |
+| UTS-006-A6 | Empty template → empty plan, both counts `0`                                                |
+| UTS-006-A7 | Every recipe unreadable → empty plan, `unreadableRecipe === template.entries.length`        |
+| UTS-006-A8 | Entry's slot not in the plan's selected set → skipped, `slotNotSelected === 1` (REQ-CN-013) |
+| UTS-006-A9 | Two entries target one (offset, slot) cell → second skipped, `occupied === 1` (REQ-CN-010)  |
 
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: Controller contains no business logic; all calls forwarded to RecipeAssignmentService
+A4 pins the ordering: double-counting one entry would misreport the total to the user.
 
-| Scenario | ID         | Description                                            |
-| -------- | ---------- | ------------------------------------------------------ |
-| 1        | UTS-004-A1 | assignRecipe delegates to service.assignRecipe         |
-| 2        | UTS-004-A2 | removeAssignment delegates to service.removeAssignment |
+#### UTP-006-B — Boundary Value Analysis: offsets
 
-**UTS-004-A1**
+| Scenario   | `dayOffset` | span | Expected             |
+| ---------- | ----------- | ---- | -------------------- |
+| UTS-006-B1 | 0           | 7    | maps to `startDate`  |
+| UTS-006-B2 | 6           | 7    | maps to the last day |
+| UTS-006-B3 | 7           | 7    | out of range         |
+| UTS-006-B4 | 0           | 1    | maps                 |
 
-```
-Arrange:
-  service = mock({ assignRecipe: async () => ({ slotId: 'slot-1', recipeId: 'recipe-1' }) })
-  controller = new RecipeAssignmentController(service)
-  body = { recipeId: 'recipe-1' }
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  result = await controller.assignRecipe('slot-1', body, authContext)
-Assert:
-  service.assignRecipe called once with ('slot-1', 'recipe-1', 'user-1')
-  result.slotId === 'slot-1'
-```
+#### UTP-006-C — Property-Based
 
-**UTS-004-A2**
+| Scenario   | Property                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-006-C1 | **Round trip** — for any plan, `applyTemplate(toTemplate(plan), plan.startDate, allReadable)` reproduces the original entries' (date, slot, recipe, servings) |
+| UTS-006-C2 | **Date independence** — applying the same template at two different start dates yields entries at identical relative offsets                                  |
+| UTS-006-C3 | **Conservation** — `mapped + unreadableRecipe + outOfRange + slotNotSelected + occupied === template.entries.length`, always                                  |
 
-```
-Arrange:
-  service = mock({ removeAssignment: async () => undefined })
-  controller = new RecipeAssignmentController(service)
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  await controller.removeAssignment('slot-1', authContext)
-Assert:
-  service.removeAssignment called once with ('slot-1', 'user-1')
-```
+C3 is the invariant that makes the skip report trustworthy; without it entries could vanish uncounted.
 
----
+#### UTP-006-D — DST
 
-### MOD-005: RecipeAssignmentService
-
-**Parent Architecture Modules**: ARCH-005
-**Target Source File(s)**: `src/meal-planning/services/recipe-assignment.service.ts`
+| Scenario   | Description                                                                             |
+| ---------- | --------------------------------------------------------------------------------------- |
+| UTS-006-D1 | A template applied across a DST transition places entries on the intended calendar days |
 
 ---
 
-#### UTP-005-A — Branch Coverage: assignRecipe ownership check
+## MOD-007: groceryProjection
 
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF slot IS NULL → throw SlotNotFoundException`
+**Parent**: ARCH-007 · **Target**: `packages/shared/meal-plan-core/src/groceryProjection.ts`
 
-| Scenario | ID         | Description                                            |
-| -------- | ---------- | ------------------------------------------------------ |
-| 1        | UTS-005-A1 | Slot not found for user → throws SlotNotFoundException |
-| 2        | UTS-005-A2 | Slot found → calls upsertAssignment and returns result |
+| Test case | Scenario   | Description                                                                                                          |
+| --------- | ---------- | -------------------------------------------------------------------------------------------------------------------- |
+| UTP-007-A | UTS-007-A1 | Projection carries `version: 'v1'`, plan id and date range                                                           |
+|           | UTS-007-A2 | Each entry exposes exactly `recipeId`, `date`, `mealSlot`, `servings` — **no ingredients, no note, no internal ids** |
+|           | UTS-007-A3 | Orphaned entries are **excluded**                                                                                    |
+|           | UTS-007-A4 | An empty plan yields `entries: []`, not `undefined`                                                                  |
 
-**UTS-005-A1**
-
-```
-Arrange:
-  repo = mock({ findSlotByIdAndUser: async () => null, upsertAssignment: jest.fn() })
-  service = new RecipeAssignmentService(repo)
-Act:
-  call = () => service.assignRecipe('slot-1', 'recipe-1', 'user-1')
-Assert:
-  call() rejects with SlotNotFoundException
-  repo.upsertAssignment not called
-```
-
-**UTS-005-A2**
-
-```
-Arrange:
-  repo = mock({ findSlotByIdAndUser: async () => ({ id: 'slot-1' }), upsertAssignment: async () => ({ slotId: 'slot-1', recipeId: 'recipe-1' }) })
-  service = new RecipeAssignmentService(repo)
-Act:
-  result = await service.assignRecipe('slot-1', 'recipe-1', 'user-1')
-Assert:
-  repo.upsertAssignment called once with ('slot-1', 'recipe-1')
-  result.recipeId === 'recipe-1'
-```
+UTS-007-A2 is a contract test in unit form: it fails if someone adds a field, which is the point of a versioned wire
+shape.
 
 ---
 
-#### UTP-005-B — Branch Coverage: removeAssignment ownership check
+## MOD-008: mealPlanDatabaseName
 
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF slot IS NULL → throw SlotNotFoundException` in removeAssignment
+**Parent**: ARCH-008 · **Target**: `packages/shared/meal-plan-core/src/mealPlanDatabaseName.ts`
 
-| Scenario | ID         | Description                                   |
-| -------- | ---------- | --------------------------------------------- |
-| 1        | UTS-005-B1 | Slot not found → throws SlotNotFoundException |
-| 2        | UTS-005-B2 | Slot found → calls deleteAssignment           |
-
-**UTS-005-B1**
-
-```
-Arrange:
-  repo = mock({ findSlotByIdAndUser: async () => null, deleteAssignment: jest.fn() })
-  service = new RecipeAssignmentService(repo)
-Act:
-  call = () => service.removeAssignment('slot-1', 'user-1')
-Assert:
-  call() rejects with SlotNotFoundException
-  repo.deleteAssignment not called
-```
-
-**UTS-005-B2**
-
-```
-Arrange:
-  repo = mock({ findSlotByIdAndUser: async () => ({ id: 'slot-1' }), deleteAssignment: async () => undefined })
-  service = new RecipeAssignmentService(repo)
-Act:
-  await service.removeAssignment('slot-1', 'user-1')
-Assert:
-  repo.deleteAssignment called once with ('slot-1')
-```
+| Test case | Scenario   | Description                                                                                                       |
+| --------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| UTP-008-A | UTS-008-A1 | `stage === baseStage` → the base name                                                                             |
+|           | UTS-008-A2 | `stage = 'pr-73'`, base `'sandbox'` → `kitchensink_meal_plans_pr_73`                                              |
+|           | UTS-008-A3 | Hyphens sanitised to underscores                                                                                  |
+|           | UTS-008-A4 | `pr-1` and `pr-15` produce **different** names (delimiter-aware, ADR-0005 lesson)                                 |
+| UTP-008-B | UTS-008-B1 | **The module has no imports** — a static assertion, protecting the deploy-time constraint that caused defect #119 |
 
 ---
 
-### MOD-006: RecipeAssignmentRepository
+## MOD-009 – MOD-013: Controllers, services, repositories
 
-**Parent Architecture Modules**: ARCH-006
-**Target Source File(s)**: `src/meal-planning/repositories/recipe-assignment.repository.ts`
+Thin by design; the rules live in the pure modules above. Each gets branch coverage on its own guards plus error-path
+assertions. Representative cases:
 
----
+| MOD     | Test case | Scenario   | Description                                                                                                            |
+| ------- | --------- | ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| MOD-009 | UTP-009-A | UTS-009-A1 | Malformed body → `ZodError`; the service is **never reached** (assert no state change, not "mock not called")          |
+|         |           | UTS-009-A2 | `listQuerySchema` clamps `limit > 100` and defaults an absent `limit` to 20                                            |
+| MOD-010 | UTP-010-A | UTS-010-A1 | `create` with an invalid range surfaces `InvalidDateRangeError` unchanged                                              |
+|         |           | UTS-010-A2 | `getDetail` for a plan owned by someone else throws `MealPlanNotFoundError` — **the same error as absent**             |
+|         | UTP-010-B | UTS-010-B1 | Narrowing the range with entries outside it throws `EntriesOutsideNewRangeError` carrying the affected count (HAZ-029) |
+|         |           | UTS-010-B2 | Narrowing with **no** affected entries succeeds                                                                        |
+| MOD-011 | UTP-011-A | UTS-011-A1 | `findOwned` emits SQL containing the owner predicate (snapshot of the generated query)                                 |
+|         |           | UTS-011-A2 | Keyset page 2 excludes the last row of page 1 and includes no duplicates                                               |
+| MOD-012 | UTP-012-A | UTS-012-A1 | Date outside plan range → `DateOutsidePlanRangeError`                                                                  |
+|         |           | UTS-012-A2 | Slot not in the plan's slot set → `SlotNotInPlanError`                                                                 |
+|         |           | UTS-012-A3 | `servings = 0` and `100` → `InvalidServingsError`; `1` and `99` succeed                                                |
+|         |           | UTS-012-A4 | Note of 501 characters → `NoteTooLongError`; 500 succeeds                                                              |
+|         | UTP-012-B | UTS-012-B1 | Gateway `not-readable` → `RecipeNotReadableError`, and **no row is persisted**                                         |
+|         |           | UTS-012-B2 | Gateway `unavailable` → `RecipeCheckUnavailableError`, **no row persisted** — fail closed (HAZ-031)                    |
+|         |           | UTS-012-B3 | Same recipe assigned to two different cells → **both** persist (not a conflict)                                        |
+|         | UTP-012-C | UTS-012-C1 | Remove an already-removed entry → success-shaped, no error                                                             |
+| MOD-013 | UTP-013-A | UTS-013-A1 | Apply returns the plan as a **summary** (no `nutrition`) **and** the skip report from MOD-006 unaltered                |
+|         |           | UTS-013-A2 | A failure mid-insert leaves **no** plan row (transactional; asserted against the DB in integration)                    |
+|         |           | UTS-013-A3 | `availability` passes through verbatim — `degraded`/`unavailable` are **not** flattened to `available` (REQ-024)       |
 
-#### UTP-006-A — Branch Coverage: findSlotByIdAndUser join result
+UTS-012-B2 is the fail-open regression test. An implementation whose switch has a permissive `default` passes B1 and
+fails B2.
 
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: JOIN on mealPlansTable to enforce ownership; null return when no row
-
-| Scenario | ID         | Description                            |
-| -------- | ---------- | -------------------------------------- |
-| 1        | UTS-006-A1 | Row found → returns meal_slots portion |
-| 2        | UTS-006-A2 | No row → returns null                  |
-
-**UTS-006-A1**
-
-```
-Arrange:
-  db = mock returning [{ meal_slots: { id: 'slot-1', planId: 'plan-1' } }]
-  repo = new RecipeAssignmentRepository(db)
-Act:
-  result = await repo.findSlotByIdAndUser('slot-1', 'user-1')
-Assert:
-  result.id === 'slot-1'
-```
-
-**UTS-006-A2**
-
-```
-Arrange:
-  db = mock returning []
-  repo = new RecipeAssignmentRepository(db)
-Act:
-  result = await repo.findSlotByIdAndUser('slot-999', 'user-1')
-Assert:
-  result === null
-```
+> **UTS-013-A1 amended and UTS-013-A3 added, 2026-08-07.** A1 said only "returns the plan"; it now pins the plan to the
+> **summary** shape, because the apply response is written to the idempotency ledger and replayed for 24 h (REQ-015),
+> and a detail shape would carry a `nutrition` rollup — a persisted total, which REQ-CN-004 forbids outright and which
+> a replay would serve stale. A3 is new because nothing asserted that the gateway's three-state verdict survives the
+> call: flattening it is invisible in the happy path and only shows up as a user being told, during an outage, that
+> their recipes are gone (REQ-024). Both are properties a mutation would otherwise pass through untouched.
 
 ---
 
-#### UTP-006-B — Strict Isolation: upsertAssignment uses ON CONFLICT DO UPDATE
+## MOD-014: PlanNutritionService
 
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: Upsert semantics — existing assignment is replaced, not duplicated
+**Parent**: ARCH-014 · **Target**: `src/nutrition/plan-nutrition.service.ts`
 
-| Scenario | ID         | Description                                                  |
-| -------- | ---------- | ------------------------------------------------------------ |
-| 1        | UTS-006-B1 | upsertAssignment calls onConflictDoUpdate with slotId target |
+| Test case | Scenario   | Description                                                                                                                                                |
+| --------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTP-014-A | UTS-014-A1 | Distinct recipe ids are collected — 10 entries sharing 3 recipes request **3** ids                                                                         |
+|           | UTS-014-A2 | Zero entries → **no** gateway call, and every day still returned with `totals: undefined`                                                                  |
+|           | UTS-014-A3 | Gateway `unavailable` → summary returns with `isComplete: false`; **no throw**                                                                             |
+| UTP-014-B | UTS-014-B1 | The module performs no arithmetic: given a stubbed gateway, the output is byte-identical to calling `aggregatePlanNutrition` directly with the same inputs |
 
-**UTS-006-B1**
-
-```
-Arrange:
-  db = mock that captures insert chain; returning returns [{ slotId: 'slot-1', recipeId: 'recipe-2' }]
-  repo = new RecipeAssignmentRepository(db)
-Act:
-  result = await repo.upsertAssignment('slot-1', 'recipe-2')
-Assert:
-  onConflictDoUpdate called with { target: recipeAssignmentsTable.slotId, set: { recipeId: 'recipe-2' } }
-  result.recipeId === 'recipe-2'
-```
+UTS-014-B1 is a structural guard against macro logic creeping back into the orchestrator.
 
 ---
 
-### MOD-007: NutritionalSummaryController
+## MOD-015: RecipeGateway — the degradation suite
 
-**Parent Architecture Modules**: ARCH-007
-**Target Source File(s)**: `src/meal-planning/controllers/nutritional-summary.controller.ts`
+**Parent**: ARCH-015 · **Target**: `src/recipes/recipe.gateway.ts`
 
----
+Every scenario asserts the **returned value**. The gateway must never throw, so "does not reject" is asserted
+explicitly in each.
 
-#### UTP-007-A — Strict Isolation: handlers delegate to service
+#### UTP-015-A — Error Guessing: failure modes
 
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: getDailySummary and getWeeklySummary contain no logic; pure delegation
+| Scenario   | Stubbed transport               | Expected                                                       |
+| ---------- | ------------------------------- | -------------------------------------------------------------- |
+| UTS-015-A1 | 200 with valid payload          | `availability: 'available'`; map populated                     |
+| UTS-015-A2 | Timeout (AbortSignal fires)     | `availability: 'unavailable'`; empty map; **no throw**         |
+| UTS-015-A3 | 500                             | `'unavailable'`; **no throw**                                  |
+| UTS-015-A4 | 401 / 403                       | `'unavailable'`; **no throw**                                  |
+| UTS-015-A5 | Network error                   | `'unavailable'`; **no throw**                                  |
+| UTS-015-A6 | 200 with a malformed body       | `'unavailable'`; malformed data **not** leaked into the map    |
+| UTS-015-A7 | 200 with `nutrition: null` rows | `'available'`; those ids map to `null` (→ orphaned downstream) |
 
-| Scenario | ID         | Description                                            |
-| -------- | ---------- | ------------------------------------------------------ |
-| 1        | UTS-007-A1 | getDailySummary delegates to service.getDailySummary   |
-| 2        | UTS-007-A2 | getWeeklySummary delegates to service.getWeeklySummary |
+#### UTP-015-B — Partial batch (the three-state case)
 
-**UTS-007-A1**
+| Scenario   | Description                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| UTS-015-B1 | 250 ids, chunk 1 succeeds and chunk 2 fails → `availability: 'degraded'`, map holds chunk 1 only |
+| UTS-015-B2 | All chunks fail → `'unavailable'`                                                                |
+| UTS-015-B3 | All chunks succeed → `'available'`                                                               |
 
-```
-Arrange:
-  service = mock({ getDailySummary: async () => ({ calories: 2000 }) })
-  controller = new NutritionalSummaryController(service)
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  result = await controller.getDailySummary('plan-1', authContext)
-Assert:
-  service.getDailySummary called once with ('plan-1', 'user-1')
-  result.calories === 2000
-```
+B1 is the scenario a boolean `isAvailable` cannot express — the reason the discriminant is three-state.
 
-**UTS-007-A2**
+#### UTP-015-C — Chunking (BVA)
 
-```
-Arrange:
-  service = mock({ getWeeklySummary: async () => ({ calories: 14000 }) })
-  controller = new NutritionalSummaryController(service)
-  authContext = { userId: 'user-1', tier: 'free' }
-Act:
-  result = await controller.getWeeklySummary('plan-1', authContext)
-Assert:
-  service.getWeeklySummary called once with ('plan-1', 'user-1')
-  result.calories === 14000
-```
+| Scenario   | Ids | Expected requests |
+| ---------- | --- | ----------------- |
+| UTS-015-C1 | 0   | 0                 |
+| UTS-015-C2 | 1   | 1                 |
+| UTS-015-C3 | 360 | 1                 |
+| UTS-015-C4 | 500 | 1                 |
+| UTS-015-C5 | 501 | 2                 |
 
----
+> **Corrected 2026-08-07 (T033).** These rows read 100→1, 101→2 and 360→4 against MOD-015's stale
+> `BATCH_LIMIT = 100`. That limit contradicted REQ-010 — a maximal 90-day plan is 360 recipes and must be
+> read in EXACTLY ONE request — so the old 360→4 row asserted the very behaviour the requirement forbids.
+> The boundary now sits at 500, the provider limit REQ-IF-008 set because 500 > 360.
+> | UTS-015-C6 | duplicates in input | deduplicated before chunking |
 
-### MOD-008: NutritionalSummaryService
+#### UTP-015-D — Timeout mechanism (not just timeout behaviour)
 
-**Parent Architecture Modules**: ARCH-008
-**Target Source File(s)**: `src/meal-planning/services/nutritional-summary.service.ts`
+| Scenario   | Description                                                                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-015-D1 | The request is issued with an `AbortSignal`, and on timeout the underlying request is **aborted** — asserted by observing the abort event, not merely that the call returned (HAZ-034) |
 
----
+A `Promise.race` implementation passes A2 and fails D1. That is the entire distinction.
 
-#### UTP-008-A — Branch Coverage: cache hit vs miss
+#### UTP-015-E — Log discipline
 
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF cached IS NOT NULL → return cached` vs compute path
-
-| Scenario | ID         | Description                                                   |
-| -------- | ---------- | ------------------------------------------------------------- |
-| 1        | UTS-008-A1 | Cache hit → returns cached value without calling USDA adapter |
-| 2        | UTS-008-A2 | Cache miss → computes summary and stores in cache             |
-
-**UTS-008-A1**
-
-```
-Arrange:
-  cache = mock({ get: async () => ({ calories: 1800 }), set: jest.fn() })
-  usdaAdapter = mock({ fetchNutrition: jest.fn() })
-  repo = mock({ findByIdAndUser: async () => ({ id: 'plan-1', slots: [] }) })
-  service = new NutritionalSummaryService(repo, usdaAdapter, cache)
-Act:
-  result = await service.getDailySummary('plan-1', 'user-1')
-Assert:
-  cache.get called once
-  usdaAdapter.fetchNutrition not called
-  result.calories === 1800
-```
-
-**UTS-008-A2**
-
-```
-Arrange:
-  cache = mock({ get: async () => null, set: jest.fn() })
-  usdaAdapter = mock({ fetchNutrition: async () => ({ calories: 500, protein: 30 }) })
-  repo = mock({ findByIdAndUser: async () => ({ id: 'plan-1', slots: [{ assignment: { recipeId: 'r-1' } }] }) })
-  recipeAdapter = mock({ fetchRecipe: async () => ({ ingredients: [{ fdcId: 'fdc-1', quantity: 100 }] }) })
-  service = new NutritionalSummaryService(repo, usdaAdapter, cache, recipeAdapter)
-Act:
-  result = await service.getDailySummary('plan-1', 'user-1')
-Assert:
-  usdaAdapter.fetchNutrition called
-  cache.set called once with computed summary
-  result.calories > 0
-```
+| Scenario   | Description                                                                  |
+| ---------- | ---------------------------------------------------------------------------- |
+| UTS-015-E1 | 50 consecutive failures within the interval → at most **one** warn-level log |
+| UTS-015-E2 | A failure after the interval elapses → one further warn-level log            |
 
 ---
 
-#### UTP-008-B — Branch Coverage: cache failure is non-fatal
+## MOD-016: IdempotencyStore
 
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `CacheException (non-fatal)` — service continues when cache throws
+**Parent**: ARCH-016 · **Target**: `src/common/idempotency.store.ts`
 
-| Scenario | ID         | Description                                                     |
-| -------- | ---------- | --------------------------------------------------------------- |
-| 1        | UTS-008-B1 | cache.get throws CacheException → service computes live         |
-| 2        | UTS-008-B2 | cache.set throws CacheException → service returns result anyway |
+| Test case | Scenario   | Description                                                                                  |
+| --------- | ---------- | -------------------------------------------------------------------------------------------- |
+| UTP-016-A | UTS-016-A1 | Absent key → `lookup` returns `null`                                                         |
+|           | UTS-016-A2 | After `store`, `lookup` returns the exact stored body                                        |
+|           | UTS-016-A3 | Same key, **different owner** → `null` (no cross-tenant replay)                              |
+|           | UTS-016-A4 | Same key, **different endpoint** → `null`                                                    |
+|           | UTS-016-A5 | No `Idempotency-Key` supplied → `lookup` returns `null` without querying                     |
+| UTP-016-B | UTS-016-B1 | Two concurrent identical stores → exactly one row (`ON CONFLICT DO NOTHING`)                 |
+| UTP-016-C | UTS-016-C1 | A key stored more than 24 h ago is **not** returned by `lookup` — expired keys do not replay |
+|           | UTS-016-C2 | The prune statement is owner-scoped and capped at 50 rows (asserted on the generated SQL)    |
 
-**UTS-008-B1**
-
-```
-Arrange:
-  cache = mock({ get: async () => { throw new CacheException('Redis down') }, set: jest.fn() })
-  usdaAdapter = mock({ fetchNutrition: async () => ({ calories: 500 }) })
-  repo = mock({ findByIdAndUser: async () => ({ id: 'plan-1', slots: [] }) })
-  service = new NutritionalSummaryService(repo, usdaAdapter, cache)
-Act:
-  result = await service.getDailySummary('plan-1', 'user-1')
-Assert:
-  result defined (no exception propagated)
-  usdaAdapter.fetchNutrition called (fallback to live compute)
-```
-
-**UTS-008-B2**
-
-```
-Arrange:
-  cache = mock({ get: async () => null, set: async () => { throw new CacheException('Redis down') } })
-  usdaAdapter = mock({ fetchNutrition: async () => ({ calories: 500 }) })
-  repo = mock({ findByIdAndUser: async () => ({ id: 'plan-1', slots: [] }) })
-  service = new NutritionalSummaryService(repo, usdaAdapter, cache)
-Act:
-  result = await service.getDailySummary('plan-1', 'user-1')
-Assert:
-  result defined (cache.set failure does not propagate)
-```
+The transactional-coupling case (HAZ-030) is asserted at the integration tier, where a real transaction can be aborted.
 
 ---
 
-### MOD-009: NutritionalSummaryCache
+## MOD-017: Error classes and envelope
 
-**Parent Architecture Modules**: ARCH-009
-**Target Source File(s)**: `src/meal-planning/cache/nutritional-summary.cache.ts`
+| Test case | Scenario   | Description                                                                                                           |
+| --------- | ---------- | --------------------------------------------------------------------------------------------------------------------- |
+| UTP-017-A | UTS-017-A1 | Each error class satisfies `instanceof Error` **and** `instanceof <ItsClass>` — the `Object.setPrototypeOf` guarantee |
+|           | UTS-017-A2 | Each `is*` guard returns true for its own class and false for every sibling                                           |
+|           | UTS-017-A3 | `error.name` matches the class name                                                                                   |
+|           | UTS-017-A4 | Contextual fields (`planId`, `slot`, `affectedCount`) are carried on the instance                                     |
+| UTP-017-B | UTS-017-B1 | The filter maps each error to its documented `{code, status}`                                                         |
+|           | UTS-017-B2 | `RecipeNotReadableError` maps to the **same** code and body as `MealPlanNotFoundError` — no existence disclosure      |
+|           | UTS-017-B3 | An unknown error maps to a generic 500 with **no** stack trace or SQL in the body                                     |
 
----
-
-#### UTP-009-A — State Transition Testing: Empty ↔ Populated
-
-**Technique**: State Transition Testing
-**Source View**: State Machine View
-**Covers**: Empty→Populated (set), Populated→Empty (invalidate), Populated→Populated (get hit), Empty→Empty (get miss)
-
-| Scenario | ID         | Description                                                |
-| -------- | ---------- | ---------------------------------------------------------- |
-| 1        | UTS-009-A1 | Empty + get(key) → returns null (Empty→Empty)              |
-| 2        | UTS-009-A2 | Empty + set(key, value, ttl) → Populated (Empty→Populated) |
-| 3        | UTS-009-A3 | Populated + get(key) → returns value (Populated→Populated) |
-| 4        | UTS-009-A4 | Populated + invalidate(planId) → Empty (Populated→Empty)   |
-
-**UTS-009-A1**
-
-```
-Arrange:
-  redis = mock({ get: async () => null })
-  cache = new NutritionalSummaryCache(redis)
-Act:
-  result = await cache.get('nutrition:plan-1:daily')
-Assert:
-  result === null
-  redis.get called once with 'nutrition:plan-1:daily'
-```
-
-**UTS-009-A2**
-
-```
-Arrange:
-  redis = mock({ set: jest.fn() })
-  cache = new NutritionalSummaryCache(redis)
-  value = { calories: 2000, protein: 80 }
-Act:
-  await cache.set('nutrition:plan-1:daily', value, 3600)
-Assert:
-  redis.set called once with ('nutrition:plan-1:daily', JSON.stringify(value), 'EX', 3600)
-```
-
-**UTS-009-A3**
-
-```
-Arrange:
-  stored = { calories: 2000 }
-  redis = mock({ get: async () => JSON.stringify(stored) })
-  cache = new NutritionalSummaryCache(redis)
-Act:
-  result = await cache.get('nutrition:plan-1:daily')
-Assert:
-  result.calories === 2000
-```
-
-**UTS-009-A4**
-
-```
-Arrange:
-  redis = mock({ del: jest.fn() })
-  cache = new NutritionalSummaryCache(redis)
-Act:
-  await cache.invalidate('plan-1')
-Assert:
-  redis.del called once with ('nutrition:plan-1:daily', 'nutrition:plan-1:weekly')
-```
+UTS-017-A1 fails if `Object.setPrototypeOf` is omitted — the exact bug the convention exists to prevent.
 
 ---
 
-#### UTP-009-B — Boundary Value Analysis: ttl boundary
+## MOD-018: AccountErasureParticipant
 
-**Technique**: Boundary Value Analysis
-**Source View**: Internal Data Structures
-**Covers**: `ttl` scalar — must be positive; 0 is invalid (min-1 boundary)
-
-| Scenario | ID         | Description                        |
-| -------- | ---------- | ---------------------------------- |
-| 1        | UTS-009-B1 | ttl = 1 → valid (min boundary)     |
-| 2        | UTS-009-B2 | ttl = 3600 → valid (nominal)       |
-| 3        | UTS-009-B3 | ttl = 0 → invalid (min-1 boundary) |
-
-**UTS-009-B1**
-
-```
-Arrange:
-  redis = mock({ set: jest.fn() })
-  cache = new NutritionalSummaryCache(redis)
-Act:
-  await cache.set('key', { calories: 100 }, 1)
-Assert:
-  redis.set called with ('key', ..., 'EX', 1)
-```
-
-**UTS-009-B2**
-
-```
-Arrange:
-  redis = mock({ set: jest.fn() })
-  cache = new NutritionalSummaryCache(redis)
-Act:
-  await cache.set('key', { calories: 100 }, 3600)
-Assert:
-  redis.set called with ('key', ..., 'EX', 3600)
-```
-
-**UTS-009-B3**
-
-```
-Arrange:
-  redis = mock({ set: jest.fn() })
-  cache = new NutritionalSummaryCache(redis)
-Act:
-  call = () => cache.set('key', { calories: 100 }, 0)
-Assert:
-  call() rejects with RangeError or ValidationException (ttl must be > 0)
-```
+| Test case | Scenario   | Description                                                |
+| --------- | ---------- | ---------------------------------------------------------- |
+| UTP-018-A | UTS-018-A1 | Deletes across **all four** tables for the target owner    |
+|           | UTS-018-A2 | Leaves another owner's rows untouched                      |
+|           | UTS-018-A3 | Re-running after a completed erasure succeeds (idempotent) |
+|           | UTS-018-A4 | A user with no meal-plan data erases cleanly               |
 
 ---
 
-### MOD-010: AISuggestionController
+## MOD-019: useMealPlanBoard
 
-**Parent Architecture Modules**: ARCH-010
-**Target Source File(s)**: `src/meal-planning/controllers/ai-suggestion.controller.ts`
-
----
-
-#### UTP-010-A — Strict Isolation: handler delegates to service
-
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: getSuggestions contains no logic; pure delegation to AISuggestionService
-
-| Scenario | ID         | Description                                        |
-| -------- | ---------- | -------------------------------------------------- |
-| 1        | UTS-010-A1 | getSuggestions delegates to service.getSuggestions |
-
-**UTS-010-A1**
-
-```
-Arrange:
-  service = mock({ getSuggestions: async () => ({ suggestions: [{ recipeId: 'r-1', score: 0.9 }] }) })
-  controller = new AISuggestionController(service)
-  body = { dietaryPreferences: { vegetarian: true } }
-  authContext = { userId: 'user-1', tier: 'premium' }
-Act:
-  result = await controller.getSuggestions(body, authContext)
-Assert:
-  service.getSuggestions called once with (body.dietaryPreferences, 'user-1')
-  result.suggestions.length === 1
-```
+| Test case | Scenario   | Description                                                                                        |
+| --------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| UTP-019-A | UTS-019-A1 | `selectBoard` is pure and unit-tested **without React** — given data, produces the view model      |
+|           | UTS-019-A2 | An orphaned entry maps to `{ kind: 'orphaned' }`                                                   |
+|           | UTS-019-A3 | An in-flight optimistic entry maps to `{ kind: 'pending' }`                                        |
+| UTP-019-B | UTS-019-B1 | `assign` applies an optimistic entry immediately                                                   |
+|           | UTS-019-B2 | On error the optimistic entry rolls back and an error state is exposed                             |
+|           | UTS-019-B3 | Mutations do **not** auto-retry (`retry: false`) — a client retry would race the optimistic update |
 
 ---
 
-### MOD-011: AISuggestionService
+## MOD-020 – MOD-023: Render components, platform layer, widget, messages
 
-**Parent Architecture Modules**: ARCH-011
-**Target Source File(s)**: `src/meal-planning/services/ai-suggestion.service.ts`
+Component tests are enumerated per state in [`system-test.md`](./system-test.md) and
+[`tasks.md`](../tasks.md); unit-level cases here cover pure logic only.
 
----
-
-#### UTP-011-A — Branch Coverage: AI response parsing
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: Parse AI JSON response; handle malformed JSON; handle empty suggestions array
-
-| Scenario | ID         | Description                                    |
-| -------- | ---------- | ---------------------------------------------- |
-| 1        | UTS-011-A1 | Valid AI JSON → returns parsed suggestions     |
-| 2        | UTS-011-A2 | Malformed JSON from AI → throws ParseException |
-| 3        | UTS-011-A3 | Empty suggestions array → returns empty list   |
-
-**UTS-011-A1**
-
-```
-Arrange:
-  aiAdapter = mock({ invoke: async () => ({ content: JSON.stringify([{ recipeId: 'r-1', score: 0.9 }]) }) })
-  recipeAdapter = mock({ fetchUserRecipes: async () => [{ id: 'r-1', name: 'Pasta' }] })
-  service = new AISuggestionService(aiAdapter, recipeAdapter)
-Act:
-  result = await service.getSuggestions({ vegetarian: true }, 'user-1')
-Assert:
-  result.suggestions[0].recipeId === 'r-1'
-```
-
-**UTS-011-A2**
-
-```
-Arrange:
-  aiAdapter = mock({ invoke: async () => ({ content: 'not valid json {{{' }) })
-  recipeAdapter = mock({ fetchUserRecipes: async () => [] })
-  service = new AISuggestionService(aiAdapter, recipeAdapter)
-Act:
-  call = () => service.getSuggestions({ vegetarian: true }, 'user-1')
-Assert:
-  call() rejects with ParseException
-```
-
-**UTS-011-A3**
-
-```
-Arrange:
-  aiAdapter = mock({ invoke: async () => ({ content: JSON.stringify([]) }) })
-  recipeAdapter = mock({ fetchUserRecipes: async () => [] })
-  service = new AISuggestionService(aiAdapter, recipeAdapter)
-Act:
-  result = await service.getSuggestions({ vegetarian: true }, 'user-1')
-Assert:
-  result.suggestions.length === 0
-```
+| MOD     | Test case | Scenario   | Description                                                                                                                                                       |
+| ------- | --------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MOD-020 | UTP-020-A | UTS-020-A1 | The `EntryViewState` switch is exhaustive — an added union member fails `typecheck` (type-level test)                                                             |
+|         |           | UTS-020-A2 | No render component accepts a behaviour-switching boolean prop (lint-enforced; asserted by a props-shape test)                                                    |
+| MOD-021 | UTP-021-A | UTS-021-A1 | Web and native board modules export **identical** public API surfaces (type-level)                                                                                |
+| MOD-022 | UTP-022-A | UTS-022-A1 | The descriptor's `id`, `capability` and `defaultWeight` match the retired roadmap spec exactly — so Home ordering does not shift when the placeholder is replaced |
+|         |           | UTS-022-A2 | `ROADMAP_WIDGET_SPECS` contains **no** `meal-plan` entry (SC-006-005)                                                                                             |
+| MOD-023 | UTP-023-A | UTS-023-A1 | Every message key used by the package exists in the `en` dictionary                                                                                               |
+|         |           | UTS-023-A2 | No user-visible string literal exists outside `messages.ts` (lint rule test)                                                                                      |
+|         |           | UTS-023-A3 | `errors` is **total** over `MealPlanErrorCode`, and an unrecognized code resolves to localized generic copy — never to the envelope's `message` (REQ-023)         |
 
 ---
 
-### MOD-012: AutoGenerateController
+## MOD-025: MealPlanClient
 
-**Parent Architecture Modules**: ARCH-012
-**Target Source File(s)**: `src/meal-planning/controllers/auto-generate.controller.ts`
-
----
-
-#### UTP-012-A — Strict Isolation: handler delegates to service
-
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: autoGenerate contains no logic; pure delegation to AutoGenerateService
-
-| Scenario | ID         | Description                                    |
-| -------- | ---------- | ---------------------------------------------- |
-| 1        | UTS-012-A1 | autoGenerate delegates to service.autoGenerate |
-
-**UTS-012-A1**
-
-```
-Arrange:
-  service = mock({ autoGenerate: async () => ({ id: 'plan-1', slots: [] }) })
-  controller = new AutoGenerateController(service)
-  body = { preferences: { vegetarian: true }, dateRange: { startDate: '2026-06-01', endDate: '2026-06-08' } }
-  authContext = { userId: 'user-1', tier: 'premium' }
-Act:
-  result = await controller.autoGenerate(body, authContext)
-Assert:
-  service.autoGenerate called once with (body.preferences, body.dateRange, 'user-1')
-  result.id === 'plan-1'
-```
+| Test case | Scenario   | Description                                                                              |
+| --------- | ---------- | ---------------------------------------------------------------------------------------- |
+| UTP-025-A | UTS-025-A1 | A `{code,message}` error body maps to the matching typed client error                    |
+|           | UTS-025-A2 | A 404 maps to a not-found error regardless of whether the cause was absence or ownership |
+|           | UTS-025-A3 | `Idempotency-Key` is attached to entry-create and template-apply requests                |
+|           | UTS-025-A4 | Query keys are stable and include the plan id (cache-correctness)                        |
+|           | UTS-025-A5 | The plans infinite query advances by `nextCursor` and stops when it is absent (REQ-025)  |
 
 ---
 
-### MOD-013: AutoGenerateService
-
-**Parent Architecture Modules**: ARCH-013
-**Target Source File(s)**: `src/meal-planning/services/auto-generate.service.ts`
-
----
-
-#### UTP-013-A — Branch Coverage: slot generation loop
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `FOR day IN 0..dayCount-1 FOR mealType IN [BREAKFAST, LUNCH, DINNER]` — correct slot count
-
-| Scenario | ID         | Description                                                |
-| -------- | ---------- | ---------------------------------------------------------- |
-| 1        | UTS-013-A1 | 1-day range → generates 3 slots (BREAKFAST, LUNCH, DINNER) |
-| 2        | UTS-013-A2 | 7-day range → generates 21 slots                           |
-
-**UTS-013-A1**
-
-```
-Arrange:
-  mealPlanService = mock({ createPlan: async (dto) => ({ id: 'plan-1', slots: dto.slots }) })
-  aiSuggestionService = mock({ getSuggestions: async () => ({ suggestions: [] }) })
-  recipeAssignmentService = mock({ bulkAssign: async () => [] })
-  service = new AutoGenerateService(mealPlanService, aiSuggestionService, recipeAssignmentService)
-  dateRange = { startDate: '2026-06-01', endDate: '2026-06-02' }  // 1 day
-Act:
-  result = await service.autoGenerate({}, dateRange, 'user-1')
-Assert:
-  mealPlanService.createPlan called with dto.slots.length === 3
-  dto.slots contains BREAKFAST, LUNCH, DINNER for dayOffset 0
-```
-
-**UTS-013-A2**
-
-```
-Arrange:
-  mealPlanService = mock({ createPlan: async (dto) => ({ id: 'plan-1', slots: dto.slots }) })
-  aiSuggestionService = mock({ getSuggestions: async () => ({ suggestions: [] }) })
-  recipeAssignmentService = mock({ bulkAssign: async () => [] })
-  service = new AutoGenerateService(mealPlanService, aiSuggestionService, recipeAssignmentService)
-  dateRange = { startDate: '2026-06-01', endDate: '2026-06-08' }  // 7 days
-Act:
-  result = await service.autoGenerate({}, dateRange, 'user-1')
-Assert:
-  mealPlanService.createPlan called with dto.slots.length === 21
-```
-
----
-
-#### UTP-013-B — Strict Isolation: orchestration order
-
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: Steps 1→2→3→4 execute in order; bulkAssign receives plan slots and ranked recipes
-
-| Scenario | ID         | Description                                |
-| -------- | ---------- | ------------------------------------------ |
-| 1        | UTS-013-B1 | All three services called in correct order |
-
-**UTS-013-B1**
-
-```
-Arrange:
-  callOrder = []
-  mealPlanService = mock({ createPlan: async () => { callOrder.push('create'); return { id: 'plan-1', slots: [{ id: 's-1' }] } } })
-  aiSuggestionService = mock({ getSuggestions: async () => { callOrder.push('suggest'); return { suggestions: [{ recipeId: 'r-1' }] } } })
-  recipeAssignmentService = mock({ bulkAssign: async () => { callOrder.push('assign'); return [] } })
-  service = new AutoGenerateService(mealPlanService, aiSuggestionService, recipeAssignmentService)
-Act:
-  await service.autoGenerate({}, { startDate: '2026-06-01', endDate: '2026-06-02' }, 'user-1')
-Assert:
-  callOrder === ['create', 'suggest', 'assign']
-```
-
----
-
-### MOD-014: WasteOptimizationController
-
-**Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/meal-planning/controllers/waste-optimization.controller.ts`
-
----
-
-#### UTP-014-A — Strict Isolation: handler delegates to service
-
-**Technique**: Strict Isolation
-**Source View**: Architecture Interface View
-**Covers**: getOptimizations contains no logic; pure delegation
-
-| Scenario | ID         | Description                                            |
-| -------- | ---------- | ------------------------------------------------------ |
-| 1        | UTS-014-A1 | getOptimizations delegates to service.getOptimizations |
-
-**UTS-014-A1**
-
-```
-Arrange:
-  service = mock({ getOptimizations: async () => ({ suggestions: [{ recipeId: 'r-2', overlapScore: 0.8 }] }) })
-  controller = new WasteOptimizationController(service)
-  authContext = { userId: 'user-1', tier: 'premium' }
-Act:
-  result = await controller.getOptimizations('plan-1', authContext)
-Assert:
-  service.getOptimizations called once with ('plan-1', 'user-1')
-  result.suggestions.length === 1
-```
-
----
-
-### MOD-015: WasteOptimizationService
-
-**Parent Architecture Modules**: ARCH-015
-**Target Source File(s)**: `src/meal-planning/services/waste-optimization.service.ts`
-
----
-
-#### UTP-015-A — Branch Coverage: ingredient overlap scoring
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: Overlap score computation; deduplication of ingredient IDs; ranking by score
-
-| Scenario | ID         | Description                                          |
-| -------- | ---------- | ---------------------------------------------------- |
-| 1        | UTS-015-A1 | Two recipes share ingredients → higher overlap score |
-| 2        | UTS-015-A2 | No shared ingredients → overlap score = 0            |
-| 3        | UTS-015-A3 | Duplicate ingredient IDs deduplicated before scoring |
-
-**UTS-015-A1**
-
-```
-Arrange:
-  // Plan has recipe r-1 with ingredients [A, B]; candidate r-2 has [A, B, C]
-  repo = mock({ findByIdAndUser: async () => ({ id: 'plan-1', slots: [{ assignment: { recipeId: 'r-1' } }] }) })
-  recipeAdapter = mock({
-    fetchRecipe: async (id) => id === 'r-1'
-      ? { ingredients: [{ fdcId: 'A' }, { fdcId: 'B' }] }
-      : { ingredients: [{ fdcId: 'A' }, { fdcId: 'B' }, { fdcId: 'C' }] },
-    fetchUserRecipes: async () => [{ id: 'r-2' }]
-  })
-  service = new WasteOptimizationService(repo, recipeAdapter)
-Act:
-  result = await service.getOptimizations('plan-1', 'user-1')
-Assert:
-  result.suggestions[0].recipeId === 'r-2'
-  result.suggestions[0].overlapScore > 0
-```
-
-**UTS-015-A2**
-
-```
-Arrange:
-  repo = mock({ findByIdAndUser: async () => ({ id: 'plan-1', slots: [{ assignment: { recipeId: 'r-1' } }] }) })
-  recipeAdapter = mock({
-    fetchRecipe: async (id) => id === 'r-1'
-      ? { ingredients: [{ fdcId: 'A' }] }
-      : { ingredients: [{ fdcId: 'Z' }] },
-    fetchUserRecipes: async () => [{ id: 'r-2' }]
-  })
-  service = new WasteOptimizationService(repo, recipeAdapter)
-Act:
-  result = await service.getOptimizations('plan-1', 'user-1')
-Assert:
-  result.suggestions[0].overlapScore === 0
-```
-
-**UTS-015-A3**
-
-```
-Arrange:
-  // Plan has recipe r-1 with duplicate ingredient IDs [A, A, B]
-  repo = mock({ findByIdAndUser: async () => ({ id: 'plan-1', slots: [{ assignment: { recipeId: 'r-1' } }] }) })
-  recipeAdapter = mock({
-    fetchRecipe: async () => ({ ingredients: [{ fdcId: 'A' }, { fdcId: 'A' }, { fdcId: 'B' }] }),
-    fetchUserRecipes: async () => []
-  })
-  service = new WasteOptimizationService(repo, recipeAdapter)
-Act:
-  result = await service.getOptimizations('plan-1', 'user-1')
-Assert:
-  // allIngredientIds deduplicated to ['A', 'B'] — no error thrown
-  result defined
-```
-
----
-
-### MOD-016: RecipeApiAdapter
-
-**Parent Architecture Modules**: ARCH-016
-**Target Source File(s)**: `src/meal-planning/adapters/recipe-api.adapter.ts`
-
----
-
-#### UTP-016-A — Branch Coverage: fetchRecipe status codes
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF response.status == 404 → return null`, `IF response.status != 200 → throw`
-
-| Scenario | ID         | Description                                   |
-| -------- | ---------- | --------------------------------------------- |
-| 1        | UTS-016-A1 | HTTP 200 → returns RecipeDTO                  |
-| 2        | UTS-016-A2 | HTTP 404 → returns null                       |
-| 3        | UTS-016-A3 | HTTP 500 → throws ServiceUnavailableException |
-
-**UTS-016-A1**
-
-```
-Arrange:
-  httpClient = mock({ get: async () => ({ status: 200, data: { id: 'r-1', name: 'Pasta' } }) })
-  adapter = new RecipeApiAdapter(httpClient, config)
-Act:
-  result = await adapter.fetchRecipe('r-1', 'user-1')
-Assert:
-  result.id === 'r-1'
-```
-
-**UTS-016-A2**
-
-```
-Arrange:
-  httpClient = mock({ get: async () => ({ status: 404 }) })
-  adapter = new RecipeApiAdapter(httpClient, config)
-Act:
-  result = await adapter.fetchRecipe('r-999', 'user-1')
-Assert:
-  result === null
-```
-
-**UTS-016-A3**
-
-```
-Arrange:
-  httpClient = mock({ get: async () => ({ status: 500 }) })
-  adapter = new RecipeApiAdapter(httpClient, config)
-Act:
-  call = () => adapter.fetchRecipe('r-1', 'user-1')
-Assert:
-  call() rejects with ServiceUnavailableException
-```
-
----
-
-### MOD-017: UsdaFoodApiAdapter
-
-**Parent Architecture Modules**: ARCH-017
-**Target Source File(s)**: `src/meal-planning/adapters/usda-food-api.adapter.ts`
-
----
-
-#### UTP-017-A — Branch Coverage: circuit breaker state
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: Circuit breaker CLOSED (normal), OPEN (fast-fail), failure count increment
-
-| Scenario | ID         | Description                                                         |
-| -------- | ---------- | ------------------------------------------------------------------- |
-| 1        | UTS-017-A1 | Circuit CLOSED + HTTP 200 → returns NutritionDTO                    |
-| 2        | UTS-017-A2 | Circuit OPEN → throws ServiceUnavailableException without HTTP call |
-| 3        | UTS-017-A3 | HTTP error increments failure count toward OPEN threshold           |
-
-**UTS-017-A1**
-
-```
-Arrange:
-  httpClient = mock({ get: async () => ({ status: 200, data: { calories: 350 } }) })
-  adapter = new UsdaFoodApiAdapter(httpClient, config)
-  // circuit starts CLOSED
-Act:
-  result = await adapter.fetchNutrition('fdc-1', 100)
-Assert:
-  result.calories === 350
-  httpClient.get called once
-```
-
-**UTS-017-A2**
-
-```
-Arrange:
-  httpClient = mock({ get: jest.fn() })
-  adapter = new UsdaFoodApiAdapter(httpClient, config)
-  adapter.forceCircuitOpen()  // test helper to set circuit state
-Act:
-  call = () => adapter.fetchNutrition('fdc-1', 100)
-Assert:
-  call() rejects with ServiceUnavailableException('Circuit open')
-  httpClient.get not called
-```
-
-**UTS-017-A3**
-
-```
-Arrange:
-  httpClient = mock({ get: async () => ({ status: 503 }) })
-  adapter = new UsdaFoodApiAdapter(httpClient, config)
-  initialFailures = adapter.getFailureCount()
-Act:
-  try { await adapter.fetchNutrition('fdc-1', 100) } catch {}
-Assert:
-  adapter.getFailureCount() === initialFailures + 1
-```
-
----
-
-#### UTP-017-B — State Transition Testing: circuit breaker states
-
-**Technique**: State Transition Testing
-**Source View**: State Machine View
-**Covers**: CLOSED→OPEN (threshold reached), OPEN→HALF-OPEN (timeout), HALF-OPEN→CLOSED (success), HALF-OPEN→OPEN (failure)
-
-| Scenario | ID         | Description                                       |
-| -------- | ---------- | ------------------------------------------------- |
-| 1        | UTS-017-B1 | CLOSED + N failures → transitions to OPEN         |
-| 2        | UTS-017-B2 | OPEN + timeout elapsed → transitions to HALF-OPEN |
-| 3        | UTS-017-B3 | HALF-OPEN + success → transitions to CLOSED       |
-| 4        | UTS-017-B4 | HALF-OPEN + failure → transitions back to OPEN    |
-
-**UTS-017-B1**
-
-```
-Arrange:
-  httpClient = mock({ get: async () => ({ status: 503 }) })
-  adapter = new UsdaFoodApiAdapter(httpClient, { failureThreshold: 3, resetTimeout: 60000 })
-Act:
-  for i in 1..3: try { await adapter.fetchNutrition('fdc-1', 100) } catch {}
-Assert:
-  adapter.getCircuitState() === 'OPEN'
-```
-
-**UTS-017-B2**
-
-```
-Arrange:
-  adapter = new UsdaFoodApiAdapter(httpClient, { failureThreshold: 3, resetTimeout: 100 })
-  adapter.forceCircuitOpen()
-  await sleep(150)  // exceed resetTimeout
-Act:
-  adapter.checkCircuitState()
-Assert:
-  adapter.getCircuitState() === 'HALF-OPEN'
-```
-
-**UTS-017-B3**
-
-```
-Arrange:
-  httpClient = mock({ get: async () => ({ status: 200, data: { calories: 100 } }) })
-  adapter = new UsdaFoodApiAdapter(httpClient, config)
-  adapter.forceCircuitHalfOpen()
-Act:
-  await adapter.fetchNutrition('fdc-1', 100)
-Assert:
-  adapter.getCircuitState() === 'CLOSED'
-  adapter.getFailureCount() === 0
-```
-
-**UTS-017-B4**
-
-```
-Arrange:
-  httpClient = mock({ get: async () => ({ status: 503 }) })
-  adapter = new UsdaFoodApiAdapter(httpClient, config)
-  adapter.forceCircuitHalfOpen()
-Act:
-  try { await adapter.fetchNutrition('fdc-1', 100) } catch {}
-Assert:
-  adapter.getCircuitState() === 'OPEN'
-```
-
----
-
-### MOD-018: AiPromptBuilder
-
-**Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `src/meal-planning/utils/ai-prompt-builder.ts`
-
----
-
-#### UTP-018-A — Branch Coverage: prompt construction
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: Dietary preference flags included/excluded in prompt; recipe list serialization
-
-| Scenario | ID         | Description                                             |
-| -------- | ---------- | ------------------------------------------------------- |
-| 1        | UTS-018-A1 | vegetarian=true → prompt contains 'vegetarian'          |
-| 2        | UTS-018-A2 | vegetarian=false → prompt does NOT contain 'vegetarian' |
-| 3        | UTS-018-A3 | Empty recipe list → prompt is still valid (non-empty)   |
-| 4        | UTS-018-A4 | Non-empty recipe list → all recipe IDs appear in prompt |
-
-**UTS-018-A1**
-
-```
-Arrange:
-  builder = new AiPromptBuilder()
-  preferences = { vegetarian: true, glutenFree: false }
-  recipes = [{ id: 'r-1', name: 'Salad' }]
-Act:
-  prompt = builder.build(preferences, recipes)
-Assert:
-  prompt.text.includes('vegetarian')
-```
-
-**UTS-018-A2**
-
-```
-Arrange:
-  builder = new AiPromptBuilder()
-  preferences = { vegetarian: false }
-  recipes = []
-Act:
-  prompt = builder.build(preferences, recipes)
-Assert:
-  !prompt.text.includes('vegetarian')
-```
-
-**UTS-018-A3**
-
-```
-Arrange:
-  builder = new AiPromptBuilder()
-Act:
-  prompt = builder.build({}, [])
-Assert:
-  prompt.text defined
-  prompt.text.length > 0
-```
-
-**UTS-018-A4**
-
-```
-Arrange:
-  builder = new AiPromptBuilder()
-  recipes = [{ id: 'r-1', name: 'Pasta' }, { id: 'r-2', name: 'Salad' }]
-Act:
-  prompt = builder.build({}, recipes)
-Assert:
-  prompt.text.includes('r-1')
-  prompt.text.includes('r-2')
-```
-
----
-
-#### UTP-018-B — Boundary Value Analysis: maxTokens
-
-**Technique**: Boundary Value Analysis
-**Source View**: Internal Data Structures
-**Covers**: `maxTokens` scalar — default 1000; boundary at 1 (min) and 0 (min-1 invalid)
-
-| Scenario | ID         | Description                              |
-| -------- | ---------- | ---------------------------------------- |
-| 1        | UTS-018-B1 | No maxTokens override → defaults to 1000 |
-| 2        | UTS-018-B2 | maxTokens = 1 → valid (min boundary)     |
-| 3        | UTS-018-B3 | maxTokens = 0 → invalid (min-1 boundary) |
-
-**UTS-018-B1**
-
-```
-Arrange:
-  builder = new AiPromptBuilder()
-Act:
-  prompt = builder.build({}, [])
-Assert:
-  prompt.maxTokens === 1000
-```
-
-**UTS-018-B2**
-
-```
-Arrange:
-  builder = new AiPromptBuilder()
-Act:
-  prompt = builder.build({}, [], { maxTokens: 1 })
-Assert:
-  prompt.maxTokens === 1
-```
-
-**UTS-018-B3**
-
-```
-Arrange:
-  builder = new AiPromptBuilder()
-Act:
-  call = () => builder.build({}, [], { maxTokens: 0 })
-Assert:
-  call() throws RangeError or ValidationException
-```
-
----
-
-### MOD-019: AiProviderAdapter
-
-**Parent Architecture Modules**: ARCH-019
-**Target Source File(s)**: `src/meal-planning/adapters/ai-provider.adapter.ts`
-
----
-
-#### UTP-019-A — Branch Coverage: response parsing
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF response.status != 200 → throw`, `IF content IS NULL → throw ParseException`
-
-| Scenario | ID         | Description                                                             |
-| -------- | ---------- | ----------------------------------------------------------------------- |
-| 1        | UTS-019-A1 | HTTP 200 with content → returns AIResponseDTO                           |
-| 2        | UTS-019-A2 | HTTP non-200 → throws ServiceUnavailableException                       |
-| 3        | UTS-019-A3 | HTTP 200 but choices[0].message.content is null → throws ParseException |
-
-**UTS-019-A1**
-
-```
-Arrange:
-  httpClient = mock({ post: async () => ({ status: 200, data: { choices: [{ message: { content: 'suggestion json' } }] } }) })
-  adapter = new AiProviderAdapter(httpClient, config)
-Act:
-  result = await adapter.invoke({ text: 'suggest meals', maxTokens: 500 })
-Assert:
-  result.content === 'suggestion json'
-```
-
-**UTS-019-A2**
-
-```
-Arrange:
-  httpClient = mock({ post: async () => ({ status: 429 }) })
-  adapter = new AiProviderAdapter(httpClient, config)
-Act:
-  call = () => adapter.invoke({ text: 'suggest meals' })
-Assert:
-  call() rejects with ServiceUnavailableException('AI provider error: 429')
-```
-
-**UTS-019-A3**
-
-```
-Arrange:
-  httpClient = mock({ post: async () => ({ status: 200, data: { choices: [{ message: { content: null } }] } }) })
-  adapter = new AiProviderAdapter(httpClient, config)
-Act:
-  call = () => adapter.invoke({ text: 'suggest meals' })
-Assert:
-  call() rejects with ParseException('AI provider returned empty content')
-```
-
----
-
-#### UTP-019-B — Boundary Value Analysis: maxTokens and temperature defaults
-
-**Technique**: Boundary Value Analysis
-**Source View**: Internal Data Structures
-**Covers**: `maxTokens ?? 1000` and `temperature ?? 0.3` default application
-
-| Scenario | ID         | Description                                          |
-| -------- | ---------- | ---------------------------------------------------- |
-| 1        | UTS-019-B1 | prompt.maxTokens undefined → request body uses 1000  |
-| 2        | UTS-019-B2 | prompt.temperature undefined → request body uses 0.3 |
-| 3        | UTS-019-B3 | prompt.maxTokens = 500 → request body uses 500       |
-
-**UTS-019-B1**
-
-```
-Arrange:
-  capturedBody = null
-  httpClient = mock({ post: async (url, body) => { capturedBody = body; return { status: 200, data: { choices: [{ message: { content: 'ok' } }] } } } })
-  adapter = new AiProviderAdapter(httpClient, config)
-Act:
-  await adapter.invoke({ text: 'suggest' })
-Assert:
-  capturedBody.max_tokens === 1000
-```
-
-**UTS-019-B2**
-
-```
-Arrange:
-  capturedBody = null
-  httpClient = mock({ post: async (url, body) => { capturedBody = body; return { status: 200, data: { choices: [{ message: { content: 'ok' } }] } } } })
-  adapter = new AiProviderAdapter(httpClient, config)
-Act:
-  await adapter.invoke({ text: 'suggest' })
-Assert:
-  capturedBody.temperature === 0.3
-```
-
-**UTS-019-B3**
-
-```
-Arrange:
-  capturedBody = null
-  httpClient = mock({ post: async (url, body) => { capturedBody = body; return { status: 200, data: { choices: [{ message: { content: 'ok' } }] } } } })
-  adapter = new AiProviderAdapter(httpClient, config)
-Act:
-  await adapter.invoke({ text: 'suggest', maxTokens: 500 })
-Assert:
-  capturedBody.max_tokens === 500
-```
-
----
-
-### MOD-020: MealPlanPublicApiAdapter
-
-**Parent Architecture Modules**: ARCH-020
-**Target Source File(s)**: `src/meal-planning/adapters/meal-plan-public-api.adapter.ts`
-
----
-
-#### UTP-020-A — Branch Coverage: version dispatch
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF version == "v1"`, `ELSE IF version == "v2"`, `ELSE → throw UnsupportedVersionException`
-
-| Scenario | ID         | Description                                                    |
-| -------- | ---------- | -------------------------------------------------------------- |
-| 1        | UTS-020-A1 | version = "v1" → returns v1 DTO (no nutritionSummaryUrl)       |
-| 2        | UTS-020-A2 | version = "v2" → returns v2 DTO (includes nutritionSummaryUrl) |
-| 3        | UTS-020-A3 | version = "v3" → throws UnsupportedVersionException            |
-| 4        | UTS-020-A4 | default (no version arg) → returns v1 DTO                      |
-
-**UTS-020-A1**
-
-```
-Arrange:
-  adapter = new MealPlanPublicApiAdapter()
-  plan = { id: 'plan-1', name: 'Week 1', startDate: new Date('2026-06-01'), endDate: new Date('2026-06-07'), slots: [], createdAt: new Date() }
-Act:
-  result = adapter.serializeMealPlan(plan, 'v1')
-Assert:
-  result.id === 'plan-1'
-  result.nutritionSummaryUrl === undefined
-```
-
-**UTS-020-A2**
-
-```
-Arrange:
-  adapter = new MealPlanPublicApiAdapter()
-  plan = { id: 'plan-1', name: 'Week 1', startDate: new Date('2026-06-01'), endDate: new Date('2026-06-07'), slots: [], createdAt: new Date() }
-Act:
-  result = adapter.serializeMealPlan(plan, 'v2')
-Assert:
-  result.nutritionSummaryUrl === '/meal-plans/plan-1/nutrition/weekly'
-```
-
-**UTS-020-A3**
-
-```
-Arrange:
-  adapter = new MealPlanPublicApiAdapter()
-  plan = { id: 'plan-1', name: 'Week 1', startDate: new Date(), endDate: new Date(), slots: [], createdAt: new Date() }
-Act:
-  call = () => adapter.serializeMealPlan(plan, 'v3')
-Assert:
-  call() throws UnsupportedVersionException('Unknown version: v3')
-```
-
-**UTS-020-A4**
-
-```
-Arrange:
-  adapter = new MealPlanPublicApiAdapter()
-  plan = { id: 'plan-1', name: 'Week 1', startDate: new Date('2026-06-01'), endDate: new Date('2026-06-07'), slots: [], createdAt: new Date() }
-Act:
-  result = adapter.serializeMealPlan(plan)  // no version arg → defaults to 'v1'
-Assert:
-  result.id === 'plan-1'
-  result.nutritionSummaryUrl === undefined
-```
-
----
-
-#### UTP-020-B — Branch Coverage: slot serialization with null assignment
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `recipeId: s.assignment?.recipeId ?? null` — optional chaining branch
-
-| Scenario | ID         | Description                               |
-| -------- | ---------- | ----------------------------------------- |
-| 1        | UTS-020-B1 | Slot has assignment → recipeId populated  |
-| 2        | UTS-020-B2 | Slot has no assignment → recipeId is null |
-
-**UTS-020-B1**
-
-```
-Arrange:
-  adapter = new MealPlanPublicApiAdapter()
-  plan = { id: 'plan-1', name: 'W', startDate: new Date(), endDate: new Date(), createdAt: new Date(), slots: [{ id: 's-1', dayOffset: 0, mealType: 'BREAKFAST', assignment: { recipeId: 'r-1' } }] }
-Act:
-  result = adapter.serializeMealPlan(plan, 'v1')
-Assert:
-  result.slots[0].recipeId === 'r-1'
-```
-
-**UTS-020-B2**
-
-```
-Arrange:
-  adapter = new MealPlanPublicApiAdapter()
-  plan = { id: 'plan-1', name: 'W', startDate: new Date(), endDate: new Date(), createdAt: new Date(), slots: [{ id: 's-1', dayOffset: 0, mealType: 'BREAKFAST', assignment: null }] }
-Act:
-  result = adapter.serializeMealPlan(plan, 'v1')
-Assert:
-  result.slots[0].recipeId === null
-```
-
----
-
-### MOD-021: PremiumTierGuard
-
-**Parent Architecture Modules**: ARCH-021
-**Target Source File(s)**: `src/meal-planning/guards/premium-tier.guard.ts`
-
----
-
-#### UTP-021-A — Branch Coverage: canActivate predicate
-
-**Technique**: Statement & Branch Coverage
-**Source View**: Algorithmic/Logic View
-**Covers**: `IF authContext IS NULL → throw UnauthorizedException`, `IF tier != "premium" → throw ForbiddenException`, `RETURN true`
-
-| Scenario | ID         | Description                                        |
-| -------- | ---------- | -------------------------------------------------- |
-| 1        | UTS-021-A1 | authContext is null → throws UnauthorizedException |
-| 2        | UTS-021-A2 | tier = "free" → throws ForbiddenException          |
-| 3        | UTS-021-A3 | tier = "premium" → returns true                    |
-
-**UTS-021-A1**
-
-```
-Arrange:
-  guard = new PremiumTierGuard()
-  context = mockExecutionContext({ authContext: null })
-Act:
-  call = () => guard.canActivate(context)
-Assert:
-  call() throws UnauthorizedException('AuthContext missing — AuthMiddleware must run first')
-```
-
-**UTS-021-A2**
-
-```
-Arrange:
-  guard = new PremiumTierGuard()
-  context = mockExecutionContext({ authContext: { userId: 'user-1', tier: 'free' } })
-Act:
-  call = () => guard.canActivate(context)
-Assert:
-  call() throws ForbiddenException('Premium subscription required')
-```
-
-**UTS-021-A3**
-
-```
-Arrange:
-  guard = new PremiumTierGuard()
-  context = mockExecutionContext({ authContext: { userId: 'user-1', tier: 'premium' } })
-Act:
-  result = guard.canActivate(context)
-Assert:
-  result === true
-```
-
----
-
-#### UTP-021-B — Equivalence Partitioning: tier values
-
-**Technique**: Equivalence Partitioning
-**Source View**: Internal Data Structures
-**Covers**: `tier` string — valid partition {"premium"}, invalid partition {"free", any other string}
-
-| Scenario | ID         | Description                                                         |
-| -------- | ---------- | ------------------------------------------------------------------- |
-| 1        | UTS-021-B1 | tier = "premium" → valid partition → returns true                   |
-| 2        | UTS-021-B2 | tier = "free" → invalid partition → throws ForbiddenException       |
-| 3        | UTS-021-B3 | tier = "enterprise" → invalid partition → throws ForbiddenException |
-
-**UTS-021-B1**
-
-```
-Arrange:
-  guard = new PremiumTierGuard()
-  context = mockExecutionContext({ authContext: { userId: 'u', tier: 'premium' } })
-Act:
-  result = guard.canActivate(context)
-Assert:
-  result === true
-```
-
-**UTS-021-B2**
-
-```
-Arrange:
-  guard = new PremiumTierGuard()
-  context = mockExecutionContext({ authContext: { userId: 'u', tier: 'free' } })
-Act:
-  call = () => guard.canActivate(context)
-Assert:
-  call() throws ForbiddenException
-```
-
-**UTS-021-B3**
-
-```
-Arrange:
-  guard = new PremiumTierGuard()
-  context = mockExecutionContext({ authContext: { userId: 'u', tier: 'enterprise' } })
-Act:
-  call = () => guard.canActivate(context)
-Assert:
-  call() throws ForbiddenException
-```
-
----
-
-### MOD-022: QualityComplianceModule [CROSS-CUTTING]
-
-**Parent Architecture Modules**: ARCH-022
-**Target Source File(s)**: `tsconfig.json`, `.eslintrc.js`, `src/meal-planning/**/*.ts`
-
-> **Note**: MOD-022 is a build-time-only cross-cutting module with no runtime logic, state, or data structures. It has no executable unit test cases. Compliance is verified by CI gate: `tsc --noEmit` and `eslint` must exit zero. No `UTP-022-*` scenarios are defined.
+## MOD-024: QualityComplianceModule
+
+`[CROSS-CUTTING]`, build-time only. **No executable unit tests.** Its enforcement is verified by CI checks recorded in
+[`system-test.md`](./system-test.md) — including the dependency assertion for REQ-NF-009 (no cache, queue, worker or
+object-store dependency).
 
 ---
 
 ## Coverage Summary
 
-| MOD ID    | Module Name                  | Test Cases | Scenarios | Techniques Applied                                |
-| --------- | ---------------------------- | ---------- | --------- | ------------------------------------------------- |
-| MOD-001   | MealPlanController           | 2 (A–B)    | 5         | Statement & Branch, Strict Isolation              |
-| MOD-002   | MealPlanService              | 3 (A–C)    | 14        | Statement & Branch, BVA, Equivalence Partitioning |
-| MOD-003   | MealPlanRepository           | 2 (A–B)    | 4         | Statement & Branch, Strict Isolation              |
-| MOD-004   | RecipeAssignmentController   | 1 (A)      | 2         | Strict Isolation                                  |
-| MOD-005   | RecipeAssignmentService      | 2 (A–B)    | 4         | Statement & Branch                                |
-| MOD-006   | RecipeAssignmentRepository   | 2 (A–B)    | 3         | Statement & Branch, Strict Isolation              |
-| MOD-007   | NutritionalSummaryController | 1 (A)      | 2         | Strict Isolation                                  |
-| MOD-008   | NutritionalSummaryService    | 2 (A–B)    | 4         | Statement & Branch                                |
-| MOD-009   | NutritionalSummaryCache      | 2 (A–B)    | 7         | State Transition, BVA                             |
-| MOD-010   | AISuggestionController       | 1 (A)      | 1         | Strict Isolation                                  |
-| MOD-011   | AISuggestionService          | 1 (A)      | 3         | Statement & Branch                                |
-| MOD-012   | AutoGenerateController       | 1 (A)      | 1         | Strict Isolation                                  |
-| MOD-013   | AutoGenerateService          | 2 (A–B)    | 3         | Statement & Branch, Strict Isolation              |
-| MOD-014   | WasteOptimizationController  | 1 (A)      | 1         | Strict Isolation                                  |
-| MOD-015   | WasteOptimizationService     | 1 (A)      | 3         | Statement & Branch                                |
-| MOD-016   | RecipeApiAdapter             | 1 (A)      | 3         | Statement & Branch                                |
-| MOD-017   | UsdaFoodApiAdapter           | 2 (A–B)    | 7         | Statement & Branch, State Transition              |
-| MOD-018   | AiPromptBuilder              | 2 (A–B)    | 7         | Statement & Branch, BVA                           |
-| MOD-019   | AiProviderAdapter            | 2 (A–B)    | 6         | Statement & Branch, BVA                           |
-| MOD-020   | MealPlanPublicApiAdapter     | 2 (A–B)    | 6         | Statement & Branch                                |
-| MOD-021   | PremiumTierGuard             | 2 (A–B)    | 6         | Statement & Branch, Equivalence Partitioning      |
-| MOD-022   | QualityComplianceModule      | 0          | 0         | Build-time only — no executable unit tests        |
-| **TOTAL** |                              | **35**     | **92**    |                                                   |
+> **Counts corrected 2026-08-07.** This table read `50` UTP / `162` UTS. Both were wrong **before** this revision's
+> three additions: the file already held 51 test cases and 166 scenarios, so the summary understated its own contents.
+> The figures below are grepped from the tables above (`UTP-\d{3}-[A-Z]`, `UTS-\d{3}-[A-Z]\d+`, unique) and must be
+> re-derived, never hand-adjusted — this is the same hand-maintained-tally failure `requirements.md` recorded as
+> PRF-REQ-001.
 
-## Traceability
+| Metric                                            | Count                                                      |
+| ------------------------------------------------- | ---------------------------------------------------------- |
+| MODs with executable unit tests                   | 24 / 25 (MOD-024 is build-time only)                       |
+| Unit test cases (`UTP`)                           | 51                                                         |
+| Unit scenarios (`UTS`)                            | 169                                                        |
+| Property-based cases                              | 3 cases / 13 properties — **new in this regeneration**     |
+| Type-level cases                                  | 5 (nominality, exhaustiveness, API parity, import-freedom) |
+| Scenarios asserting outcomes rather than calls    | **169 / 169**                                              |
+| Modules with dedicated fail-closed security tests | MOD-005, MOD-012, MOD-006                                  |
+| Modules under the mutation gate                   | MOD-002, MOD-004, MOD-006 (all pure business rules)        |
 
-| UTP ID    | MOD ID  | Technique                   | REQ Coverage              |
-| --------- | ------- | --------------------------- | ------------------------- |
-| UTP-001-A | MOD-001 | Statement & Branch Coverage | REQ-001, REQ-002          |
-| UTP-001-B | MOD-001 | Strict Isolation            | REQ-001, REQ-002          |
-| UTP-002-A | MOD-002 | Statement & Branch Coverage | REQ-001, REQ-002          |
-| UTP-002-B | MOD-002 | Boundary Value Analysis     | REQ-001                   |
-| UTP-002-C | MOD-002 | Equivalence Partitioning    | REQ-002                   |
-| UTP-003-A | MOD-003 | Statement & Branch Coverage | REQ-001                   |
-| UTP-003-B | MOD-003 | Strict Isolation            | REQ-001                   |
-| UTP-004-A | MOD-004 | Strict Isolation            | REQ-003                   |
-| UTP-005-A | MOD-005 | Statement & Branch Coverage | REQ-003                   |
-| UTP-005-B | MOD-005 | Statement & Branch Coverage | REQ-003                   |
-| UTP-006-A | MOD-006 | Statement & Branch Coverage | REQ-003                   |
-| UTP-006-B | MOD-006 | Strict Isolation            | REQ-003                   |
-| UTP-007-A | MOD-007 | Strict Isolation            | REQ-004, REQ-005          |
-| UTP-008-A | MOD-008 | Statement & Branch Coverage | REQ-004, REQ-005          |
-| UTP-008-B | MOD-008 | Statement & Branch Coverage | REQ-004, REQ-005          |
-| UTP-009-A | MOD-009 | State Transition Testing    | REQ-004, REQ-005          |
-| UTP-009-B | MOD-009 | Boundary Value Analysis     | REQ-004, REQ-005          |
-| UTP-010-A | MOD-010 | Strict Isolation            | REQ-006                   |
-| UTP-011-A | MOD-011 | Statement & Branch Coverage | REQ-006                   |
-| UTP-012-A | MOD-012 | Strict Isolation            | REQ-007                   |
-| UTP-013-A | MOD-013 | Statement & Branch Coverage | REQ-007                   |
-| UTP-013-B | MOD-013 | Strict Isolation            | REQ-007                   |
-| UTP-014-A | MOD-014 | Strict Isolation            | REQ-008                   |
-| UTP-015-A | MOD-015 | Statement & Branch Coverage | REQ-008                   |
-| UTP-016-A | MOD-016 | Statement & Branch Coverage | REQ-003, REQ-006, REQ-007 |
-| UTP-017-A | MOD-017 | Statement & Branch Coverage | REQ-004, REQ-005          |
-| UTP-017-B | MOD-017 | State Transition Testing    | REQ-004, REQ-005          |
-| UTP-018-A | MOD-018 | Statement & Branch Coverage | REQ-006, REQ-007          |
-| UTP-018-B | MOD-018 | Boundary Value Analysis     | REQ-006, REQ-007          |
-| UTP-019-A | MOD-019 | Statement & Branch Coverage | REQ-006, REQ-007          |
-| UTP-019-B | MOD-019 | Boundary Value Analysis     | REQ-006, REQ-007          |
-| UTP-020-A | MOD-020 | Statement & Branch Coverage | REQ-001, REQ-003          |
-| UTP-020-B | MOD-020 | Statement & Branch Coverage | REQ-003                   |
-| UTP-021-A | MOD-021 | Statement & Branch Coverage | REQ-006, REQ-007, REQ-008 |
-| UTP-021-B | MOD-021 | Equivalence Partitioning    | REQ-006, REQ-007, REQ-008 |
+### Hazard coverage from the unit tier
 
-## Mock Registry
+| Hazard  | Covering scenarios                                          |
+| ------- | ----------------------------------------------------------- |
+| HAZ-001 | UTS-002-B3, UTP-002-C                                       |
+| HAZ-002 | UTS-002-C1..C3, UTS-002-E1                                  |
+| HAZ-003 | UTS-002-A3/A4                                               |
+| HAZ-005 | UTS-004-A6/A7                                               |
+| HAZ-008 | UTS-004-A2, UTS-004-D2, UTS-004-E2, UTP-004-F               |
+| HAZ-029 | UTS-010-B1/B2                                               |
+| HAZ-031 | UTS-012-B2                                                  |
+| HAZ-032 | UTS-004-A5/A6, UTS-015-B1                                   |
+| HAZ-033 | UTS-004-B1..B5                                              |
+| HAZ-034 | UTS-015-D1                                                  |
+| HAZ-035 | UTS-015-E1/E2                                               |
+| HAZ-036 | UTP-015-C                                                   |
+| HAZ-037 | UTS-006-A2..A7, UTS-006-C3                                  |
+| HAZ-038 | UTS-022-A1/A2                                               |
+| HAZ-039 | UTP-005-A, UTS-021-A1                                       |
+| HAZ-040 | UTP-018-A                                                   |
+| HAZ-041 | UTS-008-B1                                                  |
+| HAZ-043 | UTS-012-A3/A4 (paired with DB `CHECK` tests in integration) |
 
-Each UTP that touches an external dependency MUST list the dependency mock in its setup. Mock entries identify the dependency name, mock type (stub, fake, spy, or in-memory adapter), owning MOD-NNN, and reset behavior between scenarios.
+HAZ-006, HAZ-020, HAZ-021, HAZ-026, HAZ-030 and HAZ-042 are covered at the **integration** tier, where a real database,
+a real transaction and a second principal exist. They are listed here so the gap is visible rather than implied.

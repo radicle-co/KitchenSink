@@ -1,0 +1,20 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    // The probe's OWN compiler options, deliberately NOT inherited from the package.
+    //
+    // The gate measures whether a dev runner honours `emitDecoratorMetadata`, so the flag has to be ON for
+    // the file the runner is pointed at — and it must be on HERE rather than in `packages/infra/global`'s
+    // tsconfig, which owns no decorators and should not start claiming to. A runner discovers the tsconfig
+    // nearest the file it is transpiling, so this one wins for the probe and for nothing else.
+    //
+    // Not `extends`-ing the shared base is also deliberate: the base's strictness is irrelevant to a file
+    // nobody typechecks, and inheriting it would couple the measurement to unrelated future edits.
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true
+    },
+    "include": ["probe.ts"]
+}

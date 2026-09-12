@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Composition tests for the `/settings` route content (U3): it renders inside the shared {@link AppShell}
+ * Composition tests for the `/settings` route content (U3): it renders inside the shared `AppShell`
  * (nav on desktop AND narrow — the bare route had none), its headings are localized, and it composes the
  * sign-out control. The viewer-profile hook is mocked (AppShell's avatar source); LogoutButton is stubbed
  * (its own state matrix is covered in LogoutButton.test).
@@ -27,6 +27,13 @@ describe('SettingsContent (U3) — shell + composition', () => {
         renderWithProviders(<SettingsContent locale="en" />);
 
         expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
+    });
+
+    it('links to the Data sources page under its own heading (curated U25, design §S16)', () => {
+        renderWithProviders(<SettingsContent locale="fr" />);
+
+        expect(screen.getByRole('heading', { name: 'Food data' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Data sources' }).getAttribute('href')).toBe('/fr/legal/sources');
     });
 
     it('renders localized headings and the sign-out control', () => {

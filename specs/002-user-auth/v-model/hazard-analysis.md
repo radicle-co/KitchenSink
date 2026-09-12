@@ -58,7 +58,7 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Us
 | State                  | Definition                                                                 | Source                    |
 | ---------------------- | -------------------------------------------------------------------------- | ------------------------- |
 | NORMAL                 | Steady-state authentication and API authorization under expected load.     | Implicit                  |
-| -DEGRADED         | IdP tenant/API degradation, timeout, or regional outage conditions.      | SYS-001, SYS-002, SYS-005 |
+| -DEGRADED              | IdP tenant/API degradation, timeout, or regional outage conditions.        | SYS-001, SYS-002, SYS-005 |
 | KEY-ROTATION-WINDOW    | Active signing key/client secret rotation period with mixed key validity.  | SYS-015, SYS-018          |
 | SUSPENSION-ENFORCEMENT | User/account status transition (suspend/reactivate) in propagation window. | SYS-016, SYS-015          |
 
@@ -87,7 +87,7 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Us
 | HAZ ID  | Component | Failure Mode                                                           | Operational State | Effect                                                   | Severity | Likelihood | Risk Level  | Mitigation                                                       | Residual Risk |
 | ------- | --------- | ---------------------------------------------------------------------- | ----------------- | -------------------------------------------------------- | -------- | ---------- | ----------- | ---------------------------------------------------------------- | ------------- |
 | HAZ-005 | SYS-003   | Social connection misconfigured with permissive callback/redirect URI. | NORMAL            | Tokens/codes can be redirected to unauthorized endpoint. | Critical | Remote     | Undesirable | REQ-004; ARCH-007; SYS-018 restricts allowed callback origins.   | Tolerable     |
-| HAZ-006 | SYS-003   | Provider outage path not handled; login surface loops indefinitely.    | -DEGRADED    | Users cannot authenticate; elevated support load.        | Serious  | Occasional | Undesirable | REQ-004; SYS-017 outage telemetry; ARCH-029 incident visibility. | Tolerable     |
+| HAZ-006 | SYS-003   | Provider outage path not handled; login surface loops indefinitely.    | -DEGRADED         | Users cannot authenticate; elevated support load.        | Serious  | Occasional | Undesirable | REQ-004; SYS-017 outage telemetry; ARCH-029 incident visibility. | Tolerable     |
 
 ### SYS-004 — Token Refresh Handler
 
@@ -100,7 +100,7 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Us
 
 | HAZ ID  | Component | Failure Mode                                                                 | Operational State   | Effect                                                  | Severity | Likelihood | Risk Level  | Mitigation                                                            | Residual Risk |
 | ------- | --------- | ---------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------- | -------- | ---------- | ----------- | --------------------------------------------------------------------- | ------------- |
-| HAZ-009 | SYS-005   | Action fails during IdP outage; user created in the IdP but not provisioned. | -DEGRADED      | Partial account state; new user cannot access app data. | Serious  | Occasional | Undesirable | REQ-016, REQ-017; SYS-007 reconciliation repairs drift.               | Tolerable     |
+| HAZ-009 | SYS-005   | Action fails during IdP outage; user created in the IdP but not provisioned. | -DEGRADED           | Partial account state; new user cannot access app data. | Serious  | Occasional | Undesirable | REQ-016, REQ-017; SYS-007 reconciliation repairs drift.               | Tolerable     |
 | HAZ-010 | SYS-005   | Client secret rotation failure leaves Action using expired secret.           | KEY-ROTATION-WINDOW | Post-registration provisioning consistently fails.      | Critical | Remote     | Undesirable | REQ-IF-007; SYS-018/ARCH-030 manage secret rotation rollout controls. | Tolerable     |
 
 ### SYS-006 — User/Account Provisioning Service
@@ -115,7 +115,7 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Us
 | HAZ ID  | Component | Failure Mode                                                                  | Operational State | Effect                                             | Severity | Likelihood | Risk Level  | Mitigation                                                         | Residual Risk |
 | ------- | --------- | ----------------------------------------------------------------------------- | ----------------- | -------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------ | ------------- |
 | HAZ-013 | SYS-007   | Reconciliation disabled/scheduler drift leaves account mismatches unresolved. | NORMAL            | Persistent onboarding failures for affected users. | Serious  | Occasional | Undesirable | REQ-017; ARCH-012 periodic reconciliation with alerts via SYS-017. | Tolerable     |
-| HAZ-014 | SYS-007   | Reconciliation logic links wrong IdP identity to local account.             | NORMAL            | Cross-user data exposure risk.                     | Critical | Improbable | Tolerable   | REQ-IF-010; MOD-012 strict subject/UUID mapping constraints.       | Acceptable    |
+| HAZ-014 | SYS-007   | Reconciliation logic links wrong IdP identity to local account.               | NORMAL            | Cross-user data exposure risk.                     | Critical | Improbable | Tolerable   | REQ-IF-010; MOD-012 strict subject/UUID mapping constraints.       | Acceptable    |
 
 ### SYS-008 — Profile View
 
@@ -136,20 +136,20 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Us
 | HAZ ID  | Component | Failure Mode                                                             | Operational State | Effect                                                        | Severity | Likelihood | Risk Level  | Mitigation                                                               | Residual Risk |
 | ------- | --------- | ------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------------ | ------------- |
 | HAZ-019 | SYS-010   | Deletion confirmation control bypassed (no explicit `DELETE` challenge). | NORMAL            | Accidental account removal and user lockout.                  | Serious  | Remote     | Tolerable   | REQ-023; ARCH-016/MOD-016 enforce explicit confirmation workflow.        | Acceptable    |
-| HAZ-020 | SYS-010   | Local deletion succeeds but IdP account deletion fails.                | NORMAL            | Orphaned identity; re-registration conflict and privacy risk. | Critical | Remote     | Undesirable | REQ-024, REQ-025, REQ-026; ARCH-017/MOD-017 transactional compensations. | Tolerable     |
+| HAZ-020 | SYS-010   | Local deletion succeeds but IdP account deletion fails.                  | NORMAL            | Orphaned identity; re-registration conflict and privacy risk. | Critical | Remote     | Undesirable | REQ-024, REQ-025, REQ-026; ARCH-017/MOD-017 transactional compensations. | Tolerable     |
 
 ### SYS-011 — Password Reset Flow
 
-| HAZ ID  | Component | Failure Mode                                                             | Operational State | Effect                                                    | Severity | Likelihood | Risk Level  | Mitigation                                                           | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------------ | ----------------- | --------------------------------------------------------- | -------- | ---------- | ----------- | -------------------------------------------------------------------- | ------------- |
+| HAZ ID  | Component | Failure Mode                                                             | Operational State | Effect                                                    | Severity | Likelihood | Risk Level  | Mitigation                                                         | Residual Risk |
+| ------- | --------- | ------------------------------------------------------------------------ | ----------------- | --------------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------ | ------------- |
 | HAZ-021 | SYS-011   | Password reset link sent over insecure/misconfigured transport.          | NORMAL            | Credential reset token interception.                      | Critical | Remote     | Undesirable | REQ-027, REQ-028; ARCH-018 enforces IdP-managed secure reset flow. | Tolerable     |
-| HAZ-022 | SYS-011   | Reset flow permits user enumeration through differential error messages. | NORMAL            | Attackers discover valid accounts for credential attacks. | Serious  | Occasional | Undesirable | REQ-CN-002; MOD-018 standardized opaque error responses.             | Tolerable     |
+| HAZ-022 | SYS-011   | Reset flow permits user enumeration through differential error messages. | NORMAL            | Attackers discover valid accounts for credential attacks. | Serious  | Occasional | Undesirable | REQ-CN-002; MOD-018 standardized opaque error responses.           | Tolerable     |
 
 ### SYS-012 — MFA Enrollment Flow
 
-| HAZ ID  | Component | Failure Mode                                                       | Operational State | Effect                                               | Severity | Likelihood | Risk Level  | Mitigation                                                         | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------ | ----------------- | ---------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------ | ------------- |
-| HAZ-023 | SYS-012   | MFA enrollment can be skipped despite policy requiring enrollment. | NORMAL            | Reduced account protection for high-risk operations. | Critical | Occasional | Undesirable | REQ-029, REQ-030; ARCH-019 enrollment gate and policy checks.      | Tolerable     |
+| HAZ ID  | Component | Failure Mode                                                       | Operational State | Effect                                               | Severity | Likelihood | Risk Level  | Mitigation                                                       | Residual Risk |
+| ------- | --------- | ------------------------------------------------------------------ | ----------------- | ---------------------------------------------------- | -------- | ---------- | ----------- | ---------------------------------------------------------------- | ------------- |
+| HAZ-023 | SYS-012   | MFA enrollment can be skipped despite policy requiring enrollment. | NORMAL            | Reduced account protection for high-risk operations. | Critical | Occasional | Undesirable | REQ-029, REQ-030; ARCH-019 enrollment gate and policy checks.    | Tolerable     |
 | HAZ-024 | SYS-012   | Enrollment state desync causes false “MFA enabled” UI status.      | NORMAL            | Users assume protection that is not active.          | Serious  | Occasional | Undesirable | REQ-031; MOD-019 synchronizes IdP MFA state before confirmation. | Tolerable     |
 
 ### SYS-013 — Social Account Linking
@@ -183,15 +183,15 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Us
 
 ### SYS-017 — Observability & Logging
 
-| HAZ ID  | Component | Failure Mode                                                       | Operational State | Effect                                            | Severity | Likelihood | Risk Level  | Mitigation                                                                  | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------ | ----------------- | ------------------------------------------------- | -------- | ---------- | ----------- | --------------------------------------------------------------------------- | ------------- |
-| HAZ-034 | SYS-017   | Access/refresh tokens or secrets written to logs/Sentry payloads.  | NORMAL            | Credential leakage through telemetry systems.     | Critical | Remote     | Undesirable | REQ-NF-012..REQ-NF-017; ARCH-027/029 redaction and sensitive-field filters. | Tolerable     |
-| HAZ-035 | SYS-017   | IdP outage/error spikes not instrumented with actionable alerts. | -DEGRADED    | Prolonged incident MTTR and extended user impact. | Serious  | Occasional | Undesirable | REQ-NF-013, REQ-NF-014; ARCH-028/029 dashboards and alarm thresholds.       | Tolerable     |
+| HAZ ID  | Component | Failure Mode                                                      | Operational State | Effect                                            | Severity | Likelihood | Risk Level  | Mitigation                                                                  | Residual Risk |
+| ------- | --------- | ----------------------------------------------------------------- | ----------------- | ------------------------------------------------- | -------- | ---------- | ----------- | --------------------------------------------------------------------------- | ------------- |
+| HAZ-034 | SYS-017   | Access/refresh tokens or secrets written to logs/Sentry payloads. | NORMAL            | Credential leakage through telemetry systems.     | Critical | Remote     | Undesirable | REQ-NF-012..REQ-NF-017; ARCH-027/029 redaction and sensitive-field filters. | Tolerable     |
+| HAZ-035 | SYS-017   | IdP outage/error spikes not instrumented with actionable alerts.  | -DEGRADED         | Prolonged incident MTTR and extended user impact. | Serious  | Occasional | Undesirable | REQ-NF-013, REQ-NF-014; ARCH-028/029 dashboards and alarm thresholds.       | Tolerable     |
 
 ### SYS-018 — CDK Infrastructure Stack
 
-| HAZ ID  | Component | Failure Mode                                                             | Operational State   | Effect                                 | Severity | Likelihood | Risk Level  | Mitigation                                                             | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------------ | ------------------- | -------------------------------------- | -------- | ---------- | ----------- | ---------------------------------------------------------------------- | ------------- |
+| HAZ ID  | Component | Failure Mode                                                           | Operational State   | Effect                                 | Severity | Likelihood | Risk Level  | Mitigation                                                             | Residual Risk |
+| ------- | --------- | ---------------------------------------------------------------------- | ------------------- | -------------------------------------- | -------- | ---------- | ----------- | ---------------------------------------------------------------------- | ------------- |
 | HAZ-036 | SYS-018   | Callback URL/environment configuration mismatch across web/mobile/IdP. | NORMAL              | Login/callback failures in production. | Serious  | Occasional | Undesirable | REQ-IF-007; ARCH-030 centralized env config and deployment validation. | Tolerable     |
 | HAZ-037 | SYS-018   | Secret rotation rollout incomplete between Lambda env and IdP tenants. | KEY-ROTATION-WINDOW | Widespread auth/provisioning failures. | Critical | Remote     | Undesirable | REQ-IF-007; MOD-030 staged secret rotation with rollback guardrails.   | Tolerable     |
 

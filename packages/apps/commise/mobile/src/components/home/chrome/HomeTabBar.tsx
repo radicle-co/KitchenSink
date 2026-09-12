@@ -59,6 +59,7 @@ export function HomeTabBar({
 
     return (
         <View
+            collapsable={false}
             accessibilityRole="tablist"
             accessibilityLabel={chrome.tabNavLabel}
             style={[styles.bar, { paddingBottom: bottomInset }]}
@@ -69,6 +70,7 @@ export function HomeTabBar({
                 if (!item.reachable) {
                     return (
                         <View
+                            accessible
                             key={item.id}
                             accessibilityRole="tab"
                             aria-disabled

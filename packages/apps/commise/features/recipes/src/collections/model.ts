@@ -6,10 +6,16 @@
  * controlled, presentational components: they fetch nothing and delegate every interaction upward.
  */
 import type { Locale } from '@commise/i18n';
-import type { Collection, Recipe, RecipeCollectionAddedVia, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { ReactNode } from 'react';
+import type { Collection, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { PullDiff } from '@kitchensink/recipe-service-client';
+// Imported (not merely re-exported) because the props below reference both by name, and an `export … from`
+// re-export does not bring a name into this module's scope.
+import type { CollectionMemberRecipe, CollectionWithRecipesResponse } from '@kitchensink/schema-recipe';
 
 import type { RecipeListRefreshControl } from '../list/model.js';
+import type { RefreshNoticeControl } from '../refresh/model.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
 /**
  * The minimal recipe shape the collection picker needs to list and add a candidate. The picker renders a
@@ -20,74 +26,95 @@ import type { RecipeListRefreshControl } from '../list/model.js';
  */
 export type RecipePickerCandidate = Pick<Recipe, 'id' | 'title'>;
 
-/**
- * The three top-level states the collection list renders. `ready` further splits into empty vs populated on
- * `collections.length` (a distinction the view derives — an empty successful load is not an error).
- */
-export type CollectionListStatus = 'loading' | 'error' | 'ready';
-
-/**
- * The three top-level fetch states the recipe picker renders while loading the caller's candidate recipes.
- * `ready` further splits (a distinction the view derives): no recipes owned at all vs a search that matched
- * none vs a populated candidate list.
- */
-export type RecipePickerStatus = 'loading' | 'error' | 'ready';
-
 /** The two modes the collection form operates in: creating a new collection, or renaming an existing one. */
 export type CollectionFormMode = 'create' | 'rename';
 
 /**
- * A member recipe's provenance within a specific collection (W5 Task 9, C3 / FR-011) — mirrors the
- * recipe-service client's `CollectionMemberRecipe` (`Recipe & { addedVia }`), but expressed in
- * `@kitchensink/recipe-core` domain types so this presentational feature depends only on the domain layer,
- * not the HTTP client (same rationale as {@link CollectionWithRecipes}). `manual` = added directly by the
- * collection owner, protected from Pull Updates (the wireframe's `[x]` state); `clone_seed`/`pull` = seeded
- * from or synced from the source collection, and will be refreshed by a future Pull Updates (the `[ ]` state).
+ * A member recipe's provenance within a specific collection (W5 Task 9, C3 / FR-011) — the PUBLISHED wire
+ * shape (`recipeSchema.extend({ addedVia })`), re-exported under the contract's own name rather than declared
+ * here (§15 Rule 1 / ADR-0014). `manual` = added directly by the collection owner, protected from Pull Updates
+ * (the wireframe's `[x]` state); `clone_seed`/`pull` = seeded from or synced from the source collection, and
+ * will be refreshed by a future Pull Updates (the `[ ]` state).
+ *
+ * The declaration this replaced (`Recipe & { addedVia }`, in `@kitchensink/recipe-core` domain types) argued
+ * it kept this presentational feature off the HTTP client. That argument did not hold in either direction:
+ * this package already depends on `@kitchensink/schema-recipe`, which is the CONTRACT and not the client (no
+ * transport, no fetch — the same import `filters/model.ts` uses for `RecipeSearchFacets`), and it already
+ * imports {@link PullDiff} from the client proper a few lines above. So the twin bought no decoupling and cost
+ * the one thing that matters: nothing checked it against the shape the server actually sends.
  */
-export type CollectionMemberRecipe = Recipe & { readonly addedVia: RecipeCollectionAddedVia };
+export type { CollectionMemberRecipe } from '@kitchensink/schema-recipe';
 
 /**
- * A collection plus its member recipes — the shape the detail view (T072) consumes. Structurally mirrors
- * the recipe-service client's `CollectionWithRecipes` response (`Collection` + optional member `recipes`),
- * but is expressed in `@kitchensink/recipe-core` domain types so this presentational feature depends only on
- * the domain layer, not the HTTP client. `recipes` is optional (a list-only projection may omit it) and the
- * view treats an absent list as empty.
+ * A collection plus its member recipes — the shape the detail view (T072) consumes. ALIAS of the published
+ * `CollectionWithRecipesResponse` (`GET /api/v1/collections/{id}`), never a second declaration of it; the
+ * local name is kept because this package's public surface and both platforms' containers use it.
+ *
+ * ⚠️ The declaration this replaced had already DRIFTED from the contract in two ways, both resolved toward the
+ * server:
+ *  - it typed `recipes` as OPTIONAL where the contract has it REQUIRED. `CollectionsService.getCollection`
+ *    sets it unconditionally, so "absent" was never a state the server could produce — an empty array already
+ *    says "nothing you can see", and an absent key would have meant something the server cannot say. Declaring
+ *    it optional invited a view to render "recipes not loaded" for an impossible case and forced a `?? []` on
+ *    every read.
+ *  - it omitted the three response-only provenance projections the wire body carries — `sourceOwnerHandle` /
+ *    `sourceCollectionName` (the source's attribution, frozen at clone time) and `lastPulledAt` — so a
+ *    container holding a real response had to widen or re-project to reach them.
+ *
+ * Aliasing is what keeps both of those honest from now on: a field added, removed or renamed in the contract
+ * fails this package's typecheck instead of silently leaving a stale hand-written copy behind.
  */
-export type CollectionWithRecipes = Collection & { readonly recipes?: readonly CollectionMemberRecipe[] };
+export type CollectionWithRecipes = CollectionWithRecipesResponse;
 
 /**
- * Props for the collection-list view — a controlled, presentational component. It renders one of four states
- * (loading, error, empty, populated) from `status` + `collections`, and delegates every interaction upward.
- * It performs NO data fetching: the composing app wires the query layer to these props.
+ * Props for the collection list's FRAME — the chrome (heading + create) that renders OUTSIDE the list's suspense
+ * boundary, so a pending or failed read never unmounts it. The boundary renders inside, as `children`.
  */
-export interface CollectionListViewProps {
-    readonly status: CollectionListStatus;
+export interface CollectionListFrameProps {
+    /** Invoked when the create-collection action is activated. */
+    readonly onCreate: () => void;
+    /**
+     * A counter whose change moves focus to the heading: the owner advances it when a retry from the refresh notice
+     * succeeds, because that retry removed the button the viewer pressed. It starts wherever the owner starts it; the
+     * frame never moves focus on mount.
+     */
+    readonly headingFocusSignal: number;
+    /** The read boundary: its loading or error fallback, or the settled results. */
+    readonly children: ReactNode;
+}
+
+/**
+ * Props for the collection list's RESULTS — what renders inside the suspense boundary once the read has settled: the
+ * refresh notice, then the empty state or the rows, then the load-more control. It performs NO data fetching.
+ */
+export interface CollectionListResultsProps {
     readonly collections: readonly Collection[];
     /** Invoked with a collection id when a row is activated. */
     readonly onSelect: (id: string) => void;
-    /** Invoked when the create-collection action is activated. */
-    readonly onCreate: () => void;
-    /** Invoked when the retry action is activated in the error state. */
-    readonly onRetry: () => void;
     /**
      * Optional server-paged load-more control (W5/C7) — grouped into ONE optional prop rather than three flat
-     * `hasMore`/`isFetchingNextPage`/`onLoadMore` fields, so the whole feature expresses "load more" as a
-     * single thing (the established {@link import('../discovery/model.js').RecipeDiscoveryLoadMoreControl}
-     * shape). Absent → no pagination control (a caller wired to the flat `useCollections` rather than
-     * `useCollectionsInfinite`); the composing container (Task 12) wires it off `useCollectionsInfinite`.
+     * `hasMore`/`isFetchingNextPage`/`onLoadMore` fields, so the whole feature expresses "load more" as a single thing
+     * (the established `RecipeDiscoveryLoadMoreControl` shape). Absent → no pagination control.
      */
     readonly loadMore?: CollectionListLoadMore;
+    /** Optional notice for a failed refresh of the collections on screen — both platforms. Absent ⇒ no notice. */
+    readonly refreshNotice?: RefreshNoticeControl;
     /**
-     * Optional pull-to-refresh (U4/L8) — mobile only; the web leaf ignores it (no web pull gesture). Reuses
-     * the {@link import('../list/model.js').RecipeListRefreshControl} shape (one pull-to-refresh contract
-     * across every list). The composing container wires it to the query's `isRefetching` + `refetch`.
+     * Optional pull-to-refresh (U4/L8) — mobile only; the web leaf ignores it (no web pull gesture). Reuses the
+     * `RecipeListRefreshControl` shape (one pull-to-refresh contract across every list).
      */
     readonly refresh?: RecipeListRefreshControl;
 }
 
+/** Props for the collection list's LOAD-ERROR fallback — the read failed with nothing loaded. */
+export interface CollectionListLoadErrorProps {
+    /** Retry the read (the error boundary's reset, which refetches). */
+    readonly onRetry: () => void;
+}
+
 /**
  * The server-paged load-more control for the collection list (W5/C7) — structurally the same shape as
- * {@link import('../discovery/model.js').RecipeDiscoveryLoadMoreControl} (one shared shape for the same
+ * `RecipeDiscoveryLoadMoreControl` (one shared shape for the same
  * concern across discovery + collections): whether another page exists, whether the next page is in flight,
  * and the fetch-next callback. The view renders a `[Load more]` button only while {@link hasMore}; it
  * vanishes at the last page (no infinite scroll).
@@ -97,6 +124,11 @@ export interface CollectionListLoadMore {
     readonly hasMore: boolean;
     /** Whether the next page is currently being fetched; the control shows a busy/disabled state. */
     readonly loading: boolean;
+    /**
+     * Whether the last attempt to fetch the next page failed. The loaded collections stay on screen and the control
+     * offers a retry beside the reason — a failed next page is never the list's error state.
+     */
+    readonly failed: boolean;
     /** Invoked when the load-more control is activated (wired to `useCollectionsInfinite`'s `fetchNextPage`). */
     readonly onLoadMore: () => void;
 }
@@ -139,10 +171,16 @@ export interface CollectionDetailViewProps {
     readonly onAddRecipe: () => void;
     /** An honest error from the last delete/remove attempt to surface, or ABSENT for none (B17). */
     readonly error?: CollectionDetailError;
+    /**
+     * How to render one card's deferred calorie figure — called once per visible card with its recipe id
+     * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
+     * ONE read. Absent ⇒ no card shows a nutrition line, which is the card's absent-value rule, not a gap.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /**
- * Props for a single collection member row (W5 Task 9, C3) — composes the shared {@link RecipeCardModel}
+ * Props for a single collection member row (W5 Task 9, C3) — composes the shared `RecipeCardModel`
  * (via `RecipeCard`/`toRecipeCardModel`: title, calories, the version badge past v1, the visibility/draft
  * badge) with the two row-specific things the card does NOT already render: a read-only source-indicator
  * (owner-added/protected vs from-source/will-sync, derived from `member.addedVia`) and the `by @handle`
@@ -156,6 +194,11 @@ export interface CollectionMemberRowProps {
     readonly onSelect: (recipeId: string) => void;
     /** Invoked with the member's recipe id when the row's remove control is activated. */
     readonly onRemove: (recipeId: string) => void;
+    /**
+     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
+     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
+     */
+    readonly nutrition?: ReactNode;
 }
 
 /**
@@ -170,13 +213,30 @@ export interface CollectionMemberRowProps {
 export interface CollectionRecipePickerProps {
     /** The name of the collection recipes are added to — surfaced in the heading. */
     readonly collectionName: string;
-    /** The candidate-load fetch state. `ready` renders the (already `query`-filtered) `recipes`. */
-    readonly status: RecipePickerStatus;
+    /** The controlled search value — reflected in the input. */
+    readonly query: string;
+    /** Invoked with the new search value as the caller types. */
+    readonly onQueryChange: (query: string) => void;
+    /** Invoked when the done action is activated (dismisses the picker). */
+    readonly onDone: () => void;
+    /**
+     * The picker's body — {@link CollectionRecipePickerCandidatesProps the settled candidates}, or the loading or
+     * load-error body while the candidates are pending or failed. The frame stays mounted around all three, so the
+     * search field keeps focus and Done stays reachable whatever the body is.
+     */
+    readonly children: ReactNode;
+}
+
+/**
+ * Props for the picker's settled body: the caller's candidates, already loaded. `ready` splits here into no
+ * recipes owned at all vs a search that matched none vs a populated candidate list.
+ */
+export interface CollectionRecipePickerCandidatesProps {
     /** The caller's candidate recipes, already filtered by `query` upstream. */
     readonly recipes: readonly RecipePickerCandidate[];
     /** Ids of the recipes already in THIS collection — their rows show an inert membership marker. */
     readonly memberRecipeIds: readonly string[];
-    /** The controlled search value — reflected in the input and used to disambiguate the two empty states. */
+    /** The search value — disambiguates "no recipes" from "no matches". */
     readonly query: string;
     /** The recipe whose add is in flight, if any — its row shows a busy, non-interactive control. */
     readonly pendingRecipeId?: string;
@@ -184,16 +244,16 @@ export interface CollectionRecipePickerProps {
     readonly lastAddedRecipeId?: string;
     /** Whether the most recent add failed — surfaces an alert without hiding the rows. Defaults to `false`. */
     readonly addFailed?: boolean;
-    /** Invoked with the new search value as the caller types. */
-    readonly onQueryChange: (query: string) => void;
     /** Invoked with a recipe id when its add control is activated (suppressed for member/in-flight rows). */
     readonly onAdd: (recipeId: string) => void;
-    /** Invoked when the retry action is activated in the load-error state. */
-    readonly onRetry: () => void;
     /** Invoked when the create-recipe action is activated in the no-recipes empty state. */
     readonly onCreateRecipe: () => void;
-    /** Invoked when the done action is activated (dismisses the picker). */
-    readonly onDone: () => void;
+}
+
+/** Props for the picker's load-error body. */
+export interface CollectionRecipePickerLoadErrorProps {
+    /** Invoked when the retry action is activated. */
+    readonly onRetry: () => void;
 }
 
 /**
@@ -239,6 +299,8 @@ export interface CollectionHeaderViewProps {
     readonly onEdit: () => void;
     /** Invoked when the delete action is activated (C4). */
     readonly onDelete: () => void;
+    /** Optional notice for a failed refresh of the collection on screen — both platforms. Absent ⇒ no notice. */
+    readonly refreshNotice?: RefreshNoticeControl;
 }
 
 /**
@@ -249,7 +311,7 @@ export interface CollectionHeaderViewProps {
  * The premium gate is carried as the plain boolean `canGoPrivate` (+ an already-localized `disabledReason`),
  * NOT a `Viewer` — the composing container computes `canGoPrivate(viewer)` from `@kitchensink/recipe-core`'s
  * policy module and passes the result down, so this component stays pure `props → JSX` with no tier/policy
- * logic of its own (mirrors {@link import('../actions/model.js').RecipeVisibilityToggleProps}, the sibling
+ * logic of its own (mirrors `RecipeVisibilityToggleProps`, the sibling
  * recipe-visibility gate this block was modeled on).
  *
  * The toggle is two-stage, unlike the recipe toggle it mirrors: `pendingVisibility` is the control's current
@@ -353,7 +415,7 @@ export interface PullUpdatesDialogProps {
 
 /**
  * Format an ISO 8601 timestamp as a date-only string for the collection header's "Last pulled" line, in
- * the active locale. Distinct from {@link import('../versions/model.js').formatVersionTimestamp}: the
+ * the active locale. Distinct from `formatVersionTimestamp`: the
  * wireframe shows a DATE only (no time) for this field. Formatted in UTC so the output is deterministic
  * regardless of the runtime's timezone (`lastPulledAt` is an absolute instant, not a local wall-clock
  * time). Pure.

@@ -28,6 +28,10 @@ export interface CollectionListMessages {
     readonly loadMore: string;
     /** Visible label for the load-more control while the next page is loading. */
     readonly loadingMore: string;
+    /** Announced beside the load-more control when the next page fails; the loaded collections stay. */
+    readonly loadMoreError: string;
+    /** The notice when refreshing the collections already on screen fails. */
+    readonly refreshError: string;
 }
 
 /** Copy for the collection-detail screen (T072), rendered by both the web and native detail views. */
@@ -38,8 +42,13 @@ export interface CollectionDetailMessages {
     readonly emptyTitle: string;
     /** Body copy of the empty state. */
     readonly emptyBody: string;
-    /** Accessible-label template for a per-row remove control (contains `{title}`). */
+    /** Accessible-label template for a per-row remove control (contains `{title}`). Never rendered as visible text. */
     readonly removeRecipe: string;
+    /**
+     * The per-row remove control's VISIBLE label — the bare verb. The title lives only in {@link removeRecipe}: a
+     * visible label that repeats a long title takes the whole row from the title beside it.
+     */
+    readonly removeCta: string;
     /** Label of the add-a-recipe action (opens the recipe picker). */
     readonly addRecipeCta: string;
     /** Label of the rename action. */
@@ -59,6 +68,10 @@ export interface CollectionDetailMessages {
     /** A member row's author-attribution template (contains `{handle}`); rendered only when the member
      *  recipe carries an author handle — omitted rather than showing `by @undefined`. */
     readonly byAuthor: string;
+    /** The notice when refreshing the collection already on screen fails. */
+    readonly refreshError: string;
+    /** Label of the retry action beside {@link refreshError}. */
+    readonly refreshRetry: string;
     /** Client-side member-list load-more template naming how many more are hidden (contains `{count}`,
      *  W5/C7 — "Load more (4 more)" in the collection-view wireframe). */
     readonly loadMore: string;
@@ -265,12 +278,15 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             retry: 'Try again',
             loadMore: 'Load more',
             loadingMore: 'Loading…',
+            loadMoreError: 'We couldn’t load more collections.',
+            refreshError: 'We couldn’t refresh your collections.',
         },
         detail: {
             membersHeading: 'Recipes',
             emptyTitle: 'No recipes in this collection yet',
             emptyBody: 'Add recipes to see them here.',
             removeRecipe: 'Remove {title}',
+            removeCta: 'Remove',
             addRecipeCta: 'Add a recipe',
             renameCta: 'Rename',
             deleteCta: 'Delete',
@@ -279,6 +295,8 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             sourceIndicatorOwned: 'Added by you',
             sourceIndicatorFromSource: 'From source collection',
             byAuthor: 'by @{handle}',
+            refreshError: 'We couldn’t refresh this collection.',
+            refreshRetry: 'Try again',
             loadMore: 'Load more ({count} more)',
         },
         picker: {

@@ -6,6 +6,7 @@ import {
     CUISINES,
     isRecipeError,
     MAX_RECIPE_PHOTO_UPLOAD_BYTES,
+    recipeErrorCodeSchema,
     recipeVersionSchema,
     RecipeErrorCode,
 } from '../index.js';
@@ -152,8 +153,11 @@ describe('recipe photo upload constants (REQ-009/REQ-011/REQ-012/REQ-013)', () =
 describe('recipeVersionSchema — the version-history read contract', () => {
     const RECIPE_ID = '11111111-1111-4111-8111-111111111101';
 
-    /** A version-history row exactly as `recipe-service` serializes one, parameterized by its one line's unit. */
-    const wireVersion = (unit: unknown): unknown => ({
+    /**
+     * A version-history row exactly as `recipe-service` serializes one, parameterized by its one line's
+     * unit and quantity.
+     */
+    const wireVersion = (unit: unknown, quantity: unknown = { kind: 'exact', value: 1 }): unknown => ({
         id: '22222222-2222-4222-8222-222222222201',
         recipeId: RECIPE_ID,
         versionNumber: 2,
@@ -177,7 +181,7 @@ describe('recipeVersionSchema — the version-history read contract', () => {
                     id: '44444444-4444-4444-8444-444444444401',
                     recipeId: RECIPE_ID,
                     ingredientId: '00000000-0000-4000-8000-0000000000aa',
-                    quantity: 1,
+                    quantity,
                     unit,
                     sortOrder: 0,
                     ingredientName: 'Tomato',
@@ -206,5 +210,53 @@ describe('recipeVersionSchema — the version-history read contract', () => {
 
     it('still rejects a snapshot line whose unit is not a string', () => {
         expect(recipeVersionSchema.safeParse(wireVersion(3)).success).toBe(false);
+    });
+
+    it('accepts a snapshot line stating a RANGE (U8/R36)', () => {
+        expect(recipeVersionSchema.safeParse(wireVersion('cup', { kind: 'range', low: 2, high: 3 })).success).toBe(
+            true,
+        );
+    });
+
+    it('accepts a snapshot line stating NO quantity (U8/R40)', () => {
+        expect(recipeVersionSchema.safeParse(wireVersion('', { kind: 'absent' })).success).toBe(true);
+    });
+
+    /**
+     * ⚠️ THE WIRE PUBLISHES EXACTLY ONE SPELLING OF A QUANTITY, INCLUDING IN A SNAPSHOT.
+     *
+     * Pre-U8 `recipe_versions.snapshot` JSONB holds `quantity: 2`, and a version is immutable by design so
+     * no migration will rewrite it. An earlier attempt made THIS schema tolerate both forms; the contract
+     * generator rejected it ("transforms cannot be represented in JSON Schema — move server-side
+     * normalization into the handler") and was right on the merits. The upgrade is the SERVER's job, at the
+     * boundary where the blob enters the system: `recipe-service`'s `versions/snapshotUpgrade.ts`, whose
+     * own suite covers the legacy row. By the time a snapshot reaches a client it is already canonical, so
+     * a client that saw a bare number here would be looking at an un-upgraded read path — a defect, not a
+     * shape to accommodate.
+     */
+    it('rejects the PRE-U8 bare number, because the server upgrades a stored snapshot before serving it', () => {
+        expect(recipeVersionSchema.safeParse(wireVersion('cup', 2)).success).toBe(false);
+    });
+
+    it('rejects a snapshot quantity that is not a well-formed value object', () => {
+        expect(recipeVersionSchema.safeParse(wireVersion('cup', { kind: 'exact', value: 0 })).success).toBe(false);
+        expect(recipeVersionSchema.safeParse(wireVersion('cup', '2')).success).toBe(false);
+        expect(recipeVersionSchema.safeParse(wireVersion('cup', null)).success).toBe(false);
+        expect(recipeVersionSchema.safeParse(wireVersion('cup', { kind: 'range', low: 3, high: 2 })).success).toBe(
+            false,
+        );
+    });
+});
+
+describe('recipeErrorCodeSchema cannot drift from RecipeErrorCode', () => {
+    /**
+     * ⛔ THE FAILURE THIS PINS ALREADY HAPPENED (plan U9, 2026-08-31): `PARSE_JOB_NOT_FOUND` was added to
+     * the `RecipeErrorCode` const object but not to this hand-enumerated z.enum — so `isRecipeError`
+     * refused the thrown domain error, and the API answered `500` where the contract promised `404`. Two
+     * representations of one code set MUST be asserted equal, because nothing in the type system relates
+     * a `z.enum` literal list to a const object's values.
+     */
+    it('enumerates exactly the values of the RecipeErrorCode const object', () => {
+        expect([...recipeErrorCodeSchema.options].sort()).toEqual(Object.values(RecipeErrorCode).sort());
     });
 });

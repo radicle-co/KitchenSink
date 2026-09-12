@@ -44,10 +44,10 @@ vi.mock('next/dynamic', async () => {
 });
 
 import type { Recipe } from '@kitchensink/recipe-core';
-import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
-import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+import { recipeQueries, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { QueryClient } from '@tanstack/react-query';
 
-import { renderWithProviders, utilityContrast } from '@commise/test-utils';
+import { renderWithRecipeClient, utilityContrast } from '@commise/test-utils';
 
 import { RecipeWidgetSlot } from '../RecipeWidgetSlot';
 
@@ -70,7 +70,6 @@ const makeRecipe = (overrides: Partial<Recipe> = {}): Recipe => ({
     hasSubstantiveEdit: false,
     dietaryFlags: [],
     tags: ['dinner'],
-    hasPartialNutrition: false,
     currentVersion: 1,
     averageRating: 4.5,
     ratingCount: 12,
@@ -103,11 +102,14 @@ const clientReturning = (recipes: () => Promise<readonly Recipe[]>): RecipeServi
     return client;
 };
 
-const slot = (client: RecipeServiceClient): ReactElement => (
-    <RecipeServiceProvider client={client}>
-        <RecipeWidgetSlot />
-    </RecipeServiceProvider>
-);
+/**
+ * The slot under its production provider stack. `renderWithRecipeClient` (not the bare `renderWithProviders`
+ * + a hand-nested `RecipeServiceProvider`) because the slot now also starts the deferred calorie batch
+ * through the shared query cache — `RecipeProviders` mounts exactly this pair, `QueryClientProvider` +
+ * `RecipeServiceProvider`, in `[locale]/layout.tsx`, so this harness is the real tree rather than a subset
+ * of it. Nothing about the assertions below changed.
+ */
+const slot = (): ReactElement => <RecipeWidgetSlot />;
 
 /**
  * Render the slot and flush the recipes-promise resolution + Suspense retry, returning RTL's result so a
@@ -117,7 +119,7 @@ const renderResolvedResult = async (client: RecipeServiceClient): Promise<Render
     let result!: RenderResult;
 
     await act(async () => {
-        result = renderWithProviders(slot(client));
+        result = renderWithRecipeClient(slot(), client);
     });
 
     return result;
@@ -132,16 +134,51 @@ describe('RecipeWidgetSlot (web)', () => {
     it('shows the skeleton card (widget title, no recipes) while the recipes promise is pending', () => {
         // A pending (never-settling) promise keeps the widget suspended → the skeleton fallback renders. This is
         // a synchronous render with no `await`, so it leaves no resolved Suspense work (and nothing to flush).
-        renderWithProviders(slot(clientReturning(() => new Promise<readonly Recipe[]>(() => {}))));
+        renderWithRecipeClient(
+            slot(),
+            clientReturning(() => new Promise<readonly Recipe[]>(() => {})),
+        );
 
         expect(screen.getByText('Recent recipes')).toBeTruthy(); // the skeleton card title
         expect(screen.queryByText('No recipes yet. Create your first recipe to see it here.')).toBeNull();
+
+        // ⛔ And the route off Home is STILL THERE while the widget waits. The slot suspends internally now
+        // (its inner container has to resolve the recipes before it can start the deferred calorie batch), and
+        // a boundary drawn one level too high — around this whole slot rather than around the widget — blanks
+        // the link for the entire duration of the fetch. That is the same loss the inner ErrorBoundary exists
+        // to prevent, arriving through the loading path instead of the failure path, and it is invisible to
+        // every other assertion in this file.
+        expect(screen.getByRole('link', { name: 'See all recipes' })).toBeTruthy();
     });
 
     it('renders the recent recipes once the promise resolves', async () => {
         await renderResolved(clientReturning(() => Promise.resolve([makeRecipe({ title: 'Weeknight Pasta' })])));
 
         expect(screen.getByText('Weeknight Pasta')).toBeTruthy();
+    });
+
+    /**
+     * ⛔ §11.0: every read goes through the query cache. The slot used to call `client.listRecipes` directly, so the
+     * Home widget refetched a page the cache already held and its read was invisible to invalidation.
+     */
+    it('⛔ reads the recent recipes through the shared query cache — a cached page costs no request', async () => {
+        const client = createFakeRecipeServiceClient();
+        const listRecipes = vi.spyOn(client, 'listRecipes');
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+        queryClient.setQueryData(recipeQueries(client).list({ pageSize: 4 }).queryKey, {
+            data: [makeRecipe({ title: 'Cached Carbonara' })],
+            total: 1,
+            page: 1,
+            pageSize: 4,
+            hasMore: false,
+        });
+
+        await act(async () => {
+            renderWithRecipeClient(slot(), client, { queryClient });
+        });
+
+        expect(screen.getByText('Cached Carbonara')).toBeTruthy();
+        expect(listRecipes).not.toHaveBeenCalled();
     });
 
     it('renders the empty state when the viewer has no recipes', async () => {

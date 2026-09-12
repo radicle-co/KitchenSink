@@ -19,6 +19,22 @@ describe('classifyReachability', () => {
         expect(classifyReachability({ finalUrl, status: 200 })).toMatchObject({ ok: false, kind: 'sso' });
     });
 
+    /**
+     * The check reads the parsed HOST, so `vercel.com/sso` appearing anywhere else in the URL is not a bounce.
+     * The former substring match reported a bypass failure for a preview that merely served such a path —
+     * a false alarm on the one signal this script exists to give.
+     */
+    it.each([
+        ['a preview path that merely contains the marker', 'https://pr-91.sandbox.commise.app/vercel.com/sso'],
+        ['a lookalike host', 'https://vercel.com.evil.test/sso'],
+    ])('does NOT classify %s as sso', (_label, finalUrl) => {
+        expect(classifyReachability({ finalUrl, status: 200 })).toMatchObject({ ok: true, kind: 'app' });
+    });
+
+    it('treats an unparseable final URL as not-a-bounce rather than throwing', () => {
+        expect(() => classifyReachability({ finalUrl: 'not a url', status: 200 })).not.toThrow();
+    });
+
     it('classifies a 404 as notfound (route not registered / app miss)', () => {
         expect(classifyReachability({ finalUrl: 'https://sandbox.commise.app/pr-73/', status: 404 })).toMatchObject({
             ok: false,

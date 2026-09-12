@@ -1,6 +1,6 @@
 # Product Forge Lifecycle Status
 # Feature: 004-recipe-importing
-# Last updated: 2026-08-02
+# Last updated: 2026-08-07
 
 feature: 004-recipe-importing
 feature_mode: v-model # Product Forge v1.7.0 (v3 schema) mode resolution — matches 003's convention.
@@ -84,22 +84,61 @@ phases:
         completed_at: 2026-08-02
 
     implement:
-        state: not-started
+        state: in-progress
         note: >-
-            No T-IDs complete. Pre-implement gaps are now closed: traceability is machine-verified (0 missing
-            cells), every task declares Test-first with its failing-test IDs, and gate-review.md exists.
+            9 of 31 T-IDs complete, 1 in progress (T-010). Backend pure core, extraction, schema, contract and
+            the SC-002 corpus have landed. NOT started: the fetcher core, the pipeline/lifecycle tasks
+            (T-011..T-019, T-030, T-031), the typed client (T-020), every UI task (T-021..T-024), and the
+            remaining verification tiers (T-025 e2e, T-026 k6, T-028 mutation gates, T-029 cross-feature).
+        progress:
+            complete: 9
+            in_progress: 1
+            total: 31
+            complete_ids: [T-001, T-002, T-003, T-004, T-005, T-006, T-007, T-008, T-027]
+            in_progress_ids: [T-010]
         red_gate:
-            status: ready-to-confirm
-            note: >-
-                Every task in tasks.md now carries `Test-first: true` with the specific test IDs that must be
-                confirmed FAILING before implementation. The gate is now evaluable — it was not before. It is
-                NOT yet confirmed: no tests exist to run, because implementation has not begun. The first act
-                of Phase 6 is to write those tests and observe them fail.
-            tests: []
+            status: confirmed_failing
+            confirmed_first_at: 2026-08-02
+            evidence: >-
+                The gate is PER-TASK and has been honoured on every task implemented so far: the test file was
+                written first, run, and observed failing on the missing module BEFORE any implementation
+                existed. Subagents were held to the same rule and each returned its literal RED output; the
+                robots-policy agent went further and re-ran against a permissive stub to prove its tests
+                discriminate rather than merely fail to resolve.
+            tests_confirmed_failing:
+                - importTypes.test.ts (T-004)
+                - import.error.test.ts (T-003)
+                - canonical-source-url.test.ts (T-005)
+                - provenance.policy.test.ts (T-006)
+                - normalize/{content-sanitizer,value-normalizers,ingredient-line,normalizer.service}.test.ts (T-007)
+                - extractors/{schema-org,json-ld,microdata,heuristic,extractor-chain}.test.ts (T-008)
+                - fetch/{ssrf-guard,fetch-budget.config,robots-policy}.test.ts (T-010)
+                - database/schema.test.ts + imports/import-schema.integration.test.ts (T-002)
+                - common/import-contract.test.ts (T-001)
+                - corpus/{accuracy-harness,extraction-accuracy,corpus-manifest}.test.ts (T-027)
+            mutation_evidence: >-
+                Beyond RED, each landed module was mutation-tested by hand and the surviving mutants
+                investigated rather than reported green. Three real defects were found this way: the
+                sanitizer's structure stage was documented for the wrong reason, the SSRF canonical-form check
+                looked decorative until `010.0.0.1` proved it load-bearing, and an explicit BOM strip was dead
+                code. robots-policy scored 93.10% under Stryker after fixing 5 genuine test gaps.
+        verification:
+            unit_suite: 2011 passed
+            recipe_service_integration: 208 passed
+            typecheck: clean
+            eslint: clean
+            known_red: none
+            known_red_note: >-
+                The SC-003 gate was red by design pending an owner ruling; ruled 2026-08-07 (OD-001) and now
+                green. No test in this feature is knowingly failing.
 
     code-review:
-        state: not-applicable
-        reason: No implementation yet.
+        state: not-started
+        note: >-
+            Was 'not-applicable' when no code existed. Code now exists, so this phase is genuinely pending —
+            it must run before Phase 7, and the standing rule is that agent-produced code is reviewed and
+            mutation-tested in the main thread before it is committed, which has been done per-batch so far
+            but does NOT substitute for the Phase 6B pass.
 
     verify:
         state: complete
@@ -184,9 +223,125 @@ gates:
           - SC-002 corpus must gate CI before REQ-NF-003 is claimed
           - Re-evaluate dormant dependencies (F-001) at implementation time
 
+    - phase: implement
+      kind: mid-phase-resume
+      note: >-
+          NOT the Phase 6 completion gate — that fires when all 31 T-IDs are [x]. This is a resume checkpoint
+          taken at 9/31 because seven decisions had accumulated that were the owner's to make.
+      decision: approved
+      risk: high
+      routing: block
+      reviewed_sha: bc4e419a
+      decided_at: 2026-08-07
+      surface: .forge-status.yml open_decisions (gate-review.md unchanged since pre-impl-review)
+      evidence:
+          unit_suite: 2011 passed
+          integration: 208 passed
+          typecheck: clean
+          eslint: clean
+          red_gate: confirmed_failing, honoured per-task
+          sc002: 86.2% against an 85% target
+      rulings:
+          - OD-001 → SC-003 REDEFINED to measure extraction fidelity rather than page completeness. Bar stays
+            95%. Implemented in spec.md, accuracy-harness.ts and its self-tests; gate now GREEN at 100%.
+          - OD-002 → Idempotency-Key now REQUIRED on POST /import/file. Implemented test-first in the contract
+            and its round-trip test; contract re-linted clean.
+          - proceed → fan out subagents (heuristic fixes, T-009 blocklist, T-028 mutation gate) while the
+            source-fetcher core is done in the main thread.
+      still_open: [OD-003, OD-004, OD-005, OD-006, OD-007]
+
+open_decisions:
+    note: >-
+        Surfaced during implementation and NOT silently resolved. Each is an owner call; the implementation
+        followed the stated default noted against each one so work could continue.
+        OD-001 and OD-002 were RULED ON 2026-08-07 and are recorded below as resolved, kept rather than
+        deleted so the reasoning survives.
+    items:
+        - id: OD-001
+          severity: blocking-green-tree
+          title: SC-003's 95% draft-completeness target is unreachable against a representative corpus
+          evidence: >-
+              Measured 90.5% (19/21). A companion test proves extraction loses nothing the page stated — the
+              draft built from real extraction has identical missingRequired to the draft built from the
+              hand-verified expectation. The two shortfalls are ordinary pages (one states no durations, one
+              has quantity-free lines). This is a SPECIFICATION defect, not an extraction defect.
+          must_not: >-
+              Do not close by narrowing the corpus or loosening requiredDraftFields/isPersistableIngredientLine
+              — the latter lets a draft claim it is confirmable and then 422 on confirm.
+          resolution: >-
+              RULED 2026-08-07 — redefined to measure extraction FIDELITY (missing nothing the source stated),
+              bar unchanged at 95%. Gate now green at 100%. spec.md, accuracy-harness.ts and its self-tests
+              updated together; the stale module doc was corrected in the same change.
+          status: resolved
+        - id: OD-002
+          severity: contract
+          title: D-008 contradicts itself on Idempotency-Key for the file channel
+          evidence: >-
+              Its rationale names file imports as one of "the two channels where a duplicate actually costs
+              money", but its normative list requires the header only on {url, instagram, photo}. As written a
+              retried 1,000-recipe file upload double-imports.
+          resolution: >-
+              RULED 2026-08-07 — Idempotency-Key is now REQUIRED on POST /import/file. Written test-first
+              (contract test RED confirmed), contract updated, redocly re-lint clean.
+          status: resolved
+        - id: OD-003
+          severity: expensive-to-reverse
+          title: Idempotency uniqueness scope is (owner_id, import_channel, idempotency_key)
+          evidence: >-
+              Permits the same key across two channels producing two jobs. Standard idempotency semantics
+              reject a key reused with different parameters. A persisted uniqueness scope is costly to change.
+          default_taken: channel-scoped, with T-013 expected to compare stored channel and raise a conflict
+        - id: OD-004
+          severity: privacy
+          title: Account erasure does not sweep import_drafts or import_jobs
+          evidence: >-
+              After erasure a user's drafts survive holding extracted third-party content, source URLs and OCR
+              object keys. Erasure was verified to still WORK, not to be COMPLETE.
+          default_taken: none — must land with T-012 or its own task before release
+        - id: OD-005
+          severity: ratification
+          title: Two judgment calls made by delegated agents, awaiting ratification
+          evidence: >-
+              (a) D-007's "bare site-wide Disallow" is implemented as a semantic class — `/`, `/*`, `/**` and
+              bare `*` — so the override does not turn on spelling; `/$` and `*/` stay honoured.
+              (b) IMPORT_USER_AGENT is exported from robots-policy.ts and the fetcher MUST import it rather
+              than redeclare it, or the string we send diverges from the string we match and every deployed
+              site-owner opt-out silently stops working.
+          default_taken: both implemented as described
+        - id: OD-006
+          severity: stale-doc
+          title: Task and V-Model documents contradict the spec and shipped code in five places
+          evidence: >-
+              tasks.md T-006 says file → imported_physical (spec FR-011 and provenance.policy.ts say
+              user_created); T-003 says "10 codes" (there are 12); T-001 says 12 endpoints (plan §3 has 13,
+              T-030 makes 14); T-015 says POST /import/file returns a singular draftId (FR-026/D-013 allow
+              1,000 per file — documented as draftIds[] to avoid a breaking change);
+              v-model/system-design.md:163 says a draft row is deleted on confirm, contradicting the terminal
+              `confirmed` state in recipe-core.
+          default_taken: followed spec.md + shipped code in every case
+        - id: OD-007
+          severity: gate-not-enforced
+          title: stryker.conf.json does not include src/imports/**
+          evidence: >-
+              D-010's 90% mutation bar is therefore NOT enforced in CI for any code landed so far. Every
+              mutation score quoted in this file was produced by hand. Belongs to T-028.
+          default_taken: none
+
+tooling_defects:
+    - >-
+        .specify/extensions/product-forge/scripts/{gate-risk,validate-traceability}.js are CommonJS but the
+        repo root package.json sets "type": "module", so Node 24 refuses to load them (ReferenceError: require
+        is not defined). Pre-existing and unrelated to this feature. Worked around for this gate by copying
+        the scripts dir to a scratch path with a {"type":"commonjs"} marker. The real fix is renaming them to
+        .cjs upstream.
+    - >-
+        validate-traceability.js reports "no traceability.yml yet (pre-Phase-5B)" because this feature uses the
+        generated v-model/traceability-matrix.md instead. The matrix itself is machine-verified at 0 missing
+        cells by the v-model build-matrix.sh script.
+
 status:
-    overall: ready-for-implementation
-    release_audit: BLOCKED-PRE-IMPLEMENTATION
+    overall: implementation-in-progress
+    release_audit: BLOCKED-PRE-RELEASE
     notes:
         - >-
             'overall' and 'release_audit' are DIFFERENT claims and must not be conflated. The design gate is
@@ -196,8 +351,139 @@ status:
         - >-
             Scope reconciled against shipped 001 (PR #73, merged 2026-07-30). 004 owns INGESTION only.
         - >-
-            One requirement (FR-009, Instagram) is gated on an external Meta credential and ships disabled.
-            Release does not depend on it.
+            SUPERSEDED 2026-08-07 by OD-008. FR-009's blocker is NOT the Meta credential. Verified live
+            against graph.facebook.com/v26.0: the oEmbed response carries NO caption at all, a credential is
+            no longer required, and Meta's Limitations forbid persisting the metadata. See OD-008.
         - >-
             Two peer-review Minors remain open (MIN-006 dormant dependencies, MIN-007 corpus sizing) plus
             twelve Observations. None blocks implementation.
+
+# ── Raised during implementation, 2026-08-07. Each needs an owner ruling. ─────────────────────────────
+open_decisions_round_2:
+    OD-008:
+        title: FR-009 (Instagram) cannot be satisfied by oEmbed — the blocker is not the credential
+        raised_by: T-019 implementation, verified LIVE against graph.facebook.com/v26.0 (not inferred from docs)
+        finding: >-
+            The success body is exactly {html, provider_name, provider_url, type, version, width}. There is no
+            caption, no title and no author_name — Meta removed the author/thumbnail family on 2025-11-03. The
+            6.3 KB `html` is a loading skeleton whose only human-readable text is "View this post on Instagram";
+            the content is injected client-side by embeds.js. Separately, an unauthenticated call now returns
+            200, so D-002's "gated on an external Meta credential" premise is stale — and Meta's Limitations
+            state that extracting or persisting metadata beyond a front-end view is strictly prohibited.
+        consequence: >-
+            Against the live provider the honest terminal outcome for EVERY post is IMPORT_NO_CAPTION (422).
+            That is a specified outcome (REQ-CN-004), so nothing is broken — but REQ-005 is unreachable.
+        status: >-
+            Built and shipping DISABLED behind IMPORT_INSTAGRAM_ENABLED, which defaults false. The channel is
+            absent from GET /import/sources and its route 404s while off, so there is no dead affordance and
+            no user-visible promise. 179 unit tests + 10 integration tests green against a contract fake built
+            from live captures.
+        options:
+            - Accept: leave the channel permanently disabled and drop FR-009 from the release claim.
+            - Substitute a different caption source behind the SAME OEmbedProvider port (a new adapter, no
+              other change) — requires a terms-of-service review first.
+            - Drop FR-009 from the spec entirely.
+        owner_ruling: PENDING
+    OD-009:
+        title: A free-tier caller can obtain a PRIVATE recipe by declaring an unverified paid source
+        raised_by: T-029 implementation
+        finding: >-
+            FR-025 permits a client to declare `paid-source`; C-004 makes imported_paid private-only. So a
+            free-tier caller declaring a paid source with free-text, unverified citation lands PRIVATE — the
+            exact outcome HAZ-057 cites as the reason imported_physical is forbidden to clients, admitted by a
+            different door.
+        status: Implemented AS SPECIFIED (D-003/FR-014a/FR-025) and asserted by integration test.
+        options:
+            - Gate the paid-source declaration behind premium (D-014's IMPORT_REQUIRES_PREMIUM is the fit).
+            - Accept it as intended product behaviour.
+        owner_ruling: PENDING
+    OD-010:
+        title: REQ-025's "unverifiable source" state has no backing field and is unreachable in production
+        raised_by: T-023 implementation
+        finding: >-
+            plan.md's schema delta adds only import_channel and source_url_canonical; Recipe in recipe-core has
+            no unverifiable field. The UI prop exists and is fully tested, but nothing can ever set it except
+            the URL-refused path.
+        owner_ruling: PENDING
+    OD-011:
+        title: Documentation defect — evaluateVisibility's stated location is wrong in three places
+        raised_by: T-029 implementation
+        finding: >-
+            v-model/architecture-design.md (ARCH-022), hazard-analysis.md, and imports/policy/provenance.policy.ts
+            all say evaluateVisibility lives in @kitchensink/recipe-core. It lives in
+            src/recipes/domain/visibilityPolicy.ts. recipe-core's recipeAccessPolicy.ts holds only the
+            client-side half. REQ-015 is an Inspection requirement, so a wrong stated location matters for the
+            audit trail.
+        owner_ruling: PENDING (documentation fix, no code change)
+    OD-012:
+        title: tasks.md names backend e2e files *.e2e.spec.ts, which would never run
+        raised_by: T-017 and T-019 implementations, independently
+        finding: >-
+            Bare *.spec.ts is reserved for Playwright; vitest.e2e.config.ts collects tests/e2e/**/*.e2e.test.ts.
+            Every e2e file named per tasks.md would be silently uncollected.
+        status: Implementations used .e2e.test.ts (the shipped standard). tasks.md should be corrected.
+        owner_ruling: PENDING (documentation fix)
+    OD-013:
+        title: Contract gaps found while implementing against api.openapi.yaml
+        raised_by: T-017 implementation
+        finding: >-
+            admin POST does not declare the 409 its concurrent-removal race produces; 429 is undeclared
+            service-wide though the throttler applies; GET declares pagination the service does not implement.
+        owner_ruling: PENDING
+    OD-014:
+        title: plan.md and tasks.md contradict the OpenAPI contract on duplicate handling — RESOLVED IN FAVOUR OF THE CONTRACT
+        raised_by: T-020 (typed client) implementation; ruled on during integration 2026-08-07
+        finding: >-
+            plan.md §3 line 222 and tasks.md T-014 line 363 both state "a duplicate URL returns 200 with the
+            existing recipe and cloneAvailable: true — 200, not an error". The contract
+            (specs/001-commise-recipe-app/contracts/api.openapi.yaml, /api/v1/recipes/import/url) states the
+            endpoint ALWAYS returns 202 + a job, and the duplicate surfaces on the TERMINAL JOB as
+            duplicate: true + recipeId. The identifier `cloneAvailable` appears nowhere in the contract.
+        ruling: >-
+            The CONTRACT wins. The reason is structural, not a preference between documents: a synchronous 200
+            can only detect a duplicate of the URL AS SUBMITTED, but the dedup key is the canonical form of
+            where the fetch LANDS. SourceFetcherService.fetch() returns finalUrl precisely because redirects
+            are routine on recipe sites (example.com/recipe -> example.com/recipes/123), and that final URL is
+            unknowable until after the fetch, which happens inside the job. A synchronous check would catch
+            only the easy half while the async path still needed duplicate: true — two mechanisms for one
+            rule, guaranteed to drift. The typed client is also already built and green (498 unit + 18
+            integration) against the 202-only shape.
+        action_taken: >-
+            The URL-channel implementation was directed to follow the contract. plan.md §3 and tasks.md T-014
+            are WRONG and need correcting; they are left unedited pending owner acknowledgement so the
+            correction is visible rather than silent.
+        owner_ruling: RESOLVED (contract), documentation correction PENDING
+    OD-015:
+        title: UpdateImportDraftRequest.ingredients cannot represent what the draft actually holds
+        raised_by: T-020 (typed client) implementation
+        finding: >-
+            ParsedIngredientInput requires quantity >= 0.001 and has no isGroupHeader field, but
+            NormalizedDraftContent.ingredients legitimately contains group headers and quantity: null lines
+            ("salt to taste"). A client that PATCHes back an edited ingredient array cannot represent either,
+            so the round-trip SILENTLY DROPS them.
+        consequence: Blocks T-022's draft-review editor from being correct. Needs a contract decision.
+        warning: >-
+            Do NOT close this by loosening isPersistableIngredientLine or requiredDraftFields — that would let
+            a draft claim it is confirmable and then 422 on confirm, the exact failure the draft-and-confirm
+            model exists to prevent.
+        owner_ruling: PENDING
+    OD-016:
+        title: prod.package.json omitted 15 runtime dependencies — FIXED, and the class is now closed
+        raised_by: T-015 (file channel) found `yaml`; the full audit followed during integration
+        finding: >-
+            Dockerfile:9 copies prod.package.json OVER package.json in the image and prod-deploy.yml:189 runs
+            npm prune --omit=dev, so the container installs only what that manifest names. It omitted cheerio,
+            cockatiel, sanitize-html, parse-ingredient, robots-parser, microdata-node, normalize-url,
+            iso8601-duration, entities, ipaddr.js, @aws-sdk/client-textract — plus five already missing before
+            004 (@aws-sdk/client-cloudfront, @aws-sdk/client-sqs, @kitchensink/identity-core, jose). That
+            includes the SSRF guard's ipaddr.js and the fetcher's cockatiel: the service would crash-loop on
+            deploy. Invisible to every other tier, because unit/integration/e2e/typecheck/lint all run against
+            the full node_modules tree.
+        action_taken: >-
+            All 15 added and version ranges aligned (prod allowed @nestjs/platform-express ^11.0.0 where the
+            workspace pins ^11.1.28, so the image could have installed a build CI never exercised).
+            src/__tests__/prod-manifest.test.ts now DERIVES the required set from actual source imports — a
+            hand-maintained list would be the same defect one level up. Type-only imports are excluded because
+            they are erased; that distinction matters (express is imported only as a type and must NOT be
+            declared a runtime dependency).
+        owner_ruling: none needed — defect fixed, regression test added

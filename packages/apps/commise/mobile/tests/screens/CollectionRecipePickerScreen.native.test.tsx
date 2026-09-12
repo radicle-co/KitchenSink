@@ -1,186 +1,188 @@
 /**
  * Component tests for the mobile CollectionRecipePickerScreen (react-native-web under jsdom) — the ADD half
- * of FR-009 (T072). The screen loads the target collection (for its name + membership) and the caller's own
- * recipes via (mocked) `useCollection` / `useRecipes`, then drives the shared native `CollectionRecipePicker`
- * and wires the add to `useAddRecipeToCollection`. These cover the screen's OWN logic — the status mapping,
- * the client-side search filter, the membership derivation from the loaded collection, the derivation of the
- * in-flight/success/failure signals from the mutation, and the add/create/done wiring — not the block's
- * presentational branches (owned by the block's own suite).
+ * of FR-009 (T072). The screen keeps the picker FRAME (heading, Done, search) outside its read boundary and reads
+ * the collection and the caller's own recipes with suspense queries inside it, then wires the add to
+ * `useAddRecipeToCollection`. These cover the screen's OWN logic — the boundary's loading and failure (whose retry
+ * refetches), Done reachable in every state (it is the screen's only way out), the client-side search filter, the
+ * membership derivation, the in-flight/success/failure signals from the mutation, and the add/create/done wiring —
+ * not the block's presentational branches (owned by the block's own suite).
+ *
+ * The screen renders through the REAL hooks over a network-guarded fake client (`createFakeRecipeServiceClient`), so
+ * a retry is proven by a second request and an add by the client call it issues.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
-import { useAddRecipeToCollection, useCollection, useRecipes } from '@kitchensink/recipe-service-client/hooks';
+import { renderWithRecipeClient } from '@commise/test-utils';
+import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 
 import { CollectionRecipePickerScreen } from '../../src/screens/CollectionRecipePickerScreen.js';
 import { makeCollectionWithRecipes, makeRecipe, makeRecipePage } from '../__fixtures__/recipes.js';
 
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useCollection: vi.fn(),
-    useRecipes: vi.fn(),
-    useAddRecipeToCollection: vi.fn(),
-}));
-
-const useCollectionMock = vi.mocked(useCollection);
-const useRecipesMock = vi.mocked(useRecipes);
-const useAddRecipeToCollectionMock = vi.mocked(useAddRecipeToCollection);
-
-function collectionResult(overrides: Partial<ReturnType<typeof useCollection>> = {}): ReturnType<typeof useCollection> {
-    return {
-        isLoading: false,
-        isError: false,
-        data: undefined,
-        refetch: vi.fn(),
-        ...overrides,
-    } as unknown as ReturnType<typeof useCollection>;
-}
-
-function recipesResult(overrides: Partial<ReturnType<typeof useRecipes>> = {}): ReturnType<typeof useRecipes> {
-    return {
-        isLoading: false,
-        isError: false,
-        data: undefined,
-        refetch: vi.fn(),
-        ...overrides,
-    } as unknown as ReturnType<typeof useRecipes>;
-}
-
-function addMutation(
-    overrides: Partial<ReturnType<typeof useAddRecipeToCollection>> = {},
-): ReturnType<typeof useAddRecipeToCollection> {
-    return {
-        mutate: vi.fn(),
-        isPending: false,
-        isError: false,
-        isSuccess: false,
-        variables: undefined,
-        ...overrides,
-    } as unknown as ReturnType<typeof useAddRecipeToCollection>;
-}
-
-const props = {
-    collectionId: 'col_1',
-    onCreateRecipe: vi.fn(),
-    onDone: vi.fn(),
-};
-
-/** Seed a loaded collection (named, with the given members) plus a recipe page. */
-function seedReady(
-    members: readonly ReturnType<typeof makeRecipe>[],
-    candidates: readonly ReturnType<typeof makeRecipe>[],
-) {
-    useCollectionMock.mockReturnValue(
-        collectionResult({ data: makeCollectionWithRecipes(members, { id: 'col_1', name: 'Weeknight favourites' }) }),
-    );
-    useRecipesMock.mockReturnValue(recipesResult({ data: makeRecipePage(candidates) }));
-}
-
-afterEach(cleanup);
-
-beforeEach(() => {
-    useCollectionMock.mockReset();
-    useRecipesMock.mockReset();
-    useAddRecipeToCollectionMock.mockReset();
-    useAddRecipeToCollectionMock.mockReturnValue(addMutation());
-    useCollectionMock.mockReturnValue(collectionResult());
-    useRecipesMock.mockReturnValue(recipesResult());
+afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
 });
 
-describe('CollectionRecipePickerScreen — fetch states', () => {
-    it('shows the loading state while either query loads', () => {
-        useCollectionMock.mockReturnValue(collectionResult({ isLoading: true }));
-        useRecipesMock.mockReturnValue(recipesResult({ data: makeRecipePage([]) }));
+const noop = (): void => undefined;
 
-        render(<CollectionRecipePickerScreen {...props} />);
+/** A client whose collection (named, with the given members) and recipe page both resolve. */
+function readyClient(
+    members: readonly ReturnType<typeof makeRecipe>[],
+    candidates: readonly ReturnType<typeof makeRecipe>[],
+): RecipeServiceClient {
+    const client = createFakeRecipeServiceClient();
+    vi.spyOn(client, 'getCollectionById').mockResolvedValue(
+        makeCollectionWithRecipes(members, { id: 'col_1', name: 'Weeknight favourites' }),
+    );
+    vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage(candidates));
+
+    return client;
+}
+
+function renderScreen(
+    client: RecipeServiceClient,
+    overrides: { onCreateRecipe?: () => void; onDone?: () => void } = {},
+) {
+    renderWithRecipeClient(
+        <CollectionRecipePickerScreen
+            collectionId="col_1"
+            onCreateRecipe={overrides.onCreateRecipe ?? noop}
+            onDone={overrides.onDone ?? noop}
+        />,
+        client,
+    );
+}
+
+describe('CollectionRecipePickerScreen — fetch states', () => {
+    it('shows the loading state with Done already reachable', () => {
+        const onDone = vi.fn();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+        vi.spyOn(client, 'listRecipes').mockReturnValue(new Promise(() => {}));
+
+        renderScreen(client, { onDone });
 
         expect(screen.getByLabelText('Loading your recipes')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+        expect(onDone).toHaveBeenCalledTimes(1);
     });
 
-    it('shows an alert when either query errors', () => {
-        useCollectionMock.mockReturnValue(collectionResult({ isError: true }));
-        useRecipesMock.mockReturnValue(recipesResult({ data: makeRecipePage([]) }));
+    it('shows an alert when a read fails, with Done still reachable', async () => {
+        const onDone = vi.fn();
+        const client = readyClient([], []);
+        vi.mocked(client.getCollectionById).mockRejectedValue(new Error('boom'));
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-        render(<CollectionRecipePickerScreen {...props} />);
+        renderScreen(client, { onDone });
 
-        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(await screen.findByRole('alert')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+        expect(onDone).toHaveBeenCalledTimes(1);
     });
 
-    it('offers to create a recipe when the caller owns none', () => {
+    it('⛔ Try again REFETCHES and the candidates render', async () => {
+        const client = readyClient([], [makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]);
+        vi.mocked(client.listRecipes)
+            .mockRejectedValueOnce(new Error('boom'))
+            .mockResolvedValueOnce(makeRecipePage([makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]));
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        renderScreen(client);
+        fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+        expect(await screen.findByRole('button', { name: 'Add Fish Tacos' })).toBeTruthy();
+        expect(client.listRecipes).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps the search field and what was typed when the candidates settle', async () => {
+        let resolveRecipes: (page: ReturnType<typeof makeRecipePage>) => void = () => undefined;
+        const client = readyClient([], []);
+        vi.mocked(client.listRecipes).mockReturnValue(new Promise((settle) => (resolveRecipes = settle)));
+
+        renderScreen(client);
+        const search = screen.getByLabelText('Search your recipes');
+        fireEvent.change(search, { target: { value: 'soup' } });
+
+        resolveRecipes(
+            makeRecipePage([
+                makeRecipe({ id: 'rec_9', title: 'Fish Tacos' }),
+                makeRecipe({ id: 'rec_2', title: 'Lentil Soup' }),
+            ]),
+        );
+
+        expect(await screen.findByRole('button', { name: 'Add Lentil Soup' })).toBeTruthy();
+        expect(screen.getByLabelText('Search your recipes')).toBe(search);
+        expect((search as HTMLInputElement).value).toBe('soup');
+        expect(screen.queryByRole('button', { name: 'Add Fish Tacos' })).toBeNull();
+    });
+
+    it('offers to create a recipe when the caller owns none', async () => {
         const onCreateRecipe = vi.fn();
-        seedReady([], []);
 
-        render(<CollectionRecipePickerScreen {...props} onCreateRecipe={onCreateRecipe} />);
-        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        renderScreen(readyClient([], []), { onCreateRecipe });
+        fireEvent.click(await screen.findByRole('button', { name: 'New recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('CollectionRecipePickerScreen — adding', () => {
-    it('names the collection and adds a chosen recipe to it', () => {
-        const mutate = vi.fn();
-        useAddRecipeToCollectionMock.mockReturnValue(addMutation({ mutate: mutate as never }));
-        seedReady([], [makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]);
+    it('names the collection and adds a chosen recipe to it', async () => {
+        const client = readyClient([], [makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]);
+        const addSpy = vi.spyOn(client, 'addRecipeToCollection').mockReturnValue(new Promise(() => {}));
 
-        render(<CollectionRecipePickerScreen {...props} />);
+        renderScreen(client);
+        fireEvent.click(await screen.findByRole('button', { name: 'Add Fish Tacos' }));
+
         expect(screen.getByRole('heading', { name: 'Add recipes to Weeknight favourites' })).toBeTruthy();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Add Fish Tacos' }));
-
-        expect(mutate).toHaveBeenCalledWith({ id: 'col_1', recipeId: 'rec_9' });
+        await vi.waitFor(() => expect(addSpy).toHaveBeenCalledWith('col_1', 'rec_9'));
     });
 
-    it('marks a recipe already in this collection as a member (no add control)', () => {
+    it('marks a recipe already in this collection as a member (no add control)', async () => {
         const member = makeRecipe({ id: 'rec_9', title: 'Fish Tacos' });
         // The candidate list (the caller's recipes) includes the recipe that is already a member.
-        seedReady([member], [member, makeRecipe({ id: 'rec_2', title: 'Lentil Soup' })]);
+        renderScreen(readyClient([member], [member, makeRecipe({ id: 'rec_2', title: 'Lentil Soup' })]));
 
-        render(<CollectionRecipePickerScreen {...props} />);
-
-        expect(screen.getByText('In this collection')).toBeTruthy();
+        expect(await screen.findByText('In this collection')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Add Fish Tacos' })).toBeNull();
         expect(screen.getByRole('button', { name: 'Add Lentil Soup' })).toBeTruthy();
     });
 
-    it('marks the in-flight recipe as busy while its add is pending', () => {
-        useAddRecipeToCollectionMock.mockReturnValue(
-            addMutation({ isPending: true, variables: { id: 'col_1', recipeId: 'rec_9' } }),
+    it('marks the in-flight recipe as busy while its add is pending', async () => {
+        const client = readyClient([], [makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]);
+        vi.spyOn(client, 'addRecipeToCollection').mockReturnValue(new Promise(() => {}));
+
+        renderScreen(client);
+        fireEvent.click(await screen.findByRole('button', { name: 'Add Fish Tacos' }));
+
+        expect(await screen.findByText('Adding…')).toBeTruthy();
+    });
+
+    it('announces the last successful add', async () => {
+        const recipe = makeRecipe({ id: 'rec_9', title: 'Fish Tacos' });
+        const client = readyClient([], [recipe]);
+        vi.mocked(client.getCollectionById)
+            .mockResolvedValueOnce(makeCollectionWithRecipes([], { id: 'col_1', name: 'Weeknight favourites' }))
+            .mockResolvedValue(makeCollectionWithRecipes([recipe], { id: 'col_1', name: 'Weeknight favourites' }));
+        vi.spyOn(client, 'addRecipeToCollection').mockResolvedValue(undefined as never);
+
+        renderScreen(client);
+        fireEvent.click(await screen.findByRole('button', { name: 'Add Fish Tacos' }));
+
+        expect(await screen.findByText('Added Fish Tacos')).toBeTruthy();
+    });
+
+    it('surfaces an add failure as an alert', async () => {
+        const client = readyClient([], [makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]);
+        vi.spyOn(client, 'addRecipeToCollection').mockRejectedValue(new Error('network down'));
+
+        renderScreen(client);
+        fireEvent.click(await screen.findByRole('button', { name: 'Add Fish Tacos' }));
+
+        expect((await screen.findByRole('alert')).textContent).toContain(
+            'We couldn’t add that recipe. Please try again.',
         );
-        seedReady([], [makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]);
-
-        render(<CollectionRecipePickerScreen {...props} />);
-
-        expect(screen.getByText('Adding…')).toBeTruthy();
-    });
-
-    it('announces the last successful add', () => {
-        const member = makeRecipe({ id: 'rec_9', title: 'Fish Tacos' });
-        useAddRecipeToCollectionMock.mockReturnValue(
-            addMutation({ isSuccess: true, variables: { id: 'col_1', recipeId: 'rec_9' } }),
-        );
-        seedReady([member], [member]);
-
-        render(<CollectionRecipePickerScreen {...props} />);
-
-        expect(screen.getByText('Added Fish Tacos')).toBeTruthy();
-    });
-
-    it('surfaces an add failure as an alert', () => {
-        useAddRecipeToCollectionMock.mockReturnValue(addMutation({ isError: true }));
-        seedReady([], [makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]);
-
-        render(<CollectionRecipePickerScreen {...props} />);
-
-        expect(screen.getByRole('alert').textContent).toContain('We couldn’t add that recipe. Please try again.');
-    });
-
-    it('dismisses on done', () => {
-        const onDone = vi.fn();
-        seedReady([], [makeRecipe({ id: 'rec_9', title: 'Fish Tacos' })]);
-
-        render(<CollectionRecipePickerScreen {...props} onDone={onDone} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-
-        expect(onDone).toHaveBeenCalledTimes(1);
     });
 });

@@ -1,0 +1,118 @@
+name: Sandbox Reap
+
+# The scheduled half of the sandbox lifecycle: find previews that have outlived their day and press
+# `Sandbox Down` on each. The manual half is `sandboxDown.yml`. This file owns WHEN a sweep runs;
+# `.github/scripts/sandboxReap.sh` decides WHO, and neither decides HOW.
+#
+# ## ⛔ WHY THE SCHEDULE CANNOT LIVE IN THE PULL REQUEST, AND WHAT IT DOES INSTEAD
+#
+# The obvious design — "a job scheduled inside the PR destroys that PR's sandbox" — is not expressible on
+# GitHub Actions, and the reason is worth stating once so nobody rediscovers it by watching nothing happen:
+#
+#   - `schedule:` fires ONLY from the default branch. A cron in a workflow that exists only on a feature
+#     branch never runs. `sandboxReconcile.yml` demonstrated this for its whole life: `gh workflow list`
+#     answered `not found on the default branch`, and it fired zero times.
+#   - a cron run carries NO pull-request context. `github.event.pull_request` is empty, so the run cannot
+#     know which PR it is "for" — it is a run on the default branch that knows nothing about any PR.
+#   - there is no per-PR timer primitive at all. Runs happen on events; "at midnight, for PR 91" is not a
+#     thing the platform can be asked for.
+#
+# So there is exactly ONE cron, it runs on the default branch, and it has to find the previews itself. It
+# does that from the two systems that already know, rather than from any state we maintain:
+#
+#   - **AWS** says what EXISTS. A `kitchensink-*-pr-{N}` stack existing IS "this PR has a sandbox"; its
+#     `LastUpdatedTime` IS "when was it last deployed". Neither can be forgotten, and no deploy can erase
+#     them — unlike a tag, which `UpdateStack` replaces wholesale on every deploy.
+#   - **GitHub** (via `gh`) says whether the pull request is still open, which is what distinguishes "in
+#     use" from "abandoned".
+#
+# ⛔ Do NOT reintroduce a `sandbox-up` label or a `SandboxExpiresAt` tag to carry this. Both are a second
+# copy of a fact these two systems already hold, and a second copy is a thing that can disagree — the label
+# by being forgotten, the tag by being stripped.
+#
+# ## The deadline
+#
+# Midnight America/New_York of the day a preview was LAST DEPLOYED. `sandboxLifetime.sh expires-at` already
+# computes exactly that from an epoch (including the two-hour minimum, so a preview deployed at 23:50 does
+# not die ten minutes later) — `sandboxReap.sh` feeds it `LastUpdatedTime` rather than a button-press time.
+#
+# The consequence is deliberate: a preview you are actively pushing to stays alive, and one you have stopped
+# touching dies that night. That REPLACES ADR-0028's "the deadline is fixed when the button is pressed",
+# which killed a sandbox out from under someone still working in it at 23:00.
+#
+# ## ⛔ THIS FILE CANNOT DESTROY PRODUCTION
+#
+# It never names a target. It derives `{N}` from a stack name matching `kitchensink-*-pr-{N}`, hands those
+# DIGITS to `sandboxDown.yml`, and that workflow builds the `pr-{N}` token itself. Production and the
+# shared sandbox tier carry no `pr-{N}` in their names, so they are not merely refused — they are never
+# candidates. See `packages/infra/global/__tests__/sandboxDestroyTargetSafety.test.ts` for the three layers.
+
+on:
+    # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER. GitHub holds no RECORD for a workflow until the file
+    # reaches the default branch or the workflow actually RUNS — and a `workflow_dispatch`/`schedule` file on
+    # a feature branch can do neither, because the schedule only fires from the default branch and the
+    # dispatch needs the record that running would have created. A closed loop, whose symptom is
+    # `gh workflow run` answering `not found on the default branch`.
+    #
+    # Pushing this ONE file creates a run whose only job is skipped — no runner time, nothing stood up or
+    # torn down — and that run is what registers the workflow so it can be dispatched.
+    #
+    # ⛔ Do not widen `paths:`, and do not remove the job's `if:`. Either turns a push into real work.
+    # `workflowRegistration.test.ts` asserts both, for every branch-only workflow at once.
+    push:
+        paths:
+            - .github/workflows/sandboxReap.yml
+    schedule:
+        # Hourly, off the hour — the top of the hour is GitHub's most contended slot, and scheduled runs are
+        # best-effort: delayed under load, skipped entirely, and auto-disabled after 60 days of repository
+        # inactivity. Asking "is anything past due?" every hour is self-healing; a single nightly run that
+        # silently does not happen is indistinguishable from one that found nothing to do.
+        - cron: '17 * * * *'
+    workflow_dispatch:
+
+permissions:
+    contents: read # checkout of the reaper and lifetime scripts
+
+concurrency:
+    group: sandbox-reap
+    cancel-in-progress: false
+
+env:
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+
+jobs:
+    reap:
+        name: Reap previews that have outlived their day
+        runs-on: ubuntu-latest
+        # ⛔ THE SCHEDULE OR THE PRESS REAPS — NEVER THE REGISTERING PUSH. The `push:` above exists only
+        # so GitHub holds a record for this file; a push that reclaimed infrastructure would make editing
+        # this workflow a destructive act.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        # ⛔ NEVER bound to a GitHub Environment: reclamation must not be a thing a protection rule can
+        # suspend. `reclamationNeverGated.test.ts` asserts it.
+        permissions:
+            contents: read
+            actions: write # dispatch `sandboxDown.yml` for each expired preview
+        env:
+            GH_TOKEN: ${{ github.token }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # One step, on purpose. `sandboxReclamationReachability.test.ts` analyzer 1 exists because a
+            # prerequisite step that aborts takes the reclamation with it — so discovery, decision and
+            # dispatch are not split into a chain of steps that can each pre-empt what follows. A preview
+            # whose own probe fails is skipped and reported; it never stops the others being reaped.
+            - name: Find expired previews and press Sandbox Down on each
+              # Discovery, the look-ahead, the reap-or-keep decision and the dispatch all live in the script:
+              # pure decisions tested by `sandboxReap.test.ts`, the sweep itself by
+              # `tests/sandboxReap.integration.test.ts`. `$GITHUB_REF_NAME` is the ref `Sandbox Down` is
+              # dispatched on — see `sandbox_reap_dispatch` for why it is required.
+              run: bash .github/scripts/sandboxReap.sh evaluate "$GITHUB_REF_NAME"

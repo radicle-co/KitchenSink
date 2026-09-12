@@ -404,13 +404,13 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 
 ### ARCH-004: Recipe Command Service
 
-| Direction | Name                 | Type   | Format                                          | Constraints                                                    |
+| Direction | Name | Type | Format | Constraints |
 | --------- | -------------------- | ------ | ----------------------------------------------- | -------------------------------------------------------------- | ------ | -------------------- | ----------------------------- |
-| Input     | command              | object | `Create                                         | Update                                                         | Delete | Clone RecipeCommand` | Validated; principal attached |
-| Output    | result               | object | `RecipeView` with `versionNumber`, `rowVersion` | New `versionNumber` monotonic per recipe; `rowVersion` updated |
-| Exception | CONCURRENCY_CONFLICT | 409    | `{ code, currentRowVersion, currentSnapshot }`  | Raised by ARCH-016                                             |
-| Exception | POLICY_DENIED        | 403    | `{ code, ruleId, reason }`                      | Raised by ARCH-006                                             |
-| Exception | VALIDATION_FAILED    | 400    | `{ code, fieldErrors[] }`                       | Raised by ARCH-005 before service entry                        |
+| Input | command | object | `Create                                         | Update                                                         | Delete | Clone RecipeCommand` | Validated; principal attached |
+| Output | result | object | `RecipeView` with `versionNumber`, `rowVersion` | New `versionNumber` monotonic per recipe; `rowVersion` updated |
+| Exception | CONCURRENCY_CONFLICT | 409 | `{ code, currentRowVersion, currentSnapshot }` | Raised by ARCH-016 |
+| Exception | POLICY_DENIED | 403 | `{ code, ruleId, reason }` | Raised by ARCH-006 |
+| Exception | VALIDATION_FAILED | 400 | `{ code, fieldErrors[] }` | Raised by ARCH-005 before service entry |
 
 ### ARCH-005: Recipe DTO Validator
 
@@ -439,11 +439,11 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 
 ### ARCH-008: Ingredient Resolver Service
 
-| Direction | Name                 | Type  | Format                                                                                          | Constraints                                                                                                                                                                                                                                                                                                                |
+| Direction | Name | Type | Format | Constraints |
 | --------- | -------------------- | ----- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Input     | items                | array | `[{ kind: "linked"                                                                              | "freeform", foodId?, text?, quantity, unit }]`                                                                                                                                                                                                                                                                             | `linked` requires an opaque food `foodId` (ULID from `@kitchensink/food-service-client`, never the source `fdcId`); `freeform` requires `text` |
-| Output    | resolved             | array | `[{ inputIndex, ingredientId?, foodId?, foodResolutionStatus?, isUserEntered, normalizedQty }]` | Stable order matching input; `foodResolutionStatus ∈ {PENDING, UNRESOLVED, RESOLVED, NOT_FOUND, FAILED}` (UPPER_SNAKE) — a just-added food may still be `PENDING`/`UNRESOLVED`; `NOT_FOUND`/`FAILED` are terminal. Freeform / user-supplied entry is the SEPARATE `isUserEntered` boolean, never a resolution-status value |
-| Exception | INGREDIENT_NOT_FOUND | 404   | `{ code, inputIndex, attemptedFoodId }`                                                         | Linked `foodId` unknown to the food service                                                                                                                                                                                                                                                                                |
+| Input | items | array | `[{ kind: "linked"                                                                              | "freeform", foodId?, text?, quantity, unit }]` | `linked` requires an opaque food `foodId` (ULID from `@kitchensink/food-service-client`, never the source `fdcId`); `freeform` requires `text` |
+| Output | resolved | array | `[{ inputIndex, ingredientId?, foodId?, foodResolutionStatus?, isUserEntered, normalizedQty }]` | Stable order matching input; `foodResolutionStatus ∈ {PENDING, UNRESOLVED, RESOLVED, NOT_FOUND, FAILED}` (UPPER_SNAKE) — a just-added food may still be `PENDING`/`UNRESOLVED`; `NOT_FOUND`/`FAILED` are terminal. Freeform / user-supplied entry is the SEPARATE `isUserEntered` boolean, never a resolution-status value |
+| Exception | INGREDIENT_NOT_FOUND | 404 | `{ code, inputIndex, attemptedFoodId }` | Linked `foodId` unknown to the food service |
 
 ### ARCH-009: Nutrition Calculator
 
@@ -651,7 +651,7 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 
 ### ARCH-029: Config Loader
 
-**Verification Method**: **Inspection** (reconciled 2026-07-25 — the ARCH-level scope of this module spans a Zod-validated backend loader with real unit tests (`config/__tests__/load-config.test.ts`, `cors.test.ts`) AND the web/mobile client base-URL default resolution (REQ-NF-018/019/020), which `requirements.md` already correctly classifies as Inspection — not Test. Evidence artifact: `packages/services/recipe-service/src/config/{config.module.ts,load-config.ts,config.types.ts}` plus the client default literals in `recipeServiceConfig.ts` / `RecipeServiceGate.tsx`. This module was previously implied as Test-verified by the pre-implementation `traceability-matrix.md` (Matrix C/D, superseded per `verify-report.md` WARNING W3); this note is the correction.)
+**Verification Method**: **Inspection** (reconciled 2026-07-25 — the ARCH-level scope of this module spans a Zod-validated backend loader with real unit tests (`config/__tests__/loadConfig.test.ts`, `cors.test.ts`) AND the web/mobile client base-URL default resolution (REQ-NF-018/019/020), which `requirements.md` already correctly classifies as Inspection — not Test. Evidence artifact: `packages/services/recipe-service/src/config/{config.module.ts,loadConfig.ts,config.types.ts}` plus the client default literals in `recipeServiceConfig.ts` / `RecipeServiceGate.tsx`. This module was previously implied as Test-verified by the pre-implementation `traceability-matrix.md` (Matrix C/D, superseded per `verify-report.md` WARNING W3); this note is the correction.)
 
 | Direction | Name           | Type        | Format                    | Constraints                        |
 | --------- | -------------- | ----------- | ------------------------- | ---------------------------------- |
@@ -661,7 +661,7 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 
 ### ARCH-030: Telemetry & Logger
 
-**Verification Method**: **Inspection** (reconciled 2026-07-25 — telemetry/logging is cross-cutting Sentry SDK + NestJS `Logger` usage wired across providers/filters, not a single dedicated executable-tested module; there is no `observability/logger.ts` file in the shipped tree despite the Target Source File(s) in `module-design.md`. Evidence artifact: Sentry wiring + `Logger` call sites, e.g. `common/filters/api-exception.filter.ts`, `photos/cdn-invalidation.ts`, `photos/photos.service.ts`, `account/erasure.service.ts`. This module was previously implied as Test-verified by the pre-implementation `traceability-matrix.md` (Matrix C/D, superseded per `verify-report.md` WARNING W3); this note is the correction.)
+**Verification Method**: **Inspection** (reconciled 2026-07-25 — telemetry/logging is cross-cutting Sentry SDK + NestJS `Logger` usage wired across providers/filters, not a single dedicated executable-tested module; there is no `observability/logger.ts` file in the shipped tree despite the Target Source File(s) in `module-design.md`. Evidence artifact: Sentry wiring + `Logger` call sites, e.g. `common/filters/apiException.filter.ts`, `photos/cdnInvalidation.ts`, `photos/photos.service.ts`, `account/erasure.service.ts`. This module was previously implied as Test-verified by the pre-implementation `traceability-matrix.md` (Matrix C/D, superseded per `verify-report.md` WARNING W3); this note is the correction.)
 
 | Direction | Name  | Type        | Format                               | Constraints                                            |
 | --------- | ----- | ----------- | ------------------------------------ | ------------------------------------------------------ |

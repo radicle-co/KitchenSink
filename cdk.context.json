@@ -6,5 +6,9 @@
     "us-east-1d",
     "us-east-1e",
     "us-east-1f"
-  ]
+  ],
+  "hosted-zone:account=040663841500:domainName=commise.app:region=us-east-1": {
+    "Id": "/hostedzone/Z0474040RGDAGYCWHZ7M",
+    "Name": "commise.app."
+  }
 }

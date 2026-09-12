@@ -1,0 +1,45 @@
+-- 0024_ingredient_source_line.sql (plan U11/U14) — the raw line a cook's SOURCE stated, per ingredient line.
+--
+-- ⛔ THIS COLUMN IS WHY U11'S VERIFICATION GATE SHIPPED INERT. `0023_line_verifications.sql`'s header states
+-- the gap exactly: nothing joins a verdict to a recipe line, because the raw source line never reached this
+-- service. `recipe_ingredients.display_text` is a DISPLAY OVERRIDE — a label the author chose for a line —
+-- and the only `raw` anywhere in the tree lived in the importer's memory (`recipe-import-core`'s
+-- `ParsedIngredientLine.raw`), which writes through the public `POST /api/v1/recipes` and was discarded at
+-- the boundary. With no source line, `decideVerification` returns `skip: 'no-source-text'` for every line and
+-- the gate is structurally incapable of disagreeing with anything.
+--
+-- ⚠️ IT IS NOT `ingredient_name`, AND SUBSTITUTING ONE WOULD BE WORSE THAN LEAVING THE COLUMN OUT. U11
+-- considered enqueuing the resolved ingredient NAME instead and declined: the gate's question is "does our
+-- parse of the source agree with the food we resolved it to?", and our rendered name IS the output of that
+-- parse. Checking it against itself is circular — it agrees by construction — so the gate would report a
+-- 100% agreement rate while checking nothing, which is strictly more dangerous than a gate that admits it
+-- has no source. Do not "simplify" this column away in favour of `ingredient_name`.
+--
+-- ⚠️ WHY A `text` COLUMN AND NOT A HASH. `verificationKey()` (`@kitchensink/recipe-core`) digests the TUPLE
+-- `[version, normalizedLine, foodId, quantityLow, quantityHigh, unit]`, so a hash of the line alone cannot
+-- reproduce the key: the read side needs the line itself, together with this row's own quantity/unit/food
+-- columns, to compute the key a verdict is stored under. Storing a digest here would make the join
+-- impossible while looking like the more careful choice.
+--
+-- PERSONAL DATA, and already covered. This is text a user typed, but it lives on `recipe_ingredients`, which
+-- `ON DELETE CASCADE`s from `recipes` — so the account-erasure worker's scoped recipe delete reaches it with
+-- no new sweep, exactly as it already reaches `display_text` and `ingredient_name`. A line on a recipe that
+-- SURVIVES erasure (truly-public or donated) keeps its source line, which is the same treatment its
+-- neighbouring user-authored columns get and is what "the recipe survives, pseudonymized" means.
+--
+-- NULLABLE, and `NULL` is a real state rather than a default: it means the line was AUTHORED, not
+-- transcribed. There is no source for our parse to disagree with, which the gate reads as a stated
+-- non-conclusion. A blank string is refused at the wire boundary (`recipeIngredientSourceLineSchema` trims
+-- then requires `min(1)`), so "no source" has one representation here as well as there.
+--
+-- EXPAND-ONLY (ADR-0022). One nullable `ADD COLUMN` with no default — a catalog-only change in PostgreSQL
+-- 11+, so it takes no table rewrite and no long lock, and it is safe to apply BEFORE the code that writes it,
+-- which is the order the in-stack migration Trigger enforces. Every existing row keeps every value it had.
+-- There is no down-migration in any runner in this repository; recovery is `DROP COLUMN`, and the data is
+-- re-derivable only by re-import — which is exactly what plan U15 does.
+--
+-- ⛔ NO INDEX, deliberately. Nothing looks a line UP by its source line: the read path already has the row in
+-- hand and computes the verification key from it. An index here would cost a write on every recipe save to
+-- serve a query no code issues.
+
+ALTER TABLE "recipe_ingredients" ADD COLUMN IF NOT EXISTS "source_line" text;

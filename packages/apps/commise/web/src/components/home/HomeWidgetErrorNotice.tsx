@@ -4,8 +4,8 @@
  * @module home/HomeWidgetErrorNotice — what a FAILED Home widget shows in place of its body (web).
  *
  * A pure render component (`props → JSX`, no props, no state, no effects) used as the `fallback` of BOTH
- * per-widget error boundaries on this surface: the host's ({@link import('./HomeWidgetSurface').HomeWidgetSurface})
- * and the recipe slot's inner one ({@link import('./RecipeWidgetSlot').RecipeWidgetSlot}). The one-to-one
+ * per-widget error boundaries on this surface: the host's (`HomeWidgetSurface`)
+ * and the recipe slot's inner one (`RecipeWidgetSlot`). The one-to-one
  * counterpart of mobile's `HomeWidgetErrorNotice` — same copy, same contract (a localized explanation,
  * ANNOUNCED, with no recovery affordance), projected into web's markup and utility classes.
  *

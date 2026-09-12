@@ -8,8 +8,8 @@
  * `.superpowers/sdd/cp6-current-state.md` §2 for the full writeup this hook resolves.
  *
  * **Resolves the reseed incompatibility by making the editor's value state FULLY CONTROLLED from this
- * hook.** Every platform now drives every reseed — the initial seed-once load, AND "use theirs" after a
- * conflict — through the SAME `setValues` transition. There is no remount, no seed override, no ref: the
+ * hook.** Every platform seeds the draft once, from the settled recipe it mounts with, and edits it through the SAME
+ * `setValues` transition. There is no seed override and no reseed: the
  * mobile `RecipeEditor` leaf becomes a plain controlled component (`values` in, `onChange` out) instead of
  * owning its own `useState(initialValues)`.
  *
@@ -20,10 +20,14 @@
  * pairs the union with the `useState`/mutation-orchestration half `deriveAuthState` deliberately leaves to
  * its callers.
  *
- * **Seed-once, guarded by STATE (not a ref).** `seededId` tracks the id of the recipe whose data has already
- * seeded `values`. A background refetch of the SAME recipe (fresh data, same `id`) does not re-run the seed
- * effect, so an in-progress, unsaved edit is never clobbered — only a genuinely different recipe (a changed
- * `id`) reseeds. `state.status` stays `'loading'` until the first seed happens.
+ * **Seeded once, from a SETTLED recipe.** The hook is handed the recipe a container's suspense read returned, so pending
+ * and failed loads are the read boundary's and the statechart has no loading state. The draft, the version it is built
+ * on, and the recipe its writes go to are captured at mount from that one recipe; a later `recipe` (a background
+ * refetch) never reseeds them, so an unsaved edit is never clobbered and a draft can never be paired with another
+ * recipe's id. Editing a different recipe is a different editor: both containers key the settled editor on the id.
+ *
+ * ⛔ **Nothing under the editor's read boundary may suspend without its own nested `<Suspense>`.** React hides a
+ * re-suspended subtree: its state survives, but the form disappears and its effects tear down.
  *
  * **409 -> conflict is the ONLY path into `status: 'conflict'`.** Every other mutation failure (network,
  * 5xx, a validation error the server itself rejects) leaves the machine at `'editing'` once the mutation's
@@ -46,11 +50,11 @@
  *
  * **The 409's `server`/`base` thread in directly — no refetch (W7 Task 2).** `handleUpdateError` reads
  * `VersionConflictError.server`/`.base` (the enriched W8-a.5 body) straight off the error and NEVER calls
- * `query.refetch()`: a follow-up round-trip would only re-introduce the very race the conflict view exists to
+ * a refetch: a follow-up round-trip would only re-introduce the very race the conflict view exists to
  * resolve, and the server already sent everything needed — `draftToSnapshot` projects the draft to the same
  * `RecipeSnapshot` shape, `computeConflictDiff(base?.snapshot, mineSnapshot, server.snapshot)` (W7 Task 1)
  * is precomputed ONCE and carried on `conflict.diff`, and `applyServerSnapshotToRecipeDetail` builds the
- * `theirs` display shell by overlaying `server`'s content onto the cached `query.data` (never a fresh fetch).
+ * `theirs` display shell by overlaying `server`'s content onto the settled `recipe` (never a fresh fetch).
  * A diff-empty ("phantom") 409 — mine and theirs already agree on every field — skips `conflict` entirely
  * and resubmits the SAME draft against the fresh `server.versionNumber`, since there is nothing to reconcile.
  * `conflict.versionsBehind` (`server.versionNumber - (base?.versionNumber ?? 0)`) is the X6 staleness signal
@@ -71,11 +75,11 @@
  *
  * **Wizard step state is orthogonal (w3).** `step`/`goToStep`/`goNext`/`goPrev`/`canAdvanceFrom`/`stepErrors`
  * are pure UI-navigation state layered ON TOP of the statechart above — NOT a 6th `EditorState` variant. A
- * step change never touches `seededId`, `conflict`, or the terminal latch, so every `switch (state.status)`
+ * step change never touches the seed, `conflict`, or the terminal latch, so every `switch (state.status)`
  * consumer is unaffected and the four core invariants (seed-once, 409→conflict, `expectedVersion`, the
  * terminal latch) hold identically regardless of which step is active. Step-scoped validation
  * (`canAdvanceFrom`/`stepErrors`) filters {@link validateRecipeForm}'s ONE output by the field->step map in
- * `form/model.ts` (`stepErrorsFor`/`canAdvanceFromStep`) rather than forking a second validator.
+ * `form/steps.ts` (`stepErrorsFor`/`canAdvanceFromStep`) rather than forking a second validator.
  *
  * **Draft vs Publish (w3).** `saveDraft`/`publish` both persist through the SAME `submitDraft` path `submit`
  * uses, just with a `status` argument threaded onto the wire input (`toUpdateRecipeInput`'s new optional
@@ -93,7 +97,7 @@
  *
  * **Save Draft must never downgrade an already-published recipe.** `saveDraft` only sends `status: 'draft'`
  * when the loaded recipe is NOT already published (i.e. it is itself still a draft); when
- * `query.data.status === 'published'`, it sends `status: 'published'` (an explicit no-op re-assertion, not an
+ * `recipe.status === 'published'`, it sends `status: 'published'` (an explicit no-op re-assertion, not an
  * omit, but behaviorally identical either way — see `toUpdateRecipeInput`'s optional `status` parameter).
  * Before this, `saveDraft` sent `status: 'draft'` UNCONDITIONALLY, so a user editing a live, published recipe
  * — tweaking a field and clicking Save Draft to persist WIP without publishing — would silently pull that
@@ -113,41 +117,47 @@
  * gained none after it — keeping an unconsumed third statement of "mine is the default" would have been a
  * DRY liability, not a DRY win, so it (and its dedicated test) were removed rather than force-fed an
  * artificial caller.
+ *
+ * @pattern Headless hook (statechart) — the whole edit lifecycle as a `status`-discriminated union with a
+ *     closed set of branches; `RecipeEditContainer` and `RecipeEditor` bind it to their platform shells and
+ *     decide nothing themselves.
+ * @pattern Memento over TanStack's callback timing — `epochRef` is a generation token compared inside
+ *     mutation callbacks the library fires at an arbitrary later time, and `submitDraftRef` is a stable
+ *     handle over a `submitDraft` that closes over every-render state. Both are the ref rule's carve-out
+ *     because the external system is the mutation runtime's schedule, which React does not model; neither
+ *     is read to decide what to render. ⛔ `submitDraftRef` is assigned in an EFFECT, never in the render
+ *     body — a discarded render advanced the old one and submitted through a closure carrying another
+ *     recipe's id.
  */
 import type { Locale } from '@commise/i18n';
 import {
     RecipeStatus,
     type RecipeDetail,
     type RecipeSnapshot,
-    type UpdateRecipeInput,
     type VersionConflictSide,
 } from '@kitchensink/recipe-core';
+// The PATCH envelope, from the contract the service authors — was `recipe-core`'s hand-written
+// `UpdateRecipeInput` twin (§15 rule 4 / ADR-0014).
+import type { UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
-import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
+import { useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import {
-    canAdvanceFromStep,
-    defaultRecipeFormValues,
-    stepErrorsFor,
-    toRecipeFormValues,
-    toUpdateRecipeInput,
-    validateRecipeForm,
-    type RecipeFormErrors,
-    type RecipeFormValues,
-    type RecipeWizardStep,
-} from '../form/model.js';
+import { type RecipeWizardStep, canAdvanceFromStep, stepErrorsFor } from '../form/steps.js';
+import { type RecipeFormErrors, validateRecipeForm } from '../form/validate.js';
+import type { RecipeFormValues } from '../form/values.js';
+import { toRecipeFormValues, toUpdateRecipeInput } from '../form/wire.js';
 import { computeConflictDiff, type ConflictDiff } from '../versions/conflictDiff.js';
 import {
     applyServerSnapshotToRecipeDetail,
     composeConflictMerge,
     draftToSnapshot,
     type RecipeMergeSelections,
-} from '../versions/model.js';
+} from '../versions/merge.js';
 
 /**
  * The recipe-edit lifecycle. See the module doc above for the ordering rationale (mirrors `deriveAuthState`'s
- * deliberate-ordering convention): `loading` while the recipe has not yet seeded the draft; `editing` for the
+ * deliberate-ordering convention): `editing` for the
  * normal, idle-form state; `submitting` while a save is in flight; `conflict` after a 409 (carries both
  * sides of the conflict, the draft that lost the race, and the in-progress merge selections); `saved` once a
  * write has succeeded (the caller's `onSaved` fires on the SAME transition — most callers navigate away
@@ -158,15 +168,13 @@ import {
  *
  * **`saved`/`discarded` are reset on every transition that resumes editing**, not just set-once: a consumer
  * that does NOT unmount on `onSaved` (a multi-step wizard) can keep the machine alive past a successful save,
- * so BOTH terminal flags are cleared on `setValues`/`setField` (any fresh edit), on a reseed (the seed-once
- * effect), and on entering/resolving `conflict` (every resolution's own resubmit or discard).
+ * so BOTH terminal flags are cleared on `setValues`/`setField` (any fresh edit), and on entering/resolving `conflict` (every resolution's own resubmit or discard).
  * Without this, a save followed by further editing and a 409 could exit `conflict` back into a stale `saved`
  * display instead of `editing` — see the hook's tests under "saved latch". Modeled as a single 3-state
  * `terminal` union (`'none' | 'saved' | 'discarded'`), not two independent booleans, so the two terminal
  * outcomes are mutually exclusive BY CONSTRUCTION — there is no representable state where both are true.
  */
 export type EditorState =
-    | { readonly status: 'loading' }
     | { readonly status: 'editing' }
     | { readonly status: 'submitting' }
     | {
@@ -180,11 +188,11 @@ export type EditorState =
           /** The in-progress per-field/per-element merge resolution; owned here so `RecipeConflictView` can
            *  be controlled. */
           readonly mergeSelections: RecipeMergeSelections;
-          /** The 409's winning server side verbatim (versionNumber/deviceLabel/updatedAt/snapshot) — the
+          /** The 409's winning server side verbatim (versionNumber/updatedAt/snapshot) — the
            *  enriched W8-a.5 body every resolution's resubmit CAS-tokens against (W7 Task 2). */
           readonly server: VersionConflictSide;
           /** The version the draft was edited from, when still retained in the DB window; ABSENT when
-           *  evicted — see {@link versionsBehind}. */
+           *  evicted — see `versionsBehind`. */
           readonly base?: VersionConflictSide;
           /** The draft projected to a {@link RecipeSnapshot} — the same shape `diff` 3-way-compares against
            *  `server`/`base`. */
@@ -220,6 +228,17 @@ type ConflictInfo = Omit<Extract<EditorState, { status: 'conflict' }>, 'isResolv
  *  "saved`/`discarded` latch" section. */
 type TerminalOutcome = 'none' | 'saved' | 'discarded';
 
+/**
+ * What a submission asks for beyond its content: the publication status to send (absent → unchanged), and whether it is
+ * UNATTENDED (U34) — suppress `opts.onSaved` only. Everything else about an unattended write (the CAS token, the
+ * 409-to-conflict transition, the epoch guard, the `saved` terminal) is identical, because it must be exactly as safe
+ * as a deliberate one. A resubmit the hook makes on the cook's behalf carries it forward.
+ */
+interface SubmitIntent {
+    readonly status?: RecipeStatus;
+    readonly silent?: boolean;
+}
+
 /** Options for {@link useRecipeEditor}. */
 export interface UseRecipeEditorOptions {
     /** Called with the freshly-persisted recipe immediately after a successful save. */
@@ -229,19 +248,11 @@ export interface UseRecipeEditorOptions {
     readonly locale: Locale;
 }
 
-/** The load-state surface passed through from the hook's internal `useRecipe` query, for the container's own loading/not-found/error affordance. */
-export interface RecipeEditorQueryState {
-    readonly isLoading: boolean;
-    readonly isError: boolean;
-    readonly error: unknown;
-    readonly refetch: () => Promise<unknown>;
-}
-
 /** The state + actions {@link useRecipeEditor} exposes to a container. */
 export interface UseRecipeEditorResult {
     /** The edit lifecycle — see {@link EditorState}. */
     readonly state: EditorState;
-    /** The controlled draft (blank until the first seed; see `state.status === 'loading'`). */
+    /** The controlled draft, seeded from the recipe the hook was mounted with. */
     readonly values: RecipeFormValues;
     /** Field-level validation errors from the last `submit()` attempt (empty when unattempted or valid). */
     readonly errors: RecipeFormErrors;
@@ -264,12 +275,45 @@ export interface UseRecipeEditorResult {
      * and why the published case is preserved.
      */
     readonly saveDraft: () => void;
+    /**
+     * The UNATTENDED draft save (U34) — what `useRecipeAutoSave` calls, and deliberately NOT {@link saveDraft}.
+     *
+     * ⛔ `saveDraft` is one command bundling THREE concerns — validate-and-record-errors, persist, and
+     * notify-the-container — and a background timer wants only the middle one. Inheriting the other two
+     * produced three defects a cook meets within seconds of typing:
+     *
+     *  1. **It navigated them out of the editor.** `submitDraft`'s `onSuccess` calls `opts.onSaved`, which
+     *     both containers wire to "go to the detail page". Type, pause, and the editor closes underneath you.
+     *  2. **It painted validation errors nobody asked for.** `validateThenSubmit` records errors BEFORE its
+     *     gate, so clearing a title to retype it put "A title is required." under the field on a timer.
+     *  3. **It re-armed forever.** That error write stored a fresh object every time, so the render it caused
+     *     re-armed the (then two-second) timer, which fired, which re-rendered — a permanent loop on any
+     *     draft below the floor.
+     *
+     * So this persists and does nothing else: no `onSaved`, no `setErrors`, and no write at all when the
+     * step-1 floor fails (an unattended save has nothing to say about an incomplete draft — the cook is
+     * mid-sentence). It DOES set the `saved` terminal, deliberately, because the discard guard's baseline has
+     * to move forward or the next tick would write the same content again, forever.
+     *
+     * ⛔ Referentially STABLE across renders **AND across edits** — a façade over an effect-published
+     * implementation, not a `useCallback` over the state it reads. `useRecipeAutoSave` holds this in an
+     * effect dependency, so a fresh function re-creates its interval and restarts the window. Two ways that
+     * bites, one of which shipped: a recipe with a `PENDING` ingredient re-renders on a poller (which is why
+     * this was memoised at all), and — the 2026-09-03 defect — every KEYSTROKE changed `values`, which was
+     * in the old `useCallback` deps, so the ruled five-minute INTERVAL behaved as a debounce from the last
+     * edit and a cook typing continuously was never written. Depending on `values` here is not a small
+     * optimisation miss; it inverts which cook auto-save protects.
+     *
+     * It still writes what the cook has typed AS OF THE TICK: the published implementation comes from the
+     * latest COMMITTED render, so stability costs no freshness.
+     */
+    readonly autoSaveDraft: () => void;
     /** Whether the last submit failed for a reason OTHER than a version conflict (a handled 409 is never this). */
     readonly submitError: boolean;
     /**
      * Whether the last submit failed with a 409 that IS a `VersionConflictError` but that this hook could
-     * NOT turn into a `conflict` view — no `server` side (a malformed/un-enriched body) and/or no cached
-     * recipe to project it onto. `submitError` deliberately stays `false` for every `VersionConflictError`
+     * NOT turn into a `conflict` view — the body carries no `server` side (a malformed/un-enriched body), so
+     * there is nothing to diff the draft against. `submitError` deliberately stays `false` for every `VersionConflictError`
      * (see its own doc), so without this flag such a 409 would fail with NO visible feedback at all — a
      * silent no-op save. A container should show a generic "this recipe changed elsewhere, reload and try
      * again" message when this is `true`; the draft is preserved and the machine stays `editing` so the user
@@ -288,8 +332,6 @@ export interface UseRecipeEditorResult {
     readonly canAdvanceFrom: (step: RecipeWizardStep) => boolean;
     /** The subset of the draft's validation errors that belong to `step` (filters the ONE validator's output). */
     readonly stepErrors: (step: RecipeWizardStep) => RecipeFormErrors;
-    /** The underlying recipe query's load state, for the container's own loading/error/not-found rendering. */
-    readonly query: RecipeEditorQueryState;
     /**
      * The "Discard and close" universal escape hatch (wireframe gap #1 — `conflict-resolution.md:34`'s
      * `[< Discard and close]` header exit; a security-review follow-up to the double-submit fix). Abandons
@@ -332,22 +374,34 @@ export interface UseRecipeEditorResult {
 /**
  * The shared recipe-edit lifecycle statechart.
  *
- * @param recipeId - The id of the recipe being edited.
+ * @param recipe - The settled recipe to edit, from the container's suspense read. The draft seeds from it once.
  * @param opts - `onSaved` (invoked with the persisted recipe on every successful save) and `locale` (threaded
  *   into `computeConflictDiff` for locale-correct ingredient-quantity formatting).
  * @returns The edit state, the controlled draft, and the submit/resolution actions.
  */
-export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions): UseRecipeEditorResult {
-    const query = useRecipe(recipeId);
+export function useRecipeEditor(recipe: RecipeDetail, opts: UseRecipeEditorOptions): UseRecipeEditorResult {
     const updateRecipe = useUpdateRecipe();
 
-    const [values, setValuesState] = useState<RecipeFormValues>(defaultRecipeFormValues);
+    // The recipe this editor is ABOUT — its id (where writes go) is captured with the draft, so the two can never
+    // disagree. `live` is the latest read of that same recipe: a background refetch refreshes its status and the
+    // conflict view's display shell, but a different recipe handed to a mounted editor is ignored in favour of the seed.
+    const [seed] = useState(recipe);
+    const recipeId = seed.id;
+    const live = recipe.id === seed.id ? recipe : seed;
+    const [values, setValuesState] = useState<RecipeFormValues>(() => toRecipeFormValues(recipe));
     const [errors, setErrors] = useState<RecipeFormErrors>({});
-    const [seededId, setSeededId] = useState<string | null>(null);
+    // ⛔ THE VERSION THE DRAFT IS BUILT ON, which is what `expectedVersion` must name — NOT `recipe.currentVersion`.
+    // A background refetch after another writer's save moves the cache to THEIR version; a save carrying that is
+    // accepted and silently overwrites their change with a draft that never saw it, where the 409 is the contract.
+    // Seeded with the draft, and advanced only by a save this editor made (the version the server says it produced).
+    const [baseVersion, setBaseVersion] = useState(recipe.currentVersion);
     const [conflict, setConflict] = useState<ConflictInfo | null>(null);
+    // The publication status the submission that met the open conflict carried, so an overwrite or merge resubmits
+    // with it — Publish → 409 → Overwrite must still publish.
+    const [conflictStatus, setConflictStatus] = useState<RecipeStatus | undefined>(undefined);
     const [terminal, setTerminal] = useState<TerminalOutcome>('none');
     // The wizard's step (w3) — deliberately a SEPARATE `useState`, not folded into any of the above: it must
-    // never be touched by the seed-once effect, `handleUpdateError`, or the `terminal`-latch resets below, so
+    // never be touched by `handleUpdateError`, or the `terminal`-latch resets below, so
     // a step change can never clobber the seed or trip/untrip a terminal outcome (see the module doc).
     const [step, setStep] = useState<RecipeWizardStep>(1);
 
@@ -370,32 +424,42 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // inside a callback is a synchronous comparison, not a second invocation of anything.
     const epochRef = useRef(0);
 
-    // Seed the draft from the loaded recipe once; the STATE guard (not a ref, per the coding standards' "refs
-    // near-forbidden" rule) keeps a background refetch of the SAME recipe from overwriting in-progress edits —
-    // only a genuinely different id (a real navigation to another recipe) reseeds.
-    useEffect(() => {
-        if (query.data !== undefined && seededId !== query.data.id) {
-            setSeededId(query.data.id);
-            setValuesState(toRecipeFormValues(query.data));
-            // A reseed (a real navigation to a different recipe) always resumes editing, never leaves a stale
-            // terminal outcome dangling from whatever the PREVIOUS recipe's edit lifecycle last did.
-            setTerminal('none');
-        }
-    }, [query.data, seededId]);
+    // ALLOWED REF (§3), and for the same reason `epochRef` is one — but note WHAT it holds: the whole
+    // unattended-save COMMAND, republished on every commit, never the state that command reads. That
+    // distinction is the design, not an implementation detail:
+    //
+    //  - It is what makes `autoSaveDraft` referentially stable with EMPTY `useCallback` deps, which
+    //    `useRecipeAutoSave` needs: `saveDraft` sits in that hook's effect deps, so a callback whose
+    //    identity moves re-creates the interval and restarts the window. Depending on `values` there is
+    //    exactly the 2026-09-03 defect — the ruled five-minute INTERVAL degraded into a debounce from the
+    //    last keystroke, so a cook typing continuously was never written at all.
+    //  - It is NOT state-in-a-ref. Nothing reads it to decide what to render, and — unlike mirroring
+    //    `values`/`recipe` into refs of their own, the other way to reach the same stability — there is
+    //    no second copy of any state that could disagree with the render it came from. One ref, one
+    //    published closure, every fact inside it from the SAME commit.
+    //
+    // ⛔ WRITTEN IN AN EFFECT, NEVER IN THE RENDER BODY — React documents that prohibition and this hook
+    // pays it in data loss, not a warning. A ref write is not part of the render's work, so React never
+    // rolls it back: a render it DISCARDS (a sibling suspends, a transition is interrupted) still advanced
+    // the ref to that abandoned pass's closure, and the committed tree then submitted through a closure
+    // over a `recipeId` the user never landed on — an unattended write of THIS recipe's draft, with THIS
+    // recipe's `expectedVersion`, onto ANOTHER recipe, past every guard in `runAutoSaveDraft` (which reads
+    // the committed recipe and passes). An effect runs only for a render that committed. Pinned by
+    // the Suspense case in `useRecipeEditor.test.tsx`, which fails on the render-body assignment.
+    const autoSaveDraftRef = useRef<() => void>(() => undefined);
 
     // A rejected update for a stale version reads the 409's OWN enriched `server`/`base` sides (W7 Task 2) —
     // it does NOT refetch: the server already sent everything needed to 3-way-diff and display the conflict,
     // and a follow-up round-trip would only re-introduce the race it is trying to resolve. `server` absent
     // (a malformed/un-enriched body — should not happen for the owner-update path this hook drives, per
-    // `VersionConflictDetails`'s module docs) or no cached recipe to use as a display shell both degrade to
-    // the SAME "cannot build a conflict view" bail the old refetch-miss path used — the draft is preserved
+    // `VersionConflictDetails`'s module docs) degrades to the "cannot build a conflict view" bail — the draft is preserved
     // and the machine stays `editing`. This is NOT a silent bail: `conflictDataUnavailable` (derived below,
-    // the same way `submitError` is) reads straight off `updateRecipe.error`/`query.data`, so a container
+    // the same way `submitError` is) reads straight off `updateRecipe.error`, so a container
     // always has a signal to show the user their save did not apply — closing the silent-no-op-save gap an
     // opus review flagged. `submitError` itself stays `false` (still a handled 409, never the generic error).
     // Any other error leaves the machine at `editing` too (via `updateRecipe`'s own settled isPending/isError).
-    const handleUpdateError = (err: unknown, draft: RecipeFormValues): void => {
-        if (!isVersionConflictError(err) || err.server === undefined || query.data === undefined) {
+    const handleUpdateError = (err: unknown, draft: RecipeFormValues, intent: SubmitIntent): void => {
+        if (!isVersionConflictError(err) || err.server === undefined) {
             return;
         }
 
@@ -409,13 +473,15 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
             // interrupting the user with a conflict view over content that already matches. If a second
             // phantom 409 races this resubmit, it simply re-resolves against ITS newer version — the content
             // is identical either way, so looping this path can never diverge from correctness.
+            // The SAME intent the original carried: a phantom 409 on an unattended save stays silent (never an
+            // `onSaved` navigation), and one on Publish still publishes.
             setTerminal('none');
-            submitDraft(draft, server.versionNumber);
+            submitDraft(draft, server.versionNumber, intent);
 
             return;
         }
 
-        const theirs = applyServerSnapshotToRecipeDetail(query.data, server);
+        const theirs = applyServerSnapshotToRecipeDetail(live, server);
 
         setConflict({
             status: 'conflict',
@@ -428,6 +494,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
             diff,
             versionsBehind: server.versionNumber - (base?.versionNumber ?? 0),
         });
+        setConflictStatus(intent.status);
         // Entering conflict always resumes editing (the user must resolve it); never let a stale terminal
         // outcome from an earlier save/discard in this same hook instance resurface once conflict clears.
         setTerminal('none');
@@ -437,8 +504,8 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // 409. `status` (w3) is OPTIONAL and OMITTED by default — `submit()` and the conflict resolutions call
     // this with no status so a routine save/resubmit never touches publication state; `publish`/`saveDraft`
     // are the only callers that pass one.
-    const submitDraft = (draft: RecipeFormValues, expectedVersion: number, status?: RecipeStatus): void => {
-        const input: UpdateRecipeInput = { ...toUpdateRecipeInput(draft, status), expectedVersion };
+    const submitDraft = (draft: RecipeFormValues, expectedVersion: number, intent: SubmitIntent = {}): void => {
+        const input: UpdateRecipeRequest = { ...toUpdateRecipeInput(draft, intent.status), expectedVersion };
         // Captured NOW (this submission's own epoch) — compared against `epochRef.current` inside the
         // callbacks below, whenever THEY eventually fire. `discardAndClose` bumps the ref if the user leaves
         // before this settles; see the ref's own doc above for why a plain ref (not state) is what makes that
@@ -448,7 +515,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         updateRecipe.mutate(
             { id: recipeId, input },
             {
-                onSuccess: (recipe) => {
+                onSuccess: (saved) => {
                     // Neutralized: a `discardAndClose` already closed this conflict and bumped the epoch
                     // while this resolve was in flight — a late success must not resurrect a "Saved!" the
                     // user already left behind.
@@ -457,8 +524,12 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
                     }
 
                     setConflict(null);
+                    setBaseVersion(saved.currentVersion);
                     setTerminal('saved');
-                    opts.onSaved(recipe);
+
+                    if (intent.silent !== true) {
+                        opts.onSaved(saved);
+                    }
                 },
                 onError: (err) => {
                     // Same neutralization for a late failure — it must not reopen `conflict` (or anything
@@ -467,7 +538,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
                         return;
                     }
 
-                    handleUpdateError(err, draft);
+                    handleUpdateError(err, draft, intent);
                 },
             },
         );
@@ -489,15 +560,15 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     }, []);
 
     // Shared by `submit`/`publish`/`saveDraft`: run `nextErrors` (each caller's own gate), record them for the
-    // container to render, and only proceed to persistence when the gate passed AND the recipe has loaded.
+    // container to render, and only proceed to persistence when the gate passed.
     const validateThenSubmit = (nextErrors: RecipeFormErrors, status?: RecipeStatus): void => {
         setErrors(nextErrors);
 
-        if (Object.keys(nextErrors).length > 0 || query.data === undefined) {
+        if (Object.keys(nextErrors).length > 0) {
             return;
         }
 
-        submitDraft(values, query.data.currentVersion, status);
+        submitDraft(values, baseVersion, { status });
     };
 
     const submit = (): void => validateThenSubmit(validateRecipeForm(values));
@@ -510,10 +581,31 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // recipe: only a not-yet-published (still-draft) recipe gets `status: 'draft'` sent; a published one keeps
     // `status: 'published'` explicitly (see the module doc's "Save Draft must never downgrade" section).
     const saveDraft = (): void => {
-        const draftStatus = query.data?.status === RecipeStatus.PUBLISHED ? RecipeStatus.PUBLISHED : RecipeStatus.DRAFT;
+        const draftStatus = live.status === RecipeStatus.PUBLISHED ? RecipeStatus.PUBLISHED : RecipeStatus.DRAFT;
 
         validateThenSubmit(stepErrorsFor(values, 1), draftStatus);
     };
+
+    // The unattended save's IMPLEMENTATION — a plain function, re-created every render so it closes over
+    // this render's `values`/`recipe`, and published to `autoSaveDraftRef` on commit. See the
+    // `autoSaveDraft` field's own doc for the three concerns this deliberately does not inherit from
+    // `saveDraft`, and the ref's doc for why the closure (not the state) is what gets published.
+    const runAutoSaveDraft = (): void => {
+        // The SAME relaxed floor `saveDraft` uses — but a failure is a silent no-op here, not a recorded
+        // error: the cook is mid-sentence, and a timer has no standing to interrupt them.
+        if (Object.keys(stepErrorsFor(values, 1)).length > 0) {
+            return;
+        }
+
+        const draftStatus = live.status === RecipeStatus.PUBLISHED ? RecipeStatus.PUBLISHED : RecipeStatus.DRAFT;
+
+        submitDraft(values, baseVersion, { status: draftStatus, silent: true });
+    };
+
+    // The stable FAÇADE the timer holds. Empty deps on purpose: it forwards to whatever the last COMMITTED
+    // render published, so it never changes identity and `useRecipeAutoSave`'s interval is never re-created
+    // by an edit — while still writing what the cook has typed as of the tick. See the ref's own doc.
+    const autoSaveDraft = useCallback((): void => autoSaveDraftRef.current(), []);
 
     const goToStep = (next: RecipeWizardStep): void => setStep(next);
 
@@ -548,7 +640,8 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
 
         // Resuming into a resubmit is a fresh editing attempt, not a continuation of a prior terminal outcome.
         setTerminal('none');
-        submitDraft(conflict.draft, conflict.server.versionNumber);
+        // A resolution is the cook's own choice, so it reports the save — only the status carries over.
+        submitDraft(conflict.draft, conflict.server.versionNumber, { status: conflictStatus });
     };
 
     // The "Discard and close" universal escape hatch (wireframe gap #1; security-review follow-up). UNLIKE
@@ -571,6 +664,11 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         setConflict(null);
         setTerminal('discarded');
     };
+
+    // No dependency array: every commit republishes the current implementation, and only a commit does.
+    useEffect(() => {
+        autoSaveDraftRef.current = runAutoSaveDraft;
+    });
 
     const resolutions: UseRecipeEditorResult['resolutions'] = {
         overwrite: resubmitDraftAsIs,
@@ -597,7 +695,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
 
             const merged = composeConflictMerge(conflict.draft, toRecipeFormValues(conflict.theirs), selections);
             setTerminal('none');
-            submitDraft(merged, conflict.server.versionNumber);
+            submitDraft(merged, conflict.server.versionNumber, { status: conflictStatus });
         },
         setMergeSelections: (selections: RecipeMergeSelections): void => {
             setConflict((current) => (current === null ? current : { ...current, mergeSelections: selections }));
@@ -605,17 +703,15 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     };
 
     const state: EditorState =
-        seededId === null
-            ? { status: 'loading' }
-            : conflict !== null
-              ? { ...conflict, isResolving: updateRecipe.isPending }
-              : terminal === 'saved'
-                ? { status: 'saved' }
-                : terminal === 'discarded'
-                  ? { status: 'discarded' }
-                  : updateRecipe.isPending
-                    ? { status: 'submitting' }
-                    : { status: 'editing' };
+        conflict !== null
+            ? { ...conflict, isResolving: updateRecipe.isPending }
+            : terminal === 'saved'
+              ? { status: 'saved' }
+              : terminal === 'discarded'
+                ? { status: 'discarded' }
+                : updateRecipe.isPending
+                  ? { status: 'submitting' }
+                  : { status: 'editing' };
 
     return {
         state,
@@ -626,22 +722,22 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         submit,
         publish,
         saveDraft,
+        autoSaveDraft,
         submitError: updateRecipe.isError && !isVersionConflictError(updateRecipe.error),
         // Derived the SAME way `submitError` is (straight off `updateRecipe`'s own settled error state, not a
         // separately-tracked flag that could desync from it) — a handled-but-undisplayable 409: it IS a
-        // `VersionConflictError` (so `submitError` above stays `false`), but has no `server` side to diff/show,
-        // or no cached recipe to project it onto (`query.data`). See the field's own JSDoc.
+        // `VersionConflictError` (so `submitError` above stays `false`), but has no `server` side to diff/show.
+        // See the field's own JSDoc.
         conflictDataUnavailable:
             updateRecipe.isError &&
             isVersionConflictError(updateRecipe.error) &&
-            (updateRecipe.error.server === undefined || query.data === undefined),
+            updateRecipe.error.server === undefined,
         step,
         goToStep,
         goNext,
         goPrev,
         canAdvanceFrom,
         stepErrors,
-        query: { isLoading: query.isLoading, isError: query.isError, error: query.error, refetch: query.refetch },
         discardAndClose,
         resolutions,
     };

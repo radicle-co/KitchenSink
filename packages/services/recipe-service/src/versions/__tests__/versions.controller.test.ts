@@ -4,7 +4,7 @@
  * Asserts the thin controller's only responsibilities: it receives the owner key already resolved by
  * the `@OwnerId()` decorator, delegates to the service with the right arguments, and returns the
  * service's result verbatim. The "missing principal → 401" path lives on the decorator and is covered
- * by `auth/__tests__/current-principal.decorator.test.ts`. HTTP status codes are declared with
+ * by `auth/__tests__/currentPrincipal.decorator.test.ts`. HTTP status codes are declared with
  * framework decorators and verified by the integration/e2e specs.
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -15,7 +15,14 @@ import type { RecipeVersion } from '@kitchensink/recipe-core';
 import type { Principal } from '../../auth/principal.js';
 
 const OWNER = '01J000000000000000000FREE0';
-const PRINCIPAL: Principal = { userId: OWNER, sub: 'clerk_sub', scopes: [], permissions: [] };
+const PRINCIPAL: Principal = {
+    userId: OWNER,
+    sub: 'clerk_sub',
+    scopes: [],
+    permissions: [],
+    principalKind: 'real',
+    containment: 'enforce',
+};
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 const VERSION_NUMBER = 1;
 
@@ -30,6 +37,9 @@ function fakeService(overrides: Partial<VersionsService> = {}): VersionsService 
 }
 
 const VERSION = { id: 'v-1', recipeId: RECIPE_ID, versionNumber: 1 } as unknown as RecipeVersion;
+
+/** The caller's opaque bearer, forwarded so the restored detail's nutrition resolves. */
+const CALLER = { kind: 'caller-token' } as never;
 
 describe('VersionsController', () => {
     it('list delegates the owner key + recipe id and returns the service result', async () => {
@@ -52,14 +62,16 @@ describe('VersionsController', () => {
         expect(result).toBe(VERSION);
     });
 
-    it('restore delegates the verified principal + recipe id + integer versionNumber and returns the envelope', async () => {
+    // ⛔ REWRITTEN to also require the caller's bearer: the envelope's `recipe` is a full detail body, and
+    // without a forwarded credential its nutrition comes from the in-process cache alone.
+    it('restore delegates the principal, recipe id, integer versionNumber and caller, and returns the envelope', async () => {
         const envelope = { recipe: { id: RECIPE_ID }, restoredFromVersion: 1, currentVersion: 3 };
         const restore = vi.fn().mockResolvedValue(envelope);
         const controller = new VersionsController(fakeService({ restore }));
 
-        const result = await controller.restore(PRINCIPAL, RECIPE_ID, VERSION_NUMBER);
+        const result = await controller.restore(PRINCIPAL, CALLER, RECIPE_ID, VERSION_NUMBER);
 
-        expect(restore).toHaveBeenCalledWith(PRINCIPAL, RECIPE_ID, VERSION_NUMBER);
+        expect(restore).toHaveBeenCalledWith(PRINCIPAL, RECIPE_ID, VERSION_NUMBER, CALLER);
         expect(result).toBe(envelope);
     });
 });

@@ -139,14 +139,20 @@ Keep the screen awake in cooking mode and preserve flow through interruptions/co
 
 ---
 
+### In v1 scope — promoted from Could Have (2026-08-05)
+
+| ID     | Story                                                                                                            | FR mapping                    | Acceptance Criteria                                                                                                                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| US-008 | As a cook, I can check off ingredients in a panel while cooking so that I can track prep completion.             | [FR-032a](../spec.md#fr-032a) | 1. Ingredient list opens and dismisses without leaving the active step. 2. Checked state is clear, accessible, and survives step navigation and session resume. 3. The stored recipe is never modified.                         |
+| US-009 | As a cook, I can apply cook-time scaling guidance in mode so that ingredient quantities match adjusted servings. | [FR-034a](../spec.md#fr-034a) | 1. User can choose a scaling factor. 2. Ingredient quantities recalculate for the scaled yield. 3. Timer durations are **unchanged**, and an advisory states cook times are not scaled. 4. The stored recipe is never modified. |
+
+**Resolved** (superseding the prior "no explicit canonical FR" warning): both stories were promoted into v1 scope at the
+2026-08-05 revalidation gate and now have backing requirements `FR-032a` and `FR-034a` in `spec.md` (D-001). US-009's wording
+changed from "timing and ingredient flow" to **quantities only** per D-002 — cook time does not scale linearly with yield.
+
 ### Could Have
 
-| ID     | Story                                                                                                                 | FR mapping                  | Acceptance Criteria                                                                                           |
-| ------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| US-008 | As a cook, I can check off ingredients in a panel while cooking so that I can track prep completion.                  | [FR-032](../spec.md#fr-032) | 1. Ingredient checklist is available without obscuring active step. 2. Checked state is clear and accessible. |
-| US-009 | As a cook, I can apply cook-time scaling guidance in mode so that timing and ingredient flow match adjusted servings. | [FR-034](../spec.md#fr-034) | 1. User can choose scaling factor. 2. Timer suggestions update with explicit confirmation.                    |
-
-**Warning**: US-008 and US-009 are candidate stories derived from requested domain scope; no explicit canonical FR currently defines them.
+_(none remaining — the previous entries were promoted above.)_
 
 ---
 

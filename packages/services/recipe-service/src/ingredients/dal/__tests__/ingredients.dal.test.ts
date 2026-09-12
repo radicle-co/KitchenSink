@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../../database/database.module.js';
-import { makeRawIngredientRow } from '../../__fixtures__/ingredients.fixtures.js';
+import { makeCanonicalName, makeRawIngredientRow } from '../../__fixtures__/ingredients.fixtures.js';
 import {
     IngredientsDal,
     rowToIngredient,
@@ -20,7 +22,7 @@ function makeDb(): { db: RecipeDrizzle; execute: ReturnType<typeof vi.fn> } {
 }
 
 describe('rowToIngredient', () => {
-    it('maps a raw snake_case row to the domain shape, coercing numerics and nulls', () => {
+    it('maps a raw snake_case row to the domain shape — REFERENCE fields only (U10)', () => {
         const ingredient = rowToIngredient(
             makeRawIngredientRow({
                 id: 'id-1',
@@ -28,10 +30,6 @@ describe('rowToIngredient', () => {
                 food_id: '01J0FOOD',
                 food_resolution_status: 'RESOLVED',
                 is_user_entered: false,
-                calories_per_100g: '717.00',
-                protein_g_per_100g: '0.85',
-                carbs_g_per_100g: '0.06',
-                fat_g_per_100g: '81.11',
                 created_at: '2026-07-01T00:00:00.000Z',
             }) as never,
         );
@@ -42,10 +40,9 @@ describe('rowToIngredient', () => {
             foodId: '01J0FOOD',
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             isUserEntered: false,
-            caloriesPer100g: 717,
-            proteinGPer100g: 0.85,
-            carbsGPer100g: 0.06,
-            fatGPer100g: 81.11,
+            // ⛔ No nutrition. The row carries the food REFERENCE; the numbers live in the food service and
+            // are read at request time (U10) — a projection that returned them here would be reading columns
+            // migration 0019 dropped.
             createdAt: '2026-07-01T00:00:00.000Z',
         });
     });
@@ -94,7 +91,7 @@ describe('IngredientsDal', () => {
                 ],
             });
 
-            const results = await dal.search('flour', 5);
+            const results = await dal.search('flour', undefined, 5);
 
             expect(execute).toHaveBeenCalledTimes(1);
             expect(results.map((r) => r.id)).toEqual(['a', 'b']);
@@ -104,9 +101,102 @@ describe('IngredientsDal', () => {
         it('issues a single ranked read for a non-empty query', async () => {
             execute.mockResolvedValue({ rows: [] });
 
-            await dal.search('flour', 5);
+            await dal.search('flour', undefined, 5);
 
             expect(execute).toHaveBeenCalledTimes(1);
+        });
+
+        it('short-circuits a query holding nothing searchable, not just an empty string', async () => {
+            // `selectIngredientMatchStrategy` decides this now, and it counts TOKENS. `%%%` used to reach
+            // the database and match nothing at a full statement's cost.
+            expect(await dal.search('%%%')).toEqual([]);
+            expect(await dal.search('   ')).toEqual([]);
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        /**
+         * ⚠️ THE STATEMENT, not the call count.
+         *
+         * The plan says of this suite: it "is mock-only and asserts call counts; it passes with the `WHERE`
+         * clause arbitrarily broken." That was true, and it is why the cases below render the statement the
+         * DAL actually built. They are the unit-tier half of the guard — the semantic half is
+         * `__tests__/integration/ingredients/ingredientRanking.integration.test.ts`, against a real Postgres,
+         * because nothing here can tell you PostgreSQL agrees with `classifyRankTier`.
+         */
+        describe('the statement it actually executes (U5/U6)', () => {
+            /** Render the single statement `search` handed to the driver, whitespace collapsed. */
+            async function statementFor(query: string): Promise<{ text: string; params: readonly unknown[] }> {
+                execute.mockResolvedValue({ rows: [] });
+                await dal.search(query);
+
+                const rendered = new PgDialect().sqlToQuery(execute.mock.calls[0]![0] as SQL);
+
+                return { text: rendered.sql.replace(/\s+/g, ' '), params: rendered.params };
+            }
+
+            it('orders by the tiered score ALIAS, so the ranking has ONE authority', async () => {
+                const statement = await statementFor('flour');
+
+                expect(statement.text).toContain('AS score');
+                expect(statement.text).toContain('ORDER BY score DESC, ingredients.name ASC');
+            });
+
+            it('carries the tier ladder, over the MATERIALIZED ranking columns', async () => {
+                const statement = await statementFor('flour');
+
+                expect(statement.text).toContain('ingredients.rank_folded');
+                expect(statement.text).toContain('ingredients.rank_tokens');
+                expect(statement.text).toContain('ELSE 0');
+            });
+
+            it('⛔ does NO per-row text processing — the fold is a generated column, not a lateral', async () => {
+                // The regression this guards is a performance cliff, not a wrong answer. Computing the fold
+                // and the token array in the statement measured 253ms/357ms at 50,000 rows against SC-007's
+                // 200ms budget; reading `0025_ingredient_rank_terms.sql`'s columns costs +0.8ms/+5.2ms. An
+                // "inline it and skip the migration" rewrite passes every ordering test in this repository.
+                const statement = await statementFor('flour');
+
+                expect(statement.text).not.toContain('CROSS JOIN LATERAL');
+                expect(statement.text).not.toContain('regexp_split_to_table');
+                expect(statement.text).not.toContain('normalize(');
+            });
+
+            it('keeps `word_similarity` as the base metric — the `flor` case needs 0.600 (KTD-1)', async () => {
+                const statement = await statementFor('flour');
+
+                expect(statement.text).toContain('word_similarity(');
+            });
+
+            it('leaves a SINGLE-token query with the pre-U6 retrieval predicate, byte for byte', async () => {
+                const statement = await statementFor('flour');
+
+                expect(statement.text).toContain("search_vector @@ plainto_tsquery('english',");
+                expect(statement.text).toContain('<% ingredients.name');
+                expect(statement.text).toContain('ingredients.name ILIKE');
+                // Exactly ONE tsquery in the predicate: a head-term branch here would be a duplicate of the
+                // single lexeme `plainto_tsquery` already produces, and pure cost for the planner.
+                // lastIndexOf, deliberately: the terms LATERAL carries its own WHERE and ORDER BY, so the
+                // first of each belongs to the subquery and not to the statement.
+                const where = statement.text.slice(
+                    statement.text.lastIndexOf('WHERE'),
+                    statement.text.lastIndexOf('ORDER BY'),
+                );
+
+                expect(where.match(/plainto_tsquery/g)).toHaveLength(1);
+            });
+
+            it('gives a MULTI-token query a head-term retrieval branch (the 268 unmatched lines)', async () => {
+                const statement = await statementFor('sifted flour');
+                // lastIndexOf, deliberately: the terms LATERAL carries its own WHERE and ORDER BY, so the
+                // first of each belongs to the subquery and not to the statement.
+                const where = statement.text.slice(
+                    statement.text.lastIndexOf('WHERE'),
+                    statement.text.lastIndexOf('ORDER BY'),
+                );
+
+                expect(where.match(/plainto_tsquery/g)).toHaveLength(2);
+                expect(statement.params).toContain('flour');
+            });
         });
     });
 
@@ -186,7 +276,7 @@ describe('IngredientsDal', () => {
         it('dedups: returns the existing freeform row without inserting', async () => {
             execute.mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'dup', is_user_entered: true })] });
 
-            const result = await dal.createFreeform('All-purpose flour');
+            const result = await dal.createFreeform(makeCanonicalName('All-purpose flour'));
 
             expect(result.id).toBe('dup');
             expect(execute).toHaveBeenCalledTimes(1); // dedup lookup only, no insert
@@ -197,7 +287,7 @@ describe('IngredientsDal', () => {
                 .mockResolvedValueOnce({ rows: [] }) // dedup lookup: miss
                 .mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'new', is_user_entered: true })] });
 
-            const result = await dal.createFreeform('Nonna secret spice');
+            const result = await dal.createFreeform(makeCanonicalName('Nonna secret spice'));
 
             expect(execute).toHaveBeenCalledTimes(2);
             expect(result.id).toBe('new');
@@ -210,7 +300,7 @@ describe('IngredientsDal', () => {
                 .mockResolvedValueOnce({ rows: [] }) // INSERT … ON CONFLICT DO NOTHING → conflicted, no row
                 .mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'winner', is_user_entered: true })] });
 
-            const result = await dal.createFreeform('Contested name');
+            const result = await dal.createFreeform(makeCanonicalName('Contested name'));
 
             expect(execute).toHaveBeenCalledTimes(3); // dedup miss → insert no-op → re-read winner
             expect(result.id).toBe('winner');
@@ -222,7 +312,7 @@ describe('IngredientsDal', () => {
             execute.mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'dup', food_id: 'F9' })] });
 
             const result = await dal.createFoodBacked({
-                name: 'Flour',
+                name: makeCanonicalName('Flour'),
                 foodId: 'F9',
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
             });
@@ -237,7 +327,7 @@ describe('IngredientsDal', () => {
             });
 
             const result = await dal.createFoodBacked({
-                name: 'Flour',
+                name: makeCanonicalName('Flour'),
                 foodId: 'F9',
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
             });
@@ -255,7 +345,7 @@ describe('IngredientsDal', () => {
                 .mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'winner', food_id: 'F9' })] });
 
             const result = await dal.createFoodBacked({
-                name: 'Flour',
+                name: makeCanonicalName('Flour'),
                 foodId: 'F9',
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
             });
@@ -274,24 +364,25 @@ describe('IngredientsDal', () => {
                         id: 'u',
                         food_id: 'F1',
                         food_resolution_status: 'RESOLVED',
-                        calories_per_100g: '364.00',
                     }),
                 ],
             });
 
+            // U10: `updateResolution` persists the STATUS only. Nutrition is food's, read live.
             const result = await dal.updateResolution('u', {
+                expectedStatus: FoodResolutionStatus.PENDING,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
-                nutrition: { caloriesPer100g: 364 },
             });
 
             expect(result?.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-            expect(result?.caloriesPer100g).toBe(364);
+            expect(result).not.toHaveProperty('caloriesPer100g');
         });
 
         it('returns undefined when the id does not exist', async () => {
             execute.mockResolvedValue({ rows: [] });
 
             const result = await dal.updateResolution('missing', {
+                expectedStatus: FoodResolutionStatus.PENDING,
                 foodResolutionStatus: FoodResolutionStatus.FAILED,
             });
 

@@ -77,8 +77,8 @@ Reference: [`governance-rules.md`](../governance-rules.md)
 
 | Feature                                                         | Dependency Type             | 013 Integration Responsibility                                                                            |
 | --------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | Referenced domain           | Resolve `recipe_id` links for lessons and render read-only recipe context in player drawer.               |
-| [002-user-auth](../002-user-auth/spec.md)           | Required                    | Enforce authenticated educator/learner sessions, role checks, and JWT validation for protected endpoints. |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)     | Referenced domain           | Resolve `recipe_id` links for lessons and render read-only recipe context in player drawer.               |
+| [002-user-auth](../002-user-auth/spec.md)                       | Required                    | Enforce authenticated educator/learner sessions, role checks, and JWT validation for protected endpoints. |
 | [005-ai-integration](../005-ai-integration/spec.md)             | Referenced service          | AI draft endpoint consumes lesson context + recipe metadata; enforce fallback behavior on AI outage.      |
 | [010-subscriptions](../010-subscriptions/spec.md)               | Required billing/gating     | Purchase lifecycle, entitlement checks, and revenue-share tier consumption.                               |
 | [012-creator-profiles](../012-creator-profiles/spec.md)         | Required identity/discovery | Creator identity (`@handle`) in catalog + profile-linked course discovery surfaces.                       |
@@ -90,9 +90,20 @@ Reference: [`governance-rules.md`](../governance-rules.md)
 
 ### Proposed Workspaces
 
-- `packages/services/cooking-school-service` (NestJS 11): authoritative API for educator + learner operations
+- `packages/services/cooking-school-service` (NestJS 11): authoritative API for educator + learner operations —
+  and the **author** of the wire contract, as zod at `src/**/*.schema.ts` (GR-015; see _API Surface_ below)
 - `packages/services/cooking-school-workers` (Node 24 worker): async transcode callback/status projection
-- `packages/shared/cooking-school-contracts`: DTOs/events/typed contracts for API and clients
+- `packages/schemas/cooking-school` (`@kitchensink/schema-cooking-school`): **GENERATED, committed** copy of the
+  service's zod — the zod itself, `z.infer` types, `contractHash.ts`, a barrel, and a **derived** `openapi.yaml`
+- `packages/clients/cooking-school`: the typed client every consumer depends on (never on the service package)
+
+> ⚠️ **Amended 2026-08-11 (GR-015).** This list previously named a
+> `packages/shared/cooking-school-contracts` package holding "DTOs/events/typed contracts for API and clients".
+> **Superseded** — the location is `packages/schemas/<service>`, and it is **generated from the service's
+> authored zod**, not a hand-maintained shared DTO package. A hand-written contracts package is a **second
+> author** of the wire contract and would drift from the service silently, which is the failure GR-015 exists to
+> make impossible. The `packages/schemas/` location is fixed (ADR-0014, rejected alternative 3), and nothing in
+> that package is hand-edited.
 
 ### Core Runtime Components
 
@@ -138,6 +149,105 @@ Representative route families:
 - Analytics: `/api/v1/educator/analytics/*`
 
 All non-preview playback endpoints enforce auth + entitlement checks.
+
+### Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+**The service MUST** author every course, lesson, enrollment, progress, playback and analytics
+request/response shape as **zod in `cooking-school-service`** at `src/**/*.schema.ts` beside the controller it
+serves; **validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto`; generate and commit
+`@kitchensink/schema-cooking-school` (zod + `z.infer` types + `contractHash.ts` + barrel + a **derived**,
+outbound-only `openapi.yaml` — `oasdiff`/docs/integrators, **never a codegen input**); and keep every
+`*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
+
+**`cooking-school-workers` shares the transcode/status event envelope with the service.** That envelope is
+authored once as zod and imported by both deployables — never declared per deployable.
+
+**Every client MUST** — separately mandatory, because mandating only the service half is exactly how the client
+half got skipped portfolio-wide:
+
+- Import its wire **types and zod** from `@kitchensink/schema-cooking-school`, and **declare no cooking-school
+  request or response body type of its own** — in `packages/clients/cooking-school`, `@commise/web`,
+  `@commise/mobile`, or any feature package alike (GR-015 §15-b.4).
+- **The playback manifest response and the entitlement decision are the load-bearing cases.** Both are consumed
+  by a web player and a mobile player; a hand-written parallel type on either platform can drift by one field
+  and either **fail open** (serving gated video) or fail closed, with `typecheck` green.
+- **Derive** any divergent consumer shape with `Pick` / `Omit` / `Partial` — the player's lesson view model, the
+  educator dashboard's series model. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new endpoint is not complete until its types are reachable from the schema package.**
+
+**Drift gates** — inherited from GR-015 §15-c, all three required: turbo `inputs` rebuild, the
+regenerate-and-diff CI gate, and the `CONTRACT_HASH` boot assertion (the layer that catches the service
+deploying ahead of a released mobile player).
+
+**013 is also a CLIENT of our other services**, bound identically by §15-b: AI script drafting via 005 →
+`@kitchensink/schema-ai`; recipe reads via `@kitchensink/schema-recipe`; educator identity via 012 →
+`@kitchensink/schema-creator-profiles`. 013 declares no wire type belonging to 005, 001, 010 or 012.
+
+### ⚠️ Third-party APIs — the opposite case, do NOT converge them (GR-015 §15-d)
+
+- **The transcode provider** (the media pipeline's external encoder, and its status/callback payloads) is an API
+  we do **not** serve. Its adapter **validates the raw upstream shape at the boundary with zod** — the callback
+  especially, since it is an **inbound external request** whose body is not ours — **may declare its own types**,
+  and **gets no OpenAPI document**. Our playback-manifest shape deliberately differs from the provider's.
+- **Payments stay behind 010.** Course purchase flows through 010's billing primitives, so **Stripe's shapes are
+  010's boundary concern** and must not appear in `@kitchensink/schema-cooking-school`. `POST
+/api/v1/courses/:id/enroll`'s own request/response are ours.
+- **The LLM provider** behind the AI draft adapter is likewise third-party; model output is untrusted and is
+  boundary-validated (see 005 §3.0).
+- `packages/clients/usda` is the reference implementation; its `schemas.ts` must never be "converged". Deleting a
+  boundary schema under §15-b replaces a checked parse with unchecked trust in a remote party's JSON — a
+  security regression, not a cleanup.
+
+### Input validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Contract ownership
+above decides **who authors** the zod; GR-016 decides **where it runs**.
+
+- **One mechanism, one `400`.** `cooking-school-service` validates every educator-authoring, catalog, playback,
+  enrollment, progress, AI-assist and analytics input — body, path params
+  (`:courseId`, `:lessonId`), query params — with its own `*.schema.ts` zod via `createZodDto` +
+  **`nestjs-zod`'s** `ZodValidationPipe`. One mechanism, one `400` path that names the offending field; no
+  `class-validator` DTO alongside it.
+- **⚠️ An entitlement or playback decision must never branch on an unparsed field.** The playback manifest and
+  the entitlement decision are already called out as the load-bearing contracts; on the **input** side the same
+  logic applies — a lesson id, a preview flag or an enrollment token that was never parsed can **fail open**
+  and serve gated video. Parse first, then authorise, then serve.
+- **⛔ THE FLOOR.** Every input field writing a bounded column is validated at least as strictly as the column
+  can store: lesson **ordering** and duration integers against their `int4` ceiling (**2,147,483,647**),
+  progress **percentages and positions** (range- and precision-bounded — a completion threshold is meaningless
+  if `progress: -5` or `10 ** 12` can be stored), `price_cents` for a `published-lesson` audience (GR-014),
+  status enums, nullability. A value the column cannot hold is a `400` at the boundary, never a failed
+  `INSERT`.
+    - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+      `*.schema.ts`. The import constraint above is unchanged by GR-016.
+    - ⚠️ **Lesson description/script text columns are unbounded**, so their limits — and the AI draft-script
+      request's own input bounds — are **product decisions 013 owns**.
+- **⚠️ The transcode provider's CALLBACK is an inbound external request, and it needs both controls.** As the
+  §15-d block says, the callback body is not ours. GR-016 §16-b adds the ordering: **authenticate the callback
+  (signature/shared secret), then validate the schema** — a signature proves **origin, not shape**, and this
+  payload decides whether a lesson becomes playable. An unvalidated status string that flips a lesson to
+  `ready` is the same class of failure as an unvalidated billing status.
+- **Non-HTTP ingress is in scope.** `cooking-school-workers` **parses the transcode/status event envelope on
+  receipt** against the same authored zod the service publishes — the envelope is shared between two
+  deployables that version independently, so "the service enqueued it" is an assumption about a deploy.
+- **✅ The LLM boundary parse is REQUIRED by GR-016, not merely permitted by §15-d.** Draft-script output is
+  **input** to us: validated before it is persisted, rendered, or shown to an educator.
+- **013 is a CLIENT of other services** (005, 001, 010, 012), and GR-016 §16-c binds both directions: outbound
+  bodies validated against the callee's schema-package zod before the call, responses validated on receipt.
+- **Unknown keys are a stated choice per surface.** Educator authoring (a lesson update) is the load-bearing
+  case — a silently stripped key returns `200` for an edit that did not happen. (Portfolio default is **OPEN** —
+  GR-016 OPEN-GR-016-B.)
+- **No request-derived value reaches `sql.raw()`**; a request-selected analytics metric, interval or sort maps
+  through a validated enum to a closed allowlist of literals in code.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g)** for our own responses. The provider- and LLM-side parses
+  above are **input** to us and are unaffected.
 
 ---
 

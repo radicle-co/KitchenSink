@@ -1,5 +1,27 @@
 # Product Forge Verify-Full Report: Feature 014-notification-service
 
+> # ⛔ SUPERSEDED — DO NOT USE AS EVIDENCE
+>
+> **Marked superseded 2026-08-05** by the sync-verify reconciliation
+> (see [`sync-report.md`](./sync-report.md) DRIFT-005). This report measured a task
+> graph that **does not exist**:
+>
+> - It reports `CODE_TASKS_COVERAGE = 0/66`, then `0/53`, over ids `T001`–`T066` and
+>   cites a "Phase 7" containing `T057`–`T066`. `tasks.md` defined **20** tasks
+>   (`T-001`…`T-020`) on the date of this run, and defines **33** today. There is no
+>   `T057`, and there is no Phase 7.
+> - Its **W-003** claims `❌ MISSING` cells in `v-model/traceability-matrix.md`.
+>   That file contains **zero** occurrences of `MISSING`; all 31 `REQ-NNN` rows carry
+>   a mapped `ATP`/`SCN` reference. The finding was already stale when written.
+>
+> **What remains true:** **C-001** — the release audit is blocked with 186 mapped
+> scenarios and 0 executed — and the overall ❌ NOT READY verdict. No implementation
+> exists, so no verification can pass.
+>
+> This file is **regenerated, not edited**, by Phase 7 (`T-020`) after implementation.
+> `phases.verify.status` is `pending` in `.forge-status.yml`. Everything below is
+> retained verbatim as the historical record.
+
 **Run date**: 2026-05-12
 **Mode**: M8 (Mordor) full traceability verification
 **Verifier**: Sisyphus (deterministic checks + manual cross-reference)

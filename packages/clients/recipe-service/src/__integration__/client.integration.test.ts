@@ -10,9 +10,11 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { CONTRACT_HASH } from '@kitchensink/schema-recipe';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { NotFoundError, RecipeServiceClient } from '../index.js';
+import { NotFoundError, RecipeServiceClient, shouldRetryRecipeServiceFailure } from '../index.js';
+import { resetContractSkewLatchForTests } from '../contractSkew.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 /** A single request as observed on the server socket. */
@@ -32,8 +34,34 @@ interface CannedResponse {
 /** A booted test server: its base URL, the requests it received (in order), and a shutdown hook. */
 interface TestServer {
     readonly baseUrl: string;
+    /** API requests only — the `/health` skew probe is answered out-of-band, see {@link startServer}. */
     readonly received: ReceivedRequest[];
+    /** The `/health` skew-probe requests this server answered (drift layer 3, §15.2.5). */
+    readonly healthProbes: ReceivedRequest[];
     close(): Promise<void>;
+}
+
+/**
+ * What the test server answers on `GET /health` — the drift-layer-3 skew probe (§15.2.5).
+ *
+ * `'agree'` publishes the client's OWN fingerprint (no warning — the default, so every unrelated scenario is
+ * unaffected), `'skewed'` publishes a different well-formed one, and `'absent'` omits the field entirely, which
+ * is what a service deployed before publication serves.
+ */
+type HealthPosture = 'agree' | 'skewed' | 'absent';
+
+/** A well-formed fingerprint that is deliberately not this client's. */
+const FOREIGN_HASH = 'd'.repeat(64);
+
+/** The `/health` body for a posture. */
+function healthBody(posture: HealthPosture): Record<string, string> {
+    const base = { status: 'ok', service: 'recipe' };
+
+    if (posture === 'absent') {
+        return base;
+    }
+
+    return { ...base, contractHash: posture === 'skewed' ? FOREIGN_HASH : CONTRACT_HASH };
 }
 
 /** Read a request's full body off the socket as a UTF-8 string. */
@@ -53,19 +81,38 @@ async function readBody(req: IncomingMessage): Promise<string> {
  *
  * @sideEffect Opens a listening TCP socket on an ephemeral localhost port.
  */
-async function startServer(responses: readonly CannedResponse[]): Promise<TestServer> {
+async function startServer(
+    responses: readonly CannedResponse[],
+    healthPosture: HealthPosture = 'agree',
+): Promise<TestServer> {
     const received: ReceivedRequest[] = [];
+    const healthProbes: ReceivedRequest[] = [];
     let i = 0;
 
     const server: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
         void (async (): Promise<void> => {
             const body = await readBody(req);
-            received.push({
+            const observed = {
                 method: req.method ?? '',
                 url: req.url ?? '',
                 authorization: req.headers['authorization'],
                 body,
-            });
+            };
+
+            // `/health` is the drift-layer-3 skew probe, NOT part of any scenario below. It is answered
+            // out-of-band — outside the canned sequence and outside `received` — for two reasons: letting it
+            // consume a queued response would silently shift every sequenced scenario by one (the identity-sync
+            // retry test would have had its 401 eaten by the probe), and letting it land in `received` would
+            // break every length/index assertion depending on unrelated network timing.
+            if (observed.url === '/health') {
+                healthProbes.push(observed);
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify(healthBody(healthPosture)));
+
+                return;
+            }
+
+            received.push(observed);
 
             const canned = responses[Math.min(i, responses.length - 1)]!;
             i += 1;
@@ -88,12 +135,19 @@ async function startServer(responses: readonly CannedResponse[]): Promise<TestSe
     return {
         baseUrl: `http://127.0.0.1:${port}`,
         received,
+        healthProbes,
         close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
     };
 }
 
 describe('RecipeServiceClient (integration, real HTTP server)', () => {
     let server: TestServer | undefined;
+
+    // The skew probe latches once per ORIGIN per process. Each test here gets a fresh ephemeral port (so a fresh
+    // origin), but resetting keeps that an explicit guarantee rather than a side effect of port allocation.
+    beforeEach(() => {
+        resetContractSkewLatchForTests();
+    });
 
     afterEach(async () => {
         await server?.close();
@@ -115,8 +169,23 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
     });
 
     it('serializes list + array query params onto the real request line', async () => {
+        // All FOUR facet dimensions, not `facets: {}`. `recipeSearchFacetsSchema` declares every dimension
+        // REQUIRED (deliberately — the server/client disagreement about whether a facet block could be absent
+        // was reconciled in favour of required), so a `{}` canned body fails the client's own response parse and
+        // this scenario died on a ZodError before it could assert anything about the request line. Pre-existing
+        // red on this tier, unrelated to what the test is checking.
         server = await startServer([
-            { status: 200, json: { results: [], total: 0, page: 2, pageSize: 20, hasMore: false, facets: {} } },
+            {
+                status: 200,
+                json: {
+                    results: [],
+                    total: 0,
+                    page: 2,
+                    pageSize: 20,
+                    hasMore: false,
+                    facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
+                },
+            },
         ]);
         const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch });
 
@@ -131,10 +200,22 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         const created = makeRecipeDetail({ id: 'rec_new', title: 'Soup' });
         server = await startServer([{ status: 201, json: created }]);
         const client = new RecipeServiceClient({ baseUrl: server.baseUrl, token: 'tok', fetch });
+        // A CONTRACT-VALID body, because the client now parses outbound requests against the published
+        // zod before sending. This case is about TRANSPORT — that a JSON body is serialized and arrives
+        // intact — so it needs the smallest body the contract accepts, not the smallest body TypeScript
+        // accepts. Empty `ingredients`/`steps` arrays used to pass here and now fail the outbound parse
+        // (`too_small`, min 1), which is the guard working: the request could never have succeeded.
         const input = {
             title: 'Soup',
-            ingredients: [],
-            steps: [],
+            ingredients: [
+                {
+                    ingredientId: '4b1c0a3e-2f6d-4c58-9a71-0d5e8c2f4a90',
+                    name: 'Stock',
+                    quantity: { kind: 'exact', value: 1 },
+                } as const,
+            ],
+            // No `stepNumber` — the server assigns it from array order, and the body is `strictObject`.
+            steps: [{ instruction: 'Simmer the stock.' }],
             servings: 2,
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
@@ -186,5 +267,153 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         expect(result).toEqual(recipe);
         expect(server.received).toHaveLength(2);
         expect(forceRefreshFlags).toEqual([false, true]);
+    });
+});
+
+/**
+ * DRIFT LAYER 3 (Skew) over a REAL socket — CODING_STANDARDS §15.2.5, owner ruling 2026-08-11 (warn, never
+ * refuse).
+ *
+ * The unit tier proves the decision with a mocked `fetch`. This tier proves the thing a mock cannot: that the
+ * probe is a real, separate, unauthenticated `GET /health` on the wire, that the caller's request completes
+ * normally alongside it, and that the fingerprint survives a genuine JSON round-trip.
+ */
+describe('RecipeServiceClient contract skew (integration, real HTTP server)', () => {
+    let server: TestServer | undefined;
+
+    beforeEach(() => {
+        resetContractSkewLatchForTests();
+    });
+
+    afterEach(async () => {
+        await server?.close();
+        server = undefined;
+    });
+
+    it('probes /health over the wire, unauthenticated, and warns once on a real mismatch', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1', title: 'Soup' });
+        server = await startServer([{ status: 200, json: recipe }], 'skewed');
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({
+            baseUrl: server.baseUrl,
+            token: 'tok-int',
+            fetch,
+            onContractSkew,
+        });
+
+        // The caller's call is completely unaffected — that IS the ruling.
+        await expect(client.getRecipeById('rec_1')).resolves.toEqual(recipe);
+
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+        expect(server.healthProbes).toHaveLength(1);
+        expect(server.healthProbes[0]!.method).toBe('GET');
+        // No credential on the probe: `/health` is public so a consumer can ask before it holds one.
+        expect(server.healthProbes[0]!.authorization).toBeUndefined();
+        expect(onContractSkew.mock.calls[0]?.[0]).toContain(FOREIGN_HASH.slice(0, 12));
+    });
+
+    it('stays silent when the real service publishes an agreeing fingerprint', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1' });
+        server = await startServer([{ status: 200, json: recipe }], 'agree');
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch, onContractSkew });
+
+        await client.getRecipeById('rec_1');
+        await vi.waitFor(() => {
+            expect(server?.healthProbes).toHaveLength(1);
+        });
+
+        expect(onContractSkew).not.toHaveBeenCalled();
+    });
+
+    // A real service deployed before publication existed. Silence, not noise.
+    it('stays silent when the real service publishes no fingerprint at all', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1' });
+        server = await startServer([{ status: 200, json: recipe }], 'absent');
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch, onContractSkew });
+
+        await client.getRecipeById('rec_1');
+        await vi.waitFor(() => {
+            expect(server?.healthProbes).toHaveLength(1);
+        });
+
+        expect(onContractSkew).not.toHaveBeenCalled();
+    });
+
+    it('probes ONCE across many real requests to the same origin', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1' });
+        server = await startServer([{ status: 200, json: recipe }], 'skewed');
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch, onContractSkew });
+
+        for (let n = 0; n < 5; n += 1) {
+            await client.getRecipeById('rec_1');
+        }
+
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+        expect(server.received).toHaveLength(5);
+        expect(server.healthProbes).toHaveLength(1);
+    });
+});
+
+describe('shouldRetryRecipeServiceFailure (integration, real HTTP server)', () => {
+    /**
+     * ⛔ THE ONE THING THE UNIT TIER CANNOT SAY. `retryPolicy.test.ts` constructs each error class by hand
+     * and hands it to the predicate, which proves the classification and nothing about the CHAIN that
+     * produces it: real socket → ky → `send`'s own `401` replay logic → `errorForStatus`/`errorForCode` →
+     * the typed class → the predicate. A break anywhere in that chain leaves the predicate correct and the
+     * app still retrying a `404` four times, which is exactly the defect.
+     *
+     * So these drive a REAL status off a REAL server through the client's REAL transport (no injected
+     * fetch), and then ask the predicate about whatever actually came back.
+     */
+    let server: TestServer | undefined;
+
+    beforeEach(() => {
+        resetContractSkewLatchForTests();
+    });
+
+    afterEach(async () => {
+        await server?.close();
+        server = undefined;
+    });
+
+    /**
+     * Issue one read against a server answering `status`, and classify whatever the client threw.
+     *
+     * @param status - The HTTP status the server answers with.
+     * @returns The predicate's verdict on the real error.
+     * @sideEffect Boots a server and performs a real HTTP request.
+     */
+    async function verdictFor(status: number): Promise<boolean> {
+        server = await startServer([{ status, json: { message: 'nope' } }]);
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, token: 'tok-int', fetch });
+        const failure = await client.getRecipeById('rec_1').then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+
+        expect(failure).toBeInstanceOf(Error);
+
+        return shouldRetryRecipeServiceFailure(failure);
+    }
+
+    it.each([404, 400, 403, 410])('refuses to retry a real %i off the wire', async (status) => {
+        await expect(verdictFor(status)).resolves.toBe(false);
+    });
+
+    it.each([500, 502, 503])('still retries a real %i off the wire', async (status) => {
+        // The assertion a blanket refusal cannot pass — and it runs through the same mapping as the rows
+        // above, so a status→class regression shows up here rather than as four silent extra requests.
+        await expect(verdictFor(status)).resolves.toBe(true);
+    });
+
+    it('still retries a real 429, the one 4xx a status RANGE would have refused', async () => {
+        await expect(verdictFor(429)).resolves.toBe(true);
     });
 });

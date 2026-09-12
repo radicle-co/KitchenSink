@@ -1,0 +1,153 @@
+{
+    // ⛔ WHY THIS FILE EXISTS. Without it knip guesses entry points, and on a 50-workspace monorepo that
+    // means reporting the CDK app entry, every vitest config and every test file as "unused" — 452 unused-file
+    // findings, essentially all false, which is why the scanner had knip switched off entirely. A dead-code
+    // detector nobody can trust is worse than none, because its noise hides the real finding.
+    //
+    // ⚠️ MEASURE, DO NOT GUESS, WHEN CHANGING THIS. `npx knip --reporter json --no-progress --no-exit-code`
+    // takes ~18s for the WHOLE repo (`--workspace` filters reporting, not analysis, so per-package runs cost
+    // the same ~18s each and buy nothing). Compare the unused-file count before and after any edit here.
+    "$schema": "https://unpkg.com/knip@5/schema.json",
+
+    // ⚠️ SIX UNUSED FILES ARE REPORTED AND NOT SILENCED — they are TRUE findings, verified by grep:
+    //   • identity-webhooks `src/common/{retry,sqs}.ts` and identity `src/config/featureFlags.ts` — no importers.
+    //   • `packages/schemas/{recipe,identity,food}/src/types.ts` — each is `export type * from './schemas.js'`,
+    //     the SAME module `index.ts` already re-exports with `export *` (which carries types), and `./types`
+    //     is not in the package's `exports` map, so a consumer cannot reach it even deliberately. Measured:
+    //     101 import sites reach these packages, 0 reach `/types`. The fix belongs in `contract-gen` — stop
+    //     emitting the file — not here. ⛔ Do NOT "resolve" this by adding it as an entry point: an earlier
+    //     pass did exactly that on the false premise that consumers could not otherwise get the types, and
+    //     silencing a true finding is worse than the finding.
+    //
+    // ⚠️ TWO STRUCTURAL BLIND SPOTS THIS CONFIG CREATES, named rather than left to be discovered:
+    //   • `**/*.native.{ts,tsx}` as an entry means a genuinely DEAD `.native.tsx` can never be reported. The
+    //     §14 cross-platform parity guards stand in for it; knip cannot, because Metro's resolution is not a
+    //     static edge.
+    //   • Declaring TESTS as entries means a production export reachable ONLY from a test is never reported
+    //     unused. This is the larger of the two and it is the price of the 452 -> 3 reduction: without it the
+    //     signal was unusable. Treat "knip says this export is used" as "used by something, possibly only a
+    //     test" rather than as "used in production".
+    //
+    // ⚠️ The wire-contract glob above is deliberately NARROW. It was `**/__tests__/fixtures/**` plus
+    // `**/__tests__/__fixtures__/**`, which was broader than its own stated reason and swallowed
+    // `recipe-import-core/…/makeParsedLine.ts` — a fixture three tests genuinely import.
+    //
+    // Spec contracts and design mockups are ARTEFACTS, not shipped code — they are deliberately unreferenced.
+    "ignore": [
+        "specs/**",
+        "docs/**",
+        "**/dist/**",
+        "**/dist-lambda/**",
+        "**/.next/**",
+        "**/cdk.out/**",
+        // ⛔ FIXTURE CORPORA ARE READ FROM DISK BY THE TEST, NOT IMPORTED BY IT. `docgen-components` walks
+        // its `__fixtures__/components` directory as INPUT to the generator it is testing, and the scrubber
+        // and dev-runner fixtures are loaded through dynamic-import strings. A static graph cannot see any
+        // of those edges, and making them entry points would instead hide real deadness inside them.
+        "**/__fixtures__/components/**",
+        "**/__fixtures__/dynamicNodeImport.ts",
+        "**/__fixtures__/devRunnerProbe/**",
+        // ⛔ SYNTHETIC FIXTURE PACKAGES ARE NOT WORKSPACES. `__tests__/fixtures/wire-contract/*` each carry a
+        // `package.json` so a guard can be run against a REALISTIC package shape; knip otherwise adopts them
+        // as workspaces and reports their deliberately-unused `zod`/`@kitchensink/schema-thing` as findings.
+        "**/__tests__/fixtures/wire-contract/**",
+    ],
+
+    "workspaces": {
+        ".": {
+            // Repo-root automation, invoked by CI and npm scripts rather than imported.
+            "entry": ["scripts/*.{mjs,ts}"],
+            "project": ["scripts/**/*.{mjs,ts}"],
+        },
+        // ⛔ NESTED CDK `infra/` PACKAGES. Their toolchain is invoked through `cdk.json`
+        // (`"app": "npx tsx bin/app.ts"`) and the `cdk` CLI — a JSON string and a shell command, neither of
+        // which knip can follow — so `aws-cdk`/`cdk`/`tsx` read as unused in all six of them. Declared here
+        // rather than repo-wide, so a REAL unused `tsx` in an app package is still reported.
+        "packages/**/infra": {
+            "entry": ["bin/*.ts", "lib/**/*.ts"],
+            "ignoreDependencies": ["aws-cdk", "cdk", "tsx"],
+            "ignoreBinaries": ["cdk", "tsx"],
+        },
+        "packages/**": {
+            "entry": [
+                // knip's own defaults, restated because declaring `entry` REPLACES them.
+                "index.{js,mjs,ts,tsx}",
+                "src/index.{js,mjs,ts,tsx}",
+
+                // ⛔ TESTS ARE ENTRY POINTS. A runner invokes them; nothing imports them. This single line is
+                // 292 of the 452 false findings. `__fixtures__` and `test-utils` then become reachable
+                // through them rather than needing entries of their own.
+                "**/__tests__/**/*.test.{ts,tsx}",
+                "tests/**/*.{test,spec}.{ts,tsx}",
+                "tests/**/{globalSetup,harness,setup}*.ts",
+
+                // ⛔ CDK APP ENTRIES. `cdk.json` runs these; no TypeScript import reaches them, so every
+                // construct under `infra/lib` looked dead behind them (66 findings).
+                "infra/bin/*.ts",
+                "bin/*.ts",
+
+                // ⛔ LAMBDA HANDLERS ARE ESBUILD ENTRY POINTS, named in `esbuild.mjs`/CDK, never imported.
+                "src/handlers/*.ts",
+                "src/lambdas/**/handler.ts",
+
+                // Build + tooling scripts, invoked by npm scripts.
+                "esbuild.mjs",
+                "scripts/**/*.{ts,mjs}",
+
+                // ⛔ PLATFORM VARIANTS ARE RESOLVED BY THE BUNDLER, NOT BY AN IMPORT. Metro rewrites
+                // `./icons.js` to `icons.native.tsx` at bundle time, so static analysis CANNOT see the edge —
+                // every `.native.*` file reads as unused. This is structural to the repo's §14 cross-platform
+                // rule, not a gap to fix in the code.
+                "**/*.native.{ts,tsx}",
+
+                // Vitest stub modules, wired through config `alias` rather than imports.
+                "test-utils/**/*.{ts,tsx}",
+                "tests/stubs/**/*.{ts,tsx}",
+
+                // ⛔ SERVICE AND WORKER PROCESS ENTRIES. A container runs these; nothing imports them.
+                "src/main.ts",
+                "src/worker/main.ts",
+
+                // ⛔ `instrument.ts` IS LOADED BY THE RUNTIME FLAG `node --import ./dist/src/instrument.js`,
+                // which is a string in a Dockerfile, not an import. Sentry breaks if it is deleted as dead.
+                "src/instrument.ts",
+
+                // ⛔ k6 LOAD SCRIPTS AND THEIR FIXTURE BUILDERS. k6 executes these in its own runtime; they
+                // are never imported by anything in the TypeScript graph.
+                "tests/load/**/*.{js,mjs,ts}",
+
+                // Playwright projects (`auth.setup.ts` runs as a setup project, not as an import).
+                "tests/e2e/**/*.setup.ts",
+
+                // In-repo operator scripts under a package's own src.
+                "src/scripts/**/*.ts",
+
+                // Worker entries nested a level deeper (e.g. `src/worker/change-refresh/main.ts`).
+                "src/worker/**/main.ts",
+
+                // Lambda handlers that live outside `src/handlers` (the scheduler is a CDK-wired handler).
+                "src/**/handler.ts",
+
+                // k6 suites that sit at a tools package root rather than under `tests/load`.
+                "*.load.js",
+                "{journey,ratelimit}.js",
+                "printLoadTier.ts",
+
+                // `@commise/ui` spells its stub directory `test/stubs`, not `tests/stubs`.
+                "test/stubs/**/*.{ts,tsx}",
+            ],
+        },
+    },
+
+    // Every vitest tier has its own config (§7 requires one per tier); knip reads only `vitest.config.ts`
+    // unless the siblings are named.
+    "vitest": {
+        "config": [
+            "vitest.config.ts",
+            "vitest.native.config.ts",
+            "vitest.integration.config.ts",
+            "vitest.e2e.config.ts",
+            "vitest.deployed.config.ts",
+        ],
+    },
+}

@@ -89,7 +89,24 @@ describe('Button (web)', () => {
         expect(onPress).not.toHaveBeenCalled();
     });
 
-    it('marks a busy control as aria-busy AND disabled (cannot double-fire)', async () => {
+    // ⛔ REWRITTEN: a busy control used to be natively `disabled`. The control that goes busy is the one the user
+    // just pressed, and a real browser drops focus to <body> the moment a focused control becomes disabled
+    // (WCAG 2.2 SC 2.4.3) — jsdom does not, which is why this asserts the attributes as well as the press. A busy
+    // control stays FOCUSABLE, says it is unavailable (`aria-disabled`) and in flight (`aria-busy`), and still
+    // cannot double-fire: the click is cancelled.
+    it('⛔ a busy control that is also disabled keeps focus — busy wins, as the control just pressed', () => {
+        render(
+            <Button icon={markerIcon} disabled busy>
+                Clone
+            </Button>,
+        );
+
+        const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Clone' });
+        expect(button.disabled).toBe(false);
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('marks a busy control aria-busy AND aria-disabled, keeps it focusable, and cannot double-fire', async () => {
         const user = userEvent.setup();
         const onPress = vi.fn();
         render(
@@ -100,9 +117,33 @@ describe('Button (web)', () => {
 
         const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Create recipe' });
         expect(button.getAttribute('aria-busy')).toBe('true');
-        expect(button.disabled).toBe(true);
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.disabled).toBe(false);
         await user.click(button);
         expect(onPress).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a busy SUBMIT button does not let Enter in a field submit the form a second time', async () => {
+        // HTML implicit submission fires a click on the form's default button when Enter is pressed in a field.
+        // Native `disabled` used to stop that; the busy click handler must cancel it (`preventDefault`), or a
+        // cook pressing Enter twice saves twice.
+        const user = userEvent.setup();
+        const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
+        render(
+            <form onSubmit={onSubmit}>
+                <label>
+                    Title
+                    <input />
+                </label>
+                <Button icon={markerIcon} type="submit" busy>
+                    Save recipe
+                </Button>
+            </form>,
+        );
+
+        await user.type(screen.getByLabelText('Title'), 'Soup{Enter}');
+
+        expect(onSubmit).not.toHaveBeenCalled();
     });
 
     it('renders a real spinner when busy, swapping the icon slot in place (no layout shift)', () => {
@@ -142,7 +183,7 @@ describe('Button (web)', () => {
         // motion-safe press-scale utility (suppressed under reduce-motion), and the <button> lives inside.
         const wrapper = container.firstElementChild;
         expect(wrapper?.tagName).toBe('SPAN');
-        expect(wrapper?.className).toContain('motion-safe:active:scale-[0.98]');
+        expect(wrapper?.className).toContain('motion-safe:not-has-aria-disabled:active:scale-[0.98]');
         expect(wrapper?.querySelector('button')).not.toBeNull();
     });
 

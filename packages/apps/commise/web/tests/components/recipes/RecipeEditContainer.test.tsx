@@ -26,31 +26,43 @@
  * hand-wired `refetchMock` is now the container's own `query.refetch()` calling the REAL `getRecipeById` a
  * second time, modeled with `mockResolvedValueOnce` twice (seed, then the fresh "theirs").
  */
-import { screen, within } from '@testing-library/react';
+import { QueryClient } from '@tanstack/react-query';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NotFoundError, VersionConflictError } from '@kitchensink/recipe-service-client';
+import { recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeDetail, RecipeSnapshot, VersionConflictSide } from '@kitchensink/recipe-core';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import type { FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { RecipeEditContainer } from '@/components/recipes/RecipeEditContainer';
+import type { RecipePhotoUploaderContainerProps } from '@/components/recipes/RecipePhotoUploaderContainer';
 
 import { makeRecipeDetail } from './__fixtures__/recipeFixtures';
 
-const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
+const { pushMock, uploader } = vi.hoisted(() => ({ pushMock: vi.fn(), uploader: { real: false } }));
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
 }));
 
 // The photo uploader is its own container with its own hooks (covered by RecipePhotoUploaderContainer.test);
-// stub it here so this suite exercises only the edit form / conflict logic and needs no photo-hook stubs.
-vi.mock('@/components/recipes/RecipePhotoUploaderContainer', () => ({
-    RecipePhotoUploaderContainer: () => null,
-}));
+// stub it here so this suite exercises only the edit form / conflict logic and needs no photo-hook stubs. The one
+// test about how the uploader's read sits under the editor's suspense boundary sets `uploader.real` to mount it.
+vi.mock('@/components/recipes/RecipePhotoUploaderContainer', async (importOriginal) => {
+    const actual = await importOriginal<{
+        readonly RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>;
+    }>();
+
+    return {
+        RecipePhotoUploaderContainer: (props: RecipePhotoUploaderContainerProps) =>
+            uploader.real ? <actual.RecipePhotoUploaderContainer {...props} /> : null,
+    };
+});
 
 /**
  * Project a {@link RecipeDetail} to the {@link VersionConflictSide} shape a real 409's `server`/`base` side
@@ -87,7 +99,6 @@ function toVersionConflictSide(detail: RecipeDetail): VersionConflictSide {
 
     return {
         versionNumber: detail.currentVersion,
-        deviceLabel: 'iPhone',
         updatedAt: '2026-05-09T14:30:00.000Z',
         snapshot,
     };
@@ -116,23 +127,26 @@ function conflictClient(mine: RecipeDetail, theirs: RecipeDetail): RecipeService
 }
 
 afterEach(() => {
+    uploader.real = false;
     vi.restoreAllMocks();
     vi.clearAllMocks();
 });
 
 /**
- * Reach the wizard's final step (Photos) via the rail. U6 chrome moved the sole `Publish` primary to the
- * footer of step 4 — it is no longer live on steps 1–3 — so any publish flow must first land on Photos. The
+ * Reach the wizard's final step (Review) via the rail. The action bar's primary is `Publish` on the last
+ * step only — it is not live on steps 1–3 — so any publish flow must first land on Review. The
  * rail permits UNGATED forward navigation regardless of a step's validity, which is what lets the
  * invalid-step Publish-gate test reach the button at all.
  */
-async function goToPhotos(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-    await user.click(screen.getByRole('button', { name: /Photos:/ }));
+async function goToReview(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(screen.getByRole('button', { name: /Review:/ }));
 }
 
 /**
- * Open the header's overflow ("More actions") menu (U6 chrome): Save Draft and Cancel were demoted off the
- * top-level header into this `role="menu"` disclosure, so reaching either now goes through this trigger first.
+ * Open the header's overflow ("More actions") menu. U32 leaves it carrying CANCEL only — Save Draft is a
+ * first-class control in the action bar at every width, and putting it here as well would name two controls
+ * `Save Draft` on one surface. The menu is `lg`-and-above chrome; below it, the header's back arrow does
+ * Cancel's job.
  */
 async function openActionsMenu(user: ReturnType<typeof userEvent.setup>): Promise<void> {
     await user.click(screen.getByRole('button', { name: 'More actions' }));
@@ -182,6 +196,68 @@ describe('RecipeEditContainer', () => {
         await vi.waitFor(() => expect(getRecipeSpy).toHaveBeenCalledTimes(2));
     });
 
+    it('⛔ keeps the editor AND the draft when a background refetch of the recipe fails', async () => {
+        const user = userEvent.setup();
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client, { queryClient });
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
+
+        // A focus or reconnect refetch that fails AFTER the editor seeded: the cached recipe is still there.
+        vi.mocked(client.getRecipeById).mockRejectedValue(new Error('network down'));
+        await act(async () => {
+            await queryClient.refetchQueries({ queryKey: recipeServiceKeys.recipe('rec_1') });
+        });
+        expect(queryClient.getQueryState(recipeServiceKeys.recipe('rec_1'))?.status).toBe('error');
+        // TanStack batches observer notifications onto a timer; let that batch reach React before asserting.
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+
+        // Swapping the editor for the load error would unmount the wizard and throw the cook's draft away.
+        // A stale base is not this surface's to report here: saving against it answers 409 and the conflict view.
+        expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Weeknight Pasta Deluxe');
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('⛔ keeps the wizard on screen while the REAL photo uploader’s read is still pending', async () => {
+        // A non-suspension check. The uploader reads photos with a plain `useQuery`, so a pending read renders the
+        // uploader's own empty state; were that read a suspense read with no `<Suspense>` of its own, the editor's
+        // boundary would catch it and swap the whole wizard for "Loading recipe" until the photos arrived.
+        uploader.real = true;
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
+        const listPhotos = vi.spyOn(client, 'listRecipePhotos').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        expect(await screen.findByRole('textbox', { name: 'Title' })).toHaveValue('Weeknight Pasta');
+        // The real uploader mounted and its read is in flight, so the check below is made DURING the pending read.
+        expect(listPhotos).toHaveBeenCalledWith('rec_1');
+        expect(screen.getByRole('region', { name: 'Photos' })).toBeInTheDocument();
+        expect(screen.getByText('Step 1 of 4')).toBeInTheDocument();
+        expect(screen.queryByRole('status', { name: 'Loading recipe' })).not.toBeInTheDocument();
+    });
+
+    it('⛔ remounts a fresh editor seeded from the NEW recipe when the route hands it another id', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockImplementation(async (id) =>
+            makeRecipeDetail({ id, title: id === 'rec_2' ? 'Sunday Roast' : 'Weeknight Pasta' }),
+        );
+
+        const { rerender } = renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
+
+        rerender(<RecipeEditContainer locale="en" recipeId="rec_2" />);
+
+        // The draft is bound to the recipe it was seeded from, so another recipe is another editor — never this draft.
+        expect(await screen.findByDisplayValue('Sunday Roast')).toBeInTheDocument();
+        expect(screen.queryByDisplayValue('Weeknight Pasta Deluxe')).not.toBeInTheDocument();
+    });
+
     it('seeds the 4-step wizard from the loaded recipe, one step at a time', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
@@ -205,15 +281,19 @@ describe('RecipeEditContainer', () => {
     it('maps the edited form to the update input (with expectedVersion) and navigates on success', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 }),
-        );
+        // Hoisted so the ingredient assertion below DERIVES its expectation from the same Object Mother the
+        // component was fed, rather than restating it. The literal it used to hardcode (`ingredientId: 'ing_1'`)
+        // went stale silently when the fixture moved to a real UUID — the wire field is a `z.uuid()`, and
+        // `'ing_1'` was never a value the catalog API could return. A hardcoded copy of fixture data is the same
+        // drift this contract work exists to remove, one layer down.
+        const loaded = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(loaded);
         const updateSpy = vi.spyOn(client, 'updateRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_1' }));
 
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
@@ -221,7 +301,14 @@ describe('RecipeEditContainer', () => {
         expect(id).toBe('rec_1');
         expect(input.title).toBe('Weeknight Pasta Deluxe');
         expect(input.expectedVersion).toBe(3);
-        expect(input.ingredients).toEqual([{ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' }]);
+        expect(input.ingredients).toEqual(
+            loaded.ingredients.map(({ ingredientId, name, quantity, unit }) => ({
+                ingredientId,
+                name,
+                quantity,
+                unit,
+            })),
+        );
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
     });
 
@@ -235,12 +322,12 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         // The conflict view replaces the form: the per-side banner (server first, X7/X3) …
         expect(await screen.findByText('This recipe changed while you were editing')).toBeInTheDocument();
-        expect(screen.getByText(/^Server version \(v4\): Saved .* on iPhone$/)).toBeInTheDocument();
+        expect(screen.getByText(/^Server version \(v4\): Saved .*ago$/u)).toBeInTheDocument();
         expect(screen.getByText('Your version: local unsaved changes')).toBeInTheDocument();
         // … the three A/B/C option cards (X2) …
         expect(screen.getByRole('button', { name: 'Keep server version' })).toBeInTheDocument();
@@ -271,7 +358,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
@@ -292,7 +379,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         // This fake conflict carries no `base` (W8-a.5 real conflicts may also lack one — the base-evicted
@@ -322,7 +409,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         // Enter the merge panel and pull servings from the latest saved version, keeping my title. This fake
@@ -360,7 +447,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         await user.click(await screen.findByRole('button', { name: 'Keep server version' }));
@@ -386,7 +473,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         await screen.findByText('This recipe changed while you were editing');
@@ -417,18 +504,19 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(await screen.findByText('This recipe was changed elsewhere. Reload and try again.')).toBeInTheDocument();
         // Never the fabricated conflict view — there is no server/base to build it from.
         expect(screen.queryByText('This recipe changed while you were editing')).not.toBeInTheDocument();
-        // Stays editing (retryable) — the typed edit survived the recoverable error. The final step (where the
-        // blocked Publish left us) has no Title field, so confirm the live draft through the read-only Preview
-        // panel (a toggle, so it never trips the backward-nav discard guard) rather than a step-1 textbox.
-        await user.click(screen.getByRole('button', { name: 'Preview' }));
+        // Stays editing (retryable) — the typed edit survived the recoverable error. REWRITTEN for U33: the
+        // Preview overlay this used to open is deleted, and the step the blocked Publish left us on IS the
+        // read-only summary now, so the live draft is confirmed straight from the Review body. That is
+        // strictly better evidence: it reads the surface a cook is actually looking at, and it needs no
+        // toggle to avoid tripping the backward-nav discard guard.
         expect(
-            within(screen.getByRole('dialog', { name: 'Preview' })).getByText('Weeknight Pasta Deluxe'),
+            within(screen.getByRole('region', { name: 'Review' })).getByText('Weeknight Pasta Deluxe'),
         ).toBeInTheDocument();
         expect(pushMock).not.toHaveBeenCalled();
     });
@@ -446,8 +534,9 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await screen.findByRole('textbox', { name: 'Title' });
-        await openActionsMenu(user);
-        await user.click(screen.getByRole('menuitem', { name: 'Save Draft' }));
+        // U32: Save Draft is a first-class control in the action bar now, not an overflow item a
+        // phone user had to open a kebab to reach.
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
 
         await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
         const [, input] = updateSpy.mock.calls[0]!;
@@ -472,8 +561,9 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await screen.findByRole('textbox', { name: 'Title' });
-        await openActionsMenu(user);
-        await user.click(screen.getByRole('menuitem', { name: 'Save Draft' }));
+        // U32: Save Draft is a first-class control in the action bar now, not an overflow item a
+        // phone user had to open a kebab to reach.
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
 
         await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
         const [, input] = updateSpy.mock.calls[0]!;
@@ -495,7 +585,7 @@ describe('RecipeEditContainer', () => {
         await screen.findByRole('textbox', { name: 'Title' });
         // Publish is the footer's final-step primary (U6: no longer live on steps 1–3); reach it via the rail,
         // whose FORWARD navigation is ungated even though the Ingredients step is invalid.
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(updateSpy).not.toHaveBeenCalled();

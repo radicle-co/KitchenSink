@@ -9,8 +9,8 @@
 
 ## Artifact Information
 
-| Artifact                   | File                                                   | Created    | Status     | Scope                                                           |
-| -------------------------- | ------------------------------------------------------ | ---------- | ---------- | --------------------------------------------------------------- |
+| Artifact                   | File                                             | Created    | Status     | Scope                                                           |
+| -------------------------- | ------------------------------------------------ | ---------- | ---------- | --------------------------------------------------------------- |
 | Requirements Specification | `specs/002-user-auth/v-model/requirements.md`    | 2026-05-09 | Draft      | 44 FR + 17 NF + 10 IF + 7 CN + 1 CN-008 = 79 total requirements |
 | Acceptance Test Plan       | `specs/002-user-auth/v-model/acceptance-plan.md` | 2026-05-09 | Draft      | AT cases for all 44 FR + selected NF/IF/CN                      |
 | Unit Test Plan             | `specs/002-user-auth/v-model/unit-test.md`       | 2026-05-09 | Draft      | 6 MODs, 8 UTP cases, 30 UTS scenarios                           |
@@ -61,7 +61,7 @@
 | REQ-025 | Deletion cascades to all user-owned data                                        | P2       | AT-025-A           | Recipes, meal plans, etc. deleted with account                   | Scenario-Based Testing   | ⬜     |
 | REQ-026 | Post-deletion navigation to unauthenticated state                               | P2       | AT-026-A           | User logged out and returned to auth screen                      | Scenario-Based Testing   | ⬜     |
 | REQ-027 | Password reset accessible from login screen                                     | P2       | AT-027-A           | "Forgot Password" initiates IdP reset flow                       | Scenario-Based Testing   | ⬜     |
-| REQ-028 | Passwords never handled by Commise backend                                    | P1       | AT-028-A           | No password data in Commise API traffic                        | Inspection               | ⬜     |
+| REQ-028 | Passwords never handled by Commise backend                                      | P1       | AT-028-A           | No password data in Commise API traffic                          | Inspection               | ⬜     |
 | REQ-029 | MFA enrollment accessible from account settings                                 | P3       | AT-029-A           | MFA enrollment entry point present and functional                | Scenario-Based Testing   | ⬜     |
 | REQ-030 | TOTP supported as MFA method                                                    | P3       | AT-030-A           | TOTP enrollment completes; valid codes generated                 | Scenario-Based Testing   | ⬜     |
 | REQ-031 | MFA required on all logins after enrollment                                     | P3       | AT-031-A           | Second factor prompted on login after enrollment                 | Scenario-Based Testing   | ⬜     |
@@ -73,7 +73,7 @@
 | REQ-037 | Impersonation cannot perform destructive actions                                | P2       | AT-037-A           | Password change, account deletion, MFA modification all rejected | Equivalence Partitioning | ⬜     |
 | REQ-038 | All API endpoints require valid access token                                    | P1       | AT-038-A           | No-token → 401; expired token → 401                              | Equivalence Partitioning | ⬜     |
 | REQ-039 | API Gateway authorizer validates JWT claims                                     | P1       | AT-039-A           | Unknown key → 401; wrong audience → 401                          | Boundary Value Analysis  | ⬜     |
-| REQ-040 | Access token includes Commise user ID as custom claim                         | P1       | AT-040-A           | UUIDv4 user ID available in decoded token without DB lookup      | Scenario-Based Testing   | ⬜     |
+| REQ-040 | Access token includes Commise user ID as custom claim                           | P1       | AT-040-A           | UUIDv4 user ID available in decoded token without DB lookup      | Scenario-Based Testing   | ⬜     |
 | REQ-041 | Suspension blocks user in the IdP and sets DB status                            | P2       | AT-041-A           | User blocked in IdP; DB status = suspended                       | Scenario-Based Testing   | ⬜     |
 | REQ-042 | Suspended user denied access even with valid token                              | P2       | AT-042-A           | API returns 403 for suspended user with valid token              | Scenario-Based Testing   | ⬜     |
 | REQ-043 | Suspended user sees clear suspension message on login                           | P2       | AT-043-A           | Suspension message shown (not generic error)                     | Scenario-Based Testing   | ⬜     |
@@ -105,29 +105,29 @@
 
 | REQ-ID     | Requirement (Summary)                                                   | Priority | ATP-ID                         | Acceptance Test (Summary)                                       | Verification Method        | Status |
 | ---------- | ----------------------------------------------------------------------- | -------- | ------------------------------ | --------------------------------------------------------------- | -------------------------- | ------ |
-| REQ-IF-001 | Integrate with the IdP via `@clerk/nextjs` (web)              | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
-| REQ-IF-002 | Integrate with the IdP via `@clerk/expo` (mobile)             | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
+| REQ-IF-001 | Integrate with the IdP via `@clerk/nextjs` (web)                        | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
+| REQ-IF-002 | Integrate with the IdP via `@clerk/expo` (mobile)                       | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
 | REQ-IF-003 | Mobile uses `expo-secure-store` for token storage                       | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
 | REQ-IF-004 | API Gateway authorizer uses `jwks-rsa` and `jose`                       | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
 | REQ-IF-005 | Post-registration action uses `@aws-sdk/client-sqs`                     | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
 | REQ-IF-006 | Backend uses `@sentry/aws-serverless` + `@aws-lambda-powertools/logger` | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
 | REQ-IF-007 | Infrastructure defined using AWS CDK v2                                 | P1       | _(Inspection — no AT defined)_ | —                                                               | Inspection                 | ⬜     |
-| REQ-IF-008 | Post-registration action calls Commise backend API                    | P1       | AT-IF-008-A                    | Backend receives sub + UUIDv4; creates User and Account records | Scenario-Based Testing     | ⬜     |
+| REQ-IF-008 | Post-registration action calls Commise backend API                      | P1       | AT-IF-008-A                    | Backend receives sub + UUIDv4; creates User and Account records | Scenario-Based Testing     | ⬜     |
 | REQ-IF-009 | API Gateway authorizer returns standard IAM policy document             | P1       | AT-IF-009-A                    | Valid IAM Allow/Deny policy returned for valid/invalid JWT      | Interface Contract Testing | ⬜     |
 | REQ-IF-010 | Reconciliation endpoint accepts IdP user list                           | P1       | AT-IF-010-A                    | Missing records created; repair summary returned                | Scenario-Based Testing     | ⬜     |
 
 ### Constraint Requirements
 
-| REQ-ID     | Requirement (Summary)                                               | Priority | ATP-ID                         | Acceptance Test (Summary)                                  | Verification Method | Status |
-| ---------- | ------------------------------------------------------------------- | -------- | ------------------------------ | ---------------------------------------------------------- | ------------------- | ------ |
-| REQ-CN-001 | Node.js 22.x for Lambda runtime                                     | P1       | _(Inspection — no AT defined)_ | —                                                          | Inspection          | ⬜     |
-| REQ-CN-002 | Passwords never handled by Commise backend                        | P1       | AT-CN-002-A                    | No password fields/hashes/logic in any Commise component | Inspection          | ⬜     |
-| REQ-CN-003 | UUIDv4 is canonical user identifier; IdP sub for IdP calls only     | P1       | AT-CN-003-A                    | IdP sub not used as primary key in DB or app logic         | Inspection          | ⬜     |
-| REQ-CN-004 | Account deletion is permanent; no soft-delete                       | P2       | _(Inspection — no AT defined)_ | —                                                          | Inspection          | ⬜     |
-| REQ-CN-005 | Email change is out of scope                                        | P2       | _(Inspection — no AT defined)_ | —                                                          | Inspection          | ⬜     |
-| REQ-CN-006 | Admin UI is out of scope                                            | P2       | _(Inspection — no AT defined)_ | —                                                          | Inspection          | ⬜     |
-| REQ-CN-007 | Deploy to AWS using CDK v2 only                                     | P1       | _(Inspection — no AT defined)_ | —                                                          | Inspection          | ⬜     |
-| REQ-CN-008 | All workspaces extend shared kitchensink configs                        | P1       | _(Inspection — no AT defined)_ | —                                                          | Inspection          | ⬜     |
+| REQ-ID     | Requirement (Summary)                                           | Priority | ATP-ID                         | Acceptance Test (Summary)                                | Verification Method | Status |
+| ---------- | --------------------------------------------------------------- | -------- | ------------------------------ | -------------------------------------------------------- | ------------------- | ------ |
+| REQ-CN-001 | Node.js 22.x for Lambda runtime                                 | P1       | _(Inspection — no AT defined)_ | —                                                        | Inspection          | ⬜     |
+| REQ-CN-002 | Passwords never handled by Commise backend                      | P1       | AT-CN-002-A                    | No password fields/hashes/logic in any Commise component | Inspection          | ⬜     |
+| REQ-CN-003 | UUIDv4 is canonical user identifier; IdP sub for IdP calls only | P1       | AT-CN-003-A                    | IdP sub not used as primary key in DB or app logic       | Inspection          | ⬜     |
+| REQ-CN-004 | Account deletion is permanent; no soft-delete                   | P2       | _(Inspection — no AT defined)_ | —                                                        | Inspection          | ⬜     |
+| REQ-CN-005 | Email change is out of scope                                    | P2       | _(Inspection — no AT defined)_ | —                                                        | Inspection          | ⬜     |
+| REQ-CN-006 | Admin UI is out of scope                                        | P2       | _(Inspection — no AT defined)_ | —                                                        | Inspection          | ⬜     |
+| REQ-CN-007 | Deploy to AWS using CDK v2 only                                 | P1       | _(Inspection — no AT defined)_ | —                                                        | Inspection          | ⬜     |
+| REQ-CN-008 | All workspaces extend shared kitchensink configs                | P1       | _(Inspection — no AT defined)_ | —                                                        | Inspection          | ⬜     |
 
 ---
 
@@ -140,7 +140,7 @@
 | AT-001-A    | Web login initiates PKCE flow                             | REQ-001    | PKCE Authorization Code Flow                             | Direct verification of PKCE parameters in web auth redirect           |
 | AT-001-B    | Mobile login initiates PKCE flow                          | REQ-001    | PKCE Authorization Code Flow                             | Direct verification of PKCE parameters in mobile auth request         |
 | AT-002-A    | No app content visible before auth on mobile              | REQ-002    | Mobile auto-displays auth screen                         | Confirms auth screen is first rendered screen on mobile               |
-| AT-003-A    | Protected web routes redirect to IdP login                        | REQ-003    | Web redirects unauthenticated users                      | Confirms redirect behavior for protected and public routes            |
+| AT-003-A    | Protected web routes redirect to IdP login                | REQ-003    | Web redirects unauthenticated users                      | Confirms redirect behavior for protected and public routes            |
 | AT-004-A    | Google social login completes successfully                | REQ-004    | Social login (Google) supported                          | Confirms Google OAuth flow and cancel handling                        |
 | AT-005-A    | Callback handler completes token exchange                 | REQ-005    | IdP callback exchanges code for tokens                   | Confirms code exchange and tampered state rejection                   |
 | AT-006-A    | Web tokens stored in httpOnly cookies                     | REQ-006    | Tokens stored securely                                   | Confirms httpOnly enforcement on web                                  |
@@ -166,7 +166,7 @@
 | AT-025-A    | User-owned data removed on account deletion               | REQ-025    | Deletion cascades to all user-owned data                 | Confirms recipes, meal plans, etc. deleted                            |
 | AT-026-A    | User returned to unauthenticated state after deletion     | REQ-026    | Post-deletion navigation                                 | Confirms logout and return to auth screen                             |
 | AT-027-A    | "Forgot Password" link present and functional             | REQ-027    | Password reset accessible from login screen              | Confirms IdP reset flow initiated                                     |
-| AT-028-A    | No password data in Commise API traffic                 | REQ-028    | Passwords never handled by Commise backend             | Confirms no password data in any Commise request/response           |
+| AT-028-A    | No password data in Commise API traffic                   | REQ-028    | Passwords never handled by Commise backend               | Confirms no password data in any Commise request/response             |
 | AT-029-A    | MFA enrollment entry point present                        | REQ-029    | MFA enrollment accessible from account settings          | Confirms MFA option visible and navigates to IdP flow                 |
 | AT-030-A    | TOTP enrollment completes successfully                    | REQ-030    | TOTP supported as MFA method                             | Confirms TOTP enrollment and valid code generation                    |
 | AT-031-A    | MFA challenge appears on login after enrollment           | REQ-031    | MFA required on all logins after enrollment              | Confirms second factor prompted on subsequent login                   |
@@ -178,7 +178,7 @@
 | AT-037-A    | Destructive actions blocked during impersonation          | REQ-037    | Impersonation cannot perform destructive actions         | Confirms password change, deletion, MFA modification rejected         |
 | AT-038-A    | Unauthenticated API requests receive 401                  | REQ-038    | All API endpoints require valid access token             | Confirms 401 for missing and expired tokens                           |
 | AT-039-A    | JWT validation covers signature, expiry, audience, issuer | REQ-039    | API Gateway authorizer validates JWT claims              | Confirms 401 for unknown key and wrong audience                       |
-| AT-040-A    | User ID claim present in access token                     | REQ-040    | Access token includes Commise user ID                  | Confirms UUIDv4 available without DB lookup                           |
+| AT-040-A    | User ID claim present in access token                     | REQ-040    | Access token includes Commise user ID                    | Confirms UUIDv4 available without DB lookup                           |
 | AT-041-A    | Suspension applied in both systems                        | REQ-041    | Suspension blocks user in IdP and DB                     | Confirms IdP blocked + DB status = suspended                          |
 | AT-042-A    | API returns 403 for suspended users                       | REQ-042    | Suspended user denied access with valid token            | Confirms 403 for suspended user with valid token                      |
 | AT-043-A    | Suspension message shown on login                         | REQ-043    | Suspended user sees clear message                        | Confirms specific suspension message (not generic error)              |
@@ -190,10 +190,10 @@
 | AT-NF-014-A | Auth metrics visible in CloudWatch                        | REQ-NF-014 | CloudWatch custom metrics emitted                        | Confirms success/failure counts with correct dimensions               |
 | AT-NF-015-A | Client Sentry captures failed login and token refresh     | REQ-NF-015 | Client-side auth errors captured by Sentry               | Confirms Sentry event with breadcrumbs                                |
 | AT-NF-016-A | Trace IDs propagate from client to backend                | REQ-NF-016 | Distributed tracing across auth flows                    | Confirms single trace spans client → API GW → backend                 |
-| AT-IF-008-A | Post-registration action calls Commise backend          | REQ-IF-008 | Post-registration action creates records via backend API | Confirms backend receives sub + UUIDv4 and creates records            |
+| AT-IF-008-A | Post-registration action calls Commise backend            | REQ-IF-008 | Post-registration action creates records via backend API | Confirms backend receives sub + UUIDv4 and creates records            |
 | AT-IF-009-A | Authorizer response is a valid IAM policy document        | REQ-IF-009 | API Gateway authorizer returns standard IAM policy       | Confirms Allow/Deny IAM policy for valid/invalid JWT                  |
 | AT-IF-010-A | Reconciliation endpoint processes IdP user data           | REQ-IF-010 | Reconciliation endpoint accepts IdP user list            | Confirms missing records created and repair summary returned          |
-| AT-CN-002-A | No password data in Commise API or database             | REQ-CN-002 | Passwords never handled by Commise backend             | Confirms no password fields/hashes/logic in any component             |
+| AT-CN-002-A | No password data in Commise API or database               | REQ-CN-002 | Passwords never handled by Commise backend               | Confirms no password fields/hashes/logic in any component             |
 | AT-CN-003-A | IdP sub not used as primary key in database               | REQ-CN-003 | UUIDv4 is canonical user identifier                      | Confirms sub used only for IdP API calls                              |
 
 ---
@@ -202,18 +202,18 @@
 
 > Integration-level requirements verified at module boundaries (ARCH-level). Unit tests (UTP) verify internal module logic; integration tests verify cross-module contracts.
 
-| Integration Point                               | REQ-IDs                            | MOD Boundary                            | UTP Coverage                            | Integration Test Status | Notes                                                                        |
-| ----------------------------------------------- | ---------------------------------- | --------------------------------------- | --------------------------------------- | ----------------------- | ---------------------------------------------------------------------------- |
-| Web Auth Route Handler → IdP token endpoint     | REQ-001, REQ-005                   | MOD-001 ↔ IdP `/oauth/token`            | UTP-001-B (exchangeCodeForTokens)       | ⬜                      | Integration test needed: real IdP sandbox token exchange                     |
-| Web Middleware → Session Cookie Manager         | REQ-003, REQ-007, REQ-009          | MOD-002 ↔ MOD-003                       | UTP-002-A (getSessionFromCookie mocked) | ⬜                      | Integration test needed: middleware reads real encrypted cookie              |
-| Web Session Cookie Manager → AES-256-GCM crypto | REQ-006                            | MOD-003 internal                        | UTP-003-B (round-trip, no mocks)        | ⬜                      | Covered by unit test with real crypto; no additional integration test needed |
-| Web JWT Decoder → jose library                  | REQ-039, REQ-040                   | MOD-004 ↔ jose                          | UTP-004-A (jose used directly)          | ⬜                      | Integration test needed: validate against real IdP JWKS                      |
-| Web Route Protector → Session Cookie Manager    | REQ-003, REQ-009                   | MOD-005 ↔ MOD-003                       | UTP-005-A (getSession mocked)           | ⬜                      | Integration test needed: requireAuth with real session                       |
-| Mobile IdP Client → IdP SDK               | REQ-001, REQ-007                   | MOD-006 ↔ IdP SDK                | UTP-006-A (IdpClient mocked)            | ⬜                      | Integration test needed: real SDK token refresh flow                         |
-| Post-Registration IdP server-side handler → Commise DB | REQ-013, REQ-014, REQ-015, REQ-016 | IdP server-side handler ↔ DB            | No UTP (backend action)                 | ⬜                      | Integration test needed: action → DB write with retry                        |
-| API Gateway Authorizer → IdP JWKS               | REQ-038, REQ-039, REQ-042          | Lambda Authorizer ↔ IdP JWKS endpoint   | No UTP (authorizer module)              | ⬜                      | Integration test needed: authorizer validates real JWT                       |
-| Account Deletion → IdP Backend API           | REQ-024                            | Backend handler ↔ IdP Backend API    | No UTP (deletion handler)               | ⬜                      | Integration test needed: deletion cascades to IdP                            |
-| Reconciliation Job → IdP Backend API + DB    | REQ-017, REQ-IF-010                | Reconciliation ↔ IdP + DB               | No UTP (reconciliation module)          | ⬜                      | Integration test needed: reconciliation creates missing records              |
+| Integration Point                                      | REQ-IDs                            | MOD Boundary                          | UTP Coverage                            | Integration Test Status | Notes                                                                        |
+| ------------------------------------------------------ | ---------------------------------- | ------------------------------------- | --------------------------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| Web Auth Route Handler → IdP token endpoint            | REQ-001, REQ-005                   | MOD-001 ↔ IdP `/oauth/token`          | UTP-001-B (exchangeCodeForTokens)       | ⬜                      | Integration test needed: real IdP sandbox token exchange                     |
+| Web Middleware → Session Cookie Manager                | REQ-003, REQ-007, REQ-009          | MOD-002 ↔ MOD-003                     | UTP-002-A (getSessionFromCookie mocked) | ⬜                      | Integration test needed: middleware reads real encrypted cookie              |
+| Web Session Cookie Manager → AES-256-GCM crypto        | REQ-006                            | MOD-003 internal                      | UTP-003-B (round-trip, no mocks)        | ⬜                      | Covered by unit test with real crypto; no additional integration test needed |
+| Web JWT Decoder → jose library                         | REQ-039, REQ-040                   | MOD-004 ↔ jose                        | UTP-004-A (jose used directly)          | ⬜                      | Integration test needed: validate against real IdP JWKS                      |
+| Web Route Protector → Session Cookie Manager           | REQ-003, REQ-009                   | MOD-005 ↔ MOD-003                     | UTP-005-A (getSession mocked)           | ⬜                      | Integration test needed: requireAuth with real session                       |
+| Mobile IdP Client → IdP SDK                            | REQ-001, REQ-007                   | MOD-006 ↔ IdP SDK                     | UTP-006-A (IdpClient mocked)            | ⬜                      | Integration test needed: real SDK token refresh flow                         |
+| Post-Registration IdP server-side handler → Commise DB | REQ-013, REQ-014, REQ-015, REQ-016 | IdP server-side handler ↔ DB          | No UTP (backend action)                 | ⬜                      | Integration test needed: action → DB write with retry                        |
+| API Gateway Authorizer → IdP JWKS                      | REQ-038, REQ-039, REQ-042          | Lambda Authorizer ↔ IdP JWKS endpoint | No UTP (authorizer module)              | ⬜                      | Integration test needed: authorizer validates real JWT                       |
+| Account Deletion → IdP Backend API                     | REQ-024                            | Backend handler ↔ IdP Backend API     | No UTP (deletion handler)               | ⬜                      | Integration test needed: deletion cascades to IdP                            |
+| Reconciliation Job → IdP Backend API + DB              | REQ-017, REQ-IF-010                | Reconciliation ↔ IdP + DB             | No UTP (reconciliation module)          | ⬜                      | Integration test needed: reconciliation creates missing records              |
 
 ---
 
@@ -221,26 +221,26 @@
 
 > Maps module designs (MOD) to unit test cases (UTP) and their scenarios (UTS). Verifies implementation completeness at the code level.
 
-| MOD-ID  | Module Name                     | Source File                                                    | ARCH Parent | UTP Cases            | UTS Scenarios                                          | Implementation Status |
-| ------- | ------------------------------- | -------------------------------------------------------------- | ----------- | -------------------- | ------------------------------------------------------ | --------------------- |
-| MOD-001 | Web Auth Route Handler          | `packages/apps/commise/web/app/api/auth/[...clerk]/route.ts` | ARCH-001    | UTP-001-A, UTP-001-B | UTS-001-A1 through A5, UTS-001-B1 through B3 (8 total) | ⬜                    |
-| MOD-002 | Web Auth Middleware Guard       | `packages/apps/commise/web/middleware.ts`                    | ARCH-002    | UTP-002-A            | UTS-002-A1 through A5 (5 total)                        | ⬜                    |
-| MOD-003 | Web Session Cookie Manager      | `packages/apps/commise/web/lib/auth/session-manager.ts`      | ARCH-003    | UTP-003-A, UTP-003-B | UTS-003-A1 through A4, UTS-003-B1 through B3 (7 total) | ⬜                    |
-| MOD-004 | Web JWT Decoder                 | `packages/apps/commise/web/lib/auth/jwt-decoder.ts`          | ARCH-004    | UTP-004-A            | UTS-004-A1 through A3 (3 total)                        | ⬜                    |
-| MOD-005 | Web Route Protector             | `packages/apps/commise/web/lib/auth/route-protector.ts`      | ARCH-005    | UTP-005-A            | UTS-005-A1 through A3 (3 total)                        | ⬜                    |
-| MOD-006 | Mobile IdP Client SDK Wrapper   | `packages/apps/commise/mobile/lib/auth/idp-client.ts`        | ARCH-006    | UTP-006-A            | UTS-006-A1 through A4 (4 total)                        | ⬜                    |
+| MOD-ID  | Module Name                   | Source File                                                  | ARCH Parent | UTP Cases            | UTS Scenarios                                          | Implementation Status |
+| ------- | ----------------------------- | ------------------------------------------------------------ | ----------- | -------------------- | ------------------------------------------------------ | --------------------- |
+| MOD-001 | Web Auth Route Handler        | `packages/apps/commise/web/app/api/auth/[...clerk]/route.ts` | ARCH-001    | UTP-001-A, UTP-001-B | UTS-001-A1 through A5, UTS-001-B1 through B3 (8 total) | ⬜                    |
+| MOD-002 | Web Auth Middleware Guard     | `packages/apps/commise/web/middleware.ts`                    | ARCH-002    | UTP-002-A            | UTS-002-A1 through A5 (5 total)                        | ⬜                    |
+| MOD-003 | Web Session Cookie Manager    | `packages/apps/commise/web/lib/auth/session-manager.ts`      | ARCH-003    | UTP-003-A, UTP-003-B | UTS-003-A1 through A4, UTS-003-B1 through B3 (7 total) | ⬜                    |
+| MOD-004 | Web JWT Decoder               | `packages/apps/commise/web/lib/auth/jwt-decoder.ts`          | ARCH-004    | UTP-004-A            | UTS-004-A1 through A3 (3 total)                        | ⬜                    |
+| MOD-005 | Web Route Protector           | `packages/apps/commise/web/lib/auth/route-protector.ts`      | ARCH-005    | UTP-005-A            | UTS-005-A1 through A3 (3 total)                        | ⬜                    |
+| MOD-006 | Mobile IdP Client SDK Wrapper | `packages/apps/commise/mobile/lib/auth/idp-client.ts`        | ARCH-006    | UTP-006-A            | UTS-006-A1 through A4 (4 total)                        | ⬜                    |
 
 ### UTP → REQ Traceability (Implementation → Requirement)
 
-| UTP-ID    | Module                                  | Technique                                              | REQ-IDs Covered                             | UTS Count | Status |
-| --------- | --------------------------------------- | ------------------------------------------------------ | ------------------------------------------- | --------- | ------ |
-| UTP-001-A | MOD-001 Web Auth Route Handler          | Statement & Branch Coverage                            | REQ-001, REQ-005, REQ-010, REQ-011, REQ-012 | 5         | ⬜     |
-| UTP-001-B | MOD-001 Web Auth Route Handler          | Statement Coverage + Equivalence Partitioning          | REQ-005                                     | 3         | ⬜     |
-| UTP-002-A | MOD-002 Web Auth Middleware Guard       | Statement & Branch Coverage                            | REQ-003, REQ-009                            | 5         | ⬜     |
-| UTP-003-A | MOD-003 Web Session Cookie Manager      | Statement Coverage + Equivalence Partitioning          | REQ-006, REQ-007, REQ-008                   | 4         | ⬜     |
-| UTP-003-B | MOD-003 Web Session Cookie Manager      | Boundary Value Analysis + Statement Coverage           | REQ-006                                     | 3         | ⬜     |
-| UTP-004-A | MOD-004 Web JWT Decoder                 | Statement & Branch Coverage + Equivalence Partitioning | REQ-039, REQ-040                            | 3         | ⬜     |
-| UTP-005-A | MOD-005 Web Route Protector             | Statement & Branch Coverage                            | REQ-003, REQ-009                            | 3         | ⬜     |
+| UTP-ID    | Module                                | Technique                                              | REQ-IDs Covered                             | UTS Count | Status |
+| --------- | ------------------------------------- | ------------------------------------------------------ | ------------------------------------------- | --------- | ------ |
+| UTP-001-A | MOD-001 Web Auth Route Handler        | Statement & Branch Coverage                            | REQ-001, REQ-005, REQ-010, REQ-011, REQ-012 | 5         | ⬜     |
+| UTP-001-B | MOD-001 Web Auth Route Handler        | Statement Coverage + Equivalence Partitioning          | REQ-005                                     | 3         | ⬜     |
+| UTP-002-A | MOD-002 Web Auth Middleware Guard     | Statement & Branch Coverage                            | REQ-003, REQ-009                            | 5         | ⬜     |
+| UTP-003-A | MOD-003 Web Session Cookie Manager    | Statement Coverage + Equivalence Partitioning          | REQ-006, REQ-007, REQ-008                   | 4         | ⬜     |
+| UTP-003-B | MOD-003 Web Session Cookie Manager    | Boundary Value Analysis + Statement Coverage           | REQ-006                                     | 3         | ⬜     |
+| UTP-004-A | MOD-004 Web JWT Decoder               | Statement & Branch Coverage + Equivalence Partitioning | REQ-039, REQ-040                            | 3         | ⬜     |
+| UTP-005-A | MOD-005 Web Route Protector           | Statement & Branch Coverage                            | REQ-003, REQ-009                            | 3         | ⬜     |
 | UTP-006-A | MOD-006 Mobile IdP Client SDK Wrapper | Statement & Branch Coverage                            | REQ-001, REQ-007                            | 4         | ⬜     |
 
 ---
@@ -255,15 +255,15 @@
 | HAZ-002 | Token theft via XSS (web)                              | Critical | REQ-006                      | httpOnly, Secure, SameSite cookies; no JS-accessible token storage                            | AT-006-A                          | ⬜     |
 | HAZ-003 | Token theft via app data extraction (mobile)           | Critical | REQ-006                      | Keychain (iOS) / Keystore (Android) via expo-secure-store                                     | AT-006-B                          | ⬜     |
 | HAZ-004 | Session fixation / state parameter tampering           | High     | REQ-005                      | State parameter validated on callback; mismatch throws AuthCallbackError                      | AT-005-A (ATS-005-A2), UTS-001-A4 | ⬜     |
-| HAZ-005 | Refresh token reuse after logout                       | High     | REQ-011                      | Refresh token revoked via IdP revocation endpoint on logout                                  | AT-011-A                          | ⬜     |
-| HAZ-006 | Orphaned IdP user without Commise record             | Medium   | REQ-016, REQ-017             | Retry with exponential backoff; reconciliation job as safety net                              | AT-016-A, AT-017-A                | ⬜     |
-| HAZ-007 | Password exposure through Commise backend            | Critical | REQ-028, REQ-CN-002          | All password management delegated to the IdP; no password fields in Commise                 | AT-028-A, AT-CN-002-A             | ⬜     |
+| HAZ-005 | Refresh token reuse after logout                       | High     | REQ-011                      | Refresh token revoked via IdP revocation endpoint on logout                                   | AT-011-A                          | ⬜     |
+| HAZ-006 | Orphaned IdP user without Commise record               | Medium   | REQ-016, REQ-017             | Retry with exponential backoff; reconciliation job as safety net                              | AT-016-A, AT-017-A                | ⬜     |
+| HAZ-007 | Password exposure through Commise backend              | Critical | REQ-028, REQ-CN-002          | All password management delegated to the IdP; no password fields in Commise                   | AT-028-A, AT-CN-002-A             | ⬜     |
 | HAZ-008 | Unauthorized API access with expired/invalid JWT       | Critical | REQ-038, REQ-039             | API Gateway authorizer validates signature, expiry, audience, issuer on every request         | AT-038-A, AT-039-A                | ⬜     |
 | HAZ-009 | Suspended user retains API access via valid token      | High     | REQ-042                      | Authorizer checks suspension status in addition to JWT validity; returns 403                  | AT-042-A                          | ⬜     |
 | HAZ-010 | Impersonation used for destructive actions             | High     | REQ-037                      | Impersonation scope explicitly excludes password change, deletion, MFA modification           | AT-037-A                          | ⬜     |
 | HAZ-011 | Impersonation actions not attributable to impersonator | Medium   | REQ-036                      | All impersonation requests include impersonation flag and impersonator identity in audit logs | AT-036-A                          | ⬜     |
 | HAZ-012 | Accidental account deletion (no confirmation)          | Medium   | REQ-023                      | Explicit "DELETE" confirmation required before deletion proceeds                              | AT-023-A                          | ⬜     |
-| HAZ-013 | IdP vendor lock-in via sub as primary identifier       | Low      | REQ-CN-003                   | UUIDv4 is canonical identifier; IdP sub used only for IdP API calls                          | AT-CN-003-A                       | ⬜     |
+| HAZ-013 | IdP vendor lock-in via sub as primary identifier       | Low      | REQ-CN-003                   | UUIDv4 is canonical identifier; IdP sub used only for IdP API calls                           | AT-CN-003-A                       | ⬜     |
 | HAZ-014 | Cookie decryption failure exposes stale session        | High     | REQ-006                      | AES-256-GCM auth tag mismatch triggers clearSession; tampered cookies rejected                | UTS-003-B2, UTS-003-A4            | ⬜     |
 | HAZ-015 | Missing GDPR compliance on account deletion            | High     | REQ-024, REQ-025, REQ-CN-004 | Hard delete of User, Account, and all owned data from DB and IdP; no soft-delete              | AT-024-A, AT-025-A                | ⬜     |
 
@@ -285,15 +285,15 @@
 
 ### Unit Test Coverage
 
-| MOD-ID    | Module                          | UTP Cases | UTS Scenarios | Techniques Applied                                             |
-| --------- | ------------------------------- | --------- | ------------- | -------------------------------------------------------------- |
-| MOD-001   | Web Auth Route Handler          | 2         | 8             | Statement & Branch, Equivalence Partitioning, Strict Isolation |
-| MOD-002   | Web Auth Middleware Guard       | 1         | 5             | Statement & Branch, Strict Isolation                           |
-| MOD-003   | Web Session Cookie Manager      | 2         | 7             | Statement, Equivalence Partitioning, Boundary Value Analysis   |
-| MOD-004   | Web JWT Decoder                 | 1         | 3             | Statement & Branch, Equivalence Partitioning                   |
-| MOD-005   | Web Route Protector             | 1         | 3             | Statement & Branch, Strict Isolation                           |
-| MOD-006   | Mobile IdP Client SDK Wrapper   | 1         | 4             | Statement & Branch, Strict Isolation                           |
-| **Total** | —                               | **8**     | **30**        | All 5 ISO 29119-4 techniques represented                       |
+| MOD-ID    | Module                        | UTP Cases | UTS Scenarios | Techniques Applied                                             |
+| --------- | ----------------------------- | --------- | ------------- | -------------------------------------------------------------- |
+| MOD-001   | Web Auth Route Handler        | 2         | 8             | Statement & Branch, Equivalence Partitioning, Strict Isolation |
+| MOD-002   | Web Auth Middleware Guard     | 1         | 5             | Statement & Branch, Strict Isolation                           |
+| MOD-003   | Web Session Cookie Manager    | 2         | 7             | Statement, Equivalence Partitioning, Boundary Value Analysis   |
+| MOD-004   | Web JWT Decoder               | 1         | 3             | Statement & Branch, Equivalence Partitioning                   |
+| MOD-005   | Web Route Protector           | 1         | 3             | Statement & Branch, Strict Isolation                           |
+| MOD-006   | Mobile IdP Client SDK Wrapper | 1         | 4             | Statement & Branch, Strict Isolation                           |
+| **Total** | —                             | **8**     | **30**        | All 5 ISO 29119-4 techniques represented                       |
 
 ### Acceptance Test Coverage
 
@@ -357,14 +357,14 @@ These requirements are verified by code review, static analysis, or architectura
 
 **Modules with no unit test coverage** (implementation gaps):
 
-| Gap                            | Description                                                                  | Risk   | Recommendation                                                                                                               |
-| ------------------------------ | ---------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Gap                                       | Description                                                                             | Risk   | Recommendation                                                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | Post-Registration IdP server-side handler | No MOD or UTP defined for the IdP server-side handler that creates User/Account records | High   | Define MOD-007 and UTP-007 covering retry logic (REQ-016), UUIDv4 generation (REQ-013, REQ-015), and DB write                |
-| API Gateway Lambda Authorizer  | No MOD or UTP defined for the JWT validation authorizer                      | High   | Define MOD-008 and UTP-008 covering JWT validation (REQ-039), suspension check (REQ-042), IAM policy generation (REQ-IF-009) |
-| Account Deletion Handler       | No MOD or UTP defined for the deletion backend handler                       | Medium | Define MOD-009 and UTP-009 covering DB cascade (REQ-025) and IdP Backend API call (REQ-024)                              |
-| Reconciliation Job             | No MOD or UTP defined for the reconciliation mechanism                       | Medium | Define MOD-010 and UTP-010 covering IdP user list processing (REQ-017, REQ-IF-010)                                          |
-| Social Linking Handler         | No MOD or UTP defined for social account link/unlink                         | Medium | Define MOD-011 and UTP-011 covering Management API calls (REQ-032, REQ-033, REQ-034)                                         |
-| Impersonation Handler          | No MOD or UTP defined for impersonation mechanism                            | Medium | Define MOD-012 and UTP-012 covering scope restrictions (REQ-037) and audit logging (REQ-036)                                 |
+| API Gateway Lambda Authorizer             | No MOD or UTP defined for the JWT validation authorizer                                 | High   | Define MOD-008 and UTP-008 covering JWT validation (REQ-039), suspension check (REQ-042), IAM policy generation (REQ-IF-009) |
+| Account Deletion Handler                  | No MOD or UTP defined for the deletion backend handler                                  | Medium | Define MOD-009 and UTP-009 covering DB cascade (REQ-025) and IdP Backend API call (REQ-024)                                  |
+| Reconciliation Job                        | No MOD or UTP defined for the reconciliation mechanism                                  | Medium | Define MOD-010 and UTP-010 covering IdP user list processing (REQ-017, REQ-IF-010)                                           |
+| Social Linking Handler                    | No MOD or UTP defined for social account link/unlink                                    | Medium | Define MOD-011 and UTP-011 covering Management API calls (REQ-032, REQ-033, REQ-034)                                         |
+| Impersonation Handler                     | No MOD or UTP defined for impersonation mechanism                                       | Medium | Define MOD-012 and UTP-012 covering scope restrictions (REQ-037) and audit logging (REQ-036)                                 |
 
 **Integration test gaps**:
 

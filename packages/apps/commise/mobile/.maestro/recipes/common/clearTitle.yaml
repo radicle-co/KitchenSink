@@ -1,0 +1,38 @@
+appId: io.commise.mobile
+---
+# Reusable sub-flow: empty the recipe wizard's Title field and prove it is empty. Called with
+# `runFlow: common/clearTitle.yaml` from a flow already on step 1 of the edit wizard.
+#
+# ⛔ IT LEAVES THE FIELD FOCUSED, AND EVERY CALLER DEPENDS ON THAT. All six call sites `inputText`
+# immediately after the `runFlow`, which types wherever the cursor already is. `repeat` evaluates its
+# `while` BEFORE the first iteration, so against an already-empty field the loop body never runs — which
+# is why the first `tapOn: 'Title'` sits OUTSIDE the loop. Fold it back in and this sub-flow silently
+# returns an unfocused field on that one input, and the caller's text goes nowhere.
+#
+# ⛔ ERASE UNTIL THE COUNTER SAYS EMPTY — do not replace the loop with a fixed number of passes. `tapOn`
+# puts the cursor where it TAPS, which is the field's CENTRE, and `eraseText` deletes only what is LEFT of
+# the cursor. One pass therefore always leaves the right-hand tail behind, and how many more it takes is a
+# function of the title's LENGTH — data, not a constant. A fixed TWO passes is what this file used to do,
+# and it is why `recipes/versions` went red in run 35364573639: that flow clears a title carrying a `v2`
+# suffix, longer than the titles two passes were tuned against, so a tail survived both and `^0/64$` was
+# false. Runs 34856885723 and 34863424203 are the same fault one step later — the tail survived, `inputText`
+# typed IN FRONT of it, and the field's 64-character `maxLength` cut the result, saving
+# `Mediterranean Grilled Lamb ghg0ks6a3-1-29eb8f` + `hg0ks6a3-1-29eb8f29`: 45 typed characters, then the
+# original from character 28, exactly 64.
+#
+# `times: 4` is a STOP, not the mechanism: the loop ends on its condition, and the cap only stops a field
+# that can never be cleared from spinning. `64` is the field's `maxLength`, not Maestro's `eraseText`
+# default of 50. The trailing assertion is what PROVES the field is empty — it sits OUTSIDE the loop, so a
+# run that exhausts the cap fails here rather than passing silently, and `^0/64$` is anchored AND matched
+# in full, so `10/64` cannot satisfy it.
+- tapOn: 'Title'
+- repeat:
+      times: 4
+      while:
+          notVisible:
+              text: '^0/64$'
+      commands:
+          - tapOn: 'Title'
+          - eraseText: 64
+- assertVisible:
+      text: '^0/64$'

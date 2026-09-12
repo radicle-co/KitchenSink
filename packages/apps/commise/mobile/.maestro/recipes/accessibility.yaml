@@ -60,15 +60,24 @@ appId: io.commise.mobile
 # through a feed of identical buttons — so its accessible name is "Clone {title}". That full string exists
 # ONLY as the accessibilityLabel, so this is the strongest falsifiable naming assertion on the surface:
 # remove the label and the node's text is "Clone", which cannot match. Guarded on the seeded public recipe.
+# ⛔ A HARD WAIT, not only the guard below. `when:` does not wait and does not fail: when the fixture was
+# missing it evaluated false, the whole body was SKIPPED, and the flow reported GREEN having asserted
+# nothing. That is exactly what happened in run 101351873536 — every reset had failed, the library was
+# empty, and this flow passed. The seeded world is now guaranteed by `e2e-seed`, so its absence is a
+# failure to report rather than a condition to tolerate. The guard is kept underneath it so the block's
+# structure is unchanged; by the time it runs it can only be true.
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_RISOTTO}'
+      timeout: 30000
 - runFlow:
       when:
-          visible: 'Herb Risotto'
+          visible: '${E2E_RECIPE_RISOTTO}'
       commands:
-          - assertVisible: 'Clone Herb Risotto'
+          - assertVisible: 'Clone ${E2E_RECIPE_RISOTTO}'
           # The row title is a separate, correctly-named control (anchored so it selects the title button and
           # not the clone button whose name contains the same title).
           - assertVisible:
-                text: '^Herb Risotto$'
+                text: '^${E2E_RECIPE_RISOTTO}$'
 
 # --- 4. The discovery search field is labelled independently of its placeholder --------------------------
 - assertVisible:

@@ -168,7 +168,7 @@ export function resolveBuildEndpoints(environment: BuildEnvironment): Readonly<R
     }
 
     const prNumber = requirePrNumber(environment);
-    const resolved: Record<string, string> = {};
+    const resolved: Record<string, string> = Object.create(null) as Record<string, string>;
 
     for (const { key, perPr, name, template } of templates) {
         if (perPr && !template.includes(PR_PLACEHOLDER)) {

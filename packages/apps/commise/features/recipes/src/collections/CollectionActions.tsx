@@ -5,7 +5,7 @@
  * ACTIONS" panel: Add Recipes (FR-009), Pull Updates from Source (shown only for a cloned collection,
  * FR-011), Clone Collection, and a two-stage, `canGoPrivate`-gated Public/Private visibility toggle with a
  * Save action (C1, FR-010). Composes the same controlled-radio-group + specification-result shape as the
- * sibling {@link import('../actions/RecipeVisibilityToggle.js').RecipeVisibilityToggle}: `canGoPrivate`
+ * sibling `RecipeVisibilityToggle`: `canGoPrivate`
  * arrives as a plain boolean (the composing container's policy-fn result) and `disabledReason` as
  * already-localized copy — the gate is that one boolean prop; this component holds no eligibility logic of
  * its own. It fetches nothing and performs no mutations; every interaction is delegated upward.
@@ -36,7 +36,7 @@
  * because its defect is independent of that question: it was in the WRONG REGISTER, not merely the wrong tone.
  */
 import { useMessages } from '@commise/i18n/react';
-import { Button } from '@commise/ui/button';
+import { BUSY_CONTROL_CLASS, busyControlProps, Button } from '@commise/ui/button';
 import { useId, type FC } from 'react';
 
 import { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -93,10 +93,9 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                     <div className="flex flex-col gap-1">
                         <button
                             type="button"
-                            onClick={onPullUpdates}
-                            disabled={isPulling}
-                            aria-busy={isPulling || undefined}
-                            className="rounded-full px-5 py-2.5 text-body-sm font-medium text-ocean-dark ring-1 ring-seafoam transition hover:bg-seafoam/10 disabled:opacity-60"
+                            // The control just pressed goes busy, so it keeps focus (see `busyControlProps`).
+                            {...busyControlProps({ busy: isPulling, onClick: onPullUpdates })}
+                            className={`rounded-full px-5 py-2.5 text-body-sm font-medium text-ocean-dark ring-1 ring-seafoam transition hover:bg-seafoam/10 ${BUSY_CONTROL_CLASS}`}
                         >
                             {actions.pullUpdates}
                         </button>
@@ -108,7 +107,7 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                     </div>
                 )}
                 <div className="flex flex-col items-start gap-1">
-                    {/* `busy` supplies the in-place spinner, the disabled in-flight guard, and `aria-busy`. */}
+                    {/* `busy` supplies the in-place spinner, the in-flight guard (a refused press that keeps focus), and `aria-busy`. */}
                     <Button variant="secondary" icon={<CloneIcon />} onPress={onClone} busy={isCloning}>
                         {actions.cloneCollection}
                     </Button>

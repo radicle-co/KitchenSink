@@ -1,0 +1,13 @@
+/**
+ * A design-token module. It has a `body` on every object and casts with `as const`, and it speaks no HTTP.
+ * An earlier draft of the response rule flagged `lineHeightRatio.body` as reading a response body.
+ */
+export const lineHeightRatio = { heading: 1.2, body: 1.5, caption: 1.4 } as const;
+
+export const lineHeight = {
+    heading: `${lineHeightRatio.heading}`,
+    body: `${lineHeightRatio.body}`,
+    caption: `${lineHeightRatio.caption}`,
+} as const;
+
+export const fontFamily = { display: 'Playfair Display', body: 'Inter' } as const;

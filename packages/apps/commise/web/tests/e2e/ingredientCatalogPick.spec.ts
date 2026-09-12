@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { E2E_INGREDIENT_IDS, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -60,7 +60,7 @@ test.describe('blended ingredient typeahead — food-catalog suggestions (search
         await expect(page.getByText('Step 3 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Simmer, then season generously.');
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 
@@ -89,7 +89,7 @@ test.describe('blended ingredient typeahead — food-catalog suggestions (search
                         {
                             provenance: 'local',
                             ingredient: {
-                                id: 'ing_salt',
+                                id: E2E_INGREDIENT_IDS.salt,
                                 name: 'Salt',
                                 foodId: 'food_salt',
                                 isUserEntered: false,

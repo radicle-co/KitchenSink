@@ -8,11 +8,13 @@
 import {
     QUICK_TIME_FACET,
     RecipeList,
+    RecipeNutritionSlot,
     isQuickRecipe,
     matchesListFacet,
     toRecipeListItem,
     type RecipeListStatus,
 } from '@commise/features-recipes';
+import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useMemo, useState } from 'react';
@@ -23,6 +25,14 @@ export interface RecipeListScreenProps {
     readonly onSelectRecipe: (id: string) => void;
     /** Invoked when the create-recipe action is activated. */
     readonly onCreateRecipe?: () => void;
+    /**
+     * Invoked when the paste-ingredients destination is activated (plan U9).
+     *
+     * ⛔ Forwarded UNDEFAULTED, unlike `onCreateRecipe`'s `?? noop`: the shared list removes the dial entry
+     * when this is absent, and defaulting it to a no-op would render a destination that silently does
+     * nothing instead.
+     */
+    readonly onPasteIngredients?: () => void;
 }
 
 const noop = (): void => undefined;
@@ -33,7 +43,11 @@ const noop = (): void => undefined;
  * @param props - Selection + create callbacks the composing screen wires to navigation.
  * @returns The rendered list view.
  */
-export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListScreenProps): JSX.Element {
+export function RecipeListScreen({
+    onSelectRecipe,
+    onCreateRecipe,
+    onPasteIngredients,
+}: RecipeListScreenProps): JSX.Element {
     const [searchValue, setSearchValue] = useState('');
     const [activeFacets, setActiveFacets] = useState<readonly string[]>([]);
     const query = useRecipes();
@@ -69,6 +83,16 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
         return hasQuickRecipe ? [QUICK_TIME_FACET, ...sorted] : sorted;
     }, [rawRecipes]);
 
+    // The deferred calorie lookup (ADR-0021 §6): fire it the moment the page's ids are known — during render,
+    // so the cards paint with their skeletons already waiting on an IN-FLIGHT request rather than starting one
+    // after the first paint.
+    //
+    // ⛔ THE RAW PAGE, not the filtered rows below. Filtering is client-side and runs on every keystroke, so
+    // filtered ids would change the query key (and the promise, and the request) per character typed, while
+    // every figure already on screen fell back to its skeleton. The loaded page changes only when the query
+    // does.
+    const nutritionFor = useRecipeNutritionBatches([rawRecipes.map((recipe) => recipe.id)]);
+
     // Filter by the title term AND every active facet chip (a row must satisfy ALL — dietary flag, cuisine,
     // or the Quick bucket).
     const recipes = useMemo(() => {
@@ -91,7 +115,18 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
             onSearchChange={setSearchValue}
             onSelectRecipe={onSelectRecipe}
             onCreateRecipe={onCreateRecipe ?? noop}
+            onPasteIngredients={onPasteIngredients}
             onRetry={() => void query.refetch()}
+            // ONE promise, N slots: every card reads its own answer out of the SAME batch, so the page costs
+            // one request and the figures land together. `null` means no batch covers this recipe — render
+            // nothing rather than mounting a boundary with nothing to settle.
+            renderNutrition={(recipeId) => {
+                const batch = nutritionFor(recipeId);
+
+                return batch === null ? null : (
+                    <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />
+                );
+            }}
             // Pull-to-refresh (L8): the spinner tracks the in-flight refetch; pulling re-runs the query.
             refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}
             // Community switching is the shell's Discover tab on mobile, so no in-list tab here (L5 parity).

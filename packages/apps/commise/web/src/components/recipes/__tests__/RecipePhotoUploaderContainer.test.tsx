@@ -28,6 +28,7 @@
  * cleanup effect reacts to is authentic, not asserted-via-mock.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RecipePhotoUploadOutcome } from '@commise/features-recipes/hooks';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useCallback, useState } from 'react';
@@ -46,6 +47,8 @@ const { photosQueryMock, deletePhotoMock, reorderPhotoMock, uploadState } = vi.h
 const UPLOAD_FAILED_MESSAGE = 'We couldn’t upload your photo. Please try again.';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipePhotos: photosQueryMock,
     useDeleteRecipePhoto: deletePhotoMock,
     useReorderRecipePhotos: reorderPhotoMock,
@@ -65,11 +68,21 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
                 errorMessage: undefined,
             });
 
-            const upload = useCallback(async () => {
+            // ⚠️ RESOLVES A VERDICT as of 2026-09-12, because that is now `upload`'s contract: the queue
+            // reads the returned `RecipePhotoUploadOutcome` instead of watching `uploading` fall and then
+            // consulting `errorMessage`. The `setState` calls are KEPT even though the queue no longer reads
+            // them — three leaves still render `uploader.uploading`, and this fake is what exercises that
+            // display path.
+            //
+            // ⚠️ `stuck` is now a promise that never settles, which is the faithful translation of what it
+            // used to mean. It previously `return`ed (resolving `undefined`) and relied on `uploading`
+            // staying latched at `true`; with the verdict awaited, an unresolved promise is what keeps the
+            // item pending.
+            const upload = useCallback(async (): Promise<RecipePhotoUploadOutcome> => {
                 setState({ uploading: true, errorMessage: undefined });
 
                 if (uploadState.stuck) {
-                    return; // never resolves — the item stays 'uploading' (pending) forever
+                    return new Promise<RecipePhotoUploadOutcome>(() => undefined);
                 }
 
                 await Promise.resolve();
@@ -77,6 +90,8 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
                     uploading: false,
                     errorMessage: uploadState.fail ? UPLOAD_FAILED_MESSAGE : undefined,
                 });
+
+                return uploadState.fail ? { status: 'failed', errorMessage: UPLOAD_FAILED_MESSAGE } : { status: 'ok' };
             }, []);
 
             return { ...state, upload };

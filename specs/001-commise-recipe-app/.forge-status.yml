@@ -212,7 +212,7 @@ phases:
           commit: 3150b54
           paths:
               - packages/infra/global/src/recipe-db-bootstrap/handler.ts
-              - packages/infra/global/lib/platform/data-stack.ts
+              - packages/infra/global/lib/platform/DataStack.ts
         - id: T001-alb
           part: 'Recipe-service CDK stack + Dockerfile + migrate lambda + ESM-boot fix + per-PR ALB priority (300 / band 30000)'
           size: L
@@ -220,7 +220,7 @@ phases:
           tests: 'infra unit 11/11; synth clean vs real sandbox VPC; image boot-tested; DEPLOYED as kitchensink-recipe-service-pr-73 (https://recipe-pr-73.commise.app /health + /health/ready ok)'
           commit: ec42039, f355ee9
           paths:
-              - packages/services/recipe-service/infra/lib/recipe-service-stack.ts
+              - packages/services/recipe-service/infra/lib/RecipeServiceStack.ts
               - packages/services/recipe-service/Dockerfile
               - packages/services/recipe-service/src/lambdas/migrate/handler.ts
         - id: 'T093/T094 + web/mobile app-shell wiring'
@@ -364,7 +364,7 @@ phases:
           commits: da29f7d, c6cafb5
           paths:
               - packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.soft-delete.test.ts
-              - packages/services/recipe-service/__tests__/integration/recipes/soft-delete.integration.test.ts
+              - packages/services/recipe-service/__tests__/integration/recipes/softDelete.integration.test.ts
         - id: 'static-analysis gap — unit tests had none'
           part: >
               tsconfig.json excluded src/**/__tests__ and lint ran --ignore-pattern '**/*.test.ts', and

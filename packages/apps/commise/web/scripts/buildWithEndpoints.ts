@@ -47,7 +47,12 @@ for (const [key, value] of Object.entries(endpoints)) {
     }
 }
 
-const child = spawn('next', ['build', ...process.argv.slice(2)], {
+// ⛔ `--webpack` IS LOAD-BEARING, not a leftover. Next 16 builds with Turbopack by default and Turbopack
+// has no `extensionAlias`, so it cannot resolve this monorepo's NodeNext `.js` specifiers to their `.ts`
+// source — the 15 -> 16 bump failed with 89 "Can't resolve './Button.js'" errors across every shared
+// barrel. `next.config.ts` records why `turbopack.resolveExtensions` is NOT the fix (measured: 89 -> 86).
+// Remove this only once Turbopack gains an `extensionAlias` counterpart.
+const child = spawn('next', ['build', '--webpack', ...process.argv.slice(2)], {
     env: { ...process.env, ...endpoints },
     stdio: 'inherit',
     shell: false,

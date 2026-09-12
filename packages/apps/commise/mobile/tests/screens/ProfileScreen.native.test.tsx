@@ -13,14 +13,13 @@ import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
-import { useUpdateProfile, useUserProfile } from '../../src/hooks/useUserProfile.js';
+import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
+import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { ProfileScreen } from '../../src/screens/profile.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 
-vi.mock('../../src/hooks/useUserProfile', () => ({
-    useUserProfile: vi.fn(),
-    useUpdateProfile: vi.fn(),
-}));
+vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: vi.fn() }));
+vi.mock('../../src/hooks/useUpdateProfile.js', () => ({ useUpdateProfile: vi.fn() }));
 
 vi.mock('../../src/hooks/useAvatarUpload.js', () => ({ useAvatarUpload: () => ({ upload: vi.fn() }) }));
 

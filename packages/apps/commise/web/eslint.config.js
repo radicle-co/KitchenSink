@@ -6,7 +6,14 @@ export default tseslint.config(
     {
         // The CloudFront Function source targets the CFF JS-2.0 runtime (untyped `cloudfront` import,
         // no tsconfig project) — it's governed by its own shape test + prettier, not type-aware lint.
-        ignores: ['.next/**', 'next-env.d.ts', '**/*.config.*', '**/*.cff.js'],
+        //
+        // ⚠️ `*.config.*` is anchored to the workspace ROOT and NOT written `**\/*.config.*`. The recursive form
+        // also matched `src/sentry.edge.config.ts` and `src/sentry.server.config.ts` — the Sentry initialisation
+        // for the edge and Node runtimes, ordinary application code — so those two shipped unlinted. The
+        // exemption is only ever meant for a root tool manifest (`next.config.ts`, `playwright.config.ts`), which
+        // is what the shared config in `packages/tools/eslint` excludes and what
+        // `__tests__/staticAnalysisCoverage.test.ts` pins.
+        ignores: ['.next/**', 'next-env.d.ts', '*.config.*', '**/*.cff.js'],
     },
     {
         files: ['tests/**/*.ts', 'tests/**/*.tsx'],

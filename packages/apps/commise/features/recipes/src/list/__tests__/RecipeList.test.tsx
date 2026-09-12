@@ -6,6 +6,7 @@
  * mock-call arguments, so a wrong state branch or a dropped handler argument fails the test.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
@@ -33,6 +34,7 @@ function renderList(overrides: Partial<RecipeListViewProps> = {}) {
         ...overrides,
     };
     render(<RecipeList {...props} />);
+
     return props;
 }
 
@@ -46,12 +48,15 @@ const threeRecipes = [
 ];
 
 describe('RecipeList (web) — chrome', () => {
-    it('always renders the heading, search box, and create action', () => {
+    it('renders the heading and search box while the list is still loading', () => {
+        // NARROWED. This used to also assert the create dial from the LOADING state, which is the very
+        // claim the mid-interaction-unmount defect made false — the dial now waits for the library to
+        // resolve. The persistent chrome that genuinely IS present in every state is asserted here; the
+        // dial's own state matrix belongs to the "create FAB (L1)" block below.
         renderList({ status: 'loading' });
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByRole('searchbox', { name: 'Search recipes' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 
     it('reflects the controlled search value', () => {
@@ -82,7 +87,10 @@ describe('RecipeList (web) — chrome', () => {
         // line-height, so no amount of added centring properties fixes it; only a symmetric shape does.
         // docs/mockups/screens/screen-recipes.html draws this FAB with an SVG whose extents (4→20 on both
         // axes) are exactly symmetric about the viewBox centre.
-        renderList({ status: 'loading' });
+        //
+        // Rendered from a SETTLED, populated list rather than `loading`: the dial no longer mounts while the
+        // library is still resolving, and this assertion is about the glyph, not about when the dial appears.
+        renderList({ status: 'ready', recipes: threeRecipes });
 
         const fab = screen.getByRole('button', { name: 'New recipe' });
 
@@ -90,14 +98,89 @@ describe('RecipeList (web) — chrome', () => {
         expect(fab.textContent).toBe('');
     });
 
-    it('reports create requests upward from the FAB', async () => {
+    it('reports create requests upward from the dial’s ONE destination', async () => {
+        // REWRITTEN for U34 (owner ruling 2026-08-25). This previously asserted that pressing the FAB called
+        // `onCreateRecipe` directly. The FAB is now a menu TRIGGER, so the create request comes from the
+        // dial's single destination instead — the accepted +1 tap. The old assertion would have passed
+        // against a dial that opened and wired its item to nothing.
         const user = userEvent.setup();
         const onCreateRecipe = vi.fn();
         renderList({ status: 'ready', recipes: threeRecipes, onCreateRecipe });
 
         await user.click(screen.getByRole('button', { name: 'New recipe' }));
 
+        expect(onCreateRecipe).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
+
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers NO paste destination when the host supplies none — absence removes it, not disables it', async () => {
+        // ⛔ A host with no paste route (none existed before plan U9, and the contract must survive one)
+        // must not render a menu entry that goes nowhere. Rendering it disabled would be worse: a control
+        // that looks reachable and is not.
+        const user = userEvent.setup();
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(screen.getByRole('menuitem', { name: 'Create from Scratch' })).toBeTruthy();
+        expect(screen.queryByRole('menuitem', { name: 'Paste an Ingredient List' })).toBeNull();
+    });
+
+    it('opens the paste surface from the dial’s SECOND destination (plan U9)', async () => {
+        const user = userEvent.setup();
+        const onPasteIngredients = vi.fn();
+        renderList({ status: 'ready', recipes: threeRecipes, onPasteIngredients });
+
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
+
+        expect(onPasteIngredients).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps "Create from Scratch" FIRST — the primary path must not move when a destination is added', async () => {
+        const user = userEvent.setup();
+        renderList({ status: 'ready', recipes: threeRecipes, onPasteIngredients: vi.fn() });
+
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        const labels = screen.getAllByRole('menuitem').map((item) => item.textContent);
+        expect(labels).toEqual(['Create from Scratch', 'Paste an Ingredient List']);
+    });
+
+    it('lands on the create surface when the dial’s destination is chosen', async () => {
+        // Driven STATEFULLY rather than with a bare `vi.fn()`: a spy proves a handler ran, not that anything
+        // downstream happened. Here choosing the destination actually swaps the surface, which is the thing
+        // the Playwright and Maestro flows assert end to end.
+        const user = userEvent.setup();
+
+        function Harness() {
+            const [creating, setCreating] = useState(false);
+
+            return creating ? (
+                <h1>{'CREATE SURFACE'}</h1>
+            ) : (
+                <RecipeList
+                    status="ready"
+                    recipes={threeRecipes}
+                    searchValue=""
+                    onSearchChange={noop}
+                    onSelectRecipe={noop}
+                    onCreateRecipe={() => setCreating(true)}
+                    onRetry={noop}
+                />
+            );
+        }
+
+        render(<Harness />);
+
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
+
+        expect(screen.getByRole('heading', { name: 'CREATE SURFACE' })).toBeTruthy();
+        expect(screen.queryByRole('menu')).toBeNull();
     });
 });
 
@@ -134,20 +217,79 @@ describe('RecipeList (web) — U8 brand title band', () => {
 
 describe('RecipeList (web) — create FAB (L1)', () => {
     it('renders the create control as a pinned FAB OUTSIDE the header', () => {
+        // REWRITTEN for U34: the pinned-position class moved from the button onto the dial's anchor, so that
+        // the disclosed menu is positioned against the SAME derived offset instead of a second copy of it.
+        // The offset expression itself is asserted by `SpeedDial.test.tsx`; what belongs HERE is that the
+        // list still mounts a pinned control that is not header chrome.
         renderList({ status: 'ready', recipes: threeRecipes });
 
         const fab = screen.getByRole('button', { name: 'New recipe' });
         // Position isn't queryable in jsdom; assert the pinned-FAB class contract + that it is not chrome.
-        expect(fab.className).toContain('fixed');
+        expect(fab.parentElement?.className).toContain('fixed');
         expect(fab.closest('header')).toBeNull();
     });
 
-    it('keeps the FAB present across loading, error, and populated states', () => {
-        for (const state of ['loading', 'error', 'ready'] as const) {
+    it('keeps the FAB present across error and populated states', () => {
+        // NARROWED from "loading, error, and populated". `loading` moved out and got its own assertion
+        // below, because keeping the dial there is what let it unmount mid-interaction.
+        for (const state of ['error', 'ready'] as const) {
             cleanup();
             renderList({ status: state, recipes: state === 'ready' ? threeRecipes : [] });
             expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
         }
+    });
+
+    it('withholds the FAB while the library is still LOADING, and offers no create control at all there', () => {
+        renderList({ status: 'loading' });
+
+        // Both the trigger and its menu: a dial that mounted its panel while hiding the button would still
+        // be a control a cook can land on during the window this gate exists to close.
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.queryByRole('menuitem')).toBeNull();
+        // …and the empty-state CTA has not appeared either — the library has not said it is empty yet.
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+    });
+
+    it('does not mount the dial before a first-run library settles EMPTY, so nothing unmounts mid-press', async () => {
+        // ⛔ THE DEFECT ITSELF, driven as the TRANSITION rather than as two independent snapshots. A pair of
+        // state assertions would both pass against a component that mounts the dial while loading and drops
+        // it on settle — which is exactly what shipped: the dial rendered, a first-run cook pressed it, the
+        // menu opened, the empty library settled, and the whole control detached under their finger.
+        const user = userEvent.setup();
+
+        function Harness() {
+            const [status, setStatus] = useState<'loading' | 'ready'>('loading');
+
+            return (
+                <>
+                    <button type="button" onClick={() => setStatus('ready')}>
+                        {'SETTLE'}
+                    </button>
+                    <RecipeList
+                        status={status}
+                        recipes={[]}
+                        searchValue=""
+                        onSearchChange={noop}
+                        onSelectRecipe={noop}
+                        onCreateRecipe={noop}
+                        onRetry={noop}
+                    />
+                </>
+            );
+        }
+
+        render(<Harness />);
+
+        // Before: no dial to press.
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+
+        await user.click(screen.getByRole('button', { name: 'SETTLE' }));
+
+        // After: still no dial — the empty state's own CTA is the sole create control, and the cook was
+        // never handed a second one to reach for in between.
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
     });
 
     it('suppresses the FAB in the empty state, where the empty-state CTA is the sole create control', () => {
@@ -157,6 +299,8 @@ describe('RecipeList (web) — create FAB (L1)', () => {
         const createButtons = screen.getAllByRole('button', { name: /Create your first recipe|New recipe/ });
         expect(createButtons).toHaveLength(1);
         expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.queryByRole('menuitem')).toBeNull();
     });
 
     it('wires the empty-state CTA to the create handler', async () => {
@@ -202,8 +346,12 @@ describe('RecipeList (web) — source tabs (L5)', () => {
 
         expect(screen.getByText('No community recipes')).toBeTruthy();
         expect(screen.queryByText('No recipes yet')).toBeNull();
-        // FAB is My-Recipes-only — you never create into the community list.
+        // FAB is My-Recipes-only — you never create into the community list. Both the dial's TRIGGER and
+        // its menu are asserted absent: a dial that rendered its panel while hiding the button would still
+        // be a create affordance on someone else's library.
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.queryByRole('menuitem')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
     });
 });
@@ -278,6 +426,7 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
+
         // Base `py-1.5` grows the mobile tap target; `md:py-1` restores the original desktop chip density,
         // so the 1280px surface is byte-identical.
         for (const name of ['All', 'Vegetarian'] as const) {
@@ -331,6 +480,7 @@ describe('RecipeList (web) — loading state', () => {
         const status = screen.getByRole('status');
         const shimmer = status.querySelectorAll('.animate-pulse');
         expect(shimmer.length).toBeGreaterThanOrEqual(3);
+
         // Every placeholder is hidden from assistive tech — the `role="status"` label already announces it.
         for (const node of Array.from(shimmer)) {
             expect(node.closest('[aria-hidden="true"]')).not.toBeNull();
@@ -477,6 +627,7 @@ describe('RecipeList (web) — touch targets (44px floor)', () => {
         });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
+
         for (const name of ['All', 'Vegetarian', 'Italian']) {
             const chip = within(chips).getByRole('button', { name });
             expect(chip.className).toContain('min-h-11');

@@ -24,7 +24,10 @@ export function ResumeCookingWidgetSkeleton(): JSX.Element {
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles['resume-cooking']} comingSoonLabel={home.roadmap.comingSoon}>
-            <View style={styles.row}>
+            {/* Pure shape (the "Continue" affordance included — it is drawn, never offered), so the whole row
+                is hidden from assistive tech. `aria-hidden` is the spelling react-native-web can project; RN
+                reverse-maps it onto both platform props on device. See the shell's JSDoc. */}
+            <View aria-hidden style={styles.row}>
                 {/* The recipe thumbnail. */}
                 <View style={styles.thumb} />
                 <View style={styles.middle}>

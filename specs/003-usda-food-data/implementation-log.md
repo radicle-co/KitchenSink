@@ -43,7 +43,7 @@ seed for the new constraint probes cannot run. This is the expected Red state.
 ### Green result
 
 After implementing the split schema (`src/db/schema/food.ts` + `operational.ts` +
-`food-candidates.ts` + `index.ts` barrel + `src/db/ulid.ts` `newFoodId`), deleting `usda.ts`, and
+`foodCandidates.ts` + `index.ts` barrel + `src/db/ulid.ts` `newFoodId`), deleting `usda.ts`, and
 rewriting `src/db/migrations/0000_food_schema.sql` to the full 13-table DDL:
 
 ```
@@ -102,18 +102,18 @@ spec.
 
 - T-105 `FoodDao` — `src/foods/dao/food.dao.ts` (`getById`, `createByName`, `setStatus`,
   `upsertGoldenScalars`, `readGoldenRecord`).
-- T-106 `FoodSourcesDao` — `src/foods/dao/food-sources.dao.ts` (`upsertSource`,
+- T-106 `FoodSourcesDao` — `src/foods/dao/foodSources.dao.ts` (`upsertSource`,
   `findFoodIdByExternalKey`, `findFoodIdByBarcode`, `findSourceId`).
-- T-107 `NutrientDao` + `FoodNutrientsDao` — `src/foods/dao/nutrient.dao.ts`, `food-nutrients.dao.ts`
+- T-107 `NutrientDao` + `FoodNutrientsDao` — `src/foods/dao/nutrient.dao.ts`, `foodNutrients.dao.ts`
   (`resolveOrCreate`; `upsertValue`, `listByFood`).
 - T-108 `FoodPortionsDao`, `FoodFieldProvenanceDao`, `FoodCategoryDao` — `src/foods/dao/`
   (`insertPortion`; `record`, `fieldsFromSource`; `upsertCategory`, `assign`).
-- T-109 `FetchQueueDao` + `FetchRequestersDao` — `src/foods/dao/fetch-queue.dao.ts`,
-  `fetch-requesters.dao.ts` (`enqueue`, `reactivate`, `leaseNext`, `reapExpiredLeases`,
+- T-109 `FetchQueueDao` + `FetchRequestersDao` — `src/foods/dao/fetchQueue.dao.ts`,
+  `fetchRequesters.dao.ts` (`enqueue`, `reactivate`, `leaseNext`, `reapExpiredLeases`,
   `pendingCountForSub`, `resolve`, `tombstone`; `add`, `countForFood`, `deleteForFood`).
-- T-110 `SourceCallLogDao` — `src/foods/dao/source-call-log.dao.ts` (`checkAndRecord`,
+- T-110 `SourceCallLogDao` — `src/foods/dao/sourceCallLog.dao.ts` (`checkAndRecord`,
   `countInWindow`, `pruneAged`).
-- T-111 (DAO) `CandidateStore` — `src/foods/dao/food-candidates.dao.ts` (`persistCandidates`,
+- T-111 (DAO) `CandidateStore` — `src/foods/dao/foodCandidates.dao.ts` (`persistCandidates`,
   `getCandidates`, `isMember`, `clear`).
 - Typed errors + guards — `src/foods/dao/dao.errors.ts` (`IllegalStatusTransitionError` +
   `is*` guards, `isUniqueViolation`); named barrel `src/foods/dao/index.ts`.
@@ -202,7 +202,7 @@ All 66 assertions green (48 new DAO assertions + the 18 schema assertions), incl
   Drizzle client in the constructor (mirrors the identity `UserDAO` seam), ready for the
   `FoodsRepository` facade + DI wiring in Phase 3.
 - No source adapter (T-120+), no read API/controller/service rewire (T-130+). The excluded
-  `tests/foods-api.integration.test.ts` (superseded fdcId read API) remains parked per
+  `tests/foodsApi.integration.test.ts` (superseded fdcId read API) remains parked per
   `vitest.integration.config.ts`.
 
 ---
@@ -218,7 +218,7 @@ API. The old `foods/*` layer + retained `usda.ts` are untouched. Authoritative s
 
 **Files delivered.**
 
-- T-120 `src/sources/food-source-adapter.ts` — the `FoodSourceAdapter` interface; source-agnostic
+- T-120 `src/sources/foodSourceAdapter.ts` — the `FoodSourceAdapter` interface; source-agnostic
   candidate types (`SourceCandidate { source, externalKey, name }`, `CanonicalCandidate { source,
 externalKey, name, kind, brandOwner, brandName, description, barcode, nutrients[], portions[],
 itemVersion }` — internal-shaped, NEVER `fdcId`); `CanonicalNutrient`/`CanonicalPortion`;
@@ -235,7 +235,7 @@ itemVersion }` — internal-shaped, NEVER `fdcId`); `CanonicalNutrient`/`Canonic
   `foodPortions`); `itemVersion = publicationDate ?? sha256(raw)`; reject-not-store validation; and
   `classifyError` mapping the USDA error hierarchy → `SourceApiError(statusCode)`. Plus exported pure
   helpers `canonicalizeNutrientName`/`canonicalizeUnit`. Fixtures: `src/sources/usda/__fixtures__/usda.fixtures.ts`.
-- T-122 `src/sources/rolling-window-limiter.ts` — `RollingWindowLimiter` over `SourceCallLogDao`:
+- T-122 `src/sources/RollingWindowLimiter.ts` — `RollingWindowLimiter` over `SourceCallLogDao`:
   `tryRecord` (atomic check-and-record at the hard cap), `count`, `isPaused` (≥ 90% pause threshold OR
   active 429-failsafe), `markWindowFull` (429 failsafe), `pruneAged`. `DEFAULT_SOURCE_CAPS = { usda:
 { hardCap: 1000, pauseThreshold: 900 } }`; caps/back-off/clock injectable for tests.
@@ -302,8 +302,8 @@ exit 0; `npm run format:check` (prettier) clean.
 1. **Target file paths follow tasks.md, not module-design's `Target source file` lines.** module-design
    places the limiter at `src/worker/rolling-window.limiter.ts` and the registry at
    `src/sources/source-adapter.registry.ts`; tasks.md T-120/T-121/T-122 specify
-   `src/sources/food-source-adapter.ts`, `src/sources/usda/usda.adapter.ts`,
-   `src/sources/rolling-window-limiter.ts`. Followed tasks.md (the explicitly-cited authority for paths).
+   `src/sources/foodSourceAdapter.ts`, `src/sources/usda/usda.adapter.ts`,
+   `src/sources/RollingWindowLimiter.ts`. Followed tasks.md (the explicitly-cited authority for paths).
 2. **Portions are read + validated from the client's preserved `raw` payload, not from a typed field.**
    The committed `@kitchensink/usda-client` `UsdaFoodDetail` does not surface `foodPortions` (only
    `foodNutrients`); the verbatim payload is preserved on `detail.raw`. The adapter validates
@@ -315,7 +315,7 @@ exit 0; `npm run format:check` (prettier) clean.
    upstream/bad-gateway failure (retryable by the worker), distinct from a transport 5xx. module-design
    lists schema failure under MOD-021 validation; mapping it to a 502 `SourceApiError` keeps the worker's
    retry/backoff decision purely status-driven without a separate error class crossing the boundary.
-4. **`SourceApiError`/`AdapterValidationError` live in `food-source-adapter.ts` (the boundary contract
+4. **`SourceApiError`/`AdapterValidationError` live in `foodSourceAdapter.ts` (the boundary contract
    file), not in a separate `source.errors.ts`.** They are part of the adapter interface's error
    contract and are consumed source-agnostically by the future worker; co-locating them with the
    interface avoids an extra file while keeping USDA-specific mapping in `usda.adapter.ts`. No `assertHttps`/
@@ -338,8 +338,8 @@ exit 0; `npm run format:check` (prettier) clean.
 **Scope.** The pure field-level golden-record merge engine, the survivor-count auto-resolve boundary,
 the transactional provenance writer, the manual-resolution merge path, and merge-boundary
 input sanitization. ALL new code is confined to `packages/services/food-service/src/foods/merge/`
-(`merge-engine.ts`, `merge-sanitize.ts`, `merge-and-persist.service.ts`, `index.ts`, fixtures, unit
-test) + one integration test (`tests/merge-and-persist.integration.test.ts`). NO NestJS module/DI
+(`mergeEngine.ts`, `mergeSanitize.ts`, `mergeAndPersist.service.ts`, `index.ts`, fixtures, unit
+test) + one integration test (`tests/mergeAndPersist.integration.test.ts`). NO NestJS module/DI
 wiring, NO controller/route/worker, NO HTTP; the old `foods/*` layer and `usda.ts` were not touched.
 Built ON the committed Phase-1 DAOs and Phase-2 adapter types per plan.md §6/§9, MOD-015/MOD-017/
 MOD-019, decision-register D-AUTORESOLVE / D-PROVENANCE-FK / D-MERGE, tasks T-160..T-164.
@@ -350,7 +350,7 @@ T-164 (reject-not-store sanitization).
 
 **Harness.** Node v24; unit = `vitest run src/foods/merge`; integration = Docker Postgres 16
 (`DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_e2e`),
-`vitest run --config vitest.integration.config.ts tests/merge-and-persist.integration.test.ts`,
+`vitest run --config vitest.integration.config.ts tests/mergeAndPersist.integration.test.ts`,
 reusing `tests/support/db.ts` (drop+recreate `public`, apply the ordered migration).
 
 ### Red gate (assertion-level, confirmed failing for the right reason)
@@ -359,12 +359,12 @@ Wrote the unit + integration tests FIRST against signature-correct STUBS (`merge
 `NOT_FOUND`; `blendCandidates` → empty draft; `sanitizeCandidates` → identity; `MergeAndPersist`
 persists nothing, returns `PENDING`). Failures were assertion-level, not import/module-missing:
 
-- Unit `src/foods/merge/__tests__/merge-engine.test.ts`: **12 failed / 2 passed (14)** — e.g.
+- Unit `src/foods/merge/__tests__/mergeEngine.test.ts`: **12 failed / 2 passed (14)** — e.g.
   `expected 'NOT_FOUND' to be 'RESOLVED'` (boundary), `expected undefined to be 'Acme'` (priority
   short-field), `expected undefined to be '2.8'` (per-100g-before-blend), `expected [ 'Protein',
 'BadFat', 'NaNCarb' ] to deeply equal [ 'Protein' ]` (sanitize). The 2 passing were the genuine
   `NOT_FOUND` (0 candidates) case and `normalizeName`.
-- Integration `tests/merge-and-persist.integration.test.ts`: **6 failed / 2 passed (8)** — e.g.
+- Integration `tests/mergeAndPersist.integration.test.ts`: **6 failed / 2 passed (8)** — e.g.
   `expected 'NOT_FOUND' to be 'RESOLVED'`, `expected [] to include 'field:name'`, `expected 'PENDING'
 to be 'NOT_FOUND'`. The 2 passing were schema-only assertions (no raw-payload column; cross-food FK
   reject) that do not depend on the persist path.
@@ -374,7 +374,7 @@ to be 'NOT_FOUND'`. The 2 passing were schema-only assertions (no raw-payload co
 Replaced the stubs with the real merge rules, sanitizer, and transactional persistence:
 
 - Unit `src/foods/merge`: **14 passed (14)**.
-- Integration `tests/merge-and-persist.integration.test.ts`: **8 passed (8)**.
+- Integration `tests/mergeAndPersist.integration.test.ts`: **8 passed (8)**.
 - Whole package — unit: **Test Files 7 passed, Tests 78 passed**; integration: **Test Files 10
   passed, Tests 81 passed**.
 - `npx tsc --noEmit` (whole package, incl. retained `foods/*` + `usda.ts`): clean. `npm run lint`
@@ -456,9 +456,9 @@ string`; `GoldenRecordMergeEngine` binds them to the real registry for productio
    transaction handle to the committed DAO constructor type (the DAOs take `FoodDrizzle`, and a tx
    handle is not nominally assignable — it lacks `$client`). The DAOs are out-of-scope to modify; this
    is the single, centralized narrowing point so all DAO writes share one transaction.
-5. **Target file is `src/foods/merge/merge-engine.ts` (per tasks.md T-160), not module-design's
+5. **Target file is `src/foods/merge/mergeEngine.ts` (per tasks.md T-160), not module-design's
    `src/merge/golden-record-merge.engine.ts`** — followed the explicitly-cited task path; co-located
-   `merge-sanitize.ts` + `merge-and-persist.service.ts` in the same domain folder.
+   `mergeSanitize.ts` + `mergeAndPersist.service.ts` in the same domain folder.
 
 ### Deferred (out of this slice)
 
@@ -490,20 +490,20 @@ window-full → defer), T-153 (lease reaper + 5xx/timeout backoff `attempts++` �
 DSN-9; fire-and-forget).
 
 **Files added.**
-`src/events/food-event-emitter.ts` (+ `index.ts` barrel) — `EventBus` seam, `FoodEventPublisher`,
+`src/events/FoodEventEmitter.ts` (+ `index.ts` barrel) — `EventBus` seam, `FoodEventPublisher`,
 pure `buildFoodFetchCompleted`/`buildFetchFailed`, `FoodEventEmitter`, no-AWS `ConsoleEventBus`.
 `src/worker/backoff.ts` (`backoffSeconds = 2^attempts`, `MAX_FAILURE_ATTEMPTS = 5`),
-`src/worker/worker-logger.ts` (JSON `ConsoleWorkerLogger` + `SilentWorkerLogger`),
-`src/worker/worker-lock.ts` (`acquireWorkerLock`/`releaseWorkerLock`, advisory class 1 — distinct
-from FoodDao dedup class 2 / limiter class 3), `src/worker/food-consumer.service.ts`
-(`FoodConsumerService` — the per-row fan-out/merge core), `src/worker/worker-runtime.ts`
+`src/worker/workerLogger.ts` (JSON `ConsoleWorkerLogger` + `SilentWorkerLogger`),
+`src/worker/workerLock.ts` (`acquireWorkerLock`/`releaseWorkerLock`, advisory class 1 — distinct
+from FoodDao dedup class 2 / limiter class 3), `src/worker/foodConsumer.service.ts`
+(`FoodConsumerService` — the per-row fan-out/merge core), `src/worker/WorkerRuntime.ts`
 (`WorkerRuntime` — lock + LISTEN/NOTIFY + reaper interval + SIGTERM), `src/worker/main.ts`
 (bootstrap), `src/worker/index.ts` (barrel).
 
 **Files fleshed-out (committed pieces extended, additively).**
-`src/foods/dao/fetch-queue.dao.ts` — added `recordFailure` (attempts++ + `last_requested = now() +
+`src/foods/dao/fetchQueue.dao.ts` — added `recordFailure` (attempts++ + `last_requested = now() +
 2^attempts s`), `deferLease` (no attempts++, DSN-5), `releaseInFlight` (SIGTERM graceful release).
-`src/sources/food-source-adapter.ts` — added the OPTIONAL `fetchByKeys?` to the adapter interface.
+`src/sources/foodSourceAdapter.ts` — added the OPTIONAL `fetchByKeys?` to the adapter interface.
 `src/sources/usda/usda.adapter.ts` — implemented `fetchByKeys` over the client's `getFoodsBatch`
 (≤20, `USDA_BATCH_MAX`); `mapToCanonical`/`fdcId→externalKey` unchanged.
 
@@ -611,7 +611,7 @@ attempt a serving-basis conversion. Out of this slice by direction.
 
 **Scope.** Close the data-loss gap where USDA Branded foods that ship only a per-serving `labelNutrients`
 panel persisted zero nutrition (the merge engine dropped every `per_serving` value). Code touched: the
-USDA adapter (`src/sources/usda/usda.adapter.ts`) and the merge engine (`src/foods/merge/merge-engine.ts`)
+USDA adapter (`src/sources/usda/usda.adapter.ts`) and the merge engine (`src/foods/merge/mergeEngine.ts`)
 only — NO worker, NO old `foods/*` layer, NO `usda.ts`. Plus a clause-level design-of-record update
 (spec FR-MRG-3, decision-register §3.17 D-PERSERVING, module-design MOD-008/MOD-017, review.md refinement
 note). Policy implemented exactly per the user-approved decision: prefer per-100g `foodNutrients`; convert
@@ -682,7 +682,7 @@ authorizedParties})` extracted from the identity `ClerkAuthService` (one impl, n
   `MergeAndPersistService` + `EnqueueEmitter` + `AdmissionService` (new, T-144 backpressure/flood-shed).
 - **Deleted** (no dangling refs): `src/db/schema/usda.ts`, `src/foods/foods.repository.ts`,
   `src/foods/fetch-queue.service.ts`, `src/foods/__fixtures__/foods.fixtures.ts`, and the two old fdcId unit
-  test files. The parked `tests/foods-api.integration.test.ts` was rewritten to the new API and removed from
+  test files. The parked `tests/foodsApi.integration.test.ts` was rewritten to the new API and removed from
   the `vitest.integration.config.ts` exclude. `health.e2e.test.ts` `foods`→`food` table fixed.
 
 **Red gate (assertion-level, confirmed failing for the right reason).**
@@ -701,7 +701,7 @@ types deduced for parameter $4`, the enum/text reuse), then `2 failed` on a shar
 - **food-service unit**: `85 passed (9 files)` — was 92; the 2 deleted fdcId unit files (~31 tests) are
   superseded by the new `FoodAuthGuard` (7) + rewritten `FoodsController` (18) units; the verification logic
   moved to clerk-verify's 8 tests. Net across the two packages: 93 unit (85 + 8), no behavioral regression.
-- **food-service integration**: `132 passed (13 files)` — prior 95 + the re-added `foods-api.integration.test.ts`
+- **food-service integration**: `132 passed (13 files)` — prior 95 + the re-added `foodsApi.integration.test.ts`
   (37: full auth matrix + every endpoint's status codes incl. 401>403>400 precedence, 503+Retry-After
   backpressure/flood-shed, and the DSN-6 resolve cap/pause-exempt cases).
 - **`@kitchensink/clerk-verify`**: `8 passed`. **e2e (booted app)**: `2 passed`.
@@ -736,13 +736,13 @@ async worker flows. Test-only slice — no production behaviour changed. Coverag
 
 ### Red / Green
 
-| Suite                             | Before     | After   | Delta                                         |
-| --------------------------------- | ---------- | ------- | --------------------------------------------- |
-| Unit (`npm test`, food-service)   | 85         | 85      | —                                             |
-| Integration (`test:integration`)  | 132        | **140** | +8 (extended `foods-api.integration.test.ts`) |
-| E2E (`test:e2e`)                  | 2 (health) | 2       | — (**BLOCKED**, see STOP below)               |
-| clerk-verify unit                 | 8          | 8       | —                                             |
-| `npx tsc --noEmit` (food-service) | clean      | clean   | —                                             |
+| Suite                             | Before     | After   | Delta                                        |
+| --------------------------------- | ---------- | ------- | -------------------------------------------- |
+| Unit (`npm test`, food-service)   | 85         | 85      | —                                            |
+| Integration (`test:integration`)  | 132        | **140** | +8 (extended `foodsApi.integration.test.ts`) |
+| E2E (`test:e2e`)                  | 2 (health) | 2       | — (**BLOCKED**, see STOP below)              |
+| clerk-verify unit                 | 8          | 8       | —                                            |
+| `npx tsc --noEmit` (food-service) | clean      | clean   | —                                            |
 
 ### Integration gaps filled (deliverable #3) — all green, mocked auth (orthogonal to the STOP)
 
@@ -764,7 +764,7 @@ as a failure → `ClerkVerificationError` → `FoodAuthGuard` 401. Every authent
 surviving the guard, so the suite would be red. Per the task instruction the e2e was **not** written
 against a mocked `verifyClerkToken` (that would hide the bug and contradict the real-JWT requirement).
 
-- Reproduction, root cause, blast radius (identity `clerk-auth.service.ts:84` shares the pattern),
+- Reproduction, root cause, blast radius (identity `clerkAuth.service.ts:84` shares the pattern),
   and the recommended fix are documented in `testing/api-coverage.md §4`.
 - JWT minting recipe and the app+worker+stub-adapter harness are designed and proven in isolation
   (`testing/api-coverage.md §3`) — ready to wire once the auth bug is fixed.
@@ -786,11 +786,11 @@ tests use the real shape). With the real auth path working, the full-stack e2e i
 
 ### New e2e files
 
-- `tests/e2e/foods-api.e2e.test.ts` — 15 specs: auth matrix (real RS256), add→resolve, UNRESOLVED→pick,
+- `tests/e2e/foodsApi.e2e.test.ts` — 15 specs: auth matrix (real RS256), add→resolve, UNRESOLVED→pick,
   NOT_FOUND, batch partial, search (fuzzy/external_key/barcode crosswalk + zero-source-call), FAILED,
   backpressure 503.
 - `tests/support/jwt.ts` — throwaway RSA-2048 SPKI keypair + RS256 token minting (real, networkless).
-- `tests/support/stub-source-adapter.ts` — programmable stub `FoodSourceAdapter` (module-mocked in place
+- `tests/support/StubSourceAdapter.ts` — programmable stub `FoodSourceAdapter` (module-mocked in place
   of `UsdaSourceAdapter`); per-name RESOLVED/UNRESOLVED/NOT_FOUND/error programming + call counters.
 
 Harness: real Nest app (real `FoodAuthGuard`/`clerk-verify`, real minted JWT); worker built from the
@@ -843,7 +843,7 @@ a RESOLVED food, DSN-1), so `FoodConsumerService.processRow` now takes a real
 
 ### Change-refresh task (T-170) + UNRESOLVED TTL sweep (T-172)
 
-`src/worker/change-refresh/change-refresh.consumer.ts` (`ChangeRefreshConsumer.runOnce`): (1) sweeps
+`src/worker/change-refresh/changeRefresh.consumer.ts` (`ChangeRefreshConsumer.runOnce`): (1) sweeps
 expired UNRESOLVED candidate sets via `CandidateStore.clearExpired(FOOD_UNRESOLVED_TTL_DAYS=30,
 config-overridable)` — the food STAYS `UNRESOLVED`, never swept to `NOT_FOUND`; (2) scans
 `FoodSourcesDao.listResolvedBackingItems()` (status='RESOLVED' join excludes NOT_FOUND/FAILED tombstones),
@@ -859,15 +859,15 @@ stays ambiguous is idempotent. A human pick made before expiry still wins (→`R
 ### Files
 
 - Added: `src/worker/change-refresh/{change-refresh.consumer,index,main}.ts`;
-  `tests/{food-refresh,change-refresh.consumer}.integration.test.ts`; `tests/e2e/change-refresh.e2e.test.ts`.
-- Modified: `src/foods/merge/merge-engine.ts` (`mergeChanged` pure fn + engine method);
-  `src/foods/merge/merge-and-persist.service.ts` (`mergeChangedSources` + idempotent `persistUnresolved`);
-  `src/worker/food-consumer.service.ts` (`sources` dep + `refreshResolvedFood`/`refetchItem`,
+  `tests/{food-refresh,change-refresh.consumer}.integration.test.ts`; `tests/e2e/changeRefresh.e2e.test.ts`.
+- Modified: `src/foods/merge/mergeEngine.ts` (`mergeChanged` pure fn + engine method);
+  `src/foods/merge/mergeAndPersist.service.ts` (`mergeChangedSources` + idempotent `persistUnresolved`);
+  `src/worker/foodConsumer.service.ts` (`sources` dep + `refreshResolvedFood`/`refetchItem`,
   `refresh_skipped`→`refreshed`); `src/foods/dao/{food-sources(listByFood/listResolvedBackingItems/BackingItem),
 food.dao(touch), food-portions.dao(deleteForSource), food-candidates.dao(clearExpired), index}.ts`;
   `src/foods/foods.service.ts` (expired-UNRESOLVED re-fan-out); `src/config/env.schema.ts`
   (`FOOD_UNRESOLVED_TTL_DAYS`); `src/worker/main.ts` + 3 test harnesses (new `sources` dep);
-  `tests/support/stub-source-adapter.ts` (`itemVersion` + `mutateItem`).
+  `tests/support/StubSourceAdapter.ts` (`itemVersion` + `mutateItem`).
 
 ### Red → Green
 
@@ -904,7 +904,7 @@ provenance), T-054 (auth-layer DoS protection), T-056 (user-erasure), T-057
 
 ### What shipped (NEW code)
 
-- **T-054 auth-layer DoS protection** — `src/auth/auth-load-shedder.ts` (`AuthLoadShedder`): bounds
+- **T-054 auth-layer DoS protection** — `src/auth/AuthLoadShedder.ts` (`AuthLoadShedder`): bounds
   concurrent token verifications + a per-source (IP) rolling-window `401`-rate cap, so a flood of
   well-formed-but-invalid tokens is shed with `503` BEFORE the CPU-bound signature check (SC-011 holds
   under flood). Wired into `FoodAuthGuard.use` (cheap `shouldShed` pre-check → `tryAcquire` slot →
@@ -919,7 +919,7 @@ provenance), T-054 (auth-layer DoS protection), T-056 (user-erasure), T-057
   the forbidden `'system'` shortcut is refused (tombstoned `unauthenticated_producer`, NO source call,
   new disposition `rejected_provenance`). Validates over `fetch_requesters` (FR-048: there is no
   `fetch_queue.requested_by` column).
-- **T-056 user-erasure** — `FetchRequestersDao.deleteForSub` + `src/foods/user-erasure.service.ts`
+- **T-056 user-erasure** — `FetchRequestersDao.deleteForSub` + `src/foods/userErasure.service.ts`
   (`UserErasureService.eraseUser`, DI-provided/exported): on user deletion, delete that `sub`'s
   `fetch_requesters` rows (the only per-user data; no quota tables). Idempotent.
 - **T-057 client** — rebuilt `packages/clients/food-service` (`@kitchensink/food-service-client`):
@@ -931,11 +931,11 @@ provenance), T-054 (auth-layer DoS protection), T-056 (user-erasure), T-057
 
 ### Guarantee tests added (behavior already in the committed stack)
 
-- T-049/T-050: `tests/fairness-demotion.integration.test.ts` — a food whose requesters ALL exceed 50
+- T-049/T-050: `tests/fairnessDemotion.integration.test.ts` — a food whose requesters ALL exceed 50
   pending is demoted while a lighter food drains first (SC-012, no `429`); auto re-promoted when any
   requester drops below 50; one `sub`'s repeats can't inflate priority (distinct-`sub` `request_count`,
   structural `PRIORITY_CAP=1`).
-- T-051: covered by `tests/e2e/foods-api.e2e.test.ts` (batch > 100 → `400`, nothing enqueued).
+- T-051: covered by `tests/e2e/foodsApi.e2e.test.ts` (batch > 100 → `400`, nothing enqueued).
 - T-052: `tests/admission.integration.test.ts` — depth ceiling → `503` + jittered `Retry-After`;
   near-ceiling flood-shed of a heavy `sub`'s NEW enqueue while a lighter `sub` is admitted; reads/PATCH
   never pass through admission (structural). Durable cross-process circuit-breaker signal: NOTED as a
@@ -943,7 +943,7 @@ provenance), T-054 (auth-layer DoS protection), T-056 (user-erasure), T-057
 
 ### Red → Green
 
-RED first confirmed at assertion level: `provenance.ts` / `auth-load-shedder.ts` / the client modules
+RED first confirmed at assertion level: `provenance.ts` / `AuthLoadShedder.ts` / the client modules
 did not exist (import failures); the guard-DoS specs expected shedding the not-yet-wired guard would not
 do. `npx tsc --noEmit` also caught two real test gaps (a `FoodSourceAdapter` missing `fetchByKey`; an
 unused local) before green.
@@ -1089,13 +1089,13 @@ NAT); (B/C/D) removed the three vestigial placeholder Lambdas (bulk-sync, stale-
   `food_app` secret for creds, `FoodMigrationFunctionName` output); (F/T-001c) the change-refresh Fargate
   scheduled task (EventBridge `IngestionScheduled` rate(6h) → ECS `RunTask` `EcsTask` target in a PUBLIC
   subnet, new task def + least-privilege task role granting `events:PutEvents` — T-053); (G/T-181/182/183)
-  EMF worker metrics (`src/observability/emf-metrics.ts`, namespace `Commise/Food`, no extra IAM), the
+  EMF worker metrics (`src/observability/emfMetrics.ts`, namespace `Commise/Food`, no extra IAM), the
   `food-data` dashboard, and four alarms (tombstone > 0, API target-5xx rate > 5% per ADR-0003, queue
   depth > 10,000, oldest-pending age > 5 min) → SNS topic + `SnsAction`.
 
 **RED first confirmed at assertion level before each implementation:**
 
-- T-181: `src/observability/__tests__/emf-metrics.test.ts` failed — `Cannot find module '../emf-metrics.js'`
+- T-181: `src/observability/__tests__/emfMetrics.test.ts` failed — `Cannot find module '../emfMetrics.js'`
   → GREEN after the emitter (exact EMF JSON shape, the canonical `FOOD_METRIC` constants, dimension-set
   encoding, the typed recorder methods).
 - T-191: `tests/migrate.integration.test.ts` failed to import `runMigrations`/`discoverMigrations`
@@ -1103,9 +1103,9 @@ NAT); (B/C/D) removed the three vestigial placeholder Lambdas (bulk-sync, stale-
   (`0000`→`0001`, no hardcoded list), apply + `schema_migrations` tracking, idempotent re-invoke (second
   run applies nothing / skips both), and the missing-expected-table validation throw.
 - T-183 (pending-age signal): the appended `pendingAgeSeconds` cases in
-  `tests/fetch-queue.dao.integration.test.ts` failed (method absent) → GREEN after the `FetchQueueDao`
+  `tests/fetchQueue.dao.integration.test.ts` failed (method absent) → GREEN after the `FetchQueueDao`
   query (oldest-pending `first_requested` age, 0 when empty).
-- CDK (T-001c/B/C/D/E/F/G): the extended `infra/__tests__/food-service-stack.test.ts` asserted the new
+- CDK (T-001c/B/C/D/E/F/G): the extended `infra/__tests__/FoodServiceStack.test.ts` asserted the new
   topology (public-subnet services, removed lambdas, migrate fn, `IngestionScheduled` RunTask target,
   change-refresh task def, dashboard, 4 alarms, SNS) against the pre-change stack → RED, GREEN after the
   stack rewrite. The existing invariants (0 ALBs, 1 listener rule priority 200, 1 TG, 1 A-record,
@@ -1133,7 +1133,7 @@ T-001c, T-053, T-181, T-182, T-183, T-191, FU-MIGRATE, FU-ESBUILD marked `[x]`. 
   MUST move to `ecs.Secret.fromSecretsManager` (like the DB creds) so the key never lands in the
   synthesized template.
 - **EMF metric-name reuse across the src↔infra boundary.** The infra tsconfig `rootDir` forbids
-  importing `src/observability/emf-metrics.ts` from `infra/` (TS6059), so the stack + the CDK test each
+  importing `src/observability/emfMetrics.ts` from `infra/` (TS6059), so the stack + the CDK test each
   carry a byte-identical copy of the metric-name literals with a linking comment to the canonical source
   (the decision allowed "reuse the literals … with a comment linking them"). Three places assert the
   same literals (emitter unit test, stack, CDK template assertions).
@@ -1152,13 +1152,13 @@ T-001c, T-053, T-181, T-182, T-183, T-191, FU-MIGRATE, FU-ESBUILD marked `[x]`. 
 
 **Scope.** One new e2e file exercising the REAL `UsdaApiClient` + REAL `UsdaSourceAdapter` against the
 captured real USDA wire fixtures (`tests/e2e/__fixtures__/usda/*.json`), intercepted at the HTTP
-transport with undici's `MockAgent` (`setGlobalDispatcher`). The existing `food-service-client.e2e.test.ts`
+transport with undici's `MockAgent` (`setGlobalDispatcher`). The existing `foodServiceClient.e2e.test.ts`
 `vi.mock`s the whole adapter with a programmable stub, so the USDA→canonical translation, batch path,
 per-serving label reconciliation, and error classification were never exercised end-to-end. This test
 closes that gap: real `fetch` → mocked transport → real client status/schema mapping → real adapter
 `fdcId→externalKey`/nutrient/label/portion mapping → real merge → real persist.
 
-**File.** `packages/services/food-service/tests/e2e/usda-adapter-http-contract.e2e.test.ts` (5 cases).
+**File.** `packages/services/food-service/tests/e2e/usdaAdapterHttpContract.e2e.test.ts` (5 cases).
 Boots the same hermetic stack as the other e2es (real Nest app + Docker Postgres `food_e2e` + real
 `FoodAuthGuard`, `FoodConsumerService` built from DI holding the REAL adapter). `MockAgent.disableNetConnect()`
 with `enableNetConnect(127.0.0.1|localhost)` so the client↔server loopback still works while every USDA

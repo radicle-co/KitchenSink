@@ -192,6 +192,7 @@ describe('RecipeBrowseRails (native) — section enter motion (U8 motion pass)',
         expect(timing).not.toHaveBeenCalled();
         const wrappers = enterWrappers(container);
         expect(wrappers.length).toBeGreaterThan(0);
+
         for (const wrapper of wrappers) {
             expect(wrapper.style.opacity).toBe('1');
             expect(wrapper.style.transform).toBe('translateY(0px)');

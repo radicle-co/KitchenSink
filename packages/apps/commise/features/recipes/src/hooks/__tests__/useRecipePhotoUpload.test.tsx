@@ -19,6 +19,8 @@ const { useCreatePhotoUploadUrlMock, useConfirmPhotoUploadMock } = vi.hoisted(()
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useCreatePhotoUploadUrl: useCreatePhotoUploadUrlMock,
     useConfirmPhotoUpload: useConfirmPhotoUploadMock,
 }));
@@ -211,5 +213,80 @@ describe('useRecipePhotoUpload — abort-on-unmount', () => {
         expect(result.current).toBe(frozenSnapshot);
 
         errorSpy.mockRestore();
+    });
+});
+
+/**
+ * `upload` RESOLVES A VERDICT, which is what lets the queue stop inferring one.
+ *
+ * ⛔ WHY THIS EXISTS. `useRecipePhotoUploadQueue` used to read the per-file outcome off a FLAG EDGE — it
+ * watched `uploader.uploading` fall and then consulted `uploader.errorMessage`. That coupling is what broke
+ * when this hook was briefly converted to a react-query mutation (status propagates asynchronously there),
+ * and it marked a photo `ok` that had never uploaded. A resolved value cannot have an edge.
+ *
+ * ⛔ THREE ARMS, AND `busy` IS NOT DEAD CODE. The single-flight no-op must resolve to neither `ok` (that is
+ * the original defect class — a photo reported uploaded that never was) nor `failed` (which would mark a
+ * perfectly good file failed). A refusal to START is ABSENCE, not dissent — ADR-0026 §3's `single-engine`
+ * ≠ `differ`, one layer over.
+ */
+describe('useRecipePhotoUpload — the resolved outcome', () => {
+    it('resolves ok when the sequence completes', async () => {
+        const presign = vi.fn().mockResolvedValue({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+        fetchMock.mockResolvedValue({ ok: true, status: 200 });
+
+        const { result } = renderHook(() => useRecipePhotoUpload(RECIPE_ID, UPLOAD_ERROR));
+
+        let outcome: unknown;
+        await act(async () => {
+            outcome = await result.current.upload(makeFile());
+        });
+
+        expect(outcome).toEqual({ status: 'ok' });
+    });
+
+    it('resolves failed WITH the caller-supplied copy, so the caller need not read state back', async () => {
+        useCreatePhotoUploadUrlMock.mockReturnValue({
+            mutateAsync: vi.fn().mockResolvedValue({ uploadUrl: 'https://s3.example.com/put', key: 'k1' }),
+        });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+        fetchMock.mockResolvedValue({ ok: false, status: 500 });
+
+        const { result } = renderHook(() => useRecipePhotoUpload(RECIPE_ID, UPLOAD_ERROR));
+
+        let outcome: unknown;
+        await act(async () => {
+            outcome = await result.current.upload(makeFile());
+        });
+
+        expect(outcome).toEqual({ status: 'failed', errorMessage: UPLOAD_ERROR });
+    });
+
+    it('⛔ resolves busy — never ok, never failed — when an upload is already in flight', async () => {
+        const presign = deferredMutateAsync<{ uploadUrl: string; key: string }>();
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign.mutateAsync });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+        fetchMock.mockResolvedValue({ ok: true, status: 200 });
+
+        const { result } = renderHook(() => useRecipePhotoUpload(RECIPE_ID, UPLOAD_ERROR));
+
+        let first: Promise<unknown> = Promise.resolve();
+        act(() => {
+            first = result.current.upload(makeFile());
+        });
+
+        let second: unknown;
+        await act(async () => {
+            second = await result.current.upload(makeFile());
+        });
+
+        expect(second).toEqual({ status: 'busy' });
+        expect(presign.mutateAsync).toHaveBeenCalledTimes(1);
+
+        presign.resolve({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        await act(async () => {
+            await first;
+        });
     });
 });

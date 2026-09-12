@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { useIngredientStatusMock } = vi.hoisted(() => ({ useIngredientStatusMock: vi.fn() }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useIngredientStatus: useIngredientStatusMock,
 }));
 

@@ -1,0 +1,20 @@
+# The Python DEV toolchain — the analogue of ESLint, Prettier and `tsc` for the two Python sources this
+# repository owns (`packages/services/ingredient-parser/src/handler.py` and
+# `packages/tools/cookbook-import/scripts/crfParse.py`).
+#
+# ⛔ Pinned EXACTLY, for the same reason `packages/services/ingredient-parser/requirements.txt` pins the
+# engine and `_ci-heavy.yml` pins the Maestro CLI: an unpinned linter changes its own verdict on someone
+# else's release schedule, so a new rule reds a branch that contains no change of ours. `ruff` in
+# particular is pre-1.0 and adds rules in patch releases.
+#
+# ⚠️ ONE file for the whole repository, not one per Python-holding workspace. Both workspaces are checked
+# by the SAME toolchain, and two pinned copies is precisely the drift DRY governs — the verdict must be one
+# toolchain's, not "whichever this package happened to install".
+#
+# Install with `python3 -m pip install --user --requirement requirements-dev.txt` (never bare `pip`, so it
+# lands in the interpreter the checks then run under), then `npm run lint:python --workspace=<pkg>`.
+#
+# ⛔ NOT installable from npm. Astral publishes no `ruff` package to the npm registry — the name `ruff`
+# there belongs to an unrelated project — so a devDependency would be a name-squat, not the tool.
+ruff==0.16.6
+mypy==2.3.1

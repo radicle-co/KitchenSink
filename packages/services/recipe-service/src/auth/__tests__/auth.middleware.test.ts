@@ -5,7 +5,7 @@ import type { NextFunction, Response } from 'express';
 import type { VerifiedClerkClaims } from '@kitchensink/clerk-verify';
 
 import { AuthMiddleware } from '../auth.middleware.js';
-import { ClerkAuthService } from '../clerk-auth.service.js';
+import { ClerkAuthService } from '../clerkAuth.service.js';
 import type { AuthenticatedRequest } from '../principal.js';
 
 /**
@@ -245,6 +245,40 @@ describe('AuthMiddleware', () => {
             expect(verifySpy).not.toHaveBeenCalled();
             expect(req.principal).toBeUndefined();
             expect(next).not.toHaveBeenCalled();
+        });
+
+        it.each(['staging', 'sandbox', 'preview', ''])(
+            '⛔ IGNORES the dev bypass on a DEPLOYED stage (NODE_ENV=%s) — only a local signal enables it',
+            async (nodeEnv) => {
+                // ⛔ The gate asked whether NODE_ENV was `production` and admitted EVERYTHING ELSE.
+                // `RecipeServiceStack` ships `NODE_ENV: stage === 'prod' ? 'production' : 'staging'`, so on
+                // sandbox and on every `pr-{N}` — all of them internet-facing behind the shared ALB — the only
+                // thing standing between the public internet and arbitrary-owner impersonation was the ABSENCE
+                // of an environment variable. One task definition, one `.env` leak, one copied compose file is
+                // the whole exploit, and it authenticates as any userId the caller names.
+                //
+                // Identity and food hardcode `NODE_ENV: 'production'` and never had this gap; recipe keys its
+                // config on the value, which is why it is the one service that does. The gate now requires a
+                // POSITIVE local signal, so a new deployed stage name cannot opt itself in by accident.
+                process.env['NODE_ENV'] = nodeEnv;
+                process.env['RECIPE_DEV_AUTH_USER_ID'] = '01HZZDEVBYPASSULID00000000';
+                const { req, res, next } = makeContext();
+
+                await expect(middleware.use(req, res, next)).rejects.toBeInstanceOf(UnauthorizedException);
+                expect(req.principal).toBeUndefined();
+                expect(next).not.toHaveBeenCalled();
+            },
+        );
+
+        it('still works under NODE_ENV=test, which the integration and e2e tiers rely on', async () => {
+            process.env['NODE_ENV'] = 'test';
+            process.env['RECIPE_DEV_AUTH_USER_ID'] = '01HZZDEVBYPASSULID00000000';
+            const { req, res, next } = makeContext();
+
+            await middleware.use(req, res, next);
+
+            expect(req.principal?.userId).toBe('01HZZDEVBYPASSULID00000000');
+            expect(next).toHaveBeenCalledOnce();
         });
     });
 });

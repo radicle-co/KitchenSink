@@ -17,7 +17,7 @@ import {
 
 import { toRecipeCardModel } from '../card/model.js';
 import type { CollectionMemberRecipe } from '../collections/model.js';
-import type { RecipeFormValues } from '../form/model.js';
+import { defaultRecipeFormValues, type RecipeFormValues } from '../form/values.js';
 import type { RecipePhotoQueueItem } from '../hooks/useRecipePhotoUploadQueue.js';
 import type { RecipeListItem } from '../list/model.js';
 
@@ -57,9 +57,9 @@ export function makeCollectionMemberRecipe(overrides: Partial<CollectionMemberRe
  */
 export function makeIngredientView(overrides: Partial<RecipeIngredientView> = {}): RecipeIngredientView {
     return {
-        ingredientId: 'ing_1',
+        ingredientId: '00000000-0000-4000-8000-000000000001',
         name: 'Olive oil',
-        quantity: 2,
+        quantity: { kind: 'exact', value: 2 },
         unit: 'tbsp',
         isUserEntered: false,
         ...overrides,
@@ -153,8 +153,40 @@ export function makeRecipeFormValues(overrides: Partial<RecipeFormValues> = {}):
         prepTimeMinutes: 10,
         cookTimeMinutes: 20,
         visibility: RecipeVisibility.PRIVATE,
-        ingredients: [{ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' }],
+        ingredients: [
+            { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Olive oil', quantity: 2, unit: 'tbsp' },
+        ],
         steps: [{ instruction: 'Combine the ingredients.' }],
+        // No pending photo picks by default (U33): the common draft is one that has nothing waiting to
+        // upload, and a test that wants the flush path must say so explicitly.
+        photos: [],
         ...overrides,
     };
 }
+
+/**
+ * A MINIMALLY VALID draft — `defaultRecipeFormValues()` plus exactly the fields `validateRecipeForm`
+ * requires, and nothing more.
+ *
+ * ⚠️ Distinct from {@link makeRecipeFormValues} on purpose, and NOT interchangeable with it: this one builds
+ * on the real defaults (so it inherits `visibility`) and states a different title, ingredient and step.
+ * Suites assert those literals, so collapsing the two would mean editing assertions to make a fixture fit —
+ * which is the one thing a refactor may not do. It was declared inside `form/__tests__/model.test.ts` until
+ * that suite was split into one file per module; five of the nine share it, so it lives here rather than in
+ * five copies.
+ *
+ * @param over - Fields to override on the minimally valid draft.
+ * @returns A complete `RecipeFormValues` that passes validation.
+ */
+export const makeFilledRecipeFormValues = (over: Partial<RecipeFormValues> = {}): RecipeFormValues => ({
+    ...defaultRecipeFormValues(),
+    title: 'Herb Risotto',
+    servings: 4,
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 25,
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Arborio rice', quantity: 300, unit: 'g' },
+    ],
+    steps: [{ instruction: 'Toast the rice.' }],
+    ...over,
+});

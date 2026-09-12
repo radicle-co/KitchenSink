@@ -32,11 +32,24 @@ vi.mock('react-native-safe-area-context', () => ({
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: () => ({ data: { account: { subscriptionTier: 'free' }, user: { displayName: 'Jane Doe' } } }),
+}));
+
+vi.mock('../../src/hooks/useDeleteAccount.js', () => ({
     useDeleteAccount: () => ({ mutate: () => undefined, isPending: false }),
 }));
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: () => undefined }) }));
 
 /** The recipe the Home widget lists and the detail then resolves — ONE id threaded through the whole chain. */
+
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
+}));
+
 const TAPPED = makeRecipe({ id: 'rec_home_tap', title: 'Weeknight Pasta' });
 /** A second recipe, so a chain that hardcoded "the first card" cannot pass. */
 const OTHER = makeRecipe({ id: 'rec_other', title: 'Herb Risotto' });

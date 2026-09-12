@@ -447,7 +447,7 @@ Additional cross-cutting frontend assertions:
 | ---------- | -------------------------------------------------- | --------------------------------------------------------------------- |
 | UTS-013-A1 | a provider responding 429 → a caption is requested | a throttled error is raised, distinct from a generic provider failure |
 
-#### Test Case: UTP-014-A (OCR port is substitutable)
+#### Test Case: UTP-014-A (OCR port is substitutable) — ⛔ **TRANSFERRED TO 011, 2026-08-16** with MOD-014..016 and the channel. Retained, not deleted; 011 inherits it. 011 additionally owes a unit test that an **absent** provider confidence **rejects** rather than defaulting to `0` — a sentinel confidence passes the quality gate silently.
 
 **Linked Module:** MOD-014 (('OcrProvider port', 'ARCH-014'))
 
@@ -463,7 +463,7 @@ Additional cross-cutting frontend assertions:
 | ---------- | -------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | UTS-015-A1 | a provider that exceeds its deadline → extraction is attempted | a provider-unavailable error is raised and no partial text is returned |
 
-#### Test Case: UTP-016-A (Source image is deleted on every terminal path)
+#### Test Case: UTP-016-A (Source image is deleted on every terminal path) — ⛔ **TRANSFERRED TO 011, 2026-08-16.** Retained, not deleted. ⚠️ In 011 this is **strengthened, not merely moved**: the 3-day reaper (011 §A-3) deletes every in-flight artifact at 72 h **whatever state its job is in**, so 011's version must add the case 004 had no reason to write — a job still `awaiting-correction` at the cutoff.
 
 **Linked Module:** MOD-016 (('OcrPipelineService', 'ARCH-016'))
 

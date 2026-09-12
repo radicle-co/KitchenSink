@@ -16,9 +16,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RecipeSourceTab } from '@commise/features-recipes/source-tabs/mobile';
+import { RecipeSourceTab } from '@commise/features-recipes/source-tab/mobile';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
 import { mobileMessages } from '../i18n/messages.js';
@@ -26,6 +25,8 @@ import { CollectionDetailScreen } from './CollectionDetailScreen.js';
 import { CollectionFormScreen } from './CollectionFormScreen.js';
 import { CollectionRecipePickerScreen } from './CollectionRecipePickerScreen.js';
 import { CollectionsScreen } from './CollectionsScreen.js';
+import { ParseIngredientsScreen } from './ParseIngredientsScreen.js';
+import { ParseJobReviewScreen } from './ParseJobReviewScreen.js';
 import { RecipeCreateScreen } from './RecipeCreateScreen.js';
 import { RecipeDetailScreen } from './RecipeDetailScreen.js';
 import { RecipeDiscoveryScreen } from './RecipeDiscoveryScreen.js';
@@ -43,6 +44,11 @@ type Surface =
     | { readonly id: 'collections' }
     | { readonly id: 'detail'; readonly recipeId: string }
     | { readonly id: 'create' }
+    // Plan U9's two parse surfaces. TWO members, not one carrying an optional id: pasting and reviewing are
+    // different screens with different props, and an optional `jobId` would make "review with no job"
+    // representable — a state the review screen cannot render and nothing would stop a caller pushing.
+    | { readonly id: 'parse' }
+    | { readonly id: 'parseReview'; readonly jobId: string }
     | { readonly id: 'edit'; readonly recipeId: string }
     | { readonly id: 'versions'; readonly recipeId: string }
     | { readonly id: 'collectionDetail'; readonly collectionId: string }
@@ -157,6 +163,12 @@ export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX
     // bar. Without the bottom inset, the foot of a scroll (e.g. the recipe detail's owner actions) renders
     // under the 3-button nav bar — the left-aligned "Delete recipe" action overlaps the nav bar's back
     // button, so a tap there fires BACK (popping the detail) instead of opening the confirm.
+    //
+    // ⚠️ `paddingBottom` is now load-bearing for a control in ANOTHER package. The recipe list's create dial
+    // (`@commise/features-recipes`'s `SpeedDial.native.tsx`) pins its FAB inside this padded box while
+    // opening its menu in a modal WINDOW, which spans the whole display and inherits none of this — so the
+    // menu re-adds `insets.bottom` itself to line up. Drop or change this padding when a real navigator
+    // lands and the FAB slides under the gesture bar while its menu stays put, opening a visible gap.
     const containerStyle = [styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }];
 
     if (isTab(current)) {
@@ -187,6 +199,7 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                 <RecipeListScreen
                     onSelectRecipe={(recipeId) => nav.push({ id: 'detail', recipeId })}
                     onCreateRecipe={() => nav.push({ id: 'create' })}
+                    onPasteIngredients={() => nav.push({ id: 'parse' })}
                 />
             );
         case 'discovery':
@@ -222,6 +235,28 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                 <RecipeCreateScreen
                     onCreated={(recipeId) => nav.reset([{ id: 'list' }, { id: 'detail', recipeId }])}
                     onCancel={nav.back}
+                />
+            );
+        case 'parse':
+            // ⛔ `reset`, not `push`: the paste form is spent once its job exists, and leaving it on the
+            // stack means a Back press lands on text that would create a SECOND job from the same paste.
+            // The web container replaces its route for exactly this reason.
+            return (
+                <ParseIngredientsScreen
+                    onCreated={(jobId) => nav.reset([{ id: 'list' }, { id: 'parseReview', jobId }])}
+                    onBack={nav.back}
+                />
+            );
+        case 'parseReview':
+            return (
+                <ParseJobReviewScreen
+                    jobId={surface.jobId}
+                    // ⛔ THE LIST STAYS BENEATH IT. `nav.reset([{ id: 'parse' }])` left a stack of ONE, and
+                    // the hardware-back handler above returns `false` at the root — so on Android a cook who
+                    // pressed "Start over" and then Back was dropped straight out of the app. Same rule the
+                    // seeded detail stack follows, and the same one `onCreated` one line up already applies.
+                    onStartOver={() => nav.reset([{ id: 'list' }, { id: 'parse' }])}
+                    onBack={nav.back}
                 />
             );
         case 'edit':
@@ -265,7 +300,9 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    container: { flex: 1, backgroundColor: 'transparent' },
     tabBar: {
         flexDirection: 'row',
         gap: nativeTokens.spacing[2],

@@ -19,9 +19,9 @@ For Clerk theming/branding decisions, see `docs/mockups/` and the design tokens 
 
 ## Index
 
-| File                                       | Description                                            | Key FRs                                |
-| ------------------------------------------ | ------------------------------------------------------ | -------------------------------------- |
-| [mobile-profile.md](./mobile-profile.md)   | Mobile profile/account screen (read + edit + delete)   | FR-013, FR-014, FR-018, FR-019, FR-020 |
+| File                                     | Description                                          | Key FRs                                |
+| ---------------------------------------- | ---------------------------------------------------- | -------------------------------------- |
+| [mobile-profile.md](./mobile-profile.md) | Mobile profile/account screen (read + edit + delete) | FR-013, FR-014, FR-018, FR-019, FR-020 |
 
 ---
 
@@ -29,11 +29,11 @@ For Clerk theming/branding decisions, see `docs/mockups/` and the design tokens 
 
 Pixel mockups and the extracted design system live under [`docs/mockups/`](../../../../docs/mockups/):
 
-| Surface             | Mockup                                                                         | Notes                                      |
-| ------------------- | ------------------------------------------------------------------------------ | ------------------------------------------ |
-| Profile / account   | [`screens/screen-profile.html`](../../../../docs/mockups/screens/screen-profile.html) | Reference for `T-053`, `T-063`             |
-| Post-auth shell     | [`screens/screen-auth.html`](../../../../docs/mockups/screens/screen-auth.html) | Authenticated landing / account context    |
-| Design tokens       | [`README.md`](../../../../docs/mockups/README.md)                              | Color / typography / spacing scale         |
+| Surface           | Mockup                                                                                | Notes                                   |
+| ----------------- | ------------------------------------------------------------------------------------- | --------------------------------------- |
+| Profile / account | [`screens/screen-profile.html`](../../../../docs/mockups/screens/screen-profile.html) | Reference for `T-053`, `T-063`          |
+| Post-auth shell   | [`screens/screen-auth.html`](../../../../docs/mockups/screens/screen-auth.html)       | Authenticated landing / account context |
+| Design tokens     | [`README.md`](../../../../docs/mockups/README.md)                                     | Color / typography / spacing scale      |
 
 ---
 

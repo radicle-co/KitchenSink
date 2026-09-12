@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test';
+import { v5 as uuidv5 } from 'uuid';
 import {
     FoodResolutionStatus,
+    ingredientQuantitySchema,
     usesPremiumCapability,
     type Ingredient,
     type PaginatedResponse,
@@ -20,6 +22,7 @@ import type {
     CollectionMemberRecipe,
     CollectionRecipeAddedVia,
     CollectionRecipeMembership,
+    ParseJobResponse,
     PullDiff,
     PullFromSourceResponse,
     RecipeSearchFacets,
@@ -27,6 +30,11 @@ import type {
     RestoreVersionResponse,
     UploadUrlResponse,
 } from '@kitchensink/recipe-service-client';
+import type {
+    CollectionResponse as SchemaCollectionResponse,
+    CollectionWithRecipesResponse as SchemaCollectionWithRecipesResponse,
+} from '@kitchensink/schema-recipe';
+import { makeUserProfileAccount, makeUserProfileUser } from '@commise/features-account/testing';
 
 /**
  * The mock "S3" origin the presign step hands back as `uploadUrl` (T067/CP-6/P3 photo-upload e2e). A
@@ -96,9 +104,20 @@ function toIngredientProjection(
         return {
             ingredientId,
             name: String(line['name']),
-            quantity: Number(line['quantity']),
+            // U8 — the request carries the `exact | range | absent` value object, and the real service
+            // projects it through unchanged. ⛔ NOT `Number(...)`: that produced `NaN` from the object and
+            // would make this double answer with a shape the read schema rejects, turning a contract change
+            // into a mysterious e2e failure instead of a type error. Parsed rather than cast, so a body this
+            // double could not really have received fails loudly here.
+            quantity: ingredientQuantitySchema.parse(line['quantity']),
             ...(line['unit'] === undefined ? {} : { unit: String(line['unit']) }),
             ...(line['notes'] === undefined ? {} : { notes: String(line['notes']) }),
+            // ⛔ U26/U27 — the DOUBLE has to project these back, or the round trip this suite exists to
+            // prove silently loses them: the editor would send a preparation, the double would drop it, and
+            // the "re-open the editor" assertion would fail with no hint that the mock — not the app — is
+            // what narrowed the recipe. Same class as the `quantity` note above.
+            ...(line['preparation'] === undefined ? {} : { preparation: String(line['preparation']) }),
+            ...(line['groupLabel'] === undefined ? {} : { groupLabel: String(line['groupLabel']) }),
             isUserEntered: resolveUserEntered(ingredientId),
         };
     });
@@ -204,7 +223,6 @@ function makeRecipe(over: Partial<Recipe> = {}): Recipe {
         hasSubstantiveEdit: false,
         dietaryFlags: [],
         tags: [],
-        hasPartialNutrition: false,
         currentVersion: 1,
         ratingCount: 0,
         createdAt: ISO,
@@ -225,7 +243,13 @@ export function makeRecipeDetail(over: Partial<RecipeDetail> = {}): RecipeDetail
     return {
         ...makeRecipe(over),
         ingredients: over.ingredients ?? [
-            { ingredientId: 'ing_salt', name: 'Salt', quantity: 1, unit: 'tsp', isUserEntered: false },
+            {
+                ingredientId: E2E_INGREDIENT_IDS.salt,
+                name: 'Salt',
+                quantity: { kind: 'exact', value: 1 } as const,
+                unit: 'tsp',
+                isUserEntered: false,
+            },
         ],
         steps: over.steps ?? [{ stepNumber: 1, instruction: 'Combine and cook.' }],
         photos: over.photos ?? [],
@@ -245,8 +269,8 @@ function makeVersionSnapshot(over: Partial<RecipeSnapshot> = {}): RecipeSnapshot
             {
                 id: 'ri_seed_1',
                 recipeId: 'rec_seed',
-                ingredientId: 'ing_salt',
-                quantity: 1,
+                ingredientId: E2E_INGREDIENT_IDS.salt,
+                quantity: { kind: 'exact', value: 1 },
                 unit: 'tsp',
                 sortOrder: 1,
                 ingredientName: 'Salt',
@@ -300,6 +324,9 @@ function detailToConflictSnapshot(detail: RecipeDetail, version: number): Recipe
             ingredientName: ingredient.name,
             isUserEntered: ingredient.isUserEntered,
             ...(ingredient.notes === undefined || ingredient.notes === '' ? {} : { displayText: ingredient.notes }),
+            // U26/U27 — carried onto the version-conflict side too, so a conflict can actually differ on them.
+            ...(ingredient.preparation === undefined ? {} : { preparation: ingredient.preparation }),
+            ...(ingredient.groupLabel === undefined ? {} : { groupLabel: ingredient.groupLabel }),
         })),
     };
 }
@@ -354,15 +381,19 @@ export function makeCollection(over: Partial<MockCollection> = {}): MockCollecti
     };
 }
 
-/** The `Collection` wire shape the service emits: the stored record minus its join, plus a derived count. */
-interface CollectionResponse extends Collection {
-    readonly recipeCount: number;
-}
-
-/** The `CollectionWithRecipes` wire shape: a collection plus its member recipes as METADATA + provenance. */
-interface CollectionWithRecipesResponse extends CollectionResponse {
-    readonly recipes: readonly CollectionMemberRecipe[];
-}
+// ⚠️ THE TWO COLLECTION WIRE SHAPES COME FROM THE CONTRACT (§15 rule 4 / ADR-0014), not from here.
+//
+// They were declared locally as `interface CollectionResponse extends Collection { recipeCount: number }` and
+// `interface CollectionWithRecipesResponse extends CollectionResponse { recipes: … }`. A mock that declares its
+// own version of the shape it is standing in for is the worst place for this duplication to live, because the
+// mock IS the oracle a Playwright spec is judged against: the local `recipeCount` was `readonly recipeCount:
+// number` — REQUIRED — while the published `collectionResponseSchema` marks it optional (absent on list reads),
+// so a spec asserting a count on a list row would have been green here and wrong against production.
+//
+// Aliased rather than re-exported under the contract's names because the rest of this module refers to them by
+// these names; each is one definition with one extra name, never a second definition.
+type CollectionResponse = SchemaCollectionResponse;
+type CollectionWithRecipesResponse = SchemaCollectionWithRecipesResponse;
 
 /**
  * Strip a stored {@link RecipeDetail} down to the `Recipe` METADATA the search + collection read paths
@@ -426,12 +457,10 @@ function toCollectionWithRecipes(
         recipes: record.recipeIds
             .map((id) => recipes.get(id))
             .filter((recipe): recipe is RecipeDetail => recipe !== undefined && recipe.deletedAt === undefined)
-            .map(
-                (recipe): CollectionMemberRecipe => ({
-                    ...toRecipeMetadata(recipe),
-                    addedVia: record.memberAddedVia?.[recipe.id] ?? 'manual',
-                }),
-            ),
+            .map((recipe): CollectionMemberRecipe => ({
+                ...toRecipeMetadata(recipe),
+                addedVia: record.memberAddedVia?.[recipe.id] ?? 'manual',
+            })),
     };
 }
 
@@ -494,16 +523,73 @@ function toFacetCounts(values: readonly string[]): RecipeFacetCount[] {
     return [...counts].map(([value, count]) => ({ value, count }));
 }
 
-/** Aggregate the dietary-flag + tag facet buckets over a match set, as the search DAL's facet CTE does. Pure. */
+/**
+ * The stable total-time bucket ids the search DAL aggregates into, in display order. Mutually exclusive, so
+ * the counts sum to the match-set size.
+ */
+const TOTAL_TIME_BUCKET_IDS = ['0-15', '16-30', '31-60', '61+'] as const;
+
+/**
+ * Classify a recipe's total time into its DAL bucket id.
+ *
+ * @param minutes - The recipe's total time in minutes.
+ * @returns The bucket id the DAL would place it in. Pure.
+ */
+function toTotalTimeBucket(minutes: number): (typeof TOTAL_TIME_BUCKET_IDS)[number] {
+    if (minutes <= 15) {
+        return '0-15';
+    }
+
+    if (minutes <= 30) {
+        return '16-30';
+    }
+
+    return minutes <= 60 ? '31-60' : '61+';
+}
+
+/**
+ * Aggregate ALL FOUR facet dimensions over a match set, as the search DAL's facet CTE does. Pure.
+ *
+ * All four are computed, not just the two this helper used to emit: the wire contract requires every dimension
+ * (an empty one is `[]`, never absent), and a fixture that omitted `cuisine`/`totalTime` was asserting against
+ * a response the service cannot actually produce -- which is the whole class of drift the generated contract
+ * exists to remove. `cuisine` excludes recipes with no cuisine, matching the DAL's NULL exclusion.
+ */
 function toSearchFacets(recipes: readonly Recipe[]): RecipeSearchFacets {
+    const bucketed = recipes.map((recipe) => toTotalTimeBucket(recipe.totalTimeMinutes));
+
     return {
         dietaryFlags: toFacetCounts(recipes.flatMap((recipe) => recipe.dietaryFlags)),
         tags: toFacetCounts(recipes.flatMap((recipe) => recipe.tags)),
+        cuisine: toFacetCounts(
+            recipes.map((recipe) => recipe.cuisine).filter((cuisine): cuisine is string => cuisine !== undefined),
+        ),
+        // Ordered by the stable bucket ladder rather than by first appearance, so the fixture's ordering is
+        // deterministic and matches what the DAL returns.
+        totalTime: TOTAL_TIME_BUCKET_IDS.filter((id) => bucketed.includes(id)).map((id) => ({
+            value: id,
+            count: bucketed.filter((entry) => entry === id).length,
+        })),
     };
 }
 
+/**
+ * Catalog ingredient ids, as UUIDs rather than readable `ing_*` slugs.
+ *
+ * `recipeIngredientIdSchema` is `z.uuid()`, and `RecipeServiceClient` now PARSES its outbound bodies — so a
+ * slug id makes every save throw `InvalidRequestError` client-side: no request reaches the wire, and the
+ * editor shows a bare "We couldn't save this recipe". A seed the real service could never have returned
+ * therefore fails the specs that edit it, not the ones that merely render it.
+ */
+export const E2E_INGREDIENT_IDS = {
+    salt: '11111111-1111-4111-8111-111111111111',
+    blackPepper: '22222222-2222-4222-8222-222222222222',
+    oliveOil: '33333333-3333-4333-8333-333333333333',
+    mango: '44444444-4444-4444-8444-444444444444',
+} as const;
+
 const catalogIngredient: Ingredient = {
-    id: 'ing_salt',
+    id: E2E_INGREDIENT_IDS.salt,
     name: 'Salt',
     foodId: 'food_salt',
     isUserEntered: false,
@@ -518,9 +604,31 @@ const catalogIngredient: Ingredient = {
 const catalogSuggestionFoodId = 'food_black_pepper';
 const catalogSuggestionName = 'Pepper, black, ground';
 
+/** Namespace for {@link correctionMappingIdFor}. Arbitrary, fixed, and local to this double. */
+const CORRECTION_MAPPING_NAMESPACE = '6b3f0d5e-6c1a-4f7a-9a5e-2c0f9d3b7a41';
+
+/**
+ * A deterministic mapping id derived from the corrected PHRASE (U14).
+ *
+ * ⛔ The derivation is the point. `POST /api/v1/ingredients/corrections` answers with a row id and nothing
+ * that echoes the request, so a spec asserting only "a 200 came back" would pass just as happily if the
+ * client had sent the CATALOG'S NAME instead of the typed query — the exact defect that would make every
+ * curated mapping unreachable by the resolution cascade. Encoding the phrase into the id makes the wrong
+ * phrase a visible, failing difference.
+ *
+ * ⚠️ IT MUST BE A UUID, and a readable slug is what this double shipped with until the spec was first
+ * EXECUTED on 2026-08-22. `ingredient_resolution_mappings.id` is `uuid PRIMARY KEY DEFAULT gen_random_uuid()`
+ * (migration 0021) and `recordCorrectionResponseSchema` publishes `mappingId: z.uuid()`, so the typed client
+ * PARSED the double's `mapping-for-cracked-pepper`, rejected it, and the wizard rendered the failure notice —
+ * a body the real service could never have produced, asserted against for two units. Deterministic-from-a-name
+ * and valid-UUID is exactly UUIDv5, so it is the library's job rather than a slug with dashes in it.
+ */
+export const correctionMappingIdFor = (phrase: string): string =>
+    uuidv5(phrase.trim().toLowerCase(), CORRECTION_MAPPING_NAMESPACE);
+
 /** The `ingredients` row `POST /api/v1/ingredients/by-food` creates for {@link catalogSuggestionFoodId}. */
 const admittedCatalogIngredient: Ingredient = {
-    id: 'ing_black_pepper',
+    id: E2E_INGREDIENT_IDS.blackPepper,
     name: catalogSuggestionName,
     foodId: catalogSuggestionFoodId,
     foodResolutionStatus: FoodResolutionStatus.RESOLVED,
@@ -628,8 +736,8 @@ export async function pollForExternalId(
 }
 
 /**
- * Seed for a one-shot ENRICHED `409 VERSION_CONFLICT` (W7 Task 7) — unlike {@link
- * MockRecipeApiOptions.concurrentEdits}'s bare `{ currentVersion, conflictingVersion }` body, this produces
+ * Seed for a one-shot ENRICHED `409 VERSION_CONFLICT` (W7 Task 7) — unlike
+ * {@link MockRecipeApiOptions.concurrentEdits}'s bare `{ currentVersion, conflictingVersion }` body, this produces
  * the full W8-a.5 wire shape (`details.server`/`details.base`, each a `VersionConflictSide`) the rebuilt
  * conflict resolver's banner + changed-only diff + A/B/C cards + per-element merge actually read, with
  * `server`'s content DIFFERING from `base`'s (via {@link serverChanges}) so a spec observes real changed-only
@@ -640,17 +748,35 @@ export interface EnrichedConflictSeed {
      *  `{ servings: 8 }`) — applied to the store immediately the 409 fires, mirroring how the real service
      *  already committed the other device's write by the time a client observes this conflict. */
     readonly serverChanges: Partial<RecipeDetail>;
-    /** The server side's `deviceLabel` (W8-a.6), when a spec needs to assert the banner's device suffix.
-     *  Omitted → the server side carries no device (the banner renders with no " on {device}" suffix). */
-    readonly deviceLabel?: string;
     /** How many versions the server side is ahead of the base (the X6 staleness signal) — defaults to `1`
      *  (a single intervening save). A spec exercising the >10-versions-behind stale-base warning overrides
      *  this directly rather than the mock replaying N literal intervening writes. */
     readonly versionsAhead?: number;
 }
 
+/**
+ * How the mocked parse job behaves over successive polls (plan U9).
+ *
+ * ⚠️ SCRIPTED, not instantaneous. A job that were `complete` on its first `GET` would let a spec pass
+ * against a surface that never renders the running state at all — and the running state is where the poll,
+ * the progress readout and the whole reason this resource is asynchronous actually live.
+ */
+export interface MockParseJobScript {
+    /** How many `GET`s answer `running` before the job settles. Defaults to `1`. */
+    readonly pollsBeforeSettled?: number;
+    /**
+     * What the job settles into. `partial` leaves one line `failed_retryable` (so the retry control is
+     * reachable), `expired` answers the TTL sweep's terminal state. Defaults to `complete`.
+     */
+    readonly settlesAs?: 'complete' | 'partial' | 'expired';
+    /** When the job's review deadline falls. Defaults to 24 hours ahead, as the service's TTL sets it. */
+    readonly expiresAt?: string;
+}
+
 /** Options for {@link mockRecipeApi}. */
 export interface MockRecipeApiOptions {
+    /** Scripted parse-job behaviour (plan U9). Defaults to "one running poll, then complete". */
+    readonly parseJob?: MockParseJobScript;
     /**
      * Recipes to seed the store with (defaults to one public "Seed Recipe" owned by the viewer).
      *
@@ -754,11 +880,73 @@ export async function mockRecipeApi(
     const pendingEnrichedConflicts = new Map<string, EnrichedConflictSeed>(
         Object.entries(options.enrichedConflicts ?? {}),
     );
+    // ── Parse jobs (plan U9) ───────────────────────────────────────────────────────────────────────
+    //
+    // A small scripted store: `POST` splits the pasted text into pending lines, each `GET` decrements a
+    // per-job poll budget, and the job settles once that budget runs out. Lines are mutated in place by a
+    // line edit, so a spec observes the SAME job carrying the corrected text rather than a fresh one.
+    const parseJobScript = options.parseJob ?? {};
+    const parseJobs = new Map<string, ParseJobResponse>();
+    const parseJobPollsLeft = new Map<string, number>();
+    /**
+     * Jobs whose SCRIPTED terminal state has already been served — after which they settle `complete`.
+     *
+     * ⛔ ONE-SHOT, and without this the `partial` script is unusable: a retry that re-settled `partial`
+     * would model a transient enqueue failure that recurs identically forever, so the spec asserting a
+     * retry RECOVERS the job could never pass. One-shot is also the truthful model — `retry` re-drives
+     * exactly the lines that did not go through, and the failure it re-drives them past was transient by
+     * definition (`unparseable` is the terminal one, and no retry touches it).
+     */
+    const parseJobScriptSpent = new Set<string>();
+    let nextParseJobId = 1;
+
+    /** Settle a job's lines into the scripted terminal shape (once) or into `complete` (thereafter). */
+    const settleParseJob = (job: ParseJobResponse): ParseJobResponse => {
+        const settlesAs = parseJobScriptSpent.has(job.id) ? 'complete' : (parseJobScript.settlesAs ?? 'complete');
+        parseJobScriptSpent.add(job.id);
+
+        if (settlesAs === 'expired') {
+            return { ...job, status: 'expired' };
+        }
+
+        return {
+            ...job,
+            status: settlesAs,
+            lines: job.lines.map((line, index) =>
+                // `partial` leaves the LAST line retryable so the retry control is reachable while the rest
+                // of the job still renders its proposals.
+                settlesAs === 'partial' && index === job.lines.length - 1
+                    ? { ...line, status: 'failed_retryable', proposal: null }
+                    : {
+                          ...line,
+                          status: 'parsed',
+                          proposal: {
+                              raw: line.sourceLine,
+                              quantity: { kind: 'exact', value: 2 },
+                              unit: 'cup',
+                              statedMeasure: '2 cups',
+                              foods: [
+                                  {
+                                      name: line.sourceLine.replace(/^[\d\s./]+(cups?|tsp|tbsp)?\s*/i, '') || 'flour',
+                                      prep: null,
+                                  },
+                              ],
+                              reviewReasons: [],
+                          },
+                      },
+            ),
+        };
+    };
+
     let nextId = 1;
     let nextCollectionId = 1;
     // Freeform (user-entered) ingredient create — REQ-032b requires every freeform line to come back
     // flagged `isUserEntered: true`, distinct from the fixed catalog-resolved `catalogIngredient` double.
     let nextFreeformIngredientId = 1;
+    /** U16: the authored foods this session created, by NAME (the per-author dedup key) and by food id. */
+    const authoredFoodsByName = new Map<string, string>();
+    const authoredIngredientsByFoodId = new Map<string, Ingredient>();
+    let nextAuthoredFoodId = 1;
     // The ingredient CATALOG this mock has handed out (id → `isUserEntered`), so a recipe write can resolve
     // each line's flag from the catalog exactly as the service does — the wire input never carries it. Seeded
     // with the food-backed typeahead double; every freeform `POST /api/v1/ingredients` registers its own row.
@@ -838,12 +1026,15 @@ export async function mockRecipeApi(
         const body = (): Record<string, unknown> =>
             request.postData() ? JSON.parse(request.postData() as string) : {};
 
-        // Identity profile → drives the premium visibility gate.
+        // Identity profile → drives the premium visibility gate. Built from the published contract's factories
+        // rather than a literal: `ProfileServiceClient.getMe` PARSES this against `userProfileSchema`, so a body
+        // short of its seven `user` / five `account` fields fails the query and silently re-gates the viewer to
+        // free — which is how a hand-written literal here left the private-visibility control disabled.
         if (path.endsWith('/api/v1/users/me')) {
             return route.fulfill({
                 json: {
-                    user: { id: viewerId, displayName: 'E2E', email: 'e2e@example.com', status: 'active' },
-                    account: { subscriptionTier: tier },
+                    user: makeUserProfileUser({ id: viewerId, displayName: 'E2E', email: 'e2e@example.com' }),
+                    account: makeUserProfileAccount({ userId: viewerId, subscriptionTier: tier }),
                 },
             });
         }
@@ -856,6 +1047,19 @@ export async function mockRecipeApi(
         //  - `/suggest` — the BLENDED envelope the ingredient PICKER reads: the caller's own rows plus
         //    food-catalog golden records that have no `ingredients` row yet, sectioned by provenance.
         // Matched BEFORE the bare `/api/v1/ingredients` create route so the longer paths win.
+        // U29's ON-DEMAND source search. ⛔ Matched BEFORE the bare `/search` route — `endsWith` would not
+        // confuse the two, but the ORDER states which is the more specific path, and it is also where a
+        // future `/search/*` sibling has to go.
+        //
+        // ⚠️ It answers a fixed hit that carries `foodId: catalogSuggestionFoodId`, so picking it goes
+        // through the SAME `by-food` admit a catalog suggestion uses — which is what lets the spec follow
+        // the line all the way to a published recipe rather than stopping at "a row rendered".
+        if (path.endsWith('/api/v1/ingredients/search/live')) {
+            return route.fulfill({
+                json: { hits: [{ name: catalogSuggestionName, foodId: catalogSuggestionFoodId }] },
+            });
+        }
+
         if (path.endsWith('/api/v1/ingredients/search')) {
             return route.fulfill({ json: [catalogIngredient] });
         }
@@ -877,11 +1081,41 @@ export async function mockRecipeApi(
             });
         }
 
+        // U14's correction write path (R19/R20). ⛔ The mock ECHOES the phrase back in `mappingId` so the spec
+        // can prove WHICH phrase the client sent — the single property that decides whether this feature
+        // teaches anything, since a mapping is only ever consulted under the key the cascade looks up.
+        // `scope` is derived from the phrase so one spec can drive both reaches without a second route.
+        if (path.endsWith('/api/v1/ingredients/corrections') && method === 'POST') {
+            const correction = body() as { phrase?: string; foodId?: string; surfacing?: string };
+
+            if (correction.phrase === undefined || correction.phrase.trim() === '') {
+                return route.fulfill({
+                    status: 400,
+                    json: { code: 'VALIDATION_FAILED', message: 'phrase must contain at least one visible character' },
+                });
+            }
+
+            return route.fulfill({
+                json: {
+                    recorded: true,
+                    mappingId: correctionMappingIdFor(correction.phrase),
+                    scope: 'author',
+                },
+            });
+        }
+
         // Search Stage 2's pick path: admit a catalog suggestion as a food-backed row that ALREADY carries
         // nutrition (the server does the golden-record read + backfill before responding — hence 200, not the
         // 202 `by-name` returns). An unknown food id is a 400, mirroring `UNKNOWN_INGREDIENT`.
         if (path.endsWith('/api/v1/ingredients/by-food') && method === 'POST') {
             const { foodId } = body() as { foodId?: string };
+
+            // U16: the duplicate-reuse affordance admits the caller's EXISTING authored food here.
+            const authored = foodId === undefined ? undefined : authoredIngredientsByFoodId.get(foodId);
+
+            if (authored !== undefined) {
+                return route.fulfill({ json: authored });
+            }
 
             if (foodId !== catalogSuggestionFoodId) {
                 return route.fulfill({
@@ -893,10 +1127,46 @@ export async function mockRecipeApi(
             return route.fulfill({ json: admittedCatalogIngredient });
         }
 
+        // U16: the picker's create-and-attach vertical. Creates the caller's own food AND admits it in one
+        // round-trip; a repeat of the same name answers the per-author duplicate arm carrying the earlier
+        // food id — which the reuse affordance then admits through `by-food` above.
+        if (path.endsWith('/api/v1/ingredients/authored-food') && method === 'POST') {
+            const request = body() as { name?: string };
+            const name = request.name ?? 'Authored food';
+
+            if (authoredFoodsByName.has(name)) {
+                return route.fulfill({
+                    json: { created: false, reason: 'duplicate', existingFoodId: authoredFoodsByName.get(name) },
+                });
+            }
+
+            const foodId = `authored-food-${String(nextAuthoredFoodId)}`;
+            const ingredient: Ingredient = {
+                id: `a0000000-0000-4000-8000-${String(nextAuthoredFoodId++).padStart(12, '0')}`,
+                name,
+                foodId,
+                foodResolutionStatus: 'RESOLVED',
+                isUserEntered: false,
+                caloriesPer100g: 100,
+                proteinGPer100g: 10,
+                carbsGPer100g: 20,
+                fatGPer100g: 5,
+                createdAt: ISO,
+            };
+
+            authoredFoodsByName.set(name, foodId);
+            authoredIngredientsByFoodId.set(foodId, ingredient);
+            ingredientCatalog.set(ingredient.id, false);
+
+            return route.fulfill({ json: { created: true, ingredient } });
+        }
+
         if (path.endsWith('/api/v1/ingredients') && method === 'POST') {
             const { name } = body() as { name?: string };
             const freeform: Ingredient = {
-                id: `ing_freeform_${nextFreeformIngredientId++}`,
+                // A UUID for the same reason as `E2E_INGREDIENT_IDS`: this id goes straight onto a recipe
+                // line, and the save that follows parses it against `z.uuid()` before sending.
+                id: `f0000000-0000-4000-8000-${String(nextFreeformIngredientId++).padStart(12, '0')}`,
                 name: name ?? 'Custom ingredient',
                 isUserEntered: true,
                 createdAt: ISO,
@@ -1034,6 +1304,8 @@ export async function mockRecipeApi(
                     quantity: ingredient.quantity,
                     ...(ingredient.unit !== undefined ? { unit: ingredient.unit } : {}),
                     ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
+                    ...(ingredient.preparation !== undefined ? { preparation: ingredient.preparation } : {}),
+                    ...(ingredient.groupLabel !== undefined ? { groupLabel: ingredient.groupLabel } : {}),
                     isUserEntered: ingredient.isUserEntered,
                 })),
                 steps: snapshot.steps.map((step) => ({
@@ -1091,6 +1363,12 @@ export async function mockRecipeApi(
 
         if (clone && method === 'POST') {
             const source = store.get(clone[1] as string);
+            // U13 (R20): mirror the service's clone-unbind — the source's private-food lines (the ones a
+            // stranger sees as RESOLVED_UNAVAILABLE) arrive on the clone as user-entered lines, and the
+            // response carries the banner's count. Only when it unbound something, like the real wire.
+            const unbound = (source?.ingredients ?? []).filter(
+                (ingredient) => ingredient.resolutionStatus === 'RESOLVED_UNAVAILABLE',
+            ).length;
             const created = makeRecipeDetail({
                 id: `rec_clone_${nextId++}`,
                 ownerId: viewerId,
@@ -1098,6 +1376,16 @@ export async function mockRecipeApi(
                 visibility: 'private',
                 clonedFromId: clone[1] as string,
                 sourceAttribution: source?.title,
+                ...(source === undefined
+                    ? {}
+                    : {
+                          ingredients: source.ingredients.map((ingredient) =>
+                              ingredient.resolutionStatus === 'RESOLVED_UNAVAILABLE'
+                                  ? { ...ingredient, resolutionStatus: undefined, isUserEntered: true }
+                                  : ingredient,
+                          ),
+                      }),
+                ...(unbound > 0 ? { cloneUnboundLineCount: unbound } : {}),
             });
             store.set(created.id, created);
 
@@ -1221,7 +1509,6 @@ export async function mockRecipeApi(
                         versionNumber: serverVersion,
                         updatedAt: new Date().toISOString(),
                         snapshot: detailToConflictSnapshot(serverDetail, serverVersion),
-                        ...(enrichedSeed.deviceLabel === undefined ? {} : { deviceLabel: enrichedSeed.deviceLabel }),
                     };
                     // The other device's write already landed — the store reflects it from here on, exactly
                     // as the real service already committed it by the time this 409 is observed.
@@ -1280,6 +1567,41 @@ export async function mockRecipeApi(
 
                 return route.fulfill({ status: 204, body: '' });
             }
+        }
+
+        // The DEFERRED calorie batch (`POST /api/v1/recipes/nutrition-batch`, ADR-0021). It answers from the
+        // SAME in-memory store the list/detail reads come from, and — deliberately — it OMITS any recipe the
+        // store does not hold, because omission is how the real contract expresses "not for you". A mock that
+        // answered for every id asked would make the omitted-recipe path (the one that renders blank) untestable
+        // from the outside, which is exactly the class of gap the store exists to prevent.
+        if (path.endsWith('/api/v1/recipes/nutrition-batch') && method === 'POST') {
+            const requested = body()['recipeIds'];
+            const ids = Array.isArray(requested) ? requested.filter((id): id is string => typeof id === 'string') : [];
+            const nutrition: Record<string, unknown> = {};
+
+            for (const id of ids) {
+                const recipe = store.get(id);
+
+                if (recipe === undefined) {
+                    continue;
+                }
+
+                const calories = recipe.nutrition?.calories;
+                nutrition[id] =
+                    calories === undefined
+                        ? { state: 'unaccounted', reason: 'no_nutrient_data' }
+                        : {
+                              state: 'known',
+                              caloriesPerServing: calories,
+                              proteinG: recipe.nutrition?.proteinG,
+                              carbsG: recipe.nutrition?.carbsG,
+                              fatG: recipe.nutrition?.fatG,
+                              isComplete: recipe.nutrition?.isComplete ?? true,
+                              freshness: 'fresh',
+                          };
+            }
+
+            return route.fulfill({ json: { nutrition } });
         }
 
         // Recipes: list + create.
@@ -1654,6 +1976,121 @@ export async function mockRecipeApi(
             };
 
             return route.fulfill({ json: response });
+        }
+
+        // ── Parse jobs (plan U9) ───────────────────────────────────────────────────────────────────
+        //
+        // Matched BEFORE the pass-through, and the ORDER within this block states the specificity: the two
+        // sub-resources (`/retry`, `/lines/{i}`) are tested ahead of the bare `/{id}` read.
+        if (path.includes('/api/v1/recipe-parse-jobs')) {
+            const retryMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/retry$/.exec(path);
+            const lineMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/lines\/(\d+)$/.exec(path);
+            const detailMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)$/.exec(path);
+
+            if (method === 'POST' && path.endsWith('/api/v1/recipe-parse-jobs')) {
+                const text = String((body() as { text?: unknown }).text ?? '');
+                const id = `00000000-0000-4000-8000-${String(nextParseJobId).padStart(12, '0')}`;
+                nextParseJobId += 1;
+                const job: ParseJobResponse = {
+                    id,
+                    status: 'running',
+                    createdAt: new Date().toISOString(),
+                    expiresAt: parseJobScript.expiresAt ?? new Date(Date.now() + 86_400_000).toISOString(),
+                    lines: text
+                        .split(/\r?\n/)
+                        .map((line) => line.trim())
+                        .filter((line) => line !== '')
+                        .map((sourceLine, lineIndex) => ({ lineIndex, sourceLine, status: 'pending', proposal: null })),
+                };
+                parseJobs.set(id, job);
+                parseJobPollsLeft.set(id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: job });
+            }
+
+            if (method === 'POST' && retryMatch) {
+                const job = parseJobs.get(retryMatch[1] as string);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                if (job.status === 'expired') {
+                    return route.fulfill({ status: 409, json: { code: 'PARSE_JOB_EXPIRED', message: 'expired' } });
+                }
+
+                // A retry re-opens the work: the retryable lines go back to pending and the job to running,
+                // exactly as `ParseJobsService.retry` does, and the poll budget restarts with it.
+                const reopened: ParseJobResponse = {
+                    ...job,
+                    status: 'running',
+                    lines: job.lines.map((line) =>
+                        line.status === 'failed_retryable' ? { ...line, status: 'pending' } : line,
+                    ),
+                };
+                parseJobs.set(job.id, reopened);
+                parseJobPollsLeft.set(job.id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: reopened });
+            }
+
+            if (method === 'PATCH' && lineMatch) {
+                const job = parseJobs.get(lineMatch[1] as string);
+                const lineIndex = Number(lineMatch[2]);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                if (job.status === 'expired') {
+                    return route.fulfill({ status: 409, json: { code: 'PARSE_JOB_EXPIRED', message: 'expired' } });
+                }
+
+                const sourceLine = String((body() as { sourceLine?: unknown }).sourceLine ?? '').trim();
+                const edited: ParseJobResponse = {
+                    ...job,
+                    status: 'running',
+                    lines: job.lines.map((line) =>
+                        line.lineIndex === lineIndex
+                            ? { ...line, sourceLine, status: 'pending', proposal: null }
+                            : line,
+                    ),
+                };
+                parseJobs.set(job.id, edited);
+                parseJobPollsLeft.set(job.id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: edited });
+            }
+
+            if (method === 'GET' && detailMatch) {
+                const job = parseJobs.get(detailMatch[1] as string);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                // ⛔ A job that has already settled is served AS IS. Without this, a second `GET` on a
+                // settled job would re-enter `settleParseJob` and — the script now being spent — resurrect
+                // an `expired` job as `complete`. Polling stops on a terminal state so this is rare, but a
+                // reload issues a fresh read, and a mock that quietly un-expires a job would make the one
+                // assertion the URL-addressed route exists for unfalsifiable.
+                if (job.status !== 'running') {
+                    return route.fulfill({ json: job });
+                }
+
+                const left = parseJobPollsLeft.get(job.id) ?? 0;
+
+                if (left > 0) {
+                    parseJobPollsLeft.set(job.id, left - 1);
+
+                    return route.fulfill({ json: job });
+                }
+
+                const settled = settleParseJob(job);
+                parseJobs.set(job.id, settled);
+
+                return route.fulfill({ json: settled });
+            }
         }
 
         // Pass everything else through untouched. Only the recipe/identity endpoints matched above are

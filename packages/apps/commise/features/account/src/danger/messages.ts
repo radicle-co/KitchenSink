@@ -86,8 +86,9 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
             trigger: 'Erase my data',
             title: 'Erase my data',
             warning:
-                'This permanently erases your account and personal data, including your private recipes, ' +
-                'ratings, and collections. It cannot be undone.',
+                'This permanently deletes your account and erases your personal data everywhere we hold it — ' +
+                'your sign-in, your profile and photo, and your private recipes, ratings and collections. ' +
+                'You will be signed out and will not be able to sign in again. It cannot be undone.',
             distinction:
                 'This is not the same as closing your account: closing is recoverable, but erasing destroys ' +
                 'your data for good and cannot be reversed.',

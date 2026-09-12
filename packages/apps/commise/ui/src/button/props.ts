@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/button — shared, platform-neutral prop + variant contract for the design-system
- * {@link Button}. The web (`Button.tsx`) and native (`Button.native.tsx`) leaves both implement this exact
+ * `Button`. The web (`Button.tsx`) and native (`Button.native.tsx`) leaves both implement this exact
  * surface; the bundler resolves the right leaf per platform at import time (`@commise/ui/button`).
  *
  * The Button is the app-wide standard for a labelled action control, and it encodes two invariants at the

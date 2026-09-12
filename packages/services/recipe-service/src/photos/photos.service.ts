@@ -44,8 +44,8 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
-import { resolvePhotoView } from './photo-view.js';
-import { generateThumbnail, THUMBNAIL_CONTENT_TYPE } from './photo-thumbnail.js';
+import { resolvePhotoView } from './photoView.js';
+import { generateThumbnail, THUMBNAIL_CONTENT_TYPE } from './photoThumbnail.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner } from '../recipes/recipe.error.js';
 import type { RecipePhotoRow } from '../database/schema/index.js';
@@ -219,7 +219,8 @@ export class PhotosService {
      * recipe and `NOT_OWNER` (403) for another owner's private recipe. Mirrors the versions vertical.
      */
     private async assertCanRead(ownerId: string, recipeId: string): Promise<void> {
-        await this.recipes.getById(ownerId, recipeId);
+        // No caller: an authorization read whose detail body is discarded.
+        await this.recipes.getById(ownerId, recipeId, undefined);
     }
 
     /**
@@ -228,7 +229,8 @@ export class PhotosService {
      * or delete photos.
      */
     private async assertOwner(ownerId: string, recipeId: string): Promise<void> {
-        const recipe = await this.recipes.getById(ownerId, recipeId);
+        // No caller: only `ownerId` is read from this body.
+        const recipe = await this.recipes.getById(ownerId, recipeId, undefined);
 
         if (recipe.ownerId !== ownerId) {
             throw notOwner(recipeId);

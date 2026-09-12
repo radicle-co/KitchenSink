@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    AccountSuspendedError,
-    deriveAuthState,
-    IMPERSONATION_BLOCK,
-    ImpersonationBlockedError,
-    isAccountSuspendedError,
-    isImpersonationBlockedError,
-    SUSPENDED_BLOCK,
-} from '../authState.js';
+import { IMPERSONATION_BLOCK, SUSPENDED_BLOCK, deriveAuthState } from '../authState.js';
 
 const base = {
     isLoaded: true,
@@ -66,22 +58,5 @@ describe('deriveAuthState', () => {
             status: 'authenticated',
             userId: 'user_abc',
         });
-    });
-});
-
-describe('account-state errors', () => {
-    it('AccountSuspendedError is identifiable across the prototype chain', () => {
-        const error = new AccountSuspendedError();
-        expect(isAccountSuspendedError(error)).toBe(true);
-        expect(isImpersonationBlockedError(error)).toBe(false);
-        expect(error).toBeInstanceOf(Error);
-        expect(error.code).toBe('account_suspended');
-    });
-
-    it('ImpersonationBlockedError is identifiable across the prototype chain', () => {
-        const error = new ImpersonationBlockedError();
-        expect(isImpersonationBlockedError(error)).toBe(true);
-        expect(isAccountSuspendedError(error)).toBe(false);
-        expect(error.code).toBe('impersonation_blocked');
     });
 });

@@ -86,3 +86,18 @@ export const listUsers = async () => {
 
     return all;
 };
+
+/**
+ * True when a Clerk mutation failed only because the user is already gone (HTTP 404).
+ *
+ * Deleting an already-deleted account is CONVERGENCE, not failure, and both erasure paths depend on that
+ * reading: the tombstone-sweep deletes before enqueuing, the deletion-worker deletes again when it
+ * processes the message, and a crash between the two must be able to retry. This lived module-privately in
+ * `tombstoneSweep.ts` until the worker needed the same judgement — and "is this failure actually fine?" is
+ * exactly the predicate two callers must never answer differently.
+ *
+ * @param err - The thrown Clerk error.
+ * @returns True iff the failure was a 404.
+ */
+export const isAlreadyDeleted = (err: unknown): boolean =>
+    typeof err === 'object' && err !== null && (err as { status?: number }).status === 404;

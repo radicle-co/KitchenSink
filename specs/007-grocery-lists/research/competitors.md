@@ -76,14 +76,14 @@ None of the benchmarked tools natively combine all four target capabilities as o
 ## Feature Parity Matrix (vs Feature 007 Scope)
 
 | Capability                                | FR Mapping                 | AnyList | Out of Milk | Bring | Apple Reminders | Commise 007 Target |
-| ----------------------------------------- | -------------------------- | ------- | ----------- | ----- | --------------- | -------------------- |
-| Meal-plan auto generation                 | FR-028                     | ◑       | ○           | ○     | ○               | ●                    |
-| Cross-recipe dedupe + quantity sum        | FR-028                     | ◑       | ◑           | ◑     | ○               | ●                    |
-| Pantry exclusion in active list           | FR-029                     | ◑       | ●           | ◑     | ○               | ●                    |
-| Store integration setup                   | FR-030                     | ◑       | ○           | ○     | ○               | ●                    |
-| Product mapping + order handoff (premium) | FR-031                     | ○       | ○           | ○     | ○               | ●                    |
-| Fast household collaboration              | (warning: not explicit FR) | ●       | ◑           | ●     | ●               | ◑                    |
-| Aisle/store grouping clarity              | FR-028/FR-029 UX           | ●       | ◑           | ◑     | ◑               | ●                    |
+| ----------------------------------------- | -------------------------- | ------- | ----------- | ----- | --------------- | ------------------ |
+| Meal-plan auto generation                 | FR-028                     | ◑       | ○           | ○     | ○               | ●                  |
+| Cross-recipe dedupe + quantity sum        | FR-028                     | ◑       | ◑           | ◑     | ○               | ●                  |
+| Pantry exclusion in active list           | FR-029                     | ◑       | ●           | ◑     | ○               | ●                  |
+| Store integration setup                   | FR-030                     | ◑       | ○           | ○     | ○               | ●                  |
+| Product mapping + order handoff (premium) | FR-031                     | ○       | ○           | ○     | ○               | ●                  |
+| Fast household collaboration              | (warning: not explicit FR) | ●       | ◑           | ●     | ●               | ◑                  |
+| Aisle/store grouping clarity              | FR-028/FR-029 UX           | ●       | ◑           | ◑     | ◑               | ●                  |
 
 Legend: ● strong, ◑ partial, ○ weak/none.
 

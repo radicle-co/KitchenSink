@@ -2,7 +2,7 @@
  * T102 — recipe search integration test (tsvector FTS + facet aggregation + pagination).
  *
  * Exercises {@link SearchDal.search} against REAL Docker Postgres (migrated + seeded by
- * `tests/global-setup.ts`, which creates the `recipes` GIN indexes and the `search_vector` maintenance
+ * `tests/globalSetup.ts`, which creates the `recipes` GIN indexes and the `search_vector` maintenance
  * trigger). It proves the behaviors the discovery surface depends on and which a mocked `db.execute`
  * cannot: the trigger-maintained weighted `search_vector` actually ranks matches, visibility scoping
  * (public + owner-owned, tombstones excluded) really filters, facet counts aggregate over the matched
@@ -16,13 +16,16 @@ import pg from 'pg';
 
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
+// Aliased: this file already has a local `seed()` that inserts ONE corpus row.
+import { seed as reseedDeterministicWorld } from '../../../src/database/seed.js';
 import { SearchDal, type RecipeSearchFilters } from '../../../src/search/dal/search.dal.js';
+import { hasTestDatabase, recipeDb } from '../../../tests/support/roleDb.js';
 
 /** The harness Postgres connection string. Unset → the suite skips entirely. */
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const roleDb = recipeDb();
 
 /** Whether a test database is configured. */
-const hasDatabaseUrl = Boolean(DATABASE_URL);
+const hasDatabaseUrl = hasTestDatabase;
 
 const OWNER = '01JSEARCH0OWNER0000000000A';
 const OTHER = '01JSEARCH0OTHER0000000000B';
@@ -88,12 +91,20 @@ describe.skipIf(!hasDatabaseUrl)('SearchDal search (integration: FTS + facets + 
     }
 
     beforeAll(() => {
-        pool = new pg.Pool({ connectionString: DATABASE_URL });
+        pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = createRecipeDrizzle(pool);
         dal = new SearchDal(db);
     });
 
     afterAll(async () => {
+        // The `beforeEach` below deletes EVERY recipe — including the seeded ones, whose ingredient
+        // lines, steps and collection memberships cascade away with them. That was survivable while the
+        // seed inserted bare `recipes` rows nothing asserted on; it is a landmine now that the seeded
+        // world has composition, because with `fileParallelism: false` whatever file runs next inherits
+        // whatever this file left behind. Restoring through the seed module itself (idempotent, stable
+        // ids) hands the next spec the same world the global setup did.
+        await reseedDeterministicWorld(pool);
+
         await pool.end();
     });
 
@@ -298,6 +309,7 @@ describe.skipIf(!hasDatabaseUrl)('SearchDal search (integration: FTS + facets + 
                 [OWNER, title, 'public', [tag], title.toLowerCase(), createdAt],
             );
         };
+
         await insertAt('Oldest', 'drop', '2026-01-01T00:00:00.000Z');
         await insertAt('Middle', 'keep', '2026-02-01T00:00:00.000Z');
         await insertAt('Newest', 'keep', '2026-03-01T00:00:00.000Z');

@@ -1,202 +1,193 @@
 # Release Audit Report
 
-> **AUDIT INTEGRITY NOTICE (2026-05-10):** This report was generated from the current V-Model artifacts without fabricated test results. All mapped scenarios remain `⬜ Untested` until real CI/manual execution results are ingested. The report MUST remain BLOCKED while any mapping is missing or any required scenario lacks an executed result or approved waiver.
+> **AUDIT INTEGRITY NOTICE (regenerated 2026-08-02):** This report is generated from the current V-Model artifacts with
+> **no fabricated test results**. Every mapped scenario remains `⬜ Untested` until real CI or manual execution results
+> are ingested. The report MUST remain **BLOCKED** while any mapping is missing, any required scenario lacks an executed
+> result, or any open MAJOR peer-review finding lacks a resolution or approved waiver.
+>
+> This report does **not** inline the traceability matrices. The May version pasted the whole of
+> `traceability-matrix.md` into §3, which meant the audit could disagree with its own source the moment either changed.
+> It links instead.
 
 ## 1. Executive Summary
 
 **System**: 006-meal-planning
-**Version**: (not specified)
-**Git Tag**: (not specified)
-**Date**: 2026-05-10
+**Version**: not yet versioned (pre-implementation)
+**Git Tag**: none
+**Date**: 2026-08-02
 **Regulatory Context**: Non-regulated consumer SaaS (Commise)
 
-48 requirement/acceptance rows traced across 5 traceability matrices.
-121 mapped scenario references: 0 passed, 0 failed, 0 skipped, 121 untested.
-28 hazards identified in Matrix H.
-41 missing traceability mapping cell(s) detected.
+| Measure                                | Value                                                      |
+| -------------------------------------- | ---------------------------------------------------------- |
+| Requirements traced                    | 42 (37 Phase-1, 5 Phase-2 deferred)                        |
+| Mapped scenario references             | 357 — **0 passed, 0 failed, 0 skipped, 357 untested**      |
+| Hazards in Matrix H                    | 43 allocated · 26 active · **26 with ≥ 1 mitigating test** |
+| **Missing traceability mapping cells** | **0** (was **41**)                                         |
+| Open peer-review findings              | **0** — all 13 findings closed 2026-08-02                  |
+| Waivers                                | none recorded; none required for parity                    |
+| Implementation status                  | **not started** — no code exists for this feature          |
 
-**Compliance Status**: ❌ BLOCKED — 41 missing traceability mapping cell(s); 121 mapped scenario references have no ingested execution results
+**Compliance Status**: ❌ **BLOCKED**
+
+**Blocking reason** — one, and it is the expected one:
+
+1. **No implementation exists.** All 357 scenario references are untested because no code has been written. This is the
+   expected state for a pre-implementation audit and is not a defect. The prerequisite batch nutrition projection
+   (REQ-IF-008, T001–T003) is likewise unbuilt; it is an internally-owned task, not an external dependency.
+
+**What is no longer blocking**: the May audit's 41 missing traceability cells and its 13 requirements without
+acceptance coverage are resolved, and the three MAJOR peer-review findings were closed by owner ruling on 2026-08-02.
+Nothing gates the **start** of implementation — only its completion.
 
 ## 2. Artifact Inventory
 
-| Artifact            | File                   | Status  |
-| ------------------- | ---------------------- | ------- |
-| Requirements        | requirements.md        | Present |
-| Acceptance Plan     | acceptance-plan.md     | Present |
-| System Design       | system-design.md       | Present |
-| System Test         | system-test.md         | Present |
-| Architecture Design | architecture-design.md | Present |
-| Integration Test    | integration-test.md    | Present |
-| Module Design       | module-design.md       | Present |
-| Unit Test           | unit-test.md           | Present |
-| Hazard Analysis     | hazard-analysis.md     | Present |
-| Traceability Matrix | traceability-matrix.md | Present |
-| Waivers             | waivers.md             | Missing |
+| Artifact              | File                     | Status  | Regenerated       |
+| --------------------- | ------------------------ | ------- | ----------------- |
+| Requirements          | `requirements.md`        | Present | 2026-08-02        |
+| System Design         | `system-design.md`       | Present | 2026-08-02        |
+| Architecture Design   | `architecture-design.md` | Present | 2026-08-02        |
+| Module Design         | `module-design.md`       | Present | 2026-08-02        |
+| Hazard Analysis       | `hazard-analysis.md`     | Present | 2026-08-02        |
+| Unit Test Plan        | `unit-test.md`           | Present | 2026-08-02        |
+| Integration Test Plan | `integration-test.md`    | Present | 2026-08-02        |
+| System Test Plan      | `system-test.md`         | Present | 2026-08-02        |
+| Acceptance Plan       | `acceptance-plan.md`     | Present | 2026-08-02        |
+| Traceability Matrix   | `traceability-matrix.md` | Present | 2026-08-02        |
+| Traceability Baseline | `trace.md`               | Present | 2026-08-02        |
+| Peer Reviews          | `peer-review*.md` (10)   | Present | 2026-08-02        |
+| Waivers               | `waivers.md`             | Absent  | — (none required) |
 
-## 3. Traceability Matrices
+`waivers.md` is absent because **no waiver is claimed**. In particular, no cross-platform parity waiver is taken
+(`CODING_STANDARDS §14.1` would require one to be recorded in `plan.md`'s Complexity Tracking table; that table records
+three justified deviations, none of them a parity waiver).
 
-# Traceability Matrix
+## 3. Traceability
 
-**Generated**: 2026-05-10
-**Source**: `specs/006-meal-planning/v-model/`
-**Execution Status**: Pre-implementation — mapped scenarios remain `⬜ Untested` until real test result ingestion.
+Matrices A–H live in [`traceability-matrix.md`](./traceability-matrix.md); the bidirectional roll-up and gap register
+live in [`trace.md`](./trace.md). Audit summary:
 
-## Matrix A — Validation (User View)
+| Direction                           | Coverage        | Missing cells |
+| ----------------------------------- | --------------- | ------------- |
+| REQ → Acceptance (Matrix A)         | 46 / 46 Phase-1 | **0**         |
+| REQ → SYS → STP (Matrix B)          | 46 / 46         | **0**         |
+| SYS → ARCH → ITP (Matrix C)         | 9 / 9           | **0**         |
+| ARCH → MOD → UTP (Matrix D)         | 25 / 25         | **0**         |
+| Tests → REQ, backward (Matrix E)    | 357 / 357       | **0 orphans** |
+| Clarification → artifact (Matrix F) | 11 / 11         | **0**         |
+| SC → verification (Matrix G)        | 5 / 5           | **0**         |
+| HAZ → test (Matrix H)               | 26 / 26 active  | **0**         |
 
-| Requirement ID | Requirement Description                                                                                                                                                                                                                                                    | Test Case ID (AT/AC)                                       | Validation Condition               | Scenario ID                                                                                                                                                                                                                                                            | Status      |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| **REQ-001**    | The system SHALL allow authenticated users to create a meal plan for a configurable date range (e.g., 1 week, 2 weeks, 30+ days).                                                                                                                                          | AT-006-A                                                   | Acceptance coverage for REQ-001    | ATS-006-A1, ATS-006-A2, ATS-006-A3, ATS-006-A4, ATS-006-A5, ATS-006-A6                                                                                                                                                                                                 | ⬜ Untested |
-| **REQ-002**    | The system SHALL allow users to define customizable meal slots per day (breakfast, lunch, dinner, snacks) within a meal plan.                                                                                                                                              | AT-006-B                                                   | Acceptance coverage for REQ-002    | ATS-006-B1, ATS-006-B2, ATS-006-B3, ATS-006-B4                                                                                                                                                                                                                         | ⬜ Untested |
-| **REQ-003**    | The system SHALL allow users to manually assign recipes from their personal recipe collection to any meal slot on any day within a meal plan.                                                                                                                              | AT-006-B                                                   | Acceptance coverage for REQ-003    | ATS-006-B1, ATS-006-B2, ATS-006-B3, ATS-006-B4                                                                                                                                                                                                                         | ⬜ Untested |
-| **REQ-004**    | The system SHALL display daily nutritional summaries for each day in a meal plan, calculated from the ingredient data of assigned recipes.                                                                                                                                 | AT-006-C                                                   | Acceptance coverage for REQ-004    | ATS-006-C1, ATS-006-C2, ATS-006-C3, ATS-006-C4                                                                                                                                                                                                                         | ⬜ Untested |
-| **REQ-005**    | The system SHALL display weekly nutritional summaries aggregated across all days in a meal plan.                                                                                                                                                                           | AT-006-C                                                   | Acceptance coverage for REQ-005    | ATS-006-C1, ATS-006-C2, ATS-006-C3, ATS-006-C4                                                                                                                                                                                                                         | ⬜ Untested |
-| **REQ-006**    | The system SHALL provide AI-powered meal suggestions for premium users, recommending recipes that fit the user's dietary preferences, available recipe collection.                                                                                                         | AT-006-A, AT-006-B, AT-006-C, AT-006-D, AT-006-E, AT-006-F | Acceptance coverage for REQ-006    | ATS-006-A1, ATS-006-A2, ATS-006-A3, ATS-006-A4, ATS-006-A5, ATS-006-A6, ATS-006-B1, ATS-006-B2, ATS-006-B3, ATS-006-B4, ATS-006-C1, ATS-006-C2, ATS-006-C3, ATS-006-C4, ATS-006-D1, ATS-006-D2, ATS-006-D3, ATS-006-D4, ATS-006-E1, ATS-006-E2, ATS-006-F1, ATS-006-F2 | ⬜ Untested |
-| **REQ-007**    | The system SHALL provide auto-generation of a complete meal plan for premium users based on user-defined preferences, constraints, producing a reviewable, modifiable plan.                                                                                                | AT-006-E                                                   | Acceptance coverage for REQ-007    | ATS-006-E1, ATS-006-E2                                                                                                                                                                                                                                                 | ⬜ Untested |
-| **REQ-008**    | The system SHALL provide food waste optimization for premium users, suggesting recipe arrangements / swaps that maximize shared ingredient usage across meals within a plan.                                                                                               | AT-006-F                                                   | Acceptance coverage for REQ-008    | ATS-006-F1, ATS-006-F2                                                                                                                                                                                                                                                 | ⬜ Untested |
-| **REQ-009**    | The system SHALL allow a user to view a completed meal plan with all assigned recipes, meal slots,, nutritional summaries displayed.                                                                                                                                       | ❌ MISSING                                                 | Acceptance coverage for REQ-009    | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-010**    | The system SHALL support meal plans spanning at least 30 days without degradation of functionality / performance.                                                                                                                                                          | AT-006-A                                                   | Acceptance coverage for REQ-010    | ATS-006-A1, ATS-006-A2, ATS-006-A3, ATS-006-A4, ATS-006-A5, ATS-006-A6                                                                                                                                                                                                 | ⬜ Untested |
-| **REQ-011**    | The system SHALL enable a user to complete a full meal-plan-to-grocery-list workflow for a 7-day plan in under 10 minutes.                                                                                                                                                 | ❌ MISSING                                                 | Acceptance coverage for REQ-011    | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-NF-001** | All TypeScript code implementing this feature MUST compile with strict: true; the any type MUST NOT be used outside explicitly marked test doubles.                                                                                                                        | ❌ MISSING                                                 | Acceptance coverage for REQ-NF-001 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-NF-002** | All exported functions, interfaces introduced by this feature MUST carry JSDoc documentation.                                                                                                                                                                              | ❌ MISSING                                                 | Acceptance coverage for REQ-NF-002 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-NF-003** | All UI components introduced by this feature MUST expose an accessible name queryable via getByRole / getByLabel in Playwright tests.                                                                                                                                      | ❌ MISSING                                                 | Acceptance coverage for REQ-NF-003 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-NF-004** | Color MUST NOT be the sole conveyor of state in any UI component of this feature; every state change MUST be accompanied by an icon / text label.                                                                                                                          | ❌ MISSING                                                 | Acceptance coverage for REQ-NF-004 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-IF-001** | The system SHALL integrate with the Recipe entity API from feature 001-commise-recipe-app to retrieve recipes for assignment to meal slots.                                                                                                                                | ❌ MISSING                                                 | Acceptance coverage for REQ-IF-001 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-IF-002** | The system SHALL integrate with the USDA food data service from feature 003-usda-food-data to compute nutritional summaries for meal plans.                                                                                                                                | ❌ MISSING                                                 | Acceptance coverage for REQ-IF-002 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-IF-003** | The system SHALL enforce authentication via the Clerk integration from feature 002-user-auth for all meal planning operations.                                                                                                                                             | ❌ MISSING                                                 | Acceptance coverage for REQ-IF-003 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-IF-004** | The system SHALL integrate with the AI provider configuration from feature 005-ai-integration to deliver AI meal suggestions, auto-generation for premium users.                                                                                                           | ❌ MISSING                                                 | Acceptance coverage for REQ-IF-004 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-IF-005** | The system SHALL expose meal plan data in a format consumable by feature 007-grocery-lists for grocery list generation.                                                                                                                                                    | ❌ MISSING                                                 | Acceptance coverage for REQ-IF-005 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-IF-006** | The system SHALL expose meal plan data in a format linkable by feature 009-nutrition-planning for nutrition plan compliance tracking.                                                                                                                                      | ❌ MISSING                                                 | Acceptance coverage for REQ-IF-006 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
-| **REQ-IF-007** | The system SHALL provide equivalent web and mobile user-facing workflows for Meal Planning, including the same core capabilities, entitlement behavior, error states, accessibility semantics, and recovery paths unless an explicit V-Model parity exception is recorded. | AT-PARITY                                                  | Acceptance coverage for REQ-IF-007 | ATS-PARITY-1, ATS-PARITY-2                                                                                                                                                                                                                                             | ⬜ Untested |
-| **REQ-CN-001** | AI meal suggestions, auto-generation,, food waste optimization MUST be restricted to premium subscribers only, as defined by feature 010-subscriptions.                                                                                                                    | AT-006-A                                                   | Acceptance coverage for REQ-CN-001 | ATS-006-A1, ATS-006-A2, ATS-006-A3, ATS-006-A4, ATS-006-A5, ATS-006-A6                                                                                                                                                                                                 | ⬜ Untested |
-| **REQ-CN-002** | The Meal Plan entity MUST be scoped to the authenticated user; users MUST NOT be able to access / modify another user's meal plans.                                                                                                                                        | ❌ MISSING                                                 | Acceptance coverage for REQ-CN-002 | —                                                                                                                                                                                                                                                                      | ⬜ Untested |
+**Deferred, not missing**: 5 Phase-2 requirements (REQ-006, REQ-007, REQ-008, REQ-IF-004, REQ-CN-001) have no
+verification because features 005 and 010 do not exist. Recorded as `⏸️ Deferred` with named blockers, and excluded from
+the coverage denominators rather than counted as passes.
 
-## Matrix B — System Verification
+## 4. Hazard Disposition
 
-| Requirement ID | System Component(s) | System Test Case ID (STP)                                                   | Scenario ID (STS)                                                                                                                  | Status      |
-| -------------- | ------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| **REQ-001**    | SYS-001             | STP-001-A, STP-001-B, STP-001-C, STP-001-D                                  | STS-001-A1, STS-001-A2, STS-001-B1, STS-001-B2, STS-001-C1, STS-001-C2, STS-001-D1                                                 | ⬜ Untested |
-| **REQ-002**    | SYS-001             | STP-001-A, STP-001-B, STP-001-C, STP-001-D                                  | STS-001-A1, STS-001-A2, STS-001-B1, STS-001-B2, STS-001-C1, STS-001-C2, STS-001-D1                                                 | ⬜ Untested |
-| **REQ-003**    | SYS-002             | STP-002-A, STP-002-B, STP-002-C                                             | STS-002-A1, STS-002-A2, STS-002-B1, STS-002-C1                                                                                     | ⬜ Untested |
-| **REQ-004**    | SYS-003             | STP-003-A, STP-003-B, STP-003-C                                             | STS-003-A1, STS-003-A2, STS-003-B1, STS-003-B2, STS-003-C1                                                                         | ⬜ Untested |
-| **REQ-005**    | SYS-003             | STP-003-A, STP-003-B, STP-003-C                                             | STS-003-A1, STS-003-A2, STS-003-B1, STS-003-B2, STS-003-C1                                                                         | ⬜ Untested |
-| **REQ-006**    | SYS-004             | STP-004-A, STP-004-B                                                        | STS-004-A1, STS-004-A2, STS-004-B1                                                                                                 | ⬜ Untested |
-| **REQ-007**    | SYS-005             | STP-005-A, STP-005-B                                                        | STS-005-A1, STS-005-A2, STS-005-B1                                                                                                 | ⬜ Untested |
-| **REQ-008**    | SYS-006             | STP-006-A, STP-006-B, STP-006-C                                             | STS-006-A1, STS-006-A2, STS-006-B1, STS-006-C1                                                                                     | ⬜ Untested |
-| **REQ-009**    | SYS-001, SYS-002    | STP-001-A, STP-001-B, STP-001-C, STP-001-D, STP-002-A, STP-002-B, STP-002-C | STS-001-A1, STS-001-A2, STS-001-B1, STS-001-B2, STS-001-C1, STS-001-C2, STS-001-D1, STS-002-A1, STS-002-A2, STS-002-B1, STS-002-C1 | ⬜ Untested |
-| **REQ-010**    | SYS-001             | STP-001-A, STP-001-B, STP-001-C, STP-001-D                                  | STS-001-A1, STS-001-A2, STS-001-B1, STS-001-B2, STS-001-C1, STS-001-C2, STS-001-D1                                                 | ⬜ Untested |
-| **REQ-011**    | SYS-003             | STP-003-A, STP-003-B, STP-003-C                                             | STS-003-A1, STS-003-A2, STS-003-B1, STS-003-B2, STS-003-C1                                                                         | ⬜ Untested |
-| **REQ-NF-001** | SYS-008             | STP-008-A, STP-008-B, STP-008-C                                             | STS-008-A1, STS-008-A2, STS-008-B1, STS-008-C1, STS-008-C2                                                                         | ⬜ Untested |
-| **REQ-NF-002** | SYS-008             | STP-008-A, STP-008-B, STP-008-C                                             | STS-008-A1, STS-008-A2, STS-008-B1, STS-008-C1, STS-008-C2                                                                         | ⬜ Untested |
-| **REQ-NF-003** | SYS-008             | STP-008-A, STP-008-B, STP-008-C                                             | STS-008-A1, STS-008-A2, STS-008-B1, STS-008-C1, STS-008-C2                                                                         | ⬜ Untested |
-| **REQ-NF-004** | SYS-008             | STP-008-A, STP-008-B, STP-008-C                                             | STS-008-A1, STS-008-A2, STS-008-B1, STS-008-C1, STS-008-C2                                                                         | ⬜ Untested |
-| **REQ-IF-001** | SYS-007             | STP-007-A, STP-007-B, STP-007-C, STP-007-D, STP-007-E                       | STS-007-A1, STS-007-A2, STS-007-B1, STS-007-B2, STS-007-C1, STS-007-C2, STS-007-D1, STS-007-D2, STS-007-E1, STS-007-E2             | ⬜ Untested |
-| **REQ-IF-002** | SYS-007             | STP-007-A, STP-007-B, STP-007-C, STP-007-D, STP-007-E                       | STS-007-A1, STS-007-A2, STS-007-B1, STS-007-B2, STS-007-C1, STS-007-C2, STS-007-D1, STS-007-D2, STS-007-E1, STS-007-E2             | ⬜ Untested |
-| **REQ-IF-003** | SYS-007             | STP-007-A, STP-007-B, STP-007-C, STP-007-D, STP-007-E                       | STS-007-A1, STS-007-A2, STS-007-B1, STS-007-B2, STS-007-C1, STS-007-C2, STS-007-D1, STS-007-D2, STS-007-E1, STS-007-E2             | ⬜ Untested |
-| **REQ-IF-004** | SYS-007             | STP-007-A, STP-007-B, STP-007-C, STP-007-D, STP-007-E                       | STS-007-A1, STS-007-A2, STS-007-B1, STS-007-B2, STS-007-C1, STS-007-C2, STS-007-D1, STS-007-D2, STS-007-E1, STS-007-E2             | ⬜ Untested |
-| **REQ-IF-005** | SYS-007             | STP-007-A, STP-007-B, STP-007-C, STP-007-D, STP-007-E                       | STS-007-A1, STS-007-A2, STS-007-B1, STS-007-B2, STS-007-C1, STS-007-C2, STS-007-D1, STS-007-D2, STS-007-E1, STS-007-E2             | ⬜ Untested |
-| **REQ-IF-006** | SYS-007             | STP-007-A, STP-007-B, STP-007-C, STP-007-D, STP-007-E                       | STS-007-A1, STS-007-A2, STS-007-B1, STS-007-B2, STS-007-C1, STS-007-C2, STS-007-D1, STS-007-D2, STS-007-E1, STS-007-E2             | ⬜ Untested |
-| **REQ-IF-007** | ❌ MISSING          | ❌ MISSING                                                                  | —                                                                                                                                  | ⬜ Untested |
-| **REQ-CN-001** | ❌ MISSING          | ❌ MISSING                                                                  | —                                                                                                                                  | ⬜ Untested |
-| **REQ-CN-002** | ❌ MISSING          | ❌ MISSING                                                                  | —                                                                                                                                  | ⬜ Untested |
+| Risk level   | Active count | Disposition                                                                      |
+| ------------ | ------------ | -------------------------------------------------------------------------------- |
+| Unacceptable | **0**        | None — the disposition rule is satisfied                                         |
+| Undesirable  | 14           | Each has explicit residual-risk acceptance and ≥ 2 mitigating tests across tiers |
+| Tolerable    | 9            | Controls in place                                                                |
+| Acceptable   | 3            | Low residual impact                                                              |
 
-## Matrix C — Integration Verification
+**Requiring sign-off at the release gate** — both `Catastrophic × Improbable`:
 
-| Architecture Module ID | Module Name                  | Parent System Component(s) | Integration Test Case ID (ITP) | Scenario ID (ITS)                              | Status      |
-| ---------------------- | ---------------------------- | -------------------------- | ------------------------------ | ---------------------------------------------- | ----------- |
-| **ARCH-001**           | MealPlanController           | SYS-001                    | ITP-001-A                      | ITS-001-A1, ITS-001-A2                         | ⬜ Untested |
-| **ARCH-002**           | MealPlanService              | SYS-001                    | ITP-001-B, ITP-002-A           | ITS-001-B1, ITS-002-A1, ITS-002-A2             | ⬜ Untested |
-| **ARCH-003**           | MealPlanRepository           | SYS-001                    | ITP-002-B, ITP-003-A           | ITS-002-B1, ITS-003-A1, ITS-003-A2             | ⬜ Untested |
-| **ARCH-004**           | RecipeAssignmentController   | SYS-002                    | ITP-003-B, ITP-004-A           | ITS-003-B1, ITS-004-A1, ITS-004-A2             | ⬜ Untested |
-| **ARCH-005**           | RecipeAssignmentService      | SYS-002                    | ITP-004-B, ITP-005-A           | ITS-004-B1, ITS-005-A1, ITS-005-A2             | ⬜ Untested |
-| **ARCH-006**           | RecipeAssignmentRepository   | SYS-002, SYS-005           | ITP-005-B, ITP-006-A           | ITS-005-B1, ITS-006-A1                         | ⬜ Untested |
-| **ARCH-007**           | NutritionalSummaryController | SYS-003                    | ITP-006-B                      | ITS-006-B1                                     | ⬜ Untested |
-| **ARCH-008**           | NutritionalSummaryService    | SYS-003                    | ITP-007-A, ITP-008-A           | ITS-007-A1, ITS-007-A2, ITS-008-A1, ITS-008-A2 | ⬜ Untested |
-| **ARCH-009**           | NutritionalSummaryCache      | SYS-003                    | ITP-008-B, ITP-009-A           | ITS-008-B1, ITS-009-A1, ITS-009-A2             | ⬜ Untested |
-| **ARCH-010**           | AISuggestionController       | SYS-004                    | ITP-009-B, ITP-010-A           | ITS-009-B1, ITS-010-A1, ITS-010-A2             | ⬜ Untested |
-| **ARCH-011**           | AISuggestionService          | SYS-004                    | ITP-010-B, ITP-011-A           | ITS-010-B1, ITS-011-A1                         | ⬜ Untested |
-| **ARCH-012**           | AutoGenerateController       | SYS-005                    | ITP-011-B                      | ITS-011-B1                                     | ⬜ Untested |
-| **ARCH-013**           | AutoGenerateService          | SYS-005                    | ITP-012-A, ITP-013-A           | ITS-012-A1, ITS-012-A2, ITS-013-A1             | ⬜ Untested |
-| **ARCH-014**           | WasteOptimizerController     | SYS-006                    | ITP-013-B                      | ITS-013-B1                                     | ⬜ Untested |
-| **ARCH-015**           | WasteOptimizerService        | SYS-006                    | ITP-014-A, ITP-015-A           | ITS-014-A1, ITS-014-A2, ITS-015-A1             | ⬜ Untested |
-| **ARCH-016**           | RecipeApiAdapter             | SYS-007                    | ITP-015-B, ITP-016-A           | ITS-015-B1, ITS-016-A1, ITS-016-A2             | ⬜ Untested |
-| **ARCH-017**           | UsdaFoodDataAdapter          | SYS-007                    | ITP-016-B, ITP-017-A           | ITS-016-B1, ITS-017-A1                         | ⬜ Untested |
-| **ARCH-018**           | ClerkAuthService             | SYS-007                    | ITP-017-B, ITP-018-A           | ITS-017-B1, ITS-018-A1, ITS-018-A2             | ⬜ Untested |
-| **ARCH-019**           | AiProviderAdapter            | SYS-007                    | ITP-018-B, ITP-019-A           | ITS-018-B1, ITS-019-A1                         | ⬜ Untested |
-| **ARCH-020**           | MealPlanPublicApiAdapter     | SYS-007                    | ITP-019-B, ITP-020-A           | ITS-019-B1, ITS-019-B2, ITS-020-A1             | ⬜ Untested |
-| **ARCH-021**           | PremiumTierGuard             | SYS-004, SYS-005, SYS-006  | ITP-020-B, ITP-021-A           | ITS-020-B1, ITS-021-A1, ITS-021-A2             | ⬜ Untested |
-| **ARCH-022**           | QualityComplianceModule      | SYS-008                    | ITP-021-B, ITP-022-A           | ITS-021-B1, ITS-022-A1, ITS-022-A2             | ⬜ Untested |
+- **HAZ-020** — cross-tenant plan exposure. Controls: in-query owner predicates, byte-identical `404` for absent and
+  not-owned, integration tests from a second principal, audit logging, periodic access review.
+- **HAZ-041** — logical-database derivation drift. Controls: an import-free leaf module and a **cross-stack parity test
+  as a release gate**. This hazard has a production precedent (defect #119), which is why the control is a test rather
+  than a convention.
 
-## Matrix D — Implementation Verification
+**Hazards eliminated by design** (recorded per `peer-review.md` PRF-006-20, since risk reduction by design outranks risk
+control by mitigation): HAZ-009 (stale cache), HAZ-010 (leftover double-count), HAZ-016 (recurrence duplication),
+HAZ-018 (reuse/grocery divergence) — all removed because the cache, the stored rollup, recurrence and the ingredient
+manifest no longer exist.
 
-| Module Design ID | Module Name                  | Parent Architecture Module(s) | Unit Test Case ID (UTP) | Scenario ID (UTS) | Status      |
-| ---------------- | ---------------------------- | ----------------------------- | ----------------------- | ----------------- | ----------- |
-| **MOD-001**      | MealPlanController           | ARCH-001                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-002**      | MealPlanService              | ARCH-002                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-003**      | MealPlanRepository           | ARCH-003                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-004**      | RecipeAssignmentController   | ARCH-004                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-005**      | RecipeAssignmentService      | ARCH-005                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-006**      | RecipeAssignmentRepository   | ARCH-006                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-007**      | NutritionalSummaryController | ARCH-007                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-008**      | NutritionalSummaryService    | ARCH-008                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-009**      | NutritionalSummaryCache      | ARCH-009                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-010**      | AISuggestionController       | ARCH-010                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-011**      | AISuggestionService          | ARCH-011                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-012**      | AutoGenerateController       | ARCH-012                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-013**      | AutoGenerateService          | ARCH-013                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-014**      | WasteOptimizerController     | ARCH-014                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-015**      | WasteOptimizerService        | ARCH-015                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-016**      | RecipeApiAdapter             | ARCH-016                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-017**      | UsdaFoodDataAdapter          | ARCH-017                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-018**      | ClerkAuthService             | ARCH-018                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-019**      | AiProviderAdapter            | ARCH-019                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-020**      | MealPlanPublicApiAdapter     | ARCH-020                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-021**      | PremiumTierGuard             | ARCH-021                      | ❌ MISSING              | —                 | ⬜ Untested |
-| **MOD-022**      | QualityComplianceModule      | ARCH-022                      | ❌ MISSING              | —                 | ⬜ Untested |
+## 5. Test Execution Summary
 
-## Matrix H — Hazard Traceability
+| Tier                     | Defined | Passed | Failed | Untested |
+| ------------------------ | ------- | ------ | ------ | -------- |
+| Unit (`UTS`)             | 162     | 0      | 0      | 162      |
+| Integration (`ITS`)      | 72      | 0      | 0      | 72       |
+| System (`STS`)           | 71      | 0      | 0      | 71       |
+| Acceptance (`ATS`)       | 52      | 0      | 0      | 52       |
+| Component (state matrix) | 81      | 0      | 0      | 81       |
+| **Total**                | **438** | **0**  | **0**  | **438**  |
 
-| Hazard ID   | Linked Artifact(s)                                                           | Mitigation / Evidence | Status                                                                                           |
-| ----------- | ---------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------ | --------------- | -------------------------------------------------------------------------------- | ------------ | ---------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------- |
-| **HAZ-001** | ARCH-002, ARCH-003, HAZ-001, REQ-001, REQ-002, REQ-010, SYS-001              | SYS-001               | Calendar timezone drift stores meal slot under wrong local day.                                  | DST-BOUNDARY    | Meals appear on unintended date; downstream grocery lists mismatch user intent.  | Serious      | Occasional | Undesirable | REQ-001, REQ-002, REQ-010; ARCH-002 canonical timezone normalization + UTC storage; ARCH-003 date-index constraints.                          | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-002** | ARCH-002, HAZ-002, REQ-005, REQ-011, SYS-001                                 | SYS-001               | Week boundary edge case (DST shift) causes duplicate/missing day in 7-day view.                  | DST-BOUNDARY    | Weekly nutrition totals and schedule navigation become inconsistent.             | Serious      | Remote     | Tolerable   | REQ-005, REQ-011; ARCH-002 week-window calculations anchored to calendar dates not fixed-hour offsets.                                        | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-003** | ARCH-003, HAZ-003, REQ-010, SYS-001                                          | SYS-001               | Calendar overflow when plan range exceeds validated bounds (30+ days pagination bug).            | NORMAL          | Plan query becomes partial/incorrect; users miss scheduled meals.                | Serious      | Remote     | Tolerable   | REQ-010; ARCH-003 pagination and boundary validation; SYS-001 lifecycle validation before persistence.                                        | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-004** | ARCH-002, HAZ-004, REQ-001, REQ-009, SYS-001                                 | SYS-001               | Holiday/skip-day logic error re-inserts intentionally skipped meal days.                         | NORMAL          | User confidence loss; wasted ingredients due to re-added meals.                  | Minor        | Occasional | Tolerable   | REQ-001, REQ-009; ARCH-002 explicit skip-day state transitions with idempotent updates.                                                       | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-005** | ARCH-005, ARCH-006, ARCH-016, HAZ-005, REQ-003, REQ-009, REQ-IF-001, SYS-002 | SYS-002               | Deleted recipe still scheduled due to stale ownership check/cache race.                          | NORMAL          | Broken slot references, confusing plan display, potential 404 chains downstream. | Serious      | Occasional | Undesirable | REQ-003, REQ-009, REQ-IF-001; ARCH-005 runtime ownership validation on write; ARCH-006 FK/cascade integrity; ARCH-016 re-check on assignment. | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-006** | ARCH-005, ARCH-006, HAZ-006, REQ-003, REQ-010, SYS-002                       | SYS-002               | Recurring-plan duplication creates repeated assignments after retry without idempotency key.     | CONCURRENT-EDIT | Duplicate meals inflate nutrition totals and grocery demand.                     | Serious      | Probable   | Undesirable | REQ-003, REQ-010; ARCH-005 idempotent command handling; ARCH-006 unique composite key (planId,slotId,recipeId,occurrenceDate).                | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-007** | ARCH-004, ARCH-005, HAZ-007, REQ-002, REQ-009, SYS-002                       | SYS-002               | Plan template corruption maps slot types incorrectly during template apply.                      | NORMAL          | Breakfast/lunch/dinner semantics corrupted across days.                          | Serious      | Remote     | Tolerable   | REQ-002, REQ-009; ARCH-005 slot-type schema validation and strict enum mapping; ARCH-004 contract validation failures as 4xx.                 | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-008** | ARCH-008, ARCH-017, HAZ-008, REQ-004, REQ-005, REQ-011, SYS-003              | SYS-003               | Serving-size scaling errors (fraction/decimal rounding drift) misstate calories/macros.          | NORMAL          | User makes incorrect dietary decisions; trust erosion.                           | Serious      | Occasional | Undesirable | REQ-004, REQ-005, REQ-011; ARCH-008 deterministic scaling with precision-safe arithmetic; ARCH-017 unit-normalized nutrient input.            | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-009** | ARCH-008, ARCH-009, HAZ-009, REQ-004, REQ-005, SYS-003                       | SYS-003               | Cache invalidation miss after plan edit serves stale daily/weekly totals.                        | NORMAL          | Visible mismatch between assigned recipes and nutrition summary.                 | Minor        | Probable   | Tolerable   | REQ-004, REQ-005; ARCH-009 mutation-triggered invalidation; ARCH-008 recompute-on-stale fallback.                                             | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-010** | HAZ-010, REQ-005, REQ-011, SYS-003                                           | SYS-003               | Leftover handling drift double-counts carry-over meals across consecutive days.                  | NORMAL          | Weekly totals inflated; grocery planning overestimates quantities.               | Serious      | Remote     | Tolerable   | REQ-005, REQ-011; SYS-003 carry-over rules constrained to single ownership record per meal instance.                                          | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-011** | ARCH-010, ARCH-011, HAZ-011, REQ-006, REQ-CN-001, SYS-004                    | SYS-004               | Dietary-restriction filter bypass returns suggestions violating user constraints.                | NORMAL          | Harmful/undesired recommendations and premium trust loss.                        | Critical     | Occasional | Undesirable | REQ-006, REQ-CN-001; ARCH-011 post-generation constraint filter; ARCH-010 response contract rejects invalid recommendations.                  | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-012** | ARCH-018, ARCH-021, HAZ-012, REQ-CN-001, REQ-IF-003, SYS-004                 | SYS-004               | Premium guard bypass exposes AI suggestions to non-premium users.                                | NORMAL          | Entitlement/security breach and business-rule violation.                         | Critical     | Remote     | Undesirable | REQ-CN-001, REQ-IF-003; ARCH-021 mandatory premium guard + ARCH-018 token tier extraction.                                                    | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-013** | ARCH-011, HAZ-013, REQ-006, REQ-IF-001, SYS-004                              | SYS-004               | AI prompt context omits user recipe inventory, causing non-actionable recommendations.           | DEGRADED-AI     | Suggested meals cannot be assigned; degraded workflow efficiency.                | Minor        | Probable   | Tolerable   | REQ-006, REQ-IF-001; ARCH-011 prompt assembly requires inventory payload and validation.                                                      | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-014** | ARCH-006, ARCH-013, HAZ-014, REQ-007, REQ-009, SYS-005                       | SYS-005               | Auto-generation writes partial plan then fails mid-transaction.                                  | DEGRADED-AI     | Corrupted draft plan with missing days/slots.                                    | Serious      | Occasional | Undesirable | REQ-007, REQ-009; ARCH-013 transaction boundary for all-or-nothing draft writes via ARCH-006 repository batch semantics.                      | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-015** | ARCH-003, ARCH-013, HAZ-015, REQ-007, REQ-CN-002, SYS-005                    | SYS-005               | Multi-device plan conflict overwrites user edits with stale auto-generated draft.                | CONCURRENT-EDIT | Silent data loss and user distrust.                                              | Critical     | Occasional | Undesirable | REQ-007, REQ-CN-002; ARCH-013 optimistic version checks; ARCH-003 revision column conflict rejection.                                         | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-016** | ARCH-006, HAZ-016, REQ-007, REQ-010, SYS-005                                 | SYS-005               | Recurrence expansion bug duplicates future weeks during regenerate action.                       | CONCURRENT-EDIT | Plan bloat and unusable calendar.                                                | Serious      | Remote     | Tolerable   | REQ-007, REQ-010; SYS-005 deterministic recurrence index + dedupe in ARCH-006 unique constraints.                                             | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-017** | ARCH-015, ARCH-021, HAZ-017, REQ-006, REQ-008, REQ-CN-001, SYS-006           | SYS-006               | Optimizer suggests swaps that violate dietary exclusions.                                        | NORMAL          | Unsafe/unwanted plan recommendations; premium feature regression.                | Critical     | Remote     | Undesirable | REQ-008, REQ-006, REQ-CN-001; ARCH-015 constraint-aware candidate scoring; ARCH-021 premium-gated validated output path.                      | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-018** | ARCH-015, ARCH-020, HAZ-018, REQ-008, REQ-IF-005, SYS-006                    | SYS-006               | Leftover recommendation drift causes ingredient reuse assumptions not reflected in grocery sync. | DEGRADED-SYNC   | Under-purchasing/over-purchasing from inconsistent optimization output.          | Serious      | Occasional | Undesirable | REQ-008, REQ-IF-005; ARCH-015 emits explicit reuse metadata consumed by ARCH-020 serialized output.                                           | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-019** | ARCH-003, ARCH-015, HAZ-019, REQ-008, SYS-006                                | SYS-006               | Optimization run on stale plan snapshot after concurrent edits.                                  | CONCURRENT-EDIT | Recommendations no longer apply to current schedule.                             | Minor        | Probable   | Tolerable   | REQ-008; ARCH-015 requires plan revision token from ARCH-003 prior to compute.                                                                | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-020** | ARCH-003, ARCH-018, HAZ-020, REQ-CN-002, REQ-IF-003, SYS-007                 | SYS-007               | Household-share permission leak exposes one household plan to another user context.              | NORMAL          | Cross-tenant privacy breach.                                                     | Catastrophic | Improbable | Undesirable | REQ-CN-002, REQ-IF-003; ARCH-018 strict subject extraction + ARCH-003 row-level user scoping on every query.                                  | Undesirable — accepted with mandatory audit logging and periodic access-review checks. | ⬜ Untested |
-| **HAZ-021** | ARCH-020, HAZ-021, REQ-011, REQ-IF-005, SYS-001, SYS-007                     | SYS-007               | Plan-to-grocery sync race publishes stale plan snapshot after edit commit.                       | DEGRADED-SYNC   | Grocery list diverges from current meal plan.                                    | Serious      | Occasional | Undesirable | REQ-IF-005, REQ-011; ARCH-020 versioned serialization and monotonic revision fields; SYS-001 emits post-commit snapshot only.                 | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-022** | ARCH-020, HAZ-022, REQ-IF-006, SYS-007                                       | SYS-007               | Nutrition-planning consumer receives incompatible schema version.                                | NORMAL          | Downstream compliance tracking fails silently.                                   | Serious      | Remote     | Tolerable   | REQ-IF-006; ARCH-020 version negotiation and explicit schema version headers.                                                                 | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-023** | ARCH-017, HAZ-023, REQ-004, REQ-IF-002, SYS-003, SYS-007                     | SYS-007               | USDA adapter circuit breaker open state not surfaced, yielding empty nutrient sets as success.   | DEGRADED-SYNC   | Nutrition summaries falsely appear healthy/zeroed.                               | Critical     | Remote     | Undesirable | REQ-IF-002, REQ-004; ARCH-017 explicit failure propagation + SYS-003 fallback error state, not silent zeros.                                  | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-024** | ARCH-022, HAZ-024, REQ-NF-003, REQ-NF-004, SYS-008                           | SYS-008               | Accessibility contract regression allows unlabeled state controls in meal planner UI.            | NORMAL          | Users relying on assistive tech cannot reliably manage plans.                    | Serious      | Occasional | Undesirable | REQ-NF-003, REQ-NF-004; ARCH-022 lint/test gates enforce accessible names + non-color-only state cues.                                        | Tolerable                                                                              | ⬜ Untested |
-| **HAZ-025** | ARCH-022, HAZ-025, REQ-NF-001, SYS-008                                       | SYS-008               | Type-safety gate bypass introduces implicit any in nutrition/quantity math paths.                | NORMAL          | Runtime math faults and hard-to-debug production defects.                        | Serious      | Remote     | Tolerable   | REQ-NF-001; ARCH-022 strict TypeScript gate in CI blocks merge.                                                                               | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-026** | ARCH-003, ARCH-006, HAZ-026, REQ-003, REQ-010                                | ARCH-003 + ARCH-006   | Concurrent write path bypasses uniqueness constraints during retry storm.                        | CONCURRENT-EDIT | Duplicate slot assignments persist despite service-level dedupe.                 | Serious      | Remote     | Tolerable   | ARCH-006 unique index + transactional upsert semantics; REQ-003, REQ-010.                                                                     | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-027** | ARCH-010, ARCH-012, ARCH-013, ARCH-021, HAZ-027, REQ-CN-001                  | ARCH-013 + ARCH-021   | Guard evaluated after draft generation call in controller pipeline.                              | NORMAL          | Non-premium users trigger expensive AI generation before rejection.              | Serious      | Remote     | Tolerable   | ARCH-012/ARCH-010 enforce guard-first execution order; REQ-CN-001.                                                                            | Acceptable                                                                             | ⬜ Untested |
-| **HAZ-028** | ARCH-003, ARCH-020, HAZ-028, REQ-IF-005, REQ-IF-006                          | ARCH-020 + ARCH-003   | Serialization reads pre-commit revision while publish event uses post-commit metadata.           | DEGRADED-SYNC   | Cross-feature consumers observe impossible mixed-version payloads.               | Serious      | Remote     | Tolerable   | REQ-IF-005, REQ-IF-006; ARCH-020 snapshot export sourced from committed revision only.                                                        | Acceptable                                                                             | ⬜ Untested |
+The System row **includes** the 14 end-to-end flows (8 Playwright + 6 Maestro, `STS-E2E-*`) and the 5 k6 profiles
+(`STS-PERF-*`), which carry `STS` ids. The May-format table listed those as separate rows on top of the System total,
+**double-counting 19 tests** — hence the previous "423" against an actual 438.
 
-## 4. Coverage Analysis
+**Enumeration status (PRF-006-14 / -15, resolved 2026-08-02)**: these are no longer derived. Every id was extracted and
+de-duplicated from the plan documents, and the component figure was recomputed cell-by-cell from the STP-010-A matrix
+(50 ticked cells → 81 tests, because every `(both)` column is two tests). They may now be cited as planned-coverage
+evidence. They remain **planned**, not executed.
 
-| Gate                                | Result  |
-| ----------------------------------- | ------- |
-| Missing mappings                    | 41      |
-| Executed scenarios                  | 0/121   |
-| Untested mapped scenario references | 121/121 |
-| Release readiness                   | BLOCKED |
+### Test-mandate compliance (`CODING_STANDARDS §7.1`)
 
-## 5. Required Next Action
+| Required category                         | Planned | Executed |
+| ----------------------------------------- | ------- | -------- |
+| Component test per UI state, per platform | ✔       | ✖        |
+| Playwright per web user story             | ✔       | ✖        |
+| Maestro per mobile user story             | ✔       | ✖        |
+| Unit **and** integration for non-UI code  | ✔       | ✖        |
+| e2e for the deployable service            | ✔       | ✖        |
+| k6 for the deployable service             | ✔       | ✖        |
 
-1. Implement or wire the tests referenced by the mapped AT/STP/ITP/UTP scenarios.
-2. Execute the tests and ingest actual pass/fail/skip/waiver evidence.
-3. Regenerate this report only after execution evidence exists.
+All six categories are **planned**. None is executed. Under `§7.1` the feature is, by definition, **INCOMPLETE** — which
+is the correct status for a feature with no code.
+
+## 6. Peer Review Status
+
+| Severity    | Count | Status                                                                                        |
+| ----------- | ----- | --------------------------------------------------------------------------------------------- |
+| CRITICAL    | 0     | The three May CRITICALs are resolved                                                          |
+| MAJOR       | 3     | ✅ **ALL CLOSED 2026-08-02** — -11 residual accepted, -12 premise invalid, -13 resolved       |
+| MINOR       | 6     | ✅ **ALL CLOSED 2026-08-02** — incl. -14/-15 by enumeration and -17 by specifying a mechanism |
+| OBSERVATION | 4     | Informational                                                                                 |
+
+The May per-artifact reviews (nine files, 0 findings each) are superseded. They were rubber stamps — most plainly
+`peer-review-acceptance-plan.md`, which recorded "0 acceptance test cases" in its header and "0 findings" in its table.
+
+## 7. Outstanding Items Before Release
+
+### Before implementation starts
+
+**Nothing.** All four pre-implementation items closed on 2026-08-02:
+
+1. ✅ **PRF-006-11** — residual accepted; the 90-day maximum stands with no separate latency target.
+2. ✅ **PRF-006-12** — premise invalid; the same owner owns 006 and the recipe service.
+3. ✅ **PRF-006-13** — index rows marked `Deferred`, with status definitions, a deferral note and a new review rule.
+4. ✅ **PRF-006-16** — endpoint path settled on `POST /api/v1/recipes/nutrition-batch`.
+
+### During implementation
+
+5. **REQ-IF-008** must land in `packages/services/recipe-service` (T001–T003) before 006's nutrition tasks — a
+   sequencing constraint, not a gate.
+6. ✅ **PRF-006-14 / -15** — closed by enumeration before implementation, not deferred into it.
+7. ✅ **PRF-006-17** — retention and mechanism specified (24 h, bounded opportunistic prune).
+8. ✅ **PRF-006-18** — mobile erasure scenario added.
+
+**T068–T070 remain in `tasks.md`** but are now _post-deploy confirmations_, not open findings: re-reconcile the counts
+against the real test files once they exist, and confirm cost from billing data.
+
+### Before the release gate
+
+9. All 438 planned tests executed and passing.
+10. Sign-off on the residual risk for HAZ-020 and HAZ-041.
+11. SC-006-001 demonstrated in a timed session; SC-006-002..005 evidenced from CI.
+12. Cost re-derived once the Fargate task definition exists (PRF-006-21), checked against the ADR-0008 budget.
+
+## 8. Audit Conclusion
+
+**❌ BLOCKED — pre-implementation. Cleared to START.**
+
+The artifact set is internally consistent, fully traced, and free of **all** findings — every one of the 13 raised is
+closed, and every gate on beginning work with it. What blocks **release** is simply that the feature has not been built: 438 planned tests, none executed.
+
+The distinction matters: this audit is blocked on execution, not on decisions. Nothing prevents implementation
+beginning today.
+
+**Change since the May audit**: that audit was blocked by _41 missing traceability cells_ — the documents disagreed with
+each other. This one is blocked only by _work not yet done_. That is the intended difference between a stale artifact
+set and a ready one.

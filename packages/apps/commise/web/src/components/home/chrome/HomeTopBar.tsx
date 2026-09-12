@@ -3,9 +3,9 @@
 /**
  * @module home/chrome/HomeTopBar — the sticky app top bar (web; US-000 / FR-046).
  *
- * The `h-14` glass bar from the mockup: a mobile nav trigger (hamburger, hidden at `md`+ where the sidebar is
- * visible), the current surface's title, a search affordance, a notifications affordance, and the account
- * avatar.
+ * The `h-14` glass bar from the mockup: a narrow-viewport nav trigger (hamburger, hidden at `lg`+ where the
+ * sidebar takes over), the current surface's title, a search affordance, a notifications affordance, and the
+ * account avatar.
  *
  * ## The title is CALLER-supplied, and is NOT a heading
  *
@@ -64,7 +64,7 @@ export interface HomeTopBarProps {
     readonly locale: string;
     /** The viewer's display name, if known — the source of the avatar initials. */
     readonly displayName: string | undefined;
-    /** Open the mobile navigation drawer (hamburger; only shown below `md`). */
+    /** Open the navigation drawer (hamburger; only shown below `lg`, where the sidebar is not yet present). */
     readonly onOpenNav: () => void;
 }
 
@@ -85,12 +85,22 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                     type="button"
                     onClick={onOpenNav}
                     aria-label={chrome.openNav}
-                    // `min-h-11 min-w-11` (44px) is an explicit mobile touch-target FLOOR, reset at `md:` to
-                    // keep desktop density. The control itself is 40px (`p-2` + a 24px glyph — the mockup's
-                    // icon button), so the floor is LOAD-BEARING on mobile: it is what lifts the tap target to
-                    // 44px. Desktop keeps the mockup's 40px. (It used to be a documented no-op only because the
-                    // DS redefined `--spacing-*` and inflated this control to 48px — see themeCss.)
-                    className="-ml-2 min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:hidden md:min-h-0 md:min-w-0"
+                    // ⚠️ The hide variant is `lg`, not `md` — it must be the SAME cutover the sidebar appears
+                    // at (`HomeSidebar`'s `lg:flex`) and the tab bar disappears at (`HomeTabBar`'s
+                    // `lg:hidden`). This control used to hide one breakpoint EARLIER than the sidebar arrived,
+                    // so between 768 and 1023px a viewer had NEITHER: the full navigation was unreachable on a
+                    // tablet and only the tab bar's compact icons survived (U39).
+                    //
+                    // `min-h-11 min-w-11` (44px) is the touch-target FLOOR, and unlike its three siblings it
+                    // carries NO `md`-variant release: the control is 40px on its own (`p-2` + a 24px glyph —
+                    // the mockup's icon button), and every width it is rendered at is a narrow or tablet
+                    // layout where 44px is the point. That release was a no-op here only while the button also
+                    // hid at the earlier breakpoint; closing the gap above would have made it LIVE and shrunk
+                    // a tablet's one navigation affordance to 40px.
+                    //
+                    // Tailwind v4 scans this file as TEXT, comments included, so the retired class is
+                    // DESCRIBED rather than spelled — writing it verbatim regenerates the dead utility.
+                    className="-ml-2 min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl lg:hidden"
                 >
                     <HomeIcon name="menu" className="size-6" />
                 </button>

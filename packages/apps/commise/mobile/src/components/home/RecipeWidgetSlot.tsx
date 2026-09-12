@@ -14,7 +14,8 @@
  * resolves, and an inner `ErrorBoundary` keeps it mounted when the chunk (or the widget) FAILS — see the
  * boundary's own comment for why the host's per-widget boundary is not sufficient on its own.
  */
-import { recipeHomeWidgetDescriptor } from '@commise/features-recipes';
+import { RecipeNutritionSlot, recipeHomeWidgetDescriptor, type RenderRecipeNutrition } from '@commise/features-recipes';
+import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { Recipe } from '@kitchensink/recipe-core';
@@ -26,11 +27,20 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { mobileMessages } from '../../i18n/messages.js';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
 
-/** The recipe widget's data prop contract (native): recent recipes + a loading flag (see the module doc). */
+/**
+ * The recipe widget's data prop contract (native): recent recipes + a loading flag (see the module doc), plus
+ * the deferred calorie renderer.
+ *
+ * ⚠️ This is a hand-copied THIRD declaration of a contract that also exists on both widget leaves
+ * (`widget/RecipeHomeWidget{,.native}.tsx`) — it exists because the descriptor's loader is deliberately typed
+ * `{ default: unknown }` for cross-feature decoupling, so the type has to be re-stated at this boundary. It is
+ * the copy most likely to drift; keeping it in step is a known cost, recorded rather than hidden.
+ */
 interface RecipeHomeWidgetProps {
     recipes?: readonly Recipe[];
     isLoading?: boolean;
     onSelectRecipe?: (id: string) => void;
+    renderNutrition?: RenderRecipeNutrition;
 }
 
 /** How many recent recipes the widget shows (the widget itself also caps to its own max). */
@@ -84,6 +94,9 @@ export function RecipeWidgetSlot({
 
     const recipes = query.data?.data ?? [];
     const isLoading = query.isLoading;
+    // The deferred calorie lookup (ADR-0021 §6) for the four recent recipes, started during render so the
+    // widget's cards paint over an in-flight request rather than starting one after the first paint.
+    const nutritionFor = useRecipeNutritionBatches([recipes.map((recipe) => recipe.id)]);
 
     return (
         <View style={styles.slot}>
@@ -114,7 +127,20 @@ export function RecipeWidgetSlot({
                     {/* The slot owns navigation, not the widget: the presentational card grid reports WHICH
                         recipe was activated, and this layer — the only one with the navigation intent —
                         routes. Mirrors the web slot exactly, so the two platforms expose the same affordance. */}
-                    <RecipeHomeWidget recipes={recipes} isLoading={isLoading} onSelectRecipe={onSelectRecipe} />
+                    <RecipeHomeWidget
+                        recipes={recipes}
+                        isLoading={isLoading}
+                        onSelectRecipe={onSelectRecipe}
+                        // ONE promise, N slots. `null` ⇒ no batch covers this recipe: render nothing rather
+                        // than a boundary with nothing to settle.
+                        renderNutrition={(recipeId) => {
+                            const batch = nutritionFor(recipeId);
+
+                            return batch === null ? null : (
+                                <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />
+                            );
+                        }}
+                    />
                 </Suspense>
             </ErrorBoundary>
             <Pressable

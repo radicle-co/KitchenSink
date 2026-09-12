@@ -167,7 +167,7 @@ The canonical rule now lives in **[GR-014](./governance-rules.md#gr-014-audience
 landed the provenance model in 004: `004-FR-011` now classifies imports into the shipped `sourceType`
 taxonomy (`imported_public`, `imported_physical`, `imported_paid`, `user_created`) and **delegates
 enforcement to 001's shipped pure policy** `evaluateVisibility`
-(`packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`) rather than reimplementing it.
+(`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts`) rather than reimplementing it.
 `004-FR-013` creates physical-copy imports private; `004-FR-014` rejects known paywalled sources before any
 outbound request; `004-FR-014a` requires attestation plus a source citation; `004-FR-028` gates every
 non-public import channel behind premium.

@@ -1,7 +1,7 @@
 /**
  * GDPR data-subject ACCESS/PORTABILITY orchestration for `GET /api/v1/account/export` (Art. 15 + Art. 20).
  *
- * The read-only mirror of {@link ErasureService}: where erasure enqueues a job that hard-deletes every
+ * The read-only mirror of `ErasureService`: where erasure enqueues a job that hard-deletes every
  * owner-scoped root, this assembles those SAME roots into one structured document. It sits between the
  * controller (which supplies the VERIFIED owner key — never a client-supplied one) and the
  * {@link AccountExportDal}, and owns exactly one responsibility the DAL and mappers do not: composing the
@@ -16,7 +16,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AccountExportDal } from './dal/export.dal.js';
 import { mapAuthorHandle, mapCollection, mapPhoto, mapRating, mapRecipe, mapVersion } from './export.mappers.js';
-import type { AccountExport } from './dto/export.dto.js';
+import type { AccountExport } from './account.schema.js';
 
 /** DI token for the {@link AccountExportConfig} (the CDN base URL photo keys resolve against). */
 export const ACCOUNT_EXPORT_CONFIG = 'ACCOUNT_EXPORT_CONFIG';

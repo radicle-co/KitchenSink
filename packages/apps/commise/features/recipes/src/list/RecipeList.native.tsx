@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe-list view (T065 building block).
  *
- * The React Native leaf of {@link import('./RecipeList.js').RecipeList} — same controlled, presentational
+ * The React Native leaf of `RecipeList` — same controlled, presentational
  * contract and the same four states (loading, error, empty, populated), rendered with RN primitives.
  *
  * U4: the populated rows are virtualized with FlashList v2 (cell recycling; v2 auto-measures, so NO
@@ -10,7 +10,6 @@
  * (`nativeTokens`) with 44pt touch targets on the source tabs.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { GradientSurface } from '@commise/ui/surface';
@@ -19,9 +18,16 @@ import type { FC, ReactElement } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
+import { SpeedDial } from '../speedDial/SpeedDial.native.js';
 import { RecipeListCard } from './RecipeListCard.native.js';
 import { RecipeSourceTabs } from './RecipeSourceTabs.native.js';
-import { filterChipLabel, formatRecipeCount, isListNarrowed, type RecipeListViewProps } from './model.js';
+import {
+    filterChipLabel,
+    formatRecipeCount,
+    isListNarrowed,
+    shouldShowCreateDial,
+    type RecipeListViewProps,
+} from './model.js';
 
 /** The inter-card gap, hoisted so the FlashList separator and the header spacer share one value. */
 const CARD_GAP = nativeTokens.spacing[3];
@@ -36,10 +42,12 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     onSearchChange,
     onSelectRecipe,
     onCreateRecipe,
+    onPasteIngredients,
     onRetry,
     tab,
     filters,
     refresh,
+    renderNutrition,
 }) => {
     const { list } = useMessages(recipeMessages);
     const locale = useLocale();
@@ -104,7 +112,13 @@ export const RecipeList: FC<RecipeListViewProps> = ({
             <FlashList
                 data={recipes}
                 keyExtractor={(recipe) => recipe.id}
-                renderItem={({ item }) => <RecipeListCard recipe={item} onSelect={onSelectRecipe} />}
+                // ONE promise, N slots: the host's renderer closes over the page's single nutrition batch,
+                // so this list's figures cost one request and land together. It also survives cell RECYCLING
+                // — a recycled cell re-renders the slot with a new id against an already-settled promise, so
+                // `use()` returns synchronously and no chip flickers back to a skeleton on scroll.
+                renderItem={({ item }) => (
+                    <RecipeListCard recipe={item} onSelect={onSelectRecipe} nutrition={renderNutrition?.(item.id)} />
+                )}
                 ListHeaderComponent={<Text style={styles.count}>{count}</Text>}
                 ItemSeparatorComponent={CardSeparator}
                 style={styles.cardsScroll}
@@ -119,12 +133,21 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         );
     }
 
-    // FAB is the persistent create control (L1), pinned OUTSIDE the header, present across loading / error /
-    // populated; suppressed in the true empty state (the empty CTA is the create control) AND on Community (L5).
-    // "True empty" reads the ONE `narrowed` predicate the body branch uses, so a chip-narrowed zero — whose
-    // empty body renders no CTA — keeps the FAB rather than losing every create affordance.
-    const isEmpty = status === 'ready' && recipes.length === 0 && !narrowed;
-    const showFab = !isEmpty && !onCommunity;
+    // Whether the pinned create dial (L1) is mounted. Both gates — never over a TRUE empty library, never on
+    // the Community tab — live in the ONE `shouldShowCreateDial` policy, which the other platform's leaf
+    // calls too, so the two cannot drift on it.
+    //
+    // ⚠️ The policy owns ONE SIDE of a two-sided invariant. The rule it serves is "exactly one create
+    // affordance is on screen", and the other side — the empty-state CTA above — is still spelled inline in
+    // each leaf as the complement of this condition. Nothing structural keeps the two in step; what does is
+    // the pair of assertions in this leaf's tests, which check the true-empty and the narrowed-zero branches
+    // from BOTH directions. Widen this policy into the affordance itself before adding a third branch.
+    const showDial = shouldShowCreateDial({
+        status,
+        recipeCount: recipes.length,
+        narrowed,
+        onCommunity,
+    });
 
     return (
         <View accessibilityLabel={list.heading} style={styles.container}>
@@ -200,18 +223,26 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
             {body}
 
-            {showFab && (
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={list.createCta}
-                    onPress={onCreateRecipe}
-                    style={styles.fab}
-                >
-                    {/* An icon, not a "+" character: flex centres the line box but ink is placed by the baseline, so the
-                        glyph painted low — and `fabLabel` compounded it with an off-token `lineHeight: 32` under a 28px
-                        font, which iOS applies as extra leading and Android pairs with `includeFontPadding`. */}
-                    <Feather name="plus" size={24} color={palette.white} />
-                </Pressable>
+            {showDial && (
+                // U34: the pinned FAB DISCLOSES the creation destinations rather than running the only
+                // one. Plan U9 makes good on that shape's stated purpose — pasting an ingredient list is
+                // the SECOND destination, and it cost one list entry rather than a redesign. Scan / Import
+                // / AI join the same list when 004 and 005 ship.
+                //
+                // ⚠️ Built with a spread rather than a ternary over two whole arrays: `SpeedDialProps.actions`
+                // is a NON-EMPTY tuple, so the scratch entry has to stay in first position by construction
+                // for the type to hold.
+                <SpeedDial
+                    triggerLabel={list.createCta}
+                    menuLabel={list.createMenuLabel}
+                    dismissLabel={list.createMenuDismiss}
+                    actions={[
+                        { id: 'scratch', label: list.createFromScratch, onSelect: onCreateRecipe },
+                        ...(onPasteIngredients === undefined
+                            ? []
+                            : [{ id: 'paste', label: list.createFromPaste, onSelect: onPasteIngredients }]),
+                    ]}
+                />
             )}
         </View>
     );
@@ -261,22 +292,6 @@ const styles = StyleSheet.create({
     chipActive: { backgroundColor: palette.seafoam },
     chipLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
     chipLabelActive: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.white },
-    fab: {
-        position: 'absolute',
-        right: nativeTokens.spacing[4],
-        bottom: nativeTokens.spacing[5],
-        width: 56,
-        height: 56,
-        borderRadius: nativeTokens.radius.full,
-        backgroundColor: palette.seafoam,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: palette.charcoal,
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 4,
-    },
     search: {
         backgroundColor: palette.white,
         borderRadius: nativeTokens.radius.full,

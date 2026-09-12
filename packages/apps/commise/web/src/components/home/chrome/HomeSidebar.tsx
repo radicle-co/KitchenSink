@@ -4,8 +4,15 @@
  * @module home/chrome/HomeSidebar — the desktop navigation sidebar (web; US-000 / FR-046).
  *
  * The glass rail from the Home mockup: logo + wordmark, the six navigation destinations, and a collapse
- * control. It is `hidden` below the `lg` breakpoint (the mobile tab bar takes over there), so it is the
- * DESKTOP rendering of the shared nav model — the tab bar is the same model rendered differently.
+ * control. It is `hidden` below the `lg` breakpoint (the tab bar plus the hamburger drawer take over there),
+ * so it is the DESKTOP rendering of the shared nav model — the other two are the same model rendered
+ * differently.
+ *
+ * ⚠️ `lg` is the ONE cutover the whole chrome turns on, and this component is where it is defined: the
+ * hamburger (`HomeTopBar`), the drawer (`HomeMobileNav`) and the tab bar (`HomeTabBar`) all hide at exactly
+ * the width this rail appears at. Move one and you must move all four, or you reopen U39 — the 768–1023px
+ * band where this rail had not arrived and the hamburger had already left, so there was no way to reach the
+ * full navigation at all.
  *
  * ## The two decisions that matter here
  *

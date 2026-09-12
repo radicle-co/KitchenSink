@@ -9,9 +9,14 @@
  * hooks now build their `useQuery` call from {@link profileQueries}`(client).me(...)` instead.
  *
  * **staleTime — 2 minutes, unified from an already-identical value.** Both platforms already used
- * `2 * 60 * 1000`; this module keeps that value (not a new one) — the profile's gating field
- * (`account.subscriptionTier`) changes only on an explicit write (upgrade/downgrade), so a 2-minute window
- * avoids refetch churn on remount without serving stale gating for long.
+ * `2 * 60 * 1000`; this module keeps that value (not a new one).
+ *
+ * ⚠️ The justification this comment used to give — that `account.subscriptionTier` "changes only on an
+ * explicit write (upgrade/downgrade)" — described a write path that did not exist. The field is now DERIVED
+ * from the signed token's `permissions` (identity's `users/domain/subscriptionTier.ts`), so it changes when
+ * a token is re-minted with a different grant. Two minutes is still the right window, for a better reason:
+ * a grant change reaches the viewer within one token lifetime either way, and refetching the profile more
+ * often than that would spend requests to learn nothing.
  */
 import { queryOptions } from '@tanstack/react-query';
 

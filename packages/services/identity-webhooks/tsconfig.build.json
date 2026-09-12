@@ -10,6 +10,7 @@
     //
     // `include` is overridden as well as `exclude`, so a future `__tests__/**` glob in the base project cannot
     // silently become a build input.
+    "compilerOptions": { "rootDir": "src" },
     "include": ["src/**/*.ts"],
     "exclude": ["node_modules", "dist", "tests", "src/**/__tests__", "src/**/*.test.ts", "src/**/__fixtures__"]
 }

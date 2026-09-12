@@ -3,14 +3,16 @@
  * aggregate read, `createByName` normalized-name dedup + terminal-row reactivation, and the guarded
  * legal status-transition set (FR-005, FR-013, FR-025, FR-028, FR-028a, FR-IDN-1).
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 
 import { FoodDao } from '../src/foods/dao/food.dao.js';
 import { isIllegalStatusTransitionError } from '../src/foods/dao/dao.errors.js';
-import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
+import { withTransaction } from '../src/database/unitOfWork.js';
+import { makeDb, makePool, type TestDb } from './support/db.js';
+import { foodDb, hasTestDatabase } from './support/roleDb.js';
 
-describe.skipIf(!DATABASE_URL)('FoodDao (integration)', () => {
+describe.skipIf(!hasTestDatabase)('FoodDao (integration)', () => {
     let pool: pg.Pool;
     let db: TestDb;
     let dao: FoodDao;
@@ -26,7 +28,7 @@ describe.skipIf(!DATABASE_URL)('FoodDao (integration)', () => {
     });
 
     beforeEach(async () => {
-        await resetSchema(pool);
+        await foodDb().truncate();
     });
 
     describe('createByName — normalized-name dedup (FR-005)', () => {
@@ -101,6 +103,79 @@ describe.skipIf(!DATABASE_URL)('FoodDao (integration)', () => {
             const row = await dao.getById(created.id);
             expect(row?.status).toBe('PENDING');
         });
+
+        /**
+         * T-150 — the tombstone TTL is CONFIGURED (`FOOD_NOT_FOUND_TTL_DAYS`), not the literal 30 days the
+         * statement used to carry. Lowering it is the lever an operator pulls to let a batch that failed
+         * against a broken upstream be re-attempted sooner; before this it did nothing at all, silently.
+         *
+         * A fresh `FoodDao` is built per case because the TTL is resolved at construction.
+         */
+        describe('the configured tombstone TTL (FR-025)', () => {
+            afterEach(() => {
+                vi.unstubAllEnvs();
+            });
+
+            it('reactivates a 10-day-old tombstone under a 5-day TTL (the default 30 would not)', async () => {
+                const created = await dao.createByName({ normalizedName: 'loquat' });
+                await pool.query(
+                    `UPDATE food SET status='NOT_FOUND', tombstoned_at = now() - interval '10 days' WHERE id = $1`,
+                    [created.id],
+                );
+
+                vi.stubEnv('FOOD_NOT_FOUND_TTL_DAYS', '5');
+                const result = await new FoodDao(db).createByName({ normalizedName: 'loquat' });
+
+                expect(result.id).toBe(created.id);
+                expect(result.reactivated).toBe(true);
+
+                const row = await dao.getById(created.id);
+                expect(row?.status).toBe('PENDING');
+                // The TTL gates every arm of the upsert, so the anchor is cleared with the status.
+                expect(row?.tombstonedAt).toBeNull();
+            });
+
+            it('holds a 40-day-old tombstone under a 90-day TTL (the default 30 would release it)', async () => {
+                const created = await dao.createByName({ normalizedName: 'medlar' });
+                await pool.query(
+                    `UPDATE food SET status='NOT_FOUND', tombstoned_at = now() - interval '40 days' WHERE id = $1`,
+                    [created.id],
+                );
+
+                vi.stubEnv('FOOD_NOT_FOUND_TTL_DAYS', '90');
+                const result = await new FoodDao(db).createByName({ normalizedName: 'medlar' });
+
+                expect(result.reactivated).toBe(false);
+                expect((await dao.getById(created.id))?.status).toBe('NOT_FOUND');
+            });
+        });
+    });
+
+    describe('the Unit-of-Work seam — a DAO enlists in a transaction', () => {
+        it('⛔ takes an open transaction with NO cast, and rolls back with it', async () => {
+            // ⛔ THE PROPERTY THE CAST WAS HIDING. A DAO used to take the concrete client, so enlisting one in
+            // a transaction meant `tx as unknown as FoodDrizzle` — a claim the type system could no longer
+            // check, duplicated in two files, one of which called itself "the single, documented narrowing
+            // point" while the other performed the same cast inline. `FoodWriter` is structural, so the
+            // transaction satisfies it outright and this test compiles only because the seam exists.
+            //
+            // ⚠️ Rollback is the ASSERTION, not decoration: a DAO that was handed the base client instead of
+            // the transaction would write through and survive the rollback, which is precisely the bug a cast
+            // between the two can cause and cannot detect.
+            const { id } = await dao.createByName({ normalizedName: 'tarragon' });
+
+            await expect(
+                withTransaction(db, async (tx) => {
+                    await new FoodDao(tx).setStatus({ id, status: 'RESOLVED' });
+
+                    throw new Error('roll back');
+                }),
+            ).rejects.toThrow('roll back');
+
+            const after = await dao.readGoldenRecord(id);
+
+            expect(after?.status).toBe('PENDING');
+        });
     });
 
     describe('setStatus — guarded legal transitions (FR-028a)', () => {
@@ -123,6 +198,39 @@ describe.skipIf(!DATABASE_URL)('FoodDao (integration)', () => {
             const row = await dao.setStatus({ id, status: 'PENDING' });
             expect(row.status).toBe('PENDING');
             expect(row.tombstonedAt).toBeNull();
+        });
+
+        it('⛔ `from` NARROWS the prior set — a row that left the observed status is refused', async () => {
+            // ⛔ The reason this exists: `corroborateFood` READS the row, sees `PENDING`, and then writes
+            // `RESOLVED`. `LEGAL_PRIORS.RESOLVED` contains `UNRESOLVED`, so a row that moved PENDING →
+            // UNRESOLVED between those two statements — a legal move the disambiguation path makes — was
+            // completed anyway: the food is published as resolved having never been disambiguated, and
+            // nothing downstream can tell. `from` turns that check-then-act into a compare-and-set by
+            // carrying the status the caller actually OBSERVED into the guarded UPDATE.
+            const { id } = await dao.createByName({ normalizedName: 'chicory' });
+
+            await dao.setStatus({ id, status: 'UNRESOLVED' });
+
+            // `UNRESOLVED` is a legal prior for `RESOLVED`, so WITHOUT `from` this write would succeed.
+            await expect(dao.setStatus({ id, status: 'RESOLVED', from: ['PENDING'] })).rejects.toSatisfy(
+                isIllegalStatusTransitionError,
+            );
+
+            const after = await dao.readGoldenRecord(id);
+
+            expect(after?.status).toBe('UNRESOLVED');
+        });
+
+        it('`from` can only NARROW — it never admits a transition the legal matrix forbids', async () => {
+            // Otherwise `from` would be a bypass for FR-028a rather than a tightening of it: a caller could
+            // name any prior it liked and reach a target the matrix does not allow from there.
+            const { id } = await dao.createByName({ normalizedName: 'salsify' });
+
+            await dao.setStatus({ id, status: 'RESOLVED' });
+
+            await expect(dao.setStatus({ id, status: 'UNRESOLVED', from: ['RESOLVED'] })).rejects.toSatisfy(
+                isIllegalStatusTransitionError,
+            );
         });
 
         it('REJECTS an illegal transition (RESOLVED → UNRESOLVED) with rowCount=0 → IllegalStatusTransitionError', async () => {

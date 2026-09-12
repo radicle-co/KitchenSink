@@ -11,6 +11,9 @@
  * `'none'` and it renders a plain translucent `View` — so a `true` default would have every Android consumer
  * silently shipping a washed-out, UNBLURRED panel instead of the solid fallback designed for exactly that case.
  * A caller can still override (e.g. to force the cheap surface on a low-power path).
+ *
+ * @pattern Strategy over the same capability probe, with an Adapter projecting the single-source `glass` spec onto
+ *     `expo-blur`'s `intensity`/`tint` — so the two platforms cannot drift on the spec, only on the primitive.
  */
 import { BlurView } from 'expo-blur';
 import type { FC } from 'react';

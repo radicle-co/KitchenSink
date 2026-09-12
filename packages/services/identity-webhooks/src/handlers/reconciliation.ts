@@ -1,7 +1,7 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 
-import { withDb, type DbContext } from '../common/handler-pipeline.js';
+import { withDb, type DbContext } from '../common/handlerPipeline.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
 import { listUsers } from '../common/identityClient.js';
 import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';

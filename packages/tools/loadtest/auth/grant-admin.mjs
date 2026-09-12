@@ -15,7 +15,14 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SK = process.env['CLERK_SECRET_KEY'] ?? process.env['CLERK_SK'];
-const FOOD_BASE_URL = (process.env['FOOD_BASE_URL'] ?? 'https://food-pr-59.commise.app').replace(/\/$/, '');
+// ⛔ NO DEFAULT. This read `?? 'https://food-pr-59.commise.app'` — a host that stopped resolving
+// the day PR 59 closed, so a caller who forgot the variable got a dead target instead of an error.
+// Resolve the origin from the stage instead: `node printPublicOrigin.mjs food <stage> <apex>`.
+const FOOD_BASE_URL = (process.env['FOOD_BASE_URL'] ?? '').replace(/\/$/, '');
+
+if (!FOOD_BASE_URL) {
+    throw new Error('FOOD_BASE_URL is required — resolve it with printPublicOrigin.mjs, never a typed host');
+}
 const FAPI = (process.env['FAPI'] ?? 'https://nice-fowl-6.clerk.accounts.dev').replace(/\/$/, '');
 const ORIGIN = process.env['ORIGIN'] ?? 'https://sandbox.commise.app';
 const BAPI = 'https://api.clerk.com/v1';

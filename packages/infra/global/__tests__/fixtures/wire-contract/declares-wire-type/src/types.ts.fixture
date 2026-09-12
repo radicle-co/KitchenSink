@@ -1,0 +1,17 @@
+/** Hand-written twins of shapes the contract owns — the defect §15.1 measures. */
+import { thingResponseSchema } from '@kitchensink/schema-thing';
+
+/** Collides by NAME with a published export: a second declaration of one piece of knowledge. */
+export interface CreateThingRequest {
+    readonly name: string;
+}
+
+/** No published twin, but a fresh declaration under a wire-envelope name and no justification. */
+export type ThingListResponse = {
+    readonly items: readonly string[];
+    readonly total: number;
+};
+
+export function readThing(payload: unknown): unknown {
+    return thingResponseSchema.parse(payload);
+}

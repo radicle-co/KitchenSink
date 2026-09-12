@@ -4,7 +4,7 @@
  * `/account`, `/settings`, and `/profile` share one visual shell — a centred, max-width column of card
  * sections with the design-system field idiom — so its classes live here once rather than being re-typed in
  * three route files (DRY on genuine shared knowledge: the auth surface's look, one reason to change). The
- * field/card/label classes deliberately mirror `@commise/features-recipes` `RecipeFormSections` so the auth
+ * field/card/label classes deliberately mirror `@commise/features-recipes` `formSectionStyles` so the auth
  * forms read as the same product as the recipe forms; they are separate constants (DAMP across the workspace
  * boundary) rather than an imported shared control, because the two change for different reasons.
  */

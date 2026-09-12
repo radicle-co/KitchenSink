@@ -6,12 +6,12 @@ import { RecipesModule } from '../recipes/recipes.module.js';
 import { VersionsController } from './versions.controller.js';
 import { VersionsService, VERSIONS_DAL } from './versions.service.js';
 import { VersionsDal } from './dal/versions.dal.js';
-import { PendingArchivesDal } from './dal/pending-archives.dal.js';
+import { PendingArchivesDal } from './dal/pendingArchives.dal.js';
 import {
     VERSION_ARCHIVE_READER,
     createS3VersionArchiveReader,
     type VersionArchiveReader,
-} from './version-archive.storage.js';
+} from './versionArchive.storage.js';
 
 /**
  * Versions module (FR-007b). Owns recipe version history: snapshot writes, the last-10 Postgres

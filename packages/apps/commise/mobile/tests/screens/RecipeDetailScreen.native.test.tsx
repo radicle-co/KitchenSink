@@ -28,6 +28,8 @@ import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipe: vi.fn(),
     useDeleteRecipe: vi.fn(),
     useSetRecipeVisibility: vi.fn(),
@@ -367,6 +369,7 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
         fireEvent.click(screen.getByRole('button', { name: 'More' }));
 
         const t = mobileMessages.en.recipes;
+
         for (const name of [t.editAction, t.versionsAction, t.deleteAction]) {
             expect(window.getComputedStyle(pillOf(name)).minHeight).toBe('44px');
         }

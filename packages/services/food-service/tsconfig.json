@@ -13,6 +13,6 @@
     // Typecheck/editor/eslint project — it never emits (`build` uses tsconfig.build.json, which carries the
     // test exclusions). Tests are deliberately INCLUDED, co-located unit specs included: vitest transpiles
     // without typechecking, so excluding them here left them with no static analysis whatsoever.
-    "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts"],
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts", "contract/**/*.ts"],
     "exclude": ["node_modules", "dist", "infra"]
 }

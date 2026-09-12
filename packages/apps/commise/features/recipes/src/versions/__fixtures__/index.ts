@@ -6,14 +6,52 @@
  * upstream Object Mother of its own.
  */
 import { makeRecipeVersion } from '@kitchensink/recipe-core/testing';
-import type { VersionConflictSide } from '@kitchensink/recipe-core';
+import type { RecipeIngredient, RecipeSnapshot, VersionConflictSide } from '@kitchensink/recipe-core';
 
 export { makeRecipeVersion };
 
 /**
+ * A default {@link RecipeIngredient} snapshot line, overridable per field.
+ *
+ * ⚠️ Lives here rather than in one suite because `model.test.ts` — which declared it — was split into one
+ * suite per version module, and six copies of a fixture is the drift DRY governs.
+ *
+ * @param overrides - Fields to override on the default line.
+ * @returns A complete `RecipeIngredient`.
+ */
+export const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngredient => ({
+    id: 'ri_1',
+    recipeId: 'rec_1',
+    ingredientId: 'ing_1',
+    quantity: { kind: 'exact', value: 200 },
+    unit: 'g',
+    sortOrder: 1,
+    ingredientName: 'Pasta',
+    isUserEntered: false,
+    ...overrides,
+});
+
+/**
+ * A default {@link RecipeSnapshot}, overridable per field — mirrors the default `makeRecipeVersion` shape.
+ *
+ * @param overrides - Fields to override on the default snapshot.
+ * @returns A complete `RecipeSnapshot`.
+ */
+export const makeSnapshot = (overrides: Partial<RecipeSnapshot> = {}): RecipeSnapshot => ({
+    version: 1,
+    title: 'Weeknight Pasta',
+    description: 'A fast, comforting weeknight dinner.',
+    steps: [],
+    ingredients: [],
+    servings: 4,
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 20,
+    ...overrides,
+});
+
+/**
  * Build a {@link VersionConflictSide} (a 409's `server`/`base` side, W8-a.5) with sensible defaults,
- * overridable per field. Defaults to carrying a `deviceLabel` (the common case the conflict banner's device
- * suffix renders); pass `{ deviceLabel: undefined }` to exercise the "no device known" banner variant.
+ * overridable per field.
  *
  * @param overrides - Fields to override on the default side.
  * @returns A complete `VersionConflictSide`.
@@ -23,7 +61,6 @@ export function makeVersionConflictSide(overrides: Partial<VersionConflictSide> 
 
     return {
         versionNumber,
-        deviceLabel: 'iPhone',
         updatedAt: '2026-05-09T14:30:00.000Z',
         snapshot: makeRecipeVersion({ versionNumber }).snapshot,
         ...overrides,

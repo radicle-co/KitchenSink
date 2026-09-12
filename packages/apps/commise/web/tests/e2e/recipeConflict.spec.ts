@@ -47,9 +47,10 @@ async function enterConflict(page: Page, conflictSeed: EnrichedConflictSeed): Pr
 
     await page.goto(route('/recipes/rec_conflict/edit'));
     await page.getByLabel('Title').fill('My Merged Title');
-    // Publish is the footer's FINAL-step primary (U6). The seed is fully valid, so jump to Photos (step 4) via
+    // Publish is the action bar's FINAL-step primary. The seed is fully valid, so jump to Review (step 4) via
     // the rail — forward navigation is ungated even with the unsaved title edit — and publish to lose the race.
-    await page.getByRole('button', { name: /Photos:/ }).click();
+    await page.getByRole('button', { name: /Review:/ }).click();
+    await expect(page.getByText('Step 4 of 4')).toBeVisible();
     await page.getByRole('button', { name: 'Publish' }).click();
 
     await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
@@ -61,11 +62,12 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
     test('the conflict shows the per-side banner and the changed-only diff (markers, Server before Yours)', async ({
         page,
     }) => {
-        await enterConflict(page, { serverChanges: { servings: 8 }, deviceLabel: 'Kitchen iPad' });
+        await enterConflict(page, { serverChanges: { servings: 8 } });
 
-        // Per-side banner (X3): server side names its version, when it saved, and which device — mine has no
-        // version of its own (never persisted).
-        await expect(page.getByText(/^Server version \(v2\): Saved \d+ minutes? ago on Kitchen iPad$/u)).toBeVisible();
+        // Per-side banner (X3): server side names its version and when it saved — mine has no version of its
+        // own (never persisted). The banner's trailing ` on {device}` clause went with the 2026-08-26 owner
+        // ruling; the `$` anchor is what keeps it from creeping back.
+        await expect(page.getByText(/^Server version \(v2\): Saved \d+ minutes? ago$/u)).toBeVisible();
         await expect(page.getByText('Your version: local unsaved changes')).toBeVisible();
 
         // Changed-only diff (X1/X7): title (mine changed it) and servings (theirs changed it) — Server's

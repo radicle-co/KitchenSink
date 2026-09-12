@@ -1,0 +1,258 @@
+{
+    "schemaVersion": 1,
+    "generatedBy": "@kitchensink/docgen-components",
+    "source": "@commise/ui",
+    "tokens": "docs/generated/design/tokens.json",
+    "groups": [
+        {
+            "id": "palette",
+            "source": "packages/apps/commise/ui/src/tokens/colors.ts",
+            "tokenCount": 16,
+            "kinds": [
+                "color"
+            ]
+        },
+        {
+            "id": "semantic",
+            "source": "packages/apps/commise/ui/src/tokens/colors.ts",
+            "tokenCount": 10,
+            "kinds": [
+                "color"
+            ]
+        },
+        {
+            "id": "chart",
+            "source": "packages/apps/commise/ui/src/tokens/colors.ts",
+            "tokenCount": 5,
+            "kinds": [
+                "color"
+            ]
+        },
+        {
+            "id": "space",
+            "source": "packages/apps/commise/ui/src/tokens/spacing.ts",
+            "tokenCount": 10,
+            "kinds": [
+                "dimension",
+                "number"
+            ]
+        },
+        {
+            "id": "size",
+            "source": "packages/apps/commise/ui/src/tokens/spacing.ts",
+            "tokenCount": 10,
+            "kinds": [
+                "dimension",
+                "number"
+            ]
+        },
+        {
+            "id": "radius",
+            "source": "packages/apps/commise/ui/src/tokens/radius.ts",
+            "tokenCount": 5,
+            "kinds": [
+                "dimension"
+            ]
+        },
+        {
+            "id": "shadows",
+            "source": "packages/apps/commise/ui/src/tokens/shadows.ts",
+            "tokenCount": 5,
+            "kinds": [
+                "shadow"
+            ]
+        },
+        {
+            "id": "fonts",
+            "source": "packages/apps/commise/ui/src/tokens/typography.ts",
+            "tokenCount": 3,
+            "kinds": [
+                "text"
+            ]
+        },
+        {
+            "id": "fontSizes",
+            "source": "packages/apps/commise/ui/src/tokens/typography.ts",
+            "tokenCount": 11,
+            "kinds": [
+                "dimension"
+            ]
+        },
+        {
+            "id": "fontWeights",
+            "source": "packages/apps/commise/ui/src/tokens/typography.ts",
+            "tokenCount": 4,
+            "kinds": [
+                "text"
+            ]
+        },
+        {
+            "id": "lineHeights",
+            "source": "packages/apps/commise/ui/src/tokens/typography.ts",
+            "tokenCount": 3,
+            "kinds": [
+                "text"
+            ]
+        },
+        {
+            "id": "gradient",
+            "source": "packages/apps/commise/ui/src/tokens/gradients.ts",
+            "tokenCount": 3,
+            "kinds": [
+                "gradient"
+            ]
+        },
+        {
+            "id": "glass",
+            "source": "packages/apps/commise/ui/src/tokens/gradients.ts",
+            "tokenCount": 2,
+            "kinds": [
+                "glass"
+            ]
+        },
+        {
+            "id": "native.spacing",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 10,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "native.radius",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 5,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "native.mediaHeight",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 2,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "native.fontFace",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 1,
+            "kinds": [
+                "object"
+            ]
+        },
+        {
+            "id": "native.fontWeight",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 4,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "native.lineHeight",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 3,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "native.fontSize",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 11,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "native.elevation",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 5,
+            "kinds": [
+                "shadow"
+            ]
+        },
+        {
+            "id": "native",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 1,
+            "kinds": [
+                "color"
+            ]
+        },
+        {
+            "id": "scale.spacing",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 10,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "scale.radius",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 5,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "scale.fontSize",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 11,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "scale.fontWeight",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 4,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "scale.lineHeightRatio",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 3,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "scale.elevation",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 5,
+            "kinds": [
+                "shadow"
+            ]
+        },
+        {
+            "id": "scale.mediaHeight",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 2,
+            "kinds": [
+                "number"
+            ]
+        },
+        {
+            "id": "scale.fontFamily",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 3,
+            "kinds": [
+                "text"
+            ]
+        },
+        {
+            "id": "scale.displayFontFace",
+            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
+            "tokenCount": 2,
+            "kinds": [
+                "text"
+            ]
+        }
+    ]
+}

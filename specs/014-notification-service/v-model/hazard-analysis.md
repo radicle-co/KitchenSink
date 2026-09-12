@@ -10,6 +10,8 @@
 
 This FMEA evaluates each `SYS-NNN` component for realistic failure modes impacting trust, privacy, availability, routing correctness, and operational resilience in a shared notification platform.
 
+**Amended 2026-08-10.** HAZ-032…HAZ-041 cover SYS-032…SYS-041, the dual-ingress decomposition (`spec.md` FR-024…FR-033). The 2026-05-13 register contained no hazard for EventBridge, envelope spoofing, `source` allowlisting or bus resource policies, because the design it analysed had one authenticated door. Adding a second, **credential-less** ingress moves the feature's largest security hazard from "cross-tenant leak through a routing bug" (HAZ-006) to "arbitrary recipient addressing through an unauthenticated publish channel" (HAZ-035) — a different failure mode with a different control, so it is registered separately rather than folded into HAZ-006. Two of the new hazards are silence hazards (HAZ-036, HAZ-037): the system continues to look healthy while it is wrong, which is why both are alarmed rather than merely counted.
+
 ## ID Schema
 
 - **Hazard ID**: `HAZ-{NNN}` sequential and never renumbered.
@@ -244,26 +246,109 @@ This FMEA evaluates each `SYS-NNN` component for realistic failure modes impacti
 | ------- | --------- | --------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------ | -------- | ---------- | ---------- | ---------------- | ------------- |
 | HAZ-031 | SYS-031   | SYS-031 control path fails open/closed causing requirement non-conformance. | DEGRADED          | Delivery privacy/integrity/availability objective is violated for affected audience. | Minor    | Remote     | Tolerable  | REQ-031, SYS-031 | Tolerable     |
 
+### SYS-032 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                                                            | Operational State | Effect                                                                                                                   | Severity | Likelihood | Risk Level  | Mitigation                                     | Residual Risk |
+| ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------ | -------- | ---------- | ----------- | ---------------------------------------------- | ------------- |
+| HAZ-032 | SYS-032   | A rule is implemented in one ingress adapter and not the other, so the second path silently bypasses validation, registry enforcement, quota or dedupe. | NORMAL            | Every guarantee the bypassed rule provides is void for one class of producer, with no error and no counter to reveal it. | Critical | Probable   | Undesirable | REQ-032, SYS-032, SYS-033, SC-008 paired tests | Tolerable     |
+
+> **Why Probable, not Remote.** Two adapters over one core is a discipline, not a mechanism: nothing in the type system stops a maintainer adding a check to the HTTP controller alone, and the event path has no caller to complain. The control is the paired per-rule test of SC-008, which fails when a rule exists on only one path. Without those tests the residual risk is **Undesirable**, not Tolerable.
+
+### SYS-033 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                                          | Operational State | Effect                                                                                                                              | Severity | Likelihood | Risk Level | Mitigation                         | Residual Risk |
+| ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- | ---------- | ---------------------------------- | ------------- |
+| HAZ-033 | SYS-033   | The bus rule is widened past the reserved `detailType`, so a producer's domain event is ingested and a recipient is inferred from it. | DEGRADED          | A notification is addressed by guesswork rather than by a publisher's decision, and `payload` is inspected in violation of REQ-022. | Serious  | Occasional | Tolerable  | REQ-033, REQ-022, SYS-033, SYS-034 | Tolerable     |
+
+### SYS-034 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                                              | Operational State | Effect                                                                                                                                                                              | Severity | Likelihood | Risk Level  | Mitigation                         | Residual Risk |
+| ------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- | ----------- | ---------------------------------- | ------------- |
+| HAZ-034 | SYS-034   | A missing required field is defaulted instead of rejected — `occurredAt` stamped at receipt, `schemaVersion` assumed, `producer` guessed. | NORMAL            | The envelope is durably accepted and delivered while its ordering key, its dedupe key or its attribution is fabricated. Every downstream guarantee built on those fields is untrue. | Critical | Occasional | Undesirable | REQ-034, SYS-034, REQ-037, REQ-038 | Tolerable     |
+
+### SYS-035 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                                                                                                  | Operational State | Effect                                                                                                                                                                                                                                  | Severity     | Likelihood | Risk Level  | Mitigation                                        | Residual Risk |
+| ------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ---------- | ----------- | ------------------------------------------------- | ------------- |
+| HAZ-035 | SYS-035   | Envelope spoofing on the credential-less event path: the bus resource policy is absent or over-broad, or the `source` allowlist is not validated, or one of the two is treated as sufficient. | INCIDENT          | Any principal with bus access addresses a notification to any user, with a `messageType` and `payload` of its choosing. REQ-005, REQ-020 and REQ-021 are defeated at once, and the delivery is indistinguishable from a legitimate one. | Catastrophic | Occasional | Undesirable | REQ-035 (both controls), REQ-036, SYS-035, SC-009 | Tolerable     |
+
+> **This is the feature's highest-severity hazard, and it is a two-control hazard.** The resource policy fails the attempt at the AWS API; the `source` allowlist fails it at the adapter. Each covers what the other cannot: the policy cannot distinguish which `source` an authorised principal claims, and the allowlist cannot stop an unauthorised principal from filling the bus. Residual risk is **Tolerable only with both present**. With either one alone it is **Intolerable**, because a single missing control converts the event path into an open publish channel and no counter distinguishes the resulting deliveries from real ones. Verified by SC-009 — 100% of non-allowlisted `source` values rejected and dead-lettered, none ever delivered.
+
+### SYS-036 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                | Operational State | Effect                                                                                                                                                                                                                  | Severity | Likelihood | Risk Level  | Mitigation                                 | Residual Risk |
+| ------- | --------- | ------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------ | ------------- |
+| HAZ-036 | SYS-036   | An event-path rejection is dropped without a dead-letter record, a reason code or an alarm. | DEGRADED          | A dropped rejection is indistinguishable from a successful delivery. The publisher's `PutEvents` succeeded, so it believes the user was told; the user was never told; nothing anywhere records that a message existed. | Critical | Probable   | Undesirable | REQ-036, SYS-036, SYS-013, DLQ depth alarm | Tolerable     |
+
+> **Why this is a hazard and not merely missing telemetry.** On the HTTP path a rejection returns a structured error and the producer can react. The event path has no caller. The DLQ is therefore not an observability nicety, it is the only record that the rejection happened, and its depth is the only signal an operator gets. An unalarmed DLQ has the same operational value as no DLQ.
+
+### SYS-037 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                                  | Operational State | Effect                                                                                                                                                                                                  | Severity | Likelihood | Risk Level  | Mitigation                               | Residual Risk |
+| ------- | --------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- | ----------- | ---------------------------------------- | ------------- |
+| HAZ-037 | SYS-037   | Event-path arrivals are enqueued in arrival order, so the FIFO queue faithfully preserves an order that is not publish order. | NORMAL            | Per-recipient FIFO (REQ-008) becomes silently untrue for every event-path producer. The queue reports healthy, the sequence is gap-free, the client detects no gap — and the messages are out of order. | Serious  | Probable   | Undesirable | REQ-037, SYS-037, SC-002 cross-path runs | Tolerable     |
+
+> EventBridge does not preserve ordering; this hazard is a property of the transport, not a defect that might not occur. The control is ordering by producer-assigned `occurredAt` with a deterministic tiebreaker before enqueue, exercised by a cross-path SC-002 run. If that proves unachievable, REQ-008 is narrowed explicitly — an honestly narrowed guarantee is not a hazard, a silently false one is.
+
+### SYS-038 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                                  | Operational State | Effect                                                                                                                                      | Severity | Likelihood | Risk Level  | Mitigation                        | Residual Risk |
+| ------- | --------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- | ----------- | --------------------------------- | ------------- |
+| HAZ-038 | SYS-038   | An `idempotencyKey` is derived from a transport identifier or a clock, so it changes on every retry and matches no prior key. | NORMAL            | Deduplication is present but inert. At-least-once redelivery produces a duplicate user-visible notification, and REQ-018 appears satisfied. | Serious  | Probable   | Undesirable | REQ-038, REQ-034, SYS-018, SC-011 | Tolerable     |
+
+### SYS-039 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                                                         | Operational State | Effect                                                                                                                                                                                | Severity | Likelihood | Risk Level  | Mitigation                              | Residual Risk |
+| ------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- | ----------- | --------------------------------------- | ------------- |
+| HAZ-039 | SYS-039   | A publisher publishes one envelope per underlying completion instead of one per user-meaningful outcome, or this service grows an aggregation stage. | DEGRADED          | Either the user receives a storm — 30 notifications for one import — or this service inspects `payload` to collapse them, violating REQ-022 and taking on knowledge it does not have. | Serious  | Probable   | Undesirable | REQ-039, REQ-022, SC-010, REQ-041 quota | Tolerable     |
+
+> The quota of REQ-041 bounds the blast radius of a mis-correlating publisher but does not fix it: a throttled storm is still a storm minus the throttled tail. The control is the publisher-side translator, plus SC-010 asserting that N publishes for one recipient arrive as N deliveries — which is deliberately a test that this service does **not** help.
+
+### SYS-040 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                                            | Operational State | Effect                                                                                                                              | Severity | Likelihood | Risk Level | Mitigation                         | Residual Risk |
+| ------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- | ---------- | ---------------------------------- | ------------- |
+| HAZ-040 | SYS-040   | Token verification fails open when the public key is unavailable, or falls back to a network round trip that then times out under load. | INCIDENT          | Either an unauthenticated caller publishes on the HTTP path, or publish availability collapses to that of a third-party dependency. | Critical | Remote     | Tolerable  | REQ-040, REQ-002, SYS-040, NFR-001 | Tolerable     |
+
+### SYS-041 — Component Hazard Analysis
+
+| HAZ ID  | Component | Failure Mode                                                                                                             | Operational State | Effect                                                                                                                                     | Severity | Likelihood | Risk Level | Mitigation                         | Residual Risk |
+| ------- | --------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ---------- | ---------- | ---------------------------------- | ------------- |
+| HAZ-041 | SYS-041   | The quota is inferred from a producer's internals or hard-coded, and a quota rejection is counted without being alarmed. | DEGRADED          | The bound drifts from the producer it describes, and a rejected notification is a message the user never receives with no operator signal. | Serious  | Occasional | Tolerable  | REQ-041, REQ-019, SYS-013, SYS-041 | Tolerable     |
+
 ## Progressive Deepening (Architecture-Level)
 
-| Deepening Target               | Trigger                                 | Planned Follow-up                                                        |
-| ------------------------------ | --------------------------------------- | ------------------------------------------------------------------------ |
-| ARCH-level retry topology      | Repeated retry-amplification incidents  | Add architecture-level throttling and retry budget hazard decomposition. |
-| Registry governance controls   | High unregistered messageType rates     | Extend controls around registry ownership enforcement workflow.          |
-| Dependency outage choreography | Multi-vendor outage simulation findings | Expand degraded-mode delivery policies and failover narratives.          |
+| Deepening Target               | Trigger                                                             | Planned Follow-up                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| ARCH-level retry topology      | Repeated retry-amplification incidents                              | Add architecture-level throttling and retry budget hazard decomposition.                                                       |
+| Registry governance controls   | High unregistered messageType rates                                 | Extend controls around registry ownership enforcement workflow.                                                                |
+| Dependency outage choreography | Multi-vendor outage simulation findings                             | Expand degraded-mode delivery policies and failover narratives.                                                                |
+| Bus resource-policy drift      | Any change to the notification bus policy or the `source` allowlist | Decompose HAZ-035 per principal; assert the two controls independently in infra tests, since either alone is Intolerable.      |
+| Cross-path ordering under load | An SC-002 cross-path run failing, or a narrowing of REQ-008         | Decompose HAZ-037 by clock skew between producers, since `occurredAt` is producer-assigned and producers do not share a clock. |
+| Publisher fan-in correctness   | A storm reaching a user from a mis-correlating publisher            | Decompose HAZ-039 per publisher; the control lives in the publisher, so this service can only detect it, not prevent it.       |
 
 ## Coverage Summary
 
 | Metric                  | Value          |
 | ----------------------- | -------------- |
-| Total SYS Components    | 31             |
-| Total Hazards           | 31             |
-| SYS with ≥1 Hazard      | 31 / 31 (100%) |
-| Hazards with Mitigation | 31 / 31 (100%) |
+| Total SYS Components    | 41             |
+| Total Hazards           | 41             |
+| SYS with ≥1 Hazard      | 41 / 41 (100%) |
+| Hazards with Mitigation | 41 / 41 (100%) |
+
+### Risk profile of the 2026-08-10 additions
+
+| Risk Level  | Hazards                                                       |
+| ----------- | ------------------------------------------------------------- |
+| Undesirable | HAZ-032, HAZ-034, HAZ-035, HAZ-036, HAZ-037, HAZ-038, HAZ-039 |
+| Tolerable   | HAZ-033, HAZ-040, HAZ-041                                     |
+
+HAZ-035 is the only Catastrophic-severity hazard in the register. **Seven of the ten new hazards are Undesirable before mitigation — a 70% rate against 35% (11 of 31) for the original register.** Adding a credential-less ingress is the single largest increase in this feature's risk surface, which is why FR-027's two controls are stated as requirements rather than left to implementation.
 
 ## Frozen-Pending-Resolution Tracker
 
 - None declared in 014 upstream sources.
+- **Conditional, not frozen:** REQ-037 permits REQ-008 to be narrowed if cross-path per-recipient FIFO proves unachievable. That is a decision owed at implementation, tracked on `tasks.md` T-038. Until it is taken, HAZ-037's mitigation is assumed effective; if REQ-008 is narrowed instead, HAZ-037 is downgraded and the narrowing is recorded here.
 
 ## Domain Note (non-regulated)
 

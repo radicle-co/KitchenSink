@@ -12,6 +12,7 @@ import { RecipeSearchSortBy, type RecipeSearchResult } from '@kitchensink/recipe
 
 import type { RecipeCardModel } from '../card/model.js';
 import type { RecipeListRefreshControl, RecipeListTabControl } from '../list/model.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
 /**
  * The sort options the discovery UI offers (S3), in display order — a subset of {@link RecipeSearchSortBy}
@@ -83,6 +84,16 @@ export interface RecipeBrowseRailsProps {
     readonly cloningId?: string | null;
     readonly onSelectRecipe: (id: string) => void;
     readonly onClone: (id: string) => void;
+    /**
+     * Render one recipe's deferred per-serving calorie figure for a RAIL card (see
+     * {@link RenderRecipeNutrition}). The host closes over the rails' batch promises, so a rail's cards are
+     * one request that lands together. Absent ⇒ the rails render no nutrition line.
+     *
+     * The rails are a card surface like any other, and the one a viewer meets FIRST: they are the default
+     * state of Discover, so omitting this would leave the screen's opening view the only card grid in the
+     * product with no figure.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /**
@@ -113,7 +124,7 @@ export interface RecipeDiscoverySortControl {
 export type RecipeDiscoveryStatus = 'loading' | 'error' | 'ready';
 
 /**
- * Props for a single public-recipe search result card (S1). It composes the shared {@link RecipeCard}
+ * Props for a single public-recipe search result card (S1). It composes the shared `RecipeCard`
  * compound parts (P7's search surface) from a {@link RecipeCardModel} — photo, title, cuisine/time/calorie
  * meta, visibility badge, rating, tags — rather than widening a flat discovery prop bag. `authorHandle`
  * (`by @handle`, W8-a.2) and `sourceAttribution` (imported provenance) are the two search-specific extras.
@@ -131,6 +142,11 @@ export interface RecipeDiscoveryCardProps {
     readonly onSelect: (id: string) => void;
     /** Invoked with the recipe id when the row's clone action is activated. */
     readonly onClone: (id: string) => void;
+    /**
+     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
+     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
+     */
+    readonly nutrition?: ReactNode;
 }
 
 /**
@@ -157,7 +173,7 @@ export interface RecipeDiscoveryListProps {
     readonly hasActiveFilters?: boolean;
     /**
      * The My/Community source switcher (L5) — the SAME control, and the same
-     * {@link import('../list/RecipeSourceTabs.js').RecipeSourceTabs} strip, the personal library renders.
+     * `RecipeSourceTabs` strip, the personal library renders.
      *
      * This surface IS the community source, so it passes `active: 'community'`. It is not decoration: without
      * it the community surface was a ONE-WAY TRIP — reachable from the library's "Community" tab, with nothing
@@ -167,7 +183,7 @@ export interface RecipeDiscoveryListProps {
     readonly tab?: RecipeListTabControl;
     /**
      * Optional composition seam rendered between the search field and the results body — where the composing
-     * app mounts the {@link import('../filters/index.js').RecipeFilterBar} so the filters sit under the search
+     * app mounts the `RecipeFilterBar` so the filters sit under the search
      * box, above the results. The view stays presentational and unaware of filter semantics.
      */
     readonly filterSlot?: ReactNode;
@@ -195,10 +211,16 @@ export interface RecipeDiscoveryListProps {
     /**
      * Optional pull-to-refresh (U4/L8) — mobile only; the web leaf ignores it (no web pull gesture). Bound to
      * the result list (not the browse rails). Reuses the
-     * {@link import('../list/model.js').RecipeListRefreshControl} shape — one pull-to-refresh contract across
+     * `RecipeListRefreshControl` shape — one pull-to-refresh contract across
      * every list. The container wires it to the search query's `isRefetching` + `refetch`.
      */
     readonly refresh?: RecipeListRefreshControl;
+    /**
+     * How to render one card's deferred calorie figure — called once per visible card with its recipe id
+     * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
+     * ONE read. Absent ⇒ no card shows a nutrition line, which is the card's absent-value rule, not a gap.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /**

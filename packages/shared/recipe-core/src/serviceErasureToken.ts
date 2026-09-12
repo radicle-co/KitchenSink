@@ -2,7 +2,7 @@
  * The **service-principal account-erasure token** contract (CR-002 / U4a).
  *
  * This is a cross-package WIRE CONTRACT with a producer and a consumer in different packages — exactly
- * the reason {@link AccountErasureMessage} lives here too, and exactly the shape that WILL drift if each
+ * the reason `AccountErasureMessage` lives here too, and exactly the shape that WILL drift if each
  * side declares its own copy:
  *
  *  - **Producer (signer) — the identity deletion-worker Lambda (`@kitchensink/identity-webhooks`, U4b).**
@@ -125,8 +125,8 @@ const serviceErasureJwtClaimsSchema = z.object({
  *
  * The signer MUST additionally set, via `jose`'s `SignJWT`: the protected header `alg`
  * ({@link SERVICE_ERASURE_TOKEN_ALG}), `iss` ({@link SERVICE_ERASURE_TOKEN_ISSUER}), `aud`
- * ({@link SERVICE_ERASURE_TOKEN_AUDIENCE}), `iat`, and a short `exp` (≤ {@link
- * SERVICE_ERASURE_TOKEN_MAX_TTL_SECONDS} after `iat`).
+ * ({@link SERVICE_ERASURE_TOKEN_AUDIENCE}), `iat`, and a short `exp`
+ * (≤ {@link SERVICE_ERASURE_TOKEN_MAX_TTL_SECONDS} after `iat`).
  *
  * @param claims - The bound target owner, the event id, and the machine actor label.
  * @returns The custom claim payload (`{ sub, evt, act }`). Pure.

@@ -1,17 +1,14 @@
 import { eq, type InferInsertModel } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { IdentityWriter } from '../identityWriter.js';
 
-import { webhookEvents } from '../schema/index.js';
+import { webhookEvents } from '../schema/webhookEvents.js';
 
 /**
  * Dedup pre-check: has this svix-id already been processed? Webhook handling is confirm-after-process
  * (the svix-id is recorded only once its handler succeeds — see `recordOnce`), so a delivery whose
  * id is already present is a duplicate of a prior success and can be short-circuited.
  */
-export async function hasProcessedWebhookEvent(
-    db: PostgresJsDatabase<Record<string, never>>,
-    svixId: string,
-): Promise<boolean> {
+export async function hasProcessedWebhookEvent(db: IdentityWriter, svixId: string): Promise<boolean> {
     const rows = await db
         .select({ svixId: webhookEvents.svixId })
         .from(webhookEvents)
@@ -29,7 +26,7 @@ export async function hasProcessedWebhookEvent(
  * (no uniqueness — migration 0008 dropped the bad `(identity_id, event_type)` constraint).
  */
 export async function recordOnce(
-    db: PostgresJsDatabase<Record<string, never>>,
+    db: IdentityWriter,
     svixId: string,
     identityId: string,
     eventType: string,

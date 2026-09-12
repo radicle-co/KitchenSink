@@ -155,7 +155,7 @@ function buildReport() {
     const lines = [
         `# Food API load-test report`,
         ``,
-        `Target: \`${process.env['FOOD_BASE_URL'] ?? 'https://food-pr-59.commise.app'}\`  ·  pool: ${POOL_SIZE} users  ·  ` +
+        `Target: \`${process.env['FOOD_BASE_URL'] ?? '(FOOD_BASE_URL unset)'}\`  ·  pool: ${POOL_SIZE} users  ·  ` +
             `profile: baseline ${process.env['BASELINE_RATE'] ?? 1}/s → hold ${process.env['HOLD_RATE'] ?? 2}/s → ` +
             `ramp ${process.env['RAMP_RATE'] ?? 3}/s`,
         ``,
@@ -315,7 +315,9 @@ async function main() {
             // Exit 99 = k6 thresholds were breached — that's a RESULT (the report shows which), not a
             // harness failure, so proceed to build the report. Any other non-zero is a real k6 error.
             if (code === 99) {
-                console.warn('  ⚠️ k6 thresholds breached — see the report for which (this is a result, not an error).');
+                console.warn(
+                    '  ⚠️ k6 thresholds breached — see the report for which (this is a result, not an error).',
+                );
             } else if (code !== 0) {
                 throw new Error(`k6 exited ${code} — script/config error (see the k6 output above).`);
             }

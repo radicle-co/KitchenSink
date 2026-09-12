@@ -15,7 +15,7 @@ Make the AWS network topology exactly one VPC per stage — production and sandb
 
 ## Problem Frame
 
-The account carries more VPCs than it should. Both prod and sandbox VPCs are created from the same `network-stack.ts` with no explicit `ipAddresses`, so both default to `10.0.0.0/16` — an overlap that blocks VPC peering and forced the Tailscale plan into 4via6 site-ID gymnastics. A parentless `IdentityNetwork-dev` VPC plus its `kitchensink-data-dev` RDS linger from an earlier `STAGE=dev` deploy that no current workflow reproduces. The network stack is also duplicated (byte-identical in the service package; an older copy missing the SG-pairing fix in the webhooks package), where only tests reference it — drift waiting to happen. The identity VPC is confirmed the only VPC-attached prod infrastructure (the web app's `SandboxRouterStack` is CloudFront-based and VPC-independent; the web app is Vercel/edge-hosted) — so "one VPC for all of prod" is already nearly true; the work is making the CIDRs distinct, recreating sandbox, and removing the strays.
+The account carries more VPCs than it should. Both prod and sandbox VPCs are created from the same `NetworkStack.ts` with no explicit `ipAddresses`, so both default to `10.0.0.0/16` — an overlap that blocks VPC peering and forced the Tailscale plan into 4via6 site-ID gymnastics. A parentless `IdentityNetwork-dev` VPC plus its `kitchensink-data-dev` RDS linger from an earlier `STAGE=dev` deploy that no current workflow reproduces. The network stack is also duplicated (byte-identical in the service package; an older copy missing the SG-pairing fix in the webhooks package), where only tests reference it — drift waiting to happen. The identity VPC is confirmed the only VPC-attached prod infrastructure (the web app's `SandboxRouterStack` is CloudFront-based and VPC-independent; the web app is Vercel/edge-hosted) — so "one VPC for all of prod" is already nearly true; the work is making the CIDRs distinct, recreating sandbox, and removing the strays.
 
 ---
 
@@ -120,12 +120,12 @@ Pricing verified against AWS's VPC and Transit Gateway pricing pages (April 2025
 - **Requirements:** R1, R2
 - **Dependencies:** none
 - **Files:**
-    - `packages/infra/global/lib/platform/network-stack.ts` (add `stage` to props; set `ipAddresses` from `cidrFor(stage)`)
-    - `packages/infra/global/lib/platform/global-stack.ts` (forward `stage` into `new NetworkStack(...)`, which today passes only `{ env, stackName }`)
+    - `packages/infra/global/lib/platform/NetworkStack.ts` (add `stage` to props; set `ipAddresses` from `cidrFor(stage)`)
+    - `packages/infra/global/lib/platform/GlobalStack.ts` (forward `stage` into `new NetworkStack(...)`, which today passes only `{ env, stackName }`)
     - `packages/infra/global/bin/app.ts` (confirm `stage` reaches NetworkStack)
     - the relocated infra test from U4 (add a prod-CIDR assertion)
 - **Approach:** Add `stage` to `NetworkStackProps`. Implement `cidrFor(stage)` with a per-stage map (`prod → 10.0.0.0/16`, `sandbox → 10.1.0.0/16`) and a **safe default** for unknown/`dev`/`test` (do not throw). Pass `ipAddresses: ec2.IpAddresses.cidr(cidrFor(stage))`. Keep all construct IDs unchanged to avoid logical-ID drift.
-- **Patterns to follow:** stage-resolution idiom in `bin/app.ts`; prod-vs-other branching in `identity-service-stack.ts`.
+- **Patterns to follow:** stage-resolution idiom in `bin/app.ts`; prod-vs-other branching in `IdentityServiceStack.ts`.
 - **Test scenarios:**
     - Synth for `STAGE=prod` asserts the `AWS::EC2::VPC` CidrBlock is exactly `10.0.0.0/16` (regression guard against prod replacement).
     - Synth for `STAGE=sandbox` asserts CidrBlock `10.1.0.0/16`.
@@ -143,7 +143,7 @@ Pricing verified against AWS's VPC and Transit Gateway pricing pages (April 2025
     - **Pre-flight:** (a) verify `10.1.0.0/16` does not conflict with any existing VPC/peering/route in the account (`describe-vpcs`, `describe-vpc-peering-connections`); (b) **verified-empty check** — run a `SELECT count(*)` across application tables via the in-VPC `MigrationFunction` Lambda or an ECS-exec into the running task (the RDS is otherwise unreachable); define a hard threshold (e.g., any application table > 0 non-system rows → halt and escalate); (c) take a final RDS snapshot regardless, converting "irreversible" to "recoverable".
     - **CI suppression:** disable or path-gate `sandbox-identity-deploy.yml` for the operation so PR-open doesn't fire the deadlocking `cdk deploy --all`; re-enable at the end.
     - **Teardown/redeploy:** destroy webhooks-sandbox → destroy service-sandbox (note: `cdk destroy` matches by **construct id**; expect stuck ACM certs needing `--retain-resources` + manual cleanup) → deploy global-sandbox (new VPC + fresh RDS) → resolve new `IDENTITY_VPC_ID` and **purge the stale sandbox `vpc-provider:` entry from `packages/services/identity/cdk.context.json`** (and the webhooks copy) so `fromLookup` re-resolves against the new VPC → **confirm the new RDS master secret ARN** is what the redeployed service/webhooks resolve → deploy service-sandbox → deploy webhooks-sandbox → invoke the migration Lambda.
-    - **SG pairing:** comes from the shared `network-stack.ts`, so U1 preserves it; verify with VPC Reachability Analyzer if a timeout appears.
+    - **SG pairing:** comes from the shared `NetworkStack.ts`, so U1 preserves it; verify with VPC Reachability Analyzer if a timeout appears.
     - **Rollback/recovery:** document each step's failure state. If global-sandbox deploy fails after service/webhooks are destroyed, **fix forward** (resolve the deploy error) — do **not** `cdk destroy` the global/data stack (autoDeleteObjects + DESTROY would empty buckets and drop the DB). State a max sandbox-down window and an escalation path.
 - **Execution note:** Manual, ordered operation — not the one-shot CI deploy. Sequence the U1 PR so the teardown completes (CI suppressed) before merge.
 - **Test scenarios:** Test expectation: none — operational sequence. Verification is end-to-end.
@@ -208,7 +208,7 @@ Pricing verified against AWS's VPC and Transit Gateway pricing pages (April 2025
 - Renaming `Identity*` stacks/constructs to neutral platform naming (forces replacement; not worth the churn now; see KTDs and ADR 0001).
 - Building the Tailscale router itself (`docs/plans/2026-06-14-003-feat-tailscale-private-aws-access-plan.md`).
 - A least-privilege application DB user distinct from the RDS master user (the service currently connects as master — defense-in-depth hardening).
-- Removing the stale "Auth0 Management API" SG comments at `network-stack.ts:75,81` (cosmetic).
+- Removing the stale "Auth0 Management API" SG comments at `NetworkStack.ts:75,81` (cosmetic).
 - The VPC peering connection, route-table entries, and cross-VPC DB SG rule — chosen (Option A) but implemented with the router in plan 003, since they are useless without it. This plan only establishes the distinct-CIDR precondition.
 
 ### Out of scope
@@ -229,7 +229,7 @@ Pricing verified against AWS's VPC and Transit Gateway pricing pages (April 2025
 - **Catastrophic recovery instinct.** `cdk destroy` on a wedged global/data stack empties buckets (autoDeleteObjects) and drops RDS. Mitigation: explicit "fix-forward only, never destroy the data stack" warning in U2.
 - **Dev retirement blast radius.** A code grep can't see non-CFN dependencies (peering, ENIs, endpoints, Route53 associations, out-of-band secrets). Mitigation: U3's non-CFN sweep + staged disable-then-delete.
 - **Landing U1 redeploys prod.** Merging the global-package change redeploys prod service + webhooks and re-runs prod migrations (idempotent). Mitigation: clean all-prod-stacks `cdk diff`, low-traffic window.
-- **SG-pairing regression on recreated SGs.** Mitigation: derives from shared `network-stack.ts`; U4 keeps the pairing assertion as a named test requirement; Reachability Analyzer as fallback diagnostic.
+- **SG-pairing regression on recreated SGs.** Mitigation: derives from shared `NetworkStack.ts`; U4 keeps the pairing assertion as a named test requirement; Reachability Analyzer as fallback diagnostic.
 - **Stale cross-reference to plan 003.** If 003 isn't updated alongside U1, it instructs 4via6 work against a removed premise. Mitigation: U5 lands the 003/brainstorm updates in the same PR; it removes 4via6 but preserves 003's separate hostname-reachability spike.
 - **Accepted prod↔sandbox coupling (Option A).** Peering bridges the two environments at the routing fabric. Mitigation/controls: route-table entries scoped to specific CIDRs, the sandbox DB SG admitting only the prod router's SG on 5432, and the tailnet ACL restricting both route sets to the owner node; reversible in ~5 minutes if it proves undesirable. Built in plan 003.
 - **Dependency:** the Tailscale plan (003) is downstream; sequence this consolidation (and the U5 doc updates) before resuming router implementation.
@@ -265,8 +265,8 @@ Pricing verified against AWS's VPC and Transit Gateway pricing pages (April 2025
 
 ## Sources & Research
 
-- Repo topology, CIDR config, export coupling, RDS/bucket removal policies, deploy workflows: `packages/infra/global/lib/platform/network-stack.ts:17-141`, `data-stack.ts:40-183`, `identity-global-stack.ts:33-49`, `bin/app.ts`; `.github/workflows/prod-deploy.yml`, `sandbox-identity-deploy.yml`.
-- VPC reached via `fromLookup` + git-tracked cache: `packages/services/identity/infra/lib/identity-service-stack.ts:44`, `packages/services/identity/cdk.context.json`.
+- Repo topology, CIDR config, export coupling, RDS/bucket removal policies, deploy workflows: `packages/infra/global/lib/platform/NetworkStack.ts:17-141`, `DataStack.ts:40-183`, `identity-global-stack.ts:33-49`, `bin/app.ts`; `.github/workflows/prod-deploy.yml`, `sandbox-identity-deploy.yml`.
+- VPC reached via `fromLookup` + git-tracked cache: `packages/services/identity/infra/lib/IdentityServiceStack.ts:44`, `packages/services/identity/cdk.context.json`.
 - CDK default CIDR: `aws-cdk-lib@2.254.0` `Vpc.DEFAULT_CIDR_RANGE = "10.0.0.0/16"`.
 - Migration runner: `packages/services/identity-webhooks/src/handlers/migrate.ts:56-138`; `.sql` files in `packages/services/identity/src/database/migrations/`.
 - Duplicate stacks + tests (incl. webhooks signature divergence and skipped test): `packages/services/identity/infra/__tests__/stacks.test.ts`, `packages/services/identity-webhooks/infra/{lib,__tests__}/`.

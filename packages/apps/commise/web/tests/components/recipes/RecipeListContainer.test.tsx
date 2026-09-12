@@ -42,6 +42,21 @@ describe('RecipeListContainer', () => {
         expect(screen.getByRole('status', { name: 'Loading recipes' })).toBeInTheDocument();
     });
 
+    it('mounts NO create control while the query is pending, so none can vanish as it settles', () => {
+        // The container-level half of the create-dial fix: this container is what feeds the query's flags
+        // into the shared leaf, so a leaf-only assertion could not catch a container that mapped a pending
+        // query onto `ready`. The dial used to mount here, over a library that had not yet said it was
+        // empty — a first-run cook pressed it, the menu opened, the empty state settled and the whole
+        // control detached under their finger.
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).not.toBeInTheDocument();
+    });
+
     it('renders the populated list with a count when recipes load', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipes').mockResolvedValue(
@@ -130,7 +145,10 @@ describe('RecipeListContainer', () => {
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });
 
-    it('navigates to the create route from the pinned FAB when the list is populated', async () => {
+    it('navigates to the create route from the pinned dial when the list is populated', async () => {
+        // REWRITTEN for U34 (owner ruling 2026-08-25): the pinned FAB is now a menu TRIGGER, so the route is
+        // reached from the dial's single "Create from Scratch" destination. Asserting that opening the dial
+        // alone navigates NOWHERE is the half that would otherwise silently pass on a broken wiring.
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipes').mockResolvedValue(
@@ -140,6 +158,10 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         await user.click(await screen.findByRole('button', { name: 'New recipe' }));
+
+        expect(pushMock).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });

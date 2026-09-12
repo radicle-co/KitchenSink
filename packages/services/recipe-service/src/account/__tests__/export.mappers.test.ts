@@ -73,13 +73,34 @@ describe('mapRecipe', () => {
 
     it('carries nullable columns through as explicit null (a full-shape document)', () => {
         const result = mapRecipe(
-            makeRecipeRow({ description: null, difficulty: null, cuisine: null, authorHandle: null }),
+            makeRecipeRow({
+                description: null,
+                difficulty: null,
+                mealType: null,
+                cuisine: null,
+                authorHandle: null,
+            }),
         );
 
         expect(result.description).toBeNull();
         expect(result.difficulty).toBeNull();
+        expect(result.mealType).toBeNull();
         expect(result.cuisine).toBeNull();
         expect(result.authorHandle).toBeNull();
+    });
+
+    // ⛔ A GDPR export that omits a stored field is a compliance defect, not a cosmetic one: it is data the
+    // service holds about the caller. `mealType` (U34) was added to the row, the DAL, the mapper's row TYPE
+    // and the fixture — and missed here, which is exactly how a field goes unexported for a year. Every
+    // sibling classification axis is asserted alongside it so the omission cannot recur one field at a time.
+    it('exports EVERY classification axis a recipe carries, meal type included', () => {
+        const result = mapRecipe(makeRecipeRow());
+
+        expect(result.mealType).toBe('dinner');
+        expect(result.difficulty).toBe('easy');
+        expect(result.cuisine).not.toBeUndefined();
+        expect(result.tags).toEqual(['dinner']);
+        expect(result.dietaryFlags).toEqual(['vegetarian']);
     });
 
     it('exports a tombstoned recipe with its deletedAt, so the export mirrors what erasure removes', () => {
@@ -172,7 +193,6 @@ describe('mapVersion', () => {
             s3Key: null,
             createdBy: expect.any(String),
             changeSummary: 'Initial version',
-            deviceLabel: null,
             editorHandle: 'chef-anna',
             createdAt: '2026-01-15T12:00:00.000Z',
         });

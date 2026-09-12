@@ -1,3 +1,4 @@
+import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -44,6 +45,8 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'jsdom',
+        // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
+        setupFiles: [jsdomPolyfillsSetup],
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
     },

@@ -17,6 +17,7 @@ import {
     isListNarrowed,
     isQuickRecipe,
     matchesListFacet,
+    shouldShowCreateDial,
     toRecipeListItem,
 } from '../model.js';
 
@@ -164,5 +165,61 @@ describe('isListNarrowed (the empty-vs-no-match discriminator)', () => {
 
     it('is true when both a term and a facet are active', () => {
         expect(isListNarrowed('lamb', ['Vegetarian'])).toBe(true);
+    });
+});
+
+describe('shouldShowCreateDial (U34)', () => {
+    // The create dial's two gates, as ONE authority. They used to be spelled inline in BOTH list leaves —
+    // agreeing by inspection rather than by construction, which is how a rule this quiet drifts apart.
+    const show = (over: Partial<Parameters<typeof shouldShowCreateDial>[0]> = {}) =>
+        shouldShowCreateDial({ status: 'ready', recipeCount: 3, narrowed: false, onCommunity: false, ...over });
+
+    it('shows the dial over a populated library', () => {
+        expect(show()).toBe(true);
+    });
+
+    it('SUPPRESSES the dial while the library is still LOADING, whatever it is about to settle to', () => {
+        // REWRITTEN. This previously asserted the dial is KEPT through loading, on the reasoning that the
+        // loading body renders no CTA to compete with. True, and still the wrong outcome: the true-empty
+        // gate is decided against `status`/`recipeCount`, and while loading those say `0` for a library that
+        // has not answered yet. So on a first run the dial MOUNTED, a cook pressed it, the menu opened — and
+        // then the empty library settled and the whole control UNMOUNTED under their finger. Playwright saw
+        // it as `element was detached from the DOM` for 60s.
+        //
+        // The rule is not wrong; it was being evaluated against a state that had not settled. Loading is now
+        // its own answer — the dial does not appear until the library has actually resolved — so the
+        // mount→unmount flip cannot happen on the transition every first-run cook takes.
+        expect(show({ status: 'loading', recipeCount: 0 })).toBe(false);
+        // …and it stays suppressed while loading even for a library that will settle POPULATED. The point is
+        // that `recipeCount` is not yet evidence, so no count may unsuppress it.
+        expect(show({ status: 'loading', recipeCount: 3 })).toBe(false);
+        expect(show({ status: 'loading', recipeCount: 0, narrowed: true })).toBe(false);
+    });
+
+    it('keeps the dial on ERROR, whose body renders no CTA to replace it', () => {
+        // Deliberately NOT folded in with loading, and the reason is FREQUENCY rather than impossibility.
+        // ⚠️ An error is not immovable without a "Try again": `refetchOnWindowFocus`/`refetchOnReconnect`
+        // both default to `true` and an errored query is stale, so tabbing away and back does refetch it
+        // (probed against the real client — one attempt became two). What it does not do is happen on every
+        // first run, a beat after the screen appears, which is the transition the loading gate closes.
+        // Suppressing here would instead leave a cook whose library failed to load with no way to create at
+        // all. See `shouldShowCreateDial`'s JSDoc for the full account of the accepted residual.
+        expect(show({ status: 'error', recipeCount: 0 })).toBe(true);
+    });
+
+    it('SUPPRESSES the dial on a TRUE empty library — the empty-state CTA is the sole create control there', () => {
+        expect(show({ recipeCount: 0 })).toBe(false);
+    });
+
+    it('KEEPS the dial on a narrowed zero, whose empty body renders no CTA to replace it', () => {
+        // The half that is easy to lose: a chip- or search-narrowed zero is a NO-MATCH, not a first run, so
+        // suppressing here would leave that viewer with no create affordance at all.
+        expect(show({ recipeCount: 0, narrowed: true })).toBe(true);
+    });
+
+    it('SUPPRESSES the dial on the Community tab, where a cook never creates into another cook’s list', () => {
+        expect(show({ onCommunity: true })).toBe(false);
+        expect(show({ onCommunity: true, recipeCount: 0, narrowed: true })).toBe(false);
+        expect(show({ onCommunity: true, status: 'loading' })).toBe(false);
     });
 });

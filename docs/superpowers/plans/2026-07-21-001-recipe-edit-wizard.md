@@ -35,7 +35,7 @@
 
 **Interfaces (unchanged, new home):** `computeRecipeNutrition(lines: readonly NutritionLine[], servings: number): RecipeNutrition`; `leadCaloriesPerServing(...): number | undefined`; `unitToGrams(quantity, unit, portions?): number | null`. `RecipeNutrition` already lives in recipe-core.
 
-- [ ] Step 1: move the files + tests into `recipe-core`; re-export. Step 2: update `recipe-service` imports (`recipes.service.ts`/`collections.service.ts`/`recipes.dal.ts`/`search.dal.ts`/`recipe-response.dto.ts`/`schema/recipes.ts`) to `@kitchensink/recipe-core`. Step 3: run recipe-core + recipe-service suites — the SAME tests must pass in the new home; the service's synth/behavior is byte-identical (verify no diff in what it computes). Step 4: `npm run typecheck` monorepo-wide (the move touches a service). Commit `refactor(recipe-core): host the nutrition aggregator for client reuse (w3/e3)`.
+- [ ] Step 1: move the files + tests into `recipe-core`; re-export. Step 2: update `recipe-service` imports (`recipes.service.ts`/`collections.service.ts`/`recipes.dal.ts`/`search.dal.ts`/`recipeResponse.dto.ts`/`schema/recipes.ts`) to `@kitchensink/recipe-core`. Step 3: run recipe-core + recipe-service suites — the SAME tests must pass in the new home; the service's synth/behavior is byte-identical (verify no diff in what it computes). Step 4: `npm run typecheck` monorepo-wide (the move touches a service). Commit `refactor(recipe-core): host the nutrition aggregator for client reuse (w3/e3)`.
 
 ---
 

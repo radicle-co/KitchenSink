@@ -1,0 +1,10 @@
+/** Talks to one of our services with its own zod and no published contract in sight. */
+import { z } from 'zod';
+
+const localThingSchema = z.object({ id: z.string() });
+
+export async function getThing(fetchImpl: typeof fetch): Promise<{ readonly id: string }> {
+    const response = await fetchImpl('/api/v1/things/1');
+
+    return localThingSchema.parse(await response.json());
+}

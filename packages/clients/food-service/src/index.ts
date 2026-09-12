@@ -14,7 +14,9 @@ export {
     FetchUnavailableError,
     FoodServiceClientError,
     ForbiddenError,
+    InvalidRequestError,
     NotFoundError,
+    SourceUnavailableError,
     UnauthorizedError,
     UnexpectedResponseError,
     isBadRequestError,
@@ -23,24 +25,57 @@ export {
     isFetchUnavailableError,
     isFoodServiceClientError,
     isForbiddenError,
+    isInvalidRequestError,
     isNotFoundError,
+    isSourceUnavailableError,
     isUnauthorizedError,
     isUnexpectedResponseError,
 } from './errors.js';
 
+// The wire types are the food service's own, re-exported from `@kitchensink/schema-food` (CODING_STANDARDS
+// §15). The CANONICAL names are the service's; the `*Result`/`FoodView` names below are `@deprecated` aliases
+// kept so this package's public surface did not churn when the hand-written copies were deleted.
+export type {
+    AddResponse,
+    ApiErrorBody,
+    BatchItemView,
+    BatchResponse,
+    CandidateView,
+    CandidatesResponse,
+    FoodError,
+    FoodErrorCode,
+    FoodResponse,
+    FoodStatus,
+    GetFoodResult,
+    LiveSearchResponse,
+    LiveSearchResultView,
+    NutrientView,
+    PendingFoodStatus,
+    PendingResponse,
+    PortionView,
+    ResolveResponse,
+    SearchResponse,
+    SearchResultView,
+    StatusResponse,
+    TerminalFoodStatus,
+} from './types.js';
+
 export type {
     AddResult,
-    BatchItemView,
+    CreateAuthoredFoodInput,
+    CreateAuthoredFoodResult,
     BatchResult,
-    CandidateView,
     CandidatesResult,
-    FoodStatus,
     FoodView,
-    GetFoodResult,
-    NutrientView,
-    PortionView,
     ResolveResult,
+    FoodNutritionBatchResult,
     SearchResult,
-    SearchResultView,
     StatusResult,
 } from './types.js';
+
+// Drift layer 3 (Skew) — CODING_STANDARDS §15.2.5. The comparison itself is internal (the client wires it
+// automatically; route the warning with the `onContractSkew` option). Only the TEST SEAM is exported, because a
+// CONSUMER's test suite needs it: the once-per-origin latch is module scope, so a consumer asserting on the probe
+// — e.g. recipe-service's confused-deputy suite, which proves the probe carries no caller credential — cannot
+// make its cases order-independent without being able to clear it. Never call this from production code.
+export { resetContractSkewLatchForTests } from './contractSkew.js';

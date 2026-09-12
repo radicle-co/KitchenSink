@@ -1,0 +1,112 @@
+name: Account Infra Deploy
+
+# The ACCOUNT-scoped deploy: infrastructure that exists once per AWS account, with no stage at all.
+#
+# Today that is `kitchensink-cost-guardrails` — the $300 monthly budget, the cost anomaly monitor and the
+# subscription that notifies on a spike (ADR-0008). One of each, for the whole account.
+#
+# ## ⛔ WHY THIS IS ITS OWN WORKFLOW
+#
+# It used to be deployed by `prod-deploy.yml`, because the stack was constructed inside
+# `packages/infra/global/bin/app.ts` behind `if (stage === 'prod')`. That produced the right NUMBER of
+# copies (one) by the wrong mechanism, and two things followed:
+#
+#   - the account's cost monitoring could not be touched without running a full production deploy, and
+#   - the stack inherited the per-stage app's `Environment` tag, labelling an account-wide resource
+#     `production` — which is what made a tag rename threaten to replace the two Cost Explorer resources.
+#
+# "Global" was one word covering two different things: **stage-shared** infrastructure (one VPC, RDS, ALB
+# and identity service PER STAGE — `bin/app.ts`, tagged `sandbox`/`production`) and **account-scoped**
+# infrastructure (one, ever — `bin/account.ts`, tagged `global`). They are now separate apps with separate
+# pipelines, and the account app has no `stage` variable at all, so a per-stage deploy of it is not refused
+# — it is unrepresentable.
+#
+# ⛔ Do NOT add a `stage` input here, and do not deploy this from a per-stage pipeline. The whole point is
+# that there is nothing stage-shaped about a budget that watches every stage's spend at once.
+
+on:
+    # ⚠️ `push` on `main` only, scoped to the paths that can change it. There is no per-stage trigger because
+    # there is no per-stage version of this — one account, one deploy.
+    # ⚠️ NO `branches:` FILTER, and that is the fix for a real defect rather than a widening. This trigger
+    # was `branches: [main]`, which named the right paths and registered NOTHING from a feature branch — so
+    # the workflow could not be dispatched at all, while looking registered to any check that merely asked
+    # whether a push trigger existed. Off main the run is a REGISTRATION run: the job below refuses it.
+    push:
+        paths:
+            - packages/infra/global/bin/account.ts
+            - packages/infra/global/lib/platform/CostGuardrailsStack.ts
+            - .github/workflows/account-deploy.yml
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    # Never cancelled: an interrupted `cdk deploy` leaves the stack in UPDATE_IN_PROGRESS, which the next run
+    # cannot touch.
+    group: account-infra
+    cancel-in-progress: false
+
+env:
+    NODE_VERSION: 24
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    CDK_DEFAULT_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+
+jobs:
+    deploy:
+        name: Deploy the account-scoped infrastructure
+        runs-on: ubuntu-latest
+        # ⛔ A push DEPLOYS only on the default branch; anywhere else it is a registration run and must do
+        # nothing. This governs the account's real spend infrastructure, so an edit on a feature branch
+        # deploying it would be a production change nobody asked for.
+        if: >-
+            github.event_name == 'workflow_dispatch' ||
+            (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        # Bound to `Production`, because this is real spend-governing infrastructure on the live account and
+        # that environment carries the required-reviewer rule. ⚠️ NOT a reclamation job — nothing here
+        # deletes anything, so gating it is safe (`reclamationNeverGated.test.ts` only forbids the binding on
+        # jobs that tear down).
+        environment: Production
+        env:
+            COST_ALERT_EMAIL: ${{ vars.COST_ALERT_EMAIL }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+
+            - name: Install dependencies
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npm ci --no-audit --no-fund
+
+            - name: Install the CDK app's own dependencies
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npm ci --no-audit --no-fund --prefix packages/infra/global
+
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # ⚠️ The package's OWN `cdk`/`tsx`, never `npx`: CDK is deliberately outside the npm workspace
+            # (ADR-0013), so `npx` would resolve nothing here. `postPruneToolchain.test.ts` asserts it.
+            - name: Deploy the account-scoped stacks
+              run: packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/account.ts" --all --require-approval never
+
+            # ⛔ The SAME `--app` string, byte for byte. `deployVerificationCoverage.test.ts` asserts that
+            # every app a job deploys is verified by that same job, and compares the two strings — a verifier
+            # pointed at a stale `--app` checks the wrong thing and stays green, which is the failure this
+            # repository keeps paying for.
+            - name: Verify the account infra deployment — every resource and handler
+              run: |
+                  set -euo pipefail
+                  bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
+                    "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/account.ts"

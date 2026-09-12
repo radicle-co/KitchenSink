@@ -120,7 +120,33 @@ A user wants to share a recipe they own with the community. They can make a reci
 - **FR-003**: System MUST default new user-created recipes to public visibility. Premium users MAY set their own original recipes to private. Free-tier users' recipes are always public.
 - **FR-003a** _(CR-001)_: System MUST expose, on both the recipe list and detail projections, a read-only indicator of whether a recipe **uses a premium-only capability** (rendered as the "PRO" badge). This indicator MUST be **derived on projection, never stored**: there is no premium column on the recipe, and this requirement introduces no entitlement model and no dependency on [010-subscriptions](../010-subscriptions/spec.md). The derivation MUST have exactly **one authoritative implementation**, shared by the list and detail projections, so the two can never disagree. The rule today: a recipe uses a premium capability when it is **private AND its visibility was chosen rather than forced** — i.e. its source type is `user_created` or `imported_public`. Private `imported_physical` and `imported_paid` recipes MUST NOT be indicated as premium: per C-004 those are private for **any** tier, so their privacy reflects no premium capability. When 010 ships real entitlements, this single derivation changes and no client, wire field, or stored value changes with it.
 - **FR-004**: System MUST allow any authenticated user to view public recipes.
-- **FR-005**: System MUST allow any authenticated user to copy/clone a public recipe into their own collection. A clone of a public-source imported recipe (website/Instagram) remains public and retains source attribution; the clone can only be made private by a premium user AND only after making a substantive edit (defined as any modification to ingredients or instructions — changes to title, description, tags, or photos alone do not qualify). Cloning alone is not sufficient to change visibility.
+- **FR-005** _(AMENDED 2026-08-22 — see C-016-003)_: System MUST allow any authenticated user to copy/clone a public recipe into their own collection, **subject to FR-005a**. A clone retains source attribution and references the recipe it was cloned from (`cloned_from_id`). A clone of a public-source imported recipe (website/Instagram) defaults to public once publishable per FR-005b.
+- **FR-005a** _(new; `GR-014` AC-014-e, extended from initial scope to cloneability)_: **Cloneability is a function of provenance, not of visibility.** A recipe MUST NOT be clonable where its provenance carries a restriction incompatible with redistribution. That a recipe is publicly readable MUST NOT by itself make it copyable into another user's collection. ⚠️ This requires a provenance-restriction signal that does not exist today — see the amendment note below.
+- **FR-005b** _(amends the old FR-005's second sentence; `GR-014` AC-014-g)_: A clone MUST carry a **substantive edit** — any modification to ingredients or instructions; changes to title, description, tags or photos alone do not qualify — before it may be **published**. Until that edit exists the clone is not publishable, whatever visibility it would otherwise default to. Cloning alone is never sufficient to publish. **The substantive edit now gates publication, not privacy**, and the premium gate on making a clone private is removed (it belongs to D4a / [015](../015-publishing-rewards/spec.md) C-015-001).
+- **FR-005c** _(new; `GR-014` AC-014-h)_: A **private** recipe MUST NOT be clonable by anyone other than its owner. An owner's copy of their own private recipe is created private; publishing it later is subject to FR-005a and to the C-004 policy its provenance dictates.
+- **FR-005d** _(new; `GR-014` AC-014-i)_: Deleting a recipe MUST NOT remove clones of it — a clone is the cloner's own modified work. Deletion tombstones the original and hides it from every surface including read-only circle shares (FR-002), so a person who could see it only through a share loses access, while a clone persists. Account **erasure** MUST strip the erased user's identifying attribution from surviving clones while retaining a non-identifying provenance marker.
+
+<!-- prettier-ignore -->
+> **⚠️ Amendment note (2026-08-22, C-016-003 / A-1…A-3). The spec is now AHEAD of the shipped code, deliberately.**
+>
+> - `evaluateVisibility` (`recipe-service/src/recipes/domain/visibilityPolicy.ts`) and `defaultCloneVisibility`
+>   still implement the pre-amendment rule. They are **not** changed by this amendment; the change is
+>   implementation work with its own tests.
+> - **FR-005a's gap is narrow.** `GR-014` AC-014-e already governs sources "marked or licensed against
+>   republication … or a licence forbidding redistribution **or derivatives**", and expresses it by classifying
+>   such a source into a private-only `sourceType` at ingestion — after which FR-005c makes it unclonable. The
+>   one case with no `sourceType` behind it is a source that is genuinely public and freely available but whose
+>   licence forbids **derivatives** specifically, which a modified clone is.
+> - **FR-005b collides with FR-003 while D4a is unlanded.** FR-003 still says free-tier users' recipes are
+>   _always public_, so "not yet publishable" is unrepresentable for a free-tier user as a `private`
+>   visibility. It needs either D4a (free-tier privacy, per 015 C-015-001) or a distinct **unpublished-draft**
+>   state that is not `visibility = private`. **Unresolved — do not implement FR-005b before choosing.**
+> - **FR-003a's PRO-badge derivation is invalidated by the same change.** It derives "uses a premium
+>   capability" from _private AND source type is `user_created` or `imported_public`_. Once a clone can be
+>   private without premium, privacy stops implying premium and the badge becomes wrong. FR-003a promises
+>   exactly one authoritative derivation, so this is a single-site fix — but it MUST land with FR-005b, not
+>   after it.
+
 - **FR-006**: System MUST provide search and filtering of recipes by keyword, tags, cuisine, dietary category, ingredient, and prep/cook time.
 - **FR-007**: System MUST back ingredient data with the source-agnostic food service (003) via its typed client (`@kitchensink/food-service-client`); foods are referenced by internal id (an opaque ULID `foodId`, never the source `fdcId`) and resolution is asynchronous. Typeahead over known foods uses `foodClient.search(query)`; an unknown name is submitted via `foodClient.addByName(name)` (returns `202 { id, status: PENDING|UNRESOLVED }` — nutrition may not be ready yet) and polled via `getById(id)` / `getStatus(id)` until `RESOLVED`; an `UNRESOLVED` food is disambiguated via `getCandidates(id)` + `resolve(id, candidateIds)`. The ingredient picker MUST handle PENDING/UNRESOLVED states — a just-added food may show "nutrition pending" and a recipe may temporarily show partial nutrition until resolution completes.
 - **FR-007a**: System MUST allow users to add freeform ingredients not found in the food database. Users MAY manually enter nutrition values (calories, protein, carbs, fat) for freeform ingredients. Such ingredients MUST be flagged as "user-entered" to distinguish them from database-backed items. Recipes containing user-entered ingredients MUST indicate partial/user-supplied nutrition data.
@@ -193,6 +219,228 @@ A user wants to share a recipe they own with the community. They can make a reci
 - **Rating** _(CR-001)_: One user's 1–5 star score for one recipe, owned by the **rater** (not the recipe's owner). At most one rating per user per recipe — re-rating replaces it. A user may rate any recipe they can see, except their own. Ratings are user-owned personal data and are erased with the rater's account, re-deriving the aggregate of the (surviving) rated recipes (FR-013b).
 - **Collection**: A user-owned grouping of recipes. Has a name, visibility (public/private), an ordered list of recipe memberships, and an optional `sourceCollectionId` reference set when the collection was cloned from another user's public collection. A recipe can belong to multiple collections. Deletion of a collection does not cascade to its recipes, and vice versa.
 - **Ingredient**: An ingredient reference linking a recipe to a food item with nutritional data (calories, protein, carbs, fat per unit), at a specific quantity and unit. Database-backed ingredients reference the food service's internal food id (`foodId`, an opaque ULID — never the source `fdcId`); the food↔ingredient link and a resolution-status field are owned by 001 (no cross-DB FK to the food service). Because [003-usda-food-data](../003-usda-food-data/spec.md) resolves food data **asynchronously**, a just-added food may be PENDING/UNRESOLVED and its nutrition may arrive later. Alternatively an ingredient may be user-entered (freeform name with optional manually-supplied nutrition values, flagged as "user-entered").
+
+## API Contract & Input Validation (GR-015 / GR-016)
+
+> This section **applies existing portfolio rules to 001's own packages** and **mints no new FR numbers**
+> (GR-003), the way 011/012/013/014 do. Where [`plan.md`](./plan.md) already decided something, this section
+> cites the decision rather than re-deciding it. Every count below was measured against the tree on
+> **2026-08-12**; where the plan's own status notes have gone stale, the measured state is given and the
+> staleness is named.
+
+### Contract ownership (GR-015)
+
+_The service authors it; clients declare nothing._
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Full bindings:
+[`plan.md` → _API Contracts — ownership and drift_](./plan.md#api-contracts--ownership-and-drift-gr-015).
+
+| Role                                                            | Binding for 001                                                                                                                                                              |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)                            | `@kitchensink/recipe-service` — `packages/services/recipe-service/src/**/*.schema.ts` (8 files: recipes, collections, ingredients, photos, ratings, search, account, health) |
+| Second deployable in scope                                      | `@kitchensink/recipe-workers` — authors its own queue envelopes at `src/common/messages.schema.ts`, and is a **consumer** of the service's zod                               |
+| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-recipe` — `packages/schemas/recipe`                                                                                                                     |
+| Consuming client                                                | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                                                                                                     |
+| Consuming apps / feature packages                               | `@commise/web`, `@commise/mobile`, `@commise/features-recipes`                                                                                                               |
+| Bound identically, **no dependency declared yet**               | `@commise/features-core`, `@commise/ui` — measured 2026-08-12 neither imports `@kitchensink/schema-recipe` nor the client; GR-015 §15-b.4 binds them the day they do         |
+| 001 as a **client** of one of ours                              | `@kitchensink/food-service-client`, whose wire types come from `@kitchensink/schema-food` — food is ours, so §15-b applies in full                                           |
+| Domain types (a **different** axis, GR-007)                     | `@kitchensink/recipe-core` — reused `import type`, **never re-declared** inside the schema package                                                                           |
+
+**The service MUST** author every request and response shape of `/api/v1/recipes/*`, `/api/v1/collections/*`,
+photos, ratings, search and `POST /api/v1/internal/account/erasure` as **zod in the recipe service**, at
+`src/**/*.schema.ts` beside the controller it serves; **validate its own requests with that same zod** via
+`nestjs-zod`'s `createZodDto`, so server and clients check one authored definition rather than two that agree
+by convention; and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
+`@kitchensink/schema-recipe` is a committed **COPY** of that zod — not a transformation, because zod schemas
+are runtime values and cannot be derived from themselves, and every package here exports raw `./src/*.ts` so
+there is no bundle-into-`dist` path. It exports the **zod**, the **`z.infer` types**, a **`CONTRACT_HASH`**, a
+**barrel**, and a **DERIVED `openapi.yaml`** — outbound only, for `oasdiff`, docs and integrators, and **never
+a codegen input** (routing types through JSON Schema loses `readonly`, branded and template-literal types and
+flattens discriminated unions).
+
+**The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client
+half got skipped portfolio-wide: `@kitchensink/recipe-service-client` shipped **276 lines** of independently
+declared wire types and imported nothing from the service, behind green builds.
+
+- Every consumer imports its wire **types AND its runtime zod** from `@kitchensink/schema-recipe` and
+  **declares no request or response body shape of the recipe service** — including **type-only**, and including
+  inside `packages/apps/**` feature packages (GR-015 §15-b.4, GR-017 §17-b.1). The rule is about who authors a
+  wire shape, not which directory it lives in.
+- Where a consumer's shape **genuinely differs** — a form model, a filter view model, a narrowed list
+  projection — it is **DERIVED** with `Pick` / `Omit` / `Partial` / mapped types, never independently declared.
+  Reference implementation, already in this feature's own UI:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **Requests are validated in the SERVICE; responses are validated ON RECEIPT by the CONSUMER** — with that same
+  zod, at the moment the body arrives (GR-016 §16-c.3, GR-017 §17-b.3). A consumer that parses is defending
+  itself, which it may do unilaterally. Every **outbound** body is likewise validated against the **callee's**
+  schema-package zod **before the call** (§16-c.2), so a malformed payload fails in the caller with a usable
+  stack rather than as a remote `400`.
+- **A new endpoint is not complete until its types are reachable from `@kitchensink/schema-recipe`.** "The web
+  app will add the type" is a **contract fork**, not a task.
+
+**CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12). The schema package, the typed
+client, response validation **on receipt**, and a **contract-skew guard** are tasks in
+[`tasks.md`](./tasks.md) — not consequences of finishing the service. Measured 2026-08-12: the guard pattern
+exists at `packages/clients/{recipe-service,food-service}/src/contractSkew.ts`, so 001 inherits it rather than
+inventing one.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required, none reinvented here:
+
+1. **Rebuild (turbo):** `$TURBO_ROOT$`-anchored **`inputs`** covering
+   `packages/services/recipe-service/src/**/*.schema.ts`. ⚠️ **`inputs`, NOT `dependsOn`** — `recipe-service`
+   devDepends on its own client for the contract test tier, so a `dependsOn` edge closes the cycle
+   `client → schema → service → client` and turbo rejects the graph. Ordering was never the requirement: the
+   generated files are committed, so `build` only compiles what is on disk. What is needed is **cache
+   invalidation** when an authored schema changes.
+2. **Correctness (CI):** regenerate and fail on any diff against the committed artifacts — the strong gate, and
+   the only one that catches a hand-edited generated file.
+3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion** (`src/main.ts` + `src/contract/`), the only layer
+   that can catch a deployed recipe service running ahead of a **released mobile binary's** pinned schema.
+
+⚠️ `oasdiff breaking` is worth adding with its blind spot stated: `@nestjs/swagger` emits **no response
+schema** for a handler returning an `interface`, so until every response type is zod-derived that check cannot
+see response changes — which is most of what actually breaks a client.
+
+⚠️ **`specs/001-commise-recipe-app/contracts/api.openapi.yaml` is SUPERSEDED — and the plan's status note on it
+is stale.** Recipe's derived document now **exists** at `packages/schemas/recipe/openapi.yaml`
+(**5,700 lines, 34 paths** — re-measured 2026-08-12, correcting an earlier **4,945** taken the day before; the
+document is generated, so its line count moves whenever a schema copy lands and **must be re-measured, never
+quoted**) against the hand-written file's **2,840 lines, 32 paths** (also re-measured; the earlier **2,827**
+predated two successive header rewrites, and the **body is unchanged at 2,810 lines** — the body is the only
+figure worth comparing across revisions), so the condition
+[`plan.md` → _Status_](./plan.md#status--in-progress-and-001s-hand-written-contract-is-not-yet-replaced) and the
+hand-written file's own header both record ("the replacement has NOT been generated yet") no longer holds. The
+**repointing is UNDERWAY, not untouched** — ⚠️ re-measured 2026-08-12 via `git ls-files`, only **5** committed
+files under `packages/` still cite it (4 `.ts`, 1 k6 `.js`), **down from the 12 this paragraph previously
+recorded**; **20 under `specs/`** and **5 under `docs/`** remain. So two
+OpenAPI documents describe one service and only one of them is verified. **Where they disagree, the service's
+zod wins**, and **the hand-written file MUST NOT be extended with a new endpoint** (GR-015 §15-a.7 / AC-015-f) —
+author the zod in the service instead.
+
+⛔ **THE THIRD-PARTY EXCEPTION (GR-015 §15-d) — the opposite case, and converging it deletes a boundary.** 001
+reads the ingredient catalog through `@kitchensink/food-service-client`, which **is** one of ours, so §15-b
+governs it in full. But that data originates at **USDA FoodData Central**, an API we do **not** serve, whose
+client is `packages/clients/usda`. That client **validates the raw upstream shape at the boundary with its own
+zod**, **MAY declare its own types**, and **gets NO OpenAPI document** — and it is the portfolio's **reference
+implementation**, so `packages/clients/usda/src/schemas.ts` must **never** be "converged" under §15-b. Doing so
+replaces a checked parse with unchecked trust in a remote party's JSON: a **security regression, not a
+cleanup**. §15-b's reasoning does not reach here at all — duplication is only wrong when one side could have
+been derived from the other, and this side belongs to someone else. See
+[003](../003-usda-food-data/spec.md#api-contract--input-validation-gr-015--gr-016) for the full statement.
+
+### Input validation — where that zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`plan.md` → _Input validation_](./plan.md#input-validation--where-the-authored-zod-runs-gr-016). The section
+above decides **who authors** the contract; this one is where it **runs**. It adds no FR (GR-003).
+
+- **One mechanism, one `400`.** Every recipe / collection / photo / rating / search input — body, path params,
+  query params and any header a handler reads — is parsed by the service's own `*.schema.ts` zod via
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`.
+    - ⚠️ **The `class-validator` residue is GONE — corrected 2026-08-12, superseding this bullet's earlier
+      numbers, all of which were wrong in different ways.** The **"19 files"** was a **mention** count (JSDoc
+      narrating the migration away from it), not an importer count. The **"18 `ZodValidationPipe` / 26
+      `createZodDto` (21 `extends`)"** triple was **unreproducible by any parse**. And the "ONE file still
+      imports it" — `src/search/dto/searchRecipes.query.dto.ts` — is now **converged** onto `createZodDto` +
+      `ZodValidationPipe`, with `class-validator` and `class-transformer` **removed from
+      `packages/services/recipe-service/package.json` and `prod.package.json`**. Re-measured today:
+      recipe-service has **23 `ZodValidationPipe` references** and **22 classes extending `createZodDto`** across
+      26 files, and `grep -rn "from 'class-validator'" packages --include="*.ts"` (minus `node_modules`/`dist`)
+      finds **no importer anywhere under `packages/services`** — its single hit is a synthetic fixture string
+      inside the repo-wide AST gate.
+    - So recipe-service is **no longer the GR-016 §16-a.2 example**; it is the converged case. The rule is
+      unchanged and now enforced repo-wide by **G5** in
+      `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which requires a `ZodValidationPipe`
+      over every HTTP controller in every discovered deployable and runs with **no exception list at all** — the
+      `UNCONVERGED_CONTROLLERS` ratchet was **deleted** when search's controller, its one entry, converged. A new
+      endpoint never adds a `class-validator` DTO, and the gate now fails the build rather than trusting prose.
+- **⚠️ The pipe hazard is invisible in review.** Under Nest's **own** built-in `ValidationPipe`, a
+  `createZodDto` DTO **validates nothing while looking correctly wired** — the schema is present, the DTO is
+  referenced, the route reads as validated, and no input is checked. It already bit identity's
+  **`PATCH /users/me`** (`002-FR-021`'s surface). This service registers **`nestjs-zod`'s** pipe, and the
+  **only** thing that catches the failure is a test that posts a **known-bad body to a real route** and asserts
+  the `400`. Make one of those the out-of-range `servings` case below, so the fix cannot silently regress.
+- **`z.strictObject()` for every mutating request body** — the portfolio default, ruled 2026-08-12 in GR-017
+  §17-c, which **closes OPEN-GR-016-B** (the plan still records it as OPEN; it is not). Plain `z.object()`
+  survives only on a **read** surface with a **documented forward-compatibility reason at the schema**. The
+  ruling picks the failure that is **visible**: on a mutating body a silently stripped unknown key is a `200`
+  plus a partial write the caller was told succeeded. ⚠️ **Re-measured 2026-08-12 — the "zero `z.strictObject()`
+  against 36 `z.object()`" figure this bullet carried is stale and understated the progress badly.**
+  `recipe-service` now has **18** `z.strictObject()` occurrences against **22** `z.object()` in non-test sources.
+  §17-c is therefore **mostly closed**, not a wide-open gap; what remains is confirming that each surviving
+  `z.object()` is on a **read** surface with the documented forward-compatibility reason §17-c requires, rather
+  than a mutating body that was missed. Count them, and read the reason at each site.
+- **⛔ THE STORAGE FLOOR — this feature's own `500` that owed a `400`.** Five int-backed wire fields —
+  **`servings`, `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`** — carried **no upper
+  bound** while writing `integer` (`int4`) columns capped at **2,147,483,647**, so `servings: 9999999999`
+  **passed validation** and failed at the `INSERT`. Every input field writing a bounded column is validated at
+  least as strictly as that column can store.
+    - ⚠️ **Read the paragraph above as HISTORY, not as an open gap — corrected 2026-08-12.** An earlier revision
+      let it stand as the **current** state, which schedules work already done. All five fields are bounded today
+      by `positiveInt4()` / `recipeMinutesSchema` in
+      `packages/shared/recipe-core/src/recipeRequestBounds.ts` (`z.number().int().max(INT4_CEILING)`,
+      `INT4_CEILING = 2_147_483_647`), with accept-at-ceiling / reject-above asserted in
+      `__tests__/recipeRequestBounds.test.ts`. It is kept because it is **why the bound exists**: a reader who
+      does not know the `500` it caused is a reader who will "simplify" the ceiling away.
+    - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
+      **not** generated from drizzle and a `*.schema.ts` **never imports a storage type** — that coupling is the
+      disease ADR-0014 removed (`RecipeSearchResponse.facets` taking its wire type from `../dal/search.dal.js`),
+      not the cure. GR-015 §15-a.5 is unchanged. Enforcement is a **per-service parity test** in the service
+      (GR-017 §17-d), which **may** import both artifacts — a test is not a wire schema — enumerates bounded
+      columns **derived from the drizzle schema** rather than typed out, and asserts its field→column mapping
+      complete **in both directions**, without which it silently shrinks to the fields someone remembered. It
+      exists: `packages/services/recipe-service/src/database/__tests__/storageCapacity.test.ts`, over shared
+      machinery in `@kitchensink/contract-gen` (`src/storageCapacity.ts`), whose `collectBoundedColumns`
+      derives the column set from the drizzle tables and requires a stated `why` on every exemption.
+    - ⚠️ **A floor is not a target.** Recipe's text columns are PostgreSQL `text()` — **unbounded** — so limits
+      on `title`, step text, notes and ingredient names are **product decisions 001 owns**, with no floor to
+      derive from. "The column allows it" is not a reason to accept a 2 MB recipe title.
+- **Non-HTTP ingress this feature owns, enumerated** (a Nest pipe reaches none of them). All six
+  `@kitchensink/recipe-workers` handlers — `version-archive-worker`, `account-erasure-worker`,
+  `archive-sweeper`, `erasure-sweeper`, `erasure-orphan-sweeper`, `handle-sync-worker` — parse their SQS/event
+  payload against authored zod (`src/common/messages.schema.ts`) **before** it becomes a job. An enqueued body
+  is a string the producer chose. A **scheduled** sweep parses its event too: "ours" is an assumption about a
+  deploy that has already drifted once. **An invalid payload is NEVER retried** (GR-018 §18-b): these consumers
+  have no caller to answer, so a shape rejection is recorded with its `reason` and the message is **completed or
+  dead-lettered once**, with an alarm on DLQ depth — returning it for redrive turns a producer's bug into
+  sustained load.
+- **Service-to-service, both directions.** 001 **calls** food via `@kitchensink/food-service-client`: outbound
+  bodies validated against `@kitchensink/schema-food` **before the call**, responses validated **on receipt**.
+  001 is also **called** — `POST /api/v1/internal/account/erasure` from identity's fan-out
+  (`packages/services/identity-webhooks/src/common/erasureFanout.ts`) — and that inbound body is validated like
+  any other. **"Internal" is not a synonym for "trusted"**: a caller inside our VPC still sends the wrong shape
+  after a one-sided deploy. Because these are **our own** callers, an invalid body gets the `400` GR-016
+  §16-a.3 requires, **not** the `2xx` that GR-018 §18-c reserves for signature-verifying third-party webhook
+  senders.
+- **Identifiers are never sentinels** (GR-019). `recipeId`, `collectionId`, `ratingId`, `photoId` and the owner
+  `sub` are typed **required** wherever consumed — never optional-with-a-default, never `'unknown'`, `''` or
+  `0`, including as a map key, a metrics dimension or a branch condition. The **only** paths where an absent id
+  is permitted are the **create/upsert** bodies (`POST /api/v1/recipes`, `POST /api/v1/collections`, the rating
+  upsert), where the id is **generated** as a ULID. An unresolvable id is a **rejection**, never a placeholder
+  row.
+- **No request-derived value reaches `sql.raw()`.** ⚠️ **Re-measured 2026-08-12, and the answer is stronger than
+  this bullet claimed.** It named the search DAL
+  (`packages/services/recipe-service/src/search/dal/search.dal.ts`) plus the two sweepers as **the only three
+  sites passing a non-literal — "the state to preserve"**. There are now **ZERO `sql.raw(` call sites anywhere
+  under `packages/`**; every remaining textual hit is prose, a comment recording the removal, or a gate fixture.
+  Those sites now pass a **bound parameter** (`${value}`, or `${value}::interval` for an interval) instead.
+  ⛔ **Do not "restore" a `sql.raw()` for readability** — two gates now hold the count at zero: an ESLint
+  **`no-restricted-syntax`** ban in `packages/tools/eslint/index.js`, and repo-wide AST gate **G3** in
+  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`. Search is still the surface that would
+  break it first — facet, sort and filter selections arrive **from the request** — so a validated enum still maps
+  to a **closed allowlist of literals in code**: the request supplies the key, never the SQL fragment.
+- **⛔ Server-side RESPONSE validation is DEFERRED by owner decision (GR-016 §16-g) and MUST NOT be
+  "completed".** No service in this portfolio validates the bodies it **emits**, deliberately; a contributor who
+  "finishes the job" is **undoing a decision**. Say which one you mean (GR-017 §17-f): a **consumer** parsing
+  what it **received** is REQUIRED and is what the client half above mandates; a **producing service** parsing
+  what it **emits** is the deferred one. Reversing the deferral needs its own proposal under the governance
+  amendment process.
 
 ## Success Criteria _(mandatory)_
 

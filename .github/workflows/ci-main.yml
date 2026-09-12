@@ -5,13 +5,27 @@ on:
     push:
         branches: [main]
 
-concurrency:
-    group: ci-main-${{ github.ref }}
-    cancel-in-progress: false
+# Declared rather than inherited — see ci-pr.yml: an absent block takes the repository default token scope,
+# which is configured outside this file and can change without a diff here.
+permissions:
+    contents: read
 
 jobs:
     ci:
         uses: ./.github/workflows/_ci.yml
+        # `id-token: write` must be granted by the CALLER for `_ci.yml`'s `e2e-web` job to reach it (a called
+        # workflow can only downgrade). Job-scoped, and `contents: read` restated because a job-level block
+        # replaces the workflow default.
+        permissions:
+            contents: read
+            id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
+            # `_ci.yml`'s `infra-shared` job declares `packages: write`, and a called workflow's job may only
+            # DOWNGRADE the caller's grant — requesting more is a hard error, so it is granted here even
+            # though on main the job publishes nothing (the release is `publish-infra-shared.yml`'s job).
+            packages: write # zizmor: ignore[use-trusted-publishing]
         with:
             stage: prod
-        secrets: inherit
+        # Explicit, not `inherit` — see ci-pr.yml. Only the two secrets `_ci.yml` declares are passed.
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

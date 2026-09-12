@@ -26,10 +26,10 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the owned recipe rather
 # than a `when: visible` guard that would silently SKIP when it is below the fold (the list scrolls).
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 # Owner-only actions confirm we are the owner — the visibility control renders only for the owner, so without
 # this the assertions below could vacuously pass on a non-owned detail. The owner block is at the foot of the
 # (scrolling) detail; the same scroll continues down to the visibility control.

@@ -1,58 +1,127 @@
 /**
- * Wire request/response shapes for `@kitchensink/recipe-service-client` (T-004 / T-095) that have NO
- * canonical equivalent in `@kitchensink/recipe-core`. The core domain types (`Recipe`, `Ingredient`,
- * `RecipePhoto`, `RecipeVersion`, `CreateRecipeInput`, `UpdateRecipeInput`, `RecipeSearchParams`,
- * `PaginatedResponse`) are imported directly from `@kitchensink/recipe-core`; only the endpoint-specific
- * envelopes/requests (photos, collections, search, versions, erasure) are declared here, mirroring
- * `contracts/api.openapi.yaml`. Dates are ISO-8601 strings (CODING_STANDARDS).
+ * The wire-shape SURFACE of `@kitchensink/recipe-service-client` (T-004 / T-095) — almost entirely ALIASES now.
  *
- * `Collection` is the ONE exception: it is re-declared here (W5 Task 5) as `@kitchensink/recipe-core`'s
- * `Collection` WIDENED with the recipe service's response-only pull-provenance fields (see below) — every
- * client method that returns a collection returns THIS shape, not the narrower core entity.
+ * WHAT THIS FILE IS FOR, AFTER §15. The domain types (`Recipe`, `RecipeDetail`, `Ingredient`, `RecipePhoto`,
+ * `RecipeVersion`, `PaginatedResponse`) come from
+ * `@kitchensink/recipe-core`; every endpoint ENVELOPE comes from `@kitchensink/schema-recipe`, the contract the
+ * service itself authors. This module's remaining job is to keep this package's public names stable while the
+ * definitions behind them live where they belong: each re-export below is an alias, so a name that differs from
+ * the contract's is a rename and never a second definition (§15 Rule 1).
+ *
+ * It used to hold 276 lines of independently-declared wire types that nothing checked against the server —
+ * `typecheck` could not see a backend shape change, so the only place a mismatch surfaced was a ~50-minute
+ * emulator run or production (§15.1). What genuinely remains local is listed and justified in place: request
+ * OPTION shapes a caller passes before serialization (`ListRecipesParams`, `ListCollectionsParams`), and types
+ * DERIVED from a contract type with an indexed access.
+ *
+ * Dates are ISO-8601 strings (CODING_STANDARDS).
  */
-import type {
-    Collection as CoreCollection,
-    Ingredient,
-    Recipe,
-    RecipeFacetCount,
-    RecipeSearchResult,
-    RecipeVisibility,
-} from '@kitchensink/recipe-core';
+import type { RecipeSearchFacets } from '@kitchensink/schema-recipe';
 
-/** Sort key for `listRecipes` (`GET /api/v1/recipes`). */
-export type RecipeListSortBy = 'updatedAt' | 'createdAt' | 'title';
+// The search and ingredient wire shapes now live in the GENERATED contract. Re-exported here so modules that
+// already import them from `./types.js` keep working, and so there is exactly ONE declaration behind both
+// paths. NOTHING below is re-declared: where a name here differs from the contract's, it is an ALIAS of the
+// contract type, never a second definition (§15 Rule 1).
+export type { RecipeSearchFacets, RecipeSearchResponse } from '@kitchensink/schema-recipe';
 
-/** Query parameters for `listRecipes`. */
-export interface ListRecipesParams {
-    readonly page?: number;
-    readonly pageSize?: number;
-    readonly sortBy?: RecipeListSortBy;
-}
-
-/** Query parameters for `listCollections` (`GET /api/v1/collections`). */
-export interface ListCollectionsParams {
-    readonly page?: number;
-    readonly pageSize?: number;
-}
+export type { AddIngredientByFoodRequest, IngredientCandidate } from '@kitchensink/schema-recipe';
 
 /**
- * A single cross-source disambiguation candidate for an `UNRESOLVED` ingredient (response item of
- * `getIngredientCandidates` — `GET /api/v1/ingredients/{id}/candidates`). Mirrors the food client's
- * `CandidateView` but is declared here so the recipe client never depends on `@kitchensink/food-service-client`.
- * Source-agnostic: keyed by the candidate's own opaque handle, never a USDA `fdcId`.
+ * The photo-upload wire shapes, from the contract. `PhotoUploadUrlRequest`/`PhotoConfirmRequest`/
+ * `UploadUrlResponse` are the client's historical NAMES for them, kept because this package's public surface
+ * and its consumers use them; each is an ALIAS of the contract type, never a second declaration. The client's
+ * copies had already drifted — both request types widened `contentType` to a bare `string`, which is what the
+ * validation layer enforces, so the alias is the honest shape either way.
  */
-export interface IngredientCandidate {
-    /** The candidate row id — the handle passed back to `resolveIngredient`. */
-    readonly candidateId: string;
-    /** The source the candidate came from (e.g. `usda`). */
-    readonly source: string;
-    /** That source's opaque key for the item (NOT a user-facing identifier). */
-    readonly externalKey: string;
-    /** Candidate display name. */
-    readonly name: string;
-    /** One-line disambiguation hint, when present. */
-    readonly summary: string | null;
-}
+export type {
+    ConfirmPhotoRequest as PhotoConfirmRequest,
+    CreatePhotoUploadRequest as PhotoUploadUrlRequest,
+    PhotoUploadUrlResponse as UploadUrlResponse,
+} from '@kitchensink/schema-recipe';
+// Imported (not merely re-exported) because `IngredientSuggestionProvenance` below is DERIVED from it, and a
+// re-export does not bring a name into this module's scope.
+import type { IngredientSuggestion } from '@kitchensink/schema-recipe';
+
+export type { IngredientSuggestion } from '@kitchensink/schema-recipe';
+
+/**
+ * Whether the food catalog contributed to a blend (F2). ALIAS of the contract's `CatalogAvailability` — the
+ * client-side name is kept because 25 export sites and 5 consumer files use it, and renaming it would be a
+ * breaking change to this package's public surface for no gain.
+ */
+export type { CatalogAvailability as IngredientCatalogAvailability } from '@kitchensink/schema-recipe';
+
+/** Response envelope of `suggestIngredients`. ALIAS of the contract's `IngredientSuggestionsResponse`. */
+export type { IngredientSuggestionsResponse as IngredientSuggestions } from '@kitchensink/schema-recipe';
+
+/** One hit from the ON-DEMAND live source search (plan U29). Re-exported from the published contract. */
+export type { LiveIngredientHit, LiveIngredientSearchResponse } from '@kitchensink/schema-recipe';
+
+/**
+ * The COLLECTIONS wire shapes, from the contract. Every name below is an ALIAS of a generated type, never a
+ * second declaration (§15 Rule 1) — the client's historical names are kept because this package's public
+ * surface and its consumers use them.
+ *
+ * All four of the drifts these aliases replaced are recorded in the service's `collections.schema.ts`. The two
+ * that were the CLIENT's to give up:
+ *
+ *  - `CollectionWithRecipes.recipes` was OPTIONAL here and required on the server. It is now REQUIRED, which
+ *    is what the server has always sent — `getCollectionById` sets it unconditionally. Every reader in web and
+ *    mobile already tolerates a present array, so the four surviving `?? []` / `?.length` chains around it are
+ *    now merely redundant rather than load-bearing (they are left alone: two of them guard an optional
+ *    `query.data`, not `recipes`).
+ *  - `Collection` was `CoreCollection & { …three response-only fields }` HERE, and a second zod widening
+ *    (`collectionSchema.extend(…)`) lived in `client.ts`. Both are gone: the service authors the widening
+ *    once, and the type and the validator now come from the same object. The alias remains structurally
+ *    identical to the old intersection, so the fixture pattern the tests depend on — spreading
+ *    `@kitchensink/recipe-core/testing`'s `makeCollection()` into a client wire value — keeps working.
+ */
+export type {
+    CollectionMemberRecipe,
+    CollectionRecipeMembershipResponse as CollectionRecipeMembership,
+    CollectionResponse as Collection,
+    CollectionWithRecipesResponse as CollectionWithRecipes,
+    CloneCollectionRequest,
+    CreateCollectionRequest,
+    PullDiff,
+    PullFromSourceResponse,
+    UpdateCollectionRequest,
+} from '@kitchensink/schema-recipe';
+// Imported (not merely re-exported) because the three types below are DERIVED from them.
+import type { CollectionMemberRecipe, ListCollectionsQuery, ListRecipesQuery } from '@kitchensink/schema-recipe';
+
+/**
+ * Sort key for `listRecipes` (`GET /api/v1/recipes`). ALIAS of the contract's `RecipeListSortBy`, which the
+ * service derives from the `RECIPE_LIST_SORT_BY` tuple its own `z.enum` validates against — so the union here
+ * cannot drift from the keys the endpoint actually accepts. The hand-written copy this replaced spelled the
+ * same three literals, which is exactly the failure mode: it agreed today and nothing checked it tomorrow.
+ */
+export type { RecipeListSortBy } from '@kitchensink/schema-recipe';
+
+/**
+ * Query parameters for `listRecipes` (`GET /api/v1/recipes`).
+ *
+ * DERIVED from the contract's parsed query type rather than declared, for the same reasons — verbatim — as
+ * {@link ListCollectionsParams} below: adding a parameter server-side widens this automatically, and
+ * `Partial<>` (not the schema's own INPUT type) because the two ends mean different things — the contract's
+ * input is what the coercing schema accepts off a query string (`z.coerce.number()` takes `unknown`, which is
+ * useless as a caller-facing type), while a caller passes real numbers or omits them and the server's
+ * `.default()` supplies 1 / 20 / `'updatedAt'` for what is omitted. A genuinely client-side shape (§15.2.4),
+ * which is why it stays in this file.
+ */
+export type ListRecipesParams = Readonly<Partial<ListRecipesQuery>>;
+
+/**
+ * Query parameters for `listCollections` (`GET /api/v1/collections`).
+ *
+ * DERIVED from the contract's parsed query type rather than declared, so adding a parameter server-side widens
+ * this automatically. `Partial<>` (and not the schema's own INPUT type) because the two ends mean different
+ * things: the contract's input is what the coercing schema accepts off a query string — `z.coerce.number()`
+ * takes `unknown`, which is useless as a caller-facing type — while a caller passes real numbers or omits
+ * them, and the server's `.default()` supplies 1 / 20 for what is omitted. This is a genuinely client-side
+ * shape (§15.2.4), which is why it stays in this file.
+ */
+export type ListCollectionsParams = Readonly<Partial<ListCollectionsQuery>>;
 
 /**
  * Where a blended typeahead suggestion came from (`GET /api/v1/ingredients/suggest`, search Stage 2).
@@ -61,216 +130,41 @@ export interface IngredientCandidate {
  *    `ingredientId`, and it carries whatever nutrition the row already has.
  *  - `catalog` — a food-service golden record with **no `ingredients` row yet**. It has NO ingredient id and
  *    NO nutrition; picking it must first ADMIT it via `addIngredientByFood`.
- */
-export type IngredientSuggestionProvenance = 'local' | 'catalog';
-
-/**
- * One blended ingredient-typeahead suggestion (response item of `suggestIngredients` —
- * `GET /api/v1/ingredients/suggest`). A DISCRIMINATED UNION rather than a widened `Ingredient`, because the two
- * kinds are structurally different and only one of them is pickable without a round-trip: collapsing them
- * would force a fabricated ingredient id onto a catalog hit, which ends as a foreign-key violation or a
- * nutrition-less recipe line. Narrow on `provenance` before using a suggestion.
- */
-export type IngredientSuggestion =
-    | {
-          readonly provenance: 'local';
-          /** The catalog row, with any nutrition it already carries. */
-          readonly ingredient: Ingredient;
-      }
-    | {
-          readonly provenance: 'catalog';
-          /** The opaque food-service id to pass to `addIngredientByFood`. Never a source-native key. */
-          readonly foodId: string;
-          /** The golden display name. */
-          readonly name: string;
-          /** Relevance score from the food catalog (higher is better). */
-          readonly score: number;
-      };
-
-/**
- * Whether the food catalog contributed to a blend (F2). Three states, not a boolean, because a consumer
- * renders each differently: `unavailable` is a transient degradation worth telling the user about, whereas
- * `disabled` is an operator switching the blend off and must NEVER surface as an error.
- */
-export type IngredientCatalogAvailability = 'ok' | 'unavailable' | 'disabled';
-
-/**
- * Response envelope of `suggestIngredients` (`GET /api/v1/ingredients/suggest`).
  *
- * Sectioned, not interleaved: every `local` suggestion precedes every `catalog` one, and that order is
- * stable. Consumers should render them as two labeled sections — the fast familiar list never reorders when
- * the catalog section appears or vanishes, which removes the layout-shift class of typeahead jank.
+ * DERIVED from the contract's discriminated union rather than declared, so it cannot drift from the values the
+ * service actually sends — the same pattern as `RecipeSearchFacetCounts` below.
  */
-export interface IngredientSuggestions {
-    /** The blended, deduped suggestions — local section first. */
-    readonly suggestions: readonly IngredientSuggestion[];
-    /** Whether the food catalog contributed; drives the picker's degraded-catalog notice. */
-    readonly catalogAvailability: IngredientCatalogAvailability;
-}
-
-/** Request body for `addIngredientByFood` (`POST /api/v1/ingredients/by-food`). */
-export interface AddIngredientByFoodRequest {
-    /** The opaque food-service id taken from a `catalog` suggestion. */
-    readonly foodId: string;
-}
-
-/** Request body for `createPhotoUploadUrl` (`POST /api/v1/recipes/{id}/photos/upload-url`). */
-export interface PhotoUploadUrlRequest {
-    readonly fileName: string;
-    readonly contentType: string;
-    /** File size in bytes (≤ 5 MiB, per the contract). */
-    readonly fileSize: number;
-}
-
-/** Response from `createPhotoUploadUrl`: a presigned S3 URL for a direct client upload. */
-export interface UploadUrlResponse {
-    readonly uploadUrl: string;
-    readonly key: string;
-    /** Presigned-URL expiry, in seconds. */
-    readonly expiresIn: number;
-    /** The maximum object size (bytes) the client must respect for this upload. */
-    readonly maxBytes: number;
-}
-
-/** Request body for `confirmPhotoUpload` (`POST /api/v1/recipes/{id}/photos/confirm`). */
-export interface PhotoConfirmRequest {
-    readonly key: string;
-    readonly contentType: string;
-}
-
-/** Request body for `createCollection` (`POST /api/v1/collections`). */
-export interface CreateCollectionRequest {
-    readonly name: string;
-    readonly description?: string;
-    /** Collection visibility (FR-010); defaults to `private` server-side. */
-    readonly visibility?: RecipeVisibility;
-}
-
-/** Request body for `updateCollection` (`PATCH /api/v1/collections/{id}`); at least one field is required. */
-export interface UpdateCollectionRequest {
-    readonly name?: string;
-    readonly description?: string;
-    readonly visibility?: RecipeVisibility;
-}
+export type IngredientSuggestionProvenance = IngredientSuggestion['provenance'];
 
 /**
- * The `Collection` wire shape, widened (W5 Task 5) with the pull-provenance projections the recipe
- * service's collection endpoints now return: `lastPulledAt` (the last successful pull, W5 Task 3) and
- * `sourceOwnerHandle` / `sourceCollectionName` (the source's attribution, FROZEN at clone time — W5 Task
- * 2). All three are absent for a collection that was never cloned (the two source fields) or never pulled
- * (`lastPulledAt`). Widened HERE rather than on `@kitchensink/recipe-core`'s `Collection` because these
- * are recipe-service response-only projections (mirroring the service's own `CollectionResponse`), not
- * part of the domain-core entity every service shares.
+ * Provenance of a recipe's membership in a collection (`manual` | `clone_seed` | `pull`).
+ *
+ * DERIVED from the contract's member shape rather than declared, so it cannot drift from the values the service
+ * actually sends — the same pattern as `IngredientSuggestionProvenance` above and `RecipeSearchFacetCounts`
+ * below. The three literals it resolves to are `@kitchensink/recipe-core`'s `RecipeCollectionAddedVia`.
  */
-export type Collection = CoreCollection & {
-    /** The source owner's display handle, frozen at clone time; absent when unresolved or never cloned. */
-    readonly sourceOwnerHandle?: string;
-    /** The source collection's name, frozen at clone time; absent when never cloned. */
-    readonly sourceCollectionName?: string;
-    /** When this collection was last refreshed from its source; absent if never pulled. */
-    readonly lastPulledAt?: string;
-};
-
-/** Provenance of a recipe's membership in a collection (`manual` | `clone_seed` | `pull`). */
-export type CollectionRecipeAddedVia = 'manual' | 'clone_seed' | 'pull';
+export type CollectionRecipeAddedVia = CollectionMemberRecipe['addedVia'];
 
 /**
- * A recipe as it appears within a collection embed (W5 Task 4/5): the `Recipe` wire shape plus this
- * member's provenance, so the client can render the source-indicator without a second membership lookup.
+ * The ACCOUNT-ERASURE wire shapes, from the contract (CR-002 / U3b / U7). Aliases, never second declarations.
+ *
+ * These two had drifted the furthest of anything in this package before §15: `ErasureRequest` historically
+ * carried an OPTIONAL `confirmationPhrase` and no donate election, so the client's own type said an
+ * irreversible erasure could be requested with no intent gate at all — the exact opposite of the shipped
+ * contract, where the phrase is REQUIRED and a missing one is a `400`.
+ *
+ * `ACCOUNT_ERASURE_CONFIRMATION_PHRASE` and the match rule now come from the same published contract too, so
+ * `@commise/features-account` no longer keeps its own copy of the literal that gates the action.
  */
-export type CollectionMemberRecipe = Recipe & { readonly addedVia: CollectionRecipeAddedVia };
-
-/** Response from `getCollectionById`: a collection plus its member recipes. */
-export type CollectionWithRecipes = Collection & { readonly recipes?: readonly CollectionMemberRecipe[] };
+export type {
+    ErasureRequest,
+    ErasureRequestAcceptedResponse,
+    ServiceErasureAcceptedResponse,
+} from '@kitchensink/schema-recipe';
 
 /**
- * The three-way pull-from-source diff (W5 Task 5): a three-way partition of `source ∪ clone`, echoed by
- * `previewPullFromSource` (read-only) and re-derived live by `pullCollectionFromSource`'s drift check.
- * Mirrors the recipe service's `PullDiff` (`collections/domain/pull-diff.ts`).
+ * Ordered facet buckets for a single search facet (an object-per-bucket, extensible per entry).
+ *
+ * DERIVED from the generated contract rather than declared, so it cannot drift from what the service sends.
  */
-export interface PullDiff {
-    /** Recipes in the source but not the clone — the pull WILL add these. */
-    readonly added: readonly string[];
-    /** Recipes in the clone but not the source — informational; a pull never removes them. */
-    readonly removed: readonly string[];
-    /** Recipes in both — already present; the pull is a no-op for these. */
-    readonly unchanged: readonly string[];
-}
-
-/** Response from `addRecipeToCollection`: the created membership join record. */
-export interface CollectionRecipeMembership {
-    readonly collectionId: string;
-    readonly recipeId: string;
-    readonly addedVia: CollectionRecipeAddedVia;
-    readonly createdAt: string;
-}
-
-/** Optional overrides for `cloneCollection` (`POST /api/v1/collections/{id}/clone`). */
-export interface CloneCollectionRequest {
-    readonly name?: string;
-    readonly description?: string;
-}
-
-/** Response from `pullCollectionFromSource` (`POST /api/v1/collections/{id}/pull-from-source`). */
-export interface PullFromSourceResponse {
-    readonly collection: Collection;
-    /** Recipe ids added to the collection by this pull. */
-    readonly addedRecipeIds: readonly string[];
-}
-
-/**
- * Request body for `requestAccountErasure` (`POST /api/v1/account/erasure`) — mirrors the recipe service's
- * `ErasureRequestDto` EXACTLY (CR-002 / U3b). Historically this carried only an OPTIONAL `confirmationPhrase`
- * and no election, which no longer matches the shipped contract: the phrase is REQUIRED (U7 — an irreversible
- * action must never proceed without a deliberate intent gate; a missing/empty/mismatched phrase is a `400`),
- * and the per-recipe donate election travels alongside it.
- */
-export interface ErasureRequest {
-    /**
-     * The exact confirmation phrase gating the irreversible erasure (U7). REQUIRED. The canonical literal and
-     * the client-side match predicate live in `@commise/features-account`
-     * (`ACCOUNT_ERASURE_CONFIRMATION_PHRASE` / `confirmsErasurePhrase`) so the UI renders ONE authoritative
-     * copy; this type only carries the value the caller collected. The server re-validates it.
-     */
-    readonly confirmationPhrase: string;
-    /**
-     * The per-recipe DONATE election (CR-002 / U3b): ids of the caller's OWNER-ONLY recipes elected to be
-     * PUBLISHED (donated — flipped to `public` + `published`, surviving the erasure attributed to a pseudonym
-     * the erased owner no longer controls) instead of removed. Absent/empty ⇒ donate nothing, so every
-     * owner-only recipe is removed (the default). The server scopes the publish-flip to `owner_id = caller`,
-     * so an id the caller does not own — or one already public — is a harmless no-op, and it is bounded
-     * server-side (a payload-size guard).
-     */
-    readonly publishRecipeIds?: readonly string[];
-}
-
-/** Response from `requestAccountErasure`: the (possibly pre-existing, idempotent) erasure job. */
-export interface ErasureRequestAcceptedResponse {
-    readonly jobId: string;
-    readonly status: 'queued' | 'running';
-}
-
-/** Ordered facet buckets for a single search facet (an object-per-bucket, extensible per entry). */
-export type RecipeSearchFacetCounts = readonly RecipeFacetCount[];
-
-/**
- * Facet counts returned alongside recipe search results. The server aggregates dietary flags, tags, the
- * distinct cuisines in the match sample (drives the single-select Cuisine facet + discovery's cuisine
- * shortcuts, W8-a.9), and the total-time buckets (`quickest`/`maxTotalTime`).
- */
-export interface RecipeSearchFacets {
-    readonly dietaryFlags?: RecipeSearchFacetCounts;
-    readonly tags?: RecipeSearchFacetCounts;
-    readonly cuisine?: RecipeSearchFacetCounts;
-    readonly totalTime?: RecipeSearchFacetCounts;
-}
-
-/** Response from `searchRecipes` (`GET /api/v1/search/recipes`). Results are an object-per-hit envelope. */
-export interface RecipeSearchResponse {
-    readonly results: readonly RecipeSearchResult[];
-    readonly total: number;
-    readonly page: number;
-    readonly pageSize: number;
-    readonly hasMore: boolean;
-    readonly facets: RecipeSearchFacets;
-}
+export type RecipeSearchFacetCounts = RecipeSearchFacets['tags'];

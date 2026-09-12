@@ -4,7 +4,7 @@
  * ## Why this module exists, and why it is the one exception to the "no central registry" rule
  *
  * The Home surface's discovery layer is deliberately decentralized: a feature owns its
- * {@link HomeWidgetDescriptor} next to its own code, so shipping a feature package makes its widget eligible
+ * `HomeWidgetDescriptor` next to its own code, so shipping a feature package makes its widget eligible
  * without anyone editing a shared list. That works precisely because the feature package exists.
  *
  * CR-001 (amending FR-046 / R6) requires Home to show a **skeleton placeholder** for widgets whose feature

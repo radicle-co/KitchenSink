@@ -11,18 +11,15 @@
  * never the recipes themselves — a recipe in multiple collections survives the delete of any one.
  */
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { RecipeCollectionAddedVia, type PaginatedResponse } from '@kitchensink/recipe-core';
+import { RecipeCollectionAddedVia, recipeVisibilitySchema, type RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { toPageEnvelope } from '../common/pagination.js';
-import {
-    COLLECTION_VISIBILITIES,
-    type CollectionRow,
-    type CollectionVisibility,
-} from '../database/schema/collections.js';
-import { AuthorHandlesDal } from '../authors/dal/author-handles.dal.js';
+import type { CollectionRow } from '../database/schema/collections.js';
+import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
+import { AnalyticsService } from '../analytics/analytics.service.js';
 import { CollectionsDal } from './dal/collections.dal.js';
-import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
-import { recipeRowToDomain } from '../recipes/mappers/recipe-row-to-domain.js';
+import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
+import { recipeRowToDomain } from '../recipes/mappers/recipeRowToDomain.js';
 import {
     collectionNotClonedError,
     collectionNotOwnedError,
@@ -30,28 +27,39 @@ import {
     pullDriftError,
     recipeNotFoundError,
 } from './collections.errors.js';
-import { computePullDiff, pullDiffsAgree, type PullDiff } from './domain/pull-diff.js';
+import { computePullDiff, pullDiffsAgree } from './domain/pullDiff.js';
 import type {
-    CloneCollectionInput,
+    CloneCollectionRequest,
+    CollectionListResponse,
     CollectionRecipeMembershipResponse,
     CollectionResponse,
     CollectionWithRecipesResponse,
-    CreateCollectionInput,
-    PageParams,
-    PullFromSourceResult,
-    UpdateCollectionInput,
-} from './collections.types.js';
+    CreateCollectionRequest,
+    ListCollectionsQuery,
+    PullDiff,
+    PullFromSourceResponse,
+    UpdateCollectionRequest,
+} from './collections.schema.js';
 
 /** REQ-049b — the hard cap on collections a single owner may hold, enforced by {@link CollectionsService.createCollection}. */
 export const MAX_COLLECTIONS_PER_OWNER = 50;
 
-/** Map a `collections` row to the `Collection` wire shape (ISO dates; nulls → absent). */
+/**
+ * Map a `collections` row to the `Collection` wire shape (ISO dates; nulls → absent).
+ *
+ * The `visibility` cast crosses the STORAGE→WIRE boundary deliberately and in one direction: the column is
+ * `text` (guarded by a DB `CHECK`), and the wire type is `recipe-core`'s `RecipeVisibility`. It is cast to
+ * the WIRE type, never to drizzle's `CollectionVisibility` — a storage type must not be what the contract
+ * says (the drift this vertical's schema settled). The two value sets are tied together by
+ * `COLLECTION_VISIBILITIES … satisfies readonly RecipeVisibility[]` in the drizzle schema, so a divergence
+ * fails the build there rather than silently here.
+ */
 function toCollectionResponse(row: CollectionRow, recipeCount?: number): CollectionResponse {
     const response: CollectionResponse = {
         id: row.id,
         ownerId: row.ownerId,
         name: row.name,
-        visibility: row.visibility as CollectionVisibility,
+        visibility: row.visibility as RecipeVisibility,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
     };
@@ -72,6 +80,9 @@ export class CollectionsService {
     public constructor(
         @Inject(CollectionsDal) private readonly dal: CollectionsDal,
         @Inject(AuthorHandlesDal) private readonly authorHandles: AuthorHandlesDal,
+        // Required, not optional: every construction site must decide what analytics receives (the
+        // 015 plan's compile-error philosophy for load-bearing new collaborators).
+        @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
     ) {}
 
     /**
@@ -85,7 +96,7 @@ export class CollectionsService {
      * @throws `COLLECTION_LIMIT_REACHED` when the owner already holds {@link MAX_COLLECTIONS_PER_OWNER}
      *   collections.
      */
-    public async createCollection(ownerId: string, input: CreateCollectionInput): Promise<CollectionResponse> {
+    public async createCollection(ownerId: string, input: CreateCollectionRequest): Promise<CollectionResponse> {
         const row = await this.dal.createIfUnderCap(
             {
                 ownerId,
@@ -100,7 +111,7 @@ export class CollectionsService {
     }
 
     /** List the caller's own collections as a paginated envelope (newest first). */
-    public async listCollections(ownerId: string, page: PageParams): Promise<PaginatedResponse<CollectionResponse>> {
+    public async listCollections(ownerId: string, page: ListCollectionsQuery): Promise<CollectionListResponse> {
         const limit = page.pageSize;
         const offset = (page.page - 1) * page.pageSize;
         const { rows, total } = await this.dal.listByOwner(ownerId, limit, offset);
@@ -121,7 +132,13 @@ export class CollectionsService {
         // checkbox, C3) — the canonical `Recipe` Data Mapper (S-R4) plus the DAL row's `addedVia`, nothing
         // more. `coverPhotoUrl` is deliberately NOT resolved here — no cover LATERAL runs on this embed —
         // so it stays absent; the collection card owns its no-image visual until a cover path is added.
-        const recipes = recipeRows.map((row) => ({ ...recipeRowToDomain(row), addedVia: row.addedVia }));
+        // This embed emits NO nutrition — see `rowToRecipe` in search.dal.ts for why a pinned "partial"
+        // flag was the wrong lie. Fetching it per member would be an N+1 on a collection page; a caller that
+        // needs the numbers asks `POST /api/v1/recipes/nutrition-batch` for the page's ids in one call.
+        const recipes = recipeRows.map((row) => ({
+            ...recipeRowToDomain(row),
+            addedVia: row.addedVia,
+        }));
 
         return { ...toCollectionResponse(collection, recipes.length), recipes };
     }
@@ -130,7 +147,7 @@ export class CollectionsService {
     public async updateCollection(
         ownerId: string,
         id: string,
-        patch: UpdateCollectionInput,
+        patch: UpdateCollectionRequest,
     ): Promise<CollectionResponse> {
         if (patch.visibility !== undefined) {
             this.assertVisibility(patch.visibility);
@@ -187,7 +204,18 @@ export class CollectionsService {
             throw recipeNotFoundError(recipeId);
         }
 
-        const membership = await this.dal.addRecipe(collectionId, recipeId, RecipeCollectionAddedVia.MANUAL);
+        const { row: membership, created } = await this.dal.addRecipe(
+            collectionId,
+            recipeId,
+            RecipeCollectionAddedVia.MANUAL,
+        );
+
+        // U3 save capture — only a genuinely NEW membership is a save event. A replayed add minting
+        // credit would diverge save_count from this table permanently (R11) and let a user farm 015's
+        // recognition by re-adding the same recipe. Pull/clone paths correctly don't pass through here.
+        if (created) {
+            this.analytics.capture({ type: 'recipe_saved', userId: ownerId, recipeId });
+        }
 
         return {
             collectionId: membership.collectionId,
@@ -233,7 +261,7 @@ export class CollectionsService {
     public async cloneCollection(
         clonerId: string,
         sourceId: string,
-        overrides: CloneCollectionInput = {},
+        overrides: CloneCollectionRequest = {},
     ): Promise<CollectionResponse> {
         const source = await this.dal.findById(sourceId);
 
@@ -307,7 +335,7 @@ export class CollectionsService {
         ownerId: string,
         collectionId: string,
         previewedDiff?: PullDiff,
-    ): Promise<PullFromSourceResult> {
+    ): Promise<PullFromSourceResponse> {
         const { sourceCollectionId } = await this.resolvePullContext(ownerId, collectionId);
 
         // Read BOTH memberships in one read-only, coherent snapshot and derive the diff via the SAME pure fn
@@ -398,9 +426,22 @@ export class CollectionsService {
         return collection;
     }
 
-    /** Throw INVALID_VISIBILITY unless `value` is one of the allowed `public` | `private` values. */
-    private assertVisibility(value: string): void {
-        if (!(COLLECTION_VISIBILITIES as readonly string[]).includes(value)) {
+    /**
+     * Throw INVALID_VISIBILITY unless `value` is one of the allowed `public` | `private` values.
+     *
+     * WRITTEN AS A TYPE ASSERTION, and that is the point. The wire schema now narrows `visibility` to the
+     * enum, so it is tempting to read this check as dead — it is not: it is the service's INDEPENDENT
+     * enforcement of FR-010 / T140, and it is what keeps a caller that bypasses the validation pipe (a
+     * direct service call, a future internal path) from writing an unchecked value. Declaring it `asserts`
+     * means the runtime guard INFORMS the type system instead of contradicting it, which is what the old
+     * raw-`string` input type was really reaching for.
+     *
+     * The value set comes from `recipe-core`'s `recipeVisibilitySchema` rather than the drizzle
+     * `COLLECTION_VISIBILITIES` array: the domain owns the enum, and the drizzle constant already defers to
+     * it via `satisfies`.
+     */
+    private assertVisibility(value: string): asserts value is RecipeVisibility {
+        if (!recipeVisibilitySchema.safeParse(value).success) {
             throw invalidVisibilityError(value);
         }
     }

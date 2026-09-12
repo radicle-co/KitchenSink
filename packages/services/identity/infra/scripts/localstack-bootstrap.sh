@@ -37,10 +37,9 @@ aws --endpoint-url="${ENDPOINT}" --region="${REGION}" secretsmanager create-secr
     --name kitchensink/local/identity/keys \
     --secret-string '{"secretKey":"sk_test_local","publishableKey":"pk_test_local","webhookSigningSecret":"whsec_local"}'
 
-echo "=== Creating DB Credentials Secret ==="
-aws --endpoint-url="${ENDPOINT}" --region="${REGION}" secretsmanager create-secret \
-    --name kitchensink/local/db/identity \
-    --secret-string '{"username":"identity_app","password":"localdev","host":"postgres","port":"5432","dbname":"kitchensink_identity"}'
+# No DB credentials secret: nothing reads one. The identity service and the webhook Lambdas locate the database
+# by DATABASE_URL (or DB_HOST/DB_PORT/DB_NAME) and, deployed, authenticate by RDS IAM — see
+# docs/plans/2026-09-11-database-role-split.md.
 
 echo "=== Creating SSM Parameters ==="
 aws --endpoint-url="${ENDPOINT}" --region="${REGION}" ssm put-parameter \

@@ -3,6 +3,11 @@ date: 2026-06-21
 topic: source-agnostic-food-data-model
 ---
 
+> ⚠️ **Superseded as a description of current state** by [`docs/architecture/2026-08-28-ingredient-pipeline-state.md`](../architecture/2026-08-28-ingredient-pipeline-state.md) (2026-08-28, PR 91).
+>
+> The decisions and reasoning below remain valid and this document is deliberately NOT deleted. Where it
+> and the state addendum disagree about **what exists today**, the addendum wins.
+
 # Source-Agnostic Food Data Model + Fetch Lifecycle
 
 ## Summary

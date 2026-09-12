@@ -25,13 +25,16 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to it rather than a
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 
-# ── EDIT 1 (creates version 2) ── the seed carries no ingredients/steps; Publish (whole-form validation)
-# needs >= 1 of each, added via the freeform create exactly as `edit.yaml` does.
+# ── EDIT 1 (creates version 2) ── the seeded recipe now arrives WITH five ingredient lines and four steps of
+# its own (`packages/services/recipe-service/src/database/seed.ts`), so Publish's ">= 1 of each" is already
+# satisfied when the editor opens. An ingredient and a step are still added here — exactly as `edit.yaml` does
+# — so that v2 differs from the seed in CONTENT as well as title, which is what makes the version-history
+# assertions further down about a real edit rather than a title rename.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
@@ -40,7 +43,7 @@ appId: io.commise.mobile
 - assertVisible: 'Step 1 of 4'
 - tapOn: 'Title'
 - eraseText
-- inputText: 'Mediterranean Grilled Lamb (v2)'
+- inputText: '${E2E_RECIPE_LAMB} (v2)'
 - scrollUntilVisible:
       element: 'Next: Ingredients'
       direction: DOWN
@@ -60,8 +63,22 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn:
       text: 'Create .*Tomato.*'
+# ⛔ THE CHECKPOINT THAT THE FREEFORM CREATE REACHED THE FORM (the same pair `edit.yaml` carries, for the same
+# reason). It was `Ingredient 1 name`, which stopped proving anything the moment the seed gained lines of its
+# own: that is the FIRST SEEDED line's field, present before this flow typed a character. Instead:
+#   1. The picker RESETS — `useIngredientResolver`'s `resolveLine` clears the query only AFTER handing the
+#      resolved line up, so "Create “Tomato”" disappearing IS the create resolving (and this is the wait for
+#      the round trip). A failed create leaves the query and the affordance in place, and this goes red.
+#   2. The LINE ITSELF by the NAME this flow typed, not by position — count-independent, and the only thing
+#      left on screen that can carry that text once the search box has been cleared by (1). `^Tomato` is
+#      anchored at the start only, so the emulator's occasional last-character input duplication (the reason
+#      the `Create .*Tomato.*` pattern above is loose) still matches.
+- extendedWaitUntil:
+      notVisible: 'Create .*Tomato.*'
+      timeout: 30000
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element:
+          text: '^Tomato'
       direction: DOWN
       timeout: 30000
 - scrollUntilVisible:
@@ -72,10 +89,20 @@ appId: io.commise.mobile
 - assertVisible: 'Step 3 of 4'
 - scrollUntilVisible:
       element: 'Add step'
-      direction: UP
+      # ⛔ DOWN, not UP. Advancing a step now returns the scroller to the TOP (`useScrollResetOnChange`,
+      # wired in `RecipeEditor`), so `Add step` — which sits below this step's instruction list — is
+      # ALWAYS downward from here. `UP` was compensating for the wizard's old behaviour of carrying the
+      # previous step's scroll position over, which is the defect that reset fixes.
+      direction: DOWN
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
+# ⛔ `Step 5 instruction`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
+# (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is
+# the fifth. The index is this flow's one coupling to the fixture's COUNT — stated because Maestro has no
+# "last match" selector. `Step 1 instruction` would append this text to the SEEDED first step and leave the
+# added step EMPTY, and `validateRecipeForm` fails `steps` on ANY blank instruction, so `canAdvanceFromStep(3)`
+# never opens and the walk to step 4 below dead-ends.
+- tapOn: 'Step 5 instruction'
 - inputText: 'Marinate for two hours.'
 # Publish is the STEP-4 FOOTER PRIMARY, not a sticky top-bar action. U6 collapsed the wizard chrome to one
 # contextual footer primary — `Next: …` on steps 1-3, swapping to `Publish` on step 4 (`Wizard.native.tsx`'s
@@ -83,15 +110,15 @@ appId: io.commise.mobile
 # overflow (Save Draft / Cancel). This flow used to tap `Publish` from step 3 on the pre-U6 assumption and
 # failed there. Walk forward to step 4 and publish from its footer, exactly as `create.yaml` does.
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .v2.*'
+          text: '${E2E_RECIPE_LAMB} .v2.*'
       timeout: 40000
 
 # ── EDIT 2 (creates version 3, the new current) ── the ingredient/step added in EDIT 1 already persist, so
@@ -107,7 +134,7 @@ appId: io.commise.mobile
 - assertVisible: 'Step 1 of 4'
 - tapOn: 'Title'
 - eraseText
-- inputText: 'Mediterranean Grilled Lamb (v3)'
+- inputText: '${E2E_RECIPE_LAMB} (v3)'
 - scrollUntilVisible:
       element: 'Next: Ingredients'
       direction: DOWN
@@ -119,15 +146,15 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Next: Instructions'
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .v3.*'
+          text: '${E2E_RECIPE_LAMB} .v3.*'
       timeout: 40000
 
 # ── VERSION HISTORY ── the owner-action entry point sits behind the "More" overflow menu (C4 wireframe
@@ -144,17 +171,28 @@ appId: io.commise.mobile
 - tapOn: 'Version history'
 - assertVisible: 'Version history'
 
-# v3 (current, not restorable) changed ONLY the title versus its immediate prior (v2, the OLDEST recorded
-# version — the seed itself recorded none, so v2 has no prior of its own and reads "Initial version").
+# The current version changed ONLY the title versus its immediate prior; the OLDEST recorded version has no
+# prior of its own and reads "Initial version".
+#
+# ⛔ `scrollUntilVisible`, not a bare assert. U34's auto-save writes a DRAFT on a 2s debounce, and FR-007b
+# makes every save record a version — so this screen now holds MORE cards than before and the oldest one
+# sits below the fold. MEASURED on CI 2026-08-26: the accessibility dump showed `Version 4` rendered at
+# y≈2274-2400 on a 2400-high screen with `visible: false`, and the bare assert failed on a list that was
+# entirely correct. Asserting without scrolling makes this flow a function of card height, which is not
+# what it is testing.
 - assertVisible: 'Current version'
 - assertVisible: 'Changed: Title'
+- scrollUntilVisible:
+      element: 'Initial version'
+      direction: DOWN
+      timeout: 20000
 - assertVisible: 'Initial version'
 
 # PREVIEW — a past version's own content, plus its changed-from-current summary. v2 and v3 share the SAME
 # ingredients/steps (only the title differs, by design above), so the tally is honestly all-zero.
 - tapOn: 'Preview version 2'
 - assertVisible:
-      text: 'Version 2 Preview: Mediterranean Grilled Lamb .v2.*'
+      text: 'Version 2 Preview: ${E2E_RECIPE_LAMB} .v2.*'
 - assertVisible: 'Changed from current: 0 ingredients, 0 steps'
 - tapOn: 'Keep current version'
 - assertNotVisible: 'Keep current version'

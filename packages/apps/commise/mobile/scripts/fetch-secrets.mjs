@@ -10,17 +10,34 @@
  * with the backend secret); `App.tsx` reads it as EXPO_PUBLIC_IDP_PUBLISHABLE_KEY.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+/**
+ * The stages this script is documented to accept. An allowlist rather than a free string: `STAGE` reaches an
+ * AWS call, and the usage note above already promises exactly these three — so anything else is a typo that
+ * should fail here, naming the mistake, instead of becoming a "secret not found" further down.
+ */
+const STAGES = ['sandbox', 'dev', 'prod'];
+
 const STAGE = process.argv.find((a) => a.startsWith('--stage='))?.split('=')[1] ?? 'sandbox';
+
+if (!STAGES.includes(STAGE)) {
+    console.error(`Unknown --stage '${STAGE}'. Expected one of: ${STAGES.join(', ')}.`);
+    process.exit(1);
+}
+
 const SECRET_ID = `kitchensink/${STAGE}/identity/keys`;
 const ENV_FILE = resolve(import.meta.dirname, '../.env.local');
 
 try {
-    const raw = execSync(
-        `aws secretsmanager get-secret-value --secret-id ${SECRET_ID} --query SecretString --output text`,
+    // `execFileSync` with an argument ARRAY, never a shell string: `SECRET_ID` is built from an argv value, so
+    // interpolating it into a command line makes the shell an attack surface for whoever runs this. Passing
+    // argv straight through spawns `aws` with no shell at all, which also removes the quoting hazard.
+    const raw = execFileSync(
+        'aws',
+        ['secretsmanager', 'get-secret-value', '--secret-id', SECRET_ID, '--query', 'SecretString', '--output', 'text'],
         { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
     );
     const { PUBLISHABLE_KEY: publishableKey } = JSON.parse(raw.trim());

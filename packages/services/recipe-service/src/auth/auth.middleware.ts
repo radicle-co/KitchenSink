@@ -26,7 +26,7 @@ import { Injectable, UnauthorizedException, type NestMiddleware } from '@nestjs/
 import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 import type { NextFunction, Response } from 'express';
 
-import { ClerkAuthService } from './clerk-auth.service.js';
+import { ClerkAuthService } from './clerkAuth.service.js';
 import { extractBearer } from './bearer.js';
 import type { AuthenticatedRequest, Principal } from './principal.js';
 
@@ -41,13 +41,29 @@ function getPath(req: AuthenticatedRequest): string {
 }
 
 /**
- * Resolve the non-production dev-bypass Principal, or `undefined`. Reads env at call time so it is
- * disabled the instant `NODE_ENV` is `production`, regardless of `RECIPE_DEV_AUTH_USER_ID`. Pure
- * w.r.t. its inputs (only reads env). The synthetic `sub` is deliberately distinct from `userId` so
- * even the bypass never conflates the owner key with a trace identifier.
+ * The ONLY `NODE_ENV` values that may enable the dev bypass: a developer's machine and the test tiers.
+ *
+ * ⛔ An ALLOWLIST, not `!== 'production'`. The old gate refused exactly one value and admitted every other,
+ * and `RecipeServiceStack` ships `NODE_ENV: stage === 'prod' ? 'production' : 'staging'` — so on sandbox and
+ * on every `pr-{N}`, all internet-facing behind the shared ALB, the sole thing between the public internet
+ * and arbitrary-owner impersonation was the ABSENCE of `RECIPE_DEV_AUTH_USER_ID`. A negative gate has to
+ * predict every environment name that will ever exist; a positive one does not, so a stage added later
+ * cannot opt itself in by being spelled something new.
+ *
+ * ⚠️ Identity and food hardcode `NODE_ENV: 'production'` and never had this gap. Recipe keys its config on
+ * the value, which is why it is the one service where the bypass could reach a deployed stage.
+ */
+const DEV_BYPASS_ENVIRONMENTS = new Set(['development', 'test']);
+
+/**
+ * Resolve the local-only dev-bypass Principal, or `undefined`. Reads env at call time so it tracks the
+ * current value rather than a boot-time snapshot, and answers `undefined` for every environment outside
+ * {@link DEV_BYPASS_ENVIRONMENTS} regardless of `RECIPE_DEV_AUTH_USER_ID`. Pure w.r.t. its inputs (only
+ * reads env). The synthetic `sub` is deliberately distinct from `userId` so even the bypass never conflates
+ * the owner key with a trace identifier.
  */
 function resolveDevBypass(): Principal | undefined {
-    if (process.env['NODE_ENV'] === 'production') {
+    if (!DEV_BYPASS_ENVIRONMENTS.has(process.env['NODE_ENV'] ?? '')) {
         return undefined;
     }
 

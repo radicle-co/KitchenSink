@@ -23,7 +23,8 @@ This is the `@kitchensink/loadtest` workspace (`packages/tools/loadtest`); comma
 - `k6` — installed into this package via `npm run k6:install` (downloads the pinned binary into
   `node_modules/.bin`, so the npm scripts below find it). No global install needed.
 - AWS credentials for the sandbox account (to read the Clerk backend secret + CloudWatch for U2).
-- A deployed, healthy food preview (e.g. `food-pr-59.commise.app`) — `GET /health` → 200.
+- A deployed, healthy food preview — `GET /health` → 200. Resolve its origin from the stage
+  (`node printPublicOrigin.mjs food pr-73 commise.app`); never type the host, it rots silently.
 
 ## Run
 
@@ -39,7 +40,7 @@ export CLERK_SECRET_KEY=$(aws secretsmanager get-secret-value \
 
 # One command — provision → grant observer → k6 + server-side collection → correlated report.md →
 # teardown of every test user (in a finally, so an interrupt never leaks users):
-POOL_SIZE=100 FOOD_BASE_URL=https://food-pr-59.commise.app npm run loadtest
+POOL_SIZE=100 FOOD_BASE_URL="$(node printPublicOrigin.mjs food pr-73 commise.app)" npm run loadtest
 ```
 
 Or the steps individually: `npm run provision`, `npm run grant-admin`, `npm run journey`, `npm run collect`
@@ -78,11 +79,11 @@ WINDOW_SECONDS=60 BURST_COUNT=60 npm run ratelimit
 the admin `/metrics` (`sources[usda].paused`/`utilization`) + `/queue` depth and prints a **verdict**:
 STALL seen (worker paused at the cap, queue backed up) → RESUME seen (paused clears, queue drains).
 Deterministic correctness of the same behavior lives in
-`food-service/tests/food-consumer.integration.test.ts` (`stall→resume`) — the load test demonstrates it end-to-end.
+`food-service/tests/foodConsumer.integration.test.ts` (`stall→resume`) — the load test demonstrates it end-to-end.
 
 > **Promotion-by-request-count** (#2) and **flooding-user demotion/flood-shed** (#3) are queue-ordering
 > invariants that only manifest under a backlog / near the depth ceiling — proven deterministically by
-> `fetch-queue.dao`, `fairness-demotion`, and `admission` integration tests, not the k6 load test.
+> `fetchQueue.dao`, `fairness-demotion`, and `admission` integration tests, not the k6 load test.
 
 ### Does the food really land in the DB?
 
@@ -97,7 +98,7 @@ Prefer not to run it locally? Trigger the **`Food API load test`** workflow
 
 ```bash
 gh workflow run food-loadtest.yml \
-  -f target_url=https://food-pr-59.commise.app \
+  -f target_stage=pr-73 \
   -f hold_rate=2 -f ramp_rate=3 -f pool_size=100 -f max_vus=100
 ```
 

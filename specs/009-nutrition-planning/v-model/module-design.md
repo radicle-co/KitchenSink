@@ -1092,7 +1092,7 @@ N/A — Stateless
 ### Module: MOD-018 (ClerkAuthService)
 
 **Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `src/nutrition-planning/adapters/clerk-auth.service.ts`
+**Target Source File(s)**: `src/nutrition-planning/adapters/clerkAuth.service.ts`
 
 #### Algorithmic / Logic View
 

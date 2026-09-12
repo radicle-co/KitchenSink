@@ -2,3 +2,8 @@ node_modules
 dist
 coverage
 *.tsbuildinfo
+
+
+# Expo prebuild + Gradle/CMake native build output. Gitignored wholesale at .gitignore:96.
+android
+ios

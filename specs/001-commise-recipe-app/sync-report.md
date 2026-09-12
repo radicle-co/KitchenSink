@@ -54,17 +54,17 @@ mapped to 400 — the contract had anticipated the path.
 Three places where `tasks.md` names something the code deliberately does differently. All are recorded in
 `implementation-log.md` checkpoint #3 and in the task text itself; none are defects.
 
-| tasks.md says                                          | Reality                                  | Why                                                                                              |
-| ------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `recipe-workers/src/version-archive-worker/handler.ts` | `src/handlers/version-archive-worker.ts` | esbuild `entryPoints` **and** the CDK handler strings already target it; moving breaks the build |
-| `CloneCollectionRequest` **DTO**                       | zod schema + `parseOrThrow`              | the controller's actual convention                                                               |
-| `attempt_count`                                        | `attempts`                               | the column migration `0004` actually created                                                     |
+| tasks.md says                                          | Reality                                | Why                                                                                              |
+| ------------------------------------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `recipe-workers/src/version-archive-worker/handler.ts` | `src/handlers/versionArchiveWorker.ts` | esbuild `entryPoints` **and** the CDK handler strings already target it; moving breaks the build |
+| `CloneCollectionRequest` **DTO**                       | zod schema + `parseOrThrow`            | the controller's actual convention                                                               |
+| `attempt_count`                                        | `attempts`                             | the column migration `0004` actually created                                                     |
 
 **Resolution:** accepted as-is. The code is right; the task text is the historical artifact.
 
 #### DRIFT-010 — the erasure worker is deployed but hollow (WARNING → CRITICAL if T136b lands first)
 
-`recipe-workers/src/handlers/account-erasure-worker.ts` looks implemented but `eraseRecipeRows` is a
+`recipe-workers/src/handlers/accountErasureWorker.ts` looks implemented but `eraseRecipeRows` is a
 **no-op TODO**, and the handler sweeps only the media bucket. The T132 stack (`b5eae03`) now **deploys**
 this Lambda. It is **inert today** — T132 creates no erasure queue and no subscription, so nothing can
 invoke it — but wiring the trigger (T136b) before the body (T136) would make erasure delete a user's
@@ -144,8 +144,8 @@ The `.forge-status.yml` `task_log` was reconciled for the 2026-07-13/14/15 sessi
 **The dangerous direction (a `[x]` with no code) was NOT found** — but the verification pass _did_ catch would-be false flips and correctly **left them open** because the code is a scaffolded **stub**, not a completion:
 
 - **T130** — `versions.service.ts` still archives to S3 **inline** (`@sideEffect ... PUTs archive objects to S3`); the task is to _replace_ that with an async `recipe_version_pending_archives` enqueue. Not done.
-- **T131** — `version-archive-worker.ts` exists but line 51 is `// TODO(Phase 4+): query the recipe, its version row...`. Stub.
-- **T136** — `account-erasure-worker.ts` exists but line 39 is `// TODO(Phase 4+): ... delete the owner's rows in FK-safe order`. Stub.
+- **T131** — `versionArchiveWorker.ts` exists but line 51 is `// TODO(Phase 4+): query the recipe, its version row...`. Stub.
+- **T136** — `accountErasureWorker.ts` exists but line 39 is `// TODO(Phase 4+): ... delete the owner's rows in FK-safe order`. Stub.
 
 Genuinely-open (code matches the open mark — no drift): **T126** soft-delete integration test (absent), **T127/T128** collection clone/pull service+controller (only `sourceCollectionId` schema field exists), **T130/T131/T132/T133/T138** async version-archive path (stubs + missing infra/tests), **T134/T135/T136/T137** erasure service+controller+worker-body+test (only `account.module.ts` shell + worker stub), **T104** Home host (see DRIFT-007), **T064-test** hook-level MSW tests (client tests exist but not hook-level), and the frontend test-tier tasks (T105-T115, T083/T084/T086/T087).
 

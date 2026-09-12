@@ -20,8 +20,26 @@ export interface LinearGradientProps extends ViewProps {
 // ViewProps type; widen the View once so the stub typechecks under the real RN types tsc resolves.
 const MarkedView = View as unknown as FC<ViewProps & { readonly dataSet?: Record<string, string | undefined> }>;
 
+/** Serialize a unit-square point for assertion, or `undefined` when the prop was not supplied. Pure. */
+function point(value: LinearGradientProps['start']): string | undefined {
+    return value === undefined ? undefined : `${value.x},${value.y}`;
+}
+
 export const LinearGradient: FC<LinearGradientProps> = ({ colors, locations, start, end, children, ...rest }) => (
-    <MarkedView {...rest} dataSet={{ commiseStub: 'linear-gradient', colors: colors.join('|') }}>
+    <MarkedView
+        {...rest}
+        dataSet={{
+            commiseStub: 'linear-gradient',
+            colors: colors.join('|'),
+            // `locations`/`start`/`end` are exposed so a test can assert the gradient's DIRECTION and stop
+            // placement, not just its palette. Without them a leaf that projected a mirrored or degenerate
+            // vector (e.g. every stop at 0, or bottom-right → top-left) rendered flat on device while the
+            // colour-only assertion stayed green.
+            locations: locations?.join('|'),
+            start: point(start),
+            end: point(end),
+        }}
+    >
         {children}
     </MarkedView>
 );

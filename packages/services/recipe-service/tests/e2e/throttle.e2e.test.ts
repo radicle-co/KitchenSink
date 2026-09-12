@@ -26,13 +26,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { writeLimit } from '../../src/common/throttle/throttle.config.js';
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
-import { SEED_OWNER_FREE } from '../global-setup.js';
+import { SEED_OWNER_FREE } from '../globalSetup.js';
+import { recipeE2eDb } from '../support/roleDb.js';
+
+const roleDb = recipeE2eDb();
 
 describe.skipIf(!hasDatabaseUrl)('recipe-service rate limiting (e2e, assembled app)', () => {
     let booted: BootedRecipeApp;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp({ devAuthUserId: SEED_OWNER_FREE });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: SEED_OWNER_FREE });
     });
 
     afterAll(async () => {
@@ -99,9 +102,11 @@ describe.skipIf(!hasDatabaseUrl)('recipe-service rate limiting (e2e, assembled a
             // only the (writeLimit + 1)th crosses the limit.
             process.env['RECIPE_DEV_AUTH_USER_ID'] = userA;
             const aStatuses: number[] = [];
+
             for (let i = 0; i < writeLimit + 1; i += 1) {
                 aStatuses.push(await postInvalidRecipe());
             }
+
             expect(aStatuses.slice(0, writeLimit)).not.toContain(429);
             expect(aStatuses[aStatuses.length - 1]).toBe(429);
 

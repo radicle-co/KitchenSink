@@ -35,8 +35,7 @@ export function useReduceMotion(): boolean | undefined {
         // `addEventListener` returns an `EmitterSubscription` on device; some hosts (e.g. the
         // react-native-web test shim) return nothing, so unsubscribe defensively.
         const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion) as
-            | { remove: () => void }
-            | undefined;
+            { remove: () => void } | undefined;
 
         return () => {
             subscribed = false;

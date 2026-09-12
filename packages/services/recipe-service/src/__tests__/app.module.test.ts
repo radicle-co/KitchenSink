@@ -37,6 +37,8 @@ beforeAll(async () => {
         CLOUDFRONT_URL: 'http://localhost:4566/commise-photos',
         FOOD_SERVICE_URL: 'http://localhost:3002',
         ACCOUNT_ERASURE_QUEUE_URL: 'http://localhost:4566/000000000000/account-erasure',
+        INGREDIENT_VERIFICATION_QUEUE_URL: 'http://localhost:4566/000000000000/recipe-verification',
+        RECIPE_PARSE_QUEUE_URL: 'http://localhost:4566/000000000000/recipe-parse-line',
         DATABASE_URL: 'postgres://placeholder:placeholder@127.0.0.1:5432/placeholder',
     };
 
@@ -118,9 +120,41 @@ describe('recipe-service AppModule.configure', () => {
         });
     });
 
-    it('excludes nothing else — every other route stays fail-closed behind Clerk auth', () => {
+    it('excludes the CANONICAL internal food-references route from the Clerk AuthMiddleware', () => {
+        // ⛔ `ServiceErasureController` serves TWO routes behind `ServiceErasureGuard`, not one. U18 added
+        // `food-references` beside `erasure` and the exclusion list was never widened, so the Clerk
+        // middleware 401s the deletion worker's signed service token before the guard that understands it
+        // ever runs — and the worker calls this BETWEEN food's tombstone and its completing erasure, so the
+        // orphan arm of the fan-out cannot finish. Same failure the docstring above already describes for
+        // the alias: a fail-closed 401 that reads like an auth problem rather than a missing exclusion.
         const wiring = recordWiring();
 
-        expect(wiring.exclusions).toHaveLength(2);
+        expect(wiring.exclusions).toContainEqual({
+            path: 'api/v1/internal/account/food-references',
+            method: RequestMethod.POST,
+        });
+    });
+
+    it('excludes the DEPRECATED internal food-references alias from the Clerk AuthMiddleware', () => {
+        const wiring = recordWiring();
+
+        expect(wiring.exclusions).toContainEqual({
+            path: 'v1/internal/account/food-references',
+            method: RequestMethod.POST,
+        });
+    });
+
+    it('excludes nothing else — every other route stays fail-closed behind Clerk auth', () => {
+        // The set, not a COUNT: a bare length said "four" without saying WHICH four, so widening the list
+        // for one route could be discharged by an unrelated exclusion and this guard would not notice. The
+        // whole point here is that everything not named stays behind Clerk.
+        const wiring = recordWiring();
+
+        expect([...wiring.exclusions].sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+            { path: 'api/v1/internal/account/erasure', method: RequestMethod.POST },
+            { path: 'api/v1/internal/account/food-references', method: RequestMethod.POST },
+            { path: 'v1/internal/account/erasure', method: RequestMethod.POST },
+            { path: 'v1/internal/account/food-references', method: RequestMethod.POST },
+        ]);
     });
 });

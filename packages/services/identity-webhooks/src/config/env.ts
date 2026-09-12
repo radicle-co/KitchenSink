@@ -4,7 +4,7 @@ import { z } from 'zod';
  * IdP (Clerk) credentials/config. Only `IDP_SECRET_KEY`/`AUTH_SECRET_ARN` are enforced (either-or, via
  * the refine below) — the rest are optional here because not every Lambda's deployed env carries every
  * field (e.g. `IDP_PUBLISHABLE_KEY` is a browser-side credential never injected into any of these
- * server-side functions; see `infra/lib/webhooks-stack.ts`'s `commonEnv`/`clerkBackendEnv`).
+ * server-side functions; see `infra/lib/WebhooksStack.ts`'s `commonEnv`/`clerkBackendEnv`).
  */
 const IdpConfigSchema = z.object({
     IDP_SECRET_KEY: z.string().startsWith('sk_').optional(),
@@ -16,16 +16,55 @@ const IdpConfigSchema = z.object({
 });
 
 /**
+ * Where the database is. Every handler touches RDS, so every handler needs one of the two forms — `DATABASE_URL`
+ * (local development and the integration tier) or the discrete `DB_HOST`/`DB_PORT`/`DB_NAME` a deployed Lambda
+ * gets — and {@link requireDatabaseLocation} enforces that at cold start.
+ *
+ * ⛔ No password and no secret ARN: deployed Lambdas log in as `identity_service` by RDS IAM
+ * (`@kitchensink/rds-iam-auth`). They used to read the RDS MASTER secret (`DB_SECRET_ARN`) and log in as
+ * `identity_app`, a member of `rds_superuser` — see `docs/plans/2026-09-11-database-role-split.md`.
+ * `DB_USERNAME` defaults to `identity_service` in `src/common/db.ts`.
+ */
+const DatabaseLocationSchema = z.object({
+    DATABASE_URL: z.string().min(1).optional(),
+    DB_HOST: z.string().min(1).optional(),
+    DB_PORT: z
+        .string()
+        .regex(/^\d{1,5}$/u, 'must be a TCP port number')
+        .optional(),
+    DB_NAME: z.string().min(1).optional(),
+    DB_USERNAME: z.string().min(1).optional(),
+});
+
+/** The discrete coordinates a deployed Lambda needs when there is no `DATABASE_URL`. */
+const DISCRETE_DATABASE_VARS = ['DB_HOST', 'DB_PORT', 'DB_NAME'] as const;
+
+/**
+ * One issue per missing discrete coordinate — naming each var, so {@link ConfigError.invalidVars} tells ops
+ * exactly what to set — unless `DATABASE_URL` supplies the whole location.
+ */
+const requireDatabaseLocation = (data: z.infer<typeof DatabaseLocationSchema>, context: z.RefinementCtx): void => {
+    if (data.DATABASE_URL) {
+        return;
+    }
+
+    for (const name of DISCRETE_DATABASE_VARS) {
+        if (!data[name]) {
+            context.addIssue({ code: 'custom', path: [name], message: 'required unless DATABASE_URL is set' });
+        }
+    }
+};
+
+/**
  * The rest of the env surface the identity-webhooks Lambdas read (S-I5 audit: every `process.env` /
- * `requireEnv` access across `src/handlers/*.ts` + `src/common/db.ts`). `DB_SECRET_ARN` is the one
- * field every handler needs (all four touch RDS) so it is the only field required unconditionally;
- * everything else here is used by a subset of handlers (e.g. `DELETION_QUEUE_URL`/`IDP_WEBHOOK_SECRET`
- * are webhook-only) and is tightened to required by that handler's own schema below via `.required()`,
- * rather than forcing every Lambda's cold start to depend on env vars its CDK function definition never
- * sets.
+ * `requireEnv` access across `src/handlers/*.ts` + `src/common/db.ts`). The database location is the one
+ * thing every handler needs (all of them touch RDS); everything else here is used by a subset of handlers
+ * (e.g. `DELETION_QUEUE_URL`/`IDP_WEBHOOK_SECRET` are webhook-only) and is tightened to required by that
+ * handler's own schema below via `.required()`, rather than forcing every Lambda's cold start to depend on env
+ * vars its CDK function definition never sets.
  */
 const LambdaConfigSchema = z.object({
-    DB_SECRET_ARN: z.string().min(1),
+    ...DatabaseLocationSchema.shape,
     DELETION_QUEUE_URL: z.string().min(1).optional(),
     HANDLE_SYNC_TOPIC_ARN: z.string().min(1).optional(),
     AWS_REGION: z.string().min(1).optional(),
@@ -49,7 +88,10 @@ const IDP_SECRET_REFINEMENT = {
 };
 
 /** General-purpose schema: what deletion-worker, reconciliation, and migrate all need. */
-export const EnvironmentSchema = BaseEnvironmentObject.refine(hasIdpSecret, IDP_SECRET_REFINEMENT);
+export const EnvironmentSchema = BaseEnvironmentObject.superRefine(requireDatabaseLocation).refine(
+    hasIdpSecret,
+    IDP_SECRET_REFINEMENT,
+);
 
 export type Environment = z.infer<typeof EnvironmentSchema>;
 
@@ -129,7 +171,9 @@ export function resolveEnvironment(): Environment {
 export const WebhookEnvironmentSchema = BaseEnvironmentObject.required({
     DELETION_QUEUE_URL: true,
     IDP_WEBHOOK_SECRET: true,
-}).refine(hasIdpSecret, IDP_SECRET_REFINEMENT);
+})
+    .superRefine(requireDatabaseLocation)
+    .refine(hasIdpSecret, IDP_SECRET_REFINEMENT);
 
 export type WebhookEnvironment = z.infer<typeof WebhookEnvironmentSchema>;
 
@@ -164,8 +208,8 @@ export function getWebhookConfig(): WebhookEnvironment {
 
 /**
  * The resolved cross-service erasure fan-out config (CR-002 / U4b): the EdDSA signing key + the recipe and
- * food base URLs. Read from `process.env` DIRECTLY — deliberately NOT through the base {@link
- * EnvironmentSchema} — so an absent/empty value (before ops provisions the keypair + URLs) affects ONLY the
+ * food base URLs. Read from `process.env` DIRECTLY — deliberately NOT through the base
+ * {@link EnvironmentSchema} — so an absent/empty value (before ops provisions the keypair + URLs) affects ONLY the
  * erasure fan-out, never the closure/reactivation paths that share the deletion-worker's `getConfig()`.
  *
  * Demanded ALL-OR-NOTHING at the point of use: a fan-out consumer missing any of the three fails LOUD (the

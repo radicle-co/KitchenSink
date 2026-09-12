@@ -377,13 +377,20 @@ interface DailyCompliance {
 
 ### Proposed Schema
 
+⛔ **No foreign key leaves `kitchensink_recipes`** _(corrected 2026-08-16)_. 009 lives in
+`@kitchensink/recipe-service` (ADR-0017), so FKs among its own tables and 001's are real. `users` is the
+identity database and `meal_plans` moved to `kitchensink_meal_plans` when 006 was extracted on 2026-08-14;
+Postgres enforces neither, so this block previously declared six unenforceable constraints. The app-user
+identifier is also a **ULID** stored as `VARCHAR(255)`, not a `UUID` — dropping the FK without fixing the type
+would leave a second, silent incompatibility. Same rule as 006's **C-006-002** / **REQ-CN-003**.
+
 ```sql
 -- Nutrition plan: the container for macro targets
 CREATE TABLE nutrition_plans (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id            UUID        NOT NULL REFERENCES users(id),
+    owner_id            VARCHAR(255) NOT NULL,  -- app-user ULID from the token claim; NO FK (identity database)
     -- Trainer-client: if set, this plan was created by a trainer for a client
-    created_by_id       UUID        REFERENCES users(id),  -- NULL = self-created
+    created_by_id       VARCHAR(255),           -- NULL = self-created; app-user ULID, NO FK
     title               TEXT        NOT NULL,
     description         TEXT,
     -- Target mode: 'ratio' (% of calories) or 'fixed' (absolute grams)
@@ -419,16 +426,21 @@ CREATE INDEX idx_nutrition_plans_created_by ON nutrition_plans (created_by_id) W
 -- Links a nutrition plan to one or more meal plans (from 006)
 -- A nutrition plan can span multiple meal plans (e.g., weekly meal plans within a monthly nutrition plan)
 CREATE TABLE nutrition_plan_meal_plans (
-    nutrition_plan_id   UUID        NOT NULL REFERENCES nutrition_plans(id) ON DELETE CASCADE,
-    meal_plan_id        UUID        NOT NULL REFERENCES meal_plans(id) ON DELETE CASCADE,
+    nutrition_plan_id   UUID        NOT NULL REFERENCES nutrition_plans(id) ON DELETE CASCADE,  -- local
+    meal_plan_id        UUID        NOT NULL,  -- 006 owns it in kitchensink_meal_plans — NO FK, NO cascade
     PRIMARY KEY (nutrition_plan_id, meal_plan_id)
 );
+-- ⚠️ The lost `ON DELETE CASCADE` is a real behaviour change, not a cosmetic one: deleting a meal plan can no
+-- longer clean this table up. A link row whose `meal_plan_id` no longer resolves is handled at READ time —
+-- rendered unavailable and excluded from compliance — mirroring how 006 handles an unreadable recipe
+-- (C-006-006). No stored flag, no sweeper, because either would need a cross-service deletion notification
+-- that deliberately does not exist.
 
 -- Trainer-client relationship
 CREATE TABLE trainer_client_relationships (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    trainer_id          UUID        NOT NULL REFERENCES users(id),
-    client_id           UUID        NOT NULL REFERENCES users(id),
+    trainer_id          VARCHAR(255) NOT NULL,  -- app-user ULID; NO FK (identity database)
+    client_id           VARCHAR(255) NOT NULL,  -- app-user ULID; NO FK (identity database)
     status              TEXT        NOT NULL DEFAULT 'active'
                         CHECK (status IN ('pending', 'active', 'paused', 'terminated')),
     -- Explicit consent record for health data sharing (GDPR Article 9(2)(a))

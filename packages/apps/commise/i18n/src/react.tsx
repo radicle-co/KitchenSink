@@ -3,7 +3,7 @@
 /**
  * React binding for `@commise/i18n` — a locale context + hooks shared by web (client components) and
  * mobile. Next.js SERVER components must not use this (context is client-only); they resolve dictionaries
- * directly via `getDictionary(locale)` + {@link import('./dictionary.js').resolveMessages}. The `'use
+ * directly via `getDictionary(locale)` + `resolveMessages`. The `'use
  * client'` directive marks this a client module for Next; React Native ignores it.
  */
 import { createContext, useContext, type ReactNode } from 'react';

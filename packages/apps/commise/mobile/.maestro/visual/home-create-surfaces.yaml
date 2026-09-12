@@ -1,0 +1,79 @@
+# VISUAL REGRESSION — the Home widget surface + the recipe-creation wizard entry (U10b). Maestro's OWN
+# `assertScreenshot`; no paid vendor.
+#
+# ⚠️ INERT UNTIL BASELINES EXIST — see the header of `visual/auth-surfaces.yaml` for the full reasoning
+# (no record mode; a missing reference is a hard "Screenshot file not found" error, so activating this before
+# the PNGs are committed turns heavy-e2e red). Activate by adding `visual/home-create-surfaces` to `FLOWS` in
+# `tests/e2e/run-maestro-flows.sh` AFTER recording.
+#
+# ⚠️ Same pinned profile as every baseline here: api-level 34 · x86_64 · pixel_6 · -gpu swiftshader_indirect
+# (`.github/workflows/_ci-heavy.yml`). Dimensions must match exactly — Maestro does not rescale.
+#
+# WHAT THIS ASSERTS (spec IDs):
+#   - FR-046 (as amended by CR-001, 2026-07-16) — an unshipped 005–009 widget renders as a SKELETON
+#     PLACEHOLDER carrying the real widget's heading and a visible "Coming soon", with NO fabricated data.
+#     That distinction ("coming soon", not "stuck loading", and never invented content) is a purely VISUAL
+#     property, which is why it earns a pixel baseline on top of `home.yaml`'s text assertions.
+#   - FR-001 / FR-001b — the recipe-creation wizard's first step: the form chrome, and the difficulty picker
+#     whose "no difficulty stated" is a first-class state that MUST render no badge and no default.
+
+appId: io.commise.mobile
+---
+# Sign in and land on the Home widget surface. The login CORE is used deliberately (not `auth/signin.yaml`,
+# which crosses into recipes) because the first assertion is about Home itself.
+- runFlow: ../auth/signin-home.yaml
+
+# Wait for the lazy widget chunk + the recipe-service fetch to settle, exactly as `home.yaml` does. Anchored
+# on the placeholder that is about to be captured, so the wait and the assertion cannot disagree.
+- extendedWaitUntil:
+      visible: "Today's Nutrition"
+      timeout: 40000
+- waitForAnimationToEnd
+
+# ⚠️ `cropOn` IS MANDATORY ON HOME, and the reason is not cosmetic: `HomeGreeting` renders a time-of-day
+# greeting from one of THREE buckets (`Good morning/afternoon/evening, Chef!`) over the viewer's LIVE local
+# calendar date. A full-screen Home baseline would therefore false-fail every day, and three times a day. A
+# threshold loose enough to swallow that variance (~0.5% of the frame) would also swallow real regressions,
+# which is not a gate — so the variance is EXCLUDED by cropping instead of tolerated.
+#
+# The crop anchors on "Today's Nutrition" — the one placeholder heading that is unique on the surface.
+# ("Coming soon" is rendered by all five placeholders, so it is an ambiguous selector; the live
+# "Recent recipes" widget's content is the up-to-4 recently viewed/edited set, which varies with suite
+# ordering.) `cropOn` resolves to that element's own bounds, so this is a NARROW assertion — the placeholder
+# heading's typography, weight and colour — not the whole card. It is stated plainly rather than oversold:
+# a wider, still-deterministic Home region is not addressable today because `PlaceholderWidgetCard` wraps its
+# content in a `GlassCard` that carries no accessibility label for a selector to bind to. Giving that card a
+# stable label would let this crop cover the whole placeholder, and is the natural follow-up.
+- assertScreenshot:
+      path: baselines/home-roadmap-placeholder.png
+      cropOn: "Today's Nutrition"
+      thresholdPercentage: 99
+      label: 'FR-046/CR-001 — roadmap widget renders as a skeleton placeholder, not fabricated data'
+
+# Cross into the recipes surface and open the creation wizard. `scrollUntilVisible` first: the recipe widget's
+# entry sits below the roadmap placeholders (same reason `auth/signin.yaml` scrolls for it).
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+- tapOn: 'See all recipes'
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000
+
+# The pinned create FAB (present in the populated state the per-flow reseed hands this flow).
+- tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
+- extendedWaitUntil:
+      visible: 'Step 1 of 4'
+      timeout: 30000
+- waitForAnimationToEnd
+
+# FR-001 / FR-001b — full-screen is safe HERE (unlike Home): the wizard opens at scroll-top with an EMPTY
+# form and its valid defaults (servings 1 / prep 0 / cook 0 per `defaultRecipeFormValues`), no seeded data and
+# no clock-derived copy. Nothing has been tapped yet, so no soft keyboard is up either (and the runner sets
+# `show_ime_with_hard_keyboard 0` regardless). Threshold 98 for the status-bar clock, as in auth-surfaces.
+- assertScreenshot:
+      path: baselines/recipe-create-step1.png
+      thresholdPercentage: 98
+      label: 'FR-001/FR-001b — creation wizard step 1 chrome and difficulty picker (no default difficulty)'

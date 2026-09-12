@@ -5,45 +5,59 @@
  * `schema_migrations`, so re-invoking is a no-op; a thrown error surfaces as a Lambda FunctionError and
  * fails the deploy's migration step (so a partial/drifted schema never passes silently).
  *
- * AUTH — `recipe_app` authenticates passwordlessly via RDS IAM: no secret to read. The connection target
+ * AUTH — `recipe_migrator` authenticates passwordlessly via RDS IAM: no secret to read. The connection target
  * comes from env (`DB_HOST`/`DB_PORT`/`DB_NAME`) and the IAM token is minted per connection by
- * {@link recipePoolConfig}. The lambda role holds `rds-db:connect` on the `recipe_app` db-user (granted in
- * the recipe service stack).
+ * {@link recipePoolConfig}. The lambda role holds `rds-db:connect` on the `recipe_migrator` db-user (granted in
+ * the recipe schema stack). Every DDL statement runs as `recipe_owner` (the role split,
+ * `docs/plans/2026-09-11-database-role-split.md`); the service itself connects as `recipe_app`, DML only.
  *
  * @sideEffect Connects to PostgreSQL (RDS IAM auth) and executes DDL.
  */
-import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
+import { z } from 'zod';
+
+import { applyMigrations, assertBundleMatches, isManifestSha } from '@kitchensink/db-schema-guard';
+import type { MigrateResult } from '@kitchensink/db-schema-guard';
+import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 
 import { BASE_RECIPE_DATABASE_NAME } from '@kitchensink/recipe-core/database-name';
 
-import { RECIPE_DB_USERNAME, recipePoolConfig } from '../../database/pool-config.js';
+import { recipePoolConfig } from '../../database/poolConfig.js';
 import * as schema from '../../database/schema/index.js';
 
 const { Pool } = pg;
 
-/** A discovered migration: its tracking `name` (filename without `.sql`) and the `.sql` filename. */
-export interface DiscoveredMigration {
-    readonly name: string;
-    readonly file: string;
-}
+/**
+ * Recipe's three database roles (`docs/plans/2026-09-11-database-role-split.md`): this runner connects as the
+ * MIGRATOR and does every DDL statement as the OWNER, so nothing it creates is owned by the service's login.
+ */
+const RECIPE_ROLES = DATABASE_ROLES.recipe;
 
-/** The structured result of a migration run (returned to the deploy-time `lambda invoke`). */
-export interface MigrateResult {
-    readonly applied: string[];
-    readonly skipped: string[];
-    readonly validated: { readonly migrations: number; readonly tables: number };
-}
+export { discoverMigrations } from '@kitchensink/db-schema-guard';
+export type { DiscoveredMigration, MigrateResult } from '@kitchensink/db-schema-guard';
 
-/** Options for {@link runMigrations} — a connected pool + the ordered migrations directory. */
+/** Options for {@link runMigrations} — the injectable core (a pool + a migrations directory). */
 export interface RunMigrationsOptions {
+    /** A connected `pg` pool to the target database. */
     readonly pool: pg.Pool;
+    /** The directory holding the ordered `.sql` migrations. */
     readonly migrationsDir: string;
+    /**
+     * The manifest digest the caller expects this runner to hold.
+     *
+     * ⛔ REQUIRED. ADR-0035 rejects the optional form by name — "an optional expectation is one a caller
+     * forgets, and a forgotten one is indistinguishable from the behaviour it replaces" — and while it was
+     * optional here, the property that decision rests on was enforced by one argument check in one shell
+     * script rather than by the runner.
+     */
+    readonly expectManifestSha: string;
+    /** The database the pool is connected to — the engine closes it to PUBLIC and admits the two logins. */
+    readonly database: string;
 }
 
 /**
@@ -54,23 +68,8 @@ export interface RunMigrationsOptions {
 const bundledMigrationsDir = (): string => join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations');
 
 /**
- * Discover the ordered `.sql` migrations in a directory — sorted by filename so the numeric prefix drives
- * a deterministic order. No hardcoded list.
- *
- * @param migrationsDir - The directory to scan.
- * @returns The discovered migrations in apply order.
- * @sideEffect Reads the migrations directory.
- */
-export function discoverMigrations(migrationsDir: string): DiscoveredMigration[] {
-    return readdirSync(migrationsDir)
-        .filter((file) => file.endsWith('.sql'))
-        .sort()
-        .map((file) => ({ name: file.replace(/\.sql$/, ''), file }));
-}
-
-/**
  * The tables every successful migration run must produce — derived from the Drizzle schema (every
- * exported `pgTable`), never hardcoded.
+ * exported `pgTable`), never hardcoded, so the post-migration validation tracks the schema as it evolves.
  *
  * @returns The expected table names.
  */
@@ -81,75 +80,29 @@ function expectedTables(): string[] {
 }
 
 /**
- * Apply the ordered migrations idempotently against a pool, then validate the result. The testable core
- * of {@link handler}.
+ * Apply the recipe migrations idempotently against a pool, then validate the result.
  *
- * @param options - The connected pool + the migrations directory.
- * @returns The applied/skipped lists + validation counts.
- * @throws {Error} when a migration's SQL fails, a discovered migration is not recorded, or an expected
- *   table is missing after the run.
- * @sideEffect Connects to PostgreSQL and executes DDL.
+ * ⛔ The engine is `@kitchensink/db-schema-guard`'s, not a copy. This loop — the advisory lock, the ledger,
+ * the rollback, the post-run validation — used to exist three times over, once per service, and the three
+ * copies had already drifted in their accounts of why. What is genuinely this service's is bound here:
+ * which SQL, and which tables the drizzle schema says must exist afterwards.
+ *
+ * @param options - The connected pool, the migrations directory, and the caller's manifest expectation.
+ * @returns The applied/skipped lists, the validation counts, and the manifest that ran.
+ * @throws {Error} when the expectation names a different migration set, the lock cannot be acquired, a
+ *   migration's SQL fails, a discovered migration is not recorded, or an expected table is missing.
+ * @sideEffect Connects to PostgreSQL, takes a session advisory lock, and executes DDL.
  */
 export async function runMigrations(options: RunMigrationsOptions): Promise<MigrateResult> {
-    const { pool, migrationsDir } = options;
-    const migrations = discoverMigrations(migrationsDir);
-    const applied: string[] = [];
-    const skipped: string[] = [];
-    const client = await pool.connect();
-
-    try {
-        await client.query(
-            'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
-        );
-
-        for (const migration of migrations) {
-            const existing = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [migration.name]);
-
-            if ((existing.rowCount ?? 0) > 0) {
-                skipped.push(migration.name);
-                continue;
-            }
-
-            const sql = readFileSync(join(migrationsDir, migration.file), 'utf8');
-            await client.query('BEGIN');
-
-            try {
-                await client.query(sql);
-                await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migration.name]);
-                await client.query('COMMIT');
-                applied.push(migration.name);
-            } catch (err) {
-                await client.query('ROLLBACK');
-                throw new Error(`Migration ${migration.name} failed`, { cause: err });
-            }
-        }
-
-        const recorded = await client.query<{ name: string }>('SELECT name FROM schema_migrations');
-        const recordedNames = new Set(recorded.rows.map((row) => row.name));
-        const missingMigrations = migrations.map((m) => m.name).filter((name) => !recordedNames.has(name));
-
-        if (missingMigrations.length > 0) {
-            throw new Error(
-                `Post-migration validation failed — migrations not recorded: ${missingMigrations.join(', ')}`,
-            );
-        }
-
-        const tables = expectedTables();
-        const present = await client.query<{ table_name: string }>(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])",
-            [tables],
-        );
-        const presentTables = new Set(present.rows.map((row) => row.table_name));
-        const missingTables = tables.filter((table) => !presentTables.has(table));
-
-        if (missingTables.length > 0) {
-            throw new Error(`Post-migration validation failed — tables missing: ${missingTables.join(', ')}`);
-        }
-
-        return { applied, skipped, validated: { migrations: migrations.length, tables: tables.length } };
-    } finally {
-        client.release();
-    }
+    return applyMigrations({
+        pool: options.pool,
+        migrationsDir: options.migrationsDir,
+        label: 'recipe',
+        expectedTables: expectedTables(),
+        expectManifestSha: options.expectManifestSha,
+        database: options.database,
+        roles: RECIPE_ROLES,
+    });
 }
 
 /**
@@ -219,7 +172,9 @@ export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Prom
     }
 
     try {
-        await maintenancePool.query(`CREATE DATABASE "${databaseName}"`);
+        // `OWNER` the recipe owner role, never the migrator that runs this: a database owned by a login is the
+        // shape the role split removed, and the reaper can only drop what the owner owns.
+        await maintenancePool.query(`CREATE DATABASE "${databaseName}" OWNER "${RECIPE_ROLES.owner}"`);
     } catch (err) {
         if (isDuplicateDatabaseError(err)) {
             return 'exists';
@@ -229,41 +184,6 @@ export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Prom
     }
 
     return 'created';
-}
-
-/** The outcome of a {@link dropDatabase} call. */
-export type DropDatabaseResult = 'skipped-base' | 'dropped' | 'absent';
-
-/**
- * Drop a per-PR recipe logical database (ADR-0006 PR-close cleanup). The base `kitchensink_recipes` is
- * NEVER dropped. Uses `DROP DATABASE IF EXISTS … WITH (FORCE)` to terminate lingering connections.
- * Idempotent.
- *
- * @param options - The maintenance pool + the target database name.
- * @returns `'skipped-base'` for the base DB, `'dropped'` if dropped, else `'absent'`.
- * @throws {Error} when the database name is not a valid recipe logical-database name.
- * @sideEffect Connects to the maintenance database and may execute `DROP DATABASE`.
- */
-export async function dropDatabase(options: EnsureDatabaseOptions): Promise<DropDatabaseResult> {
-    const { maintenancePool, databaseName } = options;
-
-    if (databaseName === BASE_RECIPE_DATABASE_NAME) {
-        return 'skipped-base';
-    }
-
-    if (!isValidRecipeDatabaseName(databaseName)) {
-        throw new Error(`Refusing to drop database with invalid name: ${databaseName}`);
-    }
-
-    const existing = await maintenancePool.query('SELECT 1 FROM pg_database WHERE datname = $1', [databaseName]);
-
-    if ((existing.rowCount ?? 0) === 0) {
-        return 'absent';
-    }
-
-    await maintenancePool.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
-
-    return 'dropped';
 }
 
 function requireEnv(name: string): string {
@@ -276,21 +196,46 @@ function requireEnv(name: string): string {
     return value;
 }
 
-/** The event the migration runner accepts. Absent/`migrate` → apply; `drop` → per-PR teardown. */
-export interface MigrateEvent {
-    readonly action?: 'migrate' | 'drop';
-}
+/**
+ * A migration-manifest digest: 64 lowercase hex, anchored.
+ *
+ * ⛔ VALIDATED AT THE JSON BOUNDARY, not merely typed. A payload that spells the key differently, or one
+ * the CLI mangled, yields `undefined` — and an unchecked `undefined` was a runner reporting a clean run
+ * over whatever SQL it happens to hold, which is the exact state ADR-0035 exists to abolish.
+ */
+// The PREDICATE is `db-schema-guard`'s, not a fourth copy of the pattern: the digest's shape is one rule,
+// and the two INDEPENDENT implementations ADR-0035 relies on are the two that COMPUTE it (the bundle's and
+// `sha256sum`'s), never the one that validates it.
+const MANIFEST_SHA = z.string().refine(isManifestSha, 'must be a 64-character lowercase hex sha256');
 
 /**
- * Lambda entrypoint. With no action (or `migrate`) it builds the pool from the DB env (authenticating as
- * `recipe_app` via an RDS IAM token) and runs + validates the migrations, creating the per-PR database
- * first if absent (ADR-0006). With `action: 'drop'` it drops the per-PR database (never the base).
+ * The event this runner accepts: a migrate, and nothing else.
  *
- * @param event - Optional `{ action }` (defaults to `migrate`).
- * @returns The migrate result, or the drop result when `action` is `drop`.
+ * ⛔ There is NO `drop` action any more. The per-PR reaper (`DataStack`, ADR-0031) is the one authority that drops
+ * a per-PR database, and this runner — now the migrator, not the owner — could not end the service's sessions
+ * with `WITH (FORCE)` anyway. `.strict()`, so a `{ "action": "drop" }` from an old caller is REFUSED rather than
+ * silently migrating.
+ */
+const MigrateEventSchema = z.object({ expectManifestSha: MANIFEST_SHA }).strict();
+
+/**
+ * Lambda entrypoint. Builds the pool from the DB env (authenticating as `recipe_migrator` via an RDS IAM token)
+ * and runs + validates the migrations as `recipe_owner`, creating the per-PR database first if absent (ADR-0006).
+ *
+ * @param event - `{ expectManifestSha }`.
+ * @returns The migrate result.
  * @sideEffect Connects to PostgreSQL (RDS IAM auth) and executes DDL.
  */
-export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult | { dropped: DropDatabaseResult }> => {
+export const handler = async (event: unknown = {}): Promise<MigrateResult> => {
+    const parsed = MigrateEventSchema.safeParse(event ?? {});
+
+    if (!parsed.success) {
+        throw new Error(
+            `Recipe migration runner received a malformed event — ` +
+                parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`).join(', '),
+        );
+    }
+
     const host = requireEnv('DB_HOST');
     const port = Number(requireEnv('DB_PORT'));
     const databaseName = requireEnv('DB_NAME');
@@ -305,7 +250,7 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
 
     const withMaintenancePool = async <T>(run: (pool: pg.Pool) => Promise<T>): Promise<T> => {
         const maintenancePool = new Pool({
-            ...recipePoolConfig({ host, port, database: 'postgres', username: RECIPE_DB_USERNAME }),
+            ...recipePoolConfig({ host, port, database: 'postgres', username: RECIPE_ROLES.migrator }),
             max: 1,
         });
 
@@ -316,23 +261,32 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
         }
     };
 
-    if (event.action === 'drop') {
-        const dropped = await withMaintenancePool((pool) => dropDatabase({ maintenancePool: pool, databaseName }));
-
-        return { dropped };
-    }
+    // ⛔ BEFORE ANY SIDE EFFECT. A migrate that will CREATE a per-PR logical database (ADR-0006) must not create
+    // one and only then discover it is the wrong release's runner: that leaves an empty, unmigrated database
+    // behind for the reaper to find. `applyMigrations` makes the same assertion, and this is the only way its
+    // "refuse before touching anything" claim can be true for a handler that does work in front of it.
+    assertBundleMatches({
+        label: 'recipe',
+        migrationsDir: bundledMigrationsDir(),
+        expectManifestSha: parsed.data.expectManifestSha,
+    });
 
     if (databaseName !== BASE_RECIPE_DATABASE_NAME) {
         await withMaintenancePool((pool) => ensureDatabaseExists({ maintenancePool: pool, databaseName }));
     }
 
     const pool = new Pool({
-        ...recipePoolConfig({ host, port, database: databaseName, username: RECIPE_DB_USERNAME }),
+        ...recipePoolConfig({ host, port, database: databaseName, username: RECIPE_ROLES.migrator }),
         max: 1,
     });
 
     try {
-        return await runMigrations({ pool, migrationsDir: bundledMigrationsDir() });
+        return await runMigrations({
+            pool,
+            migrationsDir: bundledMigrationsDir(),
+            expectManifestSha: parsed.data.expectManifestSha,
+            database: databaseName,
+        });
     } finally {
         await pool.end();
     }

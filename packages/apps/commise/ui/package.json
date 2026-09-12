@@ -7,7 +7,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json && node scripts/generate-theme.mjs",
         "typecheck": "tsc --noEmit",
-        "lint": "eslint 'src/**/*.{ts,tsx}' --ignore-pattern '**/*.test.{ts,tsx}'",
+        "lint": "eslint .",
         "test": "vitest run && vitest run --config vitest.native.config.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -29,6 +29,7 @@
         },
         "./button": "./src/button/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",
+        "./dialog-focus": "./src/dialogFocus/index.ts",
         "./motion": "./src/motion/index.ts",
         "./press-scale": "./src/pressScale/index.ts",
         "./surface": "./src/surface/index.ts",
@@ -60,13 +61,13 @@
         "@types/react": "^19.0.0",
         "culori": "^4.0.2",
         "eslint": "^10.0.3",
-        "jsdom": "^24.1.0",
+        "jsdom": "^30.0.1",
         "prettier": "^3.0.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "react-native": "0.86.0",
         "react-native-web": "^0.20.0",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },
     "engines": {

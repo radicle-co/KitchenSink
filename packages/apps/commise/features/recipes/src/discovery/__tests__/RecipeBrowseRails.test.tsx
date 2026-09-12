@@ -167,6 +167,7 @@ describe('RecipeBrowseRails (web) — section enter motion (U8 motion pass)', ()
 
         // Three rails + the cuisine section.
         expect(enterWrappers()).toHaveLength(4);
+
         for (const wrapper of enterWrappers()) {
             // Each wrapper actually contains a section heading — it wraps the section, not a stray node.
             expect(wrapper.querySelector('h2')).not.toBeNull();

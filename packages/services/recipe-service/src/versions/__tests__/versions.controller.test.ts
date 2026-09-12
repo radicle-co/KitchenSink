@@ -4,7 +4,7 @@
  * Asserts the thin controller's only responsibilities: it receives the owner key already resolved by
  * the `@OwnerId()` decorator, delegates to the service with the right arguments, and returns the
  * service's result verbatim. The "missing principal → 401" path lives on the decorator and is covered
- * by `auth/__tests__/current-principal.decorator.test.ts`. HTTP status codes are declared with
+ * by `auth/__tests__/currentPrincipal.decorator.test.ts`. HTTP status codes are declared with
  * framework decorators and verified by the integration/e2e specs.
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -31,6 +31,9 @@ function fakeService(overrides: Partial<VersionsService> = {}): VersionsService 
 
 const VERSION = { id: 'v-1', recipeId: RECIPE_ID, versionNumber: 1 } as unknown as RecipeVersion;
 
+/** The caller's opaque bearer, forwarded so the restored detail's nutrition resolves. */
+const CALLER = { kind: 'caller-token' } as never;
+
 describe('VersionsController', () => {
     it('list delegates the owner key + recipe id and returns the service result', async () => {
         const list = vi.fn().mockResolvedValue([VERSION]);
@@ -52,14 +55,16 @@ describe('VersionsController', () => {
         expect(result).toBe(VERSION);
     });
 
-    it('restore delegates the verified principal + recipe id + integer versionNumber and returns the envelope', async () => {
+    // ⛔ REWRITTEN to also require the caller's bearer: the envelope's `recipe` is a full detail body, and
+    // without a forwarded credential its nutrition came from the in-process cache alone.
+    it('restore delegates the principal, recipe id, integer versionNumber and caller, and returns the envelope', async () => {
         const envelope = { recipe: { id: RECIPE_ID }, restoredFromVersion: 1, currentVersion: 3 };
         const restore = vi.fn().mockResolvedValue(envelope);
         const controller = new VersionsController(fakeService({ restore }));
 
-        const result = await controller.restore(PRINCIPAL, RECIPE_ID, VERSION_NUMBER);
+        const result = await controller.restore(PRINCIPAL, CALLER, RECIPE_ID, VERSION_NUMBER);
 
-        expect(restore).toHaveBeenCalledWith(PRINCIPAL, RECIPE_ID, VERSION_NUMBER);
+        expect(restore).toHaveBeenCalledWith(PRINCIPAL, RECIPE_ID, VERSION_NUMBER, CALLER);
         expect(result).toBe(envelope);
     });
 });

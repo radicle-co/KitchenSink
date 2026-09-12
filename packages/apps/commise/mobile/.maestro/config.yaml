@@ -25,6 +25,16 @@
 #
 # `auth/welcome-flow.yaml` was removed with the welcome screen itself (owner decision 2026-07-28): the
 # signed-out app opens directly on the sign-in form, and `auth/login-flow.yaml` now covers that entry.
+#
+# ⚠️ `visual/*` is OMITTED DELIBERATELY — do not "fix" it by adding a pattern. Those are the U10b
+# visual-regression flows (`assertScreenshot`) plus their baseline recorder, and they are INERT BY
+# CONSTRUCTION until the reference PNGs in `visual/baselines/` are recorded and committed. `assertScreenshot`
+# has no record mode, so an assertion whose reference is missing fails hard with "Screenshot file not found"
+# — adding `visual/*` here before the baselines exist turns the heavy-e2e job red for everyone. Activation is
+# deliberately a two-step act owned by a human: record via `visual/record-baselines.yaml` on the PINNED
+# emulator profile (api-level 34 · x86_64 · pixel_6, see `.github/workflows/_ci-heavy.yml`), commit the PNGs,
+# then add the flows to `FLOWS` in `tests/e2e/run-maestro-flows.sh` (which is what CI actually iterates —
+# this file governs only discovery-based `maestro test <dir>` runs).
 flows:
     - '*'
     - 'auth/login-flow.yaml'

@@ -21,7 +21,25 @@
 @layer base {
     body {
         font-family: var(--font-body);
+        /* The brand beach-glow canvas (issue #145). All nine wireframes paint their `body` with the SAME named
+           token — `--gradient-beach-glow`, which IS `@commise/ui`'s `gradient.hero` — while the app painted a
+           flat colour, so every surface read as a plain sand page. Applying it HERE, once, is what makes the
+           whole app (and every route added later) inherit the wash: the shell used to hand-spell its own
+           three-stop `bg-gradient-to-br` ramp, which covered only shell-hosted routes, left sign-in/sign-up
+           flat, and had already drifted from the token it duplicated (its mid/end tints were #F5F8FA and
+           #EDF5F8 against the wireframes' own #F0F7F4 and #E8F4F8). Tailwind v4 scans source files as TEXT,
+           comments included, so those classes are DESCRIBED here and never spelled out — writing one verbatim
+           regenerates the very utility this replaced.
+           `background-color` STAYS as the fallback beneath it — an unsupported or not-yet-painted canvas shows
+           sand rather than nothing, and it is what `prefers-contrast`/forced-colors modes fall back to.
+           Verified in the COMPILED stylesheet (`tests/__integration__/tailwindTheme.integration.test.ts`) and
+           in a real browser (`tests/e2e/visualRegression.spec.ts`) — a token that exists is not a token that
+           renders. Deliberately NOT `background-attachment: fixed`: the wireframes let the ramp span the whole
+           body box, so a long page stretches it exactly as they do. */
         background-color: var(--color-background);
+        background-image: var(--background-image-hero);
+        /* Guarantees the ramp fills the viewport even when the document is shorter than one screen. */
+        min-height: 100vh;
         color: var(--color-foreground);
     }
 }

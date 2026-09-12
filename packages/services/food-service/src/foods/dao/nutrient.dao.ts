@@ -10,7 +10,7 @@
  */
 import { and, eq } from 'drizzle-orm';
 
-import type { FoodDrizzle } from '../../database/database.module.js';
+import type { FoodWriter } from '../../database/unitOfWork.js';
 import { nutrient, type NutrientRow } from '../../db/schema/index.js';
 import { newFoodId } from '../../db/ulid.js';
 import { isUniqueViolation } from './dao.errors.js';
@@ -26,7 +26,7 @@ export interface ResolveNutrientInput {
 }
 
 export class NutrientDao {
-    public constructor(private readonly db: FoodDrizzle) {}
+    public constructor(private readonly db: FoodWriter) {}
 
     /**
      * Resolve a source nutrient to its dictionary `nutrient_id`, creating the row when absent (DB-5).

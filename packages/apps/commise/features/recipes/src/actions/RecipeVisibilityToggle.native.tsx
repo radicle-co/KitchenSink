@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe visibility toggle (T074 building block).
  *
- * The React Native leaf of {@link import('./RecipeVisibilityToggle.js').RecipeVisibilityToggle} — same
+ * The React Native leaf of `RecipeVisibilityToggle` — same
  * controlled radio-group contract: the current `visibility` is the checked option, selections report upward
  * via `onChange`, and the private option is disabled with its (localized) `disabledReason` shown when the
  * tier cannot go private (C-004). State rides on the radio's checked/disabled semantics and text, not colour.

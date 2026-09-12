@@ -120,6 +120,63 @@ All paths under `/api/v1/`. Package names follow `@kitchensink/{group}-{name}` c
 | GET    | `/api/v1/educators/me/dashboard`   | Educator analytics summary               |
 | POST   | `/api/v1/lessons/:id/draft-script` | AI script draft from linked recipe (005) |
 
+### Contract ownership (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Full bindings in
+[`plan.md` → _Contract ownership and drift (GR-015)_](./plan.md#contract-ownership-and-drift-gr-015).
+
+- **Service half.** `cooking-school-service` **authors** every shape above as zod at `src/**/*.schema.ts` beside
+  its controller, **validates its own requests with that same zod** (`nestjs-zod` `createZodDto`), and generates
+  the committed **`@kitchensink/schema-cooking-school`** at `packages/schemas/cooking-school` — zod + `z.infer`
+  types + `contractHash.ts` + barrel + a **derived**, outbound-only `openapi.yaml`.
+- **Client half — separately mandatory.** `packages/clients/cooking-school`, `@commise/web`, `@commise/mobile`
+  and `cooking-school-workers` import wire types **and zod** from that package and **declare none of their own**.
+  A divergent consumer shape (the player's lesson view model, the educator dashboard series) is **DERIVED** with
+  `Pick` / `Omit` / `Partial`. The **playback manifest** and the **entitlement decision** are the shapes that
+  must never be re-typed per platform — drift there fails open on gated video.
+- **Drift gates** are inherited from GR-015 §15-c: turbo `inputs` rebuild, regenerate-and-diff CI gate,
+  `CONTRACT_HASH` boot assertion.
+- **⚠️ Third-party exception (§15-d).** The **transcode provider** (including its inbound status callback) and the
+  **LLM provider** behind `draft-script` are APIs we do **not** serve: their adapters **validate the raw upstream
+  shape at the boundary with zod**, **may declare their own types**, and **get no OpenAPI document**. Payments
+  stay behind 010, so **Stripe's shapes never enter this feature's schema package**. `packages/clients/usda` is
+  the reference implementation and must never be "converged" — deleting a boundary schema removes a validation
+  boundary rather than tidying one.
+
+### Input validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings in
+[`plan.md` → _Input validation (GR-016)_](./plan.md#input-validation-gr-016). GR-015 decides who **authors** the
+contract; GR-016 is where it is **enforced**. Adds no FR (GR-003).
+
+- **One mechanism, one `400`.** Every input above — body, path params (`:id`, `:courseId`, `:lessonId`), query
+  params — is parsed by `cooking-school-service`'s own zod via `createZodDto` + **`nestjs-zod`'s**
+  `ZodValidationPipe`. ⚠️ Under Nest's **own** `ValidationPipe` a `createZodDto` DTO validates **nothing while
+  looking correctly wired**; the registered pipe is stated, and a bad-body route test is what proves it.
+- **⚠️ Parse before you authorise.** A lesson id, preview flag or enrollment token that was never parsed can
+  **fail open** and serve gated video — the same failure the section above warns about on the response side.
+- **⛔ The storage floor applies**: lesson ordering and duration integers against their `int4` ceiling
+  (**2,147,483,647**), progress percentages/positions (range and precision — a completion threshold means
+  nothing if `-5` or `10 ** 12` can be stored), `price_cents` on a `published-lesson` audience (GR-014), status
+  enums, nullability. **Asserted, never derived**: no zod from Drizzle, no storage type in a `*.schema.ts`.
+  Lesson description/script text columns are unbounded, so those limits are **product decisions 013 owns**.
+- **⚠️ The transcode callback needs BOTH controls**: authenticate it, **then** validate its schema — a signature
+  proves **origin, not shape**, and this payload decides whether a lesson becomes playable.
+  `cooking-school-workers` likewise **parses the transcode/status envelope on receipt**, since the two
+  deployables version independently.
+- **The LLM draft-script output is INPUT to us** and its boundary parse is required by GR-016, not merely
+  permitted by §15-d.
+- **⛔ Response validation is DEFERRED** portfolio-wide (GR-016 §16-g); the provider- and LLM-side parses above
+  are input and are unaffected.
+
+> ⚠️ **Note**: the sentence above the table says package names follow `@kitchensink/{group}-{name}`. That is a
+> GR-009 artifact — no shipped package uses it. See
+> [GR-009 Current State](../governance-rules.md#gr-009-package-naming-convention).
+
 ## Cross-Feature Touches
 
 **010 (Subscriptions)**: Course purchases flow through 010's billing primitives. Educator subscription tiers (free educator vs. pro educator) gate upload limits and revenue share rates. Revenue share is calculated and disbursed via 010's payout model.

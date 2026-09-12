@@ -42,10 +42,10 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP if it were below the fold.
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 # RecipeDetailScreen: the owner's edit entry point sits in the owner-action block at the foot of the detail.
 - scrollUntilVisible:
       element: 'Edit recipe'
@@ -59,68 +59,25 @@ appId: io.commise.mobile
 # checkpoint instead (the same checkpoint `create.yaml`, `edit.yaml` and `versions.yaml` already use).
 - assertVisible: 'Step 1 of 4'
 
-# The photo manager is STEP 4's body (`RecipeEditScreen` passes `RecipePhotoUploader` as `photosSlot`), not a
-# block at the foot of one long scrolling form — w3 replaced that flat form with the screen-per-step wizard.
-# Walk forward through the footer `Next: …` primaries to reach it.
-#
-# Steps 2 and 3 CANNOT be passed through untouched (this flow's previous assumption, which stranded it on step
-# 2): each `Next: …` is gated by `canAdvanceFromStep`, and `recipe-service`'s seed inserts the recipe row
-# directly via SQL with NO ingredients and NO steps (see `database/seed.ts`, and the same note in
-# `versions.yaml`). So step 2 refuses to advance until the draft has an ingredient and step 3 until it has an
-# instruction. Both are added here exactly as `versions.yaml` does — the freeform "Create …" path, whose name
-# is deliberately OUTSIDE the seeded catalog so it cannot collide with `search-navigation.yaml`'s "Flour"
-# ingredient filter. Nothing is saved (this flow never publishes), so the recipe itself is left untouched.
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
-- scrollUntilVisible:
-      element: 'Search ingredients'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Search ingredients'
-- inputText: 'Tomato'
-- scrollUntilVisible:
-      element:
-          text: 'Create .*Tomato.*'
-      direction: DOWN
-      timeout: 20000
-- tapOn:
-      text: 'Create .*Tomato.*'
-- scrollUntilVisible:
-      element: 'Ingredient 1 name'
-      direction: DOWN
-      timeout: 30000
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-- assertVisible: 'Step 3 of 4'
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
-- inputText: 'Marinate for two hours.'
-- scrollUntilVisible:
-      element: 'Next: Photos'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Photos'
-- assertVisible: 'Step 4 of 4'
+# U32: the header the editor never had. `RecipesScreen` renders pushed surfaces bare, so before this there
+# was no title and no deliberate exit — only the hardware back button and a kebab item.
+- assertVisible: 'Back'
+# And the action bar's Save Draft, which used to be reachable only by opening that kebab.
+- assertVisible: 'Save Draft'
 
-# A freshly-seeded recipe carries no photos, so the manager renders its empty state + the add control. This
-# recipe IS persisted (an edit, not a create), so step 4 is the real manager rather than the "save first"
-# guidance notice a create shows.
+# ⛔ THE PHOTO MANAGER IS STEP 1'S BODY NOW (U33, owner ruling 2026-08-25), not step 4's. Photos behave like
+# every other field: they are part of Details, and step 4 is the read-only Review. This flow therefore no
+# longer walks forward through steps 2 and 3 to reach the manager — which is the point of the change, since
+# that walk is exactly what a cook had to do before.
+#
+# The whole `Next: …` chain this flow used to run (adding a freeform ingredient and an instruction purely to
+# open the gates on the way) is DELETED with it. That coverage is not lost: `create.yaml` and `edit.yaml` both
+# walk the full four-step wizard, and `recipes/pinned-action-bar.yaml` covers reaching the bar on a long list.
 #
 # Anchored on "Add photo" — the LAST element of the manager block — not on "Photos": the step RAIL renders a
-# "Photos" marker of its own at the top of every step, so a scroll anchored there settles on try 0 without
-# ever moving (the same wrong-anchor trap `rating.yaml` fell into). Reaching "Add photo" puts the whole
-# manager, empty state included, on screen.
+# marker of its own at the top of every step, so a scroll anchored there settles on try 0 without ever moving
+# (the same wrong-anchor trap `rating.yaml` fell into). Reaching "Add photo" puts the whole manager, empty
+# state included, on screen.
 - scrollUntilVisible:
       element: 'Add photo'
       direction: DOWN

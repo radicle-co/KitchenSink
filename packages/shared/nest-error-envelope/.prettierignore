@@ -1,0 +1,4 @@
+# Build output is not source. Prettier resolves .prettierignore from its CWD, and turbo runs each
+# package's `format:check` with CWD = the package — so the ROOT .prettierignore does not apply here.
+# Without this file, `format:check` fails on emitted dist/ the moment a build has run.
+dist

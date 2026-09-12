@@ -4,9 +4,8 @@
  * Owns a single long-lived `pg` pool wrapped by Drizzle over the shared RDS `kitchensink_recipes`
  * logical database (passwordless RDS-IAM, `recipe_app` role). Mirrors the food/identity `DatabaseModule`
  * provider pattern: a global `@Module` exporting the {@link DrizzleProvider} + {@link PgPoolProvider}
- * injection tokens. The pool config (RDS-IAM token provider) comes from `pool-config.ts`; the token+
- * factory wiring is finalized with infra (RecipeDbBootstrap custom resource) but is correct + typechecks
- * as-is.
+ * injection tokens. The pool config (RDS-IAM token provider) comes from `poolConfig.ts`; the role and its
+ * grants are provisioned by DataStack's `RecipeDbRoleModel` custom resource and the migration runner.
  *
  * @sideEffect Opens a Postgres connection pool at module init.
  */
@@ -14,7 +13,7 @@ import { Global, Module } from '@nestjs/common';
 import pg from 'pg';
 
 import { createRecipeDrizzle, type RecipeDrizzle } from './client.js';
-import { recipePoolConfigFromEnv } from './pool-config.js';
+import { recipePoolConfigFromEnv } from './poolConfig.js';
 
 const { Pool } = pg;
 

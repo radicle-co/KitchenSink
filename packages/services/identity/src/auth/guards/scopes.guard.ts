@@ -1,8 +1,8 @@
 import { ForbiddenException, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import { SCOPES_METADATA_KEY } from '../decorators/require-scopes.decorator.js';
-import type { AuthorizerContext } from '../decorators/current-user.decorator.js';
+import { SCOPES_METADATA_KEY } from '../decorators/requireScopes.decorator.js';
+import type { AuthorizerContext } from '../decorators/currentUser.decorator.js';
 
 /**
  * Guard pattern: the declarative authorization seam for scope-gated routes. Reads the scopes a

@@ -12,6 +12,9 @@
  *  - `instant` — `setValue(1)`: settled, with no animation object ever created.
  *  - `animate` — run the timing, and CANCEL it on unmount / on a preference change (an animation left
  *    running against an unmounted view is a leak).
+ *
+ * @pattern Adapter over React Native's imperative `Animated` driver — it owns the animation so consuming leaves stay
+ *     pure `props → JSX`, and the reduce-motion decision is a pure Strategy in `enterMotionMode`.
  */
 import { useEffect, useRef, type FC } from 'react';
 import { Animated, Easing, Platform } from 'react-native';

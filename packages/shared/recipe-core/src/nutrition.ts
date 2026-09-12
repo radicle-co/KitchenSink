@@ -15,12 +15,55 @@
  * partial estimate rather than a false-precise number. Volumetric/count units (cup/tbsp/clove) are
  * converted via the ingredient's household-measure `portions` when the food service supplied one (#11).
  */
+import { quantityLowerBound, type IngredientQuantity } from './ingredientQuantity.js';
 import type { IngredientPortion, RecipeIngredientView, RecipeNutrition } from './recipe.types.js';
 import { unitToGrams } from './units.js';
 
+/**
+ * Which bound of a stated range a computed figure was taken from (R38).
+ *
+ * A fact ABOUT a number, in the same shape as R35's historical-unit marker — which is
+ * `HistoricalUnitConversion` in `@kitchensink/cookbook-import`'s `unitEquivalence.ts`, and which likewise
+ * makes its disclosure by BEING PRESENT rather than by carrying a "not applicable" value.
+ *
+ * ⚠️ The two markers live at different layers, and the asymmetry is the answer to the question this
+ * sentence otherwise invites. A range is PERSISTED and collapsed at READ time, here, so its marker has to
+ * travel on THIS wire — the response a cook is shown. A historical unit is restated at IMPORT time, and its
+ * marker travels on the REQUEST wire and into three columns of `recipe_ingredients` instead
+ * (`0027_ingredient_stated_measure.sql`), because its reader is the verification gate rather than a cook.
+ *
+ * ⛔ AN EARLIER VERSION OF THIS NOTE ARGUED THERE WAS NO READER AT ALL, and it was wrong. It said a
+ * historical unit "is restated at IMPORT time, upstream of the wire and by a tool, so there is no read-time
+ * step to disclose and no column to disclose it in", and refused a column as "a persisted column plus a
+ * `CONTRACT_HASH` move (ADR-0014) for a fact with one producer and no reader". U11's gate IS that reader:
+ * it builds its question from the persisted `quantity`/`unit`, so without the stated pair it was shown
+ * `one gill of milk` beside `0.5 cup` and correctly disagreed with a line we had parsed RIGHT. The premise
+ * is false; the marker crosses a wire, and the `CONTRACT_HASH` moved.
+ *
+ * ⚠️ WHAT IS STILL REFUSED, and this half of the old note stands: do NOT add a historical-unit provenance
+ * field to {@link RecipeNutrition} or to `RecipeIngredient` to "restore the symmetry". Neither carries
+ * `sourceLine` either. Both are write-side provenance the gate reads; the disclosure a COOK gets is the
+ * sentence `describeConversions` writes into the recipe's own description.
+ *
+ * The domain of "a bound" is the pair `quantityLowerBound`/`quantityUpperBound` answer, so both members are
+ * named here even though today's policy only ever collapses to `low` — a client renders the bound it is
+ * TOLD, rather than hard-coding the word "lower" against a policy it cannot see.
+ */
+export type RangeDerivedBound = 'low' | 'high';
+
+/**
+ * The bound a collapsed range contributes from.
+ *
+ * ⛔ LOW, not high, and not a midpoint. Understating an ingredient understates the nutrition figure, and of
+ * the two directions to be wrong that is the one a cook is not harmed by trusting. A midpoint would be a
+ * number the source never stated at all. The choice is disclosed rather than hidden — see
+ * {@link RecipeNutrition.rangeDerivedBound}.
+ */
+const COLLAPSE_RANGE_TO: RangeDerivedBound = 'low';
+
 /** One ingredient line's nutrition inputs: its measure, any user override, the catalog per-100g, + portions. */
 export interface NutritionLine {
-    readonly quantity: number;
+    readonly quantity: IngredientQuantity;
     readonly unit: string;
     readonly userCalories?: number;
     readonly userProteinG?: number;
@@ -42,9 +85,21 @@ interface Macros {
     readonly fatG: number;
 }
 
+/**
+ * Which of the two accounting routes produced a line's macros: the per-line user override (FR-007a), or the
+ * catalog per-100g figure scaled by mass.
+ *
+ * It is a fact ABOUT a number, and two consumers need it. A reading assembled entirely from `user` lines drew
+ * on no food data, so a food outage cannot have made it stale; a reading with any `catalog` line can have.
+ */
+export type LineNutritionSource = 'user' | 'catalog';
+
+/** One line's macro contribution together with the route that produced it. */
+type SourcedMacros = Macros & { readonly source: LineNutritionSource };
+
 /** One recipe line's measure + per-line user override — its non-catalog nutrition inputs (already normalized). */
 export interface LineMeasure {
-    readonly quantity: number;
+    readonly quantity: IngredientQuantity;
     readonly unit: string;
     readonly userCalories?: number;
     readonly userProteinG?: number;
@@ -63,10 +118,10 @@ export interface LineCatalogNutrition {
 
 /**
  * Assemble the {@link NutritionLine} for one recipe line from its measure and its resolved catalog nutrition
- * — the SINGLE place a line's nutrition inputs are merged. Both the detail read (from persisted rows) and
- * the write-time lead-calorie denormalization (from resolved lines) route through this, so a card's stored
- * `leadCaloriesPerServing` and the detail's live `nutrition.calories` are computed from byte-identical
- * inputs and can never disagree. Only defined fields are carried (an absent macro stays absent, not `0`). Pure.
+ * — the SINGLE place a line's nutrition inputs are merged. Both the recipe DETAIL read and the deferred
+ * per-recipe batch (`POST /api/v1/recipes/nutrition-batch`) route through this, so the figure on a card and
+ * the figure on the detail are computed from byte-identical inputs and can never disagree. Only defined
+ * fields are carried (an absent macro stays absent, not `0`). Pure.
  *
  * @param measure - The line's quantity/unit and any per-line user override (FR-007a), already normalized.
  * @param catalog - The line's resolved catalog per-100g nutrition + portions, or `undefined` when unresolved.
@@ -88,9 +143,10 @@ export function toNutritionLine(measure: LineMeasure, catalog: LineCatalogNutrit
 }
 
 /** The macro contribution of a single line (user override first, else scaled per-100g), or `null`. Pure. */
-function lineMacros(line: NutritionLine): Macros | null {
+function lineMacros(line: NutritionLine): SourcedMacros | null {
     if (line.userCalories !== undefined) {
         return {
+            source: 'user',
             calories: line.userCalories,
             proteinG: line.userProteinG ?? 0,
             carbsG: line.userCarbsG ?? 0,
@@ -99,7 +155,15 @@ function lineMacros(line: NutritionLine): Macros | null {
     }
 
     if (line.caloriesPer100g !== undefined) {
-        const grams = unitToGrams(line.quantity, line.unit, line.portions);
+        // ⛔ R40. A line the source left unquantified has no mass, so it is UNACCOUNTED — never `0` (which
+        // would report a complete total silently missing an ingredient) and never a fabricated `1`.
+        const amount = quantityLowerBound(line.quantity);
+
+        if (amount === null) {
+            return null;
+        }
+
+        const grams = unitToGrams(amount, line.unit, line.portions);
 
         if (grams === null) {
             return null; // catalog nutrition, but a unit we can't convert (no mass factor, no portion)
@@ -108,6 +172,7 @@ function lineMacros(line: NutritionLine): Macros | null {
         const factor = grams / 100;
 
         return {
+            source: 'catalog',
             calories: line.caloriesPer100g * factor,
             proteinG: (line.proteinGPer100g ?? 0) * factor,
             carbsG: (line.carbsGPer100g ?? 0) * factor,
@@ -116,6 +181,23 @@ function lineMacros(line: NutritionLine): Macros | null {
     }
 
     return null; // no user override and no resolved catalog nutrition
+}
+
+/**
+ * Which source accounted for a line, or `null` when the line could not be accounted for at all — the SAME
+ * decision {@link computeRecipeNutrition} makes when it excludes a line and flips `isComplete`, exposed so a
+ * caller can ask it per line instead of re-deriving it. Pure.
+ *
+ * Two answers the aggregate totals structurally cannot give: whether ANY line contributed (a recipe that
+ * genuinely sums to `0` and one where nothing could be accounted for both report `calories: 0`), and whether
+ * the figure drew on FOOD data (a reading built only from user overrides cannot have gone stale in a food
+ * outage). Both are load-bearing for the deferred-nutrition contract's `known` / `unaccounted` split.
+ *
+ * @param line - The assembled line.
+ * @returns `'user'` | `'catalog'` when the line contributes, `null` when it is unaccounted for.
+ */
+export function lineNutritionSource(line: NutritionLine): LineNutritionSource | null {
+    return lineMacros(line)?.source ?? null;
 }
 
 /** Round to one decimal place (nutrition wire precision). Pure. */
@@ -136,6 +218,7 @@ export function computeRecipeNutrition(lines: readonly NutritionLine[], servings
     let carbsG = 0;
     let fatG = 0;
     let isComplete = true;
+    let collapsedARange = false;
 
     for (const line of lines) {
         const macros = lineMacros(line);
@@ -144,6 +227,11 @@ export function computeRecipeNutrition(lines: readonly NutritionLine[], servings
             isComplete = false;
             continue;
         }
+
+        // Only a CATALOG line derives its macros from the quantity. A per-line user override (FR-007a) is
+        // absolute for the line, so a range on it collapses nothing and there is nothing to disclose — and
+        // an unaccounted line never reaches here at all.
+        collapsedARange = collapsedARange || (macros.source === 'catalog' && line.quantity.kind === 'range');
 
         calories += macros.calories;
         proteinG += macros.proteinG;
@@ -157,29 +245,31 @@ export function computeRecipeNutrition(lines: readonly NutritionLine[], servings
         carbsG: round1(carbsG / servings),
         fatG: round1(fatG / servings),
         isComplete,
+        // R38 — present ONLY when a range was actually collapsed, so its presence IS the disclosure and its
+        // value names the bound. An always-present field carrying a "not applicable" would put the burden of
+        // that distinction back on every reader.
+        ...(collapsedARange ? { rangeDerivedBound: COLLAPSE_RANGE_TO } : {}),
     };
 }
 
-/**
- * The denormalization source (W8-a.1) for the base `Recipe` projection's headline per-serving calories —
- * recomputed at write time (create/update/clone) and stored on `recipes.lead_calories_per_serving`, so the
- * list, search, and collection-embed projections surface it WITHOUT the N+1 the full nutrition read would
- * cost. It is the calorie term of {@link computeRecipeNutrition} — the ONE aggregator — never a second rule.
+/*
+ * ⛔ `leadCaloriesPerServing(lines, servings)` STOOD HERE AND WAS DELETED. Do not reintroduce it, under any
+ * name, as a second way to ask this module for a recipe's calories.
  *
- * ABSENT (`undefined`) when the recipe has no accounted nutrition (no lines, or every line unaccountable):
- * a card must never render a misleading `0` where the real meaning is "no data", exactly as `averageRating`
- * is absent — not `0` — when unrated. (A genuinely zero-calorie recipe therefore also omits the badge;
- * that safe-side omission is preferred over fabricating a headline number.)
+ * It was the write-time denormalization source (W8-a.1) for `recipes.lead_calories_per_serving`. Migration
+ * 0019 dropped that column, ADR-0021 moved a card's figure to `POST /api/v1/recipes/nutrition-batch`, and
+ * this repo's follow-up removed the field from the wire — leaving a function with no caller anywhere.
  *
- * @param lines - The recipe's ingredient lines with their measures + nutrition inputs.
- * @param servings - The recipe's serving count (REQUIRED positive — the recipe contract guarantees it).
- * @returns The per-serving calories when at least one line contributes a positive amount, else `undefined`. Pure.
+ * It is worth recording WHY dead-and-harmless was the wrong reading of it. Its body was
+ * `calories > 0 ? calories : undefined`, i.e. a SECOND, DIFFERENT rule for "is there a figure here" that
+ * disagreed with the one the system actually ships: `toRecipeNutritionState` (recipe service) decides that
+ * from whether any LINE contributed, so a genuinely zero-calorie recipe — water, black coffee — is
+ * `known { caloriesPerServing: 0 }`, whereas this function erased it as if the data were missing. Anyone
+ * reaching for the convenient-looking helper would have silently adopted the losing rule.
+ *
+ * Per-serving calories have exactly one derivation: `computeRecipeNutrition`. Whether that figure is
+ * REPORTABLE is a separate question, answered once, by the classifier.
  */
-export function leadCaloriesPerServing(lines: readonly NutritionLine[], servings: number): number | undefined {
-    const { calories } = computeRecipeNutrition(lines, servings);
-
-    return calories > 0 ? calories : undefined;
-}
 
 /**
  * Whether the partial-nutrition disclosure notice (REQ-034, FR-007a) should render for a recipe — `true`

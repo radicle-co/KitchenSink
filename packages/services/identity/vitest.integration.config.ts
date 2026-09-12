@@ -5,6 +5,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     test: {
         include: ['tests/**/*.integration.test.ts'],
+        // Provisions the role-split database once per run (ADR-0039) — the suites connect as identity_service.
+        globalSetup: ['./tests/globalSetup.ts'],
         exclude: ['node_modules', 'dist'],
         typecheck: { enabled: false },
         testTimeout: 30_000,

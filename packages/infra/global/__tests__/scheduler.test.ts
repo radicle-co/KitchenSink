@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
     isSandboxClusterArn,
+    isScheduledCluster,
     isSandboxRdsInstance,
     priorCountParamName,
     runSchedulerAction,
@@ -46,7 +47,7 @@ function makeClients(state: FakeState): SchedulerClients {
             },
         },
         ecs: {
-            listClusterArns: async () => state.clusters,
+            listClusters: async () => state.clusters.map((arn) => ({ arn })),
             listServices: async (clusterArn) => state.services.filter((s) => s.clusterArn === clusterArn),
             updateDesiredCount: async (_clusterArn, serviceArn, desiredCount) => {
                 state.calls.ecsUpdate.push({ service: serviceArn, desiredCount });
@@ -72,6 +73,7 @@ function makeClients(state: FakeState): SchedulerClients {
 
 const SANDBOX_CLUSTER = 'arn:aws:ecs:us-east-1:111:cluster/kitchensink-food-service-sandbox-Cluster';
 const PROD_CLUSTER = 'arn:aws:ecs:us-east-1:111:cluster/kitchensink-food-service-prod-Cluster';
+const PER_PR_CLUSTER = 'arn:aws:ecs:us-east-1:111:cluster/kitchensink-food-service-pr-91-Cluster';
 const SANDBOX_SERVICE = `arn:aws:ecs:us-east-1:111:service/${SANDBOX_CLUSTER.split('/').pop()}/food-api`;
 
 describe('resource selectors (sandbox-only)', () => {
@@ -97,6 +99,59 @@ describe('resource selectors (sandbox-only)', () => {
     it('matches only sandbox cluster ARNs', () => {
         expect(isSandboxClusterArn(SANDBOX_CLUSTER)).toBe(true);
         expect(isSandboxClusterArn(PROD_CLUSTER)).toBe(false);
+    });
+
+    describe('isScheduledCluster — which clusters the nightly window may touch', () => {
+        // ⛔ THE GAP THIS CLOSES, measured on 2026-09-06. The selector matched a cluster only by the
+        // substring `sandbox` in its NAME. A per-PR preview is stage-named `pr-{N}`, never `sandbox`, so
+        // `kitchensink-food-service-pr-91-…` was invisible to it while
+        // `kitchensink-identity-service-sandbox-…` went to zero on time. The per-PR services then kept
+        // serving after their platform slept — and at 04:06:59 the shared RDS stopped underneath them,
+        // so `e2e-seed reset` took a 500 from `recipe-pr-91` at 04:08:44 and the whole heavy tier reddened.
+        // Cost was only half of it; the other half was serving errors for nine hours a night.
+        //
+        // ⛔ SELECTED BY TAG, NEVER BY NAME. `ecs-quiesce.sh` states the rule for per-PR ECS discovery:
+        // the cluster NAME "is deliberately NOT used for matching… loosening that rule is exactly what
+        // ADR-0005 forbids". A per-PR `Environment` tag is the same authority that licenses
+        // `teardown-sandbox-pr.sh` to delete whole stacks, so this widens nothing.
+        it('selects a sandbox cluster by name, as before', () => {
+            expect(isScheduledCluster({ arn: SANDBOX_CLUSTER })).toBe(true);
+        });
+
+        // BOTH spellings, and the legacy one is not vestigial: a preview deployed before the tagging
+        // scheme changed carries the bare token, and a selector that stopped recognising it would leave
+        // that preview running every night — the exact cost leak this door was added to close.
+        it.each(['pr-91-sandbox', 'pr-91'])(
+            '⛔ selects a per-PR cluster by its Environment TAG %s, which the name match could never see',
+            (environmentTag) => {
+                expect(isScheduledCluster({ arn: PER_PR_CLUSTER, environmentTag })).toBe(true);
+            },
+        );
+
+        it('⛔ NEVER selects production — by name or by tag', () => {
+            // The scheduler scales services to ZERO. A false positive here is a production outage, so both
+            // doors stay pinned and independent: prod's name carries no `sandbox`, and its Environment tag
+            // is `production`, which no per-PR token can produce.
+            expect(isScheduledCluster({ arn: PROD_CLUSTER, environmentTag: 'production' })).toBe(false);
+            expect(isScheduledCluster({ arn: PROD_CLUSTER })).toBe(false);
+            expect(isScheduledCluster({ arn: PROD_CLUSTER, environmentTag: 'pr-91-sandbox' })).toBe(false);
+        });
+
+        it('⚠️ refuses an Environment tag that merely starts with `pr`, or merely ends in `-sandbox`', () => {
+            // `prod`, `preview`, `pr-` with nothing after it. The token must be `pr-` plus digits, with at
+            // most the tier suffix after it — the delimiter-aware discipline `pr-scope.sh` already enforces
+            // for teardown.
+            //
+            // ⛔ `sandbox` and `prod-sandbox` are the NEW cases. The per-PR value now ends in the same word
+            // the persistent tier is tagged with, so a selector written as "contains sandbox" would take the
+            // shared tier's every cluster through the per-PR door — including, one careless edit later, a
+            // prod cluster that the name interlock is the only thing still refusing.
+            const refused = ['prod', 'preview', 'pr-', 'pr-91x', 'xpr-91', 'PR-91', '', 'sandbox', 'production'];
+
+            for (const tag of [...refused, 'pr-91-sandbox-extra', 'pr-sandbox', 'prod-sandbox']) {
+                expect(isScheduledCluster({ arn: PER_PR_CLUSTER, environmentTag: tag }), tag).toBe(false);
+            }
+        });
     });
 
     it('selects only the sandbox NAT instance (source/dest check disabled + sandbox Name tag)', () => {

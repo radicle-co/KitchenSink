@@ -1,8 +1,10 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import pg from 'pg';
+
+import { MIGRATION_LEDGER_TABLE } from '@kitchensink/db-schema-guard';
+
+import { makePool } from './support/db.js';
+import { foodDb, hasTestDatabase } from './support/roleDb.js';
 
 /**
  * Validates the source-agnostic `kitchensink_food` schema (T-100..T-104, T-111) against a REAL
@@ -10,7 +12,7 @@ import pg from 'pg';
  * applies (FU-MIGRATE) — to a clean DB and probes the hardened constraints from plan.md §2 /
  * decision-register D-* (D-PROVENANCE-FK, D-LEASE, D-CANDIDATES, DB-5, DB-6, DB-7, DB-8):
  *
- *   - all 13 canonical/operational tables + 5 controlled enum types exist;
+ *   - all 16 canonical/operational tables + 5 controlled enum types exist;
  *   - `food.normalized_name` is UNIQUE (FR-005 dedup);
  *   - the composite same-food provenance FK rejects a `food_nutrients` row whose `source_id`
  *     belongs to a DIFFERENT food (the key DB-2 / D-PROVENANCE-FK integrity test);
@@ -23,12 +25,11 @@ import pg from 'pg';
  *   - the `pg_trgm` GIN indexes on `food.name` / `food.description` exist (FR-008);
  *   - `food_candidates` enforces `UNIQUE(food_id, source, external_key)` (D-CANDIDATES).
  *
- * Runs against CI's Postgres service (or a local DATABASE_URL); skips cleanly when none is set.
+ * Runs against a real Postgres named by `DATABASE_ADMIN_URL`, AS `food_app` (ADR-0039); skips cleanly when
+ * none is set. ⚠️ The probes below read `information_schema` and `pg_catalog` through the SERVICE role —
+ * which is the point: a catalogue view that hides its rows from a non-owner would make an assertion pass
+ * vacuously, so each one asserts a non-empty result rather than a count of zero.
  */
-
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
-
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
 
 /** The 13 canonical + operational tables (plan.md §2 "Final table list" + `food_candidates`). */
 const EXPECTED_TABLES = [
@@ -45,9 +46,18 @@ const EXPECTED_TABLES = [
     'fetch_requesters',
     'source_call_log',
     'source_sync_metadata',
+    // U5 (0012): the FNDDS consumption prior — a SIBLING of `food` (KTD-G), operator-seeded.
+    'food_popularity',
+    // U18 (0014): authored-food version history — the recipe versioning pattern's table half.
+    'food_versions',
+    // U12 (0015): the promotion moderation queue — corroboration triggers, a human publishes.
+    'food_promotions',
 ] as const;
 
-/** The 6 controlled-set enums modelled with `pgEnum` (DB-7). `food_origin` arrives in the 0003 migration. */
+/**
+ * The 7 controlled-set enums modelled with `pgEnum` (DB-7). `food_origin` arrives in the 0003 migration,
+ * `source_call_channel` in 0010.
+ */
 const EXPECTED_ENUMS = [
     'food_status',
     'food_kind',
@@ -55,28 +65,8 @@ const EXPECTED_ENUMS = [
     'food_field',
     'nutrient_basis',
     'food_origin',
+    'source_call_channel',
 ] as const;
-
-/**
- * Apply the ordered hand-authored migration SQL to a clean `public` schema.
- *
- * @param pool - The connected pg pool.
- * @sideEffect Drops and recreates the `public` schema, then runs every `.sql` file in order.
- */
-async function runMigrations(pool: pg.Pool): Promise<void> {
-    const files = readdirSync(migrationsDir)
-        .filter((file) => file.endsWith('.sql'))
-        .sort();
-
-    // The integration suite shares one database; reset to a blank schema before applying the
-    // ordered migrations. The SQL is not idempotent (bare CREATE TABLE), so replaying it on an
-    // already-migrated DB would otherwise fail with "relation already exists".
-    await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-
-    for (const file of files) {
-        await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
-    }
-}
 
 /**
  * Seed the minimal two-food crosswalk used by the constraint probes. Each food has its own
@@ -98,12 +88,16 @@ async function seed(pool: pg.Pool): Promise<void> {
     await pool.query(`INSERT INTO nutrient (id, name, unit) VALUES ('nut_fat', 'Total fat', 'g')`);
 }
 
-describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
+describe.skipIf(!hasTestDatabase)('kitchensink_food schema (integration)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
-        pool = new pg.Pool({ connectionString: DATABASE_URL });
-        await runMigrations(pool);
+        pool = makePool();
+        // The schema itself is built once per run by `tests/globalSetup.ts`, with the service's OWN
+        // production runner — this suite asserts what that runner produced, and no longer replays the
+        // `.sql` files itself (a fourth copy of a runner that skipped the lock, the privilege statements
+        // and the ownership audit).
+        await foodDb().truncate();
         await seed(pool);
     });
 
@@ -111,22 +105,31 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
         await pool?.end();
     });
 
-    describe('table + enum topology (D-CANDIDATES — 13 tables)', () => {
-        it('creates all 13 canonical + operational tables', async () => {
+    describe('table + enum topology (D-CANDIDATES — 16 tables)', () => {
+        it('creates all 16 canonical + operational tables, and the ledger — and nothing else', async () => {
             const { rows } = await pool.query<{ table_name: string }>(
                 `SELECT table_name FROM information_schema.tables
                   WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
             );
             const names = new Set(rows.map((row) => row.table_name));
+
             for (const table of EXPECTED_TABLES) {
                 expect(names, `missing table ${table}`).toContain(table);
             }
-            expect(names.size).toBe(EXPECTED_TABLES.length);
+
+            // ⚠️ The ledger is the SEVENTEENTH table, and its arrival here is the tier moving onto the real
+            // runner: this suite used to replay the `.sql` files itself, which records nothing, so a
+            // migrated stage database had one table more than the test ever saw. It is named from the
+            // engine's own constant rather than spelled out, and kept OUT of `EXPECTED_TABLES` because it
+            // belongs to the migration engine, not to the food schema.
+            expect(names, `missing the migration ledger ${MIGRATION_LEDGER_TABLE}`).toContain(MIGRATION_LEDGER_TABLE);
+            expect(names.size).toBe(EXPECTED_TABLES.length + 1);
         });
 
         it('creates the 6 controlled-set enum types (DB-7)', async () => {
             const { rows } = await pool.query<{ typname: string }>(`SELECT typname FROM pg_type WHERE typtype = 'e'`);
             const names = new Set(rows.map((row) => row.typname));
+
             for (const enumType of EXPECTED_ENUMS) {
                 expect(names, `missing enum ${enumType}`).toContain(enumType);
             }
@@ -166,6 +169,53 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
                     `INSERT INTO food (id, normalized_name, status, origin) VALUES ('food_bad_origin', 'bad', 'PENDING', 'branded')`,
                 ),
             ).rejects.toThrow();
+        });
+    });
+
+    describe('source_call_log.channel (0010 migration — the reserved interactive lane, F-W1)', () => {
+        it("adds a NOT NULL channel defaulting to 'worker' (the conservative backfill)", async () => {
+            const { rows } = await pool.query<{ is_nullable: string; column_default: string; udt_name: string }>(
+                `SELECT is_nullable, column_default, udt_name FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'source_call_log' AND column_name = 'channel'`,
+            );
+            expect(rows).toHaveLength(1);
+            expect(rows[0]?.is_nullable).toBe('NO');
+            expect(rows[0]?.udt_name).toBe('source_call_channel');
+            // Both defaults are wrong about SOME historical rows; 'worker' errs toward PROTECTING the
+            // reserve (it makes the interactive lane look emptier and the drain's ceiling arrive sooner).
+            expect(rows[0]?.column_default).toContain("'worker'");
+        });
+
+        it('keeps the pre-0010 two-column insert working, so a rolling deploy never makes an UNRECORDED call', async () => {
+            // The previous image names only (source, called_at). Erroring here would be the one failure mode
+            // that actually breaches the cap: a source call that happens but is never counted (ADR-0022).
+            await expect(
+                pool.query(`INSERT INTO source_call_log (source, called_at) VALUES ('usda', now())`),
+            ).resolves.toBeDefined();
+
+            const { rows } = await pool.query<{ channel: string }>(
+                `SELECT channel FROM source_call_log ORDER BY id DESC LIMIT 1`,
+            );
+            expect(rows[0]?.channel).toBe('worker');
+        });
+
+        it("constrains channel to the ('interactive','worker') enum domain", async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO source_call_log (source, channel, called_at) VALUES ('usda', 'background', now())`,
+                ),
+            ).rejects.toThrow();
+        });
+
+        it('keeps the admission access path on a (source, called_at) index prefix', async () => {
+            // `channel` goes LAST precisely so the hot windowed count still has its two-column prefix. A
+            // reordering that put `channel` first would leave every admission query without one.
+            const { rows } = await pool.query<{ indexdef: string }>(
+                `SELECT indexdef FROM pg_indexes
+                  WHERE schemaname = 'public' AND indexname = 'idx_source_call_log_source_called_at'`,
+            );
+            expect(rows).toHaveLength(1);
+            expect(rows[0]?.indexdef).toMatch(/\(source, called_at, channel\)/u);
         });
     });
 

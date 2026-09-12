@@ -5,57 +5,49 @@ import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import pg from 'pg';
-import { resetSchema } from '../support/db.js';
+import { CONTRACT_HASH } from '../../src/contract/contractHash.js';
+import { foodE2eDb, hasTestDatabase } from '../support/roleDb.js';
 
 /**
  * Foundation E2E for the food service (T-064). Proves the LocalStack + Docker-Postgres harness
  * end to end at the level food-service exercises TODAY:
  *
- *   1. Applies the Phase-1 ordered migration (`src/db/migrations/0000_food_schema.sql`) to a REAL
- *      Postgres (the `infra/localstack/docker-compose.yml` `postgres` service, or any `DATABASE_URL`).
+ *   1. Runs against a REAL Postgres, migrated once per run by the tier's `globalSetup` with the service's
+ *      own production runner, and reached as `food_app` — the role a deployed task holds (ADR-0039).
  *   2. Boots the REAL Nest app (`NestFactory.create(AppModule)`) on an ephemeral port and asserts
- *      `GET /health` returns the live `{ status: 'ok', service: 'food' }` body over HTTP.
+ *      `GET /health` returns the live `{ status: 'ok', service: 'food', contractHash }` body over HTTP —
+ *      including the drift-layer-3 skew signal every consumer compares against (§15.2.5).
  *   3. Asserts the harness DB is reachable end to end: the migrated `foods` table exists and accepts
- *      a row, via a direct `pg` query against the same `DATABASE_URL` the app is configured with.
+ *      a row, via a direct `pg` query on the same connection the app is configured with.
  *
  * food-service has no `@aws-sdk/*` runtime deps yet, so this suite does NOT touch LocalStack — the
  * AWS-service E2E flows land with Phases 2/3 (see the TODOs below). The LocalStack container is wired
  * in the compose + CI now so those plug straight in.
  *
- * Requires a reachable Postgres. Set `DATABASE_URL` (or `TEST_DATABASE_URL`) to the harness DB, e.g.
- *   DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_e2e
- * Skips cleanly when neither is configured. The Nest app also needs `USDA_API_KEY` (any non-empty
+ * Requires a reachable Postgres. Point `DATABASE_ADMIN_URL` at a throwaway local server, e.g.
+ *   DATABASE_ADMIN_URL=postgres://postgres:postgres@localhost:5432/postgres
+ * Skips cleanly when it is not configured. The Nest app also needs `USDA_API_KEY` (any non-empty
  * value) for env validation; the suite sets a dummy one if absent — no real USDA call is made.
  */
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
-
-/**
- * Reset to a blank schema and apply the ordered migration SQL. The SQL is not idempotent (bare
- * CREATE TABLE), so it must run against a clean schema — matches `tests/schema.integration.test.ts`.
- *
- * @sideEffect Drops and recreates `public`, then runs the migration against `pool`.
- */
-async function applyMigration(pool: pg.Pool): Promise<void> {
-    await resetSchema(pool);
-}
-
-describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)', () => {
+describe.skipIf(!hasTestDatabase)('food-service E2E (booted app + Docker Postgres)', () => {
     let app: INestApplication;
     let pool: pg.Pool;
     let baseUrl: string;
 
     beforeAll(async () => {
-        // 1. Migrate the real harness DB.
-        pool = new pg.Pool({ connectionString: DATABASE_URL });
-        await applyMigration(pool);
+        // 1. Empty the harness DB. The SCHEMA is built once per run by `tests/e2e/globalSetup.ts`, with
+        //    the runner a stage uses; emptying data is all a suite needs, and it runs as the OWNER because
+        //    the service role has no TRUNCATE.
+        pool = new pg.Pool({ connectionString: foodE2eDb().appUrl });
+        await foodE2eDb().truncate();
 
         // 2. Boot the real Nest app against the same Postgres. The config module validates env at
         //    module-evaluation time (NestJS `ConfigModule.forRoot` runs synchronously when the module
         //    is imported), so the env MUST be set BEFORE `AppModule` is imported — hence the dynamic
         //    import here rather than a static top-of-file import. Env validation requires USDA_API_KEY;
         //    no USDA call is made by the /health + DB path, so a dummy value is sufficient.
-        process.env['DATABASE_URL'] = DATABASE_URL;
+        foodE2eDb().applySubjectEnv();
         process.env['USDA_API_KEY'] = process.env['USDA_API_KEY'] ?? 'e2e-dummy-key';
         process.env['NODE_ENV'] = 'test';
 
@@ -72,10 +64,23 @@ describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)'
         await pool?.end();
     });
 
-    it('serves GET /health with 200 and the live health body', async () => {
+    it('serves GET /health with 200 and the live health body, carrying the contract fingerprint', async () => {
         const response = await fetch(`${baseUrl}/health`);
         expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toEqual({ status: 'ok', service: 'food' });
+        await expect(response.json()).resolves.toEqual({
+            status: 'ok',
+            service: 'food',
+            contractHash: CONTRACT_HASH,
+        });
+    });
+
+    // Drift layer 3 (§15.2.5) end to end: the fingerprint a CLIENT compares against is only usable if it
+    // survives the real HTTP round-trip on the UNAUTHENTICATED route. A consumer checking for skew has to be
+    // able to ask before it holds a credential, so this probe deliberately sends no `Authorization`.
+    it('publishes the contract fingerprint on the unauthenticated readiness probe too', async () => {
+        const response = await fetch(`${baseUrl}/health/ready`);
+        expect(response.status).toBe(200);
+        expect(((await response.json()) as { contractHash?: unknown }).contractHash).toBe(CONTRACT_HASH);
     });
 
     it('proves the harness DB is reachable end to end: the migrated food table accepts a row', async () => {

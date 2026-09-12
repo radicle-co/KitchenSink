@@ -4,12 +4,12 @@ appId: io.commise.mobile
 # reported defect shipped broken: the list hung on a permanent loading skeleton, so BOTH the empty branch
 # and the error branch were unreachable.
 #
-# No mobile flow could have caught that. `list-detail.yaml` asserted `New recipe` (the pinned FAB), which
-# renders while loading and while erroring too — it passes against a hung load — and its comment's claim to
-# tolerate an empty library was never true, since every other assertion in it is populated-only.
+# No mobile flow could have caught that. `list-detail.yaml` asserted `New recipe` (the pinned FAB), which at
+# the time rendered while loading and while erroring too — it passes against a hung load — and its comment's
+# claim to tolerate an empty library was never true, since every other assertion in it is populated-only.
 #
 # This flow runs against an EMPTY recipe database: the per-flow reset truncates for every flow, and for THIS
-# flow only it skips the re-seed (`RESEED_MODE=empty`, see tests/e2e/run-maestro-flows.sh and reseed.mjs).
+# flow only it plans no creates (`e2e-seed reset --mode empty`, see tests/e2e/run-maestro-flows.sh).
 # Every other flow keeps the seeded fixture unchanged. Read-only — it opens the create wizard but never
 # saves — and the next flow's reset re-seeds regardless, so it is order-independent.
 #
@@ -27,8 +27,11 @@ appId: io.commise.mobile
 
 # The three ABSENCES that make this a real assertion instead of a tolerant one:
 #   - the loading skeleton's live region is GONE — the reported bug leaves it up for the life of the screen;
-#   - the pinned FAB is SUPPRESSED (L1: exactly one create control per state). Since the FAB renders in
-#     every OTHER state, including loading, its absence is precisely what tells first-run from a stuck wait;
+#   - the pinned FAB is SUPPRESSED (L1: exactly one create control per state), while the empty state's own
+#     CTA is present — asserted as that PAIR above, which is what names the state. ⚠ The FAB's absence alone
+#     no longer discriminates first-run from a stuck wait: it is now withheld while the library is LOADING
+#     too, so that a first-run cook cannot press a dial that is about to unmount. The `Loading recipes`
+#     absence below carries that discrimination on its own now;
 #   - nothing was typed and no chip pressed, so this is not the narrowed no-match state either.
 - assertNotVisible: 'Loading recipes'
 - assertNotVisible: 'New recipe'

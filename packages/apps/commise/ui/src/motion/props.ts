@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/motion — shared, platform-neutral prop contract for the design-system
- * {@link EnterTransition} primitive.
+ * `EnterTransition` primitive.
  *
  * `EnterTransition` gives a section the brand enter gesture — a short rise + fade as it appears — and owns
  * the reduce-motion gate so no consumer has to. The two leaves reach the same gesture differently, and the

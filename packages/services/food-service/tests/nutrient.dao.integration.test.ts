@@ -7,12 +7,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 
 import { FoodDao } from '../src/foods/dao/food.dao.js';
-import { FoodSourcesDao } from '../src/foods/dao/food-sources.dao.js';
+import { FoodSourcesDao } from '../src/foods/dao/foodSources.dao.js';
 import { NutrientDao } from '../src/foods/dao/nutrient.dao.js';
-import { FoodNutrientsDao } from '../src/foods/dao/food-nutrients.dao.js';
-import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
+import { FoodNutrientsDao } from '../src/foods/dao/foodNutrients.dao.js';
+import { makeDb, makePool, type TestDb } from './support/db.js';
+import { foodDb, hasTestDatabase } from './support/roleDb.js';
 
-describe.skipIf(!DATABASE_URL)('NutrientDao + FoodNutrientsDao (integration)', () => {
+describe.skipIf(!hasTestDatabase)('NutrientDao + FoodNutrientsDao (integration)', () => {
     let pool: pg.Pool;
     let db: TestDb;
     let foods: FoodDao;
@@ -34,7 +35,7 @@ describe.skipIf(!DATABASE_URL)('NutrientDao + FoodNutrientsDao (integration)', (
     });
 
     beforeEach(async () => {
-        await resetSchema(pool);
+        await foodDb().truncate();
     });
 
     describe('NutrientDao.resolveOrCreate — dictionary dedup (DB-5)', () => {

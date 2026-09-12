@@ -8,6 +8,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
+import { recipeDb } from '../../../tests/support/roleDb.js';
 
 /** The dev-bypass owner ULID this suite creates and mutates recipes as. */
 const OWNER = '01JCONFLICT0OWNER0000000BB';
@@ -29,16 +30,20 @@ const CREATE_PAYLOAD = {
     prepTimeMinutes: 1,
     cookTimeMinutes: 1,
     totalTimeMinutes: 2,
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Salt', quantity: 1 }],
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Salt', quantity: { kind: 'exact', value: 1 } },
+    ],
     steps: [{ instruction: 'Season.' }],
 };
+
+const roleDb = recipeDb();
 
 describe.skipIf(!hasDatabaseUrl)('recipe update version conflict (integration)', () => {
     let booted: BootedRecipeApp;
     let baseUrl: string;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp({ devAuthUserId: OWNER });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: OWNER });
         baseUrl = booted.baseUrl;
     });
 

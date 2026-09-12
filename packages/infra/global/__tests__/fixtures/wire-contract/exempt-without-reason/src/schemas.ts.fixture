@@ -1,0 +1,4 @@
+/** The exemption is claimed; the case for it is not made. */
+import { z } from 'zod';
+
+export const upstreamThingResponseSchema = z.object({ thingId: z.number() }).loose();

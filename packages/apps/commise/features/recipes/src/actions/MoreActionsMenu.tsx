@@ -17,6 +17,9 @@
  * library. Open/close is local, ephemeral UI state — not business logic — so it is owned here (a headless
  * menu primitive) rather than lifted into the composing container; the component performs no navigation or
  * mutation of its own, it only discloses whatever `children` the caller supplies (Composite/slot pattern).
+ *
+ * @pattern Menu button (WAI-ARIA disclosure) with a Facade over the DOM's imperative dismissal model — outside-click
+ *     through `contains()` and focus-return through `focus()`, neither of which React expresses declaratively.
  */
 import { useMessages } from '@commise/i18n/react';
 import { buttonSurfaceClass } from '@commise/ui/button';

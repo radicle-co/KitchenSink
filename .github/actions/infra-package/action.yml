@@ -1,0 +1,504 @@
+name: Infra package
+description: >-
+    Install, typecheck, test, synth and DEPLOY one CDK package, in the directory that owns it. The unit of
+    work is the `infra/` folder, not the repository.
+
+# ⛔ WHY THIS IS PER-PACKAGE, AND WHY THAT IS NOT A STYLE CHOICE
+#
+# The CDK apps live OUTSIDE the npm workspace, each with its own `package.json` and `node_modules`. A job
+# that checks or deploys one of them therefore has to install IN that directory — nothing at the repository
+# root resolves `aws-cdk-lib`, `tsx`, or `@radicle-co/infra-shared` on its behalf.
+#
+# The previous shape had ONE job (`cdk-checks`) install every CDK package in a loop and typecheck them all,
+# while other jobs that also touch infra apps installed nothing. Those jobs failed in ways that named
+# neither the cause nor the missing dependency:
+#
+#   • `spawnSync … ENOENT` on `infra/node_modules/.bin/tsx` — the binary was never installed.
+#   • `CannotFindAsset: Cannot find asset at …/identity-webhooks/dist` — the bundle was never built.
+#   • A synth that produced an EMPTY template and still exited 0, surfacing as
+#     `expected [] to have a length of 10` — a missing toolchain wearing the costume of a broken stack.
+#
+# One package, one job, its own install: the class stops existing rather than being caught.
+
+inputs:
+    directory:
+        description: The infra package directory (e.g. `packages/services/food-service/infra`).
+        required: true
+    stage:
+        description: The deploy stage the synth is checked against (`sandbox`, `prod`, `pr-{N}`).
+        required: true
+    synth:
+        description: >-
+            Whether the package is a CDK APP with a `synth` script. `shared/infra` is a published LIBRARY —
+            it has no app to synthesize — so it opts out rather than the action guessing from the manifest.
+        required: false
+        default: 'true'
+    deploy:
+        description: >-
+            Whether to deploy after the checks pass. `false` runs everything up to and including synth,
+            which is what a pull request wants: the same steps, stopping one short.
+        required: false
+        default: 'false'
+    node-auth-token:
+        description: >-
+            Token for GitHub Packages. `@radicle-co/infra-shared` is published there and authenticates even
+            for a public read, so an install without this 403s.
+        required: true
+
+    # ── The per-package deploy choreography ────────────────────────────────────────────────────────────
+    # ⛔ These describe WHAT this package needs, never HOW. The shape — build the bundle, push the image,
+    # migrate the schema, then deploy — is ONE piece of knowledge and lives here once; the VALUES are facts
+    # about one package and stay visible at its own job. A package that needs none of it passes none of it
+    # and the steps skip, which is why `shared/infra` and `web/infra` read as short jobs rather than
+    # special cases.
+
+    workspace-install:
+        description: >-
+            Install the ROOT workspace before anything else. Required by any package whose assets are built
+            with `turbo` or whose smoke imports a workspace package — nothing in the `infra/` install
+            resolves `@kitchensink/*` or provides `turbo`, because the CDK apps sit OUTSIDE the workspace on
+            purpose. A package that needs neither leaves this `false` and skips a multi-minute install.
+        required: false
+        default: 'false'
+    workspace-package:
+        description: >-
+            The npm workspace package whose Lambda bundle / container build this app's assets come from
+            (e.g. `@kitchensink/food-service`). Built BEFORE synth — a CDK app whose bundle is missing fails
+            synth with `CannotFindAsset`, which is the failure that used to surface as an empty template and
+            a zero exit code.
+        required: false
+        default: ''
+    workspace-dir:
+        description: The same package's directory, for the `--workspace=` form npm scripts take.
+        required: false
+        default: ''
+    food-origin-env:
+        description: >-
+            Space-separated env vars to receive THIS stage's food origin. Resolved by RUNNING the food
+            stack's own `printFoodHost.ts`, never by re-typing `food-pr-{N}.${DOMAIN_NAME}` — the dash form
+            is a TLS constraint (a 3-label `food.pr-7…` matches no wildcard on the shared ALB cert,
+            ADR-0003/0006), and a second copy of that rule in YAML is exactly what drifts.
+            recipe-service needs it at SYNTH (`RECIPE_FOOD_SERVICE_URL` is a required prop); the smokes need
+            it to probe.
+        required: false
+        default: ''
+    image-tag-env:
+        description: >-
+            The env var this app's `bin/app.ts` reads the image tag from (`FOOD_IMAGE_TAG`,
+            `RECIPE_IMAGE_TAG`, `IDENTITY_IMAGE_TAG`). Set it and the tag is computed ONCE and exported
+            under both this name and `IMAGE_TAG`.
+        required: false
+        default: ''
+    ecr-repo:
+        description: The ECR repository to push to (e.g. `kitchensink-food`). Empty means this app ships no image.
+        required: false
+        default: ''
+    dockerfile:
+        description: Path to the Dockerfile, relative to the repository root.
+        required: false
+        default: ''
+    drift:
+        description: >-
+            Report declared-vs-running drift after the deploy. `--warn-only`, so it annotates rather than
+            fails — drift is a fact to surface, not necessarily a broken deploy.
+        required: false
+        default: 'false'
+    platform-inputs:
+        description: >-
+            CloudFormation exports this app reads from `process.env`, one `ENV_VAR=stack:ExportName` per
+            line. `{base}` expands to the BASE stage — a `pr-{N}` preview imports the SANDBOX platform, so
+            substituting `stage` here looks up a stack that does not exist.
+            ⛔ A missing export FAILS the job. It used to be silently absent: issue #119 passed every
+            platform input except the recipe database NAME, and six Lambdas — three of them destructive
+            scheduled sweepers — ran against the SHARED database while the API used the per-PR one.
+        required: false
+        default: ''
+    base-stage:
+        description: >-
+            The stage that owns the shared platform tier. Defaults to `prod` for prod and `sandbox` for
+            everything else, which is what makes a `pr-{N}` preview import sandbox's VPC and database.
+        required: false
+        default: ''
+    image-build-context:
+        description: >-
+            How the Docker build context is prepared — REQUIRED whenever `ecr-repo` is set, and there is no
+            default because the two strategies are not interchangeable and a wrong guess fails only after a
+            multi-minute image build.
+            `turbo-prune` cuts the context to the package's dependency closure under `.docker-prune/<dir>`;
+            the Dockerfile COPYs from that exact path, so `prune-dir` is part of the CONTRACT, not a label.
+            `npm-prune` strips dev dependencies from the ROOT `node_modules` and builds from the repository
+            root, which is what a Dockerfile that COPYs `node_modules` plus per-package `dist` requires.
+        required: false
+        default: ''
+    prune-dir:
+        description: >-
+            The `.docker-prune/<name>` directory, when `image-build-context` is `turbo-prune`. MUST equal
+            the name the Dockerfile COPYs from.
+        required: false
+        default: ''
+    schema-only:
+        description: >-
+            Deploy ONLY this app's schema stack and run its migrations, then stop — no image, no application
+            stacks, no verification.
+            ⛔ ADR-0035: a database's schema is deployed and migrated by its own pipeline step AHEAD of
+            everything that reads it. The schema belongs to the app that DECLARES it, but the first thing to
+            read that database is often a different package — recipe-workers reads the recipe database that
+            recipe-service's app declares — so tying the schema to its declaring package's deploy puts the
+            migration AFTER a consumer. Its own job is the only shape where "ahead of everything" holds.
+        required: false
+        default: 'false'
+    schema-stack:
+        description: >-
+            The database's SCHEMA stack (e.g. `kitchensink-food-schema`), deployed `--exclusively` and
+            migrated BEFORE the rest of the app — ADR-0035's deploy-schema → migrate → deploy-everything.
+        required: false
+        default: ''
+    migration-export:
+        description: The schema stack's output naming its migration Lambda (e.g. `FoodMigrationFunctionName`).
+        required: false
+        default: ''
+    migration-database:
+        description: The logical database the migrations apply to (e.g. `food`).
+        required: false
+        default: ''
+    aws-region:
+        description: The region the migration invoke targets. Required whenever `schema-stack` is set.
+        required: false
+        default: ''
+    migrations-dir:
+        description: >-
+            The migrations directory, repo-relative. Digested and sent with the invoke as
+            `expectManifestSha`, so a runner holding a DIFFERENT migration set throws instead of reporting
+            `applied: []` — the silent no-op ADR-0035 records.
+        required: false
+        default: ''
+
+runs:
+    using: composite
+    steps:
+        - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+          with:
+              node-version: 24
+
+        # ⛔ THE ALARM FLAG IS RESOLVED HERE, NOT IN THE CDK APP. All 30 alarm constructs are gated on
+        # `ALARMS_ENABLED`, and the flag's store is SSM per stage — but the app reads an ENV VAR, because
+        # neither way of reading SSM from CDK works for gating a CONSTRUCT:
+        #   • `valueForStringParameter` emits a CFN parameter resolved at DEPLOY time, so `=== 'true'` is
+        #     false forever and the bare token is truthy forever. It cannot gate instantiation at all.
+        #   • `valueFromLookup` calls AWS during SYNTH, which every credential-free `Template.fromStack`
+        #     suite in this repo would fail on, and caches into a gitignored `cdk.context.json`.
+        # ⚠️ Absent or unreadable resolves to `false`. That is fail-closed for COST, which is what the flag
+        # bounds — but it also means a stage whose parameter is missing deploys with NO alarms. Setting it
+        # is a deploy-time obligation, not a default that happens to be right.
+        - name: Resolve the alarm feature flag
+          shell: bash
+          env:
+              STAGE: ${{ inputs.stage }}
+          run: | # zizmor: ignore[github-env] — all writes via safe-env.sh (safeEnv.test.ts)
+              set -euo pipefail
+              value=$(aws ssm get-parameter --name "/kitchensink/${STAGE}/observability/alarms-enabled" \
+                  --query 'Parameter.Value' --output text 2>/dev/null || echo 'false')
+              bash .github/scripts/safe-env.sh ALARMS_ENABLED "${value}"
+              echo "alarms for ${STAGE}: ${value}"
+
+        # ⛔ ONE tag, exported under BOTH names that read it. The previous shape restated it: the push step
+        # used `IMAGE_TAG` and the CDK app read `FOOD_IMAGE_TAG` / `RECIPE_IMAGE_TAG`, each spelled out
+        # separately at its own call site. Two restatements of one fact drift, and the way THIS one drifts
+        # is that the stack references a tag nothing pushed — which is how `pr-73` served a fifteen-day
+        # stale build behind green checks.
+        - name: Resolve the image tag
+          if: inputs.image-tag-env != ''
+          shell: bash
+          env:
+              STAGE: ${{ inputs.stage }}
+              SHA: ${{ github.sha }}
+              TAG_ENV: ${{ inputs.image-tag-env }}
+          run: | # zizmor: ignore[github-env] — all writes via safe-env.sh (safeEnv.test.ts)
+              set -euo pipefail
+              tag="${STAGE}-${SHA}"
+              bash .github/scripts/safe-env.sh IMAGE_TAG "${tag}"
+              bash .github/scripts/safe-env.sh "${TAG_ENV}" "${tag}"
+
+        # ⛔ NO `registry-url:` on setup-node. That input rewrites the DEFAULT registry, which would send
+        # every public dependency — `aws-cdk-lib` included — to GitHub Packages. The scope mapping and the
+        # auth line live in each CDK package's own `.npmrc`, which npm reads from the package directory.
+        # ⛔ The ROOT workspace, which is a DIFFERENT dependency tree from the `infra/` one below. `turbo`
+        # is a root devDependency and `@kitchensink/*` resolve through root `node_modules`; the CDK apps
+        # deliberately sit outside the workspace, so their own install provides neither. A job that runs
+        # `npx turbo` without this does not fail cleanly — npx fetches turbo from the network and the
+        # workspace filter then matches nothing.
+        - name: Install the root workspace
+          if: inputs.workspace-install == 'true'
+          shell: bash
+          env:
+              NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
+          run: npm ci --no-audit --no-fund
+
+        - name: Install (in the directory that owns the dependencies)
+          shell: bash
+          working-directory: ${{ inputs.directory }}
+          env:
+              NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
+          run: npm install --no-audit --no-fund
+
+        - name: Typecheck
+          shell: bash
+          working-directory: ${{ inputs.directory }}
+          run: npm run typecheck
+
+        # ⛔ BEFORE THE TESTS, and therefore before synth. A CDK app whose Lambda bundle has not been built
+        # fails synth with `CannotFindAsset` — and an app whose bundle is merely STALE synthesizes clean and
+        # ships last release's handler. The package's own unit suite synthesizes its stacks too, so it needs
+        # the bundle just as much: `identity-webhooks`' `WebhooksStack.test.ts` failed with `CannotFindAsset`
+        # on its first CI run, because this step used to sit AFTER Test — invisible until then, since that
+        # job had been skipped behind `global` from 2026-09-08 and every developer machine has a `dist/`. `--if-present` on the two npm scripts because not every app has both: the web
+        # and parser apps bundle nothing through npm, and only the containerized services prepare a prod
+        # manifest.
+        - name: Build the workspace package this app bundles
+          if: inputs.workspace-package != ''
+          shell: bash
+          env:
+              PKG: ${{ inputs.workspace-package }}
+              DIR: ${{ inputs.workspace-dir }}
+              ECR_REPO: ${{ inputs.ecr-repo }}
+          run: |
+              set -euo pipefail
+              npx turbo run build --filter="${PKG}"
+              # ⛔ No `--if-present`. These two scripts exist on exactly the three containerized services
+              # and on none of the Lambda-only ones, which is the same set `ecr-repo` selects — so the
+              # condition is a FACT about the package, not a guess about the manifest. `--if-present` would
+              # turn a renamed script into a silent no-op that builds the image from the DEV manifest.
+              # ⚠️ `bundle:lambda` must run BEFORE synth: it produces the migration Lambda's bundle, which
+              # the SCHEMA stack references, and a missing asset fails synth with `CannotFindAsset`.
+              if [ -n "${ECR_REPO}" ]; then
+                  npm run docker:prepare --workspace="${DIR}"
+                  npm run bundle:lambda --workspace="${DIR}"
+              fi
+
+        # ⚠️ The package's OWN suite, which is the half that used to be invisible. `infra/__tests__` is
+        # outside the workspace, so a green `vitest run` in the service package covers none of it — that is
+        # how a stale `RECIPE_SERVICE_URL` assertion survived the change that removed the variable.
+        # ⚠️ `--if-present`: `shared/infra` is a library with no suite of its own — its constructs are
+        # exercised by the apps that consume them. A missing script is not a missing check here; a package
+        # with NO job at all is, and `staticAnalysisCoverage.test.ts` is what catches that.
+        - name: Test
+          shell: bash
+          working-directory: ${{ inputs.directory }}
+          run: npm test --if-present
+
+        # ⛔ RESOLVED IN CI, NOT IN CDK. These apps are separate `cdk deploy` invocations that cannot
+        # `Fn.importValue` another app's exports, so the values are looked up here and handed over as env
+        # vars. `cfn-export.sh` rather than the obvious `list-exports --query` one-liner: `ListExports`
+        # pages at 100 items and the CLI applies `--query` per PAGE, so the one-liner emits the value AND a
+        # literal `None`, in an order that changes as the account grows.
+        - name: Resolve platform inputs from CloudFormation exports
+          if: inputs.platform-inputs != ''
+          shell: bash
+          env:
+              SPEC: ${{ inputs.platform-inputs }}
+              STAGE: ${{ inputs.stage }}
+              BASE_INPUT: ${{ inputs.base-stage }}
+          run: | # zizmor: ignore[github-env] — all writes via safe-env.sh (safeEnv.test.ts)
+              set -euo pipefail
+              base="${BASE_INPUT}"
+              if [ -z "${base}" ]; then
+                  case "${STAGE}" in
+                      prod) base=prod ;;
+                      *) base=sandbox ;;
+                  esac
+              fi
+              echo "platform tier: ${base}"
+              while IFS= read -r line; do
+                  line="${line#"${line%%[![:space:]]*}"}"
+                  if [ -z "${line}" ]; then
+                      continue
+                  fi
+                  var="${line%%=*}"
+                  ref="${line#*=}"
+                  ref="${ref//\{base\}/${base}}"
+                  value=$(bash .github/scripts/cfn-export.sh --optional "${ref}")
+                  if [ -z "${value}" ] || [ "${value}" = "None" ]; then
+                      echo "::error::CloudFormation export '${ref}' not found — is the ${base} platform tier deployed?" >&2
+                      exit 1
+                  fi
+                  bash .github/scripts/safe-env.sh "${var}" "${value}"
+                  echo "  ${var} <- ${ref}"
+              done <<< "${SPEC}"
+
+        # ⛔ The filter is the DEPENDENCY CLOSURE (`^...`), not a named package. The step this replaces
+        # named `infra-security` alone, its own comment called itself "the step that was missed", and then
+        # `infra-alb` landed and it was missed AGAIN — `ERR_MODULE_NOT_FOUND`, breaking every sandbox food
+        # deploy. A hand-maintained list of dist-exporting dependencies is a second representation of the
+        # dependency graph; `^...` asks turbo for the real one.
+        - name: Resolve this stage's food origin
+          if: inputs.food-origin-env != ''
+          shell: bash
+          env:
+              TARGETS: ${{ inputs.food-origin-env }}
+              STAGE: ${{ inputs.stage }}
+              NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
+          run: | # zizmor: ignore[adhoc-packages,github-env] — food CDK install; env via safe-env.sh
+              set -euo pipefail
+              npx turbo run build --filter='@kitchensink/food-service^...'
+              # ⛔ The helper imports `FoodServiceStack`, whose `aws-cdk-lib` and `@radicle-co/infra-shared`
+              # resolve only from the FOOD app's own `infra/` install — and this step runs in the RECIPE jobs,
+              # which installed only their own directory. `recipe-schema` died here with `Cannot find package
+              # 'aws-cdk-lib'` on its first CI run. Asserted by `infraInstallBeforeUse.test.ts`.
+              npm install --prefix packages/services/food-service/infra --no-audit --no-fund
+              url=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts "${STAGE}" "${DOMAIN_NAME}")
+              for var in ${TARGETS}; do
+                  bash .github/scripts/safe-env.sh "${var}" "${url}"
+                  echo "  ${var} <- ${url}"
+              done
+
+        # Synth is the real proof: typecheck says the TypeScript is consistent, synth says the app actually
+        # produces a template. A missing asset or an unresolvable import fails HERE and nowhere earlier —
+        # and because it runs in the SAME job that deploys, a template that synthesizes is the template that
+        # ships. A separate checks job could only ever prove something about a different runner.
+        - name: Synth
+          if: inputs.synth == 'true'
+          shell: bash
+          working-directory: ${{ inputs.directory }}
+          env:
+              STAGE: ${{ inputs.stage }}
+          run: npm run synth
+
+        # ⛔ The image is pushed AFTER synth and BEFORE deploy, and it is tagged with the tag the template
+        # already references — so the deploy cannot point ECS at a tag that does not exist. Pushing after
+        # the deploy would start the task before its image landed; pushing before synth would spend a
+        # multi-minute build on an app that does not compile.
+        - name: Login to Amazon ECR
+          if: inputs.ecr-repo != '' && inputs.deploy == 'true' && inputs.schema-only != 'true'
+          uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v3.0.1
+          id: ecr
+
+        - name: Build, tag and push the container image
+          if: inputs.ecr-repo != '' && inputs.deploy == 'true' && inputs.schema-only != 'true'
+          shell: bash
+          env:
+              ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+              REPO: ${{ inputs.ecr-repo }}
+              PKG: ${{ inputs.workspace-package }}
+              DOCKERFILE: ${{ inputs.dockerfile }}
+              BUILD_CONTEXT: ${{ inputs.image-build-context }}
+              PRUNE_DIR: ${{ inputs.prune-dir }}
+          run: |
+              set -euo pipefail
+              bash .github/scripts/ecr-ensure-repo.sh "${REPO}"
+              case "${BUILD_CONTEXT}" in
+                  turbo-prune)
+                      # The out-dir is the Dockerfile's own COPY path. Renaming it here breaks the build
+                      # AFTER the push has already spent its minutes.
+                      npx turbo prune "${PKG}" --docker --out-dir=".docker-prune/${PRUNE_DIR}"
+                      ;;
+                  npm-prune)
+                      # Strips dev dependencies from the ROOT node_modules, which this Dockerfile COPYs
+                      # wholesale. Safe here because each CDK app's own dependencies live in its `infra/`
+                      # directory, OUTSIDE the workspace, which a root prune does not touch.
+                      npm prune --omit=dev
+                      ;;
+                  *)
+                      echo "::error::image-build-context must be 'turbo-prune' or 'npm-prune' when ecr-repo is set (got '${BUILD_CONTEXT}')" >&2
+                      exit 1
+                      ;;
+              esac
+              docker buildx build --platform linux/amd64 -f "${DOCKERFILE}" \
+                  -t "${ECR_REGISTRY}/${REPO}:${IMAGE_TAG}" --push .
+
+        # ⛔ ADR-0035: deploy-schema → migrate → deploy-everything-else, and the schema stack goes
+        # `--exclusively` so it lands WITHOUT dragging the app stacks that read it. Ordering the other way
+        # served a new image against the OLD schema for the whole `cdk deploy` window, and prod is behind
+        # CloudFront, which CACHES the 500s.
+        #
+        # ⚠️ The fifth argument is not optional decoration. `esbuild.mjs` copies `migrations/*.sql` into the
+        # bundle at BUILD time, so invoking a runner from a previous release runs the PREVIOUS migration
+        # set — exit 0, `applied: []`, byte-identical to "nothing was pending". The digest travels with the
+        # invoke as `expectManifestSha` and a runner holding a different set THROWS.
+        # ⚠️ FROM THE REPOSITORY ROOT, with `${DIR}`-prefixed paths — NOT `working-directory` plus relative
+        # ones. `verify-deployment.sh` derives the stack list by SYNTHESISING the `--app` string it is
+        # given, so the deploy and the verification have to pass the BYTE-IDENTICAL string or they are
+        # provably talking about the same app only by argument. `deployVerificationCoverage.test.ts`
+        # compares them literally, and caught exactly this drift.
+        - name: Deploy the schema stack
+          if: inputs.schema-stack != '' && inputs.deploy == 'true'
+          shell: bash
+          env:
+              STAGE: ${{ inputs.stage }}
+              SCHEMA_STACK: ${{ inputs.schema-stack }}
+              DIR: ${{ inputs.directory }}
+          run: |
+              set -euo pipefail
+              ${DIR}/node_modules/.bin/cdk deploy "${SCHEMA_STACK}-${STAGE}" \
+                  --app "${DIR}/node_modules/.bin/tsx ${DIR}/bin/app.ts" \
+                  --exclusively --require-approval never
+
+        - name: Run migrations
+          if: inputs.schema-stack != '' && inputs.deploy == 'true'
+          shell: bash
+          env:
+              STAGE: ${{ inputs.stage }}
+              SCHEMA_STACK: ${{ inputs.schema-stack }}
+              EXPORT_NAME: ${{ inputs.migration-export }}
+              DATABASE: ${{ inputs.migration-database }}
+              MIGRATIONS_DIR: ${{ inputs.migrations-dir }}
+              REGION: ${{ inputs.aws-region }}
+          run: |
+              set -euo pipefail
+              bash .github/scripts/run-migrations.sh run "${REGION}" \
+                  "${SCHEMA_STACK}-${STAGE}" "${EXPORT_NAME}" "${DATABASE}" \
+                  "${MIGRATIONS_DIR}"
+
+        # ⛔ THE DEPLOY LIVES HERE, in the same action, immediately after the checks that qualify it. Split
+        # across two workflows it stops being a gate: the deploying job installs its own dependencies, and
+        # nothing makes those the ones that were checked. One job, one directory, one dependency tree.
+        # ⚠️ `--prefix "${DIR}"` rather than `working-directory:`. Both run the same script, but the prefix
+        # form is the one this repo's guards read to answer "which CDK app does this job deploy" — a
+        # `working-directory` is a property of the STEP, invisible in the command, so the app it deploys is
+        # attributable to nothing. `cdkAppDeployCoverage` and `sandboxUpVerification` both derive from it.
+        - name: Deploy
+          if: inputs.deploy == 'true' && inputs.synth == 'true' && inputs.schema-only != 'true'
+          shell: bash
+          env:
+              STAGE: ${{ inputs.stage }}
+              DIR: ${{ inputs.directory }}
+          run: npm run deploy --prefix "${DIR}" -- --all --require-approval never
+
+        # ⛔ A CONVERGED STACK PROVES ALMOST NOTHING, and this is the step that closes the gap. Three shapes
+        # have shipped here behind a green `cdk deploy`:
+        #   • a resource resting in `UPDATE_ROLLBACK_COMPLETE` inside a stack that is itself intact at its
+        #     PREVIOUS revision — the deploy that did not land, reporting green because nobody looked;
+        #   • a Lambda whose code package cannot load, which deploys fine and dies on first cold start
+        #     (ADR-0025's parser: the arm64 wheels loaded, then it threw reaching for an absent NLTK corpus);
+        #   • a cross-stack reference naming a resource that does not exist — `RecipeWorkersStack` carried
+        #     `CRF_FUNCTION_NAME=kitchensink-ingredient-parser-{stage}` plus an IAM grant to that ARN into
+        #     every stage while no account held the function. `crfInvoke.ts` maps the failed invoke to
+        #     `unavailable`, the pipeline reads that as `single-engine llm`, and a TWO-engine parse silently
+        #     ran on one. Stack converged, `/health` answered 200, every other signal green.
+        #
+        # ⚠️ It re-runs `cdk ls --long` on the app, so it needs the SAME environment the synth had — which is
+        # exactly why it lives HERE. Every value the app reads is already in `$GITHUB_ENV` from the platform
+        # inputs and the image tag above, so this step restates none of them; the old per-step `env:` blocks
+        # in `_sandbox-preview.yml` were nine copies of one fact, and a copy is what drifts.
+        - name: Verify the deployment — every resource, handler and reference
+          if: inputs.deploy == 'true' && inputs.synth == 'true' && inputs.schema-only != 'true'
+          shell: bash
+          env:
+              REGION: ${{ inputs.aws-region }}
+              DIR: ${{ inputs.directory }}
+          run: |
+              set -euo pipefail
+              bash .github/scripts/verify-deployment.sh verify "${REGION:-$DEFAULT_AWS_REGION}" \
+                  "${DIR}/node_modules/.bin/tsx ${DIR}/bin/app.ts"
+
+        # ⚠️ `--warn-only`: drift is a fact worth surfacing, not by itself a failed deploy.
+        - name: Report deployment drift (declared vs running)
+          if: inputs.drift == 'true' && inputs.deploy == 'true' && inputs.schema-only != 'true'
+          shell: bash
+          env:
+              REGION: ${{ inputs.aws-region }}
+              STAGE: ${{ inputs.stage }}
+              DIR: ${{ inputs.directory }}
+          run: |
+              set -euo pipefail
+              bash .github/scripts/verify-deployment.sh drift "${REGION:-$DEFAULT_AWS_REGION}" "${STAGE}" \
+                  "${DIR}/node_modules/.bin/tsx ${DIR}/bin/app.ts" --warn-only

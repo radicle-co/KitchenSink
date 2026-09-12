@@ -4,7 +4,7 @@
  * a live SQS queue.
  */
 import type { AccountErasureJobRow } from '../../database/schema/account.js';
-import type { ActiveErasureJob } from '../dal/erasure-jobs.dal.js';
+import type { ActiveErasureJob } from '../dal/erasureJobs.dal.js';
 
 const FIXED_DATE = new Date('2026-01-01T00:00:00.000Z');
 

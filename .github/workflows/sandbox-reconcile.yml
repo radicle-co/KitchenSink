@@ -1,0 +1,221 @@
+name: Sandbox Reconcile
+
+# The hourly convergence loop for on-demand sandboxes (ADR-0028).
+#
+# ⚠️  It RECONCILES, it does not merely delete. For every `pr-{N}` preview it asks "should this be up?" and
+# makes reality match — which also catches a teardown that died halfway, a stack created out of band, and
+# the RDS instance AWS silently auto-restarts after 7 days of being stopped. A one-shot deleter fixes none
+# of those, and each of them bills until a human notices.
+#
+# ⚠️  HOURLY, not once at midnight. GitHub's scheduled workflows are best-effort: delayed under load,
+# skipped entirely, and auto-disabled after 60 days of repository inactivity. A single nightly run that
+# silently does not happen is indistinguishable from one that found nothing to do. Asking "is anything past
+# due?" every hour is self-healing — a missed run costs an hour, not a month.
+#
+# ⛔ It no longer reaps a per-PR preview — `sandbox-reap.yml` owns that, and owns it alone. What is left
+# here is the SHARED TIER: when no preview is live and nothing is using it, take the ALB and the identity
+# service down. Two implementations of "which sandbox is finished" is the drift ADR-0005 exists to prevent.
+
+on:
+    # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER. GitHub holds no RECORD for a workflow until the file
+    # reaches the default branch or the workflow actually RUNS — and a `workflow_dispatch`/`schedule` file on
+    # a feature branch can do neither, because the schedule only fires from the default branch and the
+    # dispatch needs the record that running would have created. A closed loop, whose symptom is
+    # `gh workflow run` answering `not found on the default branch`.
+    #
+    # Pushing this ONE file creates a run whose only job is skipped — no runner time, nothing stood up or
+    # torn down — and that run is what registers the workflow so it can be dispatched.
+    #
+    # ⛔ Do not widen `paths:`, and do not remove the job's `if:`. Either turns a push into real work.
+    # `workflowRegistration.test.ts` asserts both, for every branch-only workflow at once.
+    push:
+        paths:
+            - .github/workflows/sandbox-reconcile.yml
+    schedule:
+        - cron: '17 * * * *' # hourly, off the hour — the top of the hour is GitHub's most contended slot
+    workflow_dispatch:
+
+# ⚠️ Only `contents: read` is workflow-level; the write grant sits on the `reconcile` job instead
+# (2026-09-02), so a job added here later does not silently inherit the ability to edit PRs.
+permissions:
+    contents: read # checkout of the teardown/scan scripts this workflow runs
+
+concurrency:
+    group: sandbox-reconcile
+    cancel-in-progress: false
+
+jobs:
+    reconcile:
+        name: Converge sandboxes to their intent
+        runs-on: ubuntu-latest
+        # ⛔ The `push:` above only registers the workflow; taking the shared tier down is the schedule's
+        # job or an operator's, never an edit's.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        permissions:
+            contents: read # checkout of the teardown/scan scripts this workflow runs
+        env:
+            GH_TOKEN: ${{ github.token }}
+            AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # Nothing here pushes or fetches from `origin` — the scripts only call AWS and the
+                  # GitHub API — so the checkout credential would just sit on disk (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # Discover from AWS, not from the PR list: a sandbox that outlived its PR is exactly the case
+            # that costs money, and it has no PR to enumerate.
+            # ⚠️  THIS STEP DOES ABORT ON A FAILED `list-stacks`, and that is the correct direction NOW
+            # even though the opposite was correct before. It used to run ahead of a per-PR teardown in this
+            # same job, where aborting would have cancelled reclamation for every sandbox — the 2026-07-28
+            # incident. That teardown is gone (`sandbox-reap.yml` owns reaping), so the only thing this step
+            # feeds is the decision to DELETE the shared tier. An unanswerable question must not read as
+            # "nothing is live"; concluding the tier is idle because CloudFormation was unreachable is how
+            # the tier gets deleted out from under a running preview.
+            # ⚠️ THIS STEP ONLY ANSWERS "IS ANY PREVIEW LIVE?" — it no longer decides anything's fate.
+            # Reaping a per-PR preview belongs to `sandbox-reap.yml`, which presses `Sandbox Down`; a second
+            # implementation of "which sandbox is finished" is exactly the drift ADR-0005 keeps warning
+            # about, and this file's job is the SHARED TIER: when nothing is using it, take it down.
+            #
+            # Discovery is by stack NAME. A name is fixed at creation and survives a half-failed deploy,
+            # where a tag is written by a deploy and replaced wholesale by the next one.
+            - name: Is any per-PR preview live?
+              id: find
+              run: |
+                  set -uo pipefail
+                  # shellcheck source=.github/scripts/cfn-resting-states.sh
+                  source .github/scripts/cfn-resting-states.sh
+
+                  # The same list the teardown and the reaper use: a wedged `*_ROLLBACK_FAILED` stack still
+                  # means a preview is LIVE, and missing it here would conclude the shared tier is idle
+                  # while a preview is still standing on it.
+                  stacks=$(aws cloudformation list-stacks \
+                      --stack-status-filter "${CFN_RESTING_STATES[@]}" \
+                      --query 'StackSummaries[].StackName' --output text) || {
+                      echo "::error::could not list stacks — refusing to conclude the shared tier is idle" >&2
+                      exit 1
+                  }
+
+                  live=$(printf '%s' "$stacks" | tr '\t' '\n' \
+                      | sed -nE 's/^kitchensink-[a-z-]+-(pr-[0-9]+)$/\1/p' | sort -u | tr '\n' ' ')
+
+                  printf 'live=%s\n' "$live" >>"$GITHUB_OUTPUT"
+                  echo "live previews: ${live:-<none>}"
+
+            - name: Check whether anything is using the shared tier right now
+              id: inuse
+              # ⛔ `steps.find.outcome == 'success'` IS LOAD-BEARING — without it this is a fail-OPEN into
+              # the most destructive step in the workflow. `find` exits 1 on an unusable `list-stacks`
+              # BEFORE writing `$GITHUB_OUTPUT`, so `live` is unset; an unset output is `''`; and
+              # `!cancelled()` suppresses GitHub's implicit `success()`, so this step runs anyway and reads
+              # that `''` as "no preview is live". The tier then gets reclaimed on the strength of a number
+              # nobody computed, while the run's own log says it refused to conclude exactly that.
+              # ⛔ Do NOT resolve it by dropping `!cancelled()`: `sandboxReclamationReachability.test.ts`
+              # requires it, because a predecessor's failure silently skipping reclamation is the OTHER
+              # incident this repo has paid for. Both hold at once — run on your own merits, and never act
+              # on an output that was never written. `stepOutcomeGating.test.ts` asserts the pair.
+              if: ${{ !cancelled() && steps.find.outcome == 'success' && steps.find.outputs.live == '' }}
+              run: |
+                  set -uo pipefail
+                  self='sandbox-reconcile.yml'
+                  consumers=''
+                  for f in $(grep -l 'sandbox-wake\.sh' .github/workflows/*.yml 2>/dev/null); do
+                      base=$(basename "$f")
+                      [ "$base" = "$self" ] && continue
+                      case "$base" in
+                          _*)
+                              # Reusable: charge its runs to every workflow that calls it.
+                              for caller in $(grep -rl "uses:.*${base}" .github/workflows/*.yml 2>/dev/null); do
+                                  cb=$(basename "$caller")
+                                  [ "$cb" = "$base" ] && continue
+                                  consumers="${consumers}${cb}"$'\n'
+                              done
+                              ;;
+                          *) consumers="${consumers}${base}"$'\n' ;;
+                      esac
+                  done
+                  consumers=$(printf '%s\nsandbox-up.yml\n' "$consumers" | sed '/^$/d' | sort -u)
+                  echo 'workflows that wake the shared tier:'; sed 's/^/  /' <<<"$consumers"
+
+                  # ⛔ A FAILED PROBE COUNTS AS BUSY, NEVER AS ZERO. This loop is the last thing standing
+                  # between a transient GitHub API failure and the deletion of the shared ALB and the
+                  # identity service every preview signs in against. It used to end `|| echo 0`, which made
+                  # "the API did not answer" and "nothing is running" the same value — and only one of those
+                  # two may ever lead to a delete.
+                  #
+                  # Failing toward busy costs at most one hour of an idle tier, and the next hourly pass
+                  # retries. The other direction costs the tier.
+                  busy=''
+                  while read -r wf; do
+                      [ -z "$wf" ] && continue
+                      for state in in_progress queued; do
+                          if ! n=$(gh run list --workflow "$wf" --status "$state" --limit 1 --json databaseId --jq 'length' 2>/dev/null); then
+                              echo "::warning::could not ask GitHub about ${wf} (${state}) — counting the tier as BUSY rather than concluding it is idle"
+                              busy="${busy} ${wf}(unknown)"
+                              continue
+                          fi
+                          [ "${n:-0}" != '0' ] && busy="${busy} ${wf}(${state})"
+                      done
+                  done <<<"$consumers"
+
+                  if [ -n "${busy// /}" ]; then
+                      echo 'busy=true' >>"$GITHUB_OUTPUT"
+                      echo "::notice::Still needed by:${busy} — leaving the shared tier up; the next hourly pass retries."
+                  else
+                      echo 'busy=false' >>"$GITHUB_OUTPUT"
+                  fi
+
+            # ⛔ RECLAIM THE ALB — the residual floor ADR-0028 left, and the reason this step exists at all.
+            #
+            # An ALB cannot be stopped, only deleted, so unlike the RDS and the NAT it cannot be handled by
+            # the scheduler. `kitchensink-alb-sandbox` plus its two public IPv4 addresses billed ~$23.73/month
+            # around the clock for an environment live a few hours a week.
+            #
+            # ⚠️ ORDER: AFTER the per-PR teardown above. Reclaiming shared infrastructure while a preview
+            # teardown is still running is how a half-deleted preview becomes unreachable AND unreclaimable.
+            #
+            # ⛔ THIS IS THE LAST STEP, and what used to follow it is gone ON PURPOSE (owner ruling,
+            # 2026-09-03). This job ended by invoking the scheduler Lambda with `{"action":"stop"}` whenever
+            # no preview was live, which stopped the shared sandbox DATABASE on a preview's teardown. The
+            # ruling is that per-PR cleanup reclaims the per-PR logical databases and nothing else, while
+            # "the RDS should still be stopped and started on the original schedule" — so that lifecycle is
+            # ONE decision expressed ONCE, in `SandboxSchedulerStack`'s 00:00/09:00 ET pair, and this
+            # workflow must not carry a second copy of it on a different trigger.
+            #
+            # The removed step's ordering constraint is DISCHARGED rather than dropped: the reason the delete
+            # had to precede the stop was that draining ECS tasks into an environment with no database is
+            # what produced the `NotStabilized` wedge repaired on 2026-08-30. With no stop here, the delete
+            # can no longer be followed by one. `sharedTierLifecycle.test.ts` asserts the absence in both
+            # directions — no `{"action":"stop"}` invocation, and no hand-rolled equivalent.
+            #
+            # The two stack names and their delete order live in the script, not here, because this is the
+            # ONE place in the repository that deletes `*-sandbox` stacks — the exact shape `pr-scope.sh`
+            # exists to forbid everywhere else. Its allowlist is pinned by `sandboxSharedTier.test.ts`,
+            # which fires the predicate at the shared database, the VPC, the webhooks and prod.
+            #
+            # `!cancelled()` for the same reason the teardown carries it: a failure in an earlier step must
+            # not silently skip reclamation. Asserted by `sharedTierLifecycle.test.ts`.
+            #
+            # ⛔ NO `continue-on-error` HERE, deliberately — and the first draft of this step had one.
+            #
+            # The reasoning for it was that a failed ALB delete must not stop the RDS and NAT from being
+            # stopped afterwards. That argument is now moot twice over — this step is last, and the stop it
+            # was protecting no longer lives here — but the prohibition stands on its own footing:
+            # `continue-on-error: true` reports the JOB green, which means an ALB that never deletes bills
+            # forever behind a passing check. That is ADR-0005's failure mode exactly, and what
+            # `workflowInvariants` invariant 4 exists to catch (it did). Letting this step FAIL makes the
+            # leak visible, and the next hourly pass retries it.
+            - name: Reclaim the shared sandbox ALB and identity service
+              if: >-
+                  ${{ !cancelled() && steps.find.outcome == 'success' && steps.find.outputs.live == '' &&
+                  steps.inuse.outcome == 'success' && steps.inuse.outputs.busy == 'false' }}
+              run: |
+                  set -uo pipefail
+                  chmod +x .github/scripts/sandbox-shared-tier.sh
+                  .github/scripts/sandbox-shared-tier.sh down "$REGION"

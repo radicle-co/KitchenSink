@@ -725,16 +725,33 @@ If 0 rows returned → conflict detected → return HTTP 409 with both the clien
 
 ## Visibility Enforcement Rules (C-004)
 
-| Condition                    | Allowed visibility                                               |
-| ---------------------------- | ---------------------------------------------------------------- |
-| Free-tier user, user_created | `public` only                                                    |
-| Premium user, user_created   | `public` or `private`                                            |
-| Any user, imported_public    | `public` only — unless premium AND `has_substantive_edit = true` |
-| Any user, imported_physical  | `private` only                                                   |
-| Any user, imported_paid      | `private` only (permanent)                                       |
-| Premium lapse                | No new private; existing private stay private                    |
+| Condition                    | Allowed visibility                                    |
+| ---------------------------- | ----------------------------------------------------- |
+| Free-tier user, user_created | `public` only                                         |
+| Premium user, user_created   | `public` or `private`                                 |
+| Any user, imported_public    | `public` or `private` — see the clone amendment below |
+| Any user, imported_physical  | `private` only                                        |
+| Any user, imported_paid      | `private` only (permanent)                            |
+| Premium lapse                | No new private; existing private stay private         |
 
 Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constraint level (visibility rules are business logic, not schema invariants).
+
+> **⚠️ Amended 2026-08-22 (C-016-003 / A-4) — matrix updated, code NOT updated.**
+>
+> The `imported_public` row previously read "`public` only — unless premium AND `has_substantive_edit = true`".
+> Under [016](../016-legal-compliance-framework/spec.md) `FR-015b`, the substantive edit gates **publication**
+> rather than **privacy**, and the premium gate on clone-privacy is removed (D4a / 015 C-015-001).
+>
+> Two consequent changes to `packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts` are
+> **specified but not made** — they are implementation work and need their own failing tests first:
+>
+> 1. `evaluateVisibility` — the `IMPORTED_PUBLIC` + `private` branch drops its `isPremium` and
+>    `hasSubstantiveEdit` denials; a new denial gates **publication** of any clone lacking a substantive edit.
+> 2. `defaultCloneVisibility` — an unmodified clone is not publishable, so it can no longer default to
+>    `PUBLIC` for non-physical/paid sources.
+>
+> `evaluateVisibility`'s input may also need a provenance-restriction term for `001-FR-005a`; no such signal
+> exists in the schema today, so that requirement is blocked on modelling it.
 
 ---
 

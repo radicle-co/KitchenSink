@@ -1,8 +1,11 @@
+import type { AccountTier } from '../users/users.schema.js';
 import type { UserId } from './user.js';
 
 export type AccountId = string & { readonly __brand: 'AccountId' };
 
-export type AccountTier = 'free' | 'premium';
+// AUTHORED as zod in `../users/users.schema.ts` and published via `@kitchensink/schema-identity`
+// (CODING_STANDARDS §15.2). Imported once above and re-exported here for the DAO's existing import sites.
+export type { AccountTier };
 
 export interface AccountModel {
     id: AccountId;

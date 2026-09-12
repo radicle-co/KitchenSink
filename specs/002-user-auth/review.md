@@ -88,14 +88,14 @@ This feature was **retroactively bootstrapped** — the SpecKit + V-Model artifa
 
 ### User Decisions
 
-| Question                          | Decision                                                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Personas (Avery / Riley / Jordan) | ✅ Confirmed                                                                                           |
-| Admin dashboard                   | ✅ Confirmed out-of-scope (no use case)                                                                |
+| Question                          | Decision                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Personas (Avery / Riley / Jordan) | ✅ Confirmed                                                                                   |
+| Admin dashboard                   | ✅ Confirmed out-of-scope (no use case)                                                        |
 | MFA                               | ✅ Delegated to user-configurable; **not** a Commise product story — demote/remove from MoSCoW |
-| Suspension/impersonation scope    | ✅ Backend/admin APIs only                                                                             |
-| WA-001 (Node version)             | ✅ Align to **Node 24.x** (Lambda 24.x is available); waiver rejected                                  |
-| CR-001 (API prefix)               | ✅ Adopt portfolio standard `{protocol}://{host}:{port}/api/:version/*` (e.g. `/api/v1/...`)           |
+| Suspension/impersonation scope    | ✅ Backend/admin APIs only                                                                     |
+| WA-001 (Node version)             | ✅ Align to **Node 24.x** (Lambda 24.x is available); waiver rejected                          |
+| CR-001 (API prefix)               | ✅ Adopt portfolio standard `{protocol}://{host}:{port}/api/:version/*` (e.g. `/api/v1/...`)   |
 
 ### Portfolio-Wide Standards (recorded for ALL features 001–010)
 

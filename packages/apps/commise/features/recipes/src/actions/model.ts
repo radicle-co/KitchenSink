@@ -51,15 +51,18 @@ export interface RecipeVisibilityToggleProps {
 }
 
 /**
- * Props for the clone action (T075) — a clone button plus optional source attribution. `canClone` gates the
- * action off (e.g. the viewer cannot clone this recipe) and `cloning` reflects the in-flight clone mutation;
- * either disables the button. The attribution line renders only when `sourceAttribution` is present.
+ * Props for the clone action (T075) — a clone button. `canClone` gates the action off (e.g. the viewer
+ * cannot clone this recipe) and `cloning` reflects the in-flight clone mutation; either disables the button.
+ *
+ * ⛔ There is deliberately NO `sourceAttribution` here any more. This control used to render the recipe's
+ * provenance, which meant "where this recipe came from" was told ONLY to a viewer who could clone — never to
+ * the recipe's own owner, and never including `sourceUrl`. Provenance is a property of the RECIPE, not of
+ * who is looking, so it now has one authoritative representation: `detail/RecipeSourceLine`, rendered by the
+ * detail view for every viewer. Re-adding it here would put two source lines on one screen.
  */
 export interface RecipeCloneActionProps {
     /** Whether the viewer may clone this recipe — gates the action off when false. */
     readonly canClone: boolean;
-    /** Source attribution for a cloned/imported recipe — its line renders only when present. */
-    readonly sourceAttribution?: string;
     /** Whether the clone mutation is in flight — disables and marks the action busy. */
     readonly cloning?: boolean;
     /** Invoked when the user requests a clone. */

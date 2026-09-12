@@ -6,7 +6,7 @@
  * image-picker (replacing the old paste-a-URL text box), and a `@commise/ui` {@link Button} with a real
  * `busy` state for Save — all copy from `mobileMessages`, wrapped in a `SafeAreaView` + `KeyboardAvoidingView`
  * so the keyboard never occludes the field. The account-level controls (security, sign out, close/erase)
- * live in the reachable {@link import('./AccountSettings.js').AccountSettingsScreen} hub, entered via the
+ * live in the reachable `AccountSettingsScreen` hub, entered via the
  * "Account settings" action here (`onOpenAccountSettings`), so destructive actions have a single home.
  */
 import { Button } from '@commise/ui/button';
@@ -23,7 +23,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AvatarField } from '../components/account/AvatarField.js';
 import { LoadingState } from '../components/LoadingState.js';
 import { SuspensionBanner } from '../components/SuspensionBanner.js';
-import { useUpdateProfile, useUserProfile } from '../hooks/useUserProfile.js';
+import { useUpdateProfile } from '../hooks/useUpdateProfile.js';
+import { useUserProfile } from '../hooks/useUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 /** The loaded profile query data (non-undefined). */
@@ -133,7 +134,9 @@ function ProfileEditForm({
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     flex: { flex: 1 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     container: {

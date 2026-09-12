@@ -9,12 +9,15 @@
 import { act, renderHook } from '@testing-library/react';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 const { useSearchIngredientsMock } = vi.hoisted(() => ({
     useSearchIngredientsMock: vi.fn(),
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useSearchIngredients: useSearchIngredientsMock,
 }));
 
@@ -49,14 +52,38 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
         expect(result.current.query).toBe('');
     });
 
-    it('never enables search below the 2-character trigger (REQ-057)', () => {
+    it('never enables search below the FR-010a minimum, and says so instead', () => {
+        // ⚠️ REWRITTEN for 003-FR-010a (plan U37), not weakened. It asserted `idle` under the retired
+        // 2-character client trigger; the request-suppression half — the thing this hook exists to get
+        // right — is unchanged and still asserted. What is new is the view state: below the minimum the
+        // bar must TELL the cook, so `idle` (an untouched box) would now be the wrong answer.
         const { result } = renderHook(() => useIngredientFilterSearch());
 
         act(() => result.current.setQuery('c'));
         settleDebounce();
 
-        expect(result.current.viewState).toEqual({ kind: 'idle' });
+        expect(result.current.viewState).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
         expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('c', undefined, { enabled: false });
+    });
+
+    it('still suppresses the request at TWO characters — the boundary moved, the suppression did not', () => {
+        // The case above passed before U37 at one character too. This is the one that fails if the
+        // minimum silently slips back to 2.
+        const { result } = renderHook(() => useIngredientFilterSearch());
+
+        act(() => result.current.setQuery('eg'));
+        settleDebounce();
+
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('eg', undefined, { enabled: false });
+    });
+
+    it('enables search at exactly three characters, so `egg` and `ham` still work', () => {
+        const { result } = renderHook(() => useIngredientFilterSearch());
+
+        act(() => result.current.setQuery('egg'));
+        settleDebounce();
+
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('egg', undefined, { enabled: true });
     });
 
     it('moves to searching once a query crosses the threshold and is in flight', () => {
@@ -128,21 +155,33 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
         expect(result.current.viewState).toEqual({ kind: 'idle' });
     });
 
-    it('re-ranks the mocked search results by match quality (prefix > substring)', () => {
-        const substring = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
-        const prefix = makeIngredient({ id: 'ing_1', name: 'Spinach' });
+    /**
+     * ⚠️ REWRITTEN for plan U5 — this is the SAME case, asserting the opposite.
+     *
+     * It asserted that the hook re-ranked the server's results by `prefix > substring`. That mechanism
+     * (`rankIngredientResults`) is retired: the server now owns the order, scoring relevance with a tiered
+     * sort key instead of approximating it from string shape. Retiring it here and not on the server would
+     * have made the filter WORSE, which is why the plan requires both in one release. See the "RETIRED IN
+     * PLAN U5" section of `ingredientResolver.model.ts`, and
+     * `recipe-service/__tests__/integration/ingredients/ingredientRanking.integration.test.ts` for where the
+     * ordering is now proven.
+     */
+    it("renders the server's order UNMODIFIED — the filter no longer re-ranks (U5)", () => {
+        // Deliberately the order the retired client sort would have INVERTED.
+        const first = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
+        const second = makeIngredient({ id: 'ing_1', name: 'Spinach' });
         useSearchIngredientsMock.mockReturnValue({
             isLoading: false,
             isError: false,
             isSuccess: true,
-            data: [substring, prefix],
+            data: [first, second],
         });
         const { result } = renderHook(() => useIngredientFilterSearch());
 
         act(() => result.current.setQuery('spin'));
         settleDebounce();
 
-        expect(result.current.viewState).toMatchObject({ results: [prefix, substring] });
+        expect(result.current.viewState).toMatchObject({ results: [first, second] });
     });
 });
 

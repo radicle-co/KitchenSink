@@ -1,0 +1,215 @@
+name: Sandbox Preview (reusable)
+#
+# The per-PR preview deploy — DECIDING whether the preview should exist, then handing the actual work to
+# `deploy-infra.yml`.
+#
+# ⚠️  DELIBERATE — this is a REUSABLE workflow and it exists because GitHub Actions has no cross-workflow
+#     `needs`. Two workflows triggered by the same `pull_request` event run independently, so a pipeline
+#     that must read "deploy, then migrate, then test what was deployed" cannot span two of them.
+#
+# ⛔ WHAT THIS WORKFLOW NO LONGER DOES, AND WHY.
+#
+# It used to carry two jobs — `deploy-food` (24 steps) and `deploy-recipe` (32 steps, deploying FOUR
+# packages) — that ran `cdk deploy` directly. `deploy-infra.yml` now owns every deploy, one job per
+# `infra/` folder, so those are gone. The reason is not tidiness: two workflows deploying the same stacks
+# are two WRITERS. They sat in different concurrency groups, so nothing serialised them, and two concurrent
+# `cdk deploy` on one stack leaves it `UPDATE_IN_PROGRESS` — the state the next run cannot touch. They also
+# disagreed on the image tag (`sandbox-{sha}` here, `{stage}-{sha}` there), so on a `pr-{N}` stage they
+# would have pointed one ECS service at two different images on alternating runs.
+#
+# What stays here is what is genuinely about the PREVIEW rather than about a package: whether this PR's
+# tier should exist at all (ADR-0010's ensure-exists gate), and waking the shared database that ADR-0028
+# turns off overnight. Those are the questions a package cannot answer about itself.
+on:
+    workflow_call:
+        inputs:
+            stage:
+                description: The per-PR sandbox stage to deploy, e.g. `pr-91`.
+                required: true
+                type: string
+            forced:
+                description: >-
+                    Deploy unconditionally, bypassing the ensure-exists gate's changed-paths term. True for
+                    a hand-dispatched deploy, false for the ordinary pipeline path.
+                required: false
+                default: false
+                type: boolean
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                required: true
+            AWS_SECRET_ACCESS_KEY:
+                required: true
+permissions:
+    contents: read
+env:
+    NODE_VERSION: 24
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    CDK_DEFAULT_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+jobs:
+    gate:
+        # ⛔ A CONSTANT — a job that does not RUN never evaluates its name, so an interpolated one publishes
+        # its own template text into the checks list. Pinned by workflowInvariants' invariant 8.
+        name: Decide whether this preview deploys
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: read # the food CDK package's install reads `@radicle-co/infra-shared` from GitHub Packages
+        outputs:
+            deploy: ${{ steps.compose.outputs.deploy }}
+            packages: ${{ steps.compose.outputs.packages }}
+        env:
+            STAGE: ${{ inputs.stage }}
+            RECIPE_ORIGIN: https://recipe-${{ inputs.stage }}.${{ vars.DOMAIN_NAME }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+
+            - name: Install the root workspace
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npm ci --no-audit --no-fund
+
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            - name: Detect changes
+              id: changes
+              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
+              if: github.event_name == 'pull_request'
+              with:
+                  filters: |
+                      food:
+                          - 'packages/services/food-service/**'
+                      recipe:
+                          - 'packages/services/recipe-service/**'
+                          - 'packages/services/recipe-workers/**'
+                          - 'packages/services/ingredient-parser/**'
+                          - 'packages/shared/recipe-core/**'
+
+            # ⛔ The filter is the dependency CLOSURE (`^...`). The step this derives from named one package,
+            # its own comment called itself "the step that was missed", and it was missed again when
+            # `infra-alb` landed. Resolving the host by RUNNING the food stack's helper — rather than
+            # re-typing `food-pr-{N}.${DOMAIN_NAME}` — is a TLS constraint: a 3-label `food.pr-7…` matches
+            # no wildcard on the shared ALB cert (ADR-0003/0006).
+            # ⛔ The helper below imports `FoodServiceStack`, so it needs `aws-cdk-lib` and
+            # `@radicle-co/infra-shared` — which live ONLY in the food app's own `infra/` install, outside the
+            # workspace. With just the root `npm ci` above, this step died at `Cannot find package
+            # 'aws-cdk-lib'` on every PR from 2026-09-08. Asserted by `infraInstallBeforeUse.test.ts`.
+            - name: Install the food service's CDK package (the origin helper imports its stack)
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              working-directory: packages/services/food-service/infra
+              run: npm install --no-audit --no-fund
+
+            - name: Resolve this stage's food origin
+              id: host
+              run: |
+                  set -euo pipefail
+                  npx turbo run build --filter='@kitchensink/food-service^...'
+                  url=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts \
+                      "${STAGE}" "${DOMAIN_NAME}")
+                  echo "url=${url}" >> "$GITHUB_OUTPUT"
+                  echo "food preview origin: ${url}"
+
+            # ADR-0010: deploy ⟸ changed ∨ dispatched ∨ a stack is ABSENT or unusable ∨ the origin does not
+            # answer. So a fresh docs-only PR deploys on its FIRST event and every later push skips, while a
+            # preview that was reaped or half-rolled-back self-heals.
+            - name: Ensure this PR has a food service (ensure-exists gate)
+              id: food-gate
+              env:
+                  INTENT: 'true'
+                  CHANGED: ${{ steps.changes.outputs.food || 'false' }}
+                  FORCED: ${{ inputs.forced }}
+                  HEALTH_URL: ${{ steps.host.outputs.url }}/health
+              run: |
+                  set -euo pipefail
+                  chmod +x .github/scripts/deploy-gate.sh
+                  .github/scripts/deploy-gate.sh evaluate "$INTENT" food "$CHANGED" "$FORCED" \
+                      "$HEALTH_URL" \
+                      "${DEFAULT_AWS_REGION}" \
+                      "kitchensink-food-schema-${STAGE}" \
+                      "kitchensink-food-service-${STAGE}"
+
+            - name: Ensure this PR has a recipe tier (ensure-exists gate)
+              id: recipe-gate
+              env:
+                  INTENT: 'true'
+                  CHANGED: ${{ steps.changes.outputs.recipe || 'false' }}
+                  FORCED: ${{ inputs.forced }}
+              run: |
+                  set -euo pipefail
+                  chmod +x .github/scripts/deploy-gate.sh
+                  .github/scripts/deploy-gate.sh evaluate "$INTENT" recipe "$CHANGED" "$FORCED" \
+                      "${RECIPE_ORIGIN}/health" \
+                      "${DEFAULT_AWS_REGION}" \
+                      "kitchensink-ingredient-parser-${STAGE}" \
+                      "kitchensink-recipe-schema-${STAGE}" \
+                      "kitchensink-recipe-workers-${STAGE}" \
+                      "kitchensink-recipe-service-${STAGE}"
+
+            # ADR-0028 turns the shared sandbox database off overnight, and a migration against a stopped
+            # instance fails in a way that names neither the cause nor the schedule.
+            - name: Wake the shared sandbox database
+              if: steps.food-gate.outputs.deploy == 'true' || steps.recipe-gate.outputs.deploy == 'true'
+              run: bash .github/scripts/sandbox-wake.sh ensure "${DEFAULT_AWS_REGION}"
+
+            # ⛔ The list is the SAFETY control, not an optimisation. A `pr-{N}` preview runs on the SHARED
+            # sandbox platform (ADR-0006) and `packages/infra/global` carries no `pr-` guard — naming it
+            # here would stand up a duplicate VPC, RDS and ALB for every open pull request. `identity`,
+            # `identity-webhooks` and `web` are likewise shared or Vercel-owned and are never per-PR.
+            #
+            # ⚠️ The recipe TIER is one gate over four packages because ADR-0010's guarantee is that a
+            # preview is a COMPLETE ecosystem — `recipe-service` refuses to boot without the erasure queue
+            # `recipe-workers` publishes, and points `CRF_FUNCTION_NAME` at `ingredient-parser`.
+            - name: Compose the deploy set
+              id: compose
+              env:
+                  FOOD: ${{ steps.food-gate.outputs.deploy }}
+                  RECIPE: ${{ steps.recipe-gate.outputs.deploy }}
+              run: |
+                  set -euo pipefail
+                  packages=''
+                  if [ "$FOOD" = 'true' ]; then
+                      packages='food-schema food-service'
+                  fi
+                  if [ "$RECIPE" = 'true' ]; then
+                      if [ -n "$packages" ]; then
+                          packages="${packages} "
+                      fi
+                      packages="${packages}recipe-schema ingredient-parser recipe-workers recipe-service"
+                  fi
+                  if [ -n "$packages" ]; then
+                      echo 'deploy=true' >> "$GITHUB_OUTPUT"
+                  else
+                      echo 'deploy=false' >> "$GITHUB_OUTPUT"
+                  fi
+                  echo "packages=${packages}" >> "$GITHUB_OUTPUT"
+                  echo "deploy set: ${packages:-<nothing — unchanged and already serving>}"
+
+    # ⛔ ONE WRITER. Every `cdk deploy` for every stage goes through this workflow and no other, which is
+    # what makes the concurrency group (`deploy-infra-{stage}`) an actual guarantee rather than a guarantee
+    # about one of two paths.
+    deploy:
+        name: Deploy the preview infrastructure
+        needs: [gate]
+        if: ${{ needs.gate.outputs.deploy == 'true' }}
+        uses: ./.github/workflows/deploy-infra.yml
+        permissions:
+            contents: read
+            packages: read # zizmor: ignore[use-trusted-publishing]
+        with:
+            stage: ${{ inputs.stage }}
+            deploy: true
+            deploy-packages: ${{ needs.gate.outputs.packages }}
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

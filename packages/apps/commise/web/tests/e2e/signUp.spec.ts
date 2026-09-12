@@ -3,6 +3,7 @@ import { setupClerkTestingToken } from '@clerk/testing/playwright';
 
 import { route, isHome, hasDoublePrefix, pathnameOf } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
+import { clerkPrimarySubmit } from './utils/clerkForm';
 import { submitClerkEmailCode } from './utils/clerkEmailCode';
 import { TEST_USER_PASSWORD, uniqueSignUpEmail, deleteUsersByEmail } from './utils/testUser';
 
@@ -50,7 +51,10 @@ test.describe('sign-up flow', () => {
             // flows, so this spec and signIn.spec.ts cannot drift apart on it.
             await submitClerkEmailCode(page, {
                 attempt: 'sign_ups',
-                triggerSend: () => page.getByRole('button', { name: /continue|sign up/i }).click(),
+                // Was `/continue|sign up/i`, which ALSO matched Clerk's "Sign in with Google Continue"
+                // button (strict mode violation, 2 elements). A regex cannot be made exact, so the fix is
+                // the shared exact-match locator — see `clerkForm.ts`.
+                triggerSend: () => clerkPrimarySubmit(page).click(),
                 expectStep: () =>
                     expect(page.getByRole('heading', { name: /verify your email/i })).toBeVisible({
                         timeout: 15_000,

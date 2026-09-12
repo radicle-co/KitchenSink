@@ -26,7 +26,7 @@ import { Pressable, Text } from 'react-native';
 
 import { HomeWidgetSurface } from '../../../src/components/home/HomeWidgetSurface.js';
 import { homeContainer } from '../../../src/components/home/homeContainer.js';
-import { useHomeNudge } from '../../../src/components/home/SubscriptionNudge.js';
+import { useHomeNudge } from '../../../src/components/home/homeNudgeContext.js';
 
 // The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
 const { profileRef } = vi.hoisted(() => ({

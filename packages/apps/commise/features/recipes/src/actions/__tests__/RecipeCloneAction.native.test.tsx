@@ -1,7 +1,7 @@
 /**
  * Native component tests for the recipe clone action (T075), rendered via react-native-web under jsdom.
  * Mirrors the web leaf: clone interaction, both disabled gates (cloning in-flight and not-cloneable), the
- * busy indicator, and the attribution line shown only when a source attribution is present.
+ * and busy indicator. Provenance is NOT this control's job — see the deleted-tests note below.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -60,21 +60,16 @@ describe('RecipeCloneAction (native)', () => {
         expect(screen.getByRole('button', { name: 'Clone' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    it('renders the attribution line when a source attribution is present', () => {
-        renderClone({ sourceAttribution: 'Grandma’s cookbook' });
-
-        expect(screen.getByText('Cloned from Grandma’s cookbook')).toBeTruthy();
-    });
-
-    it('omits the attribution line when no source attribution is present', () => {
-        renderClone({ sourceAttribution: undefined });
-
-        expect(screen.queryByText(/Cloned from/)).toBeNull();
-    });
+    /*
+     * ⛔ TWO TESTS WERE DELETED HERE, NOT WEAKENED — the attribution present/absent pair. `RecipeCloneAction`
+     * no longer renders provenance; its coverage moved to `detail/__tests__/RecipeSourceLine.native.test.tsx`,
+     * which additionally covers `sourceUrl` (which never reached any screen) and the unsafe-scheme case. See
+     * the web twin's note for the reasoning.
+     */
 });
 
 /**
- * Clone IS the design-system {@link Button} on native too — it does not paint its own surface.
+ * Clone IS the design-system `Button` on native too — it does not paint its own surface.
  *
  * The leaf used to hand-roll a solid-coral pill and justify it with "the mockup paints the clone action CORAL,
  * and the DS variant set has no coral tier". That premise is false: NO mockup contains a clone action at all

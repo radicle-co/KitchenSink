@@ -10,26 +10,30 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { RatingsController } from '../ratings.controller.js';
 import type { RatingsService } from '../ratings.service.js';
-import type { SetRatingDto } from '../dto/set-rating.dto.js';
-import type { RecipeResponse } from '../../recipes/dto/recipe-response.dto.js';
+import type { SetRatingDto } from '../dto/setRating.dto.js';
+import type { RecipeResponse } from '../../recipes/dto/recipeResponse.dto.js';
 
 const RATER = '01JRATER00000000000000000A';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 const DETAIL = { id: RECIPE_ID, ratingCount: 1 } as unknown as RecipeResponse;
+/** The caller's opaque bearer, forwarded so the returned detail's nutrition resolves. */
+const CALLER = { kind: 'caller-token' } as never;
 
 function fakeService(overrides: Partial<RatingsService> = {}): RatingsService {
     return { setRating: vi.fn(), deleteRating: vi.fn(), ...overrides } as unknown as RatingsService;
 }
 
 describe('RatingsController', () => {
-    it('setRating forwards the verified rater, the path id, and the body, returning the detail', async () => {
+    // ⛔ REWRITTEN to also require the caller's bearer: the response is a full recipe detail, and without a
+    // forwarded credential its nutrition came from the in-process cache alone.
+    it('setRating forwards the verified rater, the caller, the path id, and the body, returning the detail', async () => {
         const setRating = vi.fn().mockResolvedValue(DETAIL);
         const controller = new RatingsController(fakeService({ setRating }));
         const body = { stars: 4 } as SetRatingDto;
 
-        const result = await controller.setRating(RATER, RECIPE_ID, body);
+        const result = await controller.setRating(RATER, CALLER, RECIPE_ID, body);
 
-        expect(setRating).toHaveBeenCalledWith(RATER, RECIPE_ID, body);
+        expect(setRating).toHaveBeenCalledWith(RATER, RECIPE_ID, body, CALLER);
         expect(result).toBe(DETAIL);
     });
 

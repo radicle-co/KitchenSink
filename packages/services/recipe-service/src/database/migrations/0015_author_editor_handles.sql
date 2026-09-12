@@ -17,7 +17,7 @@
 -- author_handles.user_id becomes a user-keyed table → the FOURTH GDPR erasure root (W8-a.10).
 --
 -- Hand-authored, ordered DDL (repo convention — the in-VPC runner applies these in filename order; the
--- Drizzle definitions in schema/recipes.ts, schema/versions.ts, schema/author-handles.ts document the shape).
+-- Drizzle definitions in schema/recipes.ts, schema/versions.ts, schema/authorHandles.ts document the shape).
 -- SAFE AGAINST EXISTING ROWS: two metadata-only ADD COLUMNs + one new table.
 
 ALTER TABLE recipes ADD COLUMN author_handle text;

@@ -75,7 +75,7 @@ request records behind indefinitely.
 ## Key Technical Decisions
 
 - **KTD-1 (Track A, R1): the orphan sweeper is the right home for the media fix, not a new component.**
-  `erasure-orphan-sweeper.ts` already reads recently-completed owners and re-sweeps the archive bucket; it
+  `erasureOrphanSweeper.ts` already reads recently-completed owners and re-sweeps the archive bucket; it
   owns exactly the read + prefix-sweep the media fix needs. Extend it to also sweep the media bucket rather
   than adding a second reconciler. The 24h `COMPLETED_LOOKBACK` already exceeds the 900s presign TTL, so a URL
   minted just before completion is covered on the next sweeper tick. _Alternative rejected:_ shortening the
@@ -192,12 +192,12 @@ flowchart TD
 - **Requirements:** R1
 - **Dependencies:** none
 - **Files:**
-    - `packages/services/recipe-workers/src/handlers/erasure-orphan-sweeper.ts` (add media-bucket sweep for
+    - `packages/services/recipe-workers/src/handlers/erasureOrphanSweeper.ts` (add media-bucket sweep for
       recently-completed owners; correct the header comment at ~lines 27-30 that justifies excluding media)
-    - `packages/services/recipe-workers/infra/lib/recipe-workers-stack.ts` (grant the orphan sweeper
+    - `packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts` (grant the orphan sweeper
       `s3:ListBucket` + `s3:DeleteObject` on the **media** bucket; it already has them on archive)
-    - `packages/services/recipe-workers/src/handlers/__tests__/erasure-orphan-sweeper.test.ts` (extend)
-    - `packages/services/recipe-workers/infra/__tests__/recipe-workers-stack.test.ts` (assert the new media
+    - `packages/services/recipe-workers/src/handlers/__tests__/erasureOrphanSweeper.test.ts` (extend)
+    - `packages/services/recipe-workers/infra/__tests__/RecipeWorkersStack.test.ts` (assert the new media
       grant synthesizes)
 - **Approach:** Reuse `eraseRecipeObjects(client, RECIPE_MEDIA_BUCKET, ownerId)` — the same function the
   worker uses — inside the sweeper's existing per-completed-owner loop, adding a second call for the media
@@ -208,7 +208,7 @@ flowchart TD
 - **Execution note:** Test-first. Write the failing test that lands a media object under a completed owner's
   prefix and asserts the sweeper reclaims it, before touching the sweeper.
 - **Patterns to follow:** the existing archive-bucket reconciliation in the same file; `eraseRecipeObjects`
-  in `account-erasure-worker.ts`; the CDK grant pattern already used for the archive bucket in the stack.
+  in `accountErasureWorker.ts`; the CDK grant pattern already used for the archive bucket in the stack.
 - **Test scenarios:**
     - A media object written under `recipes/{owner}/…/photos/{uuid}` for a _recently-completed_ owner is
       deleted on the next sweeper run. (Covers R1.)
@@ -227,9 +227,9 @@ flowchart TD
 - **Requirements:** R2
 - **Dependencies:** none
 - **Files:**
-    - `packages/services/recipe-workers/src/handlers/account-erasure-worker.ts` (`processRecord` — add a
+    - `packages/services/recipe-workers/src/handlers/accountErasureWorker.ts` (`processRecord` — add a
       presence check before `eraseRecipeRows`/`eraseRecipeObjects`)
-    - `packages/services/recipe-workers/src/handlers/__tests__/account-erasure-worker.test.ts` (extend)
+    - `packages/services/recipe-workers/src/handlers/__tests__/accountErasureWorker.test.ts` (extend)
 - **Approach:** Before the unconditional data work, look up whether any `account_erasure_jobs` row exists for
   the owner (any status). If none, log a clear warning (`misrouted erasure message: no local job`) and return
   without deleting — the message still acks (it is genuinely not this DB's job). Keep the existing
@@ -237,7 +237,7 @@ flowchart TD
   comment already names) so a future reader does not "simplify" it away.
 - **Execution note:** Test-first (the no-job no-op path does not exist in the suite today).
 - **Patterns to follow:** the existing `claimErasureJob` DAL access; the stack's own wrong-DB hazard comment
-  (`recipe-workers-stack.ts:186-189`) as the rationale.
+  (`RecipeWorkersStack.ts:186-189`) as the rationale.
 - **Test scenarios:**
     - A message for an owner with NO row in this DB → no `DELETE` issued, warning logged, message acked.
     - A message for an owner with a `queued` row → erasure runs (unchanged happy path).
@@ -253,9 +253,9 @@ flowchart TD
 - **Requirements:** R3
 - **Dependencies:** none
 - **Files:**
-    - `packages/services/recipe-workers/src/handlers/account-erasure-worker.ts` (`parseErasureMessage` /
+    - `packages/services/recipe-workers/src/handlers/accountErasureWorker.ts` (`parseErasureMessage` /
       `isValidOwnerId` — replace presence-only check with a strict ULID match)
-    - `packages/services/recipe-workers/src/handlers/__tests__/account-erasure-worker.test.ts` (extend)
+    - `packages/services/recipe-workers/src/handlers/__tests__/accountErasureWorker.test.ts` (extend)
 - **Approach:** Tighten `isValidOwnerId` to a strict ULID (Crockford base32, 26 chars) test. Prefer a shared
   ULID validator if one already exists in `@kitchensink/recipe-core` (check before hand-rolling — library-
   first). On failure, throw the existing `InvalidErasureMessageError` so the message routes to the DLQ rather
@@ -309,8 +309,8 @@ flowchart TD
 - **Requirements:** (hardening; no new R)
 - **Dependencies:** U2 (touches the same claim path)
 - **Files:**
-    - `packages/services/recipe-workers/src/handlers/account-erasure-worker.ts` (claim/attempts increment)
-    - `packages/services/recipe-workers/src/handlers/erasure-sweeper.ts` (give-up decision)
+    - `packages/services/recipe-workers/src/handlers/accountErasureWorker.ts` (claim/attempts increment)
+    - `packages/services/recipe-workers/src/handlers/erasureSweeper.ts` (give-up decision)
     - respective `__tests__`
 - **Approach:** Either carry a `jobId`/dispatch-nonce in the message and only increment when it matches the
   currently-active job, or key the sweeper's give-up decision off elapsed time / DLQ evidence rather than a
@@ -323,11 +323,11 @@ flowchart TD
 
 #### U6. Cleanup — correct the stale "owed" comment
 
-- **Goal:** `version-archive-worker.ts:153` still says the orphan-reconciliation sweep "does not yet exist and
-  is owed" — but `erasure-orphan-sweeper.ts` now exists. Fix the comment so it does not mislead.
+- **Goal:** `versionArchiveWorker.ts:153` still says the orphan-reconciliation sweep "does not yet exist and
+  is owed" — but `erasureOrphanSweeper.ts` now exists. Fix the comment so it does not mislead.
 - **Requirements:** (docs hygiene)
 - **Dependencies:** U1 (the media reconciliation makes the sweep genuinely complete across both buckets)
-- **Files:** `packages/services/recipe-workers/src/handlers/version-archive-worker.ts`
+- **Files:** `packages/services/recipe-workers/src/handlers/versionArchiveWorker.ts`
 - **Approach:** Update the comment to point at the now-existing orphan sweeper and its (post-U1) two-bucket
   coverage.
 - **Test expectation:** none — comment-only change, no behavior.

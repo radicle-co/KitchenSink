@@ -36,7 +36,23 @@ import {
 } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipes: vi.fn(),
+    // U33 — the create screen now composes the real photo surface (a pick lands in the draft and flushes
+    // once the recipe has an id), so its hooks must exist even though this suite never picks a file.
+    useRecipePhotos: () => ({ data: [], isLoading: false, isError: false }),
+    useCreatePhotoUploadUrl: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
+    useConfirmPhotoUpload: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
+    useDeleteRecipePhoto: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
+    useReorderRecipePhotos: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
+    // Plan U9 — the parse surfaces the dial's second destination opens. Inert defaults: this suite drives
+    // NAVIGATION to and from those screens, never a parse job, so the create never fires and the poll stays
+    // disabled on an empty id.
+    useCreateParseJob: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
+    useParseJob: () => ({ data: undefined, error: undefined, fetchStatus: 'idle', isLoading: false }),
+    useRetryParseJob: () => ({ mutate: () => undefined, isPending: false, error: undefined }),
+    useEditParseJobLine: () => ({ mutate: () => undefined, isPending: false, error: undefined, variables: undefined }),
     useRecipe: vi.fn(),
     useDeleteRecipe: vi.fn(),
     useSetRecipeVisibility: vi.fn(),
@@ -71,6 +87,15 @@ vi.mock('../../src/hooks/useUserProfile.js', () => ({
 vi.mock('react-native-safe-area-context', () => ({
     useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
+}));
+
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
 }));
 
 const useRecipesMock = vi.mocked(useRecipes);
@@ -178,13 +203,48 @@ describe('RecipesScreen — navigation', () => {
         expect(screen.queryByText('Bright and zesty.')).toBeNull();
     });
 
-    it('opens the create screen from the list create action', () => {
+    it('opens the create screen from the create dial’s ONE destination', () => {
+        // REWRITTEN for U34 (owner ruling 2026-08-25): the list's pinned FAB is now a menu TRIGGER, so the
+        // create screen is reached from "Create from Scratch". Asserting that opening the dial alone
+        // navigates NOWHERE is what stops this passing against a dial wired to nothing — the accepted +1 tap
+        // is precisely the behaviour under test.
         render(<RecipesScreen />);
 
         fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
 
+        expect(screen.queryByLabelText('Title')).toBeNull();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
+
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.getByText('Step 1 of 4')).toBeTruthy();
+    });
+
+    it('opens the PASTE screen from the dial’s second destination (plan U9)', () => {
+        render(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
+
+        expect(screen.getByText('Paste your ingredients')).toBeTruthy();
+    });
+
+    it('⛔ leaves the paste screen by its back control — a pushed surface has no chrome behind it', () => {
+        // THE REGRESSION GUARD FOR A REAL DEFECT. These two surfaces shipped with no back seam at all:
+        // `isTab({id:'parse'})` is false so no tab bar renders, `AppRoot` renders this screen bare, and iOS
+        // has no hardware back — so a cook who opened the paste screen could not leave it without creating
+        // a job. Every sibling pushed screen already takes this seam; these two did not, and no test in this
+        // file covered their navigation, which is why it shipped.
+        render(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
+        expect(screen.getByText('Paste your ingredients')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to recipes' }));
+
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+        expect(screen.queryByText('Paste your ingredients')).toBeNull();
     });
 
     it('switches to the discover tab', () => {

@@ -5,14 +5,14 @@
  * `runMigrations` path is exercised end-to-end by the deploy's migrate invocation (the ordered
  * `0001..NNNN_*.sql` set) and can gain an `.integration.test.ts` later.
  */
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 
-import { discoverMigrations, dropDatabase, ensureDatabaseExists, isValidRecipeDatabaseName } from '../handler.js';
+import { discoverMigrations, ensureDatabaseExists, handler, isValidRecipeDatabaseName } from '../handler.js';
 
 /** Fake pool: records SQL, and a `pg_database` probe returns `dbExists`. */
 function fakePool(dbExists = false): { pool: pg.Pool; sqls: string[] } {
@@ -25,6 +25,30 @@ function fakePool(dbExists = false): { pool: pg.Pool; sqls: string[] } {
     });
 
     return { pool: { query } as unknown as pg.Pool, sqls };
+}
+
+/** Scratch directories this file created, removed in `afterAll` so a FAILING test still cleans up. */
+const scratchDirectories: string[] = [];
+
+afterAll(() => {
+    for (const directory of scratchDirectories) {
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A throwaway directory, registered for removal when this file's suites finish.
+ *
+ * @param prefix - The `mkdtemp` prefix, so a directory that does outlive a run names the suite that made it.
+ * @returns The absolute path to the new directory.
+ * @sideEffect Creates a directory under the OS temp directory.
+ */
+function scratchDirectory(prefix: string): string {
+    const directory = mkdtempSync(join(tmpdir(), prefix));
+
+    scratchDirectories.push(directory);
+
+    return directory;
 }
 
 describe('isValidRecipeDatabaseName', () => {
@@ -48,7 +72,7 @@ describe('isValidRecipeDatabaseName', () => {
 
 describe('discoverMigrations', () => {
     it('discovers ordered .sql files by filename, ignoring non-sql', () => {
-        const dir = mkdtempSync(join(tmpdir(), 'recipe-mig-'));
+        const dir = scratchDirectory('recipe-mig-');
         writeFileSync(join(dir, '0002_second.sql'), 'SELECT 1;');
         writeFileSync(join(dir, '0001_first.sql'), 'SELECT 1;');
         writeFileSync(join(dir, 'notes.txt'), 'ignore me');
@@ -92,27 +116,26 @@ describe('ensureDatabaseExists', () => {
     });
 });
 
-describe('dropDatabase', () => {
-    it('never drops the base database', async () => {
-        const { pool, sqls } = fakePool(true);
-        await expect(dropDatabase({ maintenancePool: pool, databaseName: 'kitchensink_recipes' })).resolves.toBe(
-            'skipped-base',
+describe('handler — the event is a migrate and nothing else', () => {
+    it('⛔ refuses a { action: "drop" } event instead of silently migrating (the drop door is gone)', async () => {
+        // The per-PR reaper (ADR-0031) is the one drop authority; a stale caller still sending `drop` must
+        // fail loudly, not have its payload's extra key ignored and a migration run in its place.
+        await expect(handler({ action: 'drop', expectManifestSha: 'a'.repeat(64) })).rejects.toThrow(
+            /malformed event/u,
         );
-        expect(sqls.join('\n')).not.toMatch(/DROP DATABASE/);
     });
 
-    it('drops an existing per-PR database with FORCE', async () => {
-        const { pool, sqls } = fakePool(true);
-        await expect(dropDatabase({ maintenancePool: pool, databaseName: 'kitchensink_recipes_pr_73' })).resolves.toBe(
-            'dropped',
-        );
-        expect(sqls.join('\n')).toMatch(/DROP DATABASE IF EXISTS "kitchensink_recipes_pr_73" WITH \(FORCE\)/);
+    it('refuses a migrate with no manifest expectation (ADR-0035)', async () => {
+        await expect(handler({})).rejects.toThrow(/expectManifestSha/u);
     });
+});
 
-    it('is a no-op when the per-PR database is absent', async () => {
-        const { pool } = fakePool(false);
-        await expect(dropDatabase({ maintenancePool: pool, databaseName: 'kitchensink_recipes_pr_73' })).resolves.toBe(
-            'absent',
-        );
+describe('ensureDatabaseExists — the per-PR database belongs to the OWNER', () => {
+    it('creates it OWNER recipe_owner, never owned by the migrator that runs the CREATE', async () => {
+        const { pool, sqls } = fakePool(false);
+
+        await ensureDatabaseExists({ maintenancePool: pool, databaseName: 'kitchensink_recipes_pr_73' });
+
+        expect(sqls).toContain('CREATE DATABASE "kitchensink_recipes_pr_73" OWNER "recipe_owner"');
     });
 });

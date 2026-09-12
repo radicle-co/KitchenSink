@@ -52,7 +52,7 @@ appId: io.commise.mobile
 - tapOn: 'Search public recipes'
 - inputText: 'Risotto'
 - extendedWaitUntil:
-      visible: 'Herb Risotto'
+      visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 - assertNotVisible: 'Trending'
 

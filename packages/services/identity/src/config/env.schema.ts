@@ -16,12 +16,14 @@ const DatabaseConfigSchema = z.union([
     z.object({
         DATABASE_URL: z.string().url(),
     }),
+    // The deployed form: RDS IAM, so no password. `DB_USERNAME` defaults to `identity_service` in the pool
+    // config; `DB_PASSWORD` is read only when `STAGE=local` (docker Postgres) — see `@kitchensink/rds-iam-auth`.
     z.object({
         DB_HOST: z.string(),
         DB_PORT: z.string().transform(Number).pipe(z.number().int().positive()),
         DB_NAME: z.string(),
-        DB_USERNAME: z.string(),
-        DB_PASSWORD: z.string(),
+        DB_USERNAME: z.string().optional(),
+        DB_PASSWORD: z.string().optional(),
     }),
 ]);
 
@@ -60,7 +62,16 @@ const ClerkConfigSchema = z.object({
 // and unused locally). Every other STAGE is a deployed environment that must verify real tokens.
 const NON_DEPLOYED_STAGES = new Set(['dev', 'test', 'local']);
 
-function isDeployedStage(stage: string): boolean {
+/**
+ * Whether `stage` names a DEPLOYED environment (`prod`, `sandbox`, `pr-{N}`, …) as opposed to one of the
+ * local/test sentinels. Exported because three security-relevant decisions must agree on it — this schema's
+ * "Clerk config is required" refinement, `config/cors.ts`'s fail-closed branch, and `observability/authTrace.ts`'s
+ * sink selection. Each used to carry its own copy of the set. Pure.
+ *
+ * @param stage - The raw `STAGE` value.
+ * @returns `true` unless `stage` is one of `dev` / `test` / `local`.
+ */
+export function isDeployedStage(stage: string): boolean {
     return !NON_DEPLOYED_STAGES.has(stage);
 }
 

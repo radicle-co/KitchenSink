@@ -51,9 +51,6 @@
                     "appleSignIn": false
                 }
             ]
-        ],
-        "experiments": {
-            "typedRoutes": true
-        }
+        ]
     }
 }

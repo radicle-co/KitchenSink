@@ -4,8 +4,10 @@
  * Owns three responsibilities (data-model.md `ingredients` section):
  *   1. **Fuzzy + full-text search** — a single ranked read combining the `pg_trgm` GIN index
  *      (`idx_ingredients_name_trgm`, typo/substring tolerant) with the tsvector FTS index
- *      (`idx_ingredients_search_vector`). Score is `GREATEST(ts_rank, similarity(name))` so a strong
- *      lexeme match OR a strong fuzzy/typo match both rank a row up; ties break on name.
+ *      (`idx_ingredients_search_vector`). Since plan U5/U6 the WHICH is chosen by the pure
+ *      {@link selectIngredientMatchStrategy} and the ORDER by the Scoring Policy in
+ *      `ingredientRelevance.ts` — a tier ladder layered above `word_similarity`, which is what breaks the
+ *      1.00/1.00 tie that let `Carob flour` win `flour` alphabetically. See {@link IngredientsDal.search}.
  *   2. **Creation** — freeform (user-entered) rows (`is_user_entered = true`, no `food_id`) and
  *      food-service-backed rows (`food_id` + `food_resolution_status`, `is_user_entered = false`).
  *      There is **no** DB trigger maintaining `ingredients.search_vector` (unlike `recipes`), so the DAL
@@ -14,18 +16,29 @@
  *      case-insensitive `name` match against an existing freeform row — so the shared catalog does not
  *      bloat with duplicates.
  *
- * The `ingredients` table is a **shared catalog** with no `owner_id` (per-user, per-recipe overrides
- * live on `recipe_ingredients`), so no ownership predicate is applied here. Rows are returned already
- * mapped to the canonical `@kitchensink/recipe-core` `Ingredient` domain shape (numeric strings →
- * numbers, `null` → `undefined`, `created_at` → ISO-8601), never leaking the raw `search_vector`.
+ * The `ingredients` table is a **shared catalog** (per-user, per-recipe overrides live on
+ * `recipe_ingredients`). ⚠️ CORRECTED — this used to add "with no `owner_id`, so no ownership predicate is
+ * applied here". Migration `0040_private_food_scoping.sql` (plan U11 / R20) added `food_owner_id`, the
+ * admitting AUTHOR's ULID when the row points at that author's PRIVATE authored food, and
+ * {@link IngredientsDal.search} now wraps every retrieval branch in
+ * `food_owner_id IS NULL OR food_owner_id = :caller`. A catalog row is still ownerless; a row standing for
+ * somebody's private food is visible only to them.
+ *
+ * Rows are returned already mapped to the canonical `@kitchensink/recipe-core` `Ingredient` domain shape
+ * (`null` → `undefined`, `created_at` → ISO-8601), never leaking the raw `search_vector`. ⚠️ There is no
+ * numeric-string conversion left: migration 0019 dropped every numeric column this once described, and
+ * `RETURNING` carries none.
  *
  * @implements FR-007 FR-007a
  */
 import { sql } from 'drizzle-orm';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
+import { foodResolutionStatusSchema, type CatalogFoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/database.module.js';
+import type { CanonicalIngredientName } from '../domain/ingredientName.js';
+import { selectIngredientMatchStrategy } from '../selectIngredientMatchStrategy.js';
+import { localTieredSortKey } from './ingredientRelevance.js';
 
 /** Default number of search hits returned when the caller does not specify a limit. */
 export const DEFAULT_SEARCH_LIMIT = 10;
@@ -33,40 +46,72 @@ export const DEFAULT_SEARCH_LIMIT = 10;
 /** Hard ceiling on search hits (mirrors the OpenAPI `limit` maximum). */
 export const MAX_SEARCH_LIMIT = 50;
 
-/** The explicit column projection returned by every DAL read/write (never the `search_vector`). */
-const RETURNING = sql`id, name, food_id, food_resolution_status, is_user_entered,
-    calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, portions, created_at`;
-
-/** Nutrition-per-100g overrides applied when a food resolves to its golden record. */
-export interface IngredientNutrition {
-    /** Calories per 100g. */
-    readonly caloriesPer100g?: number;
-    /** Protein grams per 100g. */
-    readonly proteinGPer100g?: number;
-    /** Carbohydrate grams per 100g. */
-    readonly carbsGPer100g?: number;
-    /** Fat grams per 100g. */
-    readonly fatGPer100g?: number;
-}
+/**
+ * The explicit column projection returned by every DAL read/write (never the `search_vector`).
+ *
+ * ⛔ NO NUTRITION COLUMNS (KTD-3 / plan U10, migration 0019). They were copies of the food service's data
+ * taken at resolution time, with no invalidation — so the same recipe could report different calories from
+ * different rows. This table holds the REFERENCE (`food_id`) and nothing derived from it; nutrition is read
+ * live through `FoodNutritionGateway`. Adding one back re-creates the second source of truth U10 deleted.
+ */
+const RETURNING = sql`id, name, food_id, food_resolution_status, is_user_entered, created_at`;
 
 /** Input to {@link IngredientsDal.createFoodBacked}. */
 export interface CreateFoodBackedInput {
     /** Display name of the ingredient. */
-    readonly name: string;
+    readonly name: CanonicalIngredientName;
     /** Opaque food-service internal id (ULID) backing this ingredient. */
     readonly foodId: string;
-    /** The async resolution status returned by the food service. */
-    readonly foodResolutionStatus: FoodResolutionStatus;
+    /**
+     * The async resolution status returned by the food service.
+     *
+     * ⛔ The CATALOG subset. `NEEDS_REVIEW` is a per-RECIPE-LINE verification verdict and migration 0023
+     * forbids writing one to this shared, ownerless row — the type is what makes that unwritable.
+     */
+    readonly foodResolutionStatus: CatalogFoodResolutionStatus;
+    /** U5: the FNDDS consumption-prior fraction captured from food's golden record. Omit when none. */
+    readonly priorFraction?: number;
+    /** U11 (0040): the admitting AUTHOR's ULID when the food is their PRIVATE authored one. Omit otherwise. */
+    readonly foodOwnerId?: string;
 }
 
 /** Input to {@link IngredientsDal.updateResolution}. */
 export interface UpdateResolutionInput {
-    /** The new resolution status. */
-    readonly foodResolutionStatus: FoodResolutionStatus;
-    /** Golden-record nutrition to persist (only when `RESOLVED`); omitted values are left untouched. */
-    readonly nutrition?: IngredientNutrition;
-    /** Household-measure portions to persist (only when `RESOLVED`); omitted leaves the column untouched. */
-    readonly portions?: IngredientPortion[];
+    /**
+     * ⛔ THE STATUS THIS CALLER OBSERVED, and the write's precondition — REQUIRED, never optional.
+     *
+     * The write is a compare-and-set: it lands only while the row still carries this status. Two refreshes
+     * of one PENDING row both read PENDING; the food service answers the second first (RESOLVED, with the
+     * catalog name), then the delayed answer to the first arrives still saying PENDING — and an
+     * unconditional `UPDATE` regressed the row, name and all, with nothing downstream able to tell.
+     *
+     * It is required rather than defaulted because a default is an ASSUMPTION about a row the caller may
+     * never have read: making it required turned every call site into a compile error, which is how each
+     * one came to state the status it actually saw. `null` means "the row is unlinked" (U12's reset nulls
+     * the column) and matches only a NULL — the predicate is `IS NOT DISTINCT FROM`, not `=`.
+     */
+    readonly expectedStatus: CatalogFoodResolutionStatus | null;
+    /** The new resolution status. ⛔ The CATALOG subset — never a gate verdict (see above / 0023). */
+    readonly foodResolutionStatus: CatalogFoodResolutionStatus;
+    /**
+     * The golden record's canonical display name, to ADOPT as this shared catalog row's name (plan U3).
+     *
+     * Omitted means "leave the name exactly as it is" — which is the answer whenever the food did not resolve
+     * to a record carrying a usable name, since `ingredients.name` is `NOT NULL` and the caller's own text is
+     * the only label the row has. The decision is not made here; it is made once, by `canonicalNameFrom`.
+     */
+    readonly canonicalName?: CanonicalIngredientName;
+    /**
+     * U5: the captured consumption prior. Omit to LEAVE the stored value — an absent prior on one refresh
+     * must not clobber a fraction an earlier refresh captured.
+     */
+    readonly priorFraction?: number;
+    /**
+     * U11 (0040): the re-captured privacy fact. `null` CLEARS it (promotion/catalog — the refresh KNOWS
+     * the current state, unlike the prior above), a ULID sets it, and `undefined` leaves it untouched
+     * (status-only refresh paths that never saw the food body).
+     */
+    readonly foodOwnerId?: string | null;
 }
 
 /**
@@ -81,23 +126,23 @@ interface RawIngredientRow {
     food_id: string | null;
     food_resolution_status: string | null;
     is_user_entered: boolean;
-    calories_per_100g: string | null;
-    protein_g_per_100g: string | null;
-    carbs_g_per_100g: string | null;
-    fat_g_per_100g: string | null;
-    // `jsonb` — the pg driver already parses it into JS (an array of portions), or null.
-    portions: IngredientPortion[] | null;
-    created_at: Date | string;
-}
 
-/** Convert a nullable numeric column (pg returns `numeric` as a string) to a number or `undefined`. */
-function numberOrUndefined(value: string | null): number | undefined {
-    return value === null ? undefined : Number(value);
+    created_at: Date | string;
 }
 
 /** Normalize a `timestamptz` (a `Date` from pg, or an ISO string in tests) to an ISO-8601 string. */
 function toIsoString(value: Date | string): string {
     return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+/**
+ * The `foodResolutionStatus` field for a raw column value: present when the column holds one of the five
+ * values food-service can report, absent otherwise (including `NULL`). Pure.
+ */
+function toCatalogStatus(value: string | null): { foodResolutionStatus?: CatalogFoodResolutionStatus } {
+    const parsed = value === null ? undefined : foodResolutionStatusSchema.safeParse(value);
+
+    return parsed?.success === true ? { foodResolutionStatus: parsed.data } : {};
 }
 
 /** Map a raw `ingredients` row to the canonical `Ingredient` domain shape. Pure. */
@@ -106,15 +151,19 @@ export function rowToIngredient(row: RawIngredientRow): Ingredient {
         id: row.id,
         name: row.name,
         foodId: row.food_id ?? undefined,
-        foodResolutionStatus:
-            row.food_resolution_status === null ? undefined : (row.food_resolution_status as FoodResolutionStatus),
+        // ⛔ PARSED, not cast. `ingredients.food_resolution_status` is a `text` column that Drizzle types as
+        // a bare `string`, so an `as` here asserted a union NOTHING IN THIS PROCESS guarantees; a value this
+        // build cannot interpret would have flowed straight onto the wire. An unrecognised value now reads
+        // as ABSENT, which every consumer already handles (a freeform ingredient carries no status at all).
+        //
+        // ⚠️ CORRECTED — this used to justify itself with "a plain `text` column with NO CHECK constraint".
+        // `0001_initial.sql` DOES carry `ingredients_food_resolution_status_check` over exactly the five
+        // catalog values, mirrored in the drizzle schema, and no migration drops it — so the database is in
+        // fact what forbids the mistaken `NEEDS_REVIEW` 0023 rules out, not this parse. The parse still
+        // earns its place: the CHECK is invisible to `tsc`, and widening it is a migration this build would
+        // not learn about.
+        ...toCatalogStatus(row.food_resolution_status),
         isUserEntered: row.is_user_entered,
-        caloriesPer100g: numberOrUndefined(row.calories_per_100g),
-        proteinGPer100g: numberOrUndefined(row.protein_g_per_100g),
-        carbsGPer100g: numberOrUndefined(row.carbs_g_per_100g),
-        fatGPer100g: numberOrUndefined(row.fat_g_per_100g),
-        // Only surface portions when present + non-empty (a resolved food with usable household measures).
-        ...(Array.isArray(row.portions) && row.portions.length > 0 ? { portions: row.portions } : {}),
         createdAt: toIsoString(row.created_at),
     };
 }
@@ -132,37 +181,144 @@ export class IngredientsDal {
     public constructor(private readonly db: RecipeDrizzle) {}
 
     /**
-     * Ranked fuzzy + full-text search over the shared ingredient catalog. A row matches when EITHER the
-     * tsvector FTS path hits (`search_vector @@ plainto_tsquery`, word-order-independent) OR the
-     * `pg_trgm` fuzzy fallback hits (`query <% name` word-similarity, or a substring `ILIKE`). Word
-     * similarity (not full-string `similarity`/`%`) is used so a short typo query still matches a long
-     * multi-word name — e.g. `'flor'` vs `'All-purpose flour'` scores 0.60 by word similarity but only
-     * 0.15 full-string, which would fall below the 0.3 `%` threshold. Ranked by
-     * `GREATEST(ts_rank, word_similarity(query, name))` so both strong lexeme relevance and strong typo
-     * tolerance float a row up; ties break on name.
+     * Which of the given food ids ANY live recipe still references (plan U18's erasure protocol — the
+     * worker's cross-service check). One `= ANY` read; the recipe leg of the fan-out has already run, so
+     * survivors are other users' recipes and the erased owner's KEPT (pseudonymized public) ones.
+     *
+     * @sideEffect Reads three tables.
+     */
+    public async referencedFoodIdsAmong(foodIds: readonly string[]): Promise<string[]> {
+        if (foodIds.length === 0) {
+            return [];
+        }
+
+        const result = await this.db.execute<{ food_id: string }>(sql`
+            SELECT DISTINCT i.food_id
+              FROM recipes r
+              JOIN recipe_ingredients ri ON ri.recipe_id = r.id
+              JOIN ingredients i ON i.id = ri.ingredient_id
+             WHERE i.food_id = ANY(${sql.param([...foodIds])})
+               AND r.deleted_at IS NULL
+        `);
+
+        return result.rows.map((row) => row.food_id);
+    }
+
+    /**
+     * Every LIVE recipe referencing the given food, with its owner (plan U18, R22) — the cross-service
+     * reference check's data half. One grouped read over the `recipes ← recipe_ingredients → ingredients`
+     * join; soft-deleted recipes are out (their reference dies with them).
+     *
+     * @param foodId - The opaque food id.
+     * @returns One row per referencing recipe. @sideEffect Reads three tables.
+     */
+    public async recipesReferencingFood(foodId: string): Promise<{ recipeId: string; ownerId: string }[]> {
+        const result = await this.db.execute<{ recipe_id: string; owner_id: string }>(sql`
+            SELECT r.id AS recipe_id, r.owner_id
+              FROM recipes r
+              JOIN recipe_ingredients ri ON ri.recipe_id = r.id
+              JOIN ingredients i ON i.id = ri.ingredient_id
+             WHERE i.food_id = ${foodId}
+               AND r.deleted_at IS NULL
+             GROUP BY r.id, r.owner_id
+        `);
+
+        return result.rows.map((row) => ({ recipeId: row.recipe_id, ownerId: row.owner_id }));
+    }
+
+    /**
+     * Ranked fuzzy + full-text search over the shared ingredient catalog.
+     *
+     * DESIGN PATTERN: **Strategy**, chosen by the pure, database-free
+     * {@link selectIngredientMatchStrategy} and dispatched exhaustively below — the switch over the union
+     * tag IS the Visitor — plus the **Scoring Policy** in `ingredientRelevance.ts`, which owns the sort key.
+     * Neither decision is made here; this method binds them to a statement.
+     *
+     * **What matches (retrieval).** The pre-existing predicate, unchanged: the tsvector FTS path
+     * (`search_vector @@ plainto_tsquery`, word-order-independent), OR the `pg_trgm` fuzzy fallback
+     * (`query <% name` word-similarity, or a substring `ILIKE`). A MULTI-TOKEN query additionally
+     * retrieves rows carrying its HEAD TERM (plan U6) — see below for why that is not optional.
+     *
+     * **What wins (ranking).** `word_similarity`, not full-string `similarity`/`%`, so a short typo query
+     * still matches a long multi-word name: `'flor'` vs `'All-purpose flour'` scores 0.600 by word
+     * similarity and only 0.15 full-string, which falls below the 0.3 `%` threshold (KTD-1). Since plan U5
+     * that metric is the BASE of a tiered sort key rather than the whole of it.
+     *
+     * ⛔ **The tie the ladder exists to break.** Measured on `postgres:16`, 2026-08-22:
+     * `word_similarity('flour', 'Flour')` and `word_similarity('flour', 'Carob flour')` BOTH return 1.00 —
+     * word similarity scores the best matching word extent and does not penalise extra words — so
+     * `name ASC` decided, and `'Carob flour' < 'Flour'`. The attractor won by the alphabet, on the surface
+     * that decided 92.8% of the import's lines. `ingredientRelevance.ts` documents the ladder.
+     *
+     * ⛔ **Widening retrieval and tiering the sort key ship TOGETHER.** `plainto_tsquery` is a conjunction
+     * of every lexeme, so `sifted flour` asks for `sift & flour` and never retrieves `Flour, wheat,
+     * all-purpose` at all — that is the shape of the import's 268 unmatched lines. Retrieving on the head
+     * term alone fixes it, but only because the ladder then puts the extra candidates on the rung they
+     * deserve; against the OLD sort key the same widening would just add noise to the page.
+     *
+     * ⚠️ **What the widening costs, measured** — 50,000 local rows, p95 over 20 runs, 2026-08-22:
+     *
+     * | query                | matched before | matched after | before  | after   |
+     * | -------------------- | -------------- | ------------- | ------- | ------- |
+     * | `sifted flour`       | **0**          | 5,000         |  3.3ms  | 33.4ms  |
+     * | `brown sugar`        | **0**          | 5,000         |  2.0ms  | 19.5ms  |
+     * | `organic whole milk` | **0**          | 5,000         |  1.0ms  | 22.2ms  |
+     * | `raw chicken breast` | 5,000          | 5,000         | 28.9ms  | 35.6ms  |
+     *
+     * Read the first three rows carefully: the "before" numbers are the cost of returning NOTHING. Only the
+     * last row compares like with like, and there the whole ladder costs +6.7ms. The 5,000-row match sets
+     * are a deliberately PESSIMISTIC upper bound — the fixture draws head terms from a ten-word vocabulary,
+     * so every head term matches a tenth of the table, where a real one is far more selective. This surface
+     * carries no SC-007-style budget of its own (that criterion is food-service's), and the typeahead that
+     * drives it is debounced at 300ms.
      *
      * @param query - The (already trimmed) user query. An empty query returns no rows.
+     * @param callerId - The requesting cook, or `undefined`. Scopes the privacy predicate (R20/0040): a
+     *   private authored food's row is retrieved only for its own author.
      * @param limit - Max hits (clamped to `[1, MAX_SEARCH_LIMIT]`; defaults to `DEFAULT_SEARCH_LIMIT`).
      * @returns Ranked ingredient hits, or an empty array when nothing matches.
      * @sideEffect Reads `ingredients`.
      */
-    public async search(query: string, limit?: number): Promise<Ingredient[]> {
-        if (query.length === 0) {
+    public async search(query: string, callerId?: string, limit?: number): Promise<Ingredient[]> {
+        const strategy = selectIngredientMatchStrategy(query);
+
+        if (strategy.kind === 'none') {
             return [];
         }
 
         const pattern = `%${query}%`;
+        // U5: the CAPTURED consumption prior — the recipe-local mirror of food's `food_popularity` join
+        // (ADR-0006 forbids reading that table across the service boundary; 0038 captures the fraction at
+        // ingredient-cache time). COALESCE: NULL means "no prior", which ranks exactly as before.
+        const score = localTieredSortKey(
+            strategy,
+            sql`word_similarity(${query}, ingredients.name)`,
+            sql`COALESCE(prior_fraction, 0::float8)`,
+        );
+        // The head-term branch, or nothing. A single-token query's predicate stays byte-identical to the
+        // pre-U6 one — `plainto_tsquery` on one lexeme already IS the head-term retrieval, so OR'ing it in
+        // would be a duplicate branch for the planner to cost.
+        const headRetrieval =
+            strategy.kind === 'multiToken'
+                ? sql` OR search_vector @@ plainto_tsquery('english', ${strategy.headTerm})`
+                : sql``;
+
+        // ⚠️ The score is PROJECTED and the `ORDER BY` references its alias, exactly as food-service's
+        // statement does — so the ranking has ONE authoritative definition and cannot drift from the order
+        // rows come back in. It is not part of the `RETURNING` projection and never reaches the domain shape:
+        // `rowToIngredient` reads named fields only, and `Ingredient` carries no score.
         const result = await this.db.execute<RawIngredientRow>(sql`
-            SELECT ${RETURNING}
+            SELECT ${RETURNING}, ${score} AS score
             FROM ingredients
-            WHERE search_vector @@ plainto_tsquery('english', ${query})
-               OR ${query} <% name
-               OR name ILIKE ${pattern}
-            ORDER BY GREATEST(
-                         ts_rank(search_vector, plainto_tsquery('english', ${query})),
-                         word_similarity(${query}, name)
-                     ) DESC,
-                     name ASC
+            WHERE (food_owner_id IS NULL OR food_owner_id = ${callerId ?? null})
+              -- ⛔ R20 (0040, plan U11): a private authored food's row is visible ONLY to its author. The
+              -- privacy predicate wraps ALL retrieval branches — a new branch added below is scoped
+              -- automatically rather than remembered.
+              AND (search_vector @@ plainto_tsquery('english', ${query})
+               OR ${query} <% ingredients.name
+               OR ingredients.name ILIKE ${pattern}${headRetrieval})
+            ORDER BY score DESC,
+                     ingredients.name ASC
             LIMIT ${clampLimit(limit)}
         `);
 
@@ -185,11 +341,16 @@ export class IngredientsDal {
     }
 
     /**
-     * Batch-load ingredients by id (e.g. to gather a recipe's catalog nutrition in one query for the
-     * per-serving aggregation). Returns only the rows that exist, in no guaranteed order.
+     * Batch-load ingredients by id (e.g. to gather a recipe's `food_id` references in one query, which the
+     * per-serving aggregation then prices through `FoodNutritionGateway`). Returns only the rows that exist,
+     * in no guaranteed order.
+     *
+     * ⚠️ CORRECTED — this said the read gathered "a recipe's catalog nutrition" and returned "per-100g
+     * nutrition included when resolved". It cannot: `RETURNING` carries no nutrition column, because
+     * migration 0019 dropped them all (see that constant's own note).
      *
      * @param ids - The ingredient ids to load (deduplicated by the caller if desired).
-     * @returns The matching ingredients (per-100g nutrition included when resolved).
+     * @returns The matching ingredients — id, name, `food_id`, status, `is_user_entered`, `created_at`.
      * @sideEffect Reads `ingredients`.
      */
     public async findByIds(ids: readonly string[]): Promise<Ingredient[]> {
@@ -205,6 +366,60 @@ export class IngredientsDal {
         );
 
         return result.rows.map(rowToIngredient);
+    }
+
+    /**
+     * U11 (0040): of the given ingredient ids, the ones whose backing food is someone's PRIVATE authored
+     * one (`food_owner_id IS NOT NULL`).
+     *
+     * ⛔ A SET, not the owner ids: the verification producer needs only the boolean ("is this line's food
+     * private?") to stamp `privateFood` on the message, and handing it the owner ULIDs would put a user
+     * id in a code path that has no business holding one (ADR-0027's counter-not-predicate posture).
+     *
+     * @param ids - The ingredient ids to check (empty is answered without a query).
+     * @returns The subset of `ids` backed by a private food.
+     * @sideEffect Reads `ingredients`.
+     */
+    public async privateFoodIngredientIds(ids: readonly string[]): Promise<ReadonlySet<string>> {
+        if (ids.length === 0) {
+            return new Set<string>();
+        }
+
+        const result = await this.db.execute<{ [column: string]: unknown; id: string }>(
+            sql`SELECT id FROM ingredients WHERE food_owner_id IS NOT NULL AND id IN (${sql.join(
+                ids.map((id) => sql`${id}`),
+                sql`, `,
+            )})`,
+        );
+
+        return new Set(result.rows.map((row) => row.id));
+    }
+
+    /**
+     * U13 (R20): the PRIVATE-food OWNER for each of the given ingredient ids that has one.
+     *
+     * The sibling of {@link IngredientsDal.privateFoodIngredientIds}, answering the one question that read
+     * deliberately does not: WHO owns the food — needed by the viewer-scoped line overlay, which must tell
+     * the AUTHOR (full status) apart from a stranger (`RESOLVED_UNAVAILABLE`). Still never on the wire:
+     * the projection compares it to the viewer and emits only the status.
+     *
+     * @param ids - The ingredient ids to check (empty is answered without a query).
+     * @returns owner ULID by ingredient id, for the private-food subset only.
+     * @sideEffect Reads `ingredients`.
+     */
+    public async privateFoodOwnersByIngredientIds(ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
+        if (ids.length === 0) {
+            return new Map<string, string>();
+        }
+
+        const result = await this.db.execute<{ [column: string]: unknown; id: string; food_owner_id: string }>(
+            sql`SELECT id, food_owner_id FROM ingredients WHERE food_owner_id IS NOT NULL AND id IN (${sql.join(
+                ids.map((id) => sql`${id}`),
+                sql`, `,
+            )})`,
+        );
+
+        return new Map(result.rows.map((row) => [row.id, row.food_owner_id]));
     }
 
     /**
@@ -231,7 +446,8 @@ export class IngredientsDal {
      * orders them by catalog relevance).
      *
      * @param foodIds - The opaque food-service ids to look up (deduplicated by the caller if desired).
-     * @returns The matching food-backed ingredients (with any nutrition they already carry).
+     * @returns The matching food-backed ingredients. ⚠️ No nutrition — this said "with any nutrition they
+     *   already carry", and there is none to carry since migration 0019.
      * @sideEffect Reads `ingredients`.
      */
     public async findByFoodIds(foodIds: readonly string[]): Promise<Ingredient[]> {
@@ -276,7 +492,7 @@ export class IngredientsDal {
      * @returns The created or pre-existing freeform ingredient.
      * @sideEffect Reads, then conditionally inserts into `ingredients`.
      */
-    public async createFreeform(name: string): Promise<Ingredient> {
+    public async createFreeform(name: CanonicalIngredientName): Promise<Ingredient> {
         const existing = await this.findFreeformByName(name);
 
         if (existing) {
@@ -327,9 +543,11 @@ export class IngredientsDal {
         // food_id between our SELECT and INSERT, the unique index (0006) rejects our row and RETURNING is
         // empty — we then re-read the winner's row instead of creating a duplicate catalog entry.
         const result = await this.db.execute<RawIngredientRow>(sql`
-            INSERT INTO ingredients (name, food_id, food_resolution_status, is_user_entered, search_vector)
+            INSERT INTO ingredients (name, food_id, food_resolution_status, is_user_entered, search_vector,
+                                     prior_fraction, food_owner_id)
             VALUES (${input.name}, ${input.foodId}, ${input.foodResolutionStatus}, false,
-                    to_tsvector('english', ${input.name}))
+                    to_tsvector('english', ${input.name}), ${input.priorFraction ?? null},
+                    ${input.foodOwnerId ?? null})
             ON CONFLICT DO NOTHING
             RETURNING ${RETURNING}
         `);
@@ -352,32 +570,64 @@ export class IngredientsDal {
     }
 
     /**
-     * Update a food-backed ingredient's resolution status, and (when the food resolved) its per-100g
-     * nutrition. Nutrition values that are omitted are left untouched via `COALESCE`.
+     * Update a food-backed ingredient's resolution STATUS, and — when the food resolved to a golden record
+     * with a usable name — adopt that name as the shared catalog row's display name (plan U3).
+     *
+     * ⛔ It no longer persists nutrition (plan U10). It used to copy the golden record's per-100g values and
+     * portions into this table at resolution time, which is precisely the duplicate KTD-3 removes: a copy
+     * with no invalidation, so a food corrected upstream left every recipe quoting the old number forever.
+     * The status still lives here because it is about THIS ingredient's link to a food, not about the food.
+     *
+     * ⛔ **The rename RECOMPUTES `search_vector` in the SAME statement, and that is load-bearing.** There is
+     * no trigger maintaining `ingredients.search_vector` — `0001_initial.sql` creates exactly one and it is on
+     * `recipes` — so this DAL owns the vector on every write (see the file header). A plain `SET name` would
+     * leave the FTS index still spelling whatever prose the caller originally supplied, so the row would
+     * DISPLAY the golden name and be FOUND by text no user ever typed. `COALESCE(…::text, name)` is what makes
+     * an omitted `canonicalName` a true no-op on both columns rather than a blanking write; the explicit
+     * `::text` is required because a `null` parameter has no inferrable type inside `to_tsvector`. Note the
+     * vector is recomputed even in that no-op case, deliberately: it costs one expression and makes
+     * `search_vector = to_tsvector('english', name)` an invariant this statement RESTORES rather than merely
+     * preserves.
+     *
+     * ⚠️ `recipe_ingredients.ingredient_name` is deliberately NOT touched. That column is the denormalized
+     * display text of one line of one user's recipe — what the cook wrote — and is a different fact from the
+     * catalog's shared label.
+     *
+     * ⛔ **AND IT IS A COMPARE-AND-SET, not a blind write** (PR #91 review). The statement lands only while
+     * the row still carries {@link UpdateResolutionInput.expectedStatus} — the status the caller OBSERVED
+     * before it went and asked the food service. Two concurrent refreshes of one PENDING row both read
+     * PENDING; the newer answer (RESOLVED, with the catalog name) committed, and then the delayed older
+     * answer overwrote it back to PENDING, taking the name with it. `IS NOT DISTINCT FROM` rather than `=`
+     * because an unlinked row's status is NULL (U12's reset) and `= NULL` matches nothing, so a `=` spelling
+     * would make a reset row permanently un-relinkable. **Zero rows IS the answer**, not an error: the loser
+     * receives `undefined` and its caller re-reads, so it returns the winner's row rather than a stale one.
+     *
+     * ⚠️ The predicate guards the WHOLE `SET` list, which is the point — a mismatch must not land the name,
+     * the prior or the privacy fact either. `updateResolutionCas.integration.test.ts` pins all five columns.
      *
      * @param id - The `ingredients.id`.
-     * @param input - The new status and optional golden-record nutrition.
-     * @returns The updated ingredient, or `undefined` when no row exists.
+     * @param input - The observed status, the new resolution status, and optionally the name to adopt.
+     * @returns The updated ingredient, or `undefined` when no row exists OR the status moved since it was
+     *   observed. The two are deliberately one answer: both mean "this write does not apply", and the
+     *   caller's response to each is the same re-read.
      * @sideEffect Updates `ingredients`.
      */
     public async updateResolution(id: string, input: UpdateResolutionInput): Promise<Ingredient | undefined> {
-        const n = input.nutrition ?? {};
-        const calories = n.caloriesPer100g ?? null;
-        const protein = n.proteinGPer100g ?? null;
-        const carbs = n.carbsGPer100g ?? null;
-        const fat = n.fatGPer100g ?? null;
-        // Serialize portions to a jsonb string; null → COALESCE leaves the existing column untouched.
-        const portions = input.portions !== undefined ? JSON.stringify(input.portions) : null;
-
+        const canonicalName = input.canonicalName ?? null;
         const result = await this.db.execute<RawIngredientRow>(sql`
             UPDATE ingredients SET
                 food_resolution_status = ${input.foodResolutionStatus},
-                calories_per_100g  = COALESCE(${calories}, calories_per_100g),
-                protein_g_per_100g = COALESCE(${protein}, protein_g_per_100g),
-                carbs_g_per_100g   = COALESCE(${carbs}, carbs_g_per_100g),
-                fat_g_per_100g     = COALESCE(${fat}, fat_g_per_100g),
-                portions           = COALESCE(${portions}::jsonb, portions)
+                name          = COALESCE(${canonicalName}::text, name),
+                search_vector = to_tsvector('english', COALESCE(${canonicalName}::text, name)),
+                -- U5: absent input LEAVES the stored fraction — one refresh without a prior must not
+                -- clobber what an earlier refresh captured.
+                prior_fraction = COALESCE(${input.priorFraction ?? null}::numeric, prior_fraction),
+                -- U11: the refresh KNOWS the privacy fact when it saw the food body: null clears it
+                -- (promotion), a ULID sets it, and an omitted input (status-only paths) leaves it alone.
+                food_owner_id = CASE WHEN ${input.foodOwnerId === undefined}
+                                     THEN food_owner_id ELSE ${input.foodOwnerId ?? null} END
             WHERE id = ${id}
+              AND food_resolution_status IS NOT DISTINCT FROM ${input.expectedStatus}
             RETURNING ${RETURNING}
         `);
 

@@ -1,0 +1,64 @@
+export { sanitizeToPlainText } from './contentSanitizer.js';
+export { millilitresPerUnit } from './historicalUnits.js';
+export type { MeasureSystem } from './historicalUnits.js';
+export { corruptsStatedValue, parseIngredientLine, roundToQuantityStorageScale } from './ingredientLine.js';
+export type { IngredientReviewReason, ParsedIngredientLine } from './ingredientLine.js';
+export { projectToIngredientLine } from './parsedLine.js';
+export type {
+    ParsedFacts,
+    ParsedFood,
+    ParsedLine,
+    ParseEngine,
+    ParseFactSource,
+    ParseProvenance,
+} from './parsedLine.js';
+export { promoteCrfReading } from './domain/promoteCrfReading.js';
+export type { CrfReading } from './domain/promoteCrfReading.js';
+export { promoteLlmParse } from './domain/promoteLlmParse.js';
+export { dropTrailingInstruction, segmentClause } from './domain/clauseSegmentation.js';
+export { measuresNoSubstance, namesEquipment, namesNoFood } from './domain/notAFoodLexicon.js';
+export type { ClauseSegment } from './domain/clauseSegmentation.js';
+export { NO_CACHE, NO_CORRECTIONS, runParsePipeline } from './domain/parsePipeline.js';
+export type {
+    CachedParseRow,
+    CorrectionInForce,
+    ParseCachePort,
+    ParseCorrectionsPort,
+    ParseEnginePort,
+    ParseEnginePorts,
+    ParsePipelineContext,
+    ParsePipelineDeps,
+    ParsePipelineObservers,
+    ParsePipelineOutcome,
+    ParsePipelineTier,
+    RememberedParse,
+    UnreadablePayload,
+} from './domain/parsePipeline.js';
+export { compareParses } from './domain/parseComparator.js';
+export type {
+    ComparedFact,
+    EngineAnswer,
+    EngineAnswers,
+    EngineUnavailable,
+    ParseAgreement,
+    ParseComparison,
+    ResolvedAgreement,
+} from './domain/parseComparator.js';
+export { normalizeQuantity } from './normalizeQuantity.js';
+export type { NormalizedQuantity } from './normalizeQuantity.js';
+export { splitMeasurement } from './splitMeasurement.js';
+export type { SplitMeasurement } from './splitMeasurement.js';
+export { findQuantityPhrases } from './quantityPhrases.js';
+export type { QuantityPhraseSpan } from './quantityPhrases.js';
+export { normalizeDurationToMinutes, normalizeServings } from './valueNormalizers.js';
+export type { NormalizedMinutes, NormalizedServings, ValueReviewReason } from './valueNormalizers.js';
+// U7: the validator-loop decorator. `MAX_PARSE_ATTEMPTS` stays OFF this door on purpose — the barrel
+// admits behaviour and its two named Null Objects, never plain constants (`HISTORICAL_UNIT_DEFINITIONS`'
+// precedent); consumers of the bound reach it beside the decorator's own module.
+export { createValidatedLlmEngine } from './domain/validatedEngine.js';
+export type {
+    FoodnessValidatorPort,
+    MeasurementValidatorPort,
+    RetryParsePort,
+    ValidatedEngineDeps,
+} from './domain/validatedEngine.js';

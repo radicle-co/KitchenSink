@@ -3,7 +3,13 @@ import type { Page } from '@playwright/test';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, makeRecipeVersion, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import {
+    E2E_INGREDIENT_IDS,
+    makeRecipeDetail,
+    makeRecipeVersion,
+    mockRecipeApi,
+    readViewerAppId,
+} from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -34,8 +40,8 @@ const RECIPE_ID = 'rec_pasta';
 const oliveOil = {
     id: 'ri_1',
     recipeId: RECIPE_ID,
-    ingredientId: 'ing_olive_oil',
-    quantity: 2,
+    ingredientId: E2E_INGREDIENT_IDS.oliveOil,
+    quantity: { kind: 'exact', value: 2 } as const,
     unit: 'tbsp',
     sortOrder: 1,
     ingredientName: 'Olive oil',
@@ -62,7 +68,7 @@ const v3Snapshot: RecipeSnapshot = {
     ...v2Snapshot,
     version: 3,
     description: 'A fast, comforting pasta dinner with roasted garlic.',
-    ingredients: [{ ...oliveOil, quantity: 3 }],
+    ingredients: [{ ...oliveOil, quantity: { kind: 'exact', value: 3 } }],
 };
 
 const v1 = makeRecipeVersion({
@@ -79,7 +85,6 @@ const v2 = makeRecipeVersion({
     versionNumber: 2,
     snapshot: v2Snapshot,
     editorHandle: 'chef_e2e',
-    deviceLabel: 'iPhone 15',
     createdAt: '2026-01-02T00:00:00.000Z',
 });
 const v3 = makeRecipeVersion({
@@ -88,7 +93,6 @@ const v3 = makeRecipeVersion({
     versionNumber: 3,
     snapshot: v3Snapshot,
     editorHandle: 'chef_e2e',
-    deviceLabel: 'MacBook Pro',
     createdAt: '2026-01-03T00:00:00.000Z',
 });
 
@@ -128,13 +132,34 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await expect(page.getByText('Current version')).toBeVisible();
         await expect(page.getByRole('button', { name: 'Restore version 3' })).toHaveCount(0);
 
-        // v2's row: `by @{handle} (from {device})` attribution, plus the changed-fields summary versus its
-        // immediately-prior sibling (v1) — only the title differs between v1 and v2.
-        await expect(page.getByText('by @chef_e2e (from iPhone 15)')).toBeVisible();
-        await expect(page.getByText('Changed: Title')).toBeVisible();
+        // v2's row: `by @{handle}` attribution, plus the changed-fields summary versus its immediately-prior
+        // sibling (v1) — only the title differs between v1 and v2.
+        //
+        // ⚠️ REWRITTEN (this run), and the reason is the point. The ` (from {device})` half of the old
+        // assertion went with the 2026-08-26 owner ruling that deleted device attribution — but that suffix
+        // was also the only thing making each row's attribution text UNIQUE, so an unscoped
+        // `getByText('by @chef_e2e')` became a 3-element strict-mode violation the moment it was dropped.
+        // Scoping each claim to the row it is about is what the assertion always meant; it was passing on an
+        // accident of the copy. Per-row scoping also makes this STRONGER than before — "Changed: Title" is
+        // now pinned to v2 rather than to "somewhere on the page", so a summary rendered against the wrong
+        // sibling would fail here instead of passing.
 
-        // v1 is the earliest version — nothing to diff against.
-        await expect(page.getByText('Initial version')).toBeVisible();
+        // Scoped by the row's OWN "Version N" label element, not by a `hasText` substring: the row's
+        // concatenated text content runs the label straight into the timestamp ("Version 2Jan 3, 2026"), so a
+        // text-prefix match has no word boundary to anchor on and would silently match the wrong row.
+        const rowFor = (version: number) =>
+            page.getByRole('listitem').filter({ has: page.getByText(`Version ${version}`, { exact: true }) });
+
+        // All three rows carry the attribution — the property the old single assertion could only sample.
+        await expect(page.getByText('by @chef_e2e')).toHaveCount(3);
+
+        await expect(rowFor(2).getByText('by @chef_e2e')).toBeVisible();
+        await expect(rowFor(2).getByText('Changed: Title')).toBeVisible();
+
+        // v1 is the earliest version — nothing to diff against, so it gets the initial-version note and no
+        // changed-fields summary at all.
+        await expect(rowFor(1).getByText('Initial version')).toBeVisible();
+        await expect(rowFor(1).getByText(/^Changed: /u)).toHaveCount(0);
     });
 
     test('previews a past version’s content and its changed-from-current summary', async ({ page }) => {

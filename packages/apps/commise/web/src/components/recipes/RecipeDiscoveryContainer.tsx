@@ -21,7 +21,14 @@
  *   query (so only searches that actually ran are recorded), persisted in `localStorage` via the injected
  *   `webRecentSearchStore` port. Choosing one routes through the SAME `onSearchChange` a keystroke does.
  */
-import { RecipeBrowseRails, RecipeDiscoveryList, RecipeFilterBar } from '@commise/features-recipes';
+import {
+    applyFilterAction,
+    RecipeBrowseRails,
+    RecipeDiscoveryList,
+    RecipeFilterBar,
+    RecipeNutritionSlot,
+} from '@commise/features-recipes';
+import type { RecipeFacets } from '@commise/features-recipes';
 import type {
     FacetDimension,
     RecipeBrowseCuisineShortcut,
@@ -30,18 +37,10 @@ import type {
 } from '@commise/features-recipes';
 import {
     DISCOVERY_SEARCH_DEBOUNCE_MS,
-    addIngredientFilter,
-    clearRecipeFilters,
     filtersFromQueryString,
     filtersToQueryString,
     filtersToSearchParams,
     hasActiveFilters,
-    removeIngredientFilter,
-    setCuisine,
-    setMaxCookTime,
-    setMaxPrepTime,
-    setMaxTotalTime,
-    toggleFacetValue,
     type RecipeFilterState,
 } from '@commise/features-recipes';
 import {
@@ -49,12 +48,13 @@ import {
     useDebouncedValue,
     useIngredientFilterSearch,
     useRecentSearches,
+    useRecipeNutritionBatches,
 } from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useCloneRecipe, useInfiniteSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { FC } from 'react';
 
 import { webRecentSearchStore } from '@/lib/recentSearchStore';
@@ -155,7 +155,30 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
     const cloningId = clone.isPending ? clone.variables : null;
 
     const results = search.data?.pages.flatMap((page) => page.results) ?? [];
-    const facets = search.data?.pages[0]?.facets ?? {};
+    // Annotated with the NARROW view-model rather than inferred: the `?? {}` fallback (no page yet)
+    // would otherwise widen the type to `{}` and silently lose every facet dimension. `RecipeFacets`
+    // permits an empty object by design -- see its docstring for why the bar's shape is partial.
+    const facets: RecipeFacets = search.data?.pages[0]?.facets ?? {};
+
+    // The deferred calorie lookup (ADR-0021), batched ONE REQUEST PER FETCHED PAGE. This surface is
+    // infinite: "Load more" appends, so a single batch over every accumulated id would change the id set —
+    // and with it the query key and the promise — on every page, dropping every chip already on screen back
+    // to its skeleton. Per-page keeps each page's promise settled and asks only about what is new.
+    const recipeIdPages = useMemo(
+        () => search.data?.pages.map((page) => page.results.map((result) => result.recipe.id)) ?? [],
+        [search.data],
+    );
+    const nutritionFor = useRecipeNutritionBatches(recipeIdPages);
+    const renderNutrition = useCallback(
+        (recipeId: string) => {
+            const batch = nutritionFor(recipeId);
+
+            // `null` = no page on screen carries this recipe, so we never asked: render nothing rather than a
+            // boundary with no promise to settle.
+            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
+        },
+        [nutritionFor],
+    );
 
     const searching = searchInput.trim().length > 0 || hasActiveFilters(filters);
     const browsing = !searching && !browseDismissed;
@@ -180,7 +203,8 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
 
     const cuisines: readonly RecipeBrowseCuisineShortcut[] = (facets.cuisine ?? []).map((facet) => ({
         value: facet.value,
-        onSelect: () => applyCriteria(setCuisine(filters, facet.value), searchInput),
+        onSelect: () =>
+            applyCriteria(applyFilterAction(filters, { kind: 'setCuisine', cuisine: facet.value }), searchInput),
     }));
 
     return (
@@ -197,6 +221,7 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
             }
             onRetry={() => void search.refetch()}
             cloningId={cloningId}
+            renderNutrition={renderNutrition}
             hasActiveFilters={hasActiveFilters(filters)}
             // L5: this surface IS the "Community" source, so it mounts the SAME switcher the library does with
             // `community` active — the half that was missing. Without it a viewer who chose "Community" landed
@@ -239,22 +264,44 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
                     facets={facets}
                     filters={filters}
                     onToggleFacet={(dimension: FacetDimension, value: string) =>
-                        applyCriteria(toggleFacetValue(filters, dimension, value), searchInput)
+                        applyCriteria(
+                            applyFilterAction(filters, { kind: 'toggleFacet', dimension, value }),
+                            searchInput,
+                        )
                     }
-                    onSetCuisine={(cuisine) => applyCriteria(setCuisine(filters, cuisine), searchInput)}
-                    onSetMaxPrepTime={(minutes) => applyCriteria(setMaxPrepTime(filters, minutes), searchInput)}
-                    onSetMaxCookTime={(minutes) => applyCriteria(setMaxCookTime(filters, minutes), searchInput)}
-                    onSetMaxTotalTime={(minutes) => applyCriteria(setMaxTotalTime(filters, minutes), searchInput)}
+                    onSetCuisine={(cuisine) =>
+                        applyCriteria(applyFilterAction(filters, { kind: 'setCuisine', cuisine }), searchInput)
+                    }
+                    onSetMaxPrepTime={(minutes) =>
+                        applyCriteria(
+                            applyFilterAction(filters, { kind: 'setTimeBound', field: 'maxPrepTime', minutes }),
+                            searchInput,
+                        )
+                    }
+                    onSetMaxCookTime={(minutes) =>
+                        applyCriteria(
+                            applyFilterAction(filters, { kind: 'setTimeBound', field: 'maxCookTime', minutes }),
+                            searchInput,
+                        )
+                    }
+                    onSetMaxTotalTime={(minutes) =>
+                        applyCriteria(
+                            applyFilterAction(filters, { kind: 'setTimeBound', field: 'maxTotalTime', minutes }),
+                            searchInput,
+                        )
+                    }
                     ingredientSearch={{
                         query: ingredientSearch.query,
                         onQueryChange: ingredientSearch.setQuery,
                         viewState: ingredientSearch.viewState,
                     }}
                     onAddIngredientFilter={(ingredient) =>
-                        applyCriteria(addIngredientFilter(filters, ingredient), searchInput)
+                        applyCriteria(applyFilterAction(filters, { kind: 'addIngredient', ingredient }), searchInput)
                     }
-                    onRemoveIngredientFilter={(id) => applyCriteria(removeIngredientFilter(filters, id), searchInput)}
-                    onClearAll={() => applyCriteria(clearRecipeFilters(), searchInput)}
+                    onRemoveIngredientFilter={(id) =>
+                        applyCriteria(applyFilterAction(filters, { kind: 'removeIngredient', id }), searchInput)
+                    }
+                    onClearAll={() => applyCriteria(applyFilterAction(filters, { kind: 'clearAll' }), searchInput)}
                 />
             }
         />

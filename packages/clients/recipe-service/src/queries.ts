@@ -44,9 +44,11 @@ import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { Ingredient, RecipeSearchParams } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
+import type { ParseJobResponse, RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import type { RecipeServiceClient } from './client.js';
+import { shouldRetryRecipeServiceFailure } from './retryPolicy.js';
 import type { ListCollectionsParams, ListRecipesParams } from './types.js';
 
 // ─── Query-key factory ──────────────────────────────────────────────────────────────────────────
@@ -66,6 +68,18 @@ export const recipeServiceKeys = {
     /** Prefix over every `recipeList(params)` — the address for "every cached recipe list, whatever its filters". */
     recipeLists: ['recipe-service', 'recipes', 'list'] as const,
     recipeList: (params: ListRecipesParams = {}) => ['recipe-service', 'recipes', 'list', params] as const,
+    /**
+     * The "load more" read of the same list — its OWN entry under `recipeLists`, never `recipeList(params)`.
+     *
+     * ⛔ A flat read and an infinite read of the same params are NOT one cache entry, whatever the params say.
+     * TanStack holds ONE `data` per key: an infinite observer stores `{ pages, pageParams }`, a flat observer
+     * stores the bare page body, and whichever populates the key first decides what the other is handed —
+     * `queryKeyShapes.test.ts` reproduces a "Load more" surface receiving a page with no `pages`. The
+     * `'infinite'` segment sits BEFORE the params so the entry still lives under the `recipeLists` prefix every
+     * broad invalidation addresses; it is a different SHAPE of the same region, not a different region.
+     */
+    recipeListInfinite: (params: ListRecipesParams = {}) =>
+        ['recipe-service', 'recipes', 'list', 'infinite', params] as const,
     recipe: (id: string) => ['recipe-service', 'recipes', 'detail', id] as const,
     recipeVersions: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'versions'] as const,
     recipeVersion: (id: string, versionNumber: number) =>
@@ -73,10 +87,29 @@ export const recipeServiceKeys = {
     recipePhotos: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'photos'] as const,
     collections: ['recipe-service', 'collections'] as const,
     collectionList: (params: ListCollectionsParams = {}) => ['recipe-service', 'collections', 'list', params] as const,
+    /** The "load more" read of the collection list — its own entry, for the reason `recipeListInfinite` gives. */
+    collectionListInfinite: (params: ListCollectionsParams = {}) =>
+        ['recipe-service', 'collections', 'list', 'infinite', params] as const,
     collection: (id: string) => ['recipe-service', 'collections', 'detail', id] as const,
+    /**
+     * One deferred nutrition batch (`POST /api/v1/recipes/nutrition-batch`), keyed by the recipes asked about.
+     *
+     * ⚠️ THE IDS ARE SORTED INTO THE KEY, and that is the point rather than tidiness: a list page and a
+     * search page showing the same recipes in different orders are ONE logical read, and an order-sensitive
+     * key would fetch twice, cache twice, and let the two views disagree about the same recipe's calories.
+     * It is the client-side twin of the canonicalization food applies to its own nutrition URL.
+     *
+     * Its own `nutrition` segment under the `recipes` prefix, so `recipeLists`/`recipe(id)` invalidation does
+     * NOT stale these figures: they are derived from FOOD's data, which a recipe write does not change.
+     */
+    recipeNutrition: (recipeIds: readonly string[]) =>
+        ['recipe-service', 'recipes', 'nutrition', [...recipeIds].sort()] as const,
     /** Prefix over every `recipeSearch(params)` — the address for "every cached recipe search, whatever the terms". */
     recipeSearches: ['recipe-service', 'search', 'recipes'] as const,
-    recipeSearch: (params: RecipeSearchParams = {}) => ['recipe-service', 'search', 'recipes', params] as const,
+    recipeSearch: (params: RecipeSearchQuery = {}) => ['recipe-service', 'search', 'recipes', params] as const,
+    /** The "load more" read of the same search — its own entry, for the reason `recipeListInfinite` gives. */
+    recipeSearchInfinite: (params: RecipeSearchQuery = {}) =>
+        ['recipe-service', 'search', 'recipes', 'infinite', params] as const,
     /**
      * Prefix over every `ingredientSearch(query, limit)` AND every `ingredientSuggest(query, limit)` —
      * "every cached ingredient typeahead, whatever the terms or blend". Deliberately the shared parent of
@@ -98,6 +131,18 @@ export const recipeServiceKeys = {
     ingredientStatus: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'status'] as const,
     /** One ingredient's disambiguation candidate set (`GET /api/v1/ingredients/{id}/candidates`). */
     ingredientCandidates: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'candidates'] as const,
+    /**
+     * One async ingredient-parse job (`GET /api/v1/recipe-parse-jobs/{id}`).
+     *
+     * ⛔ ITS OWN NAMESPACE, deliberately NOT under the `recipes` prefix. R19: a parse binds nothing — the
+     * reviewed draft goes through the ordinary `POST /api/v1/recipes` — so a recipe write changes no parse
+     * job and a parse job changes no recipe. Nesting it under `recipes` would make every recipe write
+     * refetch every open job (and, once a review creates a recipe, do it at the worst possible moment).
+     *
+     * There is deliberately NO list prefix: a job is addressed by the id its own create returned, the
+     * service publishes no list endpoint, and a prefix nothing invalidates would be a key nobody can use.
+     */
+    parseJob: (id: string) => ['recipe-service', 'parse-jobs', 'detail', id] as const,
 } as const;
 
 // ─── Cache policy (per-domain staleTime — see the module doc for the rationale behind each value) ──
@@ -111,13 +156,118 @@ const INGREDIENT_SEARCH_STALE_TIME_MS = 15_000;
 /** Default poll cadence (ms) for {@link ingredientQueries}`.status` — spaced so a `PENDING` food does not hammer. */
 export const DEFAULT_INGREDIENT_POLL_INTERVAL_MS = 2500;
 
+/**
+ * Default poll cadence (ms) for a RUNNING parse job — work is in progress and the count is climbing.
+ *
+ * Deliberately NOT the ingredient poll's 2.5s: that number watches ONE food resolve. This watches a job
+ * that fans out one SQS message and one worker invocation PER LINE (up to `MAX_PARSE_JOB_LINES` = 200),
+ * each going through a CRF Lambda. The cook is watching a progress count settle, not waiting on a single
+ * figure, so a coarser cadence costs nothing legible and cuts the request count most on the longest jobs —
+ * which are exactly the ones that stay `running` longest.
+ */
+export const DEFAULT_PARSE_JOB_POLL_INTERVAL_MS = 4000;
+
+/**
+ * Poll cadence (ms) for a SETTLING (`partial`) parse job — and the reason this state polls at all.
+ *
+ * ⛔ `partial` IS NOT TERMINAL, which is the opposite of how it reads. It is reached when
+ * `ParseJobsService.enqueueOrMark` catches a `SendMessageBatch` failure and marks every line in that call
+ * `failed_retryable` — and `sqsBatchQueue` collects failures across ALL batches and throws once at the end,
+ * so lines whose messages really did send are marked too (the service's own docstring: "may re-enqueue a
+ * line whose message did send: harmless by construction"). Those messages then land, and the worker's
+ * landing `UPDATE` is guarded on `job_id AND line_index AND line_digest` with NO status predicate — so a
+ * `failed_retryable` line flips straight to `parsed`, the aggregate re-runs (`WHERE job.status IN
+ * ('running','partial')` admits it), and the job walks itself to `complete` with no retry pressed.
+ *
+ * Stopping here would strand a cook in front of "10 lines failed, press Retry" for a job that had already
+ * finished. So it polls — but SLOWER than `running`, because a settling job is waiting on messages already
+ * in flight rather than on work that has yet to begin, and the tail can be long.
+ */
+export const PARSE_JOB_SETTLING_POLL_INTERVAL_MS = 20_000;
+
+/**
+ * ⛔ THE OVERALL DEADLINE for one deferred-nutrition read, and the reason the client's own timeout is not
+ * enough.
+ *
+ * `RecipeServiceClient` bounds each ATTEMPT (ky's `timeout`, 10s). It does NOT bound the CALL: `send()` may
+ * replay a request up to four times — three identity-sync retries with backoff, plus one expired-token
+ * retry — so the worst-case wait is several multiples of the per-attempt bound. Every one of those attempts
+ * is individually reasonable, and the sum is not.
+ *
+ * That matters HERE more than anywhere else in this client, because this is the read a card grid renders a
+ * skeleton for. The wire union deliberately has no `pending` member so that no server can pin a spinner
+ * forever — but that guarantee is only as good as the promise the spinner waits on settling. This is what
+ * makes it settle: 12s, comfortably past one healthy attempt plus a retry, and far inside any human's
+ * patience for a figure that is decoration on an already-rendered card.
+ *
+ * A rejection is the CORRECT outcome, not a regression: the caller falls back to rendering the recipes with
+ * their nutrition unaccounted, which is exactly the state the contract already has a name for.
+ */
+export const NUTRITION_BATCH_DEADLINE_MS = 12_000;
+
+/**
+ * Compose a caller's cancellation with a FINITE deadline, returning a signal that is guaranteed to abort.
+ *
+ * Extracted as its own function rather than inlined for one reason: inlined, its removal is undetectable.
+ * A test can only observe that SOME `AbortSignal` reached the transport, which the query's own signal
+ * satisfies — so deleting the deadline (the thing that makes the promise settle at all) passes every
+ * assertion. As a named function with the deadline as a parameter, the behaviour is directly testable at a
+ * millisecond scale, and the factory's use of it is observable by identity.
+ *
+ * @param signal - TanStack's per-query signal (aborts on unmount / key change), when there is one.
+ * @param deadlineMs - The overall bound, after which the request is abandoned regardless.
+ * @returns A signal that aborts when EITHER fires. Pure — allocates, performs no I/O.
+ */
+export function withDeadline(signal: AbortSignal | undefined, deadlineMs: number): AbortSignal {
+    const deadline = AbortSignal.timeout(deadlineMs);
+
+    return signal === undefined ? deadline : AbortSignal.any([signal, deadline]);
+}
+
+/**
+ * Retries for the deferred nutrition read. ONE, deliberately.
+ *
+ * The app-level default (3, with exponential backoff) would stack on top of the transport's own retries and
+ * push the worst case past {@link NUTRITION_BATCH_DEADLINE_MS} — at which point the deadline, not the retry
+ * policy, decides the outcome, and the retries are pure latency. One retry covers the single dropped
+ * connection this is actually worth defending against.
+ */
+const NUTRITION_BATCH_RETRIES = 1;
+
+/**
+ * This read's retry rule: the app-wide classification, NARROWED to {@link NUTRITION_BATCH_RETRIES}.
+ *
+ * ⛔ A PREDICATE, NOT THE BARE NUMBER IT USED TO BE. TanStack's `retry` is one option, so a numeric override
+ * REPLACES the client-level predicate rather than tightening it — this was the one query in either app that
+ * still spent a retry on a `400`, invisibly, because the composition point cannot see a per-query override.
+ * A narrowing has to restate what it narrows.
+ *
+ * @param failureCount - How many attempts have already failed.
+ * @param error - The value the read rejected with.
+ * @returns `true` while another attempt is both within this read's own bound and worth making.
+ */
+function shouldRetryNutritionBatch(failureCount: number, error: unknown): boolean {
+    return failureCount < NUTRITION_BATCH_RETRIES && shouldRetryRecipeServiceFailure(error);
+}
+
+/**
+ * Cache policy for the nutrition batch. Longer than the recipe list's 30s because the underlying data is
+ * FOOD's, not the viewer's: it changes on food's ingest schedule, not on any write this client makes, and
+ * the service already serves it through a 5-minute in-process cache of its own.
+ */
+const NUTRITION_BATCH_STALE_TIME_MS = 120_000;
+
 // ─── Recipe queries ───────────────────────────────────────────────────────────────────────────────
 
 /**
  * `queryOptions` factories for every recipe read. `list`/`listInfinite` and `search`/`searchInfinite` are
  * deliberate pairs: the flat variant renders the current page, the infinite variant backs a "load more"
- * flow — and each pair shares ONE query key (a flat and an infinite read of the same params are the same
- * logical cache entry; TanStack distinguishes their internal page shape by which hook subscribes to them).
+ * flow — and each half of a pair has its OWN key under the pair's shared prefix.
+ *
+ * ⛔ CORRECTED (PR #91 review). This used to say the pair "shares ONE query key … TanStack distinguishes their
+ * internal page shape by which hook subscribes to them". It does not: the cache holds one `data` per key, so
+ * a flat page cached first was handed to the infinite observer as-is (no `pages`), and the two SSR pages that
+ * prefetch these reads were dodging that by discipline. See `recipeServiceKeys.recipeListInfinite`.
  *
  * @param client - The configured client the factories' fetchers call through.
  * @returns One `queryOptions`/`infiniteQueryOptions` builder per recipe read.
@@ -131,10 +281,10 @@ export function recipeQueries(client: RecipeServiceClient) {
                 queryFn: () => client.listRecipes(params),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
-        /** `GET /api/v1/recipes` — the same list, paginated for a "Load more" flow. */
+        /** `GET /api/v1/recipes` — the same list, paginated for a "Load more" flow (its own key, see the keys). */
         listInfinite: (params: ListRecipesParams = {}) =>
             infiniteQueryOptions({
-                queryKey: recipeServiceKeys.recipeList(params),
+                queryKey: recipeServiceKeys.recipeListInfinite(params),
                 queryFn: ({ pageParam }) => client.listRecipes({ ...params, page: pageParam }),
                 initialPageParam: 1,
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
@@ -168,8 +318,35 @@ export function recipeQueries(client: RecipeServiceClient) {
                 queryFn: () => client.listRecipePhotos(id),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
+        /**
+         * `POST /api/v1/recipes/nutrition-batch` — per-serving nutrition for a page of recipes.
+         *
+         * ⚠️ A POST IN A QUERY FACTORY IS NOT A MISTAKE. This is a READ that has to be a POST: its response
+         * varies by caller (a recipe the viewer may not read is omitted, which is how authorization is
+         * expressed), and at the published id cap the equivalent query string would exceed the CDN's URL
+         * limit. It has no side effect, so it belongs in the cache, not in `useMutation`.
+         *
+         * ⛔ THE DEADLINE IS THE LOAD-BEARING PART. `signal` composes TanStack's own cancellation (unmount,
+         * key change) with a finite {@link NUTRITION_BATCH_DEADLINE_MS} timeout, so this promise ALWAYS
+         * settles — which is what makes the `pending` skeleton a card renders temporary. Without it the
+         * transport's per-attempt timeout still permits four attempts plus backoff, and the union's
+         * deliberate lack of a `pending` wire state would be undone on the client instead of by a server.
+         */
+        nutritionBatch: (recipeIds: readonly string[]) =>
+            queryOptions({
+                queryKey: recipeServiceKeys.recipeNutrition(recipeIds),
+                queryFn: ({ signal }) =>
+                    client.getRecipeNutrition(recipeIds, {
+                        signal: withDeadline(signal, NUTRITION_BATCH_DEADLINE_MS),
+                    }),
+                staleTime: NUTRITION_BATCH_STALE_TIME_MS,
+                retry: shouldRetryNutritionBatch,
+                // The service REJECTS an empty list (asking about nothing is a caller bug, not an empty
+                // answer), so firing this would be a guaranteed 400 — gate it here instead.
+                enabled: recipeIds.length > 0,
+            }),
         /** `GET /api/v1/search/recipes` — full-text recipe search with facets (flat page). */
-        search: (params: RecipeSearchParams = {}) =>
+        search: (params: RecipeSearchQuery = {}) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipeSearch(params),
                 queryFn: () => client.searchRecipes(params),
@@ -180,9 +357,9 @@ export function recipeQueries(client: RecipeServiceClient) {
          * fetched page appends to `data.pages`; the next page is `page + 1` while the last page reported
          * `hasMore`, otherwise `getNextPageParam` returns `undefined` and the control disappears.
          */
-        searchInfinite: (params: RecipeSearchParams = {}) =>
+        searchInfinite: (params: RecipeSearchQuery = {}) =>
             infiniteQueryOptions({
-                queryKey: recipeServiceKeys.recipeSearch(params),
+                queryKey: recipeServiceKeys.recipeSearchInfinite(params),
                 queryFn: ({ pageParam }) => client.searchRecipes({ ...params, page: pageParam }),
                 initialPageParam: 1,
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
@@ -196,8 +373,8 @@ export function recipeQueries(client: RecipeServiceClient) {
 /**
  * `queryOptions` factories for every collection read. `list`/`listInfinite` (W5/C7) is the same deliberate
  * pair as `recipeQueries`' `list`/`listInfinite`: the flat variant renders the current page, the infinite
- * variant backs a "load more" flow, and both share ONE query key (a flat and an infinite read of the same
- * params are the same logical cache entry).
+ * variant backs a "load more" flow, and each has its OWN key under the `collections` prefix (see
+ * `recipeServiceKeys.recipeListInfinite` for why one key cannot serve both shapes).
  *
  * @param client - The configured client the factories' fetchers call through.
  * @returns One `queryOptions`/`infiniteQueryOptions` builder per collection read.
@@ -211,14 +388,10 @@ export function collectionQueries(client: RecipeServiceClient) {
                 queryFn: () => client.listCollections(params),
                 staleTime: COLLECTION_STALE_TIME_MS,
             }),
-        /**
-         * `GET /api/v1/collections` — the same list, paginated for a "Load more" flow (W5/C7). Shares its query
-         * key with `list` (same "flat + infinite share one key" contract as `recipeQueries`) — a flat and an
-         * infinite read of the same params are the same logical cache entry.
-         */
+        /** `GET /api/v1/collections` — the same list, paginated for a "Load more" flow (W5/C7); its own key. */
         listInfinite: (params: ListCollectionsParams = {}) =>
             infiniteQueryOptions({
-                queryKey: recipeServiceKeys.collectionList(params),
+                queryKey: recipeServiceKeys.collectionListInfinite(params),
                 queryFn: ({ pageParam }) => client.listCollections({ ...params, page: pageParam }),
                 initialPageParam: 1,
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
@@ -292,6 +465,83 @@ export function ingredientQueries(client: RecipeServiceClient) {
             queryOptions({
                 queryKey: recipeServiceKeys.ingredientCandidates(id),
                 queryFn: () => client.getIngredientCandidates(id),
+            }),
+    };
+}
+
+// ─── Parse-job queries ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Whether a job's review deadline is still ahead — the ONE reading of `expiresAt` this package makes.
+ *
+ * Exported because the query's poll rule and a surface's view model must agree on it: if the poll stopped
+ * on a deadline the UI still treated as live, the cook would sit in front of a frozen `running` job. Pure.
+ *
+ * @param job - The job view.
+ * @param now - Epoch milliseconds to judge against — a PARAMETER, never `Date.now()` inside, so a caller's
+ *   projection stays pure and the boundary is table-testable.
+ * @returns `false` once the deadline has passed, and `false` for a deadline that cannot be read at all —
+ *   fail CLOSED, because `Date.parse` answers `NaN` and `NaN <= now` is `false`, so a bare comparison would
+ *   treat an unreadable timestamp as infinitely far away.
+ */
+export function parseJobIsLive(job: Pick<ParseJobResponse, 'expiresAt'>, now: number): boolean {
+    const expiresAt = Date.parse(job.expiresAt);
+
+    return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+/**
+ * `queryOptions` factory for the async ingredient-parse job's ONE read (plan U9).
+ *
+ * @param client - The configured client the factory's fetcher calls through.
+ * @returns The job-detail builder.
+ */
+export function parseJobQueries(client: RecipeServiceClient) {
+    return {
+        /**
+         * `GET /api/v1/recipe-parse-jobs/{id}` — poll one job until nothing more can be learned.
+         *
+         * The poll is SELF-LIMITING, and it runs while the job can still MOVE — `running` (work in
+         * progress) and `partial` (see {@link PARSE_JOB_SETTLING_POLL_INTERVAL_MS} for why that one is not
+         * terminal). It stops on `complete`, on `expired`, before the first response has landed, and —
+         * the case a status-only rule misses — once `expiresAt` has passed.
+         *
+         * ⛔ EXPIRY IS THE TIMESTAMP, NOT THE STATUS. The TTL sweep rides a 15-minute tick while
+         * `ParseJobsDal.gateMutation` refuses a mutation the instant `expires_at <= now()`, so for up to a
+         * quarter of an hour `GET` answers `running` on a job whose `retry` and `editLine` both `409`.
+         * The sweep's own docstring says the `202` carries `expiresAt` "so the client knows the review
+         * deadline"; this is the client knowing it. A surface must ALSO derive the expired state from the
+         * same timestamp, or it will keep offering controls the server refuses.
+         *
+         * ⚠️ An unreadable `expiresAt` fails CLOSED (no poll), because `Date.parse` answers `NaN` and every
+         * comparison against `NaN` is false — a bare `parsed <= now` would fall through and poll forever.
+         *
+         * `staleTime` is deliberately left at the library default, exactly as `ingredientQueries.status`
+         * leaves it: this mechanism, not a staleness window, governs when the query re-fetches.
+         *
+         * @param id - The job id.
+         * @param pollIntervalMs - Cadence (ms) while `running`. Defaults to
+         *   {@link DEFAULT_PARSE_JOB_POLL_INTERVAL_MS}. Deliberately does NOT move the settling cadence:
+         *   the override names how often to watch work in progress, and folding the two would let a fast
+         *   override turn a long settling tail into a request storm.
+         */
+        detail: (id: string, pollIntervalMs: number = DEFAULT_PARSE_JOB_POLL_INTERVAL_MS) =>
+            queryOptions({
+                queryKey: recipeServiceKeys.parseJob(id),
+                queryFn: () => client.getParseJob(id),
+                refetchInterval: (query) => {
+                    const data = query.state.data as ParseJobResponse | undefined;
+
+                    if (data === undefined || !parseJobIsLive(data, Date.now())) {
+                        return false;
+                    }
+
+                    if (data.status === 'running') {
+                        return pollIntervalMs;
+                    }
+
+                    return data.status === 'partial' ? PARSE_JOB_SETTLING_POLL_INTERVAL_MS : false;
+                },
             }),
     };
 }

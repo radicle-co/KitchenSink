@@ -25,7 +25,7 @@ The work is **additive then cutover**: Layer 0 creates the provider + roles (cha
 
 **Today.** `aws-actions/configure-aws-credentials@v4` is fed static repo secrets in `prod-deploy.yml`, `sandbox-router-deploy.yml`, `sandbox-web-preview.yml`, `sandbox-deploy.yml`, `sandbox-identity-deploy.yml`, and (via the `load-secrets` composite + `secrets: inherit`) the reusable `_ci.yml`. Several workflows already declare `permissions: id-token: write` but never use it (vestigial). The single IAM principal behind those keys can `secretsmanager:GetSecretValue` on both `kitchensink/sandbox/*` and `kitchensink/prod/*` — there is **no AWS-side least-privilege boundary between PR and main runs**, and no OIDC provider exists in the account.
 
-**Why it matters.** A leaked static key (compromised dependency in `npm ci`, a malicious third-party action, a `pull_request_target` misconfiguration) is a *standing* credential — valid until a human rotates it — with cross-stage blast radius. The PR-triggered `sandbox-web-preview.yml` is the most exposed surface yet currently shares the same all-powerful key. (The same-repo `if:` guard added in PR #39 closes the *fork* path for that one workflow but not the standing-credential or least-privilege problems, and not the other PR-triggered workflows.)
+**Why it matters.** A leaked static key (compromised dependency in `npm ci`, a malicious third-party action, a `pull_request_target` misconfiguration) is a _standing_ credential — valid until a human rotates it — with cross-stage blast radius. The PR-triggered `sandbox-web-preview.yml` is the most exposed surface yet currently shares the same all-powerful key. (The same-repo `if:` guard added in PR #39 closes the _fork_ path for that one workflow but not the standing-credential or least-privilege problems, and not the other PR-triggered workflows.)
 
 **Desired end state.** No static AWS keys in GitHub. Each workflow assumes a role scoped to what it needs, gated by OIDC claim conditions, with prod's direct secret access unreachable from any sandbox/PR run.
 
@@ -36,7 +36,7 @@ The work is **additive then cutover**: Layer 0 creates the provider + roles (cha
 - **R1** — A GitHub OIDC identity provider for `token.actions.githubusercontent.com` (audience `sts.amazonaws.com`) exists in the AWS account exactly once.
 - **R2** — IAM roles are assumable **only** via that provider, gated by claim conditions scoping each role to this repo and the correct trigger (`sub` for repo+environment/event; `ref` for the prod branch binding).
 - **R3** — Each role grants the **minimum** permissions its consuming workflows need; the PR-triggered preview writer holds neither deploy nor secrets permissions.
-- **R4** — Each deploy role's **direct** `secretsmanager:GetSecretValue` is scoped to its own stage prefix. (Caveat, see KTD3/Risk: the deploy roles assume the CDK bootstrap roles, whose default policy is administrative — so R4 is a *direct-access* guarantee, not an absolute one, for the deploy roles. It is absolute only for the KVS-writer, which assumes no bootstrap role.)
+- **R4** — Each deploy role's **direct** `secretsmanager:GetSecretValue` is scoped to its own stage prefix. (Caveat, see KTD3/Risk: the deploy roles assume the CDK bootstrap roles, whose default policy is administrative — so R4 is a _direct-access_ guarantee, not an absolute one, for the deploy roles. It is absolute only for the KVS-writer, which assumes no bootstrap role.)
 - **R5** — Every workflow migrated drops the static-key block and uses `role-to-assume` + `id-token: write`; the two repo secrets are removed only after the last consumer is migrated.
 - **R6** — The cutover never red-lines CI: no workflow references a role before that role exists in AWS; secret-load failures surface loudly (no silent green skips) during the cutover.
 - **R7** — Human-gated operational steps (AWS deploy, one-time bootstrap, GitHub Environments, repo variables, fork-token setting, branch-protection) are enumerated with owner and the units they gate.
@@ -59,15 +59,15 @@ The OIDC provider is **account-global** (one `token.actions.githubusercontent.co
 
 GitHub only emits `...:environment:<env>` in the OIDC `sub` **when the job declares `environment:` and that environment exists**. Declaring `environment:` makes the `sub` deterministic regardless of trigger (push / pull_request / dispatch all collapse to `environment:<env>`). The KVS-writer deliberately declares **no** environment, so its `sub` is `:pull_request` — distinct from the deploy role's `:environment:sandbox`, so the two can't be confused.
 
-| Role | Consumers | OIDC condition | Permissions |
-|------|-----------|----------------|-------------|
-| `kitchensink-gha-sandbox-kvs-writer` | `sandbox-web-preview.yml` (PR-triggered, no env) | `sub = repo:radicle-co/KitchenSink:pull_request` | `cloudformation:DescribeStacks` scoped to the router stack ARN + `cloudfront-keyvaluestore:DescribeKeyValueStore`/`PutKey`/`DeleteKey` scoped to `arn:aws:cloudfront::<acct>:key-value-store/*`. **No deploy, no secrets, no AssumeRole.** |
-| `kitchensink-gha-sandbox-deploy` | `sandbox-router-deploy.yml`, `sandbox-deploy.yml` (deploy + cleanup), `sandbox-identity-deploy.yml`, `_ci.yml` sandbox jobs | `sub = ...:environment:sandbox` | `sts:AssumeRole` on `cdk-hnb659fds-*`; full ECR push set; `cloudformation:ListExports`/`DescribeStacks`/`DeleteStack`; `cloudfront-keyvaluestore:*` on the KVS; `lambda:InvokeFunction` on `kitchensink-*`; `secretsmanager:GetSecretValue` on `kitchensink/sandbox/*`. |
-| `kitchensink-gha-prod` | `prod-deploy.yml`, `_ci.yml` prod jobs | `sub = ...:environment:production` **AND** `ref = refs/heads/main` | Same shape as sandbox-deploy but `secretsmanager` scoped to `kitchensink/prod/*`. |
+| Role                                 | Consumers                                                                                                                   | OIDC condition                                                     | Permissions                                                                                                                                                                                                                                                             |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kitchensink-gha-sandbox-kvs-writer` | `sandbox-web-preview.yml` (PR-triggered, no env)                                                                            | `sub = repo:radicle-co/KitchenSink:pull_request`                   | `cloudformation:DescribeStacks` scoped to the router stack ARN + `cloudfront-keyvaluestore:DescribeKeyValueStore`/`PutKey`/`DeleteKey` scoped to `arn:aws:cloudfront::<acct>:key-value-store/*`. **No deploy, no secrets, no AssumeRole.**                              |
+| `kitchensink-gha-sandbox-deploy`     | `sandbox-router-deploy.yml`, `sandbox-deploy.yml` (deploy + cleanup), `sandbox-identity-deploy.yml`, `_ci.yml` sandbox jobs | `sub = ...:environment:sandbox`                                    | `sts:AssumeRole` on `cdk-hnb659fds-*`; full ECR push set; `cloudformation:ListExports`/`DescribeStacks`/`DeleteStack`; `cloudfront-keyvaluestore:*` on the KVS; `lambda:InvokeFunction` on `kitchensink-*`; `secretsmanager:GetSecretValue` on `kitchensink/sandbox/*`. |
+| `kitchensink-gha-prod`               | `prod-deploy.yml`, `_ci.yml` prod jobs                                                                                      | `sub = ...:environment:production` **AND** `ref = refs/heads/main` | Same shape as sandbox-deploy but `secretsmanager` scoped to `kitchensink/prod/*`.                                                                                                                                                                                       |
 
 ### KTD3 — Drop the per-deploy `cdk bootstrap`; deploy permissions are bootstrap-role assumption only. Bootstrapping is a one-time human step.
 
-`prod-deploy.yml` and `sandbox-identity-deploy.yml` currently run `npx cdk bootstrap` on **every** deploy. `cdk bootstrap` *creates/updates* the `CDKToolkit` stack (IAM roles, S3 bucket, ECR repo, SSM param) using the **ambient** identity — needing broad `iam:CreateRole`/`PutRolePolicy`/`s3:CreateBucket`/`ssm:PutParameter`/`cloudformation:*` admin. Granting that to the GitHub role would defeat the migration's least-privilege goal.
+`prod-deploy.yml` and `sandbox-identity-deploy.yml` currently run `npx cdk bootstrap` on **every** deploy. `cdk bootstrap` _creates/updates_ the `CDKToolkit` stack (IAM roles, S3 bucket, ECR repo, SSM param) using the **ambient** identity — needing broad `iam:CreateRole`/`PutRolePolicy`/`s3:CreateBucket`/`ssm:PutParameter`/`cloudformation:*` admin. Granting that to the GitHub role would defeat the migration's least-privilege goal.
 
 **Decision:** remove the `cdk bootstrap` step from those workflows (U4). Bootstrap once, out-of-band (runbook), since it rarely changes. The deploy roles then need only `sts:AssumeRole` on the existing `cdk-hnb659fds-{deploy,file-publishing,image-publishing,lookup}-role-*` roles (which hold the deploy privilege) plus the **direct** calls the workflows make outside CDK. CDK also reads the bootstrap-version SSM param `/cdk-bootstrap/hnb659fds/version` — covered via the lookup-role assume.
 
@@ -89,15 +89,15 @@ IAM is global but CloudFormation needs a home region; the identity + router stac
 
 ### Claim → role mapping (the correctness backbone)
 
-| Workflow / job | Trigger | declares `environment:` | OIDC claim used | Role |
-|---|---|---|---|---|
-| `sandbox-web-preview.yml` | `pull_request` | **none** | `sub = …:pull_request` | kvs-writer |
-| `sandbox-router-deploy.yml` | push `main`, dispatch | `sandbox` | `sub = …:environment:sandbox` | sandbox-deploy |
-| `sandbox-deploy.yml` (deploy **and** cleanup jobs) | `pull_request`, dispatch | `sandbox` | `sub = …:environment:sandbox` | sandbox-deploy |
-| `sandbox-identity-deploy.yml` | `pull_request`, dispatch | `sandbox` | `sub = …:environment:sandbox` | sandbox-deploy |
-| `_ci.yml` build + e2e (sandbox pipeline) | via `ci-pr` (`pull_request`) | `sandbox` | `sub = …:environment:sandbox` | sandbox-deploy |
-| `_ci.yml` `e2e-web` (BOTH pipelines) | via `ci-pr` **and** `ci-main` | `sandbox` (pinned) | `sub = …:environment:sandbox` | sandbox-deploy |
-| `_ci.yml` (prod pipeline, non-web) + `prod-deploy.yml` | via `ci-main` (push `main`), prod-deploy (push `main`/dispatch) | `production` | `sub = …:environment:production` **+** `ref = refs/heads/main` | prod |
+| Workflow / job                                         | Trigger                                                         | declares `environment:` | OIDC claim used                                                | Role           |
+| ------------------------------------------------------ | --------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------- | -------------- |
+| `sandbox-web-preview.yml`                              | `pull_request`                                                  | **none**                | `sub = …:pull_request`                                         | kvs-writer     |
+| `sandbox-router-deploy.yml`                            | push `main`, dispatch                                           | `sandbox`               | `sub = …:environment:sandbox`                                  | sandbox-deploy |
+| `sandbox-deploy.yml` (deploy **and** cleanup jobs)     | `pull_request`, dispatch                                        | `sandbox`               | `sub = …:environment:sandbox`                                  | sandbox-deploy |
+| `sandbox-identity-deploy.yml`                          | `pull_request`, dispatch                                        | `sandbox`               | `sub = …:environment:sandbox`                                  | sandbox-deploy |
+| `_ci.yml` build + e2e (sandbox pipeline)               | via `ci-pr` (`pull_request`)                                    | `sandbox`               | `sub = …:environment:sandbox`                                  | sandbox-deploy |
+| `_ci.yml` `e2e-web` (BOTH pipelines)                   | via `ci-pr` **and** `ci-main`                                   | `sandbox` (pinned)      | `sub = …:environment:sandbox`                                  | sandbox-deploy |
+| `_ci.yml` (prod pipeline, non-web) + `prod-deploy.yml` | via `ci-main` (push `main`), prod-deploy (push `main`/dispatch) | `production`            | `sub = …:environment:production` **+** `ref = refs/heads/main` | prod           |
 
 ```mermaid
 flowchart TB
@@ -137,11 +137,13 @@ The ordering invariant: **every `role-to-assume` reference is preceded by that r
 **In scope:** OIDC provider + three roles in CDK; removal of per-deploy `cdk bootstrap`; migration of all six AWS-authenticating workflows + the `load-secrets` composite; GitHub Environments (`sandbox`, `production`) + production deployment-branch rule; per-stage direct Secrets Manager scoping; the runbook of human-gated steps. Lands in PR #39.
 
 **Out of scope / non-goals:**
+
 - `claude*.yml` (already `id-token: write`, unrelated to AWS deploy auth).
-- Changing what any workflow *does* (build/deploy logic, change-detection) — only how it authenticates, plus removing the bootstrap step.
+- Changing what any workflow _does_ (build/deploy logic, change-detection) — only how it authenticates, plus removing the bootstrap step.
 - Rotating the existing static keys before deletion.
 
 ### Deferred to Follow-Up Work
+
 - **Scoped CDK bootstrap execution policy** (`cdk bootstrap --cloudformation-execution-policies <least-priv>`) to close the bootstrap-role admin ceiling noted in KTD3/R4. Material hardening, but independent of this migration.
 - A dedicated `oidc-admin` role so the OIDC stack is self-managing in CI post-static-key-deletion. Until then, OIDC-stack changes are human-gated local `cdk deploy` with admin creds (the prod role cannot manage IAM/provider resources).
 - The "Not carried over" experimental jobs (iOS/Android Maestro, Test Distribution Metric Gate) noted in `docs/CI_ARCHITECTURE.md`.
@@ -157,15 +159,17 @@ The ordering invariant: **every `role-to-assume` reference is preceded by that r
 **Dependencies:** none.
 **Files:** `packages/infra/global/lib/github/github-oidc-stack.ts` (create), `packages/infra/global/bin/github-oidc.ts` (create), `packages/infra/global/__tests__/github-oidc-stack.test.ts` (create).
 **Approach:** `iam.OpenIdConnectProvider` for `https://token.actions.githubusercontent.com`, client id `sts.amazonaws.com` (thumbprint optional in current CDK — omit).
+
 > Harness note: `packages/infra/global` already has a vitest setup (`vitest.config.ts` includes `__tests__/**/*.test.ts`; `test` script + `vitest` devDep landed with ADR 0002), so the new test file is auto-discovered — no harness wiring needed. Three `iam.Role`s via `OpenIdConnectPrincipal(provider, { … })` with `StringEquals` on `…:aud = sts.amazonaws.com` and the per-role `sub` from KTD2; the **prod** role adds a second `StringEquals` on `…:ref = refs/heads/main`. Add a synthesis-time guard: iterate the roles and `throw`/`Annotations.addError` if any trust doc lacks a `sub` condition (defense-in-depth for out-of-band synths). `CfnOutput` each ARN: export names `kitchensink-github-oidc:SandboxKvsWriterRoleArn`, `:SandboxDeployRoleArn`, `:ProdRoleArn`. No stage suffix anywhere.
-**Patterns to follow:** `packages/infra/global/lib/identity/identity-global-stack.ts` (stack shape, props, `CfnOutput` naming); `packages/infra/global/__tests__/network-stack.test.ts` (the now-canonical local CDK assertion pattern — `Template.fromStack(...)` + `hasResourceProperties`/`findResources`).
-**Test scenarios (CDK assertions):**
+> **Patterns to follow:** `packages/infra/global/lib/identity/identity-global-stack.ts` (stack shape, props, `CfnOutput` naming); `packages/infra/global/__tests__/NetworkStack.test.ts` (the now-canonical local CDK assertion pattern — `Template.fromStack(...)` + `hasResourceProperties`/`findResources`).
+> **Test scenarios (CDK assertions):**
+
 - Exactly one `AWS::IAM::OIDCProvider`, URL `token.actions.githubusercontent.com`, client id `sts.amazonaws.com`.
 - For **each** of the three roles: trust `Condition.StringEquals` includes `…:aud = sts.amazonaws.com` (one assertion per role).
 - KVS-writer `sub` = `repo:radicle-co/KitchenSink:pull_request`; sandbox-deploy `sub` = `…:environment:sandbox`; prod `sub` = `…:environment:production` **and** trust includes `StringEquals` `…:ref = refs/heads/main` (assert exact strings incl. the `radicle-co/KitchenSink` org prefix — a wrong/missing `sub` or `ref` is a silent trust hole).
 - Three role-ARN `CfnOutput`s with the expected export names.
 - Synthesis throws if a role trust doc is constructed without a `sub` condition (negative-path guard test).
-**Verification:** `npm run synth:oidc` emits the template; assertions green.
+  **Verification:** `npm run synth:oidc` emits the template; assertions green.
 
 ### U2. Scoped permission policies for the three roles
 
@@ -174,14 +178,15 @@ The ordering invariant: **every `role-to-assume` reference is preceded by that r
 **Dependencies:** U1.
 **Files:** `packages/infra/global/lib/github/github-oidc-stack.ts` (modify), `packages/infra/global/__tests__/github-oidc-stack.test.ts` (modify).
 **Approach:**
+
 - **KVS-writer:** `cloudformation:DescribeStacks` Resource = `arn:aws:cloudformation:us-east-1:<acct>:stack/kitchensink-sandbox-router-sandbox/*` (NOT `*`); `cloudfront-keyvaluestore:DescribeKeyValueStore`/`PutKey`/`DeleteKey` Resource = `arn:aws:cloudfront::<acct>:key-value-store/*` (router is a singleton — wildcard avoids the cross-app `Fn.importValue` export-lock; do **not** import the router export). Account from `Stack.of(this).account`. No secrets, no `sts:AssumeRole`.
 - **sandbox-deploy + prod:** `sts:AssumeRole` on `arn:aws:iam::<acct>:role/cdk-hnb659fds-*`; ECR **full push set** — `ecr:GetAuthorizationToken` (Resource `*`, account-level), and on the repo `BatchCheckLayerAvailability`/`BatchGetImage`/`GetDownloadUrlForLayer`/`InitiateLayerUpload`/`UploadLayerPart`/`CompleteLayerUpload`/`PutImage`/`DescribeRepositories`/`CreateRepository`; `cloudformation:ListExports`/`DescribeStacks`/`DeleteStack` (DeleteStack for `sandbox-deploy.yml`'s cleanup job); `cloudfront-keyvaluestore:DescribeKeyValueStore`/`PutKey`/`DeleteKey` (router-deploy seeds the bypass key); `lambda:InvokeFunction` on `arn:aws:lambda:*:<acct>:function:kitchensink-*` (the migration-runner ARN isn't known at authoring time — name-pattern scope); `secretsmanager:GetSecretValue` on `arn:aws:secretsmanager:*:<acct>:secret:kitchensink/<stage>/*`.
-**Test scenarios:**
+  **Test scenarios:**
 - KVS-writer has **no** `secretsmanager:*`, **no** `sts:AssumeRole`; its `cloudformation:DescribeStacks` and KVS actions are resource-scoped (not `Resource: *`).
 - sandbox-deploy `secretsmanager:GetSecretValue` Resource matches `kitchensink/sandbox/*` and **not** `kitchensink/prod/*`; prod role the inverse.
 - Deploy roles' `sts:AssumeRole` Resource is `cdk-hnb659fds-*` only.
 - ECR push verbs present on the deploy roles (assert `ecr:PutImage` + `UploadLayerPart` exist).
-**Verification:** assertions green; manual `cdk synth` policy diff against the KTD2 table + the per-workflow call audit.
+  **Verification:** assertions green; manual `cdk synth` policy diff against the KTD2 table + the per-workflow call audit.
 
 ### U3. Deploy wiring for the OIDC stack
 
@@ -261,15 +266,15 @@ The ordering invariant: **every `role-to-assume` reference is preceded by that r
 
 Owner: repo/AWS admin (Brandon). The **Gates** column maps each step to the units it unblocks.
 
-| # | Step | Gates |
-|---|------|-------|
-| 1 | Ensure the account is `cdk bootstrap`-ed once in us-east-1 (so U4 can drop the per-deploy bootstrap). | U4, U6, U8 |
-| 2 | Deploy `kitchensink-github-oidc` to AWS (`npm run deploy:oidc`; first run uses existing static keys). Capture the three role ARNs. | U5–U8 |
-| 3 | Set repo **variables** (not secrets): `AWS_GHA_SANDBOX_KVS_WRITER_ROLE_ARN`, `AWS_GHA_SANDBOX_DEPLOY_ROLE_ARN`, `AWS_GHA_PROD_ROLE_ARN`. | U5–U8 |
-| 4 | Confirm repo setting **"Send write tokens to workflows from fork pull requests" = OFF**. | U5 |
-| 5 | Create GitHub Environment **`sandbox`** (no protection rules; PR authors can deploy to sandbox — accepted). | U6, U7 |
-| 6 | Create GitHub Environment **`production`** with a deployment-branch rule restricting it to `main`; do **not** add required-reviewers (would block `ci-main`). | U8 |
-| 7 | After U8 is green: delete the `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` repo secrets; update branch-protection required-check names to `ci / <job>` and scope the blocking ruleset to the default branch. | U9 |
+| #   | Step                                                                                                                                                                                                        | Gates      |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | Ensure the account is `cdk bootstrap`-ed once in us-east-1 (so U4 can drop the per-deploy bootstrap).                                                                                                       | U4, U6, U8 |
+| 2   | Deploy `kitchensink-github-oidc` to AWS (`npm run deploy:oidc`; first run uses existing static keys). Capture the three role ARNs.                                                                          | U5–U8      |
+| 3   | Set repo **variables** (not secrets): `AWS_GHA_SANDBOX_KVS_WRITER_ROLE_ARN`, `AWS_GHA_SANDBOX_DEPLOY_ROLE_ARN`, `AWS_GHA_PROD_ROLE_ARN`.                                                                    | U5–U8      |
+| 4   | Confirm repo setting **"Send write tokens to workflows from fork pull requests" = OFF**.                                                                                                                    | U5         |
+| 5   | Create GitHub Environment **`sandbox`** (no protection rules; PR authors can deploy to sandbox — accepted).                                                                                                 | U6, U7     |
+| 6   | Create GitHub Environment **`production`** with a deployment-branch rule restricting it to `main`; do **not** add required-reviewers (would block `ci-main`).                                               | U8         |
+| 7   | After U8 is green: delete the `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` repo secrets; update branch-protection required-check names to `ci / <job>` and scope the blocking ruleset to the default branch. | U9         |
 
 > ⚠️ **Ordering invariant:** never merge a workflow migration (U5–U8) before its role exists in AWS, its repo variable is set, **and** its Environment exists. A `role-to-assume` pointing at a missing ARN — or an `environment:` referencing a missing Environment — fails every run.
 
@@ -283,17 +288,17 @@ The app is not live and the static keys stay valid until U9, so rollback is chea
 
 ## Risk Analysis & Mitigation
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| `sub`/`ref` condition wrong or doesn't match a trigger | Med | High (trust hole or every-run failure) | The claim→role table is the backbone; U1 pins exact strings incl. prod `ref`; deterministic `sub` via `environment:`; Environments created before the units that need them (runbook gates). |
-| `cdk bootstrap` admin requirement leaks into the role | — | High | KTD3 removes the per-deploy bootstrap (U4); role holds only `AssumeRole` on bootstrap roles. |
-| Bootstrap-role chain ≈ admin → R4 not absolute for deploy roles | High | Med | Stated honestly in KTD3/R4; scoped bootstrap execution policy deferred. KVS-writer (PR surface) assumes no bootstrap role, so its isolation is absolute. |
-| `continue-on-error` hides broken OIDC as a green skip | Med | High | U7 makes same-repo secret-load fail loud. |
-| `e2e-web` can't read sandbox secrets under the prod role | High (if unhandled) | Med | KTD4/U8 pin `e2e-web` to `environment: sandbox` + sandbox role on both pipelines. |
-| `Fn.importValue` locks the router export / wrong name | — | Med | U2 wildcard-scopes the KVS instead of importing. |
-| PR-triggered sandbox deploys reachable by any PR author | Med | Low (sandbox only, no prod reach; app not live) | Stated decision in U6; optional same-repo guard; no prod path from the sandbox role. |
-| Account-global provider collides with a future creator | Low | Med | KTD1 isolates it; `cdk import` fallback noted. |
-| In-flight infra work in the same branch edits the same files | Med | Low | PR #39 already carries the VPC consolidation (ADR 0002); the Tailscale plan (003, depends on ADR 0002) also touches `packages/infra/global` + `prod-deploy.yml`/`sandbox-identity-deploy.yml`. This plan's CDK is **additive** (`lib/github/` + `bin/github-oidc.ts` — no overlap with `network-stack.ts`/`data-stack.ts`); only the workflow edits (U4/U6/U8) could conflict line-wise. Land OIDC's workflow edits and Tailscale's in sequence, not interleaved. |
+| Risk                                                            | Likelihood          | Impact                                          | Mitigation                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------------------------------- | ------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sub`/`ref` condition wrong or doesn't match a trigger          | Med                 | High (trust hole or every-run failure)          | The claim→role table is the backbone; U1 pins exact strings incl. prod `ref`; deterministic `sub` via `environment:`; Environments created before the units that need them (runbook gates).                                                                                                                                                                                                                                                                     |
+| `cdk bootstrap` admin requirement leaks into the role           | —                   | High                                            | KTD3 removes the per-deploy bootstrap (U4); role holds only `AssumeRole` on bootstrap roles.                                                                                                                                                                                                                                                                                                                                                                    |
+| Bootstrap-role chain ≈ admin → R4 not absolute for deploy roles | High                | Med                                             | Stated honestly in KTD3/R4; scoped bootstrap execution policy deferred. KVS-writer (PR surface) assumes no bootstrap role, so its isolation is absolute.                                                                                                                                                                                                                                                                                                        |
+| `continue-on-error` hides broken OIDC as a green skip           | Med                 | High                                            | U7 makes same-repo secret-load fail loud.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `e2e-web` can't read sandbox secrets under the prod role        | High (if unhandled) | Med                                             | KTD4/U8 pin `e2e-web` to `environment: sandbox` + sandbox role on both pipelines.                                                                                                                                                                                                                                                                                                                                                                               |
+| `Fn.importValue` locks the router export / wrong name           | —                   | Med                                             | U2 wildcard-scopes the KVS instead of importing.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| PR-triggered sandbox deploys reachable by any PR author         | Med                 | Low (sandbox only, no prod reach; app not live) | Stated decision in U6; optional same-repo guard; no prod path from the sandbox role.                                                                                                                                                                                                                                                                                                                                                                            |
+| Account-global provider collides with a future creator          | Low                 | Med                                             | KTD1 isolates it; `cdk import` fallback noted.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| In-flight infra work in the same branch edits the same files    | Med                 | Low                                             | PR #39 already carries the VPC consolidation (ADR 0002); the Tailscale plan (003, depends on ADR 0002) also touches `packages/infra/global` + `prod-deploy.yml`/`sandbox-identity-deploy.yml`. This plan's CDK is **additive** (`lib/github/` + `bin/github-oidc.ts` — no overlap with `NetworkStack.ts`/`DataStack.ts`); only the workflow edits (U4/U6/U8) could conflict line-wise. Land OIDC's workflow edits and Tailscale's in sequence, not interleaved. |
 
 ---
 

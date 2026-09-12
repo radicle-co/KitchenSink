@@ -219,7 +219,7 @@
 | 9   | [NEEDS CLARIFICATION] Markers  | PASS   |
 | 10  | Internal Consistency           | PASS   |
 | 11  | Prose Quality and Formatting   | PASS   |
-| 12  | Commise Integration          | PASS   |
+| 12  | Commise Integration            | PASS   |
 | 13  | Architecture Alignment         | PASS   |
 | 14  | No Unresolved Ambiguities      | PASS   |
 | 15  | Traceability                   | PASS   |

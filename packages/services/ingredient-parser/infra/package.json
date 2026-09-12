@@ -1,0 +1,50 @@
+{
+    "name": "@kitchensink/ingredient-parser-infra",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "//": [
+        "⛔ NOT AN npm WORKSPACE. Infra installs on its own so `aws-cdk-lib` never enters the root tree.",
+        "",
+        "⚠️ ingredient-parser gains no IMAGE from this — ADR-0025 makes it a Python Lambda with no container. It",
+        "moves for the other half of the reason: while its CDK deps sat on the SERVICE they kept aws-cdk-lib in the",
+        "root tree for every workspace package, which is exactly what this change removes.",
+        "",
+        "⚠️ Its two packaging integration suites MOVED here from `../tests`. They exercise `lib/packaging.ts` and",
+        "`lib/assetContents.ts` — infra code — and reaching them from the service's test directory became a",
+        "cross-package relative import the moment this directory stopped being part of that package.",
+        "",
+        "⚠️ `@kitchensink/ingredient-parser` is IMPORTED but not DECLARED: it is an unpublished workspace package,",
+        "so declaring it would make `npm install` here resolve it from the registry and 404. Node finds it by",
+        "walking up to the repo root. Same trade as every other CDK directory."
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "deploy": "npm run bundle:lambda --prefix .. && cdk deploy --app 'npx tsx bin/app.ts'",
+        "synth": "npm run bundle:lambda --prefix .. && cdk synth --app 'npx tsx bin/app.ts'",
+        "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@radicle-co/infra-shared": "0.1.0-alpha.897",
+        "aws-cdk-lib": "^2.267.0",
+        "constructs": "^10.8.1",
+        "dotenv": "^17.4.2"
+    },
+    "devDependencies": {
+        "@types/node": "^24.13.3",
+        "aws-cdk": "^2.1134.0",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    },
+    "kitchensink": {
+        "localSandbox": {
+            "skipSynth": "its `synth` runs the service's `bundle:lambda` first, which shells out to `python3 -m pip` for ~90 MB of arm64 wheels plus the 1.6 MB CRF model (ADR-0025). A local sandbox must not require a Python toolchain or network to START, and this stack contributes nothing a local run stands up: `awsResources.ts` creates no `AWS::Lambda::Function`, and `localCrfEngine.ts` runs `src/handler.py` directly. Set LOCAL_SANDBOX_SYNTH_ALL=1 to include it."
+        }
+    }
+}

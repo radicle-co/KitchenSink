@@ -24,6 +24,9 @@
  * **Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo
  * "Replace" control, and the original photo is deleted only from the replacement's `onUploaded` continuation
  * — never up-front. See the `handleReplacePhoto` comment for the full ordering + the at-cap refusal.
+ *
+ * @pattern Orchestration container over the `useRecipePhotoQueue` hook — it owns the DOM file-input Facade and the
+ *     Object-URL lifecycle ledger that the presentational `RecipePhotoManager` deliberately omits.
  */
 import { RecipePhotoManager, isAtPhotoCap, visibleQueueItems } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';

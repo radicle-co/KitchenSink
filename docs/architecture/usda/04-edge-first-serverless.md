@@ -247,8 +247,8 @@ These are standard Lambda functions accessed via Function URL, invoked only on C
 
 - Trigger: CloudFront via Function URL
 - Operation (without OpenSearch): `Query` on GSI1 with `contains()` filter expression
-  - Limitation: `contains()` requires a full table scan on the GSI, returns poor relevance ranking
-  - For small result sets with a prefix, `begins_with()` on the sort key is more efficient
+    - Limitation: `contains()` requires a full table scan on the GSI, returns poor relevance ranking
+    - For small result sets with a prefix, `begins_with()` on the sort key is more efficient
 - Operation (with OpenSearch): forward query to OpenSearch Serverless collection
 - Response: array of food summaries with `fdcId`, `description`, `dataType`, `brandOwner`
 
@@ -949,8 +949,8 @@ This switch is transparent to the application — the data model and SDK calls d
 - Create the `food-data` table with GSI1 and GSI2
 - Enable PITR
 - Build the Step Functions ingestion pipeline:
-  - Lambda: USDA CSV downloader → S3
-  - Lambda: CSV parser + DynamoDB writer (BatchWriteItem, 25 items/call)
+    - Lambda: USDA CSV downloader → S3
+    - Lambda: CSV parser + DynamoDB writer (BatchWriteItem, 25 items/call)
 - Run full ingestion (~330K foods + 15M nutrients)
 - Verify item counts by `dataType`
 - Benchmark read latency for `GetItem` and `Query` operations
@@ -964,14 +964,14 @@ This switch is transparent to the application — the data model and SDK calls d
 **Goal:** Working origin Lambda functions accessible via Function URL.
 
 - Implement `food-lookup` Lambda (Node.js 22.x, arm64):
-  - `GetItem` by `fdcId` with attribute projection
-  - Structured JSON response with `Cache-Control` headers
+    - `GetItem` by `fdcId` with attribute projection
+    - Structured JSON response with `Cache-Control` headers
 - Implement `food-batch` Lambda:
-  - `BatchGetItem` for up to 100 `fdcId`s
-  - Handle `UnprocessedKeys` with retry
+    - `BatchGetItem` for up to 100 `fdcId`s
+    - Handle `UnprocessedKeys` with retry
 - Implement `food-search` Lambda:
-  - Query GSI1 with `begins_with()` on description
-  - Result sorting by relevance score (simple string match)
+    - Query GSI1 with `begins_with()` on description
+    - Result sorting by relevance score (simple string match)
 - Deploy all functions with Function URLs (IAM auth)
 - Set IAM execution roles (least-privilege DynamoDB access)
 - Write unit tests for each Lambda
@@ -985,12 +985,12 @@ This switch is transparent to the application — the data model and SDK calls d
 **Goal:** A CloudFront distribution routing to the Lambda origins with correct TTLs.
 
 - Create CloudFront distribution:
-  - Origin: Lambda Function URL (with OAI for auth)
-  - Origin Shield: `us-east-1`
+    - Origin: Lambda Function URL (with OAI for auth)
+    - Origin Shield: `us-east-1`
 - Configure cache behaviors:
-  - `/foods/*` — TTL by `dataType` (set via Lambda `Cache-Control` response header)
-  - `/foods/search` — TTL 24 hours
-  - `/foods/batch` — TTL 7 days
+    - `/foods/*` — TTL by `dataType` (set via Lambda `Cache-Control` response header)
+    - `/foods/search` — TTL 24 hours
+    - `/foods/batch` — TTL 7 days
 - Configure cache key policies (normalize query params)
 - Set custom error responses (502, 503, 504 → return last-known-good cached response)
 - Enable CloudFront access logs to S3
@@ -1005,13 +1005,13 @@ This switch is transparent to the application — the data model and SDK calls d
 **Goal:** Consistent cache keys regardless of client-side query string variations.
 
 - Deploy CloudFront Function (Viewer Request):
-  - Lowercase all query parameters
-  - Sort query parameters alphabetically
-  - Strip empty or default-value parameters
-  - Remove trailing whitespace from values
+    - Lowercase all query parameters
+    - Sort query parameters alphabetically
+    - Strip empty or default-value parameters
+    - Remove trailing whitespace from values
 - Deploy Lambda@Edge (Viewer Response):
-  - Inject `X-Cache-Status: HIT | MISS | STALE` header
-  - Inject `X-Origin-Region: us-east-1` for debugging
+    - Inject `X-Cache-Status: HIT | MISS | STALE` header
+    - Inject `X-Origin-Region: us-east-1` for debugging
 - Test: verify that `/foods/747448`, `/foods/747448?`, and `/foods/747448?q=` resolve to the same cache key
 
 **Deliverables:** Deployed CloudFront Function and Lambda@Edge with verified cache key normalization.
@@ -1023,15 +1023,15 @@ This switch is transparent to the application — the data model and SDK calls d
 **Goal:** A documented and implemented search strategy appropriate for the application's requirements.
 
 - Benchmark DynamoDB GSI search:
-  - Measure RCU consumption for `contains()` vs `begins_with()` on GSI1
-  - Measure latency for 50-result search queries
-  - Document search quality (precision, recall) for 20 representative queries
+    - Measure RCU consumption for `contains()` vs `begins_with()` on GSI1
+    - Measure latency for 50-result search queries
+    - Document search quality (precision, recall) for 20 representative queries
 - Evaluate USDA search API as fallback:
-  - Implement a Lambda that proxies complex queries to the USDA FDC API
-  - Measure rate limit headroom (1,000 req/hr budget)
+    - Implement a Lambda that proxies complex queries to the USDA FDC API
+    - Measure rate limit headroom (1,000 req/hr budget)
 - Decision gate: is DynamoDB-only search acceptable?
-  - YES → ship with DynamoDB + USDA fallback
-  - NO → evaluate OpenSearch Serverless with full cost awareness ($700+/month)
+    - YES → ship with DynamoDB + USDA fallback
+    - NO → evaluate OpenSearch Serverless with full cost awareness ($700+/month)
 - Implement chosen search strategy
 - Cache search results in CloudFront (24-hour TTL)
 
@@ -1045,14 +1045,14 @@ This switch is transparent to the application — the data model and SDK calls d
 
 - Enable X-Ray tracing on all Lambda functions
 - Configure CloudWatch alarms:
-  - DynamoDB `ThrottledRequests > 0` → SNS notification
-  - Lambda `Errors > 10` in 1 minute → SNS notification
-  - CloudFront `5xxErrorRate > 1%` for 5 minutes → SNS notification
-  - Lambda@Edge `Errors > 5` in 1 minute → SNS notification
+    - DynamoDB `ThrottledRequests > 0` → SNS notification
+    - Lambda `Errors > 10` in 1 minute → SNS notification
+    - CloudFront `5xxErrorRate > 1%` for 5 minutes → SNS notification
+    - Lambda@Edge `Errors > 5` in 1 minute → SNS notification
 - Create CloudWatch dashboard:
-  - CloudFront: CacheHitRate, RequestCount, ErrorRate, Latency
-  - Lambda: Invocations, Duration (p50, p95, p99), Errors, Throttles
-  - DynamoDB: ConsumedRCU, ConsumedWCU, ThrottledRequests
+    - CloudFront: CacheHitRate, RequestCount, ErrorRate, Latency
+    - Lambda: Invocations, Duration (p50, p95, p99), Errors, Throttles
+    - DynamoDB: ConsumedRCU, ConsumedWCU, ThrottledRequests
 - Enable DynamoDB Contributor Insights (identifies hot partition keys)
 - Set up S3 lifecycle policy on CloudFront access logs (delete after 90 days)
 - Document runbook: how to respond to DynamoDB throttling, Lambda errors, cache invalidation

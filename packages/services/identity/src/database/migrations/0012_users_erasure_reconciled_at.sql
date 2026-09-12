@@ -1,6 +1,6 @@
 -- CR-002 R7: bound the nightly erasure-completion reconciliation sweep.
 --
--- The sweep (identity-webhooks `erasure-reconciliation.ts`) re-drives the idempotent recipe + food erasure
+-- The sweep (identity-webhooks `erasureReconciliation.ts`) re-drives the idempotent recipe + food erasure
 -- legs for every `status='erased'` identity. Without a completion marker it re-drives the ENTIRE erased
 -- population every night forever — unbounded as that population grows. `reconciled_at` is that marker: the
 -- sweep stamps it the first night BOTH legs verify jointly complete, then scans only

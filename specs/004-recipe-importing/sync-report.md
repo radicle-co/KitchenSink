@@ -10,12 +10,12 @@
 
 The prior run (2026-06-02) passed with warnings and recorded four INFO drifts, **all of which are now closed**:
 
-| Prior | Drift                                                       | Status                                                                                                                     |
-| ----- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| D-001 | tasks.md used `src/web/` and `src/mobile/` path conventions | ✅ **Closed** — and the intermediate "fix" to `packages/api/recipe/` was also wrong; paths are now verified against `main` |
-| D-002 | FR-012 (OCR) P1 in spec vs P3 in plan                       | ✅ **Closed** — owner decision D-001: P1 at launch, consistent everywhere                                                  |
-| D-003 | FR-014a had no operational rule                             | ✅ **Closed** — owner decision D-003                                                                                       |
-| D-004 | OCR provider unresolved                                     | ✅ **Closed** — AWS Textract behind an `OcrProvider` port                                                                  |
+| Prior | Drift                                                       | Status                                                                                                                                                                                                                                |
+| ----- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-001 | tasks.md used `src/web/` and `src/mobile/` path conventions | ✅ **Closed** — and the intermediate "fix" to `packages/api/recipe/` was also wrong; paths are now verified against `main`                                                                                                            |
+| D-002 | FR-012 (OCR) P1 in spec vs P3 in plan                       | ⚠️ **Re-closed 2026-08-16** — D-001 was amended 2026-08-14 and `FR-012` reassigned to 011. Neither priority is 004's any more; the drift was resolved by moving the channel out, and the downstream docs were re-synced on 2026-08-16 |
+| D-003 | FR-014a had no operational rule                             | ✅ **Closed** — owner decision D-003                                                                                                                                                                                                  |
+| D-004 | OCR provider unresolved                                     | ⚠️ **Transferred 2026-08-16** — the provider choice moved to 011 with the channel (REQ-IF-002). 011 inherits both the Textract default and the `OcrProvider` port that keeps it reversible                                            |
 
 ## Layer summaries
 

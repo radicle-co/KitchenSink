@@ -6,18 +6,27 @@
  * Closure is the RECOVERABLE action: it deactivates the account (identity ban + tombstone) but RETAINS the
  * user's data, which can be restored. This supersedes the old `AccountDeleteForm`, whose copy wrongly claimed
  * the same `DELETE /api/v1/users/me` call "permanently deleted" "all your data" — the exact conflation U4b fixes.
- * Irreversible ERASURE is a SEPARATE control ({@link import('./AccountEraseForm.js').AccountEraseForm}).
+ * Irreversible ERASURE is a SEPARATE control (`AccountEraseForm`).
  *
  * Built on the design-system `ConfirmDialog` (`@commise/ui/confirm-dialog`), which owns the focus trap,
  * Escape/backdrop dismiss, and `role="alertdialog"` wiring. All copy is localized (`accountDangerMessages`),
  * never hard-coded.
  *
  * Leaving the app after closure goes through the app's one sign-out command,
- * {@link import('./useSignOutAndLeave.js').useSignOutAndLeave} — which awaits the revoke and only then
+ * `useSignOutAndLeave` — which awaits the revoke and only then
  * replaces the document (a router-level redirect re-renders the authenticated shell from a payload resolved
  * for the session that was just destroyed), and VERIFIES the session actually ended before doing so (B23: a
  * sign-out issued before clerk-js has loaded resolves without revoking anything). A failure to leave surfaces
  * in the same alert as a failure to close — by then the closure has been accepted, so it is never silent.
+ *
+ * ⚠️ It is ORCHESTRATION, which a button plus a dialog does not look like: the account-closing call and the
+ * verified sign-out both live inside one handler, and the render body is three elements. Its sibling
+ * `AccountEraseForm` already declares the same layer for the same reason — the two danger-zone controls sit
+ * on one surface, and a reader who classified one of them as a leaf would put the next write in the wrong
+ * place.
+ *
+ * @pattern Command over the closure sequence — `deleteMe` then the load-safe, VERIFIED sign-out, issued as
+ *     one transition so a closed account can never be left holding a live session.
  */
 import { useState, useTransition } from 'react';
 import { useMessages } from '@commise/i18n/react';

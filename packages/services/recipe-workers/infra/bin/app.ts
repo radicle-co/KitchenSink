@@ -3,10 +3,18 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenvConfig({ path: join(__dirname, '../../.env') });
+import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
 
-import { RecipeWorkersStack } from '../lib/recipe-workers-stack.js';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// ⛔ `quiet: true` IS LOAD-BEARING. This file's STDOUT is a machine-readable channel:
+// `.github/scripts/verify-deployment.sh` runs `cdk ls --long --json --app "<this app>"` and parses the
+// result, so one stray line ahead of the JSON makes the post-deploy verifier report nothing at all.
+// dotenv@17 prints a marketing banner on every `config()` call — measured, even for a path that does
+// not exist. `packages/infra/global/__tests__/cdkAppStdoutPurity.test.ts` asserts this flag on every
+// DISCOVERED CDK app and observes the installed library actually honouring it.
+dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
+
+import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
 
 const app = new App();
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
@@ -16,11 +24,28 @@ const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
 // decides whether this deploy gets the shared recipe database or its own isolated one (#119).
 const baseStage = stage === 'prod' ? 'prod' : 'sandbox';
 
-// ADR-0005: recipe-workers is a non-global FEATURE deploy. A per-PR stack (stage = pr-{N}) is ephemeral
-// and MUST tag Environment=pr-{N} so the PR-close cleanup deletes it — that job matches by tag OR
-// pr-{N} name prefix with NO denylist, so the safety of every persistent resource depends on this line
-// never tagging a global resource `pr-{N}` (and vice versa). A persistent deploy tags 'global'.
-Tags.of(app).add('Environment', stage.startsWith('pr-') ? stage : 'global');
+// ⛔ ADR-0005's PRIMARY teardown selector, and the ONE line that decides whether this deploy is
+// reclaimable. A per-PR stack (stage = pr-{N}) is ephemeral and tags `pr-{N}-sandbox`, which the PR-close
+// cleanup deletes by tag OR by `pr-{N}` name prefix with NO denylist; every persistent stage tags the TIER
+// it lives in — `production` for prod, `sandbox` for everything else — and no token can ever claim either,
+// because a token carries digits and neither tier word does.
+//
+// The safety of every persistent resource depends on this line never tagging shared infrastructure
+// `pr-{N}-sandbox`, and on no per-PR stack ever tagging the bare tier word.
+Tags.of(app).add(
+    'Environment',
+    stage.startsWith('pr-') ? `${stage}-sandbox` : stage === 'prod' ? 'production' : 'sandbox',
+);
+
+// U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
+// annotation-only so the synthesized template is unchanged. See @radicle-co/infra-shared/security.
+attachSecurityChecks(app);
+// The COMMIT this deploy was built from, recorded as a CloudFormation STACK tag so
+// `scripts/deploymentDrift.mjs` can answer "is what is running the code we think it is?". A stack
+// tag, never `Tags.of(app)`: the aspect form would rewrite every taggable resource on every commit,
+// breaching the ADR-0002/ADR-0008 no-prod-diff line for a fact about the BUILD rather than about any
+// resource. See @radicle-co/infra-shared/security.
+stampCommitProvenance(app);
 
 const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
 const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];
@@ -42,7 +67,28 @@ const requireEnv = (key: string): string => {
 
 const env = account ? { account, region } : { region };
 
+// ⛔ THIS APP NO LONGER REACHES INTO recipe-service's `dist-lambda/`. It used to resolve that bundle here
+// and pass it in, because this stack shipped a SECOND copy of the migration runner purely so a
+// `triggers.Trigger` could order its eight DB-touching Lambdas behind a schema apply — `DependsOn` cannot
+// leave a stack, so there was no other way. The schema now belongs to `kitchensink-recipe-schema-{stage}`,
+// deployed and migrated by its own pipeline step ahead of this app and ahead of the service, so one runner
+// orders every consumer and this cross-package dependency is gone.
+
+// ⛔ THE ALARM SWITCH, RESOLVED AT SYNTH TIME, DEFAULT OFF. The per-stage truth is stored in SSM at
+// `/kitchensink/{stage}/observability/alarms-enabled`; the DEPLOY PIPELINE reads that parameter and exports
+// `ALARMS_ENABLED`, exactly as `COST_ALERT_EMAIL` and the image tag already arrive. Absent, unreadable or
+// malformed leaves the variable unset — which is `false`, so the flag fails CLOSED, toward creating none.
+//
+// ⛔ NOT `ssm.StringParameter.valueForStringParameter`: that resolves at DEPLOY time and returns a
+// `${Token[…]}` string, so `=== 'true'` is false forever and the bare token is truthy forever — a flag that
+// compiles, deploys and silently does nothing. Whether a construct EXISTS is decided here, at synth.
+// Enforced by `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
+const alarmsEnabled = process.env['ALARMS_ENABLED'] === 'true';
+
 new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
+    alarmsEnabled,
+    // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.
+    alertEmail: process.env['COST_ALERT_EMAIL'],
     env,
     stackName: `kitchensink-recipe-workers-${stage}`,
     stage,
@@ -58,9 +104,6 @@ new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
     // destructive scheduled sweepers — at the SHARED database while the API used the preview's own (#119).
     // `requireEnv` is the point: a CI step that forgets this variable now fails the deploy instead of
     // quietly targeting another stage's data.
-    dbBaseName: requireEnv('RECIPE_DB_BASE_NAME'),
-    // Passwordless RDS-IAM role (no password secret) — see DataStack's RecipeDbBootstrap.
-    dbUser: process.env['RECIPE_DB_USER'] ?? 'recipe_app',
     // The RDS DbiResourceId (`db-XXXX…`), not the instance name — see the prop's doc comment.
     dbInstanceIdentifier: requireEnv('RECIPE_DB_INSTANCE_ID'),
     archiveBucketName: requireEnv('RECIPE_ARCHIVE_BUCKET'),

@@ -1,3 +1,4 @@
+import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -58,7 +59,7 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'jsdom',
-        setupFiles: ['./tests/setup.native.ts'],
+        setupFiles: [jsdomPolyfillsSetup, './tests/setup.native.ts'],
         include: ['tests/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
 
@@ -94,6 +95,9 @@ export default defineConfig({
             // bridge to native views with no jsdom runtime — stub them; real gradient/blur is emulator-only.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'tests/stubs/expoLinearGradient.tsx'),
             'expo-blur': path.resolve(import.meta.dirname, 'tests/stubs/expoBlur.tsx'),
+            // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no
+            // `crypto` global); the stub answers Node's own UUIDs so picker suites run un-networked.
+            'expo-crypto': path.resolve(import.meta.dirname, 'tests/stubs/expoCrypto.ts'),
             // `react-native-safe-area-context` ships Flow-typed source that Vitest cannot parse at all
             // (`Unexpected token 'typeof'`), and bridges to a native module for the device's window insets.
             // The shared `FullScreenSheet` recipe primitive reads `useSafeAreaInsets`, so every screen that

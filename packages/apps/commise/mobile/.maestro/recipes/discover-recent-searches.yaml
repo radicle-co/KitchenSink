@@ -29,7 +29,7 @@ appId: io.commise.mobile
 - tapOn: 'Search public recipes'
 - inputText: 'Risotto'
 - extendedWaitUntil:
-      visible: 'Herb Risotto'
+      visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 
 # 2. Back to the idle state: clearing the field (still focused) reveals the search that ran.
@@ -43,7 +43,7 @@ appId: io.commise.mobile
 # 3. Tapping the entry re-runs it: the result list returns.
 - tapOn: 'Search for “Risotto”'
 - extendedWaitUntil:
-      visible: 'Herb Risotto'
+      visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 
 # 4. It survives an app restart (AsyncStorage, not in-memory state). `signin.yaml` relaunches the app itself

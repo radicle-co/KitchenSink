@@ -15,7 +15,9 @@ import {
 } from '../env.js';
 
 const validBaseEnv = {
-    DB_SECRET_ARN: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/db/test',
+    DB_HOST: 'db.internal',
+    DB_PORT: '5432',
+    DB_NAME: 'kitchensink_identity',
     IDP_SECRET_KEY: 'sk_test_123',
     IDP_PUBLISHABLE_KEY: 'pk_test_123',
     IDP_WEBHOOK_SECRET: 'whsec_test_123',
@@ -28,7 +30,9 @@ describe('EnvironmentSchema', () => {
         const parsed = EnvironmentSchema.parse(validBaseEnv);
 
         expect(parsed).toMatchObject({
-            DB_SECRET_ARN: validBaseEnv.DB_SECRET_ARN,
+            DB_HOST: 'db.internal',
+            DB_PORT: '5432',
+            DB_NAME: 'kitchensink_identity',
             IDP_SECRET_KEY: 'sk_test_123',
             IDP_PUBLISHABLE_KEY: 'pk_test_123',
             IDP_WEBHOOK_SECRET: 'whsec_test_123',
@@ -51,10 +55,41 @@ describe('EnvironmentSchema', () => {
         expect(typeof parsed.DB_POOL_MAX).toBe('number');
     });
 
-    it('throws a ZodError when DB_SECRET_ARN is missing', () => {
-        const { DB_SECRET_ARN: _omit, ...rest } = validBaseEnv;
+    it.each(['DB_HOST', 'DB_PORT', 'DB_NAME'] as const)(
+        'throws naming %s when it is missing and DATABASE_URL is not set',
+        (name) => {
+            const rest: Record<string, string> = { ...validBaseEnv };
 
-        expect(() => EnvironmentSchema.parse(rest)).toThrow();
+            delete rest[name];
+
+            const result = EnvironmentSchema.safeParse(rest);
+
+            expect(result.success).toBe(false);
+            expect(result.error?.issues.map((issue) => issue.path[0])).toEqual([name]);
+        },
+    );
+
+    it('accepts DATABASE_URL in place of the discrete DB_* coordinates (local and the integration tier)', () => {
+        const { DB_HOST: _host, DB_PORT: _port, DB_NAME: _name, ...rest } = validBaseEnv;
+
+        expect(EnvironmentSchema.safeParse({ ...rest, DATABASE_URL: 'postgres://u:p@localhost:5432/db' }).success).toBe(
+            true,
+        );
+    });
+
+    it('⛔ no longer accepts the master-secret ARN as a database location', () => {
+        const { DB_HOST: _host, DB_PORT: _port, DB_NAME: _name, ...rest } = validBaseEnv;
+
+        expect(
+            EnvironmentSchema.safeParse({
+                ...rest,
+                DB_SECRET_ARN: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/db/test',
+            }).success,
+        ).toBe(false);
+    });
+
+    it('rejects a DB_PORT that is not a port number', () => {
+        expect(EnvironmentSchema.safeParse({ ...validBaseEnv, DB_PORT: 'postgres' }).success).toBe(false);
     });
 
     it('throws when neither IDP_SECRET_KEY nor AUTH_SECRET_ARN is provided', () => {
@@ -115,7 +150,7 @@ describe('ConfigError', () => {
     });
 
     it('is an Error subclass carrying the stable grep-able code and the underlying zod issues', () => {
-        vi.stubEnv('DB_SECRET_ARN', '');
+        vi.stubEnv('DB_HOST', '');
         vi.stubEnv('IDP_SECRET_KEY', '');
         vi.stubEnv('AUTH_SECRET_ARN', '');
 
@@ -155,7 +190,8 @@ describe('resolveEnvironment', () => {
     });
 
     it('throws a typed coded ConfigError (not a bare ZodError) naming the missing var', () => {
-        vi.stubEnv('DB_SECRET_ARN', '');
+        vi.stubEnv('DATABASE_URL', '');
+        vi.stubEnv('DB_HOST', '');
         vi.stubEnv('IDP_SECRET_KEY', '');
         vi.stubEnv('AUTH_SECRET_ARN', '');
 
@@ -169,8 +205,8 @@ describe('resolveEnvironment', () => {
 
         expect(isConfigError(caught)).toBe(true);
         expect((caught as ConfigError).code).toBe(CONFIG_ERROR_CODE);
-        expect((caught as ConfigError).message).toContain('DB_SECRET_ARN');
-        expect((caught as ConfigError).invalidVars).toContain('DB_SECRET_ARN');
+        expect((caught as ConfigError).message).toContain('DB_HOST');
+        expect((caught as ConfigError).invalidVars).toContain('DB_HOST');
         expect((caught as ConfigError).issues.length).toBeGreaterThan(0);
     });
 });
@@ -207,14 +243,14 @@ describe('getConfig / getWebhookConfig (memoized cold-start accessors)', () => {
 
         const first = getConfig();
 
-        expect(first.DB_SECRET_ARN).toBe(validBaseEnv.DB_SECRET_ARN);
+        expect(first.DB_HOST).toBe(validBaseEnv.DB_HOST);
 
-        vi.stubEnv('DB_SECRET_ARN', 'arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/db/changed');
+        vi.stubEnv('DB_HOST', 'db.changed');
         const second = getConfig();
 
         // Same cached object, unaffected by the mutation above — proves it wasn't re-parsed.
         expect(second).toBe(first);
-        expect(second.DB_SECRET_ARN).toBe(validBaseEnv.DB_SECRET_ARN);
+        expect(second.DB_HOST).toBe(validBaseEnv.DB_HOST);
     });
 
     it('resetConfigCacheForTests forces the next call to re-parse process.env', () => {
@@ -224,12 +260,10 @@ describe('getConfig / getWebhookConfig (memoized cold-start accessors)', () => {
 
         getConfig();
 
-        vi.stubEnv('DB_SECRET_ARN', 'arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/db/changed');
+        vi.stubEnv('DB_HOST', 'db.changed');
         resetConfigCacheForTests();
 
-        expect(getConfig().DB_SECRET_ARN).toBe(
-            'arn:aws:secretsmanager:us-east-1:123456789012:secret:kitchensink/db/changed',
-        );
+        expect(getConfig().DB_HOST).toBe('db.changed');
     });
 
     it('getWebhookConfig fails fast (throws) when the webhook-only fields are absent', () => {

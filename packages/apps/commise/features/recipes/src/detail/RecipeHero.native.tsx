@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe-detail HERO cover (the RN leaf of RecipeHero).
  *
- * Same contract and same two designed states as {@link import('./RecipeHero.js').RecipeHero}: the mockup
+ * Same contract and same two designed states as `RecipeHero`: the mockup
  * (`screen-recipe-detail`) opens the recipe with the cover photo under a bottom-up scrim, and a recipe with no
  * cover gets a DELIBERATE branded placeholder rather than nothing. Both legs derive from the shared tokens —
  * the scrim from `gradient.scrim`, the placeholder surface from `gradient.hero`, the geometry from
@@ -37,6 +37,9 @@
  *
  * Pure `props → JSX`: no fetching, no state, no navigation. The mockup's overlaid back/share/save controls are
  * NOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.
+ *
+ * @pattern Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the
+ *     shared gradient and geometry tokens so the two cannot drift.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
@@ -80,7 +83,13 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
         <View style={styles.coverFrame}>
             {/* FOLLOW-UP-CR-001-A applies here too: this is the full-size original, painted at hero size.
                 `accessibilityLabel` only (no `accessible`) — RNW copies it to the underlying <img alt>, giving
-                ONE named node, matching how the card's cover is labelled. */}
+                ONE named node.
+
+                This NO LONGER matches the card's cover, which #140 made decorative (it duplicated the name of
+                the pressable containing it). The hero is the same duplication class — the detail screen's <h1>
+                already carries the title — and is deliberately left as-is here because `recipeDetailHero.spec.ts`
+                identifies the hero BY this name to prove the image decoded (`naturalWidth > 0`). Making it
+                decorative is a follow-up that has to move that spec in the same change. */}
             <Image
                 accessibilityLabel={title}
                 source={{ uri: coverPhotoUrl }}

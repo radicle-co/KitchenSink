@@ -7,6 +7,9 @@
  * child keeps ALL press semantics and accessibility, this leaf contributes only the motion. The scale is
  * gated behind `motion-safe:`, so under `prefers-reduced-motion: reduce` no transition or transform is
  * emitted at all (a clean gate, not a specificity fight with an override utility).
+ *
+ * @pattern Decorator over its child's press state — CSS puts an activated element's ANCESTORS into `:active`, so
+ *     wrapping is enough and the child keeps all of the press semantics.
  */
 import type { FC } from 'react';
 

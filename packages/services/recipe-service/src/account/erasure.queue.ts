@@ -1,9 +1,9 @@
 /**
  * T134 — the real SQS adapter behind {@link ErasureQueuePort}.
  *
- * Wraps an `@aws-sdk/client-sqs` `SQSClient` into the narrow port {@link ErasureService} depends on.
+ * Wraps an `@aws-sdk/client-sqs` `SQSClient` into the narrow port `ErasureService` depends on.
  * Isolating the SDK here keeps the service unit-testable against a mock port (no network, no SDK
- * module-mocking), mirroring `photos.storage.ts` / {@link createS3PhotoStorage}. The adapter itself is
+ * module-mocking), mirroring `photos.storage.ts` / `createS3PhotoStorage`. The adapter itself is
  * exercised against LocalStack by the integration tier (T137).
  */
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';

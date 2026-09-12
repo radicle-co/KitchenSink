@@ -14,6 +14,19 @@ more executable Integration Scenarios (ITS) in module-boundary BDD format (Given
 Integration tests verify **seams and handshakes between modules**, not internal logic or user
 journeys. Language must be module-boundary-oriented.
 
+> **Corrected 2026-08-09 (ITP-004-A, ITP-005-A, ITP-005-B).** These cases were written against a stateful
+> `StepNavigationController` that emitted `onStepChange` and received `goNext()` / `goPrev()` calls from the gesture adapter. No such
+> module exists: the shipped design is a pure session reducer (`packages/shared/cooking/src/session.ts`) driven by the headless
+> `useCookingSession`, with the native `PanResponder` raising `onNext` / `onPrevious` through the pure `swipeNavigation` policy. Every
+> scenario was therefore unrunnable. All three cases are rewritten against the shipped seams, **keeping their ids**, and one scenario
+> (`ITS-004-A4`) is added; nothing is retired, because each original scenario had a real counterpart. See the per-section notes below
+> and the reconciliation notes in `architecture-design.md`. Do not "restore" the controller.
+>
+> **Residual drift, found and NOT fixed in this pass:** `ITP-006-A`…`ITP-006-C` and `ITP-007-A` still describe the `setInterval`
+> `TimerEngine` emitting `{ remaining, status }` to a subscribing widget — the same corrected-elsewhere class design (see MOD-006 in
+> `module-design.md`) — and `ITP-008-*`, `ITP-010-*`, `ITP-011-*`, `ITP-012-*` describe an audio service, an offline cache, a recipe
+> adapter and an in-feature auth guard that the feature never built.
+
 ## ID Schema
 
 - **Integration Test Case**: `ITP-{NNN}-{X}` — where NNN matches the parent ARCH, X is a letter suffix (A, B, C...)
@@ -103,7 +116,7 @@ Given ARCH-012 returns { userId: "u1" }, ARCH-011 returns CookingStep[3], ARCH-0
 When ARCH-001 receives { recipeId: "r1" } and executes the entry sequence
 Then ARCH-001 passes "r1" to ARCH-011.adapt()
 And ARCH-001 passes the returned CookingStep[3] to ARCH-010.cacheRecipe()
-And ARCH-001 passes totalSteps=3 to ARCH-004.initialise()
+And ARCH-001 passes totalSteps=3 to ARCH-004 createSession({ recipeId, totalSteps, startedAt })
 ```
 
 ---
@@ -150,7 +163,7 @@ And ARCH-002 does NOT propagate an unhandled error to ARCH-013 ErrorBoundary
 
 ```
 Given ARCH-003 StepTransitionAnimator is mounted with stepIndex=0
-When ARCH-004 StepNavigationController emits stepIndex=1 to ARCH-003
+When ARCH-001 applies ARCH-004 advance() and re-renders ARCH-003 with stepIndex=1
 Then ARCH-003 initiates an animation transition (slide or fade)
 And ARCH-003 passes { step: newStep, stepIndex: 1 } to ARCH-002 StepDisplayPanel after transition
 And the transition completes within 300 ms
@@ -175,84 +188,119 @@ And no error propagates to ARCH-013 ErrorBoundaryAndLogger
 
 ---
 
-### ARCH-004 — StepNavigationController
+### ARCH-004 — CookingSessionReducer
 
-#### ITP-004-A: StepNavigationController → StepTransitionAnimator step change event (Interface Contract Testing)
+> **Corrected 2026-08-09.** `ITP-004-A` was written entirely against a stateful `StepNavigationController` emitting
+> `onStepChange` to `ARCH-003` and `ARCH-006` — a module that does not exist and is not the approved design (see the reconciliation
+> notes in `architecture-design.md` and the MOD-004 correction in `module-design.md`). All three scenarios were unrunnable. They are
+> rewritten below against the shipped seam: the pure reducer in `packages/shared/cooking/src/session.ts`, its consumer
+> `useCookingSession`, and the render leaves. **`ITS-004-A4` is added** for the reducer→storage seam, which is the very handshake a
+> subscriber-holding class could not have satisfied. No id is retired here — each of A1…A3 has a genuine counterpart in the shipped
+> behaviour.
+
+#### ITP-004-A: CookingSessionReducer → useCookingSession → step render surface (Interface Contract Testing)
 
 - **Technique**: Interface Contract Testing
 - **Architecture View**: Interface View (Internal Module Interfaces)
-- **Modules Under Test**: ARCH-004 ↔ ARCH-003, ARCH-004 ↔ ARCH-006
-- **Preconditions**: ARCH-004 is initialised with stepIndex=0, totalSteps=5.
+- **Modules Under Test**: ARCH-004 ↔ ARCH-001, ARCH-004 ↔ ARCH-002
+- **Preconditions**: A live session for a 3-step recipe, opened by `createSession` at `currentStepIndex = 0`. The reducer is the real
+  module — there is nothing to stub, since it performs no I/O and reads no clock.
 
-##### ITS-004-A1 — goNext() emits onStepChange to ARCH-003 and ARCH-006
-
-```
-Given ARCH-004 StepNavigationController is initialised with { stepIndex: 0, totalSteps: 5 }
-When ARCH-004.goNext() is called
-Then ARCH-004 emits onStepChange({ stepIndex: 1 }) to ARCH-003 StepTransitionAnimator
-And ARCH-004 emits onStepChange({ stepIndex: 1 }) to ARCH-006 TimerEngine
-```
-
-##### ITS-004-A2 — goPrev() at boundary is a no-op — no event emitted
+##### ITS-004-A1 — advance() hands back a NEW session, and the screen renders the position it carries
 
 ```
-Given ARCH-004 StepNavigationController is at stepIndex=0
-When ARCH-004.goPrev() is called
-Then ARCH-004 does NOT emit onStepChange
-And stepIndex remains 0
+Given ARCH-001 holds a session at currentStepIndex 0 of a 3-step recipe
+When ARCH-001 applies ARCH-004 advance(session, 3) on the forward intent
+Then ARCH-004 returns a NEW session with currentStepIndex 1 and completedSteps [0]
+And the input session object is unchanged (the caller's value is never mutated)
+And ARCH-002 renders step 2 of 3
+And ARCH-004 issues NO call to ARCH-006 TimerEngine — a running countdown survives the step change
 ```
 
-##### ITS-004-A3 — goNext() at last step is a no-op — no event emitted
+##### ITS-004-A2 — goBack() at the first step returns a value-equal session; the rendered position does not move
 
 ```
-Given ARCH-004 StepNavigationController is at stepIndex=4, totalSteps=5
-When ARCH-004.goNext() is called
-Then ARCH-004 does NOT emit onStepChange
-And stepIndex remains 4
+Given ARCH-001 holds a session at currentStepIndex 0
+When ARCH-001 applies ARCH-004 goBack(session) on the backward intent
+Then ARCH-004 returns a session whose currentStepIndex is still 0
+And ARCH-002 still renders step 1 of 3
+And the navigation surface's previous control is marked unavailable rather than removed, so the row does not reflow
+```
+
+##### ITS-004-A3 — At the last step the forward intent is unreachable, so advance() is never called past the end
+
+```
+Given ARCH-001 holds a session at currentStepIndex 2 of a 3-step recipe
+When ARCH-001 renders the navigation surface
+Then no forward control is offered — it is REPLACED by the finish affordance
+And pressing finish clears the stored session instead of calling ARCH-004 advance()
+And ARCH-004 advance() at the last index would still clamp, and would still record that index as completed
+```
+
+##### ITS-004-A4 — The session VALUE the reducer returns is what crosses the persistence boundary
+
+```
+Given ARCH-004 has produced a session at currentStepIndex 5 with completedSteps [0,1,2,3,4] and two active timers
+When the session is serialized, the process restarts, and the session is restored
+Then the restored session deep-equals the one the reducer returned, and is not the same object
+And completedSteps and checkedIngredientIds come back as real arrays (a Set would have crossed JSON as {})
+And a reducer holding subscriber callbacks could not have crossed this boundary at all
 ```
 
 ---
 
 ### ARCH-005 — GestureInputAdapter
 
-#### ITP-005-A: GestureInputAdapter → StepNavigationController gesture translation (Interface Contract Testing)
+> **Corrected 2026-08-09.** `ITP-005-A` / `ITP-005-B` asserted calls onto `StepNavigationController.goNext()` / `.goPrev()`. The
+> shipped adapter is the `PanResponder` inside `StepNavigation.native.tsx`, which classifies a released drag through the pure
+> `swipeNavigation` and raises the leaf's `onNext` / `onPrevious` callback; the orchestrator, not the adapter, applies ARCH-004. The
+> scenarios below are rewritten to that seam and keep their ids. Note the verification level honestly: the shipped suite
+> (`StepNavigation.native.test.tsx`) proves the CLASSIFICATION exhaustively against the pure policy, and proves the leaf's controls
+> raise the right callbacks; it does not drive a synthetic `PanResponder` release.
+
+#### ITP-005-A: GestureInputAdapter → navigation intent → CookingModeScreen (Interface Contract Testing)
 
 - **Technique**: Interface Contract Testing
 - **Architecture View**: Interface View (Internal Module Interfaces)
-- **Modules Under Test**: ARCH-005 ↔ ARCH-004
-- **Preconditions**: Platform gesture events are injectable; ARCH-004 is a spy.
+- **Modules Under Test**: ARCH-005 ↔ ARCH-001 (which applies ARCH-004)
+- **Preconditions**: The native navigation leaf is mounted mid-recipe (`currentStep = 1`, `totalSteps = 3`), with `onNext` and
+  `onPrevious` spies. `SWIPE_THRESHOLD_PX = 50`, and the threshold is EXCLUSIVE.
 
-##### ITS-005-A1 — Swipe-left gesture calls goNext() on StepNavigationController
-
-```
-Given ARCH-005 GestureInputAdapter is mounted and connected to ARCH-004
-When a swipe-left gesture event is injected into ARCH-005
-Then ARCH-005 calls ARCH-004.goNext() exactly once
-And ARCH-005 does NOT call ARCH-004.goPrev()
-```
-
-##### ITS-005-A2 — Swipe-right gesture calls goPrev() on StepNavigationController
+##### ITS-005-A1 — A swipe LEFT past the threshold raises onNext exactly once
 
 ```
-Given ARCH-005 GestureInputAdapter is mounted and connected to ARCH-004
-When a swipe-right gesture event is injected into ARCH-005
-Then ARCH-005 calls ARCH-004.goPrev() exactly once
-And ARCH-005 does NOT call ARCH-004.goNext()
+Given ARCH-005's PanResponder is mounted over the navigation surface at currentStep 1 of 3
+When a drag is released with dx = -80, dy = 0
+Then swipeNavigation classifies the intent as 'next'
+And ARCH-005 raises onNext() exactly once
+And ARCH-005 does NOT raise onPrevious()
 ```
 
-#### ITP-005-B: GestureInputAdapter unrecognised gesture is silently ignored (Interface Fault Injection)
+##### ITS-005-A2 — A swipe RIGHT past the threshold raises onPrevious exactly once
+
+```
+Given ARCH-005's PanResponder is mounted over the navigation surface at currentStep 1 of 3
+When a drag is released with dx = 80, dy = 0
+Then swipeNavigation classifies the intent as 'previous'
+And ARCH-005 raises onPrevious() exactly once
+And ARCH-005 does NOT raise onNext()
+```
+
+#### ITP-005-B: GestureInputAdapter raises nothing for a gesture that is not a step change (Interface Fault Injection)
 
 - **Technique**: Interface Fault Injection
 - **Architecture View**: Interface View + Process View
-- **Modules Under Test**: ARCH-005 ↔ ARCH-004
-- **Preconditions**: An unrecognised gesture type is injectable.
+- **Modules Under Test**: ARCH-005 ↔ ARCH-001
+- **Preconditions**: As ITP-005-A. HAZ-006 (incidental / wet-hand touch) is the hazard under test.
 
-##### ITS-005-B1 — Unrecognised gesture does not call any method on StepNavigationController
+##### ITS-005-B1 — Sub-threshold, vertically dominant and past-boundary drags all raise NO intent
 
 ```
-Given ARCH-005 GestureInputAdapter is mounted and connected to ARCH-004
-When an unrecognised gesture event (e.g., pinch) is injected into ARCH-005
-Then ARCH-005 does NOT call ARCH-004.goNext() or ARCH-004.goPrev()
+Given ARCH-005's PanResponder is mounted over the navigation surface
+When a drag is released with |dx| exactly 50 (at the exclusive threshold), or with dx = -60 and dy = 90
+Then swipeNavigation classifies the intent as 'none' and ARCH-005 raises neither callback
+And when a forward drag is released on the LAST step, the intent is likewise 'none' —
+    a swipe never finishes the session, which stays a deliberate press (HAZ-006)
 And no error is thrown or propagated
 ```
 
@@ -496,7 +544,7 @@ And ARCH-011 does NOT mutate the source Recipe entity
 Given ARCH-011 RecipeDataAdapter receives a Recipe entity missing required fields
 When ARCH-001 CookingModeScreen calls ARCH-011.adapt("recipe-bad")
 Then ARCH-011 throws ValidationError
-And ARCH-001 does NOT pass undefined data to ARCH-004 StepNavigationController
+And ARCH-001 does NOT pass undefined data to ARCH-004 CookingSessionReducer
 ```
 
 ##### ITS-011-B2 — adapt() throws RecipeNotFoundError when API returns 404
@@ -629,6 +677,63 @@ And the build pipeline does NOT produce a successful artifact
 
 ---
 
+### ARCH-015 — SessionExtras
+
+#### ITP-015-A: SessionExtras ↔ CookingModeScreen state contract (Interface Contract Testing)
+
+- **Technique**: Interface Contract Testing
+- **Architecture View**: Interface View (Internal Module Interfaces)
+- **Modules Under Test**: ARCH-001 ↔ ARCH-015
+- **Preconditions**: ARCH-001 hosts ARCH-015's reducers within the live cooking session.
+
+##### ITS-015-A1 — Checkoff toggles without disturbing step index
+
+```
+Given ARCH-001 CookingModeScreen is on step 3 with an empty checkoff state
+When ARCH-015 SessionExtras handles toggleIngredient(i1)
+Then ARCH-015 returns checkedIngredientIds = [i1]
+And ARCH-001's currentStepIndex is still 3
+And no ARCH-004 navigation transition is applied — the session's currentStepIndex is untouched
+```
+
+##### ITS-015-A2 — Scale change propagates to display but not to timers
+
+```
+Given ARCH-001 hosts ARCH-015 and ARCH-006 TimerEngine holds a step with timerSeconds = 1500
+When ARCH-015 SessionExtras handles setScaleFactor(2)
+Then ARCH-002 StepDisplayPanel receives scaled ingredient quantities
+And ARCH-006 TimerEngine receives NO call and still reports 1500 (REQ-015, D-002)
+And the not-scaled advisory is passed to the render layer
+```
+
+#### ITP-015-B: SessionExtras ↔ OfflineRecipeCache round-trip (Data Flow Testing)
+
+- **Technique**: Data Flow Testing
+- **Architecture View**: Information View
+- **Modules Under Test**: ARCH-015 ↔ ARCH-010
+- **Preconditions**: A live session carries checked ingredients and a non-default scale factor.
+
+##### ITS-015-B1 — Session extras survive persist/restore
+
+```
+Given ARCH-015 holds checkedIngredientIds = [i1, i2] and scaleFactor = 2
+When ARCH-010 OfflineRecipeCache serializes the session and restores it
+Then the restored ARCH-015 state deep-equals the original
+And no field collapses to {} (the Set-serialization defect is regression-guarded)
+```
+
+##### ITS-015-B2 — Ghost ingredient ids are reconciled away on restore
+
+```
+Given a persisted session has checkedIngredientIds = [i1, i2]
+And the recipe fetched on resume no longer contains i2
+When ARCH-011 RecipeDataAdapter supplies the current ingredient set to ARCH-015
+Then ARCH-015 reconcile() returns [i1]
+And no error is surfaced to the user
+```
+
+---
+
 ## Coverage Summary
 
 | ARCH ID   | Module Name                  | ITP Count | ITS Count | Techniques Applied                               |
@@ -636,7 +741,7 @@ And the build pipeline does NOT produce a successful artifact
 | ARCH-001  | CookingModeScreen            | 3         | 5         | Interface Contract, Data Flow                    |
 | ARCH-002  | StepDisplayPanel             | 1         | 2         | Interface Contract                               |
 | ARCH-003  | StepTransitionAnimator       | 2         | 2         | Interface Contract, Interface Fault Injection    |
-| ARCH-004  | StepNavigationController     | 1         | 3         | Interface Contract                               |
+| ARCH-004  | CookingSessionReducer        | 1         | 4         | Interface Contract                               |
 | ARCH-005  | GestureInputAdapter          | 2         | 3         | Interface Contract, Interface Fault Injection    |
 | ARCH-006  | TimerEngine                  | 3         | 4         | Interface Contract, Concurrency & Race Condition |
 | ARCH-007  | TimerDisplayWidget           | 1         | 2         | Interface Contract                               |
@@ -647,9 +752,15 @@ And the build pipeline does NOT produce a successful artifact
 | ARCH-012  | AuthGuard                    | 2         | 3         | Interface Contract, Interface Fault Injection    |
 | ARCH-013  | ErrorBoundaryAndLogger       | 2         | 2         | Interface Contract, Data Flow                    |
 | ARCH-014  | AccessibilityAndQualityGuard | 2         | 2         | Interface Contract                               |
-| **TOTAL** |                              | **27**    | **38**    |                                                  |
+| ARCH-015  | SessionExtras                | 2         | 4         | Interface Contract, Data Flow                    |
+| **TOTAL** |                              | **29**    | **43**    |                                                  |
 
-**Coverage**: All 14 ARCH modules covered (12 functional + 2 cross-cutting). All 4 ISO 29119-4 mandatory techniques applied.
+**Coverage**: All 15 ARCH modules covered (13 functional + 2 cross-cutting). All 4 ISO 29119-4 mandatory techniques applied.
+
+> **Corrected 2026-08-09.** `ARCH-004`'s name and ITS count changed here: the row now reads `CookingSessionReducer` (matching
+> `architecture-design.md` and `module-design.md`) and carries **4** scenarios rather than 3, because `ITS-004-A4` was added for the
+> reducer→persistence seam. The ITP count is unchanged, so the case total stays **29** and the scenario total moves **42 → 43**. No
+> other row was recounted.
 
 ## Traceability to Architecture Design
 

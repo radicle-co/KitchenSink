@@ -1,0 +1,289 @@
+name: Sandbox Reap
+
+# The scheduled half of the sandbox lifecycle: find previews that have outlived their day and press
+# `Sandbox Down` on each. The manual half is `sandbox-down.yml`; this file only decides WHO, never HOW.
+#
+# ## ⛔ WHY THE SCHEDULE CANNOT LIVE IN THE PULL REQUEST, AND WHAT IT DOES INSTEAD
+#
+# The obvious design — "a job scheduled inside the PR destroys that PR's sandbox" — is not expressible on
+# GitHub Actions, and the reason is worth stating once so nobody rediscovers it by watching nothing happen:
+#
+#   - `schedule:` fires ONLY from the default branch. A cron in a workflow that exists only on a feature
+#     branch never runs. `sandbox-reconcile.yml` demonstrated this for its whole life: `gh workflow list`
+#     answered `not found on the default branch`, and it fired zero times.
+#   - a cron run carries NO pull-request context. `github.event.pull_request` is empty, so the run cannot
+#     know which PR it is "for" — it is a run on the default branch that knows nothing about any PR.
+#   - there is no per-PR timer primitive at all. Runs happen on events; "at midnight, for PR 91" is not a
+#     thing the platform can be asked for.
+#
+# So there is exactly ONE cron, it runs on the default branch, and it has to find the previews itself. It
+# does that from the two systems that already know, rather than from any state we maintain:
+#
+#   - **AWS** says what EXISTS. A `kitchensink-*-pr-{N}` stack existing IS "this PR has a sandbox"; its
+#     `LastUpdatedTime` IS "when was it last deployed". Neither can be forgotten, and no deploy can erase
+#     them — unlike a tag, which `UpdateStack` replaces wholesale on every deploy.
+#   - **GitHub** (via `gh`) says whether the pull request is still open, which is what distinguishes "in
+#     use" from "abandoned".
+#
+# ⛔ Do NOT reintroduce a `sandbox-up` label or a `SandboxExpiresAt` tag to carry this. Both are a second
+# copy of a fact these two systems already hold, and a second copy is a thing that can disagree — the label
+# by being forgotten, the tag by being stripped.
+#
+# ## The deadline
+#
+# Midnight America/New_York of the day a preview was LAST DEPLOYED. `sandbox-lifetime.sh expires-at` already
+# computes exactly that from an epoch (including the two-hour minimum, so a preview deployed at 23:50 does
+# not die ten minutes later) — it is fed `LastUpdatedTime` here rather than a button-press time, and nothing
+# about it changed.
+#
+# The consequence is deliberate: a preview you are actively pushing to stays alive, and one you have stopped
+# touching dies that night. That REPLACES ADR-0028's "the deadline is fixed when the button is pressed",
+# which killed a sandbox out from under someone still working in it at 23:00.
+#
+# ## ⛔ THIS FILE CANNOT DESTROY PRODUCTION
+#
+# It never names a target. It derives `{N}` from a stack name matching `kitchensink-*-pr-{N}`, hands those
+# DIGITS to `sandbox-down.yml`, and that workflow builds the `pr-{N}` token itself. Production and the
+# shared sandbox tier carry no `pr-{N}` in their names, so they are not merely refused — they are never
+# candidates. See `packages/infra/global/__tests__/sandboxDestroyTargetSafety.test.ts` for the three layers.
+
+on:
+    # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER. GitHub holds no RECORD for a workflow until the file
+    # reaches the default branch or the workflow actually RUNS — and a `workflow_dispatch`/`schedule` file on
+    # a feature branch can do neither, because the schedule only fires from the default branch and the
+    # dispatch needs the record that running would have created. A closed loop, whose symptom is
+    # `gh workflow run` answering `not found on the default branch`.
+    #
+    # Pushing this ONE file creates a run whose only job is skipped — no runner time, nothing stood up or
+    # torn down — and that run is what registers the workflow so it can be dispatched.
+    #
+    # ⛔ Do not widen `paths:`, and do not remove the job's `if:`. Either turns a push into real work.
+    # `workflowRegistration.test.ts` asserts both, for every branch-only workflow at once.
+    push:
+        paths:
+            - .github/workflows/sandbox-reap.yml
+    schedule:
+        # Hourly, off the hour — the top of the hour is GitHub's most contended slot, and scheduled runs are
+        # best-effort: delayed under load, skipped entirely, and auto-disabled after 60 days of repository
+        # inactivity. Asking "is anything past due?" every hour is self-healing; a single nightly run that
+        # silently does not happen is indistinguishable from one that found nothing to do.
+        - cron: '17 * * * *'
+    workflow_dispatch:
+
+permissions:
+    contents: read # checkout of the lifetime script
+
+concurrency:
+    group: sandbox-reap
+    cancel-in-progress: false
+
+env:
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+
+jobs:
+    reap:
+        name: Reap previews that have outlived their day
+        runs-on: ubuntu-latest
+        # ⛔ THE SCHEDULE OR THE PRESS REAPS — NEVER THE REGISTERING PUSH. The `push:` above exists only
+        # so GitHub holds a record for this file; a push that reclaimed infrastructure would make editing
+        # this workflow a destructive act.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        # ⛔ NEVER bound to a GitHub Environment: reclamation must not be a thing a protection rule can
+        # suspend. `reclamationNeverGated.test.ts` asserts it.
+        permissions:
+            contents: read
+            actions: write # dispatch `sandbox-down.yml` for each expired preview
+        env:
+            GH_TOKEN: ${{ github.token }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # One step, on purpose. `sandboxReclamationReachability.test.ts` analyzer 1 exists because a
+            # prerequisite step that aborts takes the reclamation with it — so discovery, decision and
+            # dispatch are not split into a chain of steps that can each pre-empt what follows. A preview
+            # whose own probe fails is skipped and reported; it never stops the others being reaped.
+            - name: Find expired previews and press Sandbox Down on each
+              run: |
+                  set -uo pipefail
+                  chmod +x .github/scripts/sandbox-lifetime.sh
+                  # shellcheck source=.github/scripts/pr-scope.sh
+                  source .github/scripts/pr-scope.sh
+
+                  now=$(date +%s)
+                  # ⛔ REAP WHAT IS ABOUT TO EXPIRE, NOT ONLY WHAT ALREADY HAS — so the sweep lands BEFORE
+                  # the nightly shutdown rather than 17 minutes after it.
+                  #
+                  # A preview's deadline is midnight America/New_York, and ADR-0007's scheduler stops the
+                  # sandbox RDS and the NAT at exactly 00:00 ET. Reaping strictly on "now > deadline" put the
+                  # first eligible sweep at 00:17 — seventeen minutes into the shutdown — and the teardown
+                  # needs that database to drop the per-PR logical databases (ADR-0006), so it woke the RDS
+                  # and the NAT straight back up. Measured on a real run: ~5 minutes waiting for `available`.
+                  # Midnight is also the hour when a day's previews all come due, so it was the most likely
+                  # sweep and the worst one to run.
+                  #
+                  # The look-ahead makes the 23:17 ET sweep claim everything due at 00:00, while the tier is
+                  # still up. ⚠️ The cost, stated: a preview dies up to one sweep early — at 23:17 rather
+                  # than 00:00. Against a deadline that is already "midnight of the day you last deployed",
+                  # 43 minutes is immaterial; waking the whole shared tier to reclaim it is not.
+                  #
+                  # ⛔ NOT a pre-midnight cron. GitHub's `schedule:` is UTC-only with no timezone support, so
+                  # a fixed 03:47 UTC drifts an hour against ET twice a year — the scheduler dodges this by
+                  # using EventBridge with `America/New_York`, which Actions cannot do. Staying hourly is
+                  # what makes this DST-proof: whichever hour midnight falls in, some sweep precedes it.
+                  REAP_LOOKAHEAD_SECONDS=4500
+                  due_by=$((now + REAP_LOOKAHEAD_SECONDS))
+                  failed=0
+                  dispatched=0
+                  kept=0
+
+                  # ⚠️ Discovery is by stack NAME, not by tag. A tag is written by a deploy and can be
+                  # stripped by one; the name is fixed at creation and is the only identifier a half-failed
+                  # deploy cannot lose. `DELETE_FAILED` is included deliberately — a stack that got stuck
+                  # mid-teardown is exactly what a reaper must retry, and it is invisible to any sweep that
+                  # only looks at healthy stacks.
+                  # shellcheck source=.github/scripts/cfn-resting-states.sh
+                  source .github/scripts/cfn-resting-states.sh
+
+                  # ⛔ The SAME status list the teardown sweeps. It was six values here against the
+                  # teardown's eleven, and the five missing were the FAILED variants — so a preview wedged
+                  # in `UPDATE_ROLLBACK_FAILED`, which is exactly what a reaper exists to retry, was
+                  # invisible and this step printed "nothing to reap" over it.
+                  stacks=$(aws cloudformation list-stacks \
+                      --stack-status-filter "${CFN_RESTING_STATES[@]}" \
+                      --query 'StackSummaries[].StackName' --output text) || {
+                      echo "::error::could not list stacks — this run reaped nothing and proved nothing" >&2
+                      exit 1
+                  }
+
+                  # The candidate set: every distinct pr-{N} token that owns at least one live stack.
+                  tokens=$(printf '%s' "$stacks" | tr '\t' '\n' \
+                      | sed -nE 's/^kitchensink-[a-z-]+-(pr-[0-9]+)$/\1/p' | sort -u)
+
+                  if [ -z "$tokens" ]; then
+                      echo "no per-PR previews exist — nothing to reap."
+                      exit 0
+                  fi
+
+                  for token in $tokens; do
+                      # Belt: the sed above can only produce a pr-{N}, but the thing downstream of this loop
+                      # DELETES INFRASTRUCTURE, so the token is validated rather than trusted.
+                      if ! pr_scope_is_token "$token"; then
+                          echo "::error::refusing to act on '${token}', which is not a pr-{N} token" >&2
+                          failed=1
+                          continue
+                      fi
+                      number="${token#pr-}"
+
+                      # The most recent deploy across ALL of this preview's stacks. A preview is one thing
+                      # even though it is six stacks, and its schema stack is often days older than its
+                      # service — taking the oldest would reap a preview that was deployed to an hour ago.
+                      # ⛔ EVERY PER-TOKEN FAILURE STAYS PER-TOKEN. This body runs under the `-e` GitHub
+                      # supplies (`/usr/bin/bash -e {0}`) plus the `pipefail` set above, so an unguarded
+                      # assignment aborts the STEP and every preview later in the list goes unexamined that
+                      # hour. One PR's bad luck must not decide anything about the others.
+                      #
+                      # ⚠️ It is not only an AWS hiccup that lands here: `grep -v '^None$'` exits 1 when it
+                      # filters everything out — a preview whose stacks all report `None` — and under
+                      # `pipefail` that is indistinguishable from the API failing.
+                      # ⚠️ `${token}` is interpolated into a JMESPath expression, which the AWS CLI cannot
+                      # parameterise. It is safe here for a stated reason rather than by luck: the token was
+                      # matched out of a stack name by `sed -nE 's/^kitchensink-[a-z-]+-(pr-[0-9]+)$/\1/p'`
+                      # and then re-validated by `pr_scope_is_token` above, so it is `^pr-[0-9]+$` — it can
+                      # carry no backtick, quote or bracket. ⛔ If this ever reads a token from anywhere
+                      # else, that guarantee is gone and the query must be reconsidered.
+                      last=$(aws cloudformation describe-stacks \
+                          --query "Stacks[?ends_with(StackName, \`-${token}\`)].[LastUpdatedTime, CreationTime]" \
+                          --output text 2>/dev/null \
+                          | tr '\t' '\n' | grep -v '^None$' | sort -r | head -1) || {
+                          echo "::warning::${token}: could not read its stacks — skipping this preview, the others still run"
+                          failed=1
+                          continue
+                      }
+
+                      if [ -z "$last" ]; then
+                          echo "::warning::${token}: could not read a deploy time — skipping it rather than guessing"
+                          failed=1
+                          continue
+                      fi
+                      last_epoch=$(date -u -d "$last" +%s 2>/dev/null) || {
+                          echo "::warning::${token}: unparseable deploy time '${last}' — skipping"
+                          failed=1
+                          continue
+                      }
+
+                      # ⚠️ The SAME pure function the button used to call, fed a deploy time instead of a
+                      # press time. Nothing about the clock changed — only where the instant comes from.
+                      deadline=$(.github/scripts/sandbox-lifetime.sh expires-at "$last_epoch" \
+                          | sed -n 's/^expiresAt=//p') || {
+                          echo "::warning::${token}: could not compute a deadline — skipping this preview"
+                          failed=1
+                          continue
+                      }
+                      # ⚠️ `$due_by`, not `$now` — see the look-ahead above. The clock itself is still
+                      # `sandbox-lifetime.sh`'s and is unchanged; only the instant it is asked about moves.
+                      expired=$(.github/scripts/sandbox-lifetime.sh is-expired "$deadline" "$due_by" \
+                          | sed -n 's/^expired=//p') || {
+                          echo "::warning::${token}: could not compare its deadline — skipping this preview"
+                          failed=1
+                          continue
+                      }
+
+                      # An OPEN pull request is not protection from the deadline — it is what makes the
+                      # deadline "midnight of your last deploy" rather than "never". A CLOSED one is reaped
+                      # regardless of the clock: its on-close cleanup either already ran, or failed, and
+                      # this is the retry.
+                      state=$(gh pr view "$number" --json state --jq '.state' 2>/dev/null || echo UNKNOWN)
+
+                      if [ "$state" = 'CLOSED' ] || [ "$state" = 'MERGED' ]; then
+                          echo "${token}: PR #${number} is ${state} — reaping"
+                      elif [ "$expired" = 'true' ]; then
+                          echo "${token}: last deployed ${last}, due at $(date -u -d "@${deadline}" +%FT%TZ) — reaping"
+                      else
+                          echo "${token}: last deployed ${last}, live until $(date -u -d "@${deadline}" +%FT%TZ)"
+                          kept=$((kept + 1))
+                          continue
+                      fi
+
+                      # ⛔ DIGITS are handed over, never a token and never a stage. `sandbox-down.yml`
+                      # builds `pr-{N}` from them itself, which is what makes "destroy production" not a
+                      # value this dispatch can express.
+                      # ⛔ `--ref` IS REQUIRED, and its absence is not a style detail. `gh workflow run`
+                      # with no ref targets the DEFAULT BRANCH, and a branch-only workflow does not exist
+                      # there — GitHub answers `HTTP 422: Workflow does not have 'workflow_dispatch'
+                      # trigger`, which names the wrong cause and sends the reader looking at triggers that
+                      # are perfectly correct. Measured on this reaper's first real run: it identified pr-91,
+                      # judged it expired, and could not press the button.
+                      #
+                      # Dispatching THIS run's own ref is also the right semantics once the file is on main:
+                      # the teardown that reclaims a preview is the one from the same commit as the reaper
+                      # deciding to reclaim it.
+                      # ⚠️ THIS COUNTS A DISPATCH, NOT A RECLAMATION, and the wording below says so. The
+                      # teardown runs in ANOTHER workflow: `gh workflow run` returns the moment the dispatch
+                      # is accepted, so this loop cannot know whether the preview was actually reclaimed —
+                      # `Sandbox Down` may still fail on a stuck stack or a missing secret. Reporting
+                      # "reaped 1" for a request that was merely made is the same green-having-done-nothing
+                      # this repository keeps paying for, one indirection out.
+                      #
+                      # ⛔ Do NOT "fix" it by waiting: each teardown wakes the shared RDS and takes minutes,
+                      # so watching them serially would make an hourly sweep outlast its own interval. The
+                      # dispatched runs report their own outcome, and a preview that survives a failed
+                      # teardown is picked up by the NEXT sweep — which is what makes the loop a
+                      # reconciler rather than a one-shot.
+                      if gh workflow run sandbox-down.yml --ref "$GITHUB_REF_NAME" -f pr="$number"; then
+                          dispatched=$((dispatched + 1))
+                      else
+                          echo "::error::could not dispatch Sandbox Down for #${number} — ${token} is still live" >&2
+                          failed=1
+                      fi
+                  done
+
+                  echo "dispatched ${dispatched} teardown(s), kept ${kept} — a dispatch is a REQUEST; each Sandbox Down run reports whether it reclaimed anything"
+                  exit "$failed"

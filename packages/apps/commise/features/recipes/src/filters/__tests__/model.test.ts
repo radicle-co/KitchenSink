@@ -10,27 +10,21 @@
  * the query-string round-trip asserts the exact wire keys the service's `SearchRecipesQueryDto` accepts.
  */
 import { describe, expect, it } from 'vitest';
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 import type { RecipeFacetCount } from '@kitchensink/recipe-core';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
 
 import {
     EMPTY_RECIPE_FILTERS,
     TOTAL_TIME_BUCKETS_MINUTES,
-    addIngredientFilter,
+    applyFilterAction,
     buildFacetChips,
-    clearRecipeFilters,
     countActiveFilters,
     deriveIngredientFilterSearchViewState,
     filtersFromQueryString,
     filtersToQueryString,
     filtersToSearchParams,
     hasActiveFilters,
-    removeIngredientFilter,
-    setCuisine,
-    setMaxCookTime,
-    setMaxPrepTime,
-    setMaxTotalTime,
-    toggleFacetValue,
 } from '../model.js';
 import type { RecipeFilterState } from '../model.js';
 
@@ -88,24 +82,32 @@ describe('buildFacetChips', () => {
 
 describe('toggleFacetValue', () => {
     it('adds an unselected value', () => {
-        expect(toggleFacetValue(EMPTY_RECIPE_FILTERS, 'dietaryFlags', 'vegan').dietaryFlags).toEqual(['vegan']);
+        expect(
+            applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'toggleFacet', dimension: 'dietaryFlags', value: 'vegan' })
+                .dietaryFlags,
+        ).toEqual(['vegan']);
     });
 
     it('removes an already-selected value', () => {
         const state: RecipeFilterState = { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan', 'keto'] };
 
-        expect(toggleFacetValue(state, 'dietaryFlags', 'vegan').dietaryFlags).toEqual(['keto']);
+        expect(
+            applyFilterAction(state, { kind: 'toggleFacet', dimension: 'dietaryFlags', value: 'vegan' }).dietaryFlags,
+        ).toEqual(['keto']);
     });
 
     it('toggles tags independently of dietary flags', () => {
-        const state = toggleFacetValue({ ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] }, 'tags', 'quick');
+        const state = applyFilterAction(
+            { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] },
+            { kind: 'toggleFacet', dimension: 'tags', value: 'quick' },
+        );
 
         expect(state).toEqual({ dietaryFlags: ['vegan'], tags: ['quick'] });
     });
 
     it('does not mutate the input state', () => {
         const state: RecipeFilterState = { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] };
-        toggleFacetValue(state, 'dietaryFlags', 'keto');
+        applyFilterAction(state, { kind: 'toggleFacet', dimension: 'dietaryFlags', value: 'keto' });
 
         expect(state.dietaryFlags).toEqual(['vegan']);
     });
@@ -113,11 +115,17 @@ describe('toggleFacetValue', () => {
 
 describe('setMaxTotalTime', () => {
     it('sets the bound', () => {
-        expect(setMaxTotalTime(EMPTY_RECIPE_FILTERS, 30).maxTotalTime).toBe(30);
+        expect(
+            applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'setTimeBound', field: 'maxTotalTime', minutes: 30 })
+                .maxTotalTime,
+        ).toBe(30);
     });
 
     it('omits the key entirely when cleared, so it never reaches the wire as undefined', () => {
-        const state = setMaxTotalTime({ ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 }, undefined);
+        const state = applyFilterAction(
+            { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 },
+            { kind: 'setTimeBound', field: 'maxTotalTime', minutes: undefined },
+        );
 
         expect('maxTotalTime' in state).toBe(false);
     });
@@ -129,26 +137,47 @@ describe('setMaxTotalTime', () => {
 
 describe('setMaxPrepTime (S2)', () => {
     it('sets and clears the prep bound', () => {
-        expect(setMaxPrepTime(EMPTY_RECIPE_FILTERS, 15).maxPrepTime).toBe(15);
-        expect('maxPrepTime' in setMaxPrepTime({ maxPrepTime: 15 }, undefined)).toBe(false);
+        expect(
+            applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'setTimeBound', field: 'maxPrepTime', minutes: 15 })
+                .maxPrepTime,
+        ).toBe(15);
+        expect(
+            'maxPrepTime' in
+                applyFilterAction(
+                    { maxPrepTime: 15 },
+                    { kind: 'setTimeBound', field: 'maxPrepTime', minutes: undefined },
+                ),
+        ).toBe(false);
     });
 });
 
 describe('setMaxCookTime (REQ-030f)', () => {
     it('sets and clears the cook bound', () => {
-        expect(setMaxCookTime(EMPTY_RECIPE_FILTERS, 15).maxCookTime).toBe(15);
-        expect('maxCookTime' in setMaxCookTime({ maxCookTime: 15 }, undefined)).toBe(false);
+        expect(
+            applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'setTimeBound', field: 'maxCookTime', minutes: 15 })
+                .maxCookTime,
+        ).toBe(15);
+        expect(
+            'maxCookTime' in
+                applyFilterAction(
+                    { maxCookTime: 15 },
+                    { kind: 'setTimeBound', field: 'maxCookTime', minutes: undefined },
+                ),
+        ).toBe(false);
     });
 
     it('omits the key entirely when cleared, so it never reaches the wire as undefined', () => {
-        const state = setMaxCookTime({ ...EMPTY_RECIPE_FILTERS, maxCookTime: 30 }, undefined);
+        const state = applyFilterAction(
+            { ...EMPTY_RECIPE_FILTERS, maxCookTime: 30 },
+            { kind: 'setTimeBound', field: 'maxCookTime', minutes: undefined },
+        );
 
         expect('maxCookTime' in state).toBe(false);
     });
 
     it('does not mutate the input state', () => {
         const state: RecipeFilterState = { ...EMPTY_RECIPE_FILTERS, maxCookTime: 15 };
-        setMaxCookTime(state, 30);
+        applyFilterAction(state, { kind: 'setTimeBound', field: 'maxCookTime', minutes: 30 });
 
         expect(state.maxCookTime).toBe(15);
     });
@@ -156,33 +185,42 @@ describe('setMaxCookTime (REQ-030f)', () => {
 
 describe('setCuisine (S2)', () => {
     it('sets a single cuisine', () => {
-        expect(setCuisine(EMPTY_RECIPE_FILTERS, 'Thai').cuisine).toBe('Thai');
+        expect(applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'setCuisine', cuisine: 'Thai' }).cuisine).toBe('Thai');
     });
 
     it('toggles off when the same cuisine is set again (single-select with an off state)', () => {
-        expect('cuisine' in setCuisine({ cuisine: 'Thai' }, 'Thai')).toBe(false);
+        expect('cuisine' in applyFilterAction({ cuisine: 'Thai' }, { kind: 'setCuisine', cuisine: 'Thai' })).toBe(
+            false,
+        );
     });
 
     it('replaces the cuisine when a different one is set (single, not multi)', () => {
-        expect(setCuisine({ cuisine: 'Thai' }, 'Italian').cuisine).toBe('Italian');
+        expect(applyFilterAction({ cuisine: 'Thai' }, { kind: 'setCuisine', cuisine: 'Italian' }).cuisine).toBe(
+            'Italian',
+        );
     });
 
     it('clears with undefined', () => {
-        expect('cuisine' in setCuisine({ cuisine: 'Thai' }, undefined)).toBe(false);
+        expect('cuisine' in applyFilterAction({ cuisine: 'Thai' }, { kind: 'setCuisine', cuisine: undefined })).toBe(
+            false,
+        );
     });
 });
 
 describe('addIngredientFilter / removeIngredientFilter (FR-006 gap #3)', () => {
     it('adds an ingredient filter', () => {
-        const state = addIngredientFilter(EMPTY_RECIPE_FILTERS, { id: 'ing_1', name: 'Chicken' });
+        const state = applyFilterAction(EMPTY_RECIPE_FILTERS, {
+            kind: 'addIngredient',
+            ingredient: { id: 'ing_1', name: 'Chicken' },
+        });
 
         expect(state.ingredients).toEqual([{ id: 'ing_1', name: 'Chicken' }]);
     });
 
     it('appends a second ingredient alongside the first', () => {
-        const state = addIngredientFilter(
+        const state = applyFilterAction(
             { ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
-            { id: 'ing_2', name: 'Garlic' },
+            { kind: 'addIngredient', ingredient: { id: 'ing_2', name: 'Garlic' } },
         );
 
         expect(state.ingredients).toEqual([
@@ -193,7 +231,10 @@ describe('addIngredientFilter / removeIngredientFilter (FR-006 gap #3)', () => {
 
     it('is idempotent — re-adding an already-selected id is a no-op (matched by id, not name)', () => {
         const state: RecipeFilterState = { ingredients: [{ id: 'ing_1', name: 'Chicken' }] };
-        const next = addIngredientFilter(state, { id: 'ing_1', name: 'Chicken breast' });
+        const next = applyFilterAction(state, {
+            kind: 'addIngredient',
+            ingredient: { id: 'ing_1', name: 'Chicken breast' },
+        });
 
         expect(next).toBe(state);
         expect(next.ingredients).toEqual([{ id: 'ing_1', name: 'Chicken' }]);
@@ -201,7 +242,7 @@ describe('addIngredientFilter / removeIngredientFilter (FR-006 gap #3)', () => {
 
     it('does not mutate the input state', () => {
         const state: RecipeFilterState = { ingredients: [{ id: 'ing_1', name: 'Chicken' }] };
-        addIngredientFilter(state, { id: 'ing_2', name: 'Garlic' });
+        applyFilterAction(state, { kind: 'addIngredient', ingredient: { id: 'ing_2', name: 'Garlic' } });
 
         expect(state.ingredients).toEqual([{ id: 'ing_1', name: 'Chicken' }]);
     });
@@ -214,19 +255,21 @@ describe('addIngredientFilter / removeIngredientFilter (FR-006 gap #3)', () => {
             ],
         };
 
-        expect(removeIngredientFilter(state, 'ing_1').ingredients).toEqual([{ id: 'ing_2', name: 'Garlic' }]);
+        expect(applyFilterAction(state, { kind: 'removeIngredient', id: 'ing_1' }).ingredients).toEqual([
+            { id: 'ing_2', name: 'Garlic' },
+        ]);
     });
 
     it('omits the ingredients key entirely once the last one is removed', () => {
         const state: RecipeFilterState = { ingredients: [{ id: 'ing_1', name: 'Chicken' }] };
 
-        expect('ingredients' in removeIngredientFilter(state, 'ing_1')).toBe(false);
+        expect('ingredients' in applyFilterAction(state, { kind: 'removeIngredient', id: 'ing_1' })).toBe(false);
     });
 
     it('is a no-op when the id is not selected', () => {
         const state: RecipeFilterState = { ingredients: [{ id: 'ing_1', name: 'Chicken' }] };
 
-        expect(removeIngredientFilter(state, 'ing_missing')).toBe(state);
+        expect(applyFilterAction(state, { kind: 'removeIngredient', id: 'ing_missing' })).toBe(state);
     });
 
     it('does not mutate the input state', () => {
@@ -236,9 +279,105 @@ describe('addIngredientFilter / removeIngredientFilter (FR-006 gap #3)', () => {
                 { id: 'ing_2', name: 'Garlic' },
             ],
         };
-        removeIngredientFilter(state, 'ing_1');
+        applyFilterAction(state, { kind: 'removeIngredient', id: 'ing_1' });
 
         expect(state.ingredients).toHaveLength(2);
+    });
+});
+
+/**
+ * `applyFilterAction` — the ONE entry point every filter transition goes through (DESIGN PATTERN: Visitor,
+ * as an exhaustive switch over a discriminated union).
+ *
+ * ⛔ WHY THESE TESTS EXIST SEPARATELY FROM THE PER-TRANSITION ONES ABOVE. The eight setters shared one piece
+ * of knowledge written five times over — *"clearing omits the key entirely, so it never reaches the wire as
+ * `undefined`"* — and the three time setters were the SAME function with a different key. A caller had to
+ * learn eight signatures to drive one state machine. These pin the collapsed interface, and every invariant
+ * the eight carried is re-asserted here rather than assumed to have survived the move.
+ */
+describe('applyFilterAction — one entry point, every transition', () => {
+    it('toggles a facet value on and then off, dropping the key when the last one goes', () => {
+        const on = applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'toggleFacet', dimension: 'tags', value: 'quick' });
+
+        expect(on.tags).toEqual(['quick']);
+
+        const off = applyFilterAction(on, { kind: 'toggleFacet', dimension: 'tags', value: 'quick' });
+
+        // ⛔ OMITTED, not `[]` — an empty array reaches the wire and narrows the search to nothing.
+        expect('tags' in off).toBe(false);
+    });
+
+    it.each(['maxTotalTime', 'maxPrepTime', 'maxCookTime'] as const)(
+        'sets and clears the %s bound through ONE action, not three functions',
+        (field) => {
+            const set = applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'setTimeBound', field, minutes: 30 });
+
+            expect(set[field]).toBe(30);
+
+            const cleared = applyFilterAction(set, { kind: 'setTimeBound', field, minutes: undefined });
+
+            expect(field in cleared).toBe(false);
+        },
+    );
+
+    it('treats cuisine as single-select WITH an off state — re-setting the same one clears it', () => {
+        const set = applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'setCuisine', cuisine: 'thai' });
+
+        expect(set.cuisine).toBe('thai');
+        expect('cuisine' in applyFilterAction(set, { kind: 'setCuisine', cuisine: 'thai' })).toBe(false);
+        expect(applyFilterAction(set, { kind: 'setCuisine', cuisine: 'peruvian' }).cuisine).toBe('peruvian');
+    });
+
+    it('adds an ingredient idempotently BY ID, and drops the key when the last is removed', () => {
+        const one = makeIngredient({ id: 'ing-1', name: 'Onion' });
+        const added = applyFilterAction(EMPTY_RECIPE_FILTERS, {
+            kind: 'addIngredient',
+            ingredient: { id: one.id, name: one.name },
+        });
+
+        // Matched on `id`, never on a stale or renamed `name`.
+        const again = applyFilterAction(added, {
+            kind: 'addIngredient',
+            ingredient: { id: one.id, name: 'Onion, renamed' },
+        });
+
+        expect(again).toBe(added);
+        expect(again.ingredients).toHaveLength(1);
+
+        const removed = applyFilterAction(added, { kind: 'removeIngredient', id: one.id });
+
+        expect('ingredients' in removed).toBe(false);
+    });
+
+    it('returns the SAME state object when an action changes nothing, so React skips the render', () => {
+        // ⛔ Referential identity is the assertion. A new object with equal contents re-renders every
+        // subscriber for a no-op, which is what a naive `{ ...state }` in every branch would produce.
+        const state = applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'setCuisine', cuisine: 'thai' });
+
+        expect(applyFilterAction(state, { kind: 'removeIngredient', id: 'not-selected' })).toBe(state);
+    });
+
+    it('clears everything', () => {
+        const busy = applyFilterAction(
+            applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'setCuisine', cuisine: 'thai' }),
+            { kind: 'setTimeBound', field: 'maxTotalTime', minutes: 45 },
+        );
+
+        expect(applyFilterAction(busy, { kind: 'clearAll' })).toEqual(EMPTY_RECIPE_FILTERS);
+    });
+
+    it('⛔ never mutates the state it is handed, on any action', () => {
+        const before: RecipeFilterState = { tags: ['quick'], cuisine: 'thai', ingredients: [{ id: 'i', name: 'Oat' }] };
+        const snapshot = structuredClone(before);
+
+        applyFilterAction(before, { kind: 'toggleFacet', dimension: 'tags', value: 'slow' });
+        applyFilterAction(before, { kind: 'setTimeBound', field: 'maxPrepTime', minutes: 10 });
+        applyFilterAction(before, { kind: 'setCuisine', cuisine: undefined });
+        applyFilterAction(before, { kind: 'addIngredient', ingredient: { id: 'j', name: 'Rye' } });
+        applyFilterAction(before, { kind: 'removeIngredient', id: 'i' });
+        applyFilterAction(before, { kind: 'clearAll' });
+
+        expect(before).toEqual(snapshot);
     });
 });
 
@@ -283,8 +422,8 @@ describe('countActiveFilters / hasActiveFilters', () => {
 
 describe('clearRecipeFilters', () => {
     it('returns the empty state', () => {
-        expect(clearRecipeFilters()).toEqual(EMPTY_RECIPE_FILTERS);
-        expect(hasActiveFilters(clearRecipeFilters())).toBe(false);
+        expect(applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'clearAll' })).toEqual(EMPTY_RECIPE_FILTERS);
+        expect(hasActiveFilters(applyFilterAction(EMPTY_RECIPE_FILTERS, { kind: 'clearAll' }))).toBe(false);
     });
 });
 
@@ -447,7 +586,10 @@ describe('filtersToQueryString / filtersFromQueryString', () => {
 describe('deriveIngredientFilterSearchViewState (FR-006 gap #3)', () => {
     const chicken = makeIngredient({ id: 'ing_1', name: 'Chicken' });
 
-    it('is idle below the search threshold', () => {
+    it('is tooShort below the FR-010a minimum', () => {
+        // ⚠️ REWRITTEN for 003-FR-010a (plan U37): it asserted `idle` at one character under the retired
+        // 2-character client trigger. A below-minimum query still renders no results — what is new is that
+        // the bar now says why, instead of leaving the cook typing into a surface that does nothing.
         expect(
             deriveIngredientFilterSearchViewState({
                 trimmed: 'c',
@@ -456,7 +598,7 @@ describe('deriveIngredientFilterSearchViewState (FR-006 gap #3)', () => {
                 isLoading: false,
                 isError: false,
             }),
-        ).toEqual({ kind: 'idle' });
+        ).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
     });
 
     it('is idle for a blank query', () => {
@@ -529,5 +671,62 @@ describe('deriveIngredientFilterSearchViewState (FR-006 gap #3)', () => {
                 isError: true,
             }),
         ).toEqual({ kind: 'results', results: [], isError: true });
+    });
+});
+
+/**
+ * The FR-010a minimum, seen from the FILTER typeahead (003-FR-010a, plan U37).
+ *
+ * Same rule, second surface. It is asserted separately rather than shared with the picker's suite because
+ * these are two derivations over two different unions; a single test over one of them would leave the other
+ * free to drift, and the two surfaces drifting apart is exactly the defect the shared constant fixes.
+ */
+describe('deriveIngredientFilterSearchViewState — the FR-010a minimum (plan U37)', () => {
+    it('is idle for an untouched box', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: '',
+                debouncedTrimmed: '',
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'idle' });
+    });
+
+    it.each(['e', 'eg'])('is tooShort for the below-minimum query %j', (trimmed) => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed,
+                debouncedTrimmed: trimmed,
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
+    });
+
+    it('searches at the minimum', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'egg',
+                debouncedTrimmed: 'egg',
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toMatchObject({ kind: 'results' });
+    });
+
+    it('never shows the searching spinner below the minimum, mid-debounce or not', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'eg',
+                debouncedTrimmed: 'e',
+                results: [],
+                isLoading: true,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
     });
 });

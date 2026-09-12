@@ -33,8 +33,10 @@ services:
         ports:
             - '4566:4566'
         environment:
-            # events = EventBridge (Phase 3 fetch-completion fan-out). All Community-tier — no token.
-            SERVICES: secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm
+            # events = EventBridge (Phase 3 fetch-completion fan-out). dynamodb backs the message
+            # substrate (plan U5/U6) that food-service's `messageSubstrate.integration.test.ts` drives.
+            # All Community-tier — no token.
+            SERVICES: secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm,dynamodb
             DEBUG: 0
         volumes:
             - localstack-cache:/var/lib/localstack
@@ -47,7 +49,7 @@ services:
         restart: unless-stopped
 
     postgres:
-        image: postgres:16
+        image: postgres:18
         container_name: kitchensink-e2e-postgres
         ports:
             - '5432:5432'

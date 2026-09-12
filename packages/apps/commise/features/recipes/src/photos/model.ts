@@ -58,7 +58,7 @@ export interface RecipePhotoManagerProps {
      * chosen id to index 0 — the container runs `reorderRecipePhotos` and the projection refetch reprojects
      * the new cover into `photos[0]` (and into every `RecipeCard.Cover`). Because index 0 is always the cover,
      * the cover DEFAULTS to the first photo with no explicit selection, and removing the current cover
-     * promotes the next photo automatically. Omitted (never passed `undefined`, per exactOptionalPropertyTypes)
+     * promotes the next photo automatically. Omitted (never passed `undefined`, per the §6 convention)
      * on a surface that does not offer cover selection — the manager then renders neither the badge nor the
      * radios.
      */

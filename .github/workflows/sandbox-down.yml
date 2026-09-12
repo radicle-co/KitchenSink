@@ -1,0 +1,201 @@
+name: Sandbox Down
+
+# THE OTHER BUTTON. Actions → Sandbox Down → Run workflow, with a PR number. The mirror of `Sandbox Up`,
+# and the ONE door through which a preview is destroyed on purpose.
+#
+# It exists so that destroying a sandbox is a thing you can ASK FOR, rather than something only a schedule
+# or a PR close can cause. `sandbox-reap.yml` presses this button on a timer; a human presses it to reclaim
+# a preview they are finished with without closing the pull request.
+#
+# ## ⛔ THE TARGET IS A PR NUMBER, AND THAT IS THE SAFETY PROPERTY
+#
+# The input is `pr` — DIGITS — and the `pr-{N}` token is built here, from those digits. A stage name is not
+# a value this input can hold, so "destroy sandbox" and "destroy production" are not two points on one
+# spectrum that a typo moves along; the second is unreachable rather than merely refused.
+#
+# That is the SECOND of three independent layers, all asserted by
+# `packages/infra/global/__tests__/sandboxDestroyTargetSafety.test.ts`:
+#
+#   1. `teardown-sandbox-pr.sh` runs `pr_scope_is_token` and exits 2 on anything that is not `pr-{N}`.
+#   2. no caller can express a target that is not a PR number — this file.
+#   3. no tier word (`production`, `prod`, `sandbox`, `global`) appears on a teardown path at all.
+#
+# ⛔ Do not "simplify" this into a `stage` input shared with the deploy workflows. A free-form string that
+# reaches the deletion script satisfies layer 1 only by luck of what somebody typed, and the blast radius is
+# not symmetric: a reaper that misses costs money, a reaper that hits production costs the database
+# (`DataStack` carries `removalPolicy: DESTROY` with no automatic snapshot — ADR-0002).
+#
+# ## Why it runs the script rather than `cdk destroy`
+#
+# A preview owns eight classes of resource and only ONE of them is its CloudFormation stacks: the Route 53
+# record and Vercel domain binding (a subdomain-takeover vector if left), the PR's GitHub environment, the
+# per-PR logical databases (ADR-0006), the ECS drain that must precede the stack delete, the tag sweep and
+# the name-prefix sweep for resources no stack owns. `cdk destroy` does the one and leaks the seven, which
+# is why ADR-0005 puts teardown in a script and why every caller runs that same script.
+
+on:
+    # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER. GitHub holds no RECORD for a workflow until the file
+    # reaches the default branch or the workflow actually RUNS — and a `workflow_dispatch`/`schedule` file on
+    # a feature branch can do neither, because the schedule only fires from the default branch and the
+    # dispatch needs the record that running would have created. A closed loop, whose symptom is
+    # `gh workflow run` answering `not found on the default branch`.
+    #
+    # Pushing this ONE file creates a run whose only job is skipped — no runner time, nothing stood up or
+    # torn down — and that run is what registers the workflow so it can be dispatched.
+    #
+    # ⛔ Do not widen `paths:`, and do not remove the job's `if:`. Either turns a push into real work.
+    # `workflowRegistration.test.ts` asserts both, for every branch-only workflow at once.
+    push:
+        paths:
+            - .github/workflows/sandbox-down.yml
+    workflow_dispatch:
+        inputs:
+            pr:
+                description: 'PR number whose sandbox should be destroyed (e.g. 91)'
+                required: true
+                type: string
+
+permissions:
+    contents: read # checkout of the teardown script
+
+concurrency:
+    # Per PR, never cancelled: a teardown interrupted between the DNS release and the Vercel release is the
+    # subdomain-takeover window ADR-0001 describes, and cancelling mid-`delete-stack` leaves a stack in
+    # DELETE_IN_PROGRESS that the next run cannot touch.
+    group: sandbox-down-${{ inputs.pr }}
+    cancel-in-progress: false
+
+jobs:
+    down:
+        name: Destroy sandbox for PR
+        runs-on: ubuntu-latest
+        # ⛔ THE PRESS DESTROYS, AND NOTHING ELSE DOES. The `push:` above is a registration trigger; this
+        # guard is what stops editing this file from tearing down a preview. It is the most load-bearing
+        # `if:` in the repository — without it, a push to this path DELETES infrastructure.
+        if: github.event_name == 'workflow_dispatch'
+        # ⛔ NOT BOUND to a GitHub Environment, and this is the same rule `sandbox-deploy.yml`'s cleanup job
+        # records: reclamation is never gated. An Environment binding is a place a run can be made to WAIT,
+        # and the failure modes are not symmetric — a stalled deploy is loud and costs nothing, a stalled
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` fails if this job gains one.
+        permissions:
+            contents: read
+        env:
+            GH_TOKEN: ${{ github.token }}
+            PR_NUMBER: ${{ inputs.pr }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+
+            # ⛔ REQUIRED BY THE TEARDOWN, not boilerplate. Section 0 runs
+            # `npx --no-install tsx packages/apps/commise/web/scripts/teardownPreviewDomain.ts` — with no
+            # `node_modules` there is no `tsx`, the DNS record is never deleted, and the run reports
+            # `preview-domain teardown FAILED`. Measured on the first real reap of pr-91: every stack was
+            # reclaimed and `pr-91.sandbox.commise.app` was left pointing at Vercel with the project binding
+            # released, which is the subdomain-takeover vector ADR-0001 exists for. The on-close `cleanup`
+            # job has always installed first; this door was written without it.
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+
+            - name: Install dependencies
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npm ci --no-audit --no-fund
+
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # ⛔ THE VALIDATION LIVES INSIDE THE TEARDOWN STEP, NOT AHEAD OF IT, and that is not a style
+            # choice — it is `sandboxReclamationReachability.test.ts` analyzer 1, written after a75bdcd7 put
+            # a DNS lookup ahead of the teardown, watched it fail for a reason unrelated to teardown, and
+            # lost 9 PRs' worth of infrastructure to a step that "just" exited non-zero first. A separate
+            # validating step here would be that shape exactly: a predecessor that can abort the deletion.
+            #
+            # Folding it in costs nothing, because refusing an invalid target and refusing to tear down are
+            # the SAME decision — unlike a hosted-zone lookup, which served only one section of the work.
+            #
+            # `workflow_dispatch` types every input as a string whatever `type:` says, so `pr` arrives as
+            # literally what was typed — `91 prod`, `../..`, a glob, a shell metacharacter. Refusing
+            # anything but digits is what makes the `pr-{N}` built below a token BY CONSTRUCTION, which is
+            # layer 2 of the three in this file's header. The script's own `pr_scope_is_token` is layer 1
+            # and still runs; neither is load-bearing alone.
+            #
+            # Read through the environment, never interpolated into the shell body (zizmor:
+            # template-injection). That matters more here than anywhere else in the repository — this body
+            # deletes infrastructure.
+            #
+            # `!cancelled()` is analyzer 3: GitHub skips every remaining step once any step fails, so the
+            # teardown must run on its own merits and report its own outcome rather than inheriting a
+            # checkout's or a credential step's failure.
+            - name: Tear down every ephemeral resource this PR owns
+              if: ${{ !cancelled() }}
+              env:
+                  REGION: ${{ vars.DEFAULT_AWS_REGION }}
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  # ⛔ REQUIRED BY TEARDOWN §0b, and `github.token` cannot substitute for it at any
+                  # permission level: `administration` is not a grantable `permissions:` key, so the
+                  # workflow token structurally cannot delete a GitHub Environment. Without this the door
+                  # reclaims every AWS resource and silently leaves `sandbox-preview/pr-{N}` behind — which
+                  # is exactly what the first real reap of pr-91 did, warning and carrying on.
+                  #
+                  # ⚠️ A DRAINING BACKLOG, not an ongoing stream: `c86f3e09` stopped creating these names,
+                  # so only pre-existing ones remain and §0b is expected to become a permanent no-op. When
+                  # the last is gone that whole block is meant to be deleted, per its own instruction —
+                  # this passes the secret so this door drains it rather than leaving it to the daily sweep.
+                  #
+                  # ⚠️ Absence is a WARNING, never a failure: it reclaims metadata, not spend, and a missing
+                  # secret must not stop a preview's infrastructure being torn down.
+                  GH_ENVIRONMENT_ADMIN_TOKEN: ${{ secrets.GH_ENVIRONMENT_ADMIN_TOKEN }}
+              run: |
+                  set -uo pipefail
+
+                  # ⛔ `PREVIEW_HOSTED_ZONE_ID` IS REQUIRED, AND OMITTING IT IS NOT A COSMETIC BUG. Without
+                  # it the teardown's section 0 cannot delete `pr-{N}.sandbox.<domain>` — so the stacks go,
+                  # the Vercel project binding is released, and the CNAME is left pointing at Vercel with
+                  # nobody owning the name. That is the subdomain-takeover vector ADR-0001 describes, and it
+                  # is what this door did on its first real run: `preview-domain teardown is unconfigured`,
+                  # exit 1, DNS intact.
+                  #
+                  # ⚠️ Resolved INSIDE this step, not in one before it. A preceding step that aborts takes
+                  # the whole teardown with it — `sandboxReclamationReachability.test.ts` analyzer 1, written
+                  # after a hosted-zone lookup did exactly that and cost 9 PRs' worth of infrastructure. The
+                  # lookup is `--optional` and never aborts; an empty answer is reported and the rest of the
+                  # reclamation still runs, which is the same posture the on-close cleanup takes.
+                  # ⛔ `if !`, NOT a bare assignment. GitHub runs a `run:` body under `/usr/bin/bash -e {0}`,
+                  # so `-e` is INHERITED — `set -uo pipefail` adds to it and does not clear it. A bare
+                  # `VAR=$(...)` whose command fails therefore kills this step, and killing this step means
+                  # the stacks, the per-PR databases, the ECR repos and the log groups are all left behind
+                  # because a DNS lookup failed. That is the 2026-07-28 incident exactly: a hosted-zone
+                  # lookup unrelated to most of the work cancelled all of it, and 9 merged PRs went
+                  # unreclaimed with 27 Fargate tasks still billing.
+                  #
+                  # An unresolvable zone is REPORTED and the reclamation continues; the teardown script
+                  # already handles an empty value correctly (section 0 records the error and carries on to
+                  # the stacks). ⚠️ Not `|| true` — that is the manufactured-answer shape
+                  # `destructiveProbeFailClosed.test.ts` refuses; the explicit branch says the same thing
+                  # without pretending the lookup succeeded.
+                  if ! PREVIEW_HOSTED_ZONE_ID=$(bash .github/scripts/cfn-export.sh --optional \
+                      'kitchensink-domain-sandbox:HostedZoneId' "$REGION"); then
+                      PREVIEW_HOSTED_ZONE_ID=''
+                  fi
+                  export PREVIEW_HOSTED_ZONE_ID
+                  if [ -z "$PREVIEW_HOSTED_ZONE_ID" ]; then
+                      echo "::error::hosted zone export not found or unreadable — the preview DNS record cannot be removed; the rest of the teardown still runs and this job will fail" >&2
+                  fi
+
+                  case "$PR_NUMBER" in
+                      '' | *[!0-9]*)
+                          echo "::error::'${PR_NUMBER}' is not a PR number. This workflow destroys infrastructure and accepts DIGITS only — a stage name is not something it can be pointed at." >&2
+                          exit 2
+                          ;;
+                  esac
+                  chmod +x .github/scripts/teardown-sandbox-pr.sh
+                  .github/scripts/teardown-sandbox-pr.sh "pr-${PR_NUMBER}" "$REGION"

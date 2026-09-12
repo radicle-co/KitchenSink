@@ -24,6 +24,7 @@
 ## States
 
 ### Loading — Profile Fetch
+
 ```text
 +----------------------------------------+
 |                                        |
@@ -33,9 +34,11 @@
 |                                        |
 +----------------------------------------+
 ```
+
 - Accessible label: "Loading your profile"
 
 ### Edit Mode — Avatar Upload
+
 ```text
 +----------------------------------------+
 |                                        |
@@ -51,6 +54,7 @@
 ```
 
 ### Loading — Saving Profile
+
 ```text
 +----------------------------------------+
 |                                        |
@@ -60,9 +64,11 @@
 |                                        |
 +----------------------------------------+
 ```
+
 - Accessible label: "Saving your changes, please wait"
 
 ### Error — Validation
+
 ```text
 +----------------------------------------+
 |                                        |

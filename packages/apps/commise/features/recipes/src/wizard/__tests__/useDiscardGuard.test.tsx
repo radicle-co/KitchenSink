@@ -2,7 +2,7 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { defaultRecipeFormValues, type RecipeFormValues } from '../../form/model.js';
+import { type RecipeFormValues, defaultRecipeFormValues } from '../../form/values.js';
 import { useDiscardGuard } from '../useDiscardGuard.js';
 
 describe('useDiscardGuard', () => {

@@ -36,7 +36,7 @@ function makeTestQueryClient(): QueryClient {
  * RTL custom-render helper for web container tests that exercise the REAL `@kitchensink/recipe-service-client`
  * hooks (rather than mocking the hooks module). Composes `LocaleProvider` + a `QueryClientProvider` +
  * `RecipeServiceProvider` around `ui`, so a test only needs to hand in a
- * {@link https://www.npmjs.com/package/@kitchensink/recipe-service-client `RecipeServiceClient`} — typically
+ * {@link RecipeServiceClient} — typically
  * `createFakeRecipeServiceClient()` from `@kitchensink/recipe-service-client/testing`, stubbed per test with
  * `vi.spyOn` — instead of hand-mocking the hooks module's `Record<string, unknown>` return shapes.
  *

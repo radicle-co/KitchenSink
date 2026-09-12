@@ -1,0 +1,836 @@
+name: Deploy infra
+
+# ⛔ ONE JOB PER `infra/` FOLDER, AND EACH ONE CHECKS AND DEPLOYS ITS OWN PACKAGE.
+#
+# The unit of work is the directory that owns the dependencies, because the CDK apps live outside the npm
+# workspace and nothing at the repository root resolves `aws-cdk-lib`, `tsx` or `@radicle-co/infra-shared`
+# on their behalf. So each job installs in its own directory, then typechecks, tests, synthesizes and
+# deploys the app it just proved builds.
+#
+# ⛔ CHECKS AND DEPLOY ARE THE SAME JOB, deliberately. Split into a separate checks workflow they stop being
+# a gate: the deploying job installs its own dependencies and nothing makes those the ones that were
+# checked. `deploy: false` runs the identical steps and stops one short — that is what a pull request wants,
+# and it is the SAME path, not a parallel one.
+#
+# ⚠️ This replaces `cdk-checks`, a single job that installed every CDK package in a loop and typechecked
+# them together while other jobs touched infra apps without installing anything. That shape failed three
+# ways which named neither the cause nor the missing dependency: `spawnSync ENOENT` on an uninstalled `tsx`,
+# `CannotFindAsset` on an unbuilt bundle, and a synth that produced an EMPTY template and still exited 0.
+#
+# The repetition below is the design. The five steps live once, in `.github/actions/infra-package`, because
+# "how to check and deploy an infra package" is ONE piece of knowledge; the LIST of packages is not, and
+# stays visible here. `staticAnalysisCoverage.test.ts` fails if a standalone package has no job here, AND if
+# a job names a directory that is not one — so the explicit list goes stale LOUDLY.
+#
+# ⚠️ `needs:` encodes deploy-order facts, not serialisation for its own sake: services import the shared ALB
+# listener from global (ADR-0003), and recipe resolves food's origin (ADR-0010).
+
+on:
+    workflow_call:
+        inputs:
+            stage:
+                description: The stage each app is synthesized and deployed against.
+                required: true
+                type: string
+            deploy:
+                description: Deploy after the checks pass. `false` stops after synth.
+                required: false
+                default: false
+                type: boolean
+            deploy-packages:
+                description: >-
+                    Space-separated job names to DEPLOY, or `all`. Every job still installs, typechecks,
+                    tests and synths regardless — only the deploy is selective, so a deselected package is
+                    never SKIPPED and can never skip its dependents.
+                    ⛔ THIS IS A SAFETY CONTROL, NOT AN OPTIMISATION. A `pr-{N}` preview runs on the SHARED
+                    sandbox platform (ADR-0006); `global` carries no `pr-` guard, so deploying it at a
+                    preview stage would stand up a duplicate VPC, RDS and ALB per pull request.
+                    It is also what keeps ADR-0010's cheaper semantics: that gate exists so a README-only
+                    push does not rebuild and push two Docker images.
+                required: false
+                default: all
+                type: string
+        # ⛔ REQUIRED even when `deploy: false`. The synth itself needs AWS: `recipe-workers` REFUSES to
+        # synth without `RECIPE_VPC_ID` / `RECIPE_DB_ENDPOINT`, which are CloudFormation exports resolved
+        # here, and `Vpc.fromLookup` is a synth-TIME call. A caller that omits these does not fail at the
+        # credential step — it fails later, claiming a platform export is missing.
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                required: true
+            AWS_SECRET_ACCESS_KEY:
+                required: true
+    workflow_dispatch:
+        inputs:
+            stage:
+                description: 'Stage (e.g. sandbox, prod, pr-91)'
+                required: true
+                type: string
+                default: sandbox
+            deploy:
+                description: Deploy after the checks pass
+                required: false
+                default: false
+                type: boolean
+            deploy-packages:
+                description: >-
+                    Space-separated job names to DEPLOY, or `all`. Every job still installs, typechecks,
+                    tests and synths regardless — only the deploy is selective, so a deselected package is
+                    never SKIPPED and can never skip its dependents.
+                    ⛔ THIS IS A SAFETY CONTROL, NOT AN OPTIMISATION. A `pr-{N}` preview runs on the SHARED
+                    sandbox platform (ADR-0006); `global` carries no `pr-` guard, so deploying it at a
+                    preview stage would stand up a duplicate VPC, RDS and ALB per pull request.
+                    It is also what keeps ADR-0010's cheaper semantics: that gate exists so a README-only
+                    push does not rebuild and push two Docker images.
+                required: false
+                default: all
+                type: string
+
+# Every `bin/app.ts` reads these from `process.env`; none of them is a per-package fact, so they sit once
+# at the workflow rather than nine times at the jobs.
+env:
+    AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+    STAGE: ${{ inputs.stage }}
+
+permissions:
+    contents: read
+    packages: read # `@radicle-co/infra-shared` authenticates even for a public read
+
+concurrency:
+    # Per stage, never cancelled: two deploys to one environment must not interleave, and cancelling one
+    # mid-`cdk deploy` leaves a stack in UPDATE_IN_PROGRESS that the next run cannot touch.
+    # ⚠️ Only a DEPLOY takes the stage's group. A `deploy: false` checks run changes nothing in AWS, and
+    # the PR checks now run at the PR's own stage — the same stage the preview deploys in the same run —
+    # so sharing the group would queue the checks behind the deploy (or the reverse), and a third run
+    # for that stage would REPLACE the pending one, cancelling a queued deploy. Checks get a group of
+    # their own, unique per run.
+    group: ${{ inputs.deploy && format('deploy-infra-{0}', inputs.stage) || format('deploy-infra-checks-{0}-{1}', inputs.stage, github.run_id) }}
+    cancel-in-progress: false
+
+jobs:
+    global:
+        name: infra — global
+        runs-on: ubuntu-latest
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # ⚠️ Full history, for this package's GUARDS rather than its build: several of them read
+                  # `origin/main` (is this workflow already registered on the default branch? what does this
+                  # branch change against it?), and a depth-1 checkout has no `origin/main` at all. Its first
+                  # CI run after the Typecheck fix failed 11 such tests for that reason alone. The same
+                  # reason `infra-shared` fetches full history. ~100 MiB, a few seconds.
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/infra/global
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' global ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  # ⛔ Without this, Typecheck fails on every `@kitchensink/*` import (its tsconfig extends
+                  # `@kitchensink/typescript`, and its guards import the schema packages), the unit Test step
+                  # is skipped, and every job that `needs: [global]` is skipped with it — which is how this
+                  # package's whole suite went unexecuted in CI from 2026-09-08. Derived, not remembered:
+                  # `infraWorkspaceInstall.test.ts`.
+                  workspace-install: 'true'
+
+    identity-schema:
+        name: infra — identity-schema
+        runs-on: ubuntu-latest
+        # ⛔ ADR-0035: the schema is deployed and migrated AHEAD of everything that reads it, which is why it
+        # is a job and not a step inside its declaring package's. `recipe-workers` reads the recipe database
+        # that `recipe-service`'s app DECLARES, and workers deploys first — so attaching the schema to
+        # recipe-service put the migration after a consumer, silently.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [global]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/identity/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  schema-only: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' identity-schema ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-install: 'true'
+                  workspace-package: '@kitchensink/identity-service'
+                  workspace-dir: packages/services/identity
+                  image-tag-env: IDENTITY_IMAGE_TAG
+                  schema-stack: kitchensink-identity-schema
+                  migration-export: IdentityMigrationFunctionName
+                  migration-database: identity
+                  migrations-dir: packages/services/identity/src/database/migrations
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  platform-inputs: |
+                      IDENTITY_VPC_ID=kitchensink-network-{base}:VpcId
+
+    food-schema:
+        name: infra — food-schema
+        runs-on: ubuntu-latest
+        # ⛔ ADR-0035: the schema is deployed and migrated AHEAD of everything that reads it, which is why it
+        # is a job and not a step inside its declaring package's. `recipe-workers` reads the recipe database
+        # that `recipe-service`'s app DECLARES, and workers deploys first — so attaching the schema to
+        # recipe-service put the migration after a consumer, silently.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [global]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/food-service/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  schema-only: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' food-schema ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-install: 'true'
+                  workspace-package: '@kitchensink/food-service'
+                  workspace-dir: packages/services/food-service
+                  image-tag-env: FOOD_IMAGE_TAG
+                  food-origin-env: FOOD_ORIGIN
+                  schema-stack: kitchensink-food-schema
+                  migration-export: FoodMigrationFunctionName
+                  migration-database: food
+                  migrations-dir: packages/services/food-service/src/db/migrations
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  platform-inputs: |
+                      FOOD_VPC_ID=kitchensink-network-{base}:VpcId
+                      IDENTITY_VPC_ID=kitchensink-network-{base}:VpcId
+
+    recipe-schema:
+        name: infra — recipe-schema
+        runs-on: ubuntu-latest
+        # ⛔ ADR-0035: the schema is deployed and migrated AHEAD of everything that reads it, which is why it
+        # is a job and not a step inside its declaring package's. `recipe-workers` reads the recipe database
+        # that `recipe-service`'s app DECLARES, and workers deploys first — so attaching the schema to
+        # recipe-service put the migration after a consumer, silently.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [global]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/recipe-service/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  schema-only: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' recipe-schema ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-install: 'true'
+                  workspace-package: '@kitchensink/recipe-service'
+                  workspace-dir: packages/services/recipe-service
+                  image-tag-env: RECIPE_IMAGE_TAG
+                  food-origin-env: FOOD_ORIGIN RECIPE_FOOD_SERVICE_URL
+                  schema-stack: kitchensink-recipe-schema
+                  migration-export: RecipeMigrationFunctionName
+                  migration-database: recipe
+                  migrations-dir: packages/services/recipe-service/src/database/migrations
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+                  platform-inputs: |
+                      RECIPE_VPC_ID=kitchensink-network-{base}:VpcId
+                      FOOD_VPC_ID=kitchensink-network-{base}:VpcId
+                      IDENTITY_VPC_ID=kitchensink-network-{base}:VpcId
+
+    identity:
+        name: infra — identity
+        runs-on: ubuntu-latest
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [identity-schema]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/identity/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' identity ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-install: 'true'
+                  platform-inputs: |
+                      IDENTITY_VPC_ID=kitchensink-network-{base}:VpcId
+                  # ⚠️ These six sat INSIDE the `run: |` of the smoke step below from 2026-09-08 — text to YAML,
+                  # a shell command to bash — so a deploy through this job built and pushed no image, and the
+                  # smoke would have tried to execute `workspace-package: …`. Only the checks path had run, and
+                  # it needs none of them. `runBodyStrayInputs.test.ts` now fails on that shape.
+                  workspace-package: '@kitchensink/identity-service'
+                  workspace-dir: packages/services/identity
+                  image-tag-env: IDENTITY_IMAGE_TAG
+                  ecr-repo: kitchensink-identity
+                  image-build-context: npm-prune
+                  dockerfile: packages/services/identity/Dockerfile
+
+            # ⛔ identity is SHARED, never per-PR — a `pr-{N}` stage signs in against the sandbox instance —
+            # so its origin is keyed on prod-or-not, not on the stage name.
+            - name: Smoke — identity service live and reachable
+              if: >-
+                  ${{ inputs.deploy && (inputs.deploy-packages == 'all'
+                  || contains(format(' {0} ', inputs.deploy-packages), ' identity ')) }}
+              env:
+                  # ⚠️ `stage != 'prod' && 'sandbox.' || ''`, NOT `stage == 'prod' && '' || 'sandbox.'`: an empty
+                  # string is FALSY, so the old form yielded `sandbox.` at prod too and probed the sandbox service.
+                  HEALTH_URL: https://identity.${{ inputs.stage != 'prod' && 'sandbox.' || '' }}${{ vars.DOMAIN_NAME }}/health
+              run: |
+                  set -uo pipefail
+                  attempts=20; delay=15; code=000
+                  for i in $(seq 1 "$attempts"); do
+                      code=$(curl -s -o /tmp/identity-health.out -w '%{http_code}' --max-time 10 "$HEALTH_URL" || true)
+                      if [ -z "$code" ]; then
+                          code=000
+                      fi
+                      if [ "$code" = "200" ]; then
+                          echo "identity healthy on attempt $i"
+                          exit 0
+                      fi
+                      echo "attempt $i/$attempts: HTTP $code at $HEALTH_URL — retrying in ${delay}s"
+                      sleep "$delay"
+                  done
+                  echo "::error::identity not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
+                  exit 1
+
+            - name: Smoke — identity service is CURRENT
+              if: >-
+                  ${{ inputs.deploy && (inputs.deploy-packages == 'all'
+                  || contains(format(' {0} ', inputs.deploy-packages), ' identity ')) }}
+              env:
+                  STAGE: ${{ inputs.stage }}
+                  # Same falsy-empty-string trap as the health probe above.
+                  IDENTITY_ORIGIN: https://identity.${{ inputs.stage != 'prod' && 'sandbox.' || '' }}${{ vars.DOMAIN_NAME }}
+              run: |
+                  set -euo pipefail
+                  # `>&2` on the diagnostic, NOT stdout: this runs inside `$( … )`, so an `::error::` on
+                  # stdout is captured into the variable and never reaches the log.
+                  lookup() {
+                      local name="$1" value
+                      value=$(bash .github/scripts/cfn-export.sh --optional "${name}")
+                      if [ -z "$value" ] || [ "$value" = "None" ]; then
+                          echo "::error::export '${name}' not found — is kitchensink-identity-service-${STAGE} deployed?" >&2
+                          exit 1
+                      fi
+                      echo "$value"
+                  }
+                  cluster=$(lookup "kitchensink-identity-service-${STAGE}:IdentityClusterArn")
+                  service=$(lookup "kitchensink-identity-service-${STAGE}:IdentityServiceArn")
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                      --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                      --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  packages/services/identity/infra/node_modules/.bin/tsx \
+                      packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                      --base-url "${IDENTITY_ORIGIN}" \
+                      --expected-image-tag "${IMAGE_TAG}" \
+                      --running-image-tag "${image##*:}"
+
+    identity-webhooks:
+        name: infra — identity-webhooks
+        runs-on: ubuntu-latest
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [identity]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/identity-webhooks/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' identity-webhooks ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-install: 'true'
+                  platform-inputs: |
+                      IDENTITY_VPC_ID=kitchensink-network-{base}:VpcId
+                  workspace-package: '@kitchensink/identity-webhooks'
+                  workspace-dir: packages/services/identity-webhooks
+
+    food-service:
+        name: infra — food-service
+        runs-on: ubuntu-latest
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [food-schema]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/food-service/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' food-service ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  food-origin-env: FOOD_ORIGIN
+                  workspace-install: 'true'
+                  platform-inputs: |
+                      FOOD_VPC_ID=kitchensink-network-{base}:VpcId
+                      IDENTITY_VPC_ID=kitchensink-network-{base}:VpcId
+                  workspace-package: '@kitchensink/food-service'
+                  workspace-dir: packages/services/food-service
+                  image-tag-env: FOOD_IMAGE_TAG
+                  ecr-repo: kitchensink-food
+                  image-build-context: turbo-prune
+                  prune-dir: food
+                  dockerfile: packages/services/food-service/Dockerfile
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # ⛔ A RETRY LOOP, not a single probe: `cdk deploy` returns once ECS reports the service stable,
+            # which is earlier than the first task answering HTTP.
+            - name: Smoke — food service live and reachable
+              if: >-
+                  ${{ inputs.deploy && (inputs.deploy-packages == 'all'
+                  || contains(format(' {0} ', inputs.deploy-packages), ' food-service ')) }}
+              env:
+                  HEALTH_URL: ${{ env.FOOD_ORIGIN }}/health
+              run: |
+                  set -uo pipefail
+                  attempts=20; delay=15; code=000
+                  for i in $(seq 1 "$attempts"); do
+                      code=$(curl -s -o /tmp/food-health.out -w '%{http_code}' --max-time 10 "$HEALTH_URL" || true)
+                      if [ -z "$code" ]; then
+                          code=000
+                      fi
+                      if [ "$code" = "200" ]; then
+                          echo "food healthy on attempt $i"
+                          exit 0
+                      fi
+                      echo "attempt $i/$attempts: HTTP $code at $HEALTH_URL — retrying in ${delay}s"
+                      sleep "$delay"
+                  done
+                  echo "::error::food not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
+                  exit 1
+
+            # A healthy service can still be the WRONG BUILD — the failure that served pr-73 a stale
+            # pre-CORS recipe for fifteen days with every signal green.
+            - name: Smoke — food service is CURRENT
+              if: >-
+                  ${{ inputs.deploy && (inputs.deploy-packages == 'all'
+                  || contains(format(' {0} ', inputs.deploy-packages), ' food-service ')) }}
+              env:
+                  STAGE: ${{ inputs.stage }}
+              run: |
+                  set -euo pipefail
+                  # `>&2` on the diagnostic, NOT stdout: this runs inside `$( … )`, so an `::error::` on
+                  # stdout is captured into the variable and never reaches the log.
+                  lookup() {
+                      local name="$1" value
+                      value=$(bash .github/scripts/cfn-export.sh --optional "${name}")
+                      if [ -z "$value" ] || [ "$value" = "None" ]; then
+                          echo "::error::export '${name}' not found — is kitchensink-food-service-${STAGE} deployed?" >&2
+                          exit 1
+                      fi
+                      echo "$value"
+                  }
+                  cluster=$(lookup "kitchensink-food-service-${STAGE}:FoodClusterArn")
+                  service=$(lookup "kitchensink-food-service-${STAGE}:FoodApiServiceArn")
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                      --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                      --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  # ⚠️ food's own tsx, not `npx`: this job installs FOOD's infra dependencies and no other
+                  # package's. The script itself imports only `node:util`, so any tsx can run it.
+                  packages/services/food-service/infra/node_modules/.bin/tsx \
+                      packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                      --base-url "${FOOD_ORIGIN}" \
+                      --expected-image-tag "${IMAGE_TAG}" \
+                      --running-image-tag "${image##*:}"
+
+    recipe-service:
+        name: infra — recipe-service
+        runs-on: ubuntu-latest
+        # ⛔ AFTER recipe-workers, not before. `RecipeServiceStack` reads the account-erasure queue URL and
+        # ARN from a per-stage SSM parameter that the WORKERS stack publishes, and `ErasureService` refuses
+        # to boot without it — "a stage wired with no queue fails the deploy loudly instead of degrading
+        # every 'erase my data' request to a silent cron-tick wait".
+        #
+        # ⚠️ It is SSM rather than `Fn.importValue` on purpose, so the dependency is INVISIBLE to
+        # CloudFormation: an export would lock the workers stack while this one imports it, and ADR-0005's
+        # PR-close cleanup deletes a PR's stacks in no fixed order — workers-first would hit the
+        # export-in-use deadlock ADR-0002 documents, unattended, in CI. Invisible to CFN means the ordering
+        # has to be stated HERE or it does not exist.
+        #
+        # ⛔ NOT after food-service, deliberately — ADR-0036. That edge cost ~13 minutes of every run for an
+        # ordering that was never a data dependency: recipe resolves food's origin through the PURE
+        # `foodServiceOriginForStage(stage, domain)`, which touches no network. The property it stood in for
+        # — a preview never claims a wired ecosystem behind a green check — belongs to the JOIN, and
+        # `ecosystem-smoke` owns it by requiring both deploys to have succeeded before making the claim.
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [recipe-workers]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/recipe-service/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' recipe-service ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  food-origin-env: FOOD_ORIGIN RECIPE_FOOD_SERVICE_URL
+                  workspace-install: 'true'
+                  platform-inputs: |
+                      RECIPE_VPC_ID=kitchensink-network-{base}:VpcId
+                      FOOD_VPC_ID=kitchensink-network-{base}:VpcId
+                      IDENTITY_VPC_ID=kitchensink-network-{base}:VpcId
+                  workspace-package: '@kitchensink/recipe-service'
+                  workspace-dir: packages/services/recipe-service
+                  image-tag-env: RECIPE_IMAGE_TAG
+                  ecr-repo: kitchensink-recipes
+                  image-build-context: npm-prune
+                  dockerfile: packages/services/recipe-service/Dockerfile
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            - name: Smoke — recipe service live, browser-reachable and CURRENT
+              if: >-
+                  ${{ inputs.deploy && (inputs.deploy-packages == 'all'
+                  || contains(format(' {0} ', inputs.deploy-packages), ' recipe-service ')) }}
+              env:
+                  STAGE: ${{ inputs.stage }}
+              run: |
+                  set -euo pipefail
+                  cluster=$(aws ecs list-clusters --query 'clusterArns[]' --output text \
+                      | tr '\t' '\n' | grep "recipe-service-${STAGE}-" | head -1)
+                  service=$(aws ecs list-services --cluster "$cluster" --query 'serviceArns[0]' --output text)
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                      --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                      --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  packages/services/recipe-service/infra/node_modules/.bin/tsx \
+                      packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                      --base-url "https://recipe-${STAGE}.${DOMAIN_NAME}" \
+                      --web-origin "https://${STAGE}.sandbox.${DOMAIN_NAME}" \
+                      --expected-image-tag "${IMAGE_TAG}" \
+                      --running-image-tag "${image##*:}"
+
+    recipe-workers:
+        name: infra — recipe-workers
+        runs-on: ubuntu-latest
+        # Owns the account-erasure queue and publishes its URL/ARN to SSM for recipe-service to read, so it
+        # goes FIRST of the recipe pair. It imports nothing cross-stack itself — verified: no
+        # `Fn.importValue` anywhere in its lib.
+        #
+        # ⛔ AFTER ingredient-parser, which is ALSO invisible to CloudFormation. `RecipeWorkersStack` sets
+        # `CRF_FUNCTION_NAME: kitchensink-ingredient-parser-${stage}` — a NAME it constructs, plus an IAM
+        # grant to the matching ARN. Neither is a reference CloudFormation can order on, and the stack's own
+        # comment records what that cost: the parser "had never been deployed to any stage" while workers
+        # pointed at it, and "Nothing went red."
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [global, ingredient-parser, recipe-schema]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/recipe-workers/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' recipe-workers ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-install: 'true'
+                  platform-inputs: |
+                      RECIPE_VPC_ID=kitchensink-network-{base}:VpcId
+                      FOOD_VPC_ID=kitchensink-network-{base}:VpcId
+                      IDENTITY_VPC_ID=kitchensink-network-{base}:VpcId
+                      RECIPE_LAMBDA_SG_ID=kitchensink-network-{base}:LambdaSecurityGroupId
+                      RECIPE_DB_ENDPOINT=kitchensink-data-{base}:DatabaseEndpoint
+                      RECIPE_DB_PORT=kitchensink-data-{base}:DatabasePort
+                      RECIPE_DB_INSTANCE_ID=kitchensink-data-{base}:DatabaseResourceId
+                      RECIPE_ARCHIVE_BUCKET=kitchensink-data-{base}:ArchiveBucketName
+                      RECIPE_MEDIA_BUCKET=kitchensink-data-{base}:MediaBucketName
+                      HANDLE_SYNC_TOPIC_ARN=kitchensink-data-{base}:HandleSyncTopicArn
+                  drift: 'true'
+                  workspace-package: '@kitchensink/recipe-workers'
+                  workspace-dir: packages/services/recipe-workers
+
+    ingredient-parser:
+        name: infra — ingredient-parser
+        runs-on: ubuntu-latest
+        # ⛔ NO `needs:`, deliberately. It imports nothing cross-stack, reads no SSM, looks up no VPC, and
+        # its `bin/app.ts` asks only for stage, region and account — ADR-0025's "it owns no database" taken
+        # literally. An edge to `global` here would be serialisation with no fact under it, and it sits on
+        # the LONGEST chain (parser → workers → service), so the cost is paid by the critical path.
+        # The key is OMITTED rather than written as `needs: []`: the two mean the same to Actions, but
+        # actionlint rejects an empty list as a syntax error, and that alone kept the Lint job red.
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/services/ingredient-parser/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' ingredient-parser ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  workspace-install: 'true'
+
+            # ⛔ Not a `/health` probe — this Lambda has no HTTP surface. It INVOKES the function, so it
+            # catches the shape ADR-0025 hit on 2026-09-05: arm64 wheels that load, then a throw at import
+            # reaching for an absent NLTK corpus. It also asserts the engine is the PINNED one.
+            - name: Smoke — the deployed CRF engine loads, reads a line, and is PINNED
+              if: >-
+                  ${{ inputs.deploy && (inputs.deploy-packages == 'all'
+                  || contains(format(' {0} ', inputs.deploy-packages), ' ingredient-parser ')) }}
+              env:
+                  STAGE: ${{ inputs.stage }}
+              run: |
+                  set -euo pipefail
+                  packages/services/ingredient-parser/infra/node_modules/.bin/tsx \
+                      packages/services/ingredient-parser/infra/smoke/deployedSmoke.ts \
+                      --function-name "kitchensink-ingredient-parser-${STAGE}" \
+                      --region "${DEFAULT_AWS_REGION}"
+
+    web:
+        name: infra — web
+        runs-on: ubuntu-latest
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [global]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: packages/apps/commise/web/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'true'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' web ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+                  # Its `tsconfig.json` extends `@kitchensink/typescript`, which only the root install
+                  # provides — `infraWorkspaceInstall.test.ts` derives this from the package itself.
+                  workspace-install: 'true'
+
+    shared:
+        name: infra — shared
+        runs-on: ubuntu-latest
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # ⚠️ NOT a CDK app — the published `@radicle-co/infra-shared` library every app above
+            # consumes. It gets a job for the same reason they do (nothing in the workspace
+            # typechecks it), and opts out of synth and deploy because there is no app to deploy.
+            - uses: ./.github/actions/infra-package
+              with:
+                  directory: shared/infra
+                  stage: ${{ inputs.stage }}
+                  synth: 'false'
+                  deploy: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' shared ')) }}
+                  node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+
+    # ⛔ THE ONE CHECK THAT IS NOT A PACKAGE'S OWN. Every smoke above interrogates ONE service in isolation,
+    # and all of them stay green on a preview whose cross-service wiring is broken: a recipe-only PR pointed
+    # a perfectly healthy recipe service at a food host that did not exist, and only the blended USDA
+    # catalog noticed — silently, as `catalogAvailability: 'unavailable'`. This asserts the JOIN, so it is a
+    # job gated on both halves rather than a step inside either.
+    ecosystem-smoke:
+        name: infra — ecosystem smoke (recipe ↔ food)
+        runs-on: ubuntu-latest
+        # ⛔ BOUND ONLY WHEN DEPLOYING. A deploy binds `Production` (required_reviewers and a branch policy —
+        # the correct answer for a prod deploy) or `Sandbox` (no protection rules); a `deploy: false` checks
+        # run binds NOTHING, which is what lets `main`'s checks synthesize at `prod` without waiting on
+        # Production's reviewers (owner ruling 2026-09-11). Every branch of the expression is a non-empty
+        # literal, so it is not an unsound pseudo-ternary.
+        # ⚠️ Reclamation jobs must NEVER be bound — a protection rule suspends them and a suspended
+        # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
+        environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
+        needs: [food-service, recipe-service]
+        if: >-
+            ${{ inputs.deploy
+            && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' food-service '))
+            && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' recipe-service '))
+            && needs.food-service.result == 'success' && needs.recipe-service.result == 'success' }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            - name: Install the root workspace
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npm ci --no-audit --no-fund
+            # ⛔ `printFoodHost.ts` imports `FoodServiceStack`, whose `aws-cdk-lib` and `@radicle-co/infra-shared`
+            # exist only in the food app's own `infra/` install. This job runs only on a real deploy, so its
+            # missing install had never failed — the first sign would have been a red post-deploy smoke on
+            # production. Asserted by `infraInstallBeforeUse.test.ts`.
+            - name: Install the food service's CDK package (the origin helper imports its stack)
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              working-directory: packages/services/food-service/infra
+              run: npm install --no-audit --no-fund
+
+            - name: Smoke — this stage's recipe service is WIRED to this stage's food service
+              env:
+                  STAGE: ${{ inputs.stage }}
+              run: |
+                  set -euo pipefail
+                  npx turbo run build --filter='@kitchensink/food-service^...'
+                  food_origin=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts \
+                      "${STAGE}" "${DOMAIN_NAME}")
+
+                  cluster=$(aws ecs list-clusters --query 'clusterArns[]' --output text \
+                      | tr '\t' '\n' | grep "recipe-service-${STAGE}-" | head -1)
+                  service=$(aws ecs list-services --cluster "$cluster" --query 'serviceArns[0]' --output text)
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                      --query 'services[0].taskDefinition' --output text)
+
+                  # ⚠️ LOWERCASE `name`/`value`. ECS `KeyValuePair` is one of the few AWS shapes that is not
+                  # PascalCase. Filtering on `Name` matches NOTHING and yields `None`, which maps to an empty
+                  # string — indistinguishable from the variable genuinely being unset. That produced a FALSE
+                  # smoke failure claiming the recipe task could not reach food, while the running revision
+                  # carried `FOOD_SERVICE_URL=https://food-pr-73.commise.app` the whole time.
+                  configured=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                      --query "taskDefinition.containerDefinitions[0].environment[?name=='FOOD_SERVICE_URL'].value | [0]" \
+                      --output text)
+                  if [ "$configured" = 'None' ]; then
+                      configured=''
+                  fi
+
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                      --base-url "https://recipe-${STAGE}.${DOMAIN_NAME}" \
+                      --food-origin "${food_origin}" \
+                      --configured-food-origin "${configured}"

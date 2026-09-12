@@ -19,6 +19,12 @@
  *  - The heading and the "Coming soon" badge carry the information, and are **exposed** to everyone.
  *  - The grey blocks carry none — they are a picture of a layout — and are `aria-hidden`.
  *
+ * That second half is the CALLER's to apply, and deliberately so: this shell does not wrap `children` in an
+ * `aria-hidden` container, because not every placeholder's children are pure shape. `MealPlanWidgetSkeleton`
+ * renders REAL, locale-formatted weekday names alongside the unknown meal thumbnails, and `aria-hidden` on an
+ * ancestor cannot be undone by a descendant — a blanket wrapper here would silence data the viewer legitimately
+ * has. Each skeleton therefore hides its own shapes and keeps whatever is real exposed.
+ *
  * The badge is deliberately **visible**, not `sr-only`: a sighted viewer staring at grey rectangles has no
  * way to distinguish "coming soon" from "stuck loading" either. Telling everyone the same thing in the same
  * place is simpler and more honest than a visually-hidden string that only some users get.
@@ -37,7 +43,11 @@ import { webMessages } from '@/i18n/messages';
 export interface PlaceholderWidgetCardProps {
     /** The REAL widget's heading (what the viewer will eventually see here). */
     readonly title: string;
-    /** The skeleton shape. Rendered inside an `aria-hidden` wrapper — pass presentation only, never content. */
+    /**
+     * The skeleton shape. Rendered as-is: the caller marks its own shape nodes `aria-hidden`, so a placeholder
+     * whose children include something REAL (the meal-plan weekday names) can still expose it. Anything left
+     * exposed here must be information the viewer genuinely has — never invented data.
+     */
     readonly children: ReactNode;
 }
 

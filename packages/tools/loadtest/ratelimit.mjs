@@ -109,9 +109,13 @@ console.log(`  RESUME observed (paused cleared after):  ${sawResume ? '✅ yes' 
 if (sawStall && sawResume) {
     console.log('\n✅ Rate-limit stall→resume held under load.');
 } else if (!sawStall) {
-    console.log('\n⚠️ No stall seen — is the preview deployed with a LOW cap (foodSourceRateLimitPerHour)? Was the burst big enough (BURST_COUNT > cap)?');
+    console.log(
+        '\n⚠️ No stall seen — is the preview deployed with a LOW cap (foodSourceRateLimitPerHour)? Was the burst big enough (BURST_COUNT > cap)?',
+    );
     process.exitCode = 1;
 } else {
-    console.log('\n⚠️ Stalled but no resume within the window — is FOOD_SOURCE_WINDOW_SECONDS short enough for the observation, and RATELIMIT_DURATION_S long enough to see it clear?');
+    console.log(
+        '\n⚠️ Stalled but no resume within the window — is FOOD_SOURCE_WINDOW_SECONDS short enough for the observation, and RATELIMIT_DURATION_S long enough to see it clear?',
+    );
     process.exitCode = 1;
 }

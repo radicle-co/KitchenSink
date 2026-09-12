@@ -55,9 +55,17 @@ function fakeRecipes(getById = vi.fn().mockResolvedValue({ ownerId: OWNER })): R
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 // A REAL minimal 1×1 PNG (base64). file-type parses the IHDR chunk, so the bare 8-byte signature is not
 // enough — a legitimate, complete image is the honest fixture (and not hand-crafted bytes).
+//
+// ⚠️ AND IT MUST ACTUALLY DECODE, not merely claim to. This slot previously held a 70-byte string whose
+// IDAT chunk carried a WRONG CRC over a TRUNCATED zlib stream. sharp 0.34's libpng was lenient enough to
+// read it; libvips 8.18.6 (sharp 0.35) is not, and answers `vipspng: libpng read error`. The confirm path
+// treats a thumbnail failure as non-fatal, so the only symptom was `putObject` silently never being called
+// — the malformed fixture had been asserting the DEGRADE path while the comment above claimed otherwise.
+// Two malformed variants were in use across 7 files. Verify any replacement end-to-end, not by eye:
+// every chunk CRC must match and the IDAT must inflate.
 const PNG = new Uint8Array(
     Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         'base64',
     ),
 );

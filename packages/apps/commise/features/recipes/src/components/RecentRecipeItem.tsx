@@ -12,12 +12,16 @@
 
 import type { FC } from 'react';
 
-import { RecipeCard } from '../card/index.js';
+import { RecipeCard } from '../card/RecipeCard.js';
 import type { RecentRecipeItemProps } from './props.js';
 
 /**
  * A single recent-recipe card on web. Accessible name is the recipe title. Actionable (a button) when
  * `onSelect` is given; a non-interactive article otherwise.
  */
-export const RecentRecipeItem: FC<RecentRecipeItemProps> = ({ recipe, onSelect }) =>
-    onSelect === undefined ? <RecipeCard recipe={recipe} /> : <RecipeCard recipe={recipe} onSelect={onSelect} />;
+export const RecentRecipeItem: FC<RecentRecipeItemProps> = ({ recipe, onSelect, nutrition }) =>
+    onSelect === undefined ? (
+        <RecipeCard recipe={recipe} nutrition={nutrition} />
+    ) : (
+        <RecipeCard recipe={recipe} onSelect={onSelect} nutrition={nutrition} />
+    );

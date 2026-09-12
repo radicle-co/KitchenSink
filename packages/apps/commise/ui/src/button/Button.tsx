@@ -17,6 +17,9 @@
  *  - **Busy** — the `busy` prop swaps the icon slot for a real spinner in place (no layout shift) and
  *    disables the control; and the whole button is wrapped in {@link PressScale} for a motion-safe
  *    press-scale.
+ *
+ * @pattern Value Object contract (`ButtonProps`) rendered as a pure `props → JSX` leaf, composed with the
+ *     `PressScale` Decorator — the tier is a discriminated `variant`, never a boolean that switches behaviour.
  */
 import type { FC } from 'react';
 

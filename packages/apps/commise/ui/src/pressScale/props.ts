@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/press-scale — shared, platform-neutral prop contract for the design-system
- * {@link PressScale} press-feedback primitive.
+ * `PressScale` press-feedback primitive.
  *
  * `PressScale` gives a control a tactile "shrink while held" scale, respecting the OS reduce-motion
  * preference. The two leaves reach that behaviour differently — and this asymmetry is intrinsic, not an

@@ -28,6 +28,8 @@ const { useCreatePhotoUploadUrlMock, useConfirmPhotoUploadMock } = vi.hoisted(()
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useCreatePhotoUploadUrl: useCreatePhotoUploadUrlMock,
     useConfirmPhotoUpload: useConfirmPhotoUploadMock,
 }));
@@ -136,8 +138,20 @@ describe('useRecipePhotoUploadQueue — sequential drive + per-file status', () 
         });
 
         // ONLY once file A settled did file B's presign fire — never interleaved with A's.
+        //
+        // B's `uploading` is the SYNCHRONISATION POINT for the call-count assertion, not merely another
+        // assertion, and the order of these two lines is load bearing. `uploading` is derived from
+        // `activeFileId` (see `toPublicItems`), which "start next" sets in the same effect body immediately
+        // before it calls `upload` — so once B renders `uploading`, B's presign has necessarily already
+        // fired. Asserting the count first read the render the `waitFor` above returned on, which is the
+        // commit where A became `ok` and `activeFileId` was cleared; "start next" only runs AFTER that
+        // commit, so B is still `queued` there and the count is observed one commit too early. That window
+        // is a single React commit — invisible to a user, but a coin flip for a synchronous assertion, and
+        // it is what made this test fail under CI load while passing on an idle machine.
+        await waitFor(() => {
+            expect(result.current.queue.items.find((item) => item.fileName === 'b.png')?.status).toBe('uploading');
+        });
         expect(presign.mutateAsync).toHaveBeenCalledTimes(2);
-        expect(result.current.queue.items.find((item) => item.fileName === 'b.png')?.status).toBe('uploading');
 
         act(() => {
             presign.resolveNext({ uploadUrl: 'https://s3.example.com/put', key: 'kB' });
@@ -597,5 +611,59 @@ describe('useRecipePhotoUploadQueue — max-10 cap', () => {
 
         expect(result.current.queue.items).toHaveLength(0);
         expect(useCreatePhotoUploadUrlMock).toHaveBeenCalled();
+    });
+});
+
+/**
+ * THE `busy` VERDICT — a refusal to START, which is neither success nor failure.
+ *
+ * ⛔ WHY IT GETS ITS OWN HARNESS. Every other case here composes the REAL `useRecipePhotoUpload` on purpose,
+ * but `busy` can only be produced by holding that hook's mutex, and the queue is its only caller and awaits
+ * each verdict — so the state is unreachable through the real hook. A stubbed `upload` is the honest way to
+ * cover an arm that exists as a defensive invariant. That the stub is a one-property object is itself the
+ * point of narrowing the queue's dependency to `Pick<…, 'upload'>`.
+ *
+ * ⛔ THE MUTANT THIS KILLS: clearing `activeFileId` on `busy`. The reducer returns identical state for that
+ * verdict, so clearing the id re-fires the drive effect, re-picks the same file and loops as fast as
+ * promises resolve — a hot spin. Holding the id pauses the queue instead.
+ *
+ * ⚠️ CONSEQUENCE, recorded because it is a deliberate trade rather than an oversight: while paused, the item
+ * renders `uploading` (that status is DERIVED from the active id) even though nothing is transmitting. The
+ * alternative — clear the id so it reads `queued` — is what spins, so this asserts the three guarantees that
+ * actually matter and not the label: the file is not lost, it is given no false verdict, and `upload` is not
+ * re-driven. From the cook's side "in progress" is also the truer of the two labels, since the file is next
+ * in line behind a live upload.
+ */
+describe('useRecipePhotoUploadQueue — a busy uploader', () => {
+    it('⛔ leaves the file queued and stops driving, rather than marking it or spinning', async () => {
+        const upload = vi.fn().mockResolvedValue({ status: 'busy' });
+        const { result } = renderHook(() => useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES));
+
+        await act(async () => {
+            result.current.enqueue([
+                {
+                    blob: new Blob(['x'], { type: 'image/png' }),
+                    fileName: 'a.png',
+                    contentType: 'image/png',
+                    fileSize: 5,
+                },
+            ]);
+        });
+
+        await waitFor(() => expect(upload).toHaveBeenCalledTimes(1));
+
+        // Give a spin every chance to show itself: many commits' worth of microtasks.
+        for (let i = 0; i < 25; i += 1) {
+            await act(async () => {
+                await Promise.resolve();
+            });
+        }
+
+        // The three guarantees that matter: the file is not LOST, it is not given a FALSE verdict, and the
+        // queue does not spin.
+        expect(upload).toHaveBeenCalledTimes(1);
+        expect(result.current.items).toHaveLength(1);
+        expect(result.current.items[0]?.status).not.toBe('ok');
+        expect(result.current.items[0]?.status).not.toBe('failed');
     });
 });

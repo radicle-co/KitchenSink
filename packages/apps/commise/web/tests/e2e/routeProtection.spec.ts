@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 import { route, isRoute, hasDoublePrefix, pathnameOf } from './utils/basePath';
+import {
+    classifyNavigationTrace,
+    trackMainFrameNavigations,
+    waitForNavigationTraceToSettle,
+} from './utils/navigationTrace';
 
 // A signed-out user on a protected route is bounced to the app's OWN /sign-in (the custom <SignIn>
 // page), not Clerk's hosted Account Portal — single-prefixed under the preview basePath, on the app
@@ -19,18 +24,36 @@ test.describe('route protection (signed out)', () => {
         });
     }
 
-    test('home / redirects unauthenticated users straight to the app /sign-in', async ({ page }) => {
+    test('home / SETTLES on the app /sign-in — it does not merely pass through it', async ({ page }) => {
+        // ⚠️ This test used to assert `expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true)`
+        // plus a retrying `toBeVisible` on the email field. On 2026-08-07 production bounced forever between
+        // /en and /en/sign-in?redirect_url=%2Fen and BOTH assertions still passed: `expect.poll` resolves on
+        // the first favourable sample, which an infinite loop supplies every other hop, and the loop really
+        // does render the sign-in form on each visit. So the arrival is now asserted as a SETTLED state —
+        // navigation must stop, no pathname may be visited three times, and the total must stay inside a
+        // budget. See tests/e2e/utils/navigationTrace.ts.
+        const trace = trackMainFrameNavigations(page);
+
         await page.goto(route('/'));
 
         // Owner decision 2026-07-28: the front door is the sign-in form itself — there is no branded
         // welcome/landing interstitial in front of it any more. So the root now agrees with the deep protected
         // routes asserted above: signed out ⇒ /sign-in, single-prefixed, on the app's own origin.
-        await expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true);
+        // The sign-in form itself is rendered — not merely the URL. The email field is the landmark that
+        // proves Clerk's <SignIn> mounted rather than 404'd.
+        await expect(page.getByRole('textbox', { name: /email/i })).toBeVisible({ timeout: 20_000 });
+
+        const urls = await waitForNavigationTraceToSettle(trace);
+        const verdict = classifyNavigationTrace({
+            urls,
+            expectedFinalPathname: route('/sign-in'),
+            maxNavigations: 8,
+        });
+
+        expect(verdict.findings.join('\n')).toBe('');
+        expect(isRoute(pathnameOf(page), '/sign-in')).toBe(true);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
         expect(page.url()).not.toContain('accounts.dev');
-        // The sign-in form itself is rendered — not merely the URL. Clerk's <SignIn> labels its submit
-        // "Continue"; the email field is the landmark that proves the widget mounted rather than 404'd.
-        await expect(page.getByRole('textbox', { name: /email/i })).toBeVisible({ timeout: 20_000 });
     });
 
     test('the sign-in and sign-up pages are reachable without auth', async ({ page }) => {

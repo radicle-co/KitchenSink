@@ -1,67 +1,160 @@
-# Product Forge Lifecycle Status
-# Feature: 014-notification-service
-# Last updated: 2026-05-10
+# Product Forge Lifecycle Status — Feature 014: Notification Service
+#
+# Migrated from the legacy v2 shape to schema v3 on 2026-08-05.
+# The pre-migration file used `mode: retroactive-bootstrap` (not a valid
+# feature_mode) and `state:` keys instead of `status:`. Legacy state values that
+# have no v3 enum member were mapped as follows, conservatively:
+#   research/product-spec  "bootstrapped" -> completed  (artifacts exist; their
+#                          thinness is tracked as verify-report W-002, not as a
+#                          phase state)
+#   verify                 "failed"       -> pending    (v3 has no `failed`; the
+#                          2026-05-12 run produced verify-report.md with 2
+#                          CRITICALs and must be re-run, so the phase is not
+#                          complete. See the note under phases.verify.)
+#   release-readiness      "blocked"      -> pending    (v3 has no `blocked`;
+#                          v-model/release-audit-report.md remains BLOCKED)
+#   *                      "not-started"  -> pending
+
+schema_version: 3
 
 feature: 014-notification-service
-mode: retroactive-bootstrap
-pilot: false
+created_at: '2026-05-10'
+last_updated: '2026-08-05T00:00:00Z'
+
+# Chosen by the owner on 2026-08-05. Matches the 20 existing v-model/ artifacts
+# and the project config's `default_speckit_mode: v-model`.
+feature_mode: 'v-model'
+speckit_mode: 'v-model'
+
+# Lazily migrated legacy file, not authored by a v1.5.0+ writer — digest
+# enforcement is grandfathered (runtime.md §8.3).
+v2_native: false
+
+# Reverse-engineered from sibling feature docs, not from code (`/backfill` was
+# never run; 014 has no implementation).
+backfilled: false
 
 phases:
-    problem-discovery:
-        state: skipped
-        artifact: null
+    problem_discovery:
+        status: 'skipped'
+        skipped: true
+        skip_reason: >-
+            Feature originated from cross-feature gap WA-004 in
+            specs/cross-feature-consistency-report.md §5.3 (five features
+            reference notifications with no owner) and from the resolution of
+            feature 003 Q-001. The problem was already validated by that
+            evidence, so discovery was never run.
     research:
-        state: bootstrapped
-        artifact: research/codebase-analysis.md
-    product-spec:
-        state: bootstrapped
-        artifact: product-spec/product-spec.md
-        artifacts:
-            - product-spec/product-spec.md
-            - product-spec/README.md
-            - product-spec/user-journey.md
-            - product-spec/metrics.md
+        status: 'completed'
+        # Bootstrap-minimal: only README.md + codebase-analysis.md.
+        # competitors / ux-patterns / tech-stack / metrics-roi are unauthored
+        # (verify-report.md W-002).
+    product_spec:
+        status: 'completed'
+        # User journeys, wireframes and metrics remain thin (verify-report.md W-002).
+    design_system_harvest:
+        status: 'not_applicable' # backend delivery service; no UI surface owned by 014
     revalidation:
-        state: pending
-        artifact: review.md
+        status: 'pending'
+        # review.md exists and tracks M8 alignment, but the product spec has
+        # never been through an approval loop and carries 4 open questions.
     bridge:
-        state: completed
-        artifact: spec.md
+        status: 'completed'
     plan:
-        state: completed
-        note: plan.md exists; implementation has not started.
-        artifact: plan.md
+        status: 'completed'
     tasks:
-        state: completed
-        note: tasks.md exists with unchecked implementation and verification tasks.
-        artifact: tasks.md
-    pre-impl-review:
-        state: not-started
-        artifact: null
+        status: 'completed'
+    pre_impl_review:
+        status: 'pending'
     implement:
-        state: not-started
-        artifact: null
-    code-review:
-        state: not-started
-        artifact: null
+        status: 'pending'
+    code_review:
+        status: 'pending'
     verify:
-        state: failed
-        note: verify-report.md exists and reports NOT READY FOR M8 EXIT; release audit remains blocked.
-        artifact: verify-report.md
-    test-plan:
-        state: not-started
-        artifact: null
-    test-run:
-        state: not-started
-        artifact: null
-    release-readiness:
-        state: blocked
-        note: v-model/release-audit-report.md is blocked and cannot satisfy GR-001 until traceability gaps and untested scenarios are closed.
-        artifact: v-model/release-audit-report.md
+        status: 'pending'
+        # A verify-full run on 2026-05-12 produced verify-report.md with
+        # decision FAIL (C-001 release audit blocked, C-002 verify tasks
+        # unstarted). That report's metrics are additionally STALE: it counts
+        # "T001-T066 / 53 defined tasks" while tasks.md defines 20 tasks as
+        # T-001..T-020. It must be regenerated, not trusted.
+    test_plan:
+        status: 'pending'
+    test_run:
+        status: 'pending'
+    release_readiness:
+        status: 'pending'
+        # v-model/release-audit-report.md is BLOCKED: 186 mapped scenario
+        # references, 0 executed.
+    spec_merge:
+        status: 'pending'
     retrospective:
-        state: not-started
-        artifact: null
+        status: 'pending'
 
+    api_docs:
+        status: 'not_applicable'
+    security_check:
+        status: 'not_applicable'
+    tracking_plan:
+        status: 'not_applicable'
+    i18n_harvest:
+        status: 'not_applicable' # 014 emits opaque producer payloads; no user-facing copy of its own
+    migration_plan:
+        status: 'pending'
+        # Re-triggered 2026-08-05. plan.md now HAS a Data Model section (added by the
+        # sync-verify reconciliation, DRIFT-012), so the Phase 5.5 condition is met.
+        # Two migrations are in scope: the notification service's own schema, and a
+        # separate migration adding group/group_membership to the identity DB (Q-002).
+    monitoring_setup:
+        status: 'not_applicable'
+    experiment_design:
+        status: 'not_applicable'
+
+testing:
+    final_pass_rate: ''
+    bugs_found: 0
+    bugs_fixed: 0
+    bugs_deferred: 0
+    test_runs_total: 0
+
+# No implementation has started; tasks.md is 0/20 checked.
+task_log: []
+
+# No human gate decision has ever been recorded for this feature.
+gates: []
+
+sync_runs:
+    last_run: '2026-08-05T00:00:00Z'
+    total_runs: 2
+    last_drift_count: 14
+    last_critical_count: 5
+    last_verdict: 'CRITICAL DRIFT (all 14 resolved 2026-08-05; re-scan clean)'
+    # Run #1 (2026-06-02) reported CONSISTENT / 0 CRITICAL and is not trustworthy:
+    # its own .md and .json disagree on the warning count, and DRIFT-001..005 were
+    # already present in the artifacts on that date. See sync-report.md DRIFT-011.
+
+change_requests: []
+
+dependencies:
+    depends_on:
+        - 002-user-auth # authenticated subscription boundary (plan.md "Hard dependencies")
+    depended_on_by:
+        - 001-commise-recipe-app
+        - 003-usda-food-data
+        - 005-ai-integration
+        - 006-meal-planning
+        - 007-grocery-lists
+        - 008-cooking-mode
+        - 009-nutrition-planning
+        - 010-subscriptions
+        - 012-creator-profiles
+        - 013-cooking-school
+
+role_approvals:
+    solo_mode: true
+    required_roles_per_phase: {}
+
+# Preserved from the v2 file (v3 is additive). The V-Model artifact chain is
+# authored and peer-reviewed; execution evidence is what is missing.
 v-model:
     state: completed
     artifacts:
@@ -76,6 +169,7 @@ v-model:
         - v-model/hazard-analysis.md
         - v-model/traceability-matrix.md
         - v-model/release-audit-report.md
+        - v-model/waivers.md
         - v-model/peer-review-requirements.md
         - v-model/peer-review-system-design.md
         - v-model/peer-review-architecture-design.md
@@ -85,5 +179,3 @@ v-model:
         - v-model/peer-review-system-test.md
         - v-model/peer-review-acceptance-plan.md
         - v-model/peer-review-hazard-analysis.md
-
-last_updated: 2026-05-13

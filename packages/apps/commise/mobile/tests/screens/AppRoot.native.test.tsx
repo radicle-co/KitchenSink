@@ -31,6 +31,9 @@ vi.mock('../../src/hooks/useUserProfile.js', () => ({
     // CR-002 / U4b: ProfileScreen now composes AccountDangerZone, which reads `useDeleteAccount` and imports
     // `@clerk/expo` directly (not only through `useUserProfile`) — stub both so the real ProfileScreen module
     // graph parses even though it never renders here.
+}));
+
+vi.mock('../../src/hooks/useDeleteAccount.js', () => ({
     useDeleteAccount: () => ({ mutate: () => undefined, isPending: false }),
 }));
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: () => undefined }) }));

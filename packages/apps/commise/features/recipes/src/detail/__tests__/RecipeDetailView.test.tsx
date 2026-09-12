@@ -19,7 +19,9 @@ import {
     makeRecipeDetail,
     makeStepView,
 } from '../../__fixtures__/index.js';
+import { RecipeDetailBody } from '../RecipeDetailBody.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
+import { resetServingScale } from '../servingScale.js';
 
 afterEach(cleanup);
 
@@ -159,7 +161,10 @@ describe('RecipeDetailView (web) — meta', () => {
         expect(screen.getByText('15 min')).toBeTruthy();
         expect(screen.getByText('30 min')).toBeTruthy();
         expect(screen.getByText('45 min')).toBeTruthy();
-        expect(screen.getByText('4')).toBeTruthy();
+        // REWRITTEN (serving scaling): the Serves cell is no longer static text — it is the labelled
+        // serving-count control, opening at the recipe's own yield. The assertion below proves the SAME
+        // fact (the strip reports 4 servings) against the new affordance; the coverage did not move.
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '4');
     });
 
     it('orders the stat cards Serves, Prep, Cook, Total (wireframe parity, C2)', () => {
@@ -184,7 +189,9 @@ describe('RecipeDetailView (web) — ingredients', () => {
         render(
             <RecipeDetailView
                 recipe={makeRecipeDetail({
-                    ingredients: [makeIngredientView({ name: 'Lamb leg', quantity: 1.5, unit: 'lbs' })],
+                    ingredients: [
+                        makeIngredientView({ name: 'Lamb leg', quantity: { kind: 'exact', value: 1.5 }, unit: 'lbs' }),
+                    ],
                 })}
             />,
         );
@@ -606,5 +613,315 @@ describe('RecipeDetailView (web) — a long ingredient line cannot push the row 
         // leaves them unshrinkable by default, so web says so explicitly.
         expect(screen.getByText('2 tbsp').className).toContain('shrink-0');
         expect(screen.getByText('Custom').className).toContain('shrink-0');
+    });
+});
+
+/**
+ * Gap A — the recipe's ORIGIN, on the detail view itself.
+ *
+ * `sourceUrl`/`sourceAttribution` used to render nowhere on this view: attribution appeared only inside
+ * `RecipeCloneAction`, which the container mounts only for a NON-owner, so the owner of an imported recipe
+ * could never see where it came from and `sourceUrl` was shown to nobody. This view takes no viewer, which
+ * is the structural fix — provenance is a property of the recipe, not of who is looking.
+ */
+describe('RecipeDetailView (web) — recipe source', () => {
+    it('renders the source link for a recipe that has one, with no viewer context at all', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    sourceUrl: 'https://www.seriouseats.com/recipes/lamb',
+                    sourceAttribution: 'Serious Eats',
+                })}
+            />,
+        );
+
+        // The link is labelled by the VERIFIED host (never by the untrusted attribution, which renders
+        // beside it as text) — see `RecipeSourceLine`.
+        const link = screen.getByRole('link', { name: 'www.seriouseats.com' });
+        expect(link.getAttribute('href')).toBe('https://www.seriouseats.com/recipes/lamb');
+        expect(screen.getByText('Serious Eats')).toBeTruthy();
+    });
+
+    it('renders the source even when the view is handed owner-style props (no footer clone action)', () => {
+        // The regression this locks: provenance must not be coupled to the clone affordance again.
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ sourceAttribution: 'Grandma’s cookbook' })}
+                footerActions={undefined}
+            />,
+        );
+
+        expect(screen.getByText('Grandma’s cookbook')).toBeTruthy();
+    });
+
+    it('renders NO source affordance for a recipe that has none', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({})} />);
+
+        expect(screen.queryByText('Source')).toBeNull();
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+});
+
+/**
+ * Gap B — configurable serving size.
+ *
+ * The model under test is deliberately partial, and these tests are what hold it in place: ingredient
+ * amounts and hands-on PREP scale with the yield; COOK time and per-step timers do NOT, because thermal
+ * cooking time is not proportional to batch size. Per-serving nutrition is invariant and must not move.
+ */
+describe('RecipeDetailView (web) — serving scale', () => {
+    // The scale is session state, keyed by recipe id, and the store is a module singleton: without this,
+    // one test's doubling leaks into the next.
+    afterEach(resetServingScale);
+
+    const scalable = () =>
+        makeRecipeDetail({
+            servings: 4,
+            prepTimeMinutes: 15,
+            // Distinct from the prep time on purpose: at 2x, prep becomes 30 and a shared value would let a
+            // "cook time scaled" bug hide behind an ambiguous text match.
+            cookTimeMinutes: 25,
+            totalTimeMinutes: 45,
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: 'ing_1',
+                    name: 'Olive oil',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'tbsp',
+                }),
+            ],
+            steps: [makeStepView({ stepNumber: 1, instruction: 'Simmer gently.', timerSeconds: 600 })],
+            nutrition: makeNutrition({ calories: 520, isComplete: true }),
+        });
+
+    /** Render the PURE body at an explicit serving count — the ratio cases, with no store involved. */
+    const renderAt = (servings: number) =>
+        render(<RecipeDetailBody recipe={scalable()} servings={servings} onServingsChange={vi.fn()} />);
+
+    it('opens at the serving count the recipe was created with', () => {
+        render(<RecipeDetailView recipe={scalable()} />);
+
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '4');
+        // …and nothing is presented as adjusted.
+        expect(screen.queryByText(/Adjusted from/)).toBeNull();
+    });
+
+    it('rescales the WHOLE view when the cook uses the control — no app wiring involved', async () => {
+        // The end-to-end wiring assertion: `RecipeDetailView` binds the scale itself, so a container that
+        // knows nothing about scaling still ships a working control. This is the structural answer to the
+        // defect class this feature came from (a capability that only reaches the screen if someone
+        // remembers to pass it down).
+        render(<RecipeDetailView recipe={scalable()} />);
+
+        await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
+
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '5');
+        expect(screen.getByText('2.5 tbsp')).toBeTruthy();
+        expect(screen.getByText(/Adjusted from 4 servings/)).toBeTruthy();
+    });
+
+    it('keeps each recipe’s scale to itself', async () => {
+        const { unmount } = render(<RecipeDetailView recipe={scalable()} />);
+        await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
+        unmount();
+
+        render(<RecipeDetailView recipe={makeRecipeDetail({ id: 'rec_other', servings: 2 })} />);
+
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '2');
+    });
+
+    it('scales ingredient quantities to the chosen serving count', () => {
+        renderAt(8);
+
+        expect(screen.getByText('4 tbsp')).toBeTruthy();
+        expect(screen.queryByText('2 tbsp')).toBeNull();
+    });
+
+    it('scales HANDS-ON prep time and rebuilds the total from it', () => {
+        renderAt(8);
+
+        expect(screen.getByText('30 min')).toBeTruthy(); // prep 15 -> 30
+        expect(screen.getByText('60 min')).toBeTruthy(); // total 45 + the 15-minute prep delta
+    });
+
+    it('does NOT scale cook time', () => {
+        const { container } = renderAt(8);
+
+        // Read the Cook cell specifically: doubling the batch must leave it at the stored 25 minutes. A
+        // "scale every timing" implementation renders 50 here and would tell a cook to bake twice as long.
+        const cook = Array.from(container.querySelectorAll('div')).find(
+            (cell) => cell.querySelector('dt')?.textContent === 'Cook',
+        );
+
+        expect(cook?.querySelector('dd')?.textContent).toBe('25 min');
+    });
+
+    it('does NOT scale a step timer', () => {
+        renderAt(8);
+
+        expect(screen.getByText('600s timer')).toBeTruthy();
+        expect(screen.queryByText('1200s timer')).toBeNull();
+    });
+
+    it('leaves PER-SERVING nutrition untouched, because it is invariant under scaling', () => {
+        renderAt(12);
+
+        // Restating it here would double-count the ratio; a fabricated or recomputed figure is the failure.
+        expect(screen.getByText('520')).toBeTruthy();
+    });
+
+    it('discloses what scaled and what deliberately did not, but only while scaled', () => {
+        const { unmount } = renderAt(4);
+
+        expect(screen.queryByText(/Cook times and step timers are shown unchanged/)).toBeNull();
+        unmount();
+
+        renderAt(6);
+
+        expect(screen.getByText(/Adjusted from 4 servings/)).toBeTruthy();
+        expect(screen.getByText(/Cook times and step timers are shown unchanged/)).toBeTruthy();
+    });
+
+    it('announces the disclosure rather than leaving it to sighted scanning', () => {
+        renderAt(6);
+
+        expect(screen.getByRole('status').textContent).toContain('Adjusted from 4 servings');
+    });
+
+    it('scales DOWN as well as up', () => {
+        renderAt(2);
+
+        expect(screen.getByText('1 tbsp')).toBeTruthy();
+        expect(screen.getByText('8 min')).toBeTruthy(); // prep 15 -> 7.5, rounded to a whole minute
+    });
+
+    it('renders a recipe authored beyond the display cap at its own yield rather than crashing', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ id: 'rec_huge', servings: 250 })} />);
+
+        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '250');
+    });
+});
+
+/**
+ * U9 / R42 + R38 — a ranged or absent quantity on the READ surface.
+ *
+ * The checkbox's accessible name is the assertion that matters: it is composed from the same formatted
+ * quantity the sighted row shows, so a bound dropped from one is dropped from both. The native suite
+ * asserts the identical set.
+ */
+describe('RecipeDetailView (web) — ranged and absent quantities (U9)', () => {
+    it('renders a stated range as a span, not as its lower bound alone', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            quantity: { kind: 'range', low: 2, high: 3 },
+                            unit: 'cups',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByRole('checkbox', { name: '2–3 cups Flour' })).toBeTruthy();
+    });
+
+    it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Butter',
+                            quantity: { kind: 'absent' },
+                            unit: 'the size of an egg',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByRole('checkbox', { name: 'the size of an egg Butter' })).toBeTruthy();
+        // Mutation guard: a `?? 0` or a `?? 1` fallback would put a digit in front of a cook here.
+        expect(screen.queryByRole('checkbox', { name: /^0 /u })).toBeNull();
+        expect(screen.queryByRole('checkbox', { name: /^1 /u })).toBeNull();
+    });
+
+    it('discloses that the nutrition figure came from one bound of a stated range (R38)', () => {
+        render(
+            <RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ rangeDerivedBound: 'low' }) })} />,
+        );
+
+        expect(screen.getByText('Estimated from the lower amount of each stated range')).toBeTruthy();
+    });
+
+    it('shows NO range disclosure when nothing was collapsed', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition() })} />);
+
+        expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
+    });
+});
+
+/**
+ * U26 — the preparation on the READ surface.
+ *
+ * ⛔ Without this the field round-trips and is INVISIBLE: a cook types "finely chopped" in the editor, saves,
+ * opens the recipe, and cooks from a line that never mentions it. A field the author can set and the reader
+ * cannot see is not a shipped feature.
+ */
+describe('RecipeDetailView — ingredient preparation (U26)', () => {
+    it('renders the preparation when the line carries one', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Onion', preparation: 'finely chopped' })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('finely chopped')).toBeTruthy();
+    });
+
+    // ⛔ U26's headline rule on the read surface. A concatenated name would ALSO make the assertion above
+    // pass via `getByText` on a longer string, so the name is pinned separately and exactly.
+    it('⛔ NEVER concatenates the preparation into the food name', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Onion', preparation: 'finely chopped' })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('Onion')).toBeTruthy();
+        expect(screen.queryByText('Onion finely chopped')).toBeNull();
+        expect(screen.queryByText('Onion (finely chopped)')).toBeNull();
+    });
+
+    it('renders BOTH the preparation and a `notes` display override — they are different facts', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            preparation: 'sifted',
+                            notes: '2 cups all-purpose flour, sifted',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('sifted')).toBeTruthy();
+        expect(screen.getByText('2 cups all-purpose flour, sifted')).toBeTruthy();
+    });
+
+    it('renders NOTHING extra for a line that states no preparation', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ name: 'Salt' })] })} />);
+
+        expect(screen.getByText('Salt')).toBeTruthy();
     });
 });

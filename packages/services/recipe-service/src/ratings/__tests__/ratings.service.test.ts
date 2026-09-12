@@ -19,12 +19,14 @@ import { RatingsService } from '../ratings.service.js';
 import type { RatingsDal } from '../dal/ratings.dal.js';
 import type { RecipesDal, RecipeAggregate } from '../../recipes/dal/recipes.dal.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
-import type { RecipeResponse } from '../../recipes/dto/recipe-response.dto.js';
+import type { RecipeResponse } from '../../recipes/dto/recipeResponse.dto.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import { makeRecipeRow } from '../../__fixtures__/index.js';
 
 const RATER = '01JRATER00000000000000000A';
+/** The caller's opaque bearer, forwarded so the re-read detail's nutrition resolves. */
+const CALLER = { kind: 'caller-token' } as never;
 const OWNER = '01JOWNER00000000000000000B';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 
@@ -77,17 +79,19 @@ describe('RatingsService.setRating', () => {
     });
 
     it('rates a visible recipe owned by someone else, then returns the trigger-refreshed detail', async () => {
-        const result = await h.service.setRating(RATER, RECIPE_ID, { stars: 4 });
+        const result = await h.service.setRating(RATER, RECIPE_ID, { stars: 4 }, CALLER);
 
         expect(h.ratingsDal.upsert).toHaveBeenCalledWith({ recipeId: RECIPE_ID, userId: RATER, stars: 4 });
         // The rater comes from the token arg, never the body — the DAL is called with the verified RATER.
-        expect(h.recipesService.getById).toHaveBeenCalledWith(RATER, RECIPE_ID);
+        // ⛔ And the caller's bearer reaches the re-read, whose detail body IS the response (REWRITTEN: it
+        // used to assert the two-argument call, which answered with cache-only nutrition).
+        expect(h.recipesService.getById).toHaveBeenCalledWith(RATER, RECIPE_ID, CALLER);
         expect(result).toBe(h.detail);
     });
 
     it('re-rating upserts (never a second row) and re-reads the aggregate', async () => {
-        await h.service.setRating(RATER, RECIPE_ID, { stars: 2 });
-        await h.service.setRating(RATER, RECIPE_ID, { stars: 5 });
+        await h.service.setRating(RATER, RECIPE_ID, { stars: 2 }, CALLER);
+        await h.service.setRating(RATER, RECIPE_ID, { stars: 5 }, CALLER);
 
         expect(h.ratingsDal.upsert).toHaveBeenNthCalledWith(1, { recipeId: RECIPE_ID, userId: RATER, stars: 2 });
         expect(h.ratingsDal.upsert).toHaveBeenNthCalledWith(2, { recipeId: RECIPE_ID, userId: RATER, stars: 5 });
@@ -97,7 +101,7 @@ describe('RatingsService.setRating', () => {
         const missing = makeHarness(undefined);
 
         await expectDomainError(
-            missing.service.setRating(RATER, RECIPE_ID, { stars: 3 }),
+            missing.service.setRating(RATER, RECIPE_ID, { stars: 3 }, CALLER),
             RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(missing.ratingsDal.upsert).not.toHaveBeenCalled();
@@ -110,7 +114,7 @@ describe('RatingsService.setRating', () => {
         const privateNotMine = makeHarness(aggregate({ ownerId: OWNER, visibility: 'private' }));
 
         await expectDomainError(
-            privateNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }),
+            privateNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }, CALLER),
             RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(privateNotMine.ratingsDal.upsert).not.toHaveBeenCalled();
@@ -123,7 +127,7 @@ describe('RatingsService.setRating', () => {
         const publicDraftNotMine = makeHarness(aggregate({ ownerId: OWNER, visibility: 'public', status: 'draft' }));
 
         await expectDomainError(
-            publicDraftNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }),
+            publicDraftNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }, CALLER),
             RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(publicDraftNotMine.ratingsDal.upsert).not.toHaveBeenCalled();
@@ -135,7 +139,7 @@ describe('RatingsService.setRating', () => {
         const own = makeHarness(aggregate({ ownerId: RATER, visibility: 'public' }));
 
         await expectDomainError(
-            own.service.setRating(RATER, RECIPE_ID, { stars: 5 }),
+            own.service.setRating(RATER, RECIPE_ID, { stars: 5 }, CALLER),
             RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,
         );
         expect(own.ratingsDal.upsert).not.toHaveBeenCalled();
@@ -147,7 +151,7 @@ describe('RatingsService.setRating', () => {
         const ownPrivate = makeHarness(aggregate({ ownerId: RATER, visibility: 'private' }));
 
         await expectDomainError(
-            ownPrivate.service.setRating(RATER, RECIPE_ID, { stars: 5 }),
+            ownPrivate.service.setRating(RATER, RECIPE_ID, { stars: 5 }, CALLER),
             RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,
         );
     });

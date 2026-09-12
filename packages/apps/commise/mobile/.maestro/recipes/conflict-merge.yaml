@@ -24,10 +24,10 @@ appId: io.commise.mobile
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
 # The INNER conflict guard below stays conditional on purpose — a single-writer run has no conflict view.
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 # The edit entry point is in the owner-action block at the foot of the (scrolling) detail.
 - scrollUntilVisible:
       element: 'Edit recipe'
@@ -43,10 +43,14 @@ appId: io.commise.mobile
 - assertVisible: 'Step 1 of 4'
 - tapOn: 'Title'
 - eraseText
-- inputText: 'Mediterranean Grilled Lamb (my edit)'
+- inputText: '${E2E_RECIPE_LAMB} (my edit)'
 
-# The seed recipe carries no ingredients or steps, but Publish (whole-form validation, unchanged by the
-# wizard) requires >= 1 of each. Add one of each via the picker (freeform Create, exactly as the create flow).
+# The seeded recipe now arrives WITH five ingredient lines and four steps of its own
+# (`packages/services/recipe-service/src/database/seed.ts`), so Publish's ">= 1 of each" is already satisfied
+# when the editor opens. One of each is still added via the picker (freeform Create, exactly as the create
+# flow) so this pass makes a CONTENT change, not only a title change — but both checkpoints had to be re-aimed
+# at the row/step this flow itself adds, since the ones written against the empty fixture now land on seeded
+# content (see `edit.yaml` for the full argument).
 - scrollUntilVisible:
       element: 'Next: Ingredients'
       direction: DOWN
@@ -66,8 +70,19 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn:
       text: 'Create .*Tomato.*'
+# ⛔ NOT `Ingredient 1 name` — that is the FIRST SEEDED line's field, on screen before this flow typed a
+# character, so it passed whether or not the freeform create resolved. The pair below is about this flow's own
+# action: the picker RESETTING (`resolveLine` clears the query only AFTER the resolved line is handed up, so
+# "Create “Tomato”" disappearing IS the create resolving — and a failed create leaves it in place), then the
+# created line addressed BY NAME rather than by position, which is count-independent and is the only thing
+# that can carry that text once the search box has been cleared. `^Tomato` is anchored at the start only, to
+# tolerate the emulator's occasional last-character input duplication.
+- extendedWaitUntil:
+      notVisible: 'Create .*Tomato.*'
+      timeout: 30000
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element:
+          text: '^Tomato'
       direction: DOWN
       timeout: 30000
 - scrollUntilVisible:
@@ -78,10 +93,20 @@ appId: io.commise.mobile
 - assertVisible: 'Step 3 of 4'
 - scrollUntilVisible:
       element: 'Add step'
-      direction: UP
+      # ⛔ DOWN, not UP. Advancing a step now returns the scroller to the TOP (`useScrollResetOnChange`,
+      # wired in `RecipeEditor`), so `Add step` — which sits below this step's instruction list — is
+      # ALWAYS downward from here. `UP` was compensating for the wizard's old behaviour of carrying the
+      # previous step's scroll position over, which is the defect that reset fixes.
+      direction: DOWN
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
+# ⛔ `Step 5 instruction`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
+# (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is
+# the fifth. The index is this flow's one coupling to the fixture's COUNT — stated because Maestro has no
+# "last match" selector. `Step 1 instruction` would append this text to the SEEDED first step and leave the
+# added step EMPTY, and `validateRecipeForm` fails `steps` on ANY blank instruction, so `canAdvanceFromStep(3)`
+# never opens and the advance to step 4 below dead-ends before Publish.
+- tapOn: 'Step 5 instruction'
 - inputText: 'Combine everything and simmer.'
 
 # Publish is the STEP-4 FOOTER PRIMARY, not a sticky top-bar action. U6 collapsed the wizard chrome to one
@@ -90,10 +115,10 @@ appId: io.commise.mobile
 # overflow. This flow used to tap `Publish` from step 3 on the pre-U6 assumption and failed there. Advancing
 # to step 4 also keeps the discard guard un-triggered — this is forward navigation, never backward.
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 # If a concurrent save landed first, the conflict view offers the per-side banner, the changed-only diff, and
@@ -150,5 +175,5 @@ appId: io.commise.mobile
 # Back on the detail with the user's title preserved by the merge (regex tolerates the last-char input dup).
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .my edit.*'
+          text: '${E2E_RECIPE_LAMB} .my edit.*'
       timeout: 40000

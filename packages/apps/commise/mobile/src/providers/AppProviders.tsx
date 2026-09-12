@@ -13,9 +13,18 @@
  * This is a pure extraction (Facade pattern) — the tree and its order are UNCHANGED from what `App.tsx`
  * hand-stacked before; only the composition now lives in one reusable, testable place. `App.tsx` keeps
  * ownership of everything that is NOT a provider (font loading, the status bar, `AuthGate`, the navigator).
+ *
+ * ⚠️ Read as SHAPE this is props → JSX with one `useState`, which is the profile of a render leaf exactly.
+ * It is ORCHESTRATION all the same, for the same reason the web facade is: the identity of what it mounts —
+ * the query cache, the Clerk session and its secure-store token cache, the recipe client — is the app's data
+ * and auth capability, and the ENFORCED order between them is a decision this component owns alone.
+ *
+ * @pattern Facade over the app's six-deep provider stack — one composition root, so a caller mounts one
+ *     component instead of remembering an order whose violation only shows up at runtime.
  */
 import { ClerkProvider } from '@clerk/expo';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createAppQueryClient } from '@commise/query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { JSX, ReactNode } from 'react';
 import { useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -39,7 +48,13 @@ if (!publishableKey) {
  * @returns The provider tree wrapping `children`, in the enforced order documented above.
  */
 export function AppProviders({ children }: { readonly children: ReactNode }): JSX.Element {
-    const [queryClient] = useState(() => new QueryClient());
+    // ⛔ `createAppQueryClient`, never a bare `new QueryClient()`. A bare client takes TanStack's default
+    // `retry: 3` with exponential backoff and applies it to EVERY failure, including a `404` — four requests
+    // and ~7s of pure backoff for one miss. The factory carries the shared policy (a 4xx cannot succeed on
+    // repeat and is not retried; 5xx and transport failures still are), and it lives in `@commise/query`
+    // precisely because the web facade mounts the SAME decision: this file and `RecipeProviders.tsx` each
+    // built their own client, so the platforms could only agree by inspection.
+    const [queryClient] = useState(createAppQueryClient);
 
     return (
         <TamaguiProvider config={tamaguiConfig} defaultTheme="light">

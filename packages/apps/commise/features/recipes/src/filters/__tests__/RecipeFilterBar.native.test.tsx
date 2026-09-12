@@ -7,6 +7,7 @@
  * therefore cannot drift on behavior or accessibility.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
@@ -389,6 +390,63 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
         });
 
         expect(screen.getByText('No matching ingredients')).toBeTruthy();
+    });
+
+    /**
+     * The FR-010a empty state (003-FR-010a, plan U37).
+     *
+     * ⛔ Asserted as VISIBLE TEXT, not as "the results list is absent". A below-minimum query rendered
+     * nothing before this unit; the requirement is that the cook is TOLD why, so a test that only checks
+     * for the absence of results would pass on the broken behaviour it exists to reject.
+     */
+    it('explains the three-character minimum, and does NOT say "no matching ingredients"', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'eg',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH },
+            },
+        });
+
+        expect(
+            screen.getByText('Keep typing — 3 characters or more. Anything shorter matches half the pantry.'),
+        ).toBeTruthy();
+        // ⛔ The two must not be confused: "no matching ingredients" asserts the catalog was searched and
+        // came back empty, which is exactly what did NOT happen.
+        expect(screen.queryByText('No matching ingredients')).toBeNull();
+        expect(screen.queryByRole('list')).toBeNull();
+    });
+
+    it('interpolates the minimum from the state rather than hard-coding it in the copy', () => {
+        // The dictionary carries `{minimum}`; the number comes from the shared constant the SERVER also
+        // reads. A literal in the dictionary would make the sentence lie the moment the floor moves.
+        renderBar({
+            ingredientSearch: {
+                query: 'e',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: 5 },
+            },
+        });
+
+        expect(screen.getByText(/5 characters or more/)).toBeTruthy();
+    });
+
+    it('says nothing at all while the box is untouched', () => {
+        renderBar();
+
+        expect(screen.queryByText(/characters or more/)).toBeNull();
+    });
+
+    it('shows no searching spinner below the minimum', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'eg',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH },
+            },
+        });
+
+        expect(screen.queryByRole('status')).toBeNull();
     });
 
     it('shows an error message when the search failed', () => {

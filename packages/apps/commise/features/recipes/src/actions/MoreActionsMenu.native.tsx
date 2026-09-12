@@ -1,13 +1,16 @@
 /**
  * @module @commise/features-recipes — native "More" overflow menu (C4 wireframe parity).
  *
- * The React Native leaf of {@link import('./MoreActionsMenu.js').MoreActionsMenu} — same controlled-by-
+ * The React Native leaf of `MoreActionsMenu` — same controlled-by-
  * nothing, self-contained disclosure contract: a `[More]` trigger that reveals its `children` (the secondary
  * owner actions — version history, delete, visibility) in an inline panel below it, mirroring the wireframe's
  * `[Edit] [More]` header pattern. There is no on-device analog to a pointer "outside click", so dismissal here
  * is simply re-pressing the trigger (the web leaf additionally supports Escape + outside-click, both web-only
  * affordances). Open/close is local, ephemeral UI state owned by this headless menu primitive — not business
  * logic — so it stays here rather than in the composing screen.
+ *
+ * @pattern Menu button (WAI-ARIA disclosure) with no Facade to build — React Native has no pointer "outside click",
+ *     so dismissal is ordinary state and this leaf stays a pure `props → JSX` surface.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette, semantic } from '@commise/ui';

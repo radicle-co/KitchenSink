@@ -8,14 +8,14 @@
 
 ## Summary
 
-| Layer                     | Status          | Findings                                                                                                                                                                                                                        |
-| ------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layer                     | Status          | Findings                                                                                                                                                                                                                |
+| ------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | code ↔ tasks              | ⚠️ EXPECTED-GAP | 0/32 tasks complete; no cooking-mode implementation files exist yet under `packages/shared/cooking`, `packages/apps/commise/web/src/features/cooking-mode`, or `packages/apps/commise/mobile/src/features/cooking-mode` |
-| tasks ↔ plan              | ✅ PASS         | tasks.md mirrors plan.md implementation order and component/service split                                                                                                                                                       |
-| plan ↔ spec.md            | ✅ PASS         | plan.md covers declared FRs (FR-032..FR-035) and NFRs                                                                                                                                                                           |
-| spec.md ↔ product-spec/   | ✅ PASS         | FR-032..FR-035 are referenced across product-spec, journeys, metrics, and wireframes                                                                                                                                            |
-| product-spec/ ↔ research/ | ✅ PASS         | Product stories align with research constraints (wake lock, timer UX, accessibility, offline behavior)                                                                                                                          |
-| v-model ↔ spec.md         | ✅ PASS         | `v-model/requirements.md` preserves FR and NFR traceability for the same scope                                                                                                                                                  |
+| tasks ↔ plan              | ✅ PASS         | tasks.md mirrors plan.md implementation order and component/service split                                                                                                                                               |
+| plan ↔ spec.md            | ✅ PASS         | plan.md covers declared FRs (FR-032..FR-035) and NFRs                                                                                                                                                                   |
+| spec.md ↔ product-spec/   | ✅ PASS         | FR-032..FR-035 are referenced across product-spec, journeys, metrics, and wireframes                                                                                                                                    |
+| product-spec/ ↔ research/ | ✅ PASS         | Product stories align with research constraints (wake lock, timer UX, accessibility, offline behavior)                                                                                                                  |
+| v-model ↔ spec.md         | ✅ PASS         | `v-model/requirements.md` preserves FR and NFR traceability for the same scope                                                                                                                                          |
 
 **Current counts**: **0 CRITICAL**, **3 WARNING**, **1 EXPECTED-GAP**.
 

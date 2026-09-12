@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native collection-header view (W5 Task 6 building block).
  *
- * The React Native leaf of {@link import('./CollectionHeader.js').CollectionHeader} — same presentational
+ * The React Native leaf of `CollectionHeader` — same presentational
  * contract (name + Edit/Delete, visibility badge, recipe count, source attribution, last-pulled, Back)
  * rendered with RN primitives.
  */

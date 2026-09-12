@@ -1,0 +1,119 @@
+# Account ERASURE happy path (plan U2) — the mobile half of the erasure user story.
+#
+# ## What this flow owns, and why it is separate from `account-danger-zone.yaml`
+#
+# `account-danger-zone.yaml` asserts the UX CONTRACT and deliberately cancels both destructive actions. That
+# leaves the story itself — a viewer confirms an erasure and is put out of the app — proven nowhere on
+# mobile. This flow owns exactly that, and it is the mobile mirror of the web
+# `tests/e2e/accountDangerZone.spec.ts`: the cross-platform rule exists because a fix applied to one platform
+# is precisely the kind that silently misses the other, and U2 was such a fix.
+#
+# ## ⛔ The regression it exists for
+#
+# "Erase my data" used to call the RECIPE service and nothing else, then sign the viewer out. That looks
+# exactly like success — the dialog closes, the viewer lands on the sign-in form — while the identity row,
+# the Clerk account, the avatar object and food's requester rows all survive. The viewer could sign straight
+# back in to the account they had just been told was destroyed. The flow now calls identity too
+# (`POST /api/v1/users/me/erasure`) and leaves ONLY once both legs are accepted, so the sign-out landing
+# asserted at the end is now evidence that BOTH calls succeeded — a failed account leg keeps the viewer
+# inside the dialog, which is what the final assertions detect.
+#
+# ## ⛔ THIS FLOW REALLY ERASES, AND IT ERASES ITS OWN SUBJECT
+#
+# Against the runner-local stack the identity leg was answered by `tests/e2e/profile-stub-server.mjs`, which
+# destroyed nothing — because the real call would have deleted the SHARED fixture user every later flow
+# signed in as. Driving a DEPLOYED stage removed that stack, and stubbing a deployed service would put back
+# the local stand-in the 2026-09-05 ruling removed. So the erasure is real, end to end, through the same
+# path a viewer's would take: identity, the deletion queue, the worker, Clerk.
+#
+# What makes that safe is the SUBJECT, not the stub. `@kitchensink/e2e-seed` provisions a third run-scoped
+# identity that exists only to be erased, and this flow overrides the signer to be that identity. It owns no
+# recipes, no other flow signs in as it, and it is gone by design when the flow ends.
+#
+#   - `${E2E_ERASURE_EMAIL}` is this RUN's erasure subject. A concurrent run has its own; the run key is
+#     what separates them, and `planE2EUserCleanup`'s predicates already cover it.
+#   - The flow is LAST in `FLOW_PLAN` on purpose, after `recipes/delete`. Nothing composes it, and nothing
+#     after it needs a session — so the signed-out state it leaves is the end of the run rather than a
+#     precondition for the next flow.
+#   - Teardown tolerates the subject already being gone: `e2e-seed teardown` deletes what remains and treats
+#     a missing user as success, because this flow succeeding IS the user being missing.
+#
+# ## Selector notes
+#
+# Text/accessibility-label only, per this suite's convention (no testIDs exist anywhere in `.maestro`).
+#
+# ⚠️ `erase.title`, `erase.trigger` and `erase.confirm` are all the literal string 'Erase my data', so with
+# the dialog open the bare text is ambiguous. The confirm is disambiguated by POSITION — it is the only one
+# sitting to the right of the dialog's 'Cancel' in the actions row (`AccountEraseDialog.native.tsx`'s
+# `styles.actions`: `flexDirection: 'row', justifyContent: 'flex-end'`), and the close dialog is shut by
+# then, so there is exactly one 'Cancel' to anchor on. Do not "simplify" that back to a bare
+# `tapOn: 'Erase my data'`: the bare form may resolve to the title or to the trigger behind the modal, which
+# means either doing nothing or reopening the dialog — both of which then fail late and opaquely at the
+# landing assertion rather than where the mistake is.
+#
+# Both non-bare selector forms used below are already exercised green by this suite, so neither is a new bet:
+# `enabled: false` on `assertVisible` by `recipes/collections-visibility.yaml` (a disabled 'Save changes')
+# and `recipes/conflict-merge.yaml`, and relative-position anchoring by `recipes/rating.yaml`'s
+# `above: 'New'`.
+
+appId: io.commise.mobile
+---
+# Sign in as THIS RUN'S ERASURE SUBJECT — not the signer — and land on the Home widget surface.
+#
+# `clearState` is required: the signer's session is persisted in `expo-secure-store` by the flows before
+# this one, so without it `signin-home.yaml`'s guard finds no login form, skips the credentials entirely,
+# and this flow would erase the SIGNER. The `env:` override is Maestro's documented sub-flow parameter
+# shadowing — the child's value wins for the duration of the sub-flow.
+- launchApp:
+      clearState: true
+- runFlow:
+      file: auth/signin-home.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_ERASURE_EMAIL}
+
+# Cross into the profile surface, then into the account hub that owns the danger zone.
+- tapOn: 'Profile'
+- scrollUntilVisible:
+      element: 'Account settings'
+      direction: DOWN
+- tapOn: 'Account settings'
+
+- assertVisible: 'Erase my data'
+- tapOn: 'Erase my data'
+
+# The dialog states the action is irreversible and offers the donate election. The election's CONTENTS are
+# deliberately not asserted here (`account-danger-zone.yaml` and the component tier own that, and the seed
+# fixture may hold no owner-only recipes) — what matters to this story is that the section is presented
+# before anything is destroyed.
+- assertVisible: '.*cannot be undone.*'
+- assertVisible: 'Choose recipes to keep public'
+
+# The gate is CLOSED until the exact phrase is typed. Asserted as state, not by tapping a control that must
+# not fire: a tap that wrongly succeeded here would erase the account and then be indistinguishable from the
+# intended confirmation below.
+- assertVisible:
+      text: 'Erase my data'
+      enabled: false
+
+- tapOn: 'Confirmation phrase'
+- inputText: 'ERASE MY DATA'
+
+# Confirm — the irreversible action. See the selector note above for why this is position-qualified.
+- tapOn:
+      text: 'Erase my data'
+      rightOf:
+          text: 'Cancel'
+
+# ⛔ THE ASSERTION THE WHOLE FLOW EXISTS FOR. Both erasure legs were accepted, the session was ended AND
+# VERIFIED (ADR-0009 — a sign-out that resolves without revoking is the defect that command exists for), and
+# the auth gate has put the viewer back on the sign-in form. If the ACCOUNT leg had failed, the flow would
+# still be sitting in the dialog with its error copy, and this would (correctly) time out.
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 40000
+- assertVisible: 'Password'
+- assertVisible: 'Sign in'
+
+# Nothing authenticated survives: the danger zone the viewer was just standing in is gone, not merely covered.
+- assertNotVisible: 'Erase my data'
+- assertNotVisible: 'Account settings'

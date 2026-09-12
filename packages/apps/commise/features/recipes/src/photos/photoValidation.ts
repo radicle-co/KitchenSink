@@ -25,8 +25,7 @@ export type PhotoValidationErrorCode = 'TOO_LARGE' | 'BAD_TYPE';
 
 /** The pure validator's result — a discriminated union, so a caller must check `ok` before reading `code`. */
 export type PhotoValidationResult =
-    | { readonly ok: true }
-    | { readonly ok: false; readonly code: PhotoValidationErrorCode };
+    { readonly ok: true } | { readonly ok: false; readonly code: PhotoValidationErrorCode };
 
 const VALID: PhotoValidationResult = { ok: true };
 

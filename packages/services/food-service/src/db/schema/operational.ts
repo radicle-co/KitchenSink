@@ -14,7 +14,7 @@
  * @implements FR-014 FR-015 FR-016 FR-018 FR-019 FR-020 FR-043 FR-044 FR-IDN-3
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
-import { bigserial, check, index, integer, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigserial, check, index, integer, pgEnum, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { food, foodSourceEnum } from './food.js';
 
@@ -64,7 +64,11 @@ export type NewFetchQueueRow = InferInsertModel<typeof fetchQueue>;
 
 /**
  * Distinct-requester demand (FR-044) + per-requester pending-count source for fairness-by-demotion
- * (FR-043) and WebSocket targeting. The `(food_id, requester_id)` PK structurally caps each requester
+ * (FR-043) and FR-044 demand counting. NOT notification targeting — that intent was recorded here and is
+ * IMPOSSIBLE from this table: `FetchQueueDao.resolve` deletes every row for a food in the same transaction
+ * that completes it (DSN-10), so a completion notifier reading recipients here races its own deletion. The
+ * recipe service owns the notification subscription set (014 T-044). This comment previously claimed
+ * "WebSocket targeting" and is what pointed 003's US-9 at the wrong service. The `(food_id, requester_id)` PK structurally caps each requester
  * to one row per food (so a requester cannot inflate priority by repeating). Pruned when the food
  * leaves the queue (DSN-10).
  *
@@ -95,10 +99,32 @@ export type NewFetchRequesterRow = InferInsertModel<typeof fetchRequesters>;
 // ── source_call_log: per-source rolling 60-min window (FR-019/FR-020) ────────────────────────────
 
 /**
+ * Which lane spent a source call (migration `0010_source_call_log_channel.sql`, ingredient-search plan
+ * §2 Stage 3 / F-W1). `interactive` = a waiting human (the on-demand live search, the FR-RES-2
+ * `PATCH`-resolve re-fetch); `worker` = the background fan-out and the change-refresh scan.
+ *
+ * ⛔ **Two lanes, ONE budget.** USDA rate-limits our egress IP, so both lanes spend the same per-source
+ * window. The lane decides only how far into that ONE window a caller may push it: the worker stops at
+ * FR-019's 90% pause threshold, the interactive lane may use the whole hard cap — which is what makes
+ * the reserved top 10% a guarantee instead of a convention. Counting each lane against its own cap
+ * would let the two together reach 2x the key's real limit (SC-002).
+ *
+ * A `pgEnum` rather than an operational text+CHECK column (contrast `fetch_queue.status`): the lane set
+ * is not evolving mechanics — it is the domain distinction "is a human waiting on this call", and a new
+ * member would be a rate-limit design decision, not a deployment detail (DB-7).
+ */
+export const sourceCallChannelEnum = pgEnum('source_call_channel', ['interactive', 'worker']);
+
+/**
  * Per-source rolling-60-min call ledger (FR-019/FR-020). One timestamped row per outbound source
  * call; the trailing-60-min count is `COUNT(*) WHERE source = $1 AND called_at > now() - interval '60
  * minutes'`. Rows older than the window are pruned on a periodic sweep. Generalizes the removed
  * USDA-only `usda_call_log` to per-source; there is no token-bucket `rate_limiter_state`.
+ *
+ * `channel` (F-W1) records which lane spent each call — see {@link sourceCallChannelEnum}. It sits LAST
+ * in the composite index on purpose: every admission query filters `(source, called_at)` and never
+ * `channel`, so the hot path keeps its two-column prefix while the per-lane observability count is
+ * served from the same index rather than a second one on the schema's hottest-written table.
  */
 export const sourceCallLog = pgTable(
     'source_call_log',
@@ -106,8 +132,9 @@ export const sourceCallLog = pgTable(
         id: bigserial('id', { mode: 'bigint' }).primaryKey(),
         source: foodSourceEnum('source').notNull(),
         calledAt: timestamp('called_at', { withTimezone: true }).notNull().defaultNow(),
+        channel: sourceCallChannelEnum('channel').notNull().default('worker'),
     },
-    (table) => [index('idx_source_call_log_source_called_at').on(table.source, table.calledAt)],
+    (table) => [index('idx_source_call_log_source_called_at').on(table.source, table.calledAt, table.channel)],
 );
 
 /** A `source_call_log` row as selected. */

@@ -1,0 +1,109 @@
+# BASELINE RECORDER for the U10b visual-regression assertions. Run this ONCE (and again whenever a visual
+# change is intentional) to produce the reference PNGs that `visual/auth-surfaces.yaml` and
+# `visual/home-create-surfaces.yaml` compare against.
+#
+# WHY A RECORDER FLOW EXISTS AT ALL: Maestro's `assertScreenshot` has NO record/update mode. There is no
+# `--update-screenshots` flag on `maestro test` (checked against the installed CLI 2.6.1); a reference that is
+# absent is the hard error "Screenshot file not found: …". So the baseline must be produced by an explicit
+# `takeScreenshot`, which is what this flow is.
+#
+# ⚠️ THIS FLOW AND THE ASSERT FLOWS MUST STAY IN LOCKSTEP. Each `takeScreenshot` below mirrors exactly one
+# `assertScreenshot` — same navigation, same settle points, and CRUCIALLY the same `cropOn`. Maestro compares
+# a cropped capture against a cropped reference: if the reference was recorded uncropped, the dimensions
+# differ and the assertion fails with "Screenshots must have the same dimensions to compare" rather than a
+# useful diff. If you change a crop or a navigation step in an assert flow, change it here too and re-record.
+#
+# ⚠️ RECORD ON THE PINNED PROFILE ONLY. A baseline is only valid for the emulator CI uses
+# (`.github/workflows/_ci-heavy.yml` → reactivecircus/android-emulator-runner):
+#   api-level 34 · arch x86_64 · profile pixel_6 · -gpu swiftshader_indirect · -no-window
+# A capture from any other density/skin/API level is a guaranteed false failure, because Maestro compares raw
+# pixels and does not rescale. The most reliable way to get a matching capture is to record on that same
+# runner: add this flow to `FLOWS` in `tests/e2e/run-maestro-flows.sh` for one labelled `heavy-e2e` run, then
+# download the `maestro-report-*` artifact (the job already uploads `~/.maestro/tests`) and commit the PNGs
+# into `visual/baselines/`. Recording on a local AVD works only if it is created with the same profile.
+#
+# ⚠️ VERIFY WHERE THE PNGs LANDED. `takeScreenshot`'s `path` resolution (flow-relative vs. process working
+# directory) was NOT verified for CLI 2.6.1 while writing this — the paths below are written as if resolved
+# relative to this flow file, which is how `assertScreenshot` carries its `flowPath`. If the files do not
+# appear in `visual/baselines/`, locate them (`find . -name 'auth-signin.png'`) and move them there; the
+# assert flows' `path:` values are the contract that matters.
+#
+# Run:
+#   maestro test packages/apps/commise/mobile/.maestro/visual/record-baselines.yaml
+
+appId: io.commise.mobile
+---
+# ── Mirrors visual/auth-surfaces.yaml ────────────────────────────────────────────────────────────────────
+- launchApp:
+      clearState: true
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot:
+      path: baselines/auth-signin.png
+      label: 'baseline: FR-045a signed-out front door'
+
+- tapOn: 'Sign up'
+- extendedWaitUntil:
+      visible: 'Create your account'
+      timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot:
+      path: baselines/auth-signup.png
+      label: 'baseline: FR-045a sign-up surface'
+
+- tapOn: 'Sign in'
+- assertVisible: 'you@example.com'
+
+# ── Mirrors visual/canvas-gradient.yaml (issue #145) ─────────────────────────────────────────────────────
+# The same two signed-out surfaces, captured again under the canvas flow's own baseline names. They are
+# SEPARATE files rather than reused shots on purpose: `auth-surfaces` owns the FR-045a front-door assertion and
+# `canvas-gradient` owns the #145 background assertion, so either can be re-baselined (for a copy change, or
+# for a ramp re-tone) without silently re-approving the other's subject.
+- takeScreenshot:
+      path: baselines/canvas-signin.png
+      label: 'baseline: #145 beach-glow canvas on the signed-out sign-in surface'
+
+- tapOn: 'Sign up'
+- extendedWaitUntil:
+      visible: 'Create your account'
+      timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot:
+      path: baselines/canvas-signup.png
+      label: 'baseline: #145 root canvas persists across a screen change'
+
+- tapOn: 'Sign in'
+- assertVisible: 'you@example.com'
+
+# ── Mirrors visual/home-create-surfaces.yaml ─────────────────────────────────────────────────────────────
+# The sign-in sub-flow is idempotent, and the cleared state above guarantees its credential block runs.
+- runFlow: ../auth/signin-home.yaml
+- extendedWaitUntil:
+      visible: "Today's Nutrition"
+      timeout: 40000
+- waitForAnimationToEnd
+# `cropOn` MUST match the assertion's crop exactly — see the lockstep warning above.
+- takeScreenshot:
+      path: baselines/home-roadmap-placeholder.png
+      cropOn: "Today's Nutrition"
+      label: 'baseline: FR-046/CR-001 roadmap skeleton placeholder'
+
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+- tapOn: 'See all recipes'
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000
+- tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
+- extendedWaitUntil:
+      visible: 'Step 1 of 4'
+      timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot:
+      path: baselines/recipe-create-step1.png
+      label: 'baseline: FR-001/FR-001b creation wizard step 1'

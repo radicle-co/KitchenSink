@@ -1,0 +1,15 @@
+# Docusaurus writes both of these. They are generated output and must never be tracked: the repo-wide
+# guards (oneFileOneThing, sourceControlCharacters, staticAnalysisCoverage, docLinkResolution) all read
+# TRACKED files, so a committed `.docusaurus/` tree would drag thousands of generated modules into them.
+#
+# Scoped to this package rather than the root .gitignore so this workspace is self-contained.
+build/
+.docusaurus/
+
+# `docusaurus build` writes these when the site is served from a subpath.
+.cache-loader/
+
+# Build-time mirrors of content sources whose directory nests inside another's (`MIRROR_ROOT` in
+# src/content/contentSource.ts). Derived from `docs/generated/**`, emptied and refilled on every run —
+# committing one would publish a stale copy of a corpus whose author is a generator.
+content/mirrored/

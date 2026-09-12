@@ -2,7 +2,7 @@
  * T100 — recipe-photo upload lifecycle integration test (real Nest app + Docker Postgres + LocalStack S3).
  *
  * Drives the full presign → upload → confirm flow end to end against the harness (booted by
- * `bootRecipeApp`, migrated + seeded — including the `commise-photos` bucket — by `tests/global-setup.ts`):
+ * `bootRecipeApp`, migrated + seeded — including the `commise-photos` bucket — by `tests/globalSetup.ts`):
  *   1. create a recipe (photos FK-reference `recipes.id`),
  *   2. `POST …/photos/upload-url` → presigned S3 PUT (returns `200` + `{ uploadUrl, key, expiresIn, maxBytes }`),
  *   3. PUT real PNG bytes to LocalStack via that URL,
@@ -19,6 +19,7 @@ import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
+import { recipeDb } from '../../../tests/support/roleDb.js';
 
 /** The dev-bypass owner ULID this suite creates recipes + photos as. */
 const OWNER = '01JPHOTO0OWNER0000000000AA';
@@ -34,7 +35,7 @@ const OWNER = '01JPHOTO0OWNER0000000000AA';
  */
 const REAL_PNG_BYTES = new Uint8Array(
     Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         'base64',
     ),
 );
@@ -50,7 +51,9 @@ const RECIPE_PAYLOAD = {
     totalTimeMinutes: 15,
     tags: ['integration'],
     dietaryFlags: [],
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: 1 }],
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: { kind: 'exact', value: 1 } },
+    ],
     steps: [{ instruction: 'Mix.' }],
 };
 
@@ -85,6 +88,8 @@ interface ListedRecipe {
     coverPhotoUrl?: string;
 }
 
+const roleDb = recipeDb();
+
 describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', () => {
     let booted: BootedRecipeApp;
     let baseUrl: string;
@@ -93,7 +98,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
     let photosBucket: string;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp({ devAuthUserId: OWNER });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: OWNER });
         baseUrl = booted.baseUrl;
 
         photosBucket = process.env['S3_BUCKET_PHOTOS'] ?? 'commise-photos';

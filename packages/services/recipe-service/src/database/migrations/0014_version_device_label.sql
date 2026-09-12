@@ -1,5 +1,55 @@
 -- 0014_version_device_label.sql (W8-a.6 / FR-007b) — device attribution on version history.
 --
+-- ⛔⛔ THE FEATURE THIS COLUMN EXISTS FOR WAS DELETED BY OWNER RULING ON 2026-08-26. The owner's words:
+-- *"I don't care what device they were on when they edited something."* Every line below describes a
+-- feature that no longer ships — read it as history, not as a description of the current system.
+--
+-- ## The column is still HERE, and that is deliberate (ADR-0022)
+--
+-- Nothing reads or writes `device_label` any more: the Drizzle definition, the wire contract (request AND
+-- response), the GDPR export projection, the version-history attribution and the conflict banner all
+-- dropped it in the same change as this note. The physical `DROP COLUMN` is deferred to a LATER release
+-- because ADR-0022's standing precondition is EXPAND-FIRST — *"a contracting migration ships a release
+-- LATER than the code that stopped reading the column"* — and the in-stack Trigger applies migrations
+-- BEFORE the new tasks serve. Dropping it in the SAME release would leave the PREVIOUS image talking to a
+-- table that had already lost the column, for the whole ECS stabilisation window. Traced, per path, rather
+-- than assumed:
+--
+--   1. ⛔ `RecipesService.recordSnapshot` — SWALLOWS, and the version row is LOST. `versions.dal.ts`'s
+--      INSERT names `device_label`, so it raises `42703`; `recordSnapshot` catches, logs and returns
+--      (*"a version-history hiccup is non-fatal to the write"*). The user's save succeeds and NO version
+--      row is written. Versions are immutable and never backfilled, so that history is permanently gone —
+--      for every create, update and clone in the window. FR-007b's *"Each save creates a new version"* is
+--      a MUST, and this is the path that would silently stop honouring it.
+--   2. **Version-history reads — user-visible 500.** `VersionsDal`'s three reads are bare `.select()`s, so
+--      Drizzle emits the full declared column list including `device_label` → `42703` → the list, the
+--      preview and the restore source all fail.
+--   3. **The enriched 409 — user-visible 500.** `RecipesDal.readConflict` is also a bare `.select()` over
+--      `recipe_versions`, so a stale save would answer `500` instead of the recoverable conflict the whole
+--      FR-007c resolution flow is built on.
+--   4. **`AccountExportDal.listVersions` — a RIGHTS path, hard failure.** Its projection names the column
+--      explicitly, so a GDPR export raised during the window fails outright.
+--
+-- ⛔ Compare `0033_ingredient_phrase_is_not_personal.sql`, which DID take a bounded window. It could,
+-- because its rights path RETRIED and completed; its own header says *"had the rights path been the
+-- swallowing one, this decision would have gone the other way."* Here the rights path fails hard AND the
+-- write path swallows a permanent loss — and, unlike 0033, there is no schedule pressure at all: every
+-- row's `device_label` is already NULL (nothing ever wrote one), so deferring the DROP costs nothing and
+-- buys the whole window away. Deferring is the ADR-conformant answer AND the cheap one.
+--
+-- ## The follow-up, so it actually happens
+--
+-- A later release adds `ALTER TABLE recipe_versions DROP COLUMN IF EXISTS device_label;` as its own
+-- numbered migration. By then no image names the column, so that migration has no window either. It is
+-- recorded in `specs/001-commise-recipe-app/change-requests/CR-004-version-compare-and-conflict-diff.md`
+-- (its 2026-08-26 amendment) and in the `recipeVersions` table docstring in
+-- `src/database/schema/versions.ts`. ⛔ Do NOT amend THIS file to perform the drop: it has already run
+-- against every sandbox and `pr-{N}` database, and `lambdas/migrate/handler.ts` tracks applied migrations
+-- by NAME ONLY (no checksum), so an amended `0014` would be SKIPPED there and applied only to fresh
+-- databases — which is how two environments come to disagree about a schema with nothing reporting it.
+--
+-- ── The original 2026 header follows, unchanged, as the record of why the column was added ──────────
+--
 -- Adds the device that authored a recipe version, captured as bounded free text from the write request
 -- (create/update). Rendered in the W6 version-history attribution AND the W7 conflict banner via the
 -- normal escaping/localization path (user-controlled text — never dangerouslySetInnerHTML).

@@ -43,16 +43,22 @@ Prerequisite: the per-stage CIDR code (U1) is merged so `STAGE=sandbox` synthesi
 ### A2. Tear down the consumers (they import the network/data exports)
 
 ```bash
-! STAGE=sandbox npx cdk destroy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all
-! STAGE=sandbox npx cdk destroy --app "node packages/services/identity/infra/dist/bin/app.js" --all
+! STAGE=sandbox packages/services/identity-webhooks/infra/node_modules/.bin/cdk destroy \
+    --app "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" --all
+! STAGE=sandbox packages/services/identity/infra/node_modules/.bin/cdk destroy \
+    --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --all
 ```
+
+Every CDK app runs under its package's own `tsx` (2c9870b5): a compiled `node …/dist/bin/app.js` cannot load the
+workspace packages, which export raw TypeScript.
 
 Notes: `cdk destroy` matches by **construct id**, not stack name. Expect a possible stuck ACM cert on the webhooks/domain teardown — re-run with `--retain-resources <logicalId>` and delete the orphaned cert manually afterward (this matched prior prod experience).
 
 ### A3. Deploy the new-named global stacks (new CIDR + fresh RDS)
 
 ```bash
-! STAGE=sandbox DOMAIN_NAME=commise.app npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
+! STAGE=sandbox DOMAIN_NAME=commise.app packages/infra/global/node_modules/.bin/cdk deploy \
+    --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/app.ts" --all --require-approval never
 ```
 
 Because the stacks were renamed, this **creates** `kitchensink-{network,data,domain,global}-sandbox` from scratch — a fresh VPC (`10.1.0.0/16`), subnets, and a **brand-new, empty** RDS, S3 buckets, SQS queues, and secrets. It does **not** touch the old `kitchensink-identity-*-sandbox` stacks; they are left **orphaned** for teardown in A6. ⚠️ Unlike the old in-place CIDR plan, the data stack's S3/SQS/secrets do **not** carry over — the new stack starts empty, so copy anything still needed from the old buckets/secrets **before** A6 deletes them. If this deploy wedges (`CREATE_FAILED`/`UPDATE_ROLLBACK_FAILED`), **fix forward** on the new stack — resolve the error and re-deploy; do not `cdk destroy` the new data stack. (A3 leaves the old stacks untouched, so a failure here is non-destructive.)
@@ -71,21 +77,23 @@ The service stack reaches the VPC via `Vpc.fromLookup`, cached in the git-tracke
 
 Commit the regenerated context (or confirm CI runs with no stale sandbox entry) so a later prod deploy isn't poisoned.
 
-### A5. Confirm the new RDS secret, redeploy consumers, migrate
+### A5. Redeploy identity and migrate — through the pipeline, not by hand
+
+A recreated instance gets its roles and databases from `DataStack`'s role-model bootstrap (ADR-0039), which runs in
+the data stack's own deploy. Everything after it has a fixed order — identity SCHEMA stack, migrate, service,
+webhooks (ADR-0035) — and one workflow owns that order, so dispatch it rather than re-typing it:
 
 ```bash
-# the recreated RDS generates a NEW managed secret ARN — confirm it before the consumers read it
-! aws cloudformation list-exports --query "Exports[?contains(Name,'kitchensink-data-sandbox')].{Name:Name,Value:Value}" --output table
+! gh workflow run sandbox-identity-deploy.yml --ref <branch>
+```
 
-! STAGE=sandbox DOMAIN_NAME=commise.app IDENTITY_VPC_ID=$IDENTITY_VPC_ID \
-    npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
-! STAGE=sandbox DOMAIN_NAME=commise.app IDENTITY_VPC_ID=$IDENTITY_VPC_ID \
-    npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
+To confirm the schema by hand afterwards, use the ONE invoker, which sends the manifest digest the runner requires
+and reads a `FunctionError` out of the payload (`aws lambda invoke` exits 0 when the function threw). A bare
+`aws lambda invoke` is refused: the runner parses `{ expectManifestSha }` strictly.
 
-# apply schema to the fresh DB via the in-VPC migration Lambda
-! MIGRATION_FN=$(aws cloudformation list-exports \
-    --query "Exports[?contains(Name,'MigrationFunctionName')].Value" --output text)
-! aws lambda invoke --function-name "$MIGRATION_FN" /tmp/migrate-out.json && cat /tmp/migrate-out.json
+```bash
+! bash .github/scripts/run-migrations.sh run us-east-1 kitchensink-identity-schema-sandbox \
+    IdentityMigrationFunctionName identity packages/services/identity/src/database/migrations
 ```
 
 ### A6. Tear down the orphaned old-named stacks
@@ -122,7 +130,7 @@ The old data stack's `autoDeleteObjects` buckets + `DESTROY` RDS drop on delete 
 
 - Fail in A2 (consumer teardown stuck): retry with `--retain-resources`, clean orphans, continue.
 - Fail in A3 (new global deploy): **fix forward** on the new stacks — never `cdk destroy` the new live data stack. If the VPC/RDS half-created, resolve and re-deploy. The old stacks are untouched until A6, so an A3 failure is non-destructive.
-- Fail in A5: re-resolve the secret ARN and re-deploy the consumers; the migration Lambda is idempotent (re-invokable).
+- Fail in A5: re-dispatch the workflow; the runner is idempotent (it skips migrations already in `schema_migrations`).
 - Fail in A6 (old-stack teardown): deleting the old stacks is the intended discard — a stuck delete (cert/ENI) is a cleanup nuisance, not a risk to the new live stacks. Use `delete-stack --retain-resources` and remove the orphan manually, then re-run.
 
 ---

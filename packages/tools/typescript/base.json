@@ -11,7 +11,21 @@
         "declaration": true,
         "declarationMap": true,
         "sourceMap": true,
-        "downlevelIteration": true,
+        // ⛔ `downlevelIteration` REMOVED, not silenced (TypeScript 6 deprecates it; 7 drops it).
+        // It only ever mattered when emitting for a target below ES2015 — it makes `for...of` over an
+        // iterator work by emitting a helper. This config targets ES2022, where iteration is native and the
+        // flag is a no-op, so `"ignoreDeprecations": "6.0"` would have been carrying a dead option forward
+        // and buying a second migration when 7 removes it outright.
+        // ⛔ EXPLICIT, because TypeScript 6 stopped auto-including it. Under 5.9 the ambient `@types/node`
+        // globals (`process`, `Buffer`, the `NodeJS` namespace) were picked up without being named; under 6
+        // they are not, and every `import … from 'node:fs'` fails with TS2591 "Cannot find name 'node:fs'" —
+        // an error that reads like a missing dependency and is a missing `types` entry.
+        //
+        // ⚠️ Naming `node` RESTRICTS automatic acquisition to that one package, which sounds like it should
+        // starve React. It does not: `types` gates only AMBIENT/global type packages. `@types/react` is
+        // consumed through `import type { FC } from 'react'`, which is ordinary module resolution and
+        // unaffected — verified across all 66 typecheck targets, `.tsx` packages included.
+        "types": ["node"],
         "resolveJsonModule": true,
         "isolatedModules": true,
         "incremental": true,

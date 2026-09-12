@@ -4,7 +4,7 @@
 
 **Goal:** Fix the two visual defects that ship on `main` today — the recipe form's selected Difficulty chip renders white-on-white (invisible), and the production CSS bundle drops the webfont `@import` so no brand font ever loads — and add regression tests that would have caught each.
 
-**Architecture:** Both are one-line-class / one-line-ordering bugs with no logic change. The value of this plan is in the **tests**, because both defects sailed through 6,675 unit tests and 30 Playwright specs. Task 1 replaces a layered `base + conditional-override` class pattern with a mutually-exclusive branch, and asserts it with the repo's existing `utilityContrast` helper — which *throws* on exactly the ambiguity that caused the bug. Task 2 moves a CSS `@import` above the Tailwind `@source` rules and adds a file-shape guard alongside the existing `tests/nextConfig.test.ts` config-guard tests.
+**Architecture:** Both are one-line-class / one-line-ordering bugs with no logic change. The value of this plan is in the **tests**, because both defects sailed through 6,675 unit tests and 30 Playwright specs. Task 1 replaces a layered `base + conditional-override` class pattern with a mutually-exclusive branch, and asserts it with the repo's existing `utilityContrast` helper — which _throws_ on exactly the ambiguity that caused the bug. Task 2 moves a CSS `@import` above the Tailwind `@source` rules and adds a file-shape guard alongside the existing `tests/nextConfig.test.ts` config-guard tests.
 
 **Tech Stack:** TypeScript, React 19, Tailwind CSS v4, Next.js 15 (App Router), Vitest 4 + React Testing Library, `@commise/test-utils` (WCAG contrast helpers).
 
@@ -36,18 +36,18 @@ Because "Not stated" has `value: undefined`, `values.difficulty === option.value
 
 The label is intact as `aria-label`, so `getByRole('radio', { name: 'Not stated' })` passes over a broken control. There is already a difficulty test in `RecipeForm.test.tsx` (~line 303) — but it only measures the **focus ring**, never the text-against-fill.
 
-**Defect 2 — no webfonts in production.** `globals.css` puts the Google Fonts `@import` on line 11, *after* the Tailwind v4 `@source` at-rules on lines 6 and 9. CSS requires `@import` to precede all rules except `@charset` and `@layer` statements, so the optimizer drops it. `next build` says so, but only as a soft note. Verified: the built stylesheet contains **0** occurrences of `fonts.googleapis.com`, and a real browser on the production server issues **no** googleapis/gstatic/woff requests. There is no `next/font` usage anywhere in the web app, so that `@import` was the only webfont mechanism. Production renders Georgia (not Playfair Display) and system-ui (not Inter).
+**Defect 2 — no webfonts in production.** `globals.css` puts the Google Fonts `@import` on line 11, _after_ the Tailwind v4 `@source` at-rules on lines 6 and 9. CSS requires `@import` to precede all rules except `@charset` and `@layer` statements, so the optimizer drops it. `next build` says so, but only as a soft note. Verified: the built stylesheet contains **0** occurrences of `fonts.googleapis.com`, and a real browser on the production server issues **no** googleapis/gstatic/woff requests. There is no `next/font` usage anywhere in the web app, so that `@import` was the only webfont mechanism. Production renders Georgia (not Playfair Display) and system-ui (not Inter).
 
 ---
 
 ## File Structure
 
-| File | Responsibility | Task |
-|---|---|---|
-| `packages/apps/commise/features/recipes/src/form/RecipeFormSections.tsx` | Web recipe form fields. Owns the difficulty chip class strings (lines 63–70) and their application (line ~203). | 1 |
-| `packages/apps/commise/features/recipes/src/form/__tests__/RecipeForm.test.tsx` | Existing web form component tests. Gains the contrast regression test. | 1 |
-| `packages/apps/commise/web/src/app/globals.css` | Web app global stylesheet. Owns the `@import` ordering. | 2 |
-| `packages/apps/commise/web/tests/globalsCss.test.ts` | **New.** File-shape guard for `globals.css`, alongside the existing `nextConfig.test.ts` / `mockupContrast.test.ts` config-guard tests. | 2 |
+| File                                                                            | Responsibility                                                                                                                          | Task |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `packages/apps/commise/features/recipes/src/form/RecipeFormSections.tsx`        | Web recipe form fields. Owns the difficulty chip class strings (lines 63–70) and their application (line ~203).                         | 1    |
+| `packages/apps/commise/features/recipes/src/form/__tests__/RecipeForm.test.tsx` | Existing web form component tests. Gains the contrast regression test.                                                                  | 1    |
+| `packages/apps/commise/web/src/app/globals.css`                                 | Web app global stylesheet. Owns the `@import` ordering.                                                                                 | 2    |
+| `packages/apps/commise/web/tests/globalsCss.test.ts`                            | **New.** File-shape guard for `globals.css`, alongside the existing `nextConfig.test.ts` / `mockupContrast.test.ts` config-guard tests. | 2    |
 
 `RecipeFormSections.native.tsx` is **not** affected — the native leaf styles its chips with React Native `StyleSheet` objects, not Tailwind class strings, so it has no cascade-order ambiguity. Do not change it.
 
@@ -56,10 +56,12 @@ The label is intact as `aria-label`, so `getByRole('radio', { name: 'Not stated'
 ### Task 1: Make the selected Difficulty chip legible
 
 **Files:**
+
 - Modify: `packages/apps/commise/features/recipes/src/form/RecipeFormSections.tsx:63-70` (class consts) and `:203` (application)
 - Test: `packages/apps/commise/features/recipes/src/form/__tests__/RecipeForm.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `utilityContrast` from `@commise/test-utils` — signature `utilityContrast(className: string, options?: { surface?: string; variant?: string; foreground?: 'text' | 'border' }): number`, returns a WCAG ratio 1..21. It **throws** if the class list contains more than one palette-coloured `text-*` (or `bg-*`) utility at the same variant level, with the message ``Expected exactly ONE palette-coloured `text-*` utility in "…", found 2.``
 - Consumes: `semantic.card` from the UI tokens (already imported in this test file as `CARD`), and `renderForm` / `filledValues` (already defined in this test file).
 - Produces: three exported-in-module class consts `difficultyChipBase`, `difficultyChipResting`, `difficultyChipSelected` (module-private; no other file imports them).
@@ -71,40 +73,41 @@ Open `packages/apps/commise/features/recipes/src/form/__tests__/RecipeForm.test.
 `CARD` cannot be reused from the focus-ring describe at line 271 — it is declared inside that block (line 273) and goes out of scope when it closes at line 353. `semantic` and `utilityContrast` are both module-scope imports (lines 13–14), so only the one const is needed:
 
 ```tsx
-    /** The difficulty chips sit inside a `bg-card` section, so that is the surface behind them. */
-    const CARD = semantic.card;
+/** The difficulty chips sit inside a `bg-card` section, so that is the surface behind them. */
+const CARD = semantic.card;
 ```
 
 Then, inside the same describe:
 
 ```tsx
-    // REGRESSION: the selected chip layered `bg-seafoam text-white` on top of a base that already set
-    // `bg-white text-charcoal`. Tailwind emits `.bg-white` AFTER `.bg-seafoam` and `.text-white` AFTER
-    // `.text-charcoal`, so the background resolved to white while the text resolved to white — the label
-    // was invisible in every browser, in dev and in prod. `utilityContrast` throws on exactly that
-    // ambiguity (two palette-coloured utilities of the same role), so this goes red on the shipped code
-    // before it ever gets as far as measuring a ratio.
-    it.each([
-        ['Not stated', undefined],
-        ['Easy', 'easy'],
-        ['Medium', 'medium'],
-        ['Hard', 'hard'],
-    ])('renders the selected %s chip legibly (its own fill, not the card behind it)', (label, value) => {
-        renderForm({
-            values: value === undefined ? filledValues() : filledValues({ difficulty: value as 'easy' | 'medium' | 'hard' }),
-        });
-
-        const chip = screen.getByRole('radio', { name: label }).parentElement;
-
-        if (chip === null) {
-            throw new Error(`Expected the "${label}" radio to sit inside its chip label.`);
-        }
-
-        // The chip text is `text-body-sm`, i.e. normal-size body copy — WCAG AA is 4.5:1, not the 3:1
-        // large-text allowance. Seafoam-on-white measures ~4.67, so this threshold has real teeth.
-        expect(utilityContrast(chip.className, { surface: CARD }), `${label} selected chip label`) //
-            .toBeGreaterThanOrEqual(4.5);
+// REGRESSION: the selected chip layered `bg-seafoam text-white` on top of a base that already set
+// `bg-white text-charcoal`. Tailwind emits `.bg-white` AFTER `.bg-seafoam` and `.text-white` AFTER
+// `.text-charcoal`, so the background resolved to white while the text resolved to white — the label
+// was invisible in every browser, in dev and in prod. `utilityContrast` throws on exactly that
+// ambiguity (two palette-coloured utilities of the same role), so this goes red on the shipped code
+// before it ever gets as far as measuring a ratio.
+it.each([
+    ['Not stated', undefined],
+    ['Easy', 'easy'],
+    ['Medium', 'medium'],
+    ['Hard', 'hard'],
+])('renders the selected %s chip legibly (its own fill, not the card behind it)', (label, value) => {
+    renderForm({
+        values:
+            value === undefined ? filledValues() : filledValues({ difficulty: value as 'easy' | 'medium' | 'hard' }),
     });
+
+    const chip = screen.getByRole('radio', { name: label }).parentElement;
+
+    if (chip === null) {
+        throw new Error(`Expected the "${label}" radio to sit inside its chip label.`);
+    }
+
+    // The chip text is `text-body-sm`, i.e. normal-size body copy — WCAG AA is 4.5:1, not the 3:1
+    // large-text allowance. Seafoam-on-white measures ~4.67, so this threshold has real teeth.
+    expect(utilityContrast(chip.className, { surface: CARD }), `${label} selected chip label`) //
+        .toBeGreaterThanOrEqual(4.5);
+});
 ```
 
 `filledValues` with no argument leaves `difficulty` unset, which is what selects the "Not stated" chip.
@@ -225,10 +228,12 @@ git commit -m "fix(recipes): make the selected difficulty chip legible (was whit
 ### Task 2: Restore webfonts in the production CSS bundle
 
 **Files:**
+
 - Modify: `packages/apps/commise/web/src/app/globals.css:1-11`
 - Create: `packages/apps/commise/web/tests/globalsCss.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from Task 1. This task is independent and may be done first.
 - Produces: nothing other tasks rely on.
 
@@ -345,7 +350,7 @@ Expected: **2 passed**.
 
 - [ ] **Step 5: Prove the fix empirically against a real production build**
 
-The unit test guards the *file shape*. It does not prove the optimizer kept the import — that needs a real build. This step is the actual verification of the defect being fixed, so do not skip it.
+The unit test guards the _file shape_. It does not prove the optimizer kept the import — that needs a real build. This step is the actual verification of the defect being fixed, so do not skip it.
 
 From `packages/apps/commise/web`:
 
@@ -382,6 +387,7 @@ git commit -m "fix(web): keep the webfont @import in the preamble so it survives
 **Files:** none modified — this task is a gate.
 
 **Interfaces:**
+
 - Consumes: the working tree after Tasks 1 and 2.
 
 - [ ] **Step 1: Typecheck the whole workspace**

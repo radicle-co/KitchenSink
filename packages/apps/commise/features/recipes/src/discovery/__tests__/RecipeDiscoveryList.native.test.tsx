@@ -165,7 +165,11 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
         expect(screen.getByText('Showing 3 recipes for “pasta”')).toBeTruthy();
     });
 
-    it('composes the compound card fields — author handle, cuisine, calories (S1)', () => {
+    // Same move as the web leaf, including its second narrowing: the `leadCaloriesPerServing: 320` fixture
+    // line is gone because the field has left the wire `Recipe` (ADR-0021's "Follow-up owed"), so the
+    // "320 cal" assertion could no longer fail for any implementation. The no-fabricated-`0` assertion
+    // still can. The figure's states are covered by `nutrition/__tests__/RecipeCalorieChip.native.test.tsx`.
+    it('composes the compound card fields — author handle, cuisine (S1), and no fabricated 0', () => {
         renderDiscovery({
             status: 'ready',
             results: [
@@ -174,14 +178,13 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
                     title: 'Ribollita',
                     authorHandle: 'tuscan_cook',
                     cuisine: 'Tuscan',
-                    leadCaloriesPerServing: 320,
                 }),
             ],
         });
 
         expect(screen.getByText('by @tuscan_cook')).toBeTruthy();
         expect(screen.getByText('Tuscan')).toBeTruthy();
-        expect(screen.getByText('320 cal')).toBeTruthy();
+        expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByRole('button', { name: 'Ribollita' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Clone Ribollita' })).toBeTruthy();
     });

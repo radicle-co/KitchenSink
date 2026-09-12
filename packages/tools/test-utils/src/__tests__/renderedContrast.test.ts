@@ -204,8 +204,28 @@ describe('computedContrast', () => {
         expect(computedContrast(element)).toBeCloseTo(contrastRatio(palette.slate, palette.white), 5);
     });
 
-    it('refuses to measure an element that carries no colour', () => {
-        expect(() => computedContrast(document.createElement('div'))).toThrow(/computed `color`/);
+    /**
+     * ⚠️ REWRITTEN for jsdom 30, which reports `rgb(0, 0, 0)` for a DETACHED element where jsdom 24 reported
+     * an empty string. The old assertion passed because of that empty string, so the bump did not merely
+     * break the test — it revealed that the guard's mechanism had become unable to detect the thing the
+     * guard exists for. It now refuses on `isConnected`, which is the condition the code always described.
+     */
+    it('refuses to measure an element that was never put in the document', () => {
+        expect(() => computedContrast(document.createElement('div'))).toThrow(/in the document/);
+    });
+
+    it('measures an element that IS in the document and carries a colour', () => {
+        // ⛔ Anti-vacuity for the guard above: if this threw too, the refusal would prove nothing.
+        //
+        // ⚠️ The colour is set EXPLICITLY rather than relying on a default, because the two jsdom
+        // generations disagree about what an unstyled element reports — 24 gives an empty string, 30 gives
+        // `rgb(0, 0, 0)`. Styling it means this asserts the guard's behaviour rather than the environment's.
+        const attached = document.body.appendChild(document.createElement('div'));
+
+        attached.style.color = '#2D3436';
+
+        expect(() => computedContrast(attached)).not.toThrow();
+        attached.remove();
     });
 });
 

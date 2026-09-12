@@ -1,138 +1,255 @@
 {
-  "report_meta": {
-    "feature": "014-notification-service",
-    "worktree": "<repo root>",
-    "scan_date": "2026-06-02T00:00:00Z",
-    "mode": "pre-implement",
-    "layers_run": ["L1","L2","L3","L4","L7"],
-    "layers_skipped": ["L5"],
-    "layers_info": ["L6"]
-  },
-  "summary": {
-    "total": 6,
-    "passed": 5,
-    "warning": 1,
-    "critical": 0,
-    "info": 1
-  },
-  "findings": [
-    {
-      "layer": "L1",
-      "name": "research ↔ product-spec",
-      "result": "PASSED",
-      "severity": null,
-      "details": [
-        "Key inferred requirement (003 backfill notification) reflected in product-spec/user-journey.md Journey B.",
-        "Q-008 (per-recipient FIFO) correctly attributed to industry practice and matched in product-spec."
-      ],
-      "evidence": [
-        "specs/014-notification-service/research/codebase-analysis.md §33",
-        "specs/014-notification-service/product-spec/user-journey.md §32"
-      ]
+    "report_meta": {
+        "feature": "014-notification-service",
+        "scan_date": "2026-08-05T00:00:00Z",
+        "mode": "full",
+        "read_only": true,
+        "feature_mode": "v-model",
+        "phase": "revalidation",
+        "gate_risk": "high",
+        "layers_run": ["L1", "L2", "L3", "L4", "L7"],
+        "layers_skipped": [
+            { "layer": "L5", "reason": "no implementation code; 0/20 tasks checked" },
+            { "layer": "L6", "reason": "no implementation code" },
+            { "layer": "L8", "reason": "no contracts/openapi.yaml or contracts/asyncapi.yaml" },
+            { "layer": "L9", "reason": "no implementation code and no traceability.yml" },
+            { "layer": "L10", "reason": "constitution present but no code to check against" }
+        ]
     },
-    {
-      "layer": "L2",
-      "name": "product-spec ↔ spec.md",
-      "result": "PASSED",
-      "severity": null,
-      "details": [
-        "All 11 product-spec user stories (US-001..US-011) have coverage in spec.md via FR decomposition.",
-        "Must Have stories US-001..US-007 are explicitly addressed.",
-        "US-008..US-011 coverage via FR-010/FR-020/FR-021 (US-008), FR-017/FR-018 (US-011) and inline references to US-009/US-010 in risk/test sections."
-      ],
-      "evidence": [
-        "specs/014-notification-service/spec.md §47 (Scope / Exclusions)",
-        "specs/014-notification-service/spec.md §46 (API Surface)",
-        "specs/014-notification-service/plan.md §14 (Must Have stories addressed)"
-      ]
+    "summary": {
+        "critical": 5,
+        "warning": 8,
+        "info": 1,
+        "clean_layers": 1,
+        "structural": 14,
+        "cosmetic": 0,
+        "drift_budget": { "structural": 0, "cosmetic": 20 },
+        "verdict": "CRITICAL DRIFT",
+        "verdict_after_resolution": "RESOLVED — pending revalidation",
+        "resolved": 14,
+        "remaining": 0
     },
-    {
-      "layer": "L3",
-      "name": "spec.md ↔ plan.md",
-      "result": "PASSED",
-      "severity": null,
-      "details": [
-        "Plan API surface (publish, subscribe, replay) maps to spec.md API surface and FR-001..FR-004, FR-010, FR-012.",
-        "Governance rules GR-002, GR-007, GR-008, GR-009, GR-011 explicitly addressed.",
-        "Architecture choice (hybrid push+replay) is a legitimate implementation specialization of spec.md Q-001 transport-open."
-      ],
-      "evidence": [
-        "specs/014-notification-service/plan.md §40-55 (Transport and Queue Architecture)",
-        "specs/014-notification-service/plan.md §74-93 (API routes table)",
-        "specs/014-notification-service/plan.md §28-36 (Governance Alignment)"
-      ]
+    "owner_decisions": [
+        {
+            "id": "Q-002",
+            "question": "group membership source of truth",
+            "decision": "identity service owns groups; 014 builds them (group + group_membership in packages/services/identity, /api/v1/groups/*). Explicitly NOT Clerk Organizations.",
+            "date": "2026-08-05",
+            "scope_effect": "expands — new identity-service capability delivered under 014 (T-023..T-025)"
+        },
+        {
+            "id": "FR-008",
+            "question": "per-recipient FIFO ordering authority",
+            "decision": "SQS FIFO with MessageGroupId = recipient.id; routing consumer assigns a monotonic per-recipient sequence at dequeue; live push and replay both read that sequence.",
+            "date": "2026-08-05",
+            "scope_effect": "expands — queue provisioning + sequencer (T-026, T-027); FR-018 needs its own dedup store since SQS FIFO's dedup window is fixed at 5 minutes"
+        }
+    ],
+    "findings": [
+        {
+            "id": "DRIFT-001",
+            "layer": "L2",
+            "direction": "forward",
+            "severity": "CRITICAL",
+            "category": "structural",
+            "title": "US-NNN ids denote different stories in product-spec and spec.md",
+            "source": "product-spec/product-spec.md",
+            "target": "spec.md",
+            "evidence": "spec.md merged product-spec US-001+US-002 into one US-001, shifting all later ids by one; product-spec US-003 = group routing, spec.md US-003 = global broadcast. plan.md's 'Must Have: US-001..US-007' resolves differently per artifact.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-002",
+            "layer": "L3",
+            "direction": "forward",
+            "severity": "CRITICAL",
+            "category": "structural",
+            "title": "FR-008/FR-009 per-recipient FIFO ordering has zero plan coverage",
+            "source": "spec.md FR-008, FR-009",
+            "target": "plan.md",
+            "evidence": "plan.md contains 0 occurrences of FIFO, ordering, partition, or MessageGroupId, despite a three-path hybrid architecture and SC-002 gating launch on zero out-of-order deliveries.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-003",
+            "layer": "L3",
+            "direction": "forward",
+            "severity": "CRITICAL",
+            "category": "structural",
+            "title": "Group-membership lookup delegated to plan.md, never defined, closed by fiat in tasks.md",
+            "source": "spec.md A-002; product-spec Q-002",
+            "target": "plan.md; tasks.md T-005",
+            "evidence": "spec.md A-002 requires a placeholder lookup 'defined in plan.md'; plan.md has 0 mentions of group membership. Q-002 is still open in product-spec and review.md. T-005 asserts a '002 group membership API' that feature 002 does not specify and the identity service does not expose.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-004",
+            "layer": "L4",
+            "direction": "forward",
+            "severity": "CRITICAL",
+            "category": "structural",
+            "title": "Producers 012 and 013 are mandatory in plan.md but have no task",
+            "source": "plan.md M8 required integration subset",
+            "target": "tasks.md",
+            "evidence": "Plan mandates 003, 005, 008, 009, 012, 013. tasks.md covers 003 (T-017) and 005/008/009 (T-018). Zero tasks reference 012 or 013.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-005",
+            "layer": "supplementary",
+            "direction": "backward",
+            "severity": "CRITICAL",
+            "category": "structural",
+            "title": "verify-report.md measures a non-existent task graph and carries a stale finding",
+            "source": "verify-report.md",
+            "target": "tasks.md; v-model/traceability-matrix.md",
+            "evidence": "Report cites T001-T066 / 53 tasks / Phase 7 T057-T066; tasks.md defines 20 tasks T-001..T-020. Report W-003 claims MISSING cells in traceability-matrix.md; that file has 0 occurrences of MISSING across 31 mapped REQ rows. Its C-001 (release audit blocked, 186 untested) remains accurate.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-006",
+            "layer": "L2",
+            "direction": "backward",
+            "severity": "WARNING",
+            "category": "structural",
+            "title": "spec.md US-009 messageType registry enforcement has no product-spec story",
+            "source": "spec.md US-009",
+            "target": "product-spec/product-spec.md MoSCoW map",
+            "evidence": "Capability entered via the Q-005 resolution and is implemented by plan.md, tasks.md T-014 and v-model REQ-016/REQ-017, but was never promoted into the product-spec story map.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-007",
+            "layer": "L1",
+            "direction": "forward",
+            "severity": "WARNING",
+            "category": "structural",
+            "title": "research/codebase-analysis.md is materially false against the current repository",
+            "source": "research/codebase-analysis.md",
+            "target": "working tree",
+            "evidence": "Claims no folders exist for cited references (5 services + 4 shared packages now exist) and 'No existing in-app notification UI primitive on the client' — both web and mobile ship an inert notifications control in HomeTopBar.tsx:114 whose source comment states 'there is no notifications service in v1'. No 014 artifact mentions this shipped affordance.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-008",
+            "layer": "L4",
+            "direction": "forward",
+            "severity": "WARNING",
+            "category": "structural",
+            "title": "Three plan commitments have no corresponding task",
+            "source": "plan.md rollout controls + exit evidence",
+            "target": "tasks.md",
+            "evidence": "No task for counter-based canary checks, for removal of producer-local delivery implementations (the GR-011 ownership proof), or for the environment flags gating progressive producer enablement.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-009",
+            "layer": "supplementary",
+            "direction": "backward",
+            "severity": "WARNING",
+            "category": "structural",
+            "title": "review.md GR-007 conformance evidence is false",
+            "source": "review.md governance table",
+            "target": "tasks.md",
+            "evidence": "Row asserts 'Tasks explicitly require @kitchensink/recipe-core'; tasks.md has 0 occurrences of recipe-core and T-002 creates @kitchensink/notification-types. The package choice is defensible; the evidence claim is not.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-010",
+            "layer": "L3",
+            "direction": "forward",
+            "severity": "WARNING",
+            "category": "structural",
+            "title": "NFR-001 and NFR-003 have no plan coverage",
+            "source": "spec.md NFR-001, NFR-003",
+            "target": "plan.md",
+            "evidence": "No availability budget, latency budget, measurement point, or definition of 'nominal load' in plan.md. SC-004 and the k6 tier depend on these numbers.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-011",
+            "layer": "supplementary",
+            "direction": "backward",
+            "severity": "INFO",
+            "category": "structural",
+            "title": "Previous sync run's markdown and JSON outputs disagree",
+            "source": "sync-report.md (run #1)",
+            "target": "sync-report.json (run #1)",
+            "evidence": "Run #1 (2026-06-02) recorded WARNING 0 in markdown and warning 1 in JSON, with critical 0 in both, while DRIFT-001..005 were already present. Layer lists also disagree.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-012",
+            "layer": "L3",
+            "direction": "forward",
+            "severity": "WARNING",
+            "category": "structural",
+            "title": "Durable retention specified down to the ORM with no data model in plan.md",
+            "source": "spec.md FR-012; tasks.md T-009",
+            "target": "plan.md",
+            "evidence": "FR-012 requires >=24h retention and T-009 names Drizzle ORM + PostgreSQL, but plan.md has no Data Model section. Because that section is absent, the Phase 5.5 migration-plan trigger never fires — the phase that would catch this gap is disabled by the gap.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        }
+    ],
+    "late_findings": [
+        {
+            "id": "DRIFT-013",
+            "layer": "L1/L2",
+            "direction": "forward",
+            "severity": "WARNING",
+            "category": "structural",
+            "title": "user-journey.md Journey C promises offline retrieval of global broadcasts; spec.md excludes it",
+            "source": "product-spec/user-journey.md Journey C step 4",
+            "target": "spec.md FR-012 + Edge Cases",
+            "evidence": "Journey C: 'disconnected clients retrieve it later if still relevant'. spec.md scopes retention to user and group recipients and states offline globals are dropped. Opened as product-spec Q-009 for the revalidation gate.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        },
+        {
+            "id": "DRIFT-014",
+            "layer": "intra-feature docs",
+            "direction": "backward",
+            "severity": "WARNING",
+            "category": "structural",
+            "title": "feature README.md states the core artifacts do not exist",
+            "source": "README.md Status section",
+            "target": "spec.md, plan.md, tasks.md, v-model/",
+            "evidence": "README claimed the folder was 'Bootstrap only' and did not yet contain spec.md, plan.md, tasks.md or v-model/. All four have existed since the 007-014 reconciliation commit.",
+            "auto_resolvable": false,
+            "approval": "approved_and_applied"
+        }
+    ],
+    "reconciliation_debt": [
+        {
+            "item": "v-model chain predates the 2026-08-05 scope additions",
+            "detail": "The 31 REQ-NNN rows map 1:1 to spec.md's 23 FR + 8 NFR as of 2026-05-13. They do not cover the identity group model, the ordering/sequence authority, or the client bell surface. Must be regenerated (not hand-patched) before T-020 closes the M8 exit gate.",
+            "blocks": "T-020"
+        },
+        {
+            "item": "verify-report.md superseded, not repaired",
+            "detail": "Marked superseded in place; regenerated by Phase 7 after implementation.",
+            "blocks": null
+        }
+    ],
+    "standing_risk": {
+        "description": "Of the six producers plan.md makes mandatory for M8, only 003 exists in code. 005, 008, 009, 012, 013 are specification-only, so T-018 and the DRIFT-004 tasks cannot complete until those features ship.",
+        "accepted_by_owner": "2026-08-05",
+        "decision": "keep full M8 scope"
     },
-    {
-      "layer": "L4",
-      "name": "plan.md ↔ tasks.md",
-      "result": "PASSED",
-      "severity": null,
-      "details": [
-        "Task graph T001-T066 mirrors plan phases (Foundation → Registry → Publish Ingest → Subscribe+Replay → Telemetry → Cross-feature → Verification).",
-        "Tasks cover all Must Have stories US-001..US-007 and all critical governance rules.",
-        "Dependency graph DAG is acyclic and matches declared task order."
-      ],
-      "evidence": [
-        "specs/014-notification-service/tasks.md §10-18 (Dependency Graph)",
-        "specs/014-notification-service/tasks.md §25-83 (Phase 1-2 tasks)",
-        "specs/014-notification-service/plan.md §14 (Must Have stories addressed)"
-      ]
-    },
-    {
-      "layer": "L5",
-      "name": "tasks.md ↔ code",
-      "result": "SKIPPED",
-      "severity": null,
-      "details": ["Skipped per instructions."],
-      "evidence": []
-    },
-    {
-      "layer": "L6",
-      "name": "tasks.md ↔ code (missing-impl)",
-      "result": "INFO",
-      "severity": "INFO",
-      "details": [
-        "All 66 tasks are unchecked. Implementation paths referenced in tasks (packages/services/notification-service/*, packages/shared/notifications/*) do not exist on disk.",
-        "Expected given pre-implement phase. No action required."
-      ],
-      "evidence": [
-        "specs/014-notification-service/tasks.md (unchecked checkboxes throughout)",
-        "ls packages/services/notification-service = NOT_FOUND",
-        "ls packages/shared/notifications = NOT_FOUND"
-      ]
-    },
-    {
-      "layer": "L7",
-      "name": "cross-link integrity",
-      "result": "PASSED",
-      "severity": null,
-      "details": [
-        "All internal relative links (./spec.md, ./plan.md, ./tasks.md, ./review.md, ./product-spec/*.md, ./research/*.md, ./v-model/*.md) resolve to existing files.",
-        "External links to sibling feature specs (../002-user-auth/*.md, ../001-commise-recipe-app/*.md, etc.) are cross-feature references and may reside on other branches; they are not internal 014 drift.",
-        "verify-report.md and review.md link targets are valid internal paths."
-      ],
-      "evidence": [
-        "specs/014-notification-service/review.md §100-106",
-        "specs/014-notification-service/plan.md §3-4",
-        "specs/014-notification-service/spec.md §12-17"
-      ]
-    }
-  ],
-  "must_have_traceability": {
-    "US-001": { "in_product_spec": true, "in_spec": true, "in_plan": true, "in_tasks": true },
-    "US-002": { "in_product_spec": true, "in_spec": true, "in_plan": true, "in_tasks": true },
-    "US-003": { "in_product_spec": true, "in_spec": true, "in_plan": true, "in_tasks": true },
-    "US-004": { "in_product_spec": true, "in_spec": true, "in_plan": true, "in_tasks": true },
-    "US-005": { "in_product_spec": true, "in_spec": true, "in_plan": true, "in_tasks": true },
-    "US-006": { "in_product_spec": true, "in_spec": true, "in_plan": true, "in_tasks": true },
-    "US-007": { "in_product_spec": true, "in_spec": true, "in_plan": true, "in_tasks": true }
-  },
-  "out_of_scope_flags": [
-    {
-      "flag": "apps/X references",
-      "severity": "INFO",
-      "detail": "Monorepo path conventions in tasks.md use packages/services/ and packages/shared/. No apps/X references in artifact chain.",
-      "evidence": "tasks.md §26: packages/services/notification-service/*, packages/shared/notifications/*"
-    }
-  ]
+    "sync_history": [
+        { "run": 1, "date": "2026-06-02", "layers": "5/10", "critical": 0, "warning": 0, "verdict": "CONSISTENT", "note": "internally inconsistent; see DRIFT-011" },
+        { "run": 2, "date": "2026-08-05", "layers": "5/10", "critical": 5, "warning": 6, "verdict": "CRITICAL DRIFT" }
+    ]
 }

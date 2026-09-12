@@ -1,8 +1,11 @@
 import { eq } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { IdentityWriter } from '../identityWriter.js';
 
-import { users, accounts, profiles } from '../schema/index.js';
-import type { NewUserRow, ProfileRow, UserRow } from '../schema/index.js';
+import { accounts } from '../schema/accounts.js';
+import { profiles } from '../schema/profiles.js';
+import { users } from '../schema/users.js';
+import type { ProfileRow } from '../schema/profiles.js';
+import type { NewUserRow, UserRow } from '../schema/users.js';
 import { newUserId, type UserId } from '../ulid.js';
 
 /**
@@ -23,7 +26,7 @@ const noopLogger: UserDaoLogger = { warn: () => {} };
 /** @implements REQ-013 REQ-014 REQ-015 REQ-017 REQ-018 REQ-019 REQ-025 FR-013 FR-014 FR-015 FR-017 FR-018 FR-019 FR-025 ARCH-011 ARCH-012 MOD-011 MOD-012 */
 export class UserDAO {
     constructor(
-        private readonly db: PostgresJsDatabase<Record<string, never>>,
+        private readonly db: IdentityWriter,
         private readonly logger: UserDaoLogger = noopLogger,
     ) {}
 

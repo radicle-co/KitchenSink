@@ -1,12 +1,25 @@
 /**
  * T041 — the Collections HTTP controller (`/api/v1/collections`).
  *
- * A thin adapter: it validates the request (body/query → 400 on malformed input), reads the OWNER from
- * the verified `req.principal.userId` (NEVER from the body or a client header — the `AuthMiddleware`
- * has already fail-closed populated it), delegates to {@link CollectionsService}, and maps results to
- * the OpenAPI response shapes/status codes. Domain errors thrown by the service (NOT_OWNER,
- * RECIPE_NOT_FOUND, INVALID_VISIBILITY) and framework `NotFoundException`s are translated to HTTP by
- * the global `ApiExceptionFilter`.
+ * A thin adapter: it reads the OWNER from the verified `req.principal.userId` (NEVER from the body or a
+ * client header — the `AuthMiddleware` has already fail-closed populated it), delegates to
+ * {@link CollectionsService}, and returns the AUTHORED wire shapes from `./collections.schema.ts`. Domain
+ * errors thrown by the service (NOT_OWNER, RECIPE_NOT_FOUND, INVALID_VISIBILITY) and framework
+ * `NotFoundException`s are translated to HTTP by the global `ApiExceptionFilter`.
+ *
+ * VALIDATION IS `nestjs-zod`'s CONTROLLER-SCOPED PIPE, over DTOs that ARE the published contract. That
+ * replaced a per-parameter, hand-rolled `new ZodValidationPipe(schema)` — the last user of a bespoke
+ * `PipeTransform` this repo carried alongside the library that already does it. Two consequences worth
+ * stating, because they are the reason the swap is an improvement and not a lateral move:
+ *
+ *  - **The shape enforced here and the shape `@kitchensink/schema-recipe` publishes are ONE object**
+ *    (`Dto.schema === …RequestSchema`, asserted in `dto/__tests__/collectionDtos.test.ts`). With the
+ *    hand-rolled pipe the schema was passed in at the call site, so nothing structurally tied the
+ *    validated shape to the published one.
+ *  - **The `optionalBody` helper is gone.** Its whole job was folding an absent body to `{}` for the two
+ *    wholly-optional bodies (`clone`, `pull-from-source`); that now lives on the schemas themselves as
+ *    `.default({})`, so the tolerance is part of the CONTRACT rather than a local pipe trick — and it is
+ *    representable in the published `openapi.yaml`, which a `z.preprocess` would not have been.
  */
 import {
     Body,
@@ -20,47 +33,34 @@ import {
     Query,
     Req,
     UnauthorizedException,
+    UsePipes,
 } from '@nestjs/common';
-import type { PaginatedResponse } from '@kitchensink/recipe-core';
-import { z } from 'zod';
-import type { ZodType } from 'zod';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 import type { AuthenticatedRequest, Principal } from '../auth/principal.js';
 import { CollectionsService } from './collections.service.js';
-import {
-    addRecipeSchema,
-    cloneCollectionSchema,
-    createCollectionSchema,
-    pageQuerySchema,
-    pullCommitSchema,
-    updateCollectionSchema,
-} from './collections.schemas.js';
-import type { AddRecipeBody, CreateCollectionBody, PageQuery, UpdateCollectionBody } from './collections.schemas.js';
-import type { PullDiff } from './domain/pull-diff.js';
+import { AddRecipeToCollectionDto } from './dto/addRecipeToCollection.dto.js';
+import { CloneCollectionDto } from './dto/cloneCollection.dto.js';
+import { CreateCollectionDto } from './dto/createCollection.dto.js';
+import { ListCollectionsQueryDto } from './dto/listCollections.query.dto.js';
+import { PullFromSourceDto } from './dto/pullFromSource.dto.js';
+import { UpdateCollectionDto } from './dto/updateCollection.dto.js';
 import type {
+    CollectionListResponse,
     CollectionRecipeMembershipResponse,
     CollectionResponse,
     CollectionWithRecipesResponse,
-    PullFromSourceResult,
-} from './collections.types.js';
+    PullDiff,
+    PullFromSourceResponse,
+} from './collections.schema.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
-import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
-
-/**
- * `cloneCollectionSchema` / `pullCommitSchema` bodies are wholly-optional objects — an absent body
- * arrives at the pipe as `undefined` (or `{}`, depending on whether a `Content-Type` header was sent);
- * both mean "no overrides" (FR-011 / W8-a.8). `z.preprocess` folds `undefined` to `{}` BEFORE the schema
- * (which requires an object) runs, so the pipe still applies at the framework seam for these two routes.
- */
-function optionalBody<T>(schema: ZodType<T>): ZodType<T> {
-    return z.preprocess((value) => value ?? {}, schema);
-}
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/collections', 'v1/collections'])
+@UsePipes(ZodValidationPipe)
 export class CollectionsController {
     public constructor(private readonly collections: CollectionsService) {}
 
@@ -69,7 +69,7 @@ export class CollectionsController {
     @WriteRateLimit()
     public async create(
         @Req() req: AuthenticatedRequest,
-        @Body(new ZodValidationPipe(createCollectionSchema)) body: CreateCollectionBody,
+        @Body() body: CreateCollectionDto,
     ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
 
@@ -80,8 +80,8 @@ export class CollectionsController {
     @Get()
     public async list(
         @Req() req: AuthenticatedRequest,
-        @Query(new ZodValidationPipe(pageQuerySchema)) query: PageQuery,
-    ): Promise<PaginatedResponse<CollectionResponse>> {
+        @Query() query: ListCollectionsQueryDto,
+    ): Promise<CollectionListResponse> {
         const owner = this.requirePrincipal(req);
 
         return this.collections.listCollections(owner.userId, query);
@@ -104,7 +104,7 @@ export class CollectionsController {
     public async update(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body(new ZodValidationPipe(updateCollectionSchema)) body: UpdateCollectionBody,
+        @Body() body: UpdateCollectionDto,
     ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
 
@@ -127,7 +127,7 @@ export class CollectionsController {
     public async addRecipe(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body(new ZodValidationPipe(addRecipeSchema)) body: AddRecipeBody,
+        @Body() body: AddRecipeToCollectionDto,
     ): Promise<CollectionRecipeMembershipResponse> {
         const owner = this.requirePrincipal(req);
 
@@ -138,7 +138,8 @@ export class CollectionsController {
      * Clone a collection into the caller's account (FR-011) — 201 with the new collection.
      *
      * The body is optional (`CloneCollectionRequest`: both fields optional), so a plain clone needs no
-     * payload; when present it overrides the clone's own name/description.
+     * payload; when present it overrides the clone's own name/description. The schema's `.default({})` is
+     * what makes an absent body legal.
      */
     @Post(':id/clone')
     @HttpCode(201)
@@ -146,7 +147,7 @@ export class CollectionsController {
     public async clone(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body(new ZodValidationPipe(optionalBody(cloneCollectionSchema))) body: z.infer<typeof cloneCollectionSchema>,
+        @Body() body: CloneCollectionDto,
     ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
 
@@ -179,8 +180,8 @@ export class CollectionsController {
     public async pullFromSource(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body(new ZodValidationPipe(optionalBody(pullCommitSchema))) body: z.infer<typeof pullCommitSchema>,
-    ): Promise<PullFromSourceResult> {
+        @Body() body: PullFromSourceDto,
+    ): Promise<PullFromSourceResponse> {
         const owner = this.requirePrincipal(req);
 
         return this.collections.pullFromSource(owner.userId, id, body.previewedDiff);

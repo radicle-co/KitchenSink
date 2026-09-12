@@ -14,8 +14,17 @@
 # in" and "navigate to a feature" stay separate concerns.
 #
 # The login form lives in mobile/src/screens/login.tsx; the completed session renders HomeScreen (a
-# time-of-day greeting ending in "Chef" — "Good morning, Chef!" etc.). Credentials mirror the web Playwright
-# suite's TEST_USER_* (cross-platform parity).
+# time-of-day greeting ending in "Chef" — "Good morning, Chef!" etc.).
+#
+# ⛔ THE CREDENTIALS ARE PARAMETERS, not literals, and that is a correctness property rather than tidiness.
+# This flow used to type a FIXED address, so every concurrent run signed in as the same Clerk user and
+# whichever tore down first deleted the other's live account — the incident `runFixtureIdentity.ts` records
+# for the web suite, still live here because this tier had never run. `${E2E_SIGNIN_EMAIL}` /
+# `${E2E_SIGNIN_PASSWORD}` are supplied per run by `@kitchensink/e2e-seed`'s manifest, threaded in as
+# `maestro test -e KEY=VALUE`.
+#
+# ⚠️ A CONSUMER MAY OVERRIDE `E2E_SIGNIN_EMAIL` through `runFlow: env:` to sign in as a DIFFERENT identity —
+# `account-erasure.yaml` does exactly that, because it really erases the account it signs in as.
 
 appId: io.commise.mobile
 ---
@@ -47,9 +56,9 @@ appId: io.commise.mobile
           visible: 'you@example.com'
       commands:
           - tapOn: 'you@example.com'
-          - inputText: 'commise-e2e-signin+clerk_test@example.com'
+          - inputText: '${E2E_SIGNIN_EMAIL}'
           - tapOn: 'Your password'
-          - inputText: 'Commise-e2e-Test-9j2xQ!'
+          - inputText: '${E2E_SIGNIN_PASSWORD}'
           - tapOn: 'Sign in'
           # New-device verification: this Clerk instance requires an email code after the password factor
           # (the web sign-in spec fills the same code), and `clearState` makes every fresh sign-in a new

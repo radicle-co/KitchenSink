@@ -10,11 +10,17 @@ import { GradientSurface } from '@commise/ui/surface';
 import type { FC, ReactElement } from 'react';
 
 import { RecipeCardGridSkeleton } from '../card/RecipeCardGridSkeleton.js';
-import { PlusIcon } from '../form/icons.js';
 import { recipeMessages } from '../messages.js';
+import { SpeedDial } from '../speedDial/SpeedDial.js';
 import { RecipeListCard } from './RecipeListCard.js';
 import { RecipeSourceTabs } from './RecipeSourceTabs.js';
-import { filterChipLabel, formatRecipeCount, isListNarrowed, type RecipeListViewProps } from './model.js';
+import {
+    filterChipLabel,
+    formatRecipeCount,
+    isListNarrowed,
+    shouldShowCreateDial,
+    type RecipeListViewProps,
+} from './model.js';
 
 export const RecipeList: FC<RecipeListViewProps> = ({
     status,
@@ -23,9 +29,11 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     onSearchChange,
     onSelectRecipe,
     onCreateRecipe,
+    onPasteIngredients,
     onRetry,
     tab,
     filters,
+    renderNutrition,
 }) => {
     const { list } = useMessages(recipeMessages);
     const locale = useLocale();
@@ -80,7 +88,13 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {recipes.map((recipe) => (
                         <li key={recipe.id}>
-                            <RecipeListCard recipe={recipe} onSelect={onSelectRecipe} />
+                            {/* ONE promise, N slots: the host's renderer closes over the page's single
+                                nutrition batch, so this grid's figures cost one request and land together. */}
+                            <RecipeListCard
+                                recipe={recipe}
+                                onSelect={onSelectRecipe}
+                                nutrition={renderNutrition?.(recipe.id)}
+                            />
                         </li>
                     ))}
                 </ul>
@@ -88,13 +102,21 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         );
     }
 
-    // The FAB is the persistent create control (L1) — pinned, OUTSIDE the header, present across loading /
-    // error / populated. It is suppressed in the true empty state (the empty-state CTA is the single create
-    // affordance) AND on the Community tab (L5 — you never create into someone else's list). "True empty"
-    // means the same thing here as in the body branch above, so both read the ONE `narrowed` predicate: a
-    // chip-narrowed zero keeps the FAB, because its empty body renders no CTA to replace it.
-    const isEmpty = status === 'ready' && recipes.length === 0 && !narrowed;
-    const showFab = !isEmpty && !onCommunity;
+    // Whether the pinned create dial (L1) is mounted. Both gates — never over a TRUE empty library, never on
+    // the Community tab — live in the ONE `shouldShowCreateDial` policy, which the other platform's leaf
+    // calls too, so the two cannot drift on it.
+    //
+    // ⚠️ The policy owns ONE SIDE of a two-sided invariant. The rule it serves is "exactly one create
+    // affordance is on screen", and the other side — the empty-state CTA above — is still spelled inline in
+    // each leaf as the complement of this condition. Nothing structural keeps the two in step; what does is
+    // the pair of assertions in this leaf's tests, which check the true-empty and the narrowed-zero branches
+    // from BOTH directions. Widen this policy into the affordance itself before adding a third branch.
+    const showDial = shouldShowCreateDial({
+        status,
+        recipeCount: recipes.length,
+        narrowed,
+        onCommunity,
+    });
 
     return (
         <section aria-label={list.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
@@ -159,21 +181,25 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
             {body}
 
-            {showFab && (
-                <button
-                    type="button"
-                    aria-label={list.createCta}
-                    onClick={onCreateRecipe}
-                    // Bottom offset is DERIVED, not hardcoded: it clears the narrow-breakpoint bottom nav (Task
-                    // 1.5) plus the device safe-area inset, and drops to the base offset once the nav becomes a
-                    // desktop sidebar at the shared `lg` cutover.
-                    className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-seafoam text-white shadow-lg transition hover:bg-ocean-dark lg:bottom-8"
-                >
-                    {/* An SVG, not the text "+": flex centres the LINE BOX but ink is placed by the BASELINE, so a
-                        "+" character paints ~1.7px low and no centring property can correct it. This glyph's
-                        extents are symmetric about the viewBox centre, matching the mockup. */}
-                    <PlusIcon className="size-6" />
-                </button>
+            {showDial && (
+                // U34: the pinned FAB DISCLOSES the creation destinations rather than running the only
+                // one. Plan U9 makes good on that shape's stated purpose — pasting an ingredient list is
+                // the SECOND destination, and it cost one list entry rather than a redesign. Scan / Import
+                // / AI join the same list when 004 and 005 ship.
+                //
+                // ⚠️ Built with a spread rather than a ternary over two whole arrays: `SpeedDialProps.actions`
+                // is a NON-EMPTY tuple, so the scratch entry has to stay in first position by construction
+                // for the type to hold.
+                <SpeedDial
+                    triggerLabel={list.createCta}
+                    menuLabel={list.createMenuLabel}
+                    actions={[
+                        { id: 'scratch', label: list.createFromScratch, onSelect: onCreateRecipe },
+                        ...(onPasteIngredients === undefined
+                            ? []
+                            : [{ id: 'paste', label: list.createFromPaste, onSelect: onPasteIngredients }]),
+                    ]}
+                />
             )}
         </section>
     );

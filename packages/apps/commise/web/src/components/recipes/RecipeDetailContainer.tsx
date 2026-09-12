@@ -216,7 +216,6 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                     !viewerIsOwner && (
                         <RecipeCloneAction
                             canClone={viewerCanClone}
-                            sourceAttribution={recipe.sourceAttribution}
                             cloning={cloneRecipe.isPending}
                             onClone={() =>
                                 cloneRecipe.mutate(id, {

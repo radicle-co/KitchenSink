@@ -1,0 +1,11 @@
+/** The marker without the justification is not a marker. */
+import { thingResponseSchema } from '@kitchensink/schema-thing';
+
+/** @notWireShape */
+export interface LocalThingResponse {
+    readonly id: string;
+}
+
+export function readThing(payload: unknown): unknown {
+    return thingResponseSchema.parse(payload);
+}

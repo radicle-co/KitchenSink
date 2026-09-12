@@ -47,7 +47,7 @@ beforeEach(() => {
     uploadMock.mockReset();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
-    useAvatarUploadMock.mockReturnValue({ upload: uploadMock });
+    useAvatarUploadMock.mockReturnValue({ upload: uploadMock, isPending: false, error: null });
     launchMock.mockResolvedValue({ canceled: false, assets: [pickedAsset] } as never);
 });
 

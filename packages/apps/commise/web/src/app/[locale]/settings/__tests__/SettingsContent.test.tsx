@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Composition tests for the `/settings` route content (U3): it renders inside the shared {@link AppShell}
+ * Composition tests for the `/settings` route content (U3): it renders inside the shared `AppShell`
  * (nav on desktop AND narrow — the bare route had none), its headings are localized, and it composes the
  * sign-out control. The viewer-profile hook is mocked (AppShell's avatar source); LogoutButton is stubbed
  * (its own state matrix is covered in LogoutButton.test).

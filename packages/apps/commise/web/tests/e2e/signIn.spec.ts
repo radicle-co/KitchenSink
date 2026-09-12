@@ -3,6 +3,7 @@ import { clerk, setupClerkTestingToken } from '@clerk/testing/playwright';
 
 import { route, isHome, isRoute, hasDoublePrefix, pathnameOf } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
+import { clerkPrimarySubmit } from './utils/clerkForm';
 import { submitClerkEmailCode } from './utils/clerkEmailCode';
 import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from './utils/testUser';
 
@@ -21,7 +22,9 @@ test.describe('sign-in flow', () => {
 
         // getByRole('textbox', …) avoids the "Show password" button that getByLabel(/password/i) catches.
         await page.getByRole('textbox', { name: /email/i }).fill(TEST_USER_EMAIL);
-        await page.getByRole('button', { name: 'Continue' }).click();
+        // `clerkPrimarySubmit` and not a bare name match: Clerk's Google button is ALSO named "… Continue",
+        // so a substring match resolves to 2 elements and every click fails on strict mode.
+        await clerkPrimarySubmit(page).click();
         await page.getByRole('textbox', { name: 'Password' }).fill(TEST_USER_PASSWORD);
 
         // This instance verifies a new device with an email code — `+clerk_test` accepts 424242. Clerk SENDS
@@ -32,7 +35,7 @@ test.describe('sign-in flow', () => {
         // its own `sign_ups` prepare call.
         await submitClerkEmailCode(page, {
             attempt: 'sign_ins',
-            triggerSend: () => page.getByRole('button', { name: 'Continue' }).click(),
+            triggerSend: () => clerkPrimarySubmit(page).click(),
             expectStep: () =>
                 expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible({ timeout: 15_000 }),
         });

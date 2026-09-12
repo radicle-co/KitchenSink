@@ -1,0 +1,6 @@
+/** Validates the RAW upstream shape, which is what the §15.3 exemption is for. */
+import { z } from 'zod';
+
+export const upstreamThingResponseSchema = z.object({ thingId: z.number() }).loose();
+
+export type UpstreamThingResponse = z.infer<typeof upstreamThingResponseSchema>;

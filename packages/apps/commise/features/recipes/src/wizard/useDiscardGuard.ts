@@ -24,7 +24,7 @@
 import { useEffect, useState } from 'react';
 
 import { recipeFormValuesEqual } from './model.js';
-import type { RecipeFormValues } from '../form/model.js';
+import type { RecipeFormValues } from '../form/values.js';
 
 /** Options for {@link useDiscardGuard}. */
 export interface UseDiscardGuardOptions {

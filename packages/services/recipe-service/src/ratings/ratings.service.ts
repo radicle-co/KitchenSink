@@ -1,7 +1,7 @@
 /**
  * CR-001 / FR-013 — rating write orchestration + authorization.
  *
- * Sits between {@link RatingsController} (which supplies the verified rater ULID — `principal.userId`,
+ * Sits between `RatingsController` (which supplies the verified rater ULID — `principal.userId`,
  * NEVER a body value) and {@link RatingsDal}. It owns the authorization rules the DAL does not, and the
  * ORDER of those rules is a security boundary, not an implementation detail:
  *
@@ -26,10 +26,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { RatingsDal } from './dal/ratings.dal.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { RecipesDal } from '../recipes/dal/recipes.dal.js';
-import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
+import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
 import { cannotRateOwnRecipe, recipeNotFound } from '../recipes/recipe.error.js';
-import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
-import type { SetRatingDto } from './dto/set-rating.dto.js';
+import type { RecipeResponse } from '../recipes/dto/recipeResponse.dto.js';
+import type { SetRatingDto } from './dto/setRating.dto.js';
+import type { CallerToken } from '../auth/CallerToken.js';
 
 /** DI token for the ratings DAL — provided by `RatingsModule` via `useFactory` over the Drizzle client. */
 export const RATINGS_DAL = 'RATINGS_DAL';
@@ -62,12 +63,19 @@ export class RatingsService {
      * @param raterId - The verified caller's app-user ULID (the rater).
      * @param recipeId - The recipe to rate.
      * @param dto - The validated `{ stars }` body (a spoofed body `userId` is already stripped).
+     * @param caller - The caller's bearer, forwarded to the re-read so the detail's nutrition resolves;
+     *   `undefined` only when the request carried none.
      * @returns The recipe detail with its trigger-recomputed `averageRating` / `ratingCount`.
      * @throws {RecipeDomainError} `RECIPE_NOT_FOUND` (404) when missing/tombstoned or unseeable (IDOR);
      *   `CANNOT_RATE_OWN_RECIPE` (403) when the caller owns the recipe.
      * @sideEffect Upserts a `recipe_ratings` row (firing the aggregate trigger) and reads the recipe.
      */
-    public async setRating(raterId: string, recipeId: string, dto: SetRatingDto): Promise<RecipeResponse> {
+    public async setRating(
+        raterId: string,
+        recipeId: string,
+        dto: SetRatingDto,
+        caller: CallerToken | undefined,
+    ): Promise<RecipeResponse> {
         await this.assertRateable(raterId, recipeId, { rejectOwn: true });
 
         await this.ratingsDal.upsert({ recipeId, userId: raterId, stars: dto.stars });
@@ -75,7 +83,7 @@ export class RatingsService {
         // Re-read AFTER the upsert so the statement-level trigger has refreshed the aggregate. A rateable
         // recipe is, by rule, public (viewable-and-not-owned ⟹ public), so getById(raterId, id) always
         // resolves — it never re-raises a 403 for the recipe we just authorized.
-        return this.recipesService.getById(raterId, recipeId);
+        return this.recipesService.getById(raterId, recipeId, caller);
     }
 
     /**

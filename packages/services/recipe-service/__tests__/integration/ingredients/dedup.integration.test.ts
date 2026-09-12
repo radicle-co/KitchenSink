@@ -16,9 +16,11 @@ import pg from 'pg';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
+import { makeCanonicalName } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
+import { hasTestDatabase, recipeDb } from '../../../tests/support/roleDb.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
-const hasDatabaseUrl = Boolean(DATABASE_URL);
+const roleDb = recipeDb();
+const hasDatabaseUrl = hasTestDatabase;
 
 const RACE_FOOD_ID = 'race-food-adv5-0001';
 const RACE_NAME = 'RaceSpice Adv5';
@@ -30,7 +32,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal dedup is race-proof (integratio
     let dal: IngredientsDal;
 
     beforeAll(() => {
-        pool = new pg.Pool({ connectionString: DATABASE_URL });
+        pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = createRecipeDrizzle(pool);
         dal = new IngredientsDal(db);
     });
@@ -53,6 +55,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal dedup is race-proof (integratio
             `SELECT count(*)::int AS n FROM ingredients WHERE food_id = $1`,
             [foodId],
         );
+
         return Number(rows[0]!.n);
     }
 
@@ -62,6 +65,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal dedup is race-proof (integratio
             `SELECT count(*)::int AS n FROM ingredients WHERE is_user_entered = true AND lower(name) = lower($1)`,
             [name],
         );
+
         return Number(rows[0]!.n);
     }
 
@@ -69,7 +73,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal dedup is race-proof (integratio
         const results = await Promise.all(
             Array.from({ length: CONCURRENCY }, () =>
                 dal.createFoodBacked({
-                    name: 'Race Flour',
+                    name: makeCanonicalName('Race Flour'),
                     foodId: RACE_FOOD_ID,
                     foodResolutionStatus: FoodResolutionStatus.PENDING,
                 }),
@@ -89,7 +93,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal dedup is race-proof (integratio
             index % 2 === 0 ? RACE_NAME : RACE_NAME.toUpperCase(),
         );
 
-        const results = await Promise.all(spellings.map((name) => dal.createFreeform(name)));
+        const results = await Promise.all(spellings.map((name) => dal.createFreeform(makeCanonicalName(name))));
 
         expect(await countFreeformByName(RACE_NAME)).toBe(1);
         const ids = new Set(results.map((ingredient) => ingredient.id));

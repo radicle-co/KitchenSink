@@ -26,7 +26,7 @@
 | ----------------------- | :----------: | :-------: | :--------------: | :-----------: | :------------------: | ------------------------------------------ |
 | Drizzlelemons           |      ✅      |    ✅     |  ✅ auto-detect  |  🔜 planned   |          ✅          | Swipe L/R + tap buttons; 56 px tap targets |
 | Vule (One4Studio)       |      ✅      |    ✅     |        ✅        |   ✅ simple   |          —           | "Next / Previous / Timer" voice commands   |
-| CookEase                |      ✅      |    ✅     |        —         |     ✅ AI     |          —           | Context-aware AI commise                 |
+| CookEase                |      ✅      |    ✅     |        —         |     ✅ AI     |          —           | Context-aware AI commise                   |
 | Flavorish               |      ✅      |    ✅     |        —         |       —       |          —           | Step check-off; multi-recipe switching     |
 | Cookie                  |      ✅      |    ✅     |    ✅ audible    |  ✅ natural   |          —           | Accessibility-first; VoiceOver from day 1  |
 | The Kitchn (Cook Mode+) |      ✅      |    ✅     |        —         |       —       |          —           | Ingredient checklist; step collapse        |
@@ -288,12 +288,20 @@ From `001-commise-recipe-app/spec.md`, the `Recipe` entity includes:
 The 001 spec stores instructions as ordered text. Cooking Mode consumes them as an array:
 
 ```typescript
-// From 001 Recipe entity
-type RecipeInstruction = {
+// Shipped in @kitchensink/recipe-core — imported, never redefined (GR-007)
+interface RecipeStep {
+    id: string;
+    recipeId: string;
     stepNumber: number;
-    instruction: string; // free text — timers parsed from this at render time
-};
+    instruction: string;
+    timerSeconds?: number; // structured, per-step duration
+}
 ```
+
+> **Corrected 2026-08-05.** This section previously sketched a local `RecipeInstruction` type whose comment said "timers parsed
+> from this at render time". That premise is obsolete and was the root of two downstream defects: the shipped `RecipeStep`
+> already carries a **structured** `timerSeconds`, so FR-034 needs no free-text duration parsing at all, and defining the type
+> locally would violate GR-007 AC-007-d. See spec.md D-003.
 
 Cooking Mode does **not** modify the Recipe entity. It is a read-only consumer.
 

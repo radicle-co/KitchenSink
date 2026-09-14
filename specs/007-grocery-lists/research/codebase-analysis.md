@@ -33,11 +33,19 @@ Root workspaces from `package.json`:
 
 Based on `plan.md` + `tasks.md` locations:
 
-| Concern                        | Proposed Placement                                                                        |
-| ------------------------------ | ----------------------------------------------------------------------------------------- |
-| Grocery API module             | `packages/apps/commise/api/src/grocery-lists/`                                          |
-| Store API clients              | `packages/apps/commise/api/src/grocery-lists/store-clients/`                            |
-| Shared unit conversion utility | `packages/shared/culinary-units/src/index.ts` (as planned)                                      |
+⚠️ **Corrected 2026-08-12.** The first two rows previously read `packages/apps/commise/api/src/grocery-lists/`
+and `.../store-clients/` — a package that **does not exist and never has** (`packages/apps/commise/` holds
+`web`, `mobile`, `ui`, `i18n`, `features` only). This file was missed by the repoint in commit `b9221bb3`, which
+fixed `plan.md`, `spec.md` and `tasks.md` but not `research/`; the rows below now follow
+[ADR-0017](../../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md) — 007
+lands in the **existing** `@kitchensink/recipe-service`, with the retailer adapters in
+`@kitchensink/recipe-workers`. No new deployable service is created.
+
+| Concern                        | Proposed Placement                                                                      |
+| ------------------------------ | --------------------------------------------------------------------------------------- |
+| Grocery API module             | `packages/services/recipe-service/src/grocery-lists/`                                   |
+| Store API clients              | `packages/services/recipe-workers/src/grocery/adapters/`                                |
+| Shared unit conversion utility | `packages/shared/culinary-units/src/index.ts` (as planned)                              |
 | Web grocery list UI            | `packages/apps/commise/web` routes/components                                           |
 | Mobile parity UI               | `packages/apps/commise/mobile` screens/components (if included in implementation scope) |
 

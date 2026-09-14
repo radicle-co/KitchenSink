@@ -8,27 +8,32 @@
  * visibility option, the delete flow, and the clone action for a public recipe the viewer does not own.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { QueryClient } from '@tanstack/react-query';
+import { useState, type ReactElement } from 'react';
 
-import { computedContrast } from '@commise/test-utils';
+import { computedContrast, renderWithRecipeClient } from '@commise/test-utils';
 import { palette } from '@commise/ui';
-import { NotFoundError } from '@kitchensink/recipe-service-client';
+import { NotFoundError, recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
     useDeleteRecipeRating,
-    useRecipe,
     useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import type { RecipeDetail } from '@kitchensink/recipe-core';
 
 import { RecipeDetailScreen } from '../../src/screens/RecipeDetailScreen.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useRecipe: vi.fn(),
+// The READ goes through the real hooks over a network-guarded fake client (the recipe is SEEDED into the query cache,
+// so a settled suspense read renders synchronously); only the mutations are doubles.
+vi.mock('@kitchensink/recipe-service-client/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@kitchensink/recipe-service-client/hooks')>()),
     useDeleteRecipe: vi.fn(),
     useSetRecipeVisibility: vi.fn(),
     useCloneRecipe: vi.fn(),
@@ -40,7 +45,6 @@ vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: vi.fn(),
 }));
 
-const useRecipeMock = vi.mocked(useRecipe);
 const useDeleteRecipeMock = vi.mocked(useDeleteRecipe);
 const useSetRecipeVisibilityMock = vi.mocked(useSetRecipeVisibility);
 const useCloneRecipeMock = vi.mocked(useCloneRecipe);
@@ -48,10 +52,18 @@ const useSetRecipeRatingMock = vi.mocked(useSetRecipeRating);
 const useDeleteRecipeRatingMock = vi.mocked(useDeleteRecipeRating);
 const useUserProfileMock = vi.mocked(useUserProfile);
 
-function detailResult(overrides: Partial<ReturnType<typeof useRecipe>> = {}): ReturnType<typeof useRecipe> {
-    return { isLoading: false, isError: false, data: undefined, ...overrides } as unknown as ReturnType<
-        typeof useRecipe
-    >;
+/** The fake client and request cache each test renders over. */
+let client: ReturnType<typeof createFakeRecipeServiceClient>;
+let queryClient: QueryClient;
+
+/** Put a SETTLED recipe in the cache under its id, so the suspense read renders it with no fetch. */
+function seedRecipe(recipe: RecipeDetail, id = 'rec_1'): void {
+    queryClient.setQueryData(recipeQueries(client).detail(id).queryKey, recipe);
+}
+
+/** Render over this test's client and cache — the providers a real app root mounts. */
+function render(ui: ReactElement) {
+    return renderWithRecipeClient(ui, client, { queryClient });
 }
 
 function mutation<T>(overrides: Partial<T> = {}): T {
@@ -70,7 +82,10 @@ function profile(id: string | undefined, tier: 'free' | 'premium' = 'free'): Ret
 afterEach(cleanup);
 
 beforeEach(() => {
-    useRecipeMock.mockReset();
+    client = createFakeRecipeServiceClient();
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    // Unseeded, a read stays pending — the loading state.
+    vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
     useDeleteRecipeMock.mockReset();
     useSetRecipeVisibilityMock.mockReset();
     useCloneRecipeMock.mockReset();
@@ -87,16 +102,12 @@ beforeEach(() => {
 
 describe('RecipeDetailScreen — loading state', () => {
     it('shows the localized loading indicator while the query is loading', () => {
-        useRecipeMock.mockReturnValue(detailResult({ isLoading: true }));
-
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
     });
 
     it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
-        useRecipeMock.mockReturnValue(detailResult({ isLoading: true }));
-
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         const label = mobileMessages.en.recipes.detailLoading;
@@ -111,7 +122,7 @@ describe('RecipeDetailScreen — loading state', () => {
         // owner-gated actions (edit/delete/visibility) and then pop them in when the profile lands — a layout
         // shift that makes a fast (or automated) tapper race a moving target. The screen must stay loading
         // until BOTH sources resolve. Fails against a gate that only checks the recipe query.
-        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ title: 'Weeknight Pasta' }) }));
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
         useUserProfileMock.mockReturnValue({ isLoading: true, data: undefined } as unknown as ReturnType<
             typeof useUserProfile
         >);
@@ -123,30 +134,74 @@ describe('RecipeDetailScreen — loading state', () => {
     });
 });
 
+describe('RecipeDetailScreen — a failed refresh of the recipe on screen', () => {
+    it('⛔ keeps the recipe and says the refresh failed, never the load error, and Try again refetches', async () => {
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta' }));
+        const getRecipe = vi
+            .spyOn(client, 'getRecipeById')
+            .mockRejectedValueOnce(new Error('network down'))
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta' }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        // A refresh of the settled recipe fails: a suspense read throws only when it has NO data, so it keeps it.
+        await act(async () => {
+            await queryClient.refetchQueries({ queryKey: recipeServiceKeys.recipe('rec_1'), exact: true });
+        });
+
+        // TanStack batches observer notifications onto a later tick, so the notice is awaited, not read synchronously.
+        expect((await screen.findAllByText('We couldn’t refresh this recipe.')).length).toBeGreaterThan(0);
+        expect(screen.getByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(screen.queryByText('We couldn’t load this recipe.')).toBeNull();
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        });
+        expect(getRecipe).toHaveBeenCalledTimes(2);
+    });
+});
+
 describe('RecipeDetailScreen — error state', () => {
-    it('shows an alert when the query errors', () => {
-        useRecipeMock.mockReturnValue(detailResult({ isError: true }));
+    it('shows an alert with a retry that refetches when the load fails', async () => {
+        const getRecipe = vi
+            .spyOn(client, 'getRecipeById')
+            .mockRejectedValueOnce(new Error('network down'))
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta' }));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(await screen.findByRole('alert')).toBeTruthy();
         expect(screen.getByText('We couldn’t load this recipe.')).toBeTruthy();
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        });
+        expect(await screen.findByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(getRecipe).toHaveBeenCalledTimes(2);
     });
 
-    it('shows the error state when the query settled without data', () => {
-        useRecipeMock.mockReturnValue(detailResult({ data: undefined }));
+    it('says the recipe was not found, with NO retry, for a 404 — web parity', async () => {
+        vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError());
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
+        expect(await screen.findByText('We couldn’t find that recipe.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
+    it('shows the generic error, with a way out, for an id that cannot name a recipe', () => {
+        const getRecipe = vi.spyOn(client, 'getRecipeById');
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        render(<RecipeDetailScreen recipeId="" />);
+
+        expect(getRecipe).not.toHaveBeenCalled();
         expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+        expect(screen.queryByText('We couldn’t find that recipe.')).toBeNull();
     });
 });
 
 describe('RecipeDetailScreen — ready state', () => {
     it('renders the recipe detail view once the recipe resolves', () => {
-        useRecipeMock.mockReturnValue(
-            detailResult({ data: makeRecipeDetail({ title: 'Weeknight Pasta', description: 'Fast and cozy.' }) }),
-        );
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta', description: 'Fast and cozy.' }));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
@@ -156,7 +211,7 @@ describe('RecipeDetailScreen — ready state', () => {
     });
 
     it('renders and wires the back affordance only when onBack is provided', () => {
-        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ title: 'Weeknight Pasta' }) }));
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
         const onBack = vi.fn();
 
         const { rerender } = render(<RecipeDetailScreen recipeId="rec_1" onBack={onBack} />);
@@ -168,7 +223,7 @@ describe('RecipeDetailScreen — ready state', () => {
     });
 
     it('keeps the back affordance’s label WCAG-AA legible on the screen’s sand background', () => {
-        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ title: 'Weeknight Pasta' }) }));
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
 
         render(<RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />);
 
@@ -180,7 +235,7 @@ describe('RecipeDetailScreen — ready state', () => {
     });
 
     it('hides owner actions (including the More menu) from a non-owner', () => {
-        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ ownerId: 'usr_owner' }) }));
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_owner' }));
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
@@ -195,11 +250,7 @@ describe('RecipeDetailScreen — ready state', () => {
         // and the remove affordance revealed on load, driven by the detail's `viewerRating` — while the community
         // `averageRating` (4.5) stays the displayed social-proof score. Mutation lens: if the screen stops passing
         // `viewerRating` through, the selection is empty and both assertions below fail.
-        useRecipeMock.mockReturnValue(
-            detailResult({
-                data: makeRecipeDetail({ ownerId: 'usr_owner', viewerRating: 3, averageRating: 4.5, ratingCount: 12 }),
-            }),
-        );
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_owner', viewerRating: 3, averageRating: 4.5, ratingCount: 12 }));
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
@@ -211,7 +262,7 @@ describe('RecipeDetailScreen — ready state', () => {
     });
 
     it('shows no rating input on the viewer’s OWN recipe (Sc8), and viewerRating is absent there', () => {
-        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ ownerId: 'usr_viewer' }) }));
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_viewer' }));
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
@@ -223,9 +274,7 @@ describe('RecipeDetailScreen — ready state', () => {
 
 describe('RecipeDetailScreen — owner actions', () => {
     beforeEach(() => {
-        useRecipeMock.mockReturnValue(
-            detailResult({ data: makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }) }),
-        );
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
     });
 
@@ -243,9 +292,7 @@ describe('RecipeDetailScreen — owner actions', () => {
     });
 
     it('invokes onFilterByTag when a tag chip is tapped (D6)', () => {
-        useRecipeMock.mockReturnValue(
-            detailResult({ data: makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private', tags: ['grill'] }) }),
-        );
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private', tags: ['grill'] }));
         const onFilterByTag = vi.fn();
 
         render(<RecipeDetailScreen recipeId="rec_1" onFilterByTag={onFilterByTag} />);
@@ -307,9 +354,7 @@ describe('RecipeDetailScreen — owner actions', () => {
 
 describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', () => {
     beforeEach(() => {
-        useRecipeMock.mockReturnValue(
-            detailResult({ data: makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }) }),
-        );
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
     });
 
@@ -367,6 +412,7 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
         fireEvent.click(screen.getByRole('button', { name: 'More' }));
 
         const t = mobileMessages.en.recipes;
+
         for (const name of [t.editAction, t.versionsAction, t.deleteAction]) {
             expect(window.getComputedStyle(pillOf(name)).minHeight).toBe('44px');
         }
@@ -375,7 +421,7 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
 
 describe('RecipeDetailScreen — visibility gating', () => {
     it('shows the upgrade reason for a free-tier owner', () => {
-        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ ownerId: 'usr_1' }) }));
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'free'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
@@ -386,33 +432,32 @@ describe('RecipeDetailScreen — visibility gating', () => {
 });
 
 describe('RecipeDetailScreen — rating error does not leak across a recipeId change (mutation lens)', () => {
-    it('scrubs a failed/pending rating write when the screen is reused with a new recipeId', () => {
-        // A `replace`/deep-link reuses THIS screen instance with a new `recipeId` param, so the rating
-        // `useMutation` instances survive. A stateful double models real TanStack: `reset()` clears the
-        // observer, and every render reads the CURRENT state. If the screen fails to reset on the id change,
-        // the previous recipe's error and busy state leak onto the new one. Mutation lens: drop the `.reset()`
-        // calls and this test goes red.
-        const setRatingState = {
-            mutate: vi.fn(),
-            isPending: true,
-            error: new NotFoundError('Resource not found') as Error | null,
-            reset: vi.fn(() => {
-                setRatingState.isPending = false;
-                setRatingState.error = null;
-            }),
-        };
-        const deleteRatingState = { mutate: vi.fn(), isPending: false, error: null as Error | null, reset: vi.fn() };
-        useSetRecipeRatingMock.mockImplementation(
-            () => ({ ...setRatingState }) as unknown as ReturnType<typeof useSetRecipeRating>,
-        );
-        useDeleteRecipeRatingMock.mockImplementation(
-            () => ({ ...deleteRatingState }) as unknown as ReturnType<typeof useDeleteRecipeRating>,
-        );
+    it('a failed/pending rating write cannot reach the next recipe, because the id change remounts the detail', () => {
+        // REWRITTEN for the suspense conversion. A `replace`/deep-link reuses THIS screen instance with a new
+        // `recipeId`, and the old screen carried every mutation instance across it, resetting each by hand. The
+        // settled view is now KEYED on the id, so the new recipe mounts fresh hook instances. The doubles model a real
+        // `useMutation` observer: their state belongs to the mounted INSTANCE, so the first mount is mid-flight with
+        // a prior failure and any later mount is idle — without the remount, recipe B would read A's instance.
+        let setRatingInstances = 0;
+        let deleteRatingInstances = 0;
+        useSetRecipeRatingMock.mockImplementation(() => {
+            const [instance] = useState(() => (setRatingInstances += 1));
+
+            return (instance === 1
+                ? { mutate: vi.fn(), isPending: true, error: new NotFoundError('Resource not found'), reset: vi.fn() }
+                : { mutate: vi.fn(), isPending: false, error: null, reset: vi.fn() }) as unknown as ReturnType<
+                typeof useSetRecipeRating
+            >;
+        });
+        useDeleteRecipeRatingMock.mockImplementation(() => {
+            useState(() => (deleteRatingInstances += 1));
+
+            return mutation<ReturnType<typeof useDeleteRecipeRating>>();
+        });
 
         // A non-owner viewing a rateable public recipe — the rating control (and its error) render.
-        useRecipeMock.mockReturnValue(
-            detailResult({ data: makeRecipeDetail({ ownerId: 'usr_owner', visibility: 'public' }) }),
-        );
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }));
+        seedRecipe(makeRecipeDetail({ id: 'rec_2', ownerId: 'usr_owner', visibility: 'public' }), 'rec_2');
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
 
         const { rerender } = render(<RecipeDetailScreen recipeId="rec_1" />);
@@ -425,9 +470,7 @@ describe('RecipeDetailScreen — rating error does not leak across a recipeId ch
         // Reuse the screen for recipe B WITHOUT placing a new rating (deep-link/replace path).
         rerender(<RecipeDetailScreen recipeId="rec_2" />);
 
-        // Both rating mutations are reset, so neither the error nor the pending state reaches recipe B.
-        expect(setRatingState.reset).toHaveBeenCalled();
-        expect(deleteRatingState.reset).toHaveBeenCalled();
+        expect(deleteRatingInstances).toBe(2);
         expect(screen.queryByRole('alert')).toBeNull();
         expect(screen.queryByText('This recipe isn’t available.')).toBeNull();
         expect(screen.queryByText('Saving your rating…')).toBeNull();
@@ -436,11 +479,7 @@ describe('RecipeDetailScreen — rating error does not leak across a recipeId ch
 
 describe('RecipeDetailScreen — clone', () => {
     it('groups the Clone action with the version + visibility badges in ONE footer row (C3)', () => {
-        useRecipeMock.mockReturnValue(
-            detailResult({
-                data: makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public', currentVersion: 2 }),
-            }),
-        );
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public', currentVersion: 2 }));
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
@@ -453,9 +492,7 @@ describe('RecipeDetailScreen — clone', () => {
 
     it('clones a public recipe the viewer does not own and reports the new id', () => {
         const cloned = makeRecipeDetail({ id: 'rec_clone' });
-        useRecipeMock.mockReturnValue(
-            detailResult({ data: makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }) }),
-        );
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }));
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
         const mutate = vi.fn((_id: string, options?: { onSuccess?: (recipe: typeof cloned) => void }) =>
             options?.onSuccess?.(cloned),
@@ -474,9 +511,7 @@ describe('RecipeDetailScreen — clone', () => {
         // D7: the shared `canClone` predicate excludes the owner even on a PUBLIC recipe. Regression guard for
         // the drift this task fixes — web previously ignored ownership here while mobile checked it; now both
         // platforms read the SAME predicate, so an inverted/dropped ownership check fails this test.
-        useRecipeMock.mockReturnValue(
-            detailResult({ data: makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility: 'public' }) }),
-        );
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility: 'public' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);

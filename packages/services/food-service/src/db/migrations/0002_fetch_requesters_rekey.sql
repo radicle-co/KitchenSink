@@ -35,9 +35,10 @@
 --       candidate set), so it would never progress;
 --     - a `PENDING` food whose requesters are purged but queue row kept would be refused by the
 --       tightened provenance guard (zero valid requesters) and tombstoned, still never resolving.
---   So the purge is scoped to leave NOTHING stuck:
---     (2a) drop every requester row (all are pre-U1 raw-`sub` keys; harmless to drop the valid
---          `svc_change_refresh` ones too — a refresh row simply won't refresh this cycle);
+--   So the purge was scoped to leave NOTHING stuck:
+--     (2a) drop every requester row (all pre-U1 raw-`sub` keys; harmless to drop the valid
+--          `svc_change_refresh` ones too — a refresh row simply won't refresh this cycle)
+--          — ⛔ SCRUBBED 2026-09-02, see below;
 --     (2b) delete every dataless `PENDING` placeholder food (CASCADE removes its queue/requester/
 --          candidate rows) — these carry NO golden data, so a stale poll cleanly 404s and re-adds;
 --     (2c) delete any remaining ACTIVE (pending/in_flight) queue rows — these now belong only to
@@ -46,8 +47,28 @@
 --   Left intact: RESOLVED foods (readable), UNRESOLVED foods (still PATCH-resolvable; they normally
 --   hold no queue row), and NOT_FOUND/FAILED tombstones.
 --
---   ORDER (must stay): (1) rename the column/index, THEN (2a→2b→2c) purge. No legacy `sub`-keyed row
---   survives to be evaluated by the tightened validator, and nothing is left in a stuck state.
+--   ORDER (must stay): (1) rename the column/index, THEN (2b→2c) purge. Nothing is left in a stuck state.
+--
+-- ── ⛔ (2a) SCRUBBED 2026-09-02 (owner ruling — "I don't want hidden bombs in the app") ────────────────
+--   This file used to carry an UNQUALIFIED `DELETE FROM "fetch_requesters";` as step (2a). It was safe only
+--   by ACCIDENT: the runner skips a file whose name is in `schema_migrations`, and on a re-run with that row
+--   cleared the `RENAME COLUMN` above would error first and roll the DELETE back with it. That made an
+--   otherwise-reasonable edit — guarding the RENAME with a `pg_catalog` lookup "to make the migration
+--   idempotent" — silently turn a re-run into a whole-table wipe, with the guard being a line the editor was
+--   not looking at.
+--
+--   ⚠️ Removing it is behaviour-preserving on EVERY reachable path, verified rather than assumed:
+--     * `schema_migrations` is `name TEXT PRIMARY KEY` with NO checksum (see `src/lambdas/migrate/handler.ts`)
+--       and the skip is a pure name match, so editing this body cannot reach a database that already ran it;
+--     * on a FRESH database `fetch_requesters`, `food` and `fetch_queue` are ALL empty when this file runs —
+--       no migration inserts into any of them, and only the deployed application writes a requester row.
+--       MEASURED: 0/0/0 rows immediately before this file, over the full ordered set. So (2a), (2b) and (2c)
+--       are all no-ops there and dropping (2a) cannot change what (2b)/(2c) do.
+--   The one path on which (2a) was ever load-bearing — a database holding legacy raw-`sub` requester rows
+--   that has NOT yet run 0002 — cannot exist: this service was pre-launch at cutover (below) and every
+--   deployed stage is fourteen migrations past this one. The purge therefore ran exactly once, everywhere it
+--   was ever going to, before this edit.
+--   `migrationDestructiveDml.test.ts` now fails any migration carrying an unqualified DELETE/UPDATE.
 --
 -- Rollback boundary (KTD-4): food is a separate CDK stack, so this migration reverts independently of
 -- the recipe/identity erasure feature.
@@ -61,7 +82,7 @@ ALTER INDEX "idx_fetch_requesters_sub" RENAME TO "idx_fetch_requesters_requester
 
 -- (2) Purge legacy demand state, non-stranding (see CUTOVER SAFETY above). Runs once
 -- (schema_migrations gates re-invocation); on a fresh/test database every table is empty, so these are
--- all no-ops.
-DELETE FROM "fetch_requesters";                                   -- (2a) every pre-U1 raw-sub key
+-- all no-ops. ⛔ (2a) was an unqualified whole-table DELETE and is SCRUBBED — see the (2a) note above;
+-- (2b)'s CASCADE still removes the requester rows of every food it deletes.
 DELETE FROM "food" WHERE "status" = 'PENDING';                    -- (2b) dataless placeholders (CASCADE)
 DELETE FROM "fetch_queue" WHERE "status" IN ('pending', 'in_flight'); -- (2c) leftover RESOLVED-refresh rows

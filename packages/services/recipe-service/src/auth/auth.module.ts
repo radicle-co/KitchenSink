@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { AuthMiddleware } from './auth.middleware.js';
-import { ClerkAuthService } from './clerk-auth.service.js';
-import { ServiceErasureAuthService } from './service-erasure-auth.service.js';
-import { ServiceErasureGuard } from './service-erasure.guard.js';
+import { ClerkAuthService } from './clerkAuth.service.js';
+import { CONTAINMENT_MODE } from './containmentMode.js';
+import { TestPrincipalsDal } from './dal/testPrincipals.dal.js';
+import type { TestPrincipalContainment } from '../common/containmentPolicy.js';
+import { ServiceErasureAuthService } from './serviceErasureAuth.service.js';
+import { ServiceErasureGuard } from './serviceErasure.guard.js';
 
 /**
  * `AuthModule` — provides the two verification stacks the recipe service authenticates with:
@@ -18,7 +22,28 @@ import { ServiceErasureGuard } from './service-erasure.guard.js';
  * consume them.
  */
 @Module({
-    providers: [ClerkAuthService, AuthMiddleware, ServiceErasureAuthService, ServiceErasureGuard],
-    exports: [ClerkAuthService, AuthMiddleware, ServiceErasureAuthService, ServiceErasureGuard],
+    providers: [
+        ClerkAuthService,
+        AuthMiddleware,
+        ServiceErasureAuthService,
+        ServiceErasureGuard,
+        TestPrincipalsDal,
+        {
+            // ADR-0040 — the stage's containment mode, from the VALIDATED config (default `enforce`). `getOrThrow`
+            // is belt-and-braces: the boot-time schema always materializes the default.
+            provide: CONTAINMENT_MODE,
+            inject: [ConfigService],
+            useFactory: (config: ConfigService): TestPrincipalContainment =>
+                config.getOrThrow<TestPrincipalContainment>('TEST_PRINCIPAL_CONTAINMENT'),
+        },
+    ],
+    exports: [
+        ClerkAuthService,
+        AuthMiddleware,
+        ServiceErasureAuthService,
+        ServiceErasureGuard,
+        TestPrincipalsDal,
+        CONTAINMENT_MODE,
+    ],
 })
 export class AuthModule {}

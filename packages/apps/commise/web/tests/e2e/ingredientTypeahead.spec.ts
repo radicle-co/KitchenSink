@@ -36,14 +36,48 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
         await expect(page.getByText('Step 2 of 4')).toBeVisible();
         const search = page.getByRole('searchbox', { name: 'Search ingredients' });
 
-        // REQ-057 — below the 2-character trigger, no suggestion is ever offered, even though the mocked
-        // search endpoint would return the catalog "Salt" fixture for any non-empty query.
+        // 003-FR-010a (plan U37) — below the three-character minimum no suggestion is ever offered, even
+        // though the mocked search endpoint would return the catalog "Salt" fixture for any non-empty
+        // query, AND the picker says why instead of rendering an empty panel. Asserted at BOTH one and two
+        // characters: the old floor was two, so a case at one character alone would pass on a revert.
         await search.fill('s');
+        await expect(
+            page.getByText('Keep typing — 3 characters or more. Anything shorter matches half the pantry.'),
+        ).toBeVisible();
         await expect(page.getByRole('button', { name: 'Salt', exact: true })).toHaveCount(0);
 
-        // At 2+ characters the (debounced) search settles and the catalog match appears.
         await search.fill('sa');
+        await expect(
+            page.getByText('Keep typing — 3 characters or more. Anything shorter matches half the pantry.'),
+        ).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Salt', exact: true })).toHaveCount(0);
+        // ⛔ And the query-keyed affordances stay suppressed: "Find nutrition for “sa”" would fire the very
+        // search the minimum gates, and the freeform control would mint a shared catalog row named "sa".
+        await expect(page.getByRole('button', { name: /^Find nutrition for/ })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /custom ingredient$/ })).toHaveCount(0);
+
+        // At three characters the (debounced) search settles and the catalog match appears.
+        // U5 (analytics): the pick must fire ONE fire-and-forget POST to the ingest door carrying a
+        // pick outcome. Intercepted (never a real backend here) and awaited via waitForRequest — the
+        // emission is async after the tap, so the click and the wait race together.
+        await page.route('**/ingest/v1/events', async (intercepted) => {
+            await intercepted.fulfill({
+                status: 202,
+                contentType: 'application/json',
+                body: JSON.stringify({ accepted: 1, landed: 1 }),
+            });
+        });
+        await search.fill('sal');
+        const ingestRequest = page.waitForRequest(
+            (request) => request.url().includes('/ingest/v1/events') && request.method() === 'POST',
+        );
         await page.getByRole('button', { name: 'Salt', exact: true }).click();
+        const ingest = await ingestRequest;
+        const ingestBody = ingest.postDataJSON() as {
+            events: { outcome: { kind: string }; query: string }[];
+        };
+        expect(ingestBody.events).toHaveLength(1);
+        expect(ingestBody.events[0]?.outcome.kind).toBe('pick');
 
         // Add a second, freeform ingredient (REQ-032a/b — not backed by the food database) — this is what
         // gates the REQ-034 disclosure notice on.
@@ -55,7 +89,7 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Combine and store airtight.');
 
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 

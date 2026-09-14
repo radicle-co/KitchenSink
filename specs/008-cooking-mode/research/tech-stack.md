@@ -95,7 +95,12 @@ The cooking-mode stack is primarily an interaction/runtime feature over existing
 
 ## Data/API Integration
 
-**Choice**: Reuse existing recipe instructions endpoint (`GET /api/v1/recipes/{id}/instructions`) from feature 001.
+**Choice**: Reuse the existing recipe **detail** endpoint (`GET /api/v1/recipes/{id}`) from feature 001.
+
+> **Corrected 2026-08-05.** This section previously named `GET /api/v1/recipes/{id}/instructions` as an "existing" endpoint.
+> No such route exists — `packages/services/recipe-service/src/recipes/recipes.controller.ts` defines `GET :id` and
+> `POST :id/clone` only. The conclusion below is unchanged and in fact strengthened: the recipe detail payload already embeds
+> `steps: RecipeStepView[]` including `timerSeconds`, so Cooking Mode needs **no** new endpoint and no extra request.
 
 **Rationale**:
 

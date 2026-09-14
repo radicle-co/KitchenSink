@@ -10,8 +10,8 @@
 
 | Feature                    | Milestone         | CRITICAL | WARNING | Notes                                                                                                             |
 | -------------------------- | ----------------- | -------: | ------: | ----------------------------------------------------------------------------------------------------------------- |
-| `001-commise-recipe-app` | `M1` Rivendell    |    **0** |   **2** | Prior route-standard and `shared/recipe-core` handoff criticals resolved at artifact/task-planning level          |
-| `002-user-auth`      | `M0` Shire        |    **0** |   **3** | data-model wording, Node engine drift, FR-indexing of tasks                                                       |
+| `001-commise-recipe-app`   | `M1` Rivendell    |    **0** |   **2** | Prior route-standard and `shared/recipe-core` handoff criticals resolved at artifact/task-planning level          |
+| `002-user-auth`            | `M0` Shire        |    **0** |   **3** | data-model wording, Node engine drift, FR-indexing of tasks                                                       |
 | `003-usda-food-data`       | `M1` Rivendell    |    **0** |   **3** | substitution UX, unit conversion, deferred WebSocket                                                              |
 | `004-recipe-importing`     | `M1` Rivendell    |    **0** |   **4** | FR-014a legal upstream, OCR phasing, competitor matrix, v-model review drift                                      |
 | `005-ai-integration`       | `M5` Isengard     |    **0** |   **2** | tasks not FR-annotated; only SC-003 explicit                                                                      |

@@ -9,7 +9,7 @@
  *
  * The failure this pins was observed in CI: Home rendered its three roadmap placeholders and then simply
  * STOPPED — no recipe widget, no "See all recipes", just blank space where the slot should be (Maestro
- * `signin.yaml` then timed out scrolling for that entry, taking `photos` and `discover-recent-searches` with
+ * `signin.yaml` then timed out scrolling for that entry, taking `photos` and `discoverRecentSearches` with
  * it). Because the slot renders the entry unconditionally, the only way to get nothing is the host's
  * per-widget `ErrorBoundary` catching a throw — and its `fallback={null}` erased the whole slot, navigation
  * included. `Suspense` does not help here: it handles a PENDING lazy chunk, never a REJECTED one.
@@ -22,11 +22,10 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import type { JSX, ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { renderWithProviders } from '@commise/test-utils';
-import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
+import { renderWithRecipeClient } from '@commise/test-utils';
+import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { Text } from 'react-native';
-
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({ useRecipes: vi.fn() }));
 
 // The descriptor's loader seam REJECTS — the real-world shape of an async chunk that fails to fetch.
 vi.mock('@commise/features-recipes', async (importOriginal) => ({
@@ -39,15 +38,25 @@ vi.mock('@commise/features-recipes', async (importOriginal) => ({
     },
 }));
 
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
+}));
+
 const { RecipeWidgetSlot } = await import('../../../src/components/home/RecipeWidgetSlot.js');
 
-const useRecipesMock = vi.mocked(useRecipes);
+/** The client the slot reads through; its recipes read SUCCEEDS here, so only the chunk fails. */
+let client: RecipeServiceClient;
 
 afterEach(cleanup);
 
 beforeEach(() => {
-    useRecipesMock.mockReset();
-    useRecipesMock.mockReturnValue({ isLoading: false, data: undefined } as unknown as ReturnType<typeof useRecipes>);
+    client = createFakeRecipeServiceClient();
+    vi.spyOn(client, 'listRecipes').mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 4, hasMore: false });
     // React logs the caught boundary error; silence it so a PASSING run has clean output.
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
@@ -84,10 +93,11 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
     it('keeps the "see all recipes" entry usable when the widget chunk rejects', async () => {
         const onSeeAllRecipes = vi.fn();
 
-        renderWithProviders(
+        renderWithRecipeClient(
             <HostBoundary>
                 <RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} onSelectRecipe={() => undefined} />
             </HostBoundary>,
+            client,
         );
 
         await settleChunkRejection();
@@ -99,10 +109,11 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
     });
 
     it('explains the loss with a localized notice instead of leaving blank space', async () => {
-        renderWithProviders(
+        renderWithRecipeClient(
             <HostBoundary>
                 <RecipeWidgetSlot onSeeAllRecipes={() => undefined} onSelectRecipe={() => undefined} />
             </HostBoundary>,
+            client,
         );
 
         await settleChunkRejection();
@@ -126,10 +137,11 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
     });
 
     it('does not offer a retry affordance it cannot honour (React.lazy caches the rejection)', async () => {
-        renderWithProviders(
+        renderWithRecipeClient(
             <HostBoundary>
                 <RecipeWidgetSlot onSeeAllRecipes={() => undefined} onSelectRecipe={() => undefined} />
             </HostBoundary>,
+            client,
         );
 
         await settleChunkRejection();
@@ -148,7 +160,7 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
     it('reports the widget failure rather than swallowing it', async () => {
         const onWidgetError = vi.fn();
 
-        renderWithProviders(
+        renderWithRecipeClient(
             <HostBoundary>
                 <RecipeWidgetSlot
                     onSeeAllRecipes={() => undefined}
@@ -156,6 +168,7 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
                     onWidgetError={onWidgetError}
                 />
             </HostBoundary>,
+            client,
         );
 
         await settleChunkRejection();

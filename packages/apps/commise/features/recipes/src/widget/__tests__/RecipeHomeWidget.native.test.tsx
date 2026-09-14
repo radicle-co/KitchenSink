@@ -1,27 +1,19 @@
 /**
  * Native component tests for the recipe Home widget — its prop-driven states on React Native (rendered
- * via react-native-web under jsdom): the loading skeleton, the populated recent-recipes list, the
- * MAX_RECENT_RECIPES cap, and the empty state. Mirrors the web widget's coverage for the `.native` tree.
+ * via react-native-web under jsdom): the populated recent-recipes list, the MAX_RECENT_RECIPES cap, and the empty
+ * state. The loading card is the host slot's `QueryBoundary` fallback, covered by the mobile slot's tests.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — both tsc and the native config's resolver map this to RecipeHomeWidget.native.tsx,
-// so the test typechecks against the NATIVE prop contract (recipes/isLoading), not the web (recipesPromise).
+// so the test typechecks against the NATIVE prop contract (recipes), not the web (recipesPromise).
 import RecipeHomeWidget from '../RecipeHomeWidget.native.js';
 
 afterEach(cleanup);
 
 describe('RecipeHomeWidget (native)', () => {
-    it('shows the loading skeleton (not the empty or list state) when isLoading', () => {
-        render(<RecipeHomeWidget isLoading />);
-
-        expect(screen.getByText('Recent recipes')).toBeTruthy(); // the card header
-        expect(screen.queryByText(/No recipes yet/i)).toBeNull(); // not the empty state
-        expect(screen.queryByText('Weeknight Pasta')).toBeNull(); // no recipe rows
-    });
-
     it('renders the recent recipes when populated', () => {
         render(
             <RecipeHomeWidget

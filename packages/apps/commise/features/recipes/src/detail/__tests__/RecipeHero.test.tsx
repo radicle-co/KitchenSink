@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Component tests for the web {@link RecipeHero} — the recipe-detail lead cover treatment the mockup
- * (`screen-recipe-detail`) opens the screen with: a full-width cover image under a bottom-up scrim.
+ * (`screenRecipeDetail`) opens the screen with: a full-width cover image under a bottom-up scrim.
  *
  * BOTH states are covered, because the interesting one is the absence: a recipe with no photo must look
  * DELIBERATE (a branded, labelled placeholder), never a broken image or a collapsed zero-height box. So these

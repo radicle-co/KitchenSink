@@ -6,9 +6,10 @@
  * image-picker (replacing the old paste-a-URL text box), and a `@commise/ui` {@link Button} with a real
  * `busy` state for Save — all copy from `mobileMessages`, wrapped in a `SafeAreaView` + `KeyboardAvoidingView`
  * so the keyboard never occludes the field. The account-level controls (security, sign out, close/erase)
- * live in the reachable {@link import('./AccountSettings.js').AccountSettingsScreen} hub, entered via the
+ * live in the reachable `AccountSettingsScreen` hub, entered via the
  * "Account settings" action here (`onOpenAccountSettings`), so destructive actions have a single home.
  */
+import { toDetailQueryView } from '@commise/features-core';
 import { Button } from '@commise/ui/button';
 import { Input } from '@commise/ui/input';
 import { palette } from '@commise/ui';
@@ -23,7 +24,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AvatarField } from '../components/account/AvatarField.js';
 import { LoadingState } from '../components/LoadingState.js';
 import { SuspensionBanner } from '../components/SuspensionBanner.js';
-import { useUpdateProfile, useUserProfile } from '../hooks/useUserProfile.js';
+import { useUpdateProfile } from '../hooks/useUpdateProfile.js';
+import { useUserProfile } from '../hooks/useUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 /** The loaded profile query data (non-undefined). */
@@ -37,9 +39,9 @@ export interface ProfileScreenProps {
 
 export function ProfileScreen({ onOpenAccountSettings }: ProfileScreenProps = {}): JSX.Element {
     const { profile: t } = useMessages(mobileMessages);
-    const { data, isLoading, error } = useUserProfile();
+    const view = toDetailQueryView(useUserProfile());
 
-    if (isLoading) {
+    if (view.status === 'loading') {
         return (
             <SafeAreaView style={styles.safe}>
                 <LoadingState label={t.loading} />
@@ -47,7 +49,9 @@ export function ProfileScreen({ onOpenAccountSettings }: ProfileScreenProps = {}
         );
     }
 
-    if (error || !data) {
+    // Only a profile that never loaded is a load error. A failed background refetch keeps the cached profile, and it
+    // stays silent: the form is seeded once, so a retry would change nothing on screen.
+    if (view.status === 'error') {
         return (
             <SafeAreaView style={styles.safe}>
                 <View style={styles.center}>
@@ -60,7 +64,9 @@ export function ProfileScreen({ onOpenAccountSettings }: ProfileScreenProps = {}
     // B1 — seed the edit form ONCE from the cache via the `useState` initializer (no clobber `useEffect`).
     // `key={data.user.id}` remounts the form only when the profile IDENTITY changes, so a background refetch
     // or a post-save invalidation of the SAME profile never overwrites unsaved edits.
-    return <ProfileEditForm key={data.user.id} profile={data} onOpenAccountSettings={onOpenAccountSettings} />;
+    return (
+        <ProfileEditForm key={view.data.user.id} profile={view.data} onOpenAccountSettings={onOpenAccountSettings} />
+    );
 }
 
 /** The controlled edit form, seeded once from the cached profile on mount. */
@@ -133,7 +139,9 @@ function ProfileEditForm({
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     flex: { flex: 1 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     container: {

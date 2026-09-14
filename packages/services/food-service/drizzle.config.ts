@@ -18,11 +18,11 @@ import { defineConfig } from 'drizzle-kit';
 export default defineConfig({
     dialect: 'postgresql',
     // Point at the table-definition modules directly (food.ts canonical core + enums, operational.ts
-    // queue/limiter, food-candidates.ts). The barrel (`index.ts`) re-exports with the project-standard
+    // queue/limiter, foodCandidates.ts). The barrel (`index.ts`) re-exports with the project-standard
     // `.js` extension, which drizzle-kit's CJS schema loader cannot resolve, so the barrel itself is
     // NOT the target; listing the definition modules avoids that resolution mismatch and covers all
     // 13 tables + 5 enums.
-    schema: ['./src/db/schema/food.ts', './src/db/schema/operational.ts', './src/db/schema/food-candidates.ts'],
+    schema: ['./src/db/schema/food.ts', './src/db/schema/operational.ts', './src/db/schema/foodCandidates.ts'],
     out: './.drizzle-scratch',
     dbCredentials: {
         url: process.env['DATABASE_URL'] ?? 'postgresql://food_app:postgres@localhost:5432/kitchensink_food',

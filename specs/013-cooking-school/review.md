@@ -95,8 +95,8 @@ Rule: [GR-014](../governance-rules.md#gr-014-audience-and-sharing-model)
 
 | Feature                                                         | Integration Focus                        | Planning Status                 |
 | --------------------------------------------------------------- | ---------------------------------------- | ------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)           | Auth/session/role checks                 | Covered in plan + tasks         |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | Recipe linkage in lessons/player drawer  | Covered in plan + tasks         |
+| [002-user-auth](../002-user-auth/spec.md)                       | Auth/session/role checks                 | Covered in plan + tasks         |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)     | Recipe linkage in lessons/player drawer  | Covered in plan + tasks         |
 | [005-ai-integration](../005-ai-integration/spec.md)             | AI script drafting endpoint integration  | Covered in plan + tasks         |
 | [010-subscriptions](../010-subscriptions/spec.md)               | Purchase + entitlement + gating          | Covered in plan + tasks         |
 | [012-creator-profiles](../012-creator-profiles/spec.md)         | `@handle` identity/discovery projection  | Covered in plan + tasks         |

@@ -20,7 +20,7 @@ import { supportsNativeBlur } from '../tokens/gradients.js';
  * Whether the host can actually blur a backdrop.
  *
  * Reads only RN's static `Platform.OS` (no I/O, no async, no measurement), so it is safe to call at module
- * scope. The mirror of {@link import('./blurSupport.js').isBlurSupported}.
+ * scope. The mirror of `isBlurSupported`.
  *
  * @returns `true` on hosts where `expo-blur` renders a real blur; `false` where it degrades to a translucent
  *   unblurred view (notably Android with the default `blurMethod`).

@@ -7,7 +7,7 @@ export default async function SignUpPage({ params }: { params: Promise<{ locale:
     const { locale } = await params;
 
     return (
-        <main className="flex min-h-screen items-center justify-center bg-[var(--color-background)] px-4 py-12">
+        <main className="flex min-h-screen items-center justify-center px-4 py-12">
             {/* hash routing — path routing renders an empty widget under a preview basePath because
                 Clerk derives its path from the basePath-stripped usePathname().
                 signInUrl is a page LOCATOR consumed as-is, so it must carry the basePath. But

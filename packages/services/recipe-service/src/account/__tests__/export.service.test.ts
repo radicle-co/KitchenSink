@@ -1,6 +1,6 @@
 /**
  * Unit tests for {@link AccountExportService}: the assembly of the seven owner-scoped reads into the
- * {@link AccountExport} contract, over a mocked {@link AccountExportDal}.
+ * `AccountExport` contract, over a mocked {@link AccountExportDal}.
  *
  * Requirement → test map:
  *

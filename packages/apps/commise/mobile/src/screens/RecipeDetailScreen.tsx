@@ -1,6 +1,9 @@
 /**
- * Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block
- * from the typed `useRecipe` query, rendering localized loading and error states until the recipe resolves.
+ * Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a
+ * suspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found
+ * message with no retry, or the generic error with a retry that refetches — the same three outcomes as the web
+ * container. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id
+ * remounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.
  * On top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,
  * T075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and tier:
  *
@@ -34,17 +37,20 @@ import {
     type RecipeRatingError,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import { QueryBoundary } from '@commise/query/boundary';
+import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
-import { isNotFoundError } from '@kitchensink/recipe-service-client';
+import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
     useDeleteRecipeRating,
-    useRecipe,
+    useRecipeServiceClient,
     useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { canClone, canGoPrivate, isOwner, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
 import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
@@ -74,12 +80,73 @@ export interface RecipeDetailScreenProps {
 }
 
 /**
- * The recipe-detail screen.
+ * The recipe-detail screen: the read boundary around the settled detail.
  *
  * @param props - The recipe id plus optional navigation and lifecycle callbacks.
- * @returns The loading, error, or populated detail view with its actions.
+ * @returns The loading state, a not-found or retrying error, or the populated detail view with its actions.
  */
-export function RecipeDetailScreen({
+export function RecipeDetailScreen(props: RecipeDetailScreenProps): JSX.Element {
+    const { recipeId, onBack } = props;
+    const { recipes: t } = useMessages(mobileMessages);
+    const back = <BackAffordance label={t.back} onBack={onBack} />;
+
+    return (
+        <QueryBoundary
+            loading={<LoadingState label={t.detailLoading} />}
+            renderError={({ error, resetErrorBoundary }) =>
+                isNotFoundError(error) ? (
+                    <View style={styles.center}>
+                        {back}
+                        <Text accessibilityRole="alert">{t.detailNotFound}</Text>
+                    </View>
+                ) : (
+                    <View style={styles.center}>
+                        {back}
+                        <Text accessibilityRole="alert">{t.detailError}</Text>
+                        <Button
+                            variant="secondary"
+                            icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
+                            onPress={resetErrorBoundary}
+                        >
+                            {t.detailRetry}
+                        </Button>
+                    </View>
+                )
+            }
+            resetKeys={[recipeId]}
+        >
+            <SettledRecipeDetail key={recipeId} {...props} />
+        </QueryBoundary>
+    );
+}
+
+/** The back control, rendered only when the navigator wires a back action. */
+function BackAffordance({
+    label,
+    onBack,
+}: {
+    readonly label: string;
+    readonly onBack?: () => void;
+}): JSX.Element | null {
+    if (onBack === undefined) {
+        return null;
+    }
+
+    return (
+        <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backLabel}>{label}</Text>
+        </Pressable>
+    );
+}
+
+/**
+ * The detail once its read has settled: the shared view plus every action wired to its mutation.
+ *
+ * @param props - The recipe id plus optional navigation and lifecycle callbacks.
+ * @returns The populated detail view with its actions, or the loading state while the viewer profile resolves.
+ * @throws {Error} For an empty recipe id — a read that cannot be made fails into the boundary, as the generic failure.
+ */
+function SettledRecipeDetail({
     recipeId,
     onBack,
     onEdit,
@@ -88,8 +155,16 @@ export function RecipeDetailScreen({
     onCloned,
     onFilterByTag,
 }: RecipeDetailScreenProps): JSX.Element {
+    if (recipeId.length === 0) {
+        throw new Error('A recipe detail needs a recipe id.');
+    }
+
     const { recipes: t } = useMessages(mobileMessages);
-    const query = useRecipe(recipeId);
+    const client = useRecipeServiceClient();
+    const query = useSuspenseQuery(recipeQueries(client).detail(recipeId));
+    // A failed refresh of the recipe on screen keeps it (a suspense read throws only when it has no data) and is
+    // reported by the notice, never the load error.
+    const refreshNotice = useRefreshNotice(query);
     // D4/D5: session-scoped cooking progress (survives navigate-away-and-back) lives in the orchestration
     // layer; the presentational view receives the checked sets + toggles as props.
     const cooking = useCookingProgress(recipeId);
@@ -100,53 +175,14 @@ export function RecipeDetailScreen({
     const setRating = useSetRecipeRating();
     const deleteRating = useDeleteRecipeRating();
     const [deleteOpen, setDeleteOpen] = useState(false);
-    const [ratingRecipeId, setRatingRecipeId] = useState(recipeId);
+    const back = <BackAffordance label={t.back} onBack={onBack} />;
 
-    if (ratingRecipeId !== recipeId) {
-        // A fresh push mounts a new screen, but a `replace`/deep-link reuses THIS screen instance with a new
-        // `recipeId` param — so on an id change we must scrub every scrap of the previous recipe's mutation
-        // state. Resetting the mutations clears their `error` and `isPending` — otherwise the previous
-        // recipe's failed/in-flight write leaks onto the new one, which shares the same `useMutation`
-        // instance, falsely showing a stale error or busy state. This covers the rating writes AND (B17) the
-        // visibility toggle + delete, whose errors now render. The render-phase `setRatingRecipeId` forces an
-        // immediate re-render, by which point the observers are idle.
-        setRatingRecipeId(recipeId);
-        setRating.reset();
-        deleteRating.reset();
-        setVisibility.reset();
-        deleteRecipe.reset();
-    }
-
-    const back =
-        onBack !== undefined ? (
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t.back}
-                onPress={onBack}
-                style={styles.backButton}
-            >
-                <Text style={styles.backLabel}>{t.back}</Text>
-            </Pressable>
-        ) : null;
-
-    // Wait for BOTH the recipe AND the viewer profile before rendering the detail. Owner-gated UI
-    // (edit/delete/visibility actions) and the rating mode are derived from `profile` (the viewer id +
-    // tier); if we rendered as soon as the recipe resolved, the profile would still be in flight, the
-    // owner actions would be absent, and then POP IN when it lands — shifting the layout mid-interaction.
-    // Gating on `profile.isLoading` too makes the owner-gated surface deterministic on first paint (no
-    // flicker). A signed-out viewer's profile query is disabled, so its `isLoading` is false and this
-    // never hangs for a guest reading a public recipe.
-    if (query.isLoading || profile.isLoading) {
+    // Wait for the viewer profile too before rendering the detail. Owner-gated UI (edit/delete/visibility actions)
+    // and the rating mode are derived from `profile` (the viewer id + tier); rendering before it lands would paint
+    // the detail WITHOUT the owner actions and then pop them in — shifting the layout mid-interaction. A signed-out
+    // viewer's profile query is disabled, so its `isLoading` is false and this never hangs for a guest.
+    if (profile.isLoading) {
         return <LoadingState label={t.detailLoading} />;
-    }
-
-    if (query.isError || query.data === undefined) {
-        return (
-            <View style={styles.center}>
-                {back}
-                <Text accessibilityRole="alert">{t.detailError}</Text>
-            </View>
-        );
     }
 
     const recipe = query.data;
@@ -189,6 +225,7 @@ export function RecipeDetailScreen({
             {back}
             <RecipeDetailView
                 recipe={recipe}
+                refreshNotice={refreshNotice}
                 checkedIngredients={cooking.checkedIngredients}
                 onToggleIngredient={cooking.toggleIngredient}
                 checkedSteps={cooking.checkedSteps}
@@ -202,9 +239,6 @@ export function RecipeDetailScreen({
                     viewerCanClone && (
                         <RecipeCloneAction
                             canClone={viewerCanClone}
-                            {...(recipe.sourceAttribution === undefined
-                                ? {}
-                                : { sourceAttribution: recipe.sourceAttribution })}
                             cloning={cloneRecipe.isPending}
                             onClone={() =>
                                 cloneRecipe.mutate(recipeId, { onSuccess: (created) => onCloned?.(created.id) })
@@ -295,7 +329,9 @@ export function RecipeDetailScreen({
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    container: { flex: 1, backgroundColor: 'transparent' },
     // Generous bottom padding so the foot-of-screen controls — including the inline delete dialog's confirm
     // button when it opens — clear the device's navigation bar and can be fully scrolled into view.
     content: { paddingBottom: 120 },

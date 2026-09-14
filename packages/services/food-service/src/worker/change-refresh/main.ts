@@ -15,18 +15,16 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { CandidateStore } from '../../foods/dao/food-candidates.dao.js';
-import { FoodSourcesDao } from '../../foods/dao/food-sources.dao.js';
-import { SourceCallLogDao } from '../../foods/dao/source-call-log.dao.js';
+import { CandidateStore } from '../../foods/dao/foodCandidates.dao.js';
+import { FoodSourcesDao } from '../../foods/dao/foodSources.dao.js';
+import { SourceCallLogDao } from '../../foods/dao/sourceCallLog.dao.js';
 import { EnqueueEmitter } from '../../foods/enqueue.emitter.js';
-import { foodPoolConfigFromEnv } from '../../database/pool-config.js';
+import { foodPoolConfigFromEnv } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
-import { SourceAdapterRegistry } from '../../sources/food-source-adapter.js';
-import { RollingWindowLimiter } from '../../sources/rolling-window-limiter.js';
-import { UsdaSourceAdapter } from '../../sources/usda/usda.adapter.js';
-import { UsdaApiClient } from '@kitchensink/usda-client';
-import { ConsoleWorkerLogger } from '../worker-logger.js';
-import { ChangeRefreshConsumer } from './change-refresh.consumer.js';
+import { RollingWindowLimiter } from '../../sources/RollingWindowLimiter.js';
+import { createUsdaSourceRegistry } from '../../sources/usda/usdaRegistry.js';
+import { ConsoleWorkerLogger } from '../ConsoleWorkerLogger.js';
+import { ChangeRefreshConsumer } from './changeRefresh.consumer.js';
 
 const { Pool } = pg;
 
@@ -40,24 +38,21 @@ async function bootstrap(): Promise<void> {
     const pool = new Pool({ ...foodPoolConfigFromEnv(), max: 5 });
     const db = drizzle(pool, { schema });
 
-    const apiKey = process.env['USDA_API_KEY'];
+    // Source credentials (USDA_API_KEY) and the adapter's base URL (USDA_API_BASE_URL) are resolved by the
+    // ONE registry factory through the ONE validated reader — see the note in `worker/main.ts`.
+    const registry = createUsdaSourceRegistry();
 
-    if (!apiKey) {
-        throw new Error('USDA_API_KEY is required to run the change-refresh task');
-    }
-
-    const registry = new SourceAdapterRegistry();
-    registry.register(new UsdaSourceAdapter(new UsdaApiClient({ apiKey })));
-
-    const ttlDays = Number(process.env['FOOD_UNRESOLVED_TTL_DAYS'] ?? 30);
     const consumer = new ChangeRefreshConsumer({
         sources: new FoodSourcesDao(db),
         candidates: new CandidateStore(db),
         registry,
+        // Both the rolling-window caps (FOOD_SOURCE_RATE_LIMIT_PER_HOUR) and the UNRESOLVED-candidate TTL
+        // (FOOD_UNRESOLVED_TTL_DAYS) are resolved through the ONE validated reader by the units that use
+        // them, so this scheduled task cannot charge USDA's shared quota at a different cap than the API and
+        // the fan-out worker, and cannot sweep on a stale or NaN TTL.
         limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),
         enqueue: new EnqueueEmitter(pool),
         logger,
-        unresolvedTtlDays: ttlDays,
     });
 
     try {

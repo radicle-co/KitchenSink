@@ -7,8 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_RECIPE_PHOTOS as CORE_MAX_RECIPE_PHOTOS } from '@kitchensink/recipe-core';
 
-import { makePhoto } from '../../__fixtures__/index.js';
-import { isAtPhotoCap, isCoverPhoto, MAX_RECIPE_PHOTOS } from '../model.js';
+import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
+import { admitPhotoBatch, isAtPhotoCap, isCoverPhoto, MAX_RECIPE_PHOTOS, remainingPhotoSlots } from '../model.js';
 
 describe('MAX_RECIPE_PHOTOS (single source of truth)', () => {
     it('is the SAME constant recipe-core exports — not a locally hand-restated value', () => {
@@ -49,5 +49,52 @@ describe('isCoverPhoto (cover = the lowest-sort-order photo, i.e. index 0)', () 
 
     it('is false for any id when there are no photos', () => {
         expect(isCoverPhoto([], 'ph_1')).toBe(false);
+    });
+});
+
+/**
+ * The ONE client admission rule for the photo cap. It used to exist as three copies — the queue's own slice, and
+ * inline arithmetic in both create containers — and the edit container had none, which is how a multi-file pick
+ * past the cap dropped files silently and leaked their preview URLs.
+ */
+describe('remainingPhotoSlots', () => {
+    it('subtracts the held photos and every unsettled queue item from the cap', () => {
+        const items = [
+            makeQueueItem({ fileId: 1, status: 'queued' }),
+            makeQueueItem({ fileId: 2, status: 'uploading' }),
+            makeQueueItem({ fileId: 3, status: 'failed' }),
+        ];
+
+        expect(remainingPhotoSlots(4, items)).toBe(MAX_RECIPE_PHOTOS - 4 - 3);
+    });
+
+    it('does not count an `ok` item, which the held photos already include once the refetch lands', () => {
+        expect(remainingPhotoSlots(2, [makeQueueItem({ fileId: 1, status: 'ok' })])).toBe(MAX_RECIPE_PHOTOS - 2);
+    });
+
+    it('never goes below zero when the held count already exceeds the cap', () => {
+        expect(remainingPhotoSlots(MAX_RECIPE_PHOTOS + 3, [])).toBe(0);
+    });
+});
+
+describe('admitPhotoBatch — a batch is admitted WHOLE or refused whole, never truncated', () => {
+    it('accepts a batch that fits', () => {
+        expect(admitPhotoBatch(3, 2)).toEqual({ status: 'accepted' });
+    });
+
+    it('accepts a batch that exactly fills the remaining slots', () => {
+        expect(admitPhotoBatch(3, 3)).toEqual({ status: 'accepted' });
+    });
+
+    it('refuses a batch one larger than what is left, reporting how many would fit', () => {
+        expect(admitPhotoBatch(3, 4)).toEqual({ status: 'overCap', remaining: 3 });
+    });
+
+    it('refuses any non-empty batch once nothing is left', () => {
+        expect(admitPhotoBatch(0, 1)).toEqual({ status: 'overCap', remaining: 0 });
+    });
+
+    it('accepts an empty batch, which asks for nothing', () => {
+        expect(admitPhotoBatch(0, 0)).toEqual({ status: 'accepted' });
     });
 });

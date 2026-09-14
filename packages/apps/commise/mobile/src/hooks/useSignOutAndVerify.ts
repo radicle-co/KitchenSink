@@ -3,7 +3,7 @@
  *
  * ⚠️ DELIBERATE — see `docs/architecture/decisions/0009-clerk-signout-load-gate.md` before switching this to
  * `useClerk().signOut` or dropping the verification. It is the MOBILE adapter of the shared
- * {@link import('@commise/features-account').signOutAndVerify} command: the shared module owns the ordering,
+ * `signOutAndVerify` (`@commise/features-account`) command: the shared module owns the ordering,
  * the `status: 'error'` short-circuit, and the fail-closed post-condition (after the sign-out resolves, Clerk
  * must be loaded and hold no session); this hook supplies the platform's client + its LOAD-SAFE `signOut`.
  * Web's `useSignOutAndLeave` issues the same core, so the two platforms cannot drift on what "signed out"

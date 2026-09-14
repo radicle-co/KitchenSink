@@ -1021,7 +1021,7 @@ N/A — Stateless HTTP adapter wrapper.
 ### Module: MOD-017 [EXTERNAL] (UsdaAdapter + ClerkAuthService + SubscriptionsAdapter)
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/adapters/usda.adapter.ts`, `src/auth/clerk-auth.service.ts`, `src/adapters/subscriptions.adapter.ts`
+**Target Source File(s)**: `src/adapters/usda.adapter.ts`, `src/auth/clerkAuth.service.ts`, `src/adapters/subscriptions.adapter.ts`
 
 #### Algorithmic / Logic View
 

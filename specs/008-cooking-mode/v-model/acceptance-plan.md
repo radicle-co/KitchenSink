@@ -103,10 +103,14 @@ This document defines the Acceptance Test Plan for the Cooking Mode feature. It 
 
 **Requirement**: REQ-IF-002
 
-| ATS ID     | Scenario                             | Given                     | When                                         | Then                                            |
-| ---------- | ------------------------------------ | ------------------------- | -------------------------------------------- | ----------------------------------------------- |
-| ATS-008-G1 | Valid session → Cooking Mode allowed | Valid Clerk session token | User calls `POST /api/v1/cooking-mode/start` | System proceeds to load recipe                  |
-| ATS-008-G2 | No session → 401 returned            | No session token          | User calls `POST /api/v1/cooking-mode/start` | System returns 401; Cooking Mode not accessible |
+> **Corrected 2026-08-07.** These scenarios previously exercised `POST /api/v1/cooking-mode/start`, which does not exist —
+> Cooking Mode is a client-side surface and adds no endpoint (plan.md §3). The gate it actually depends on is the authenticated
+> recipe fetch plus the route guard, which is what the scenarios below assert.
+
+| ATS ID     | Scenario                             | Given                     | When                             | Then                                                                            |
+| ---------- | ------------------------------------ | ------------------------- | -------------------------------- | ------------------------------------------------------------------------------- |
+| ATS-008-G1 | Valid session → Cooking Mode allowed | Valid Clerk session token | User opens `/cooking/{recipeId}` | Route guard admits; `GET /api/v1/recipes/{id}` returns 200 and the mode renders |
+| ATS-008-G2 | No session → entry blocked           | No session token          | User opens `/cooking/{recipeId}` | Route guard redirects to sign-in; `GET /api/v1/recipes/{id}` returns 401        |
 
 ---
 
@@ -121,30 +125,63 @@ This document defines the Acceptance Test Plan for the Cooking Mode feature. It 
 
 ---
 
+### AT-008-I — Ingredient Checkoff
+
+**Requirement**: REQ-012, REQ-013 (FR-032a)
+
+| ATS ID     | Scenario                            | Given                                       | When                                           | Then                                                                                          |
+| ---------- | ----------------------------------- | ------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| ATS-008-I1 | List opens without leaving the step | User is on step N with the list dismissed   | User opens the ingredient list                 | The list is visible and the active step is still step N                                       |
+| ATS-008-I2 | Individual checkoff                 | Ingredient list open with M ingredients     | User checks ingredient _i_                     | Ingredient _i_ reads as checked; no other ingredient's state changes                          |
+| ATS-008-I3 | Survives step navigation            | Ingredient _i_ checked on step N            | User advances to step N+1 and returns to N     | Ingredient _i_ is still checked                                                               |
+| ATS-008-I4 | Survives session resume             | Ingredient _i_ checked, session interrupted | User resumes the session within the 24h window | Ingredient _i_ is still checked after restore                                                 |
+| ATS-008-I5 | Recipe never mutated                | Ingredient list open                        | User checks and unchecks several ingredients   | No write request is issued; the stored recipe is byte-identical before and after (REQ-CN-001) |
+
+---
+
+### AT-008-J — Yield Scaling
+
+**Requirement**: REQ-014, REQ-015 (FR-034a)
+
+| ATS ID     | Scenario                  | Given                                        | When                          | Then                                                                                            |
+| ---------- | ------------------------- | -------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| ATS-008-J1 | Quantities scale          | Recipe yields 4 servings, ingredient = 200 g | User selects 2×               | The displayed quantity reads 400 g                                                              |
+| ATS-008-J2 | Fractional scale          | Recipe yields 4 servings, ingredient = 200 g | User selects 0.5×             | The displayed quantity reads 100 g                                                              |
+| ATS-008-J3 | **Timers are not scaled** | A step has `timerSeconds = 1500` (25 min)    | User selects 2×               | That step's timer still reads 25:00 — the duration is unchanged (REQ-015, D-002)                |
+| ATS-008-J4 | Advisory shown off 1×     | Scale factor is 1×, no advisory shown        | User selects any factor ≠ 1×  | An advisory states cook times are not scaled and may need adjustment                            |
+| ATS-008-J5 | Advisory hidden at 1×     | Scale factor is 2× with the advisory shown   | User returns to 1×            | The advisory is removed                                                                         |
+| ATS-008-J6 | Recipe never mutated      | Cooking Mode active                          | User changes the scale factor | No write request is issued; the stored recipe's yield and quantities are unchanged (REQ-CN-001) |
+
+---
+
 ## Acceptance Criteria per REQ
 
-| REQ ID     | Pre-condition                         | Success Condition                                                    | Technique                           |
-| ---------- | ------------------------------------- | -------------------------------------------------------------------- | ----------------------------------- |
-| REQ-001    | Recipe loaded                         | Single step displayed in large text; previous/next steps not visible | Statement Coverage                  |
-| REQ-002    | User on step N where N < total        | "Next" advances to step N+1                                          | Branch Coverage                     |
-| REQ-003    | User on step N where N > 1            | "Back" returns to step N-1; position not reset                       | Statement Coverage                  |
-| REQ-004    | Step has duration field               | Countdown timer shown with correct initial time                      | Equivalence Partitioning            |
-| REQ-005    | Timer active                          | Visible countdown updating every second                              | Statement Coverage (real-time test) |
-| REQ-006    | Timer reaches 0                       | Audible alert played                                                 | Fault Injection (wait for timer)    |
-| REQ-007    | Cooking Mode active                   | Device screen does not sleep                                         | Timing Test (2 min idle)            |
-| REQ-008    | Valid recipe loaded                   | First step displayed on entry                                        | Statement Coverage                  |
-| REQ-009    | Step transition                       | Animation completes; new step visible                                | Demonstration                       |
-| REQ-010    | Cooking Mode active                   | Gesture input (swipe/tap) navigates steps                            | Statement Coverage                  |
-| REQ-011    | Recipe loaded, then connectivity lost | Navigation continues to work                                         | Fault Injection                     |
-| REQ-NF-001 | All TypeScript source                 | `tsc --strict` exits 0                                               | Inspection                          |
-| REQ-NF-002 | All exported functions                | JSDoc present on all exports                                         | Inspection                          |
-| REQ-NF-003 | Rendering on mobile                   | Text readable at 3 feet (18sp+ font, 4.5:1 contrast)                 | Demonstration                       |
-| REQ-NF-004 | UI components                         | `getByRole`/`getByLabel` queries succeed                             | Playwright Integration Test         |
-| REQ-NF-005 | Any colored state indicator           | Icon or text label accompanies color state                           | Accessibility Inspection            |
-| REQ-IF-001 | Recipe from 001                       | Cooking Mode renders from existing Recipe entity schema              | Inspection                          |
-| REQ-IF-002 | No session                            | 401 returned; entry blocked                                          | Fault Injection                     |
-| REQ-CN-001 | After Cooking Mode session            | Recipe data in 001 unchanged                                         | Inspection (compare before/after)   |
-| REQ-CN-002 | User exits Cooking Mode               | Wake lock released within 1 s                                        | Timing Test                         |
+| REQ ID     | Pre-condition                          | Success Condition                                                                             | Technique                               |
+| ---------- | -------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------- |
+| REQ-001    | Recipe loaded                          | Single step displayed in large text; previous/next steps not visible                          | Statement Coverage                      |
+| REQ-002    | User on step N where N < total         | "Next" advances to step N+1                                                                   | Branch Coverage                         |
+| REQ-003    | User on step N where N > 1             | "Back" returns to step N-1; position not reset                                                | Statement Coverage                      |
+| REQ-004    | Step has duration field                | Countdown timer shown with correct initial time                                               | Equivalence Partitioning                |
+| REQ-005    | Timer active                           | Visible countdown updating every second                                                       | Statement Coverage (real-time test)     |
+| REQ-006    | Timer reaches 0                        | Audible alert played                                                                          | Fault Injection (wait for timer)        |
+| REQ-007    | Cooking Mode active                    | Device screen does not sleep                                                                  | Timing Test (2 min idle)                |
+| REQ-008    | Valid recipe loaded                    | First step displayed on entry                                                                 | Statement Coverage                      |
+| REQ-009    | Step transition                        | Animation completes; new step visible                                                         | Demonstration                           |
+| REQ-010    | Cooking Mode active                    | Gesture input (swipe/tap) navigates steps                                                     | Statement Coverage                      |
+| REQ-011    | Recipe loaded, then connectivity lost  | Navigation continues to work                                                                  | Fault Injection                         |
+| REQ-012    | Cooking Mode active on step N          | Ingredient list opens/dismisses; each ingredient checks individually; step stays N            | Branch Coverage                         |
+| REQ-013    | Ingredient checked                     | State survives step navigation and session restore; no recipe write issued                    | Statement Coverage + Inspection         |
+| REQ-014    | Recipe with known yield and quantities | Selecting factor _f_ multiplies every displayed quantity by _f_                               | Equivalence Partitioning (0.5×, 1×, 2×) |
+| REQ-015    | Step with a non-null `timerSeconds`    | Timer duration is byte-identical across every scale factor; advisory present whenever _f_ ≠ 1 | Branch Coverage + Fault Injection       |
+| REQ-NF-001 | All TypeScript source                  | `tsc --strict` exits 0                                                                        | Inspection                              |
+| REQ-NF-002 | All exported functions                 | JSDoc present on all exports                                                                  | Inspection                              |
+| REQ-NF-003 | Rendering on mobile                    | Text readable at 3 feet (18sp+ font, 4.5:1 contrast)                                          | Demonstration                           |
+| REQ-NF-004 | UI components                          | `getByRole`/`getByLabel` queries succeed                                                      | Playwright Integration Test             |
+| REQ-NF-005 | Any colored state indicator            | Icon or text label accompanies color state                                                    | Accessibility Inspection                |
+| REQ-IF-001 | Recipe from 001                        | Cooking Mode renders from existing Recipe entity schema                                       | Inspection                              |
+| REQ-IF-002 | No session                             | 401 returned; entry blocked                                                                   | Fault Injection                         |
+| REQ-CN-001 | After Cooking Mode session             | Recipe data in 001 unchanged                                                                  | Inspection (compare before/after)       |
+| REQ-CN-002 | User exits Cooking Mode                | Wake lock released within 1 s                                                                 | Timing Test                             |
 
 ---
 

@@ -13,14 +13,13 @@ import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
-import { useUpdateProfile, useUserProfile } from '../../src/hooks/useUserProfile.js';
+import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
+import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { ProfileScreen } from '../../src/screens/profile.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 
-vi.mock('../../src/hooks/useUserProfile', () => ({
-    useUserProfile: vi.fn(),
-    useUpdateProfile: vi.fn(),
-}));
+vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: vi.fn() }));
+vi.mock('../../src/hooks/useUpdateProfile.js', () => ({ useUpdateProfile: vi.fn() }));
 
 vi.mock('../../src/hooks/useAvatarUpload.js', () => ({ useAvatarUpload: () => ({ upload: vi.fn() }) }));
 
@@ -50,6 +49,7 @@ const mutateMock = vi.fn();
 function profileResult(displayName: string): ReturnType<typeof useUserProfile> {
     return {
         isLoading: false,
+        isLoadingError: false,
         error: null,
         data: { user: { id: 'usr_1', displayName, avatarUrl: '', status: 'active' } },
     } as unknown as ReturnType<typeof useUserProfile>;
@@ -76,7 +76,12 @@ describe('ProfileScreen — query states', () => {
     });
 
     it('shows the localized load error when the query fails', () => {
-        useUserProfileMock.mockReturnValue({ isLoading: false, error: new Error('boom'), data: undefined } as never);
+        useUserProfileMock.mockReturnValue({
+            isLoading: false,
+            isLoadingError: true,
+            error: new Error('boom'),
+            data: undefined,
+        } as never);
 
         render(<ProfileScreen />);
 
@@ -132,6 +137,24 @@ describe('ProfileScreen — editing surface', () => {
 
         expect(screen.getByDisplayValue('Ada Edited')).toBeTruthy();
         expect(screen.queryByDisplayValue('Ada Server')).toBeNull();
+    });
+
+    it('⛔ keeps the form AND an unsaved edit when a background refetch of the profile fails', () => {
+        useUserProfileMock.mockReturnValue(profileResult('Ada'));
+
+        const { rerender } = render(<ProfileScreen />);
+        fireEvent.change(screen.getByDisplayValue('Ada'), { target: { value: 'Ada Edited' } });
+
+        // TanStack keeps the cached profile when a refetch fails, and ALSO sets `error`.
+        useUserProfileMock.mockReturnValue({
+            ...profileResult('Ada'),
+            error: new Error('network down'),
+        } as unknown as ReturnType<typeof useUserProfile>);
+        rerender(<ProfileScreen />);
+
+        // A retry would change nothing on this form (it is seeded once), so the failure stays silent.
+        expect(screen.getByDisplayValue('Ada Edited')).toBeTruthy();
+        expect(screen.queryByText(mobileMessages.en.profile.loadError)).toBeNull();
     });
 
     it('exposes the account-settings entry when a handler is provided', () => {

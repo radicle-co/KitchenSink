@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe create/edit form (T067 building block).
  *
- * The React Native leaf of {@link import('./RecipeForm.js').RecipeForm} — same controlled, presentational
+ * The React Native leaf of `RecipeForm` — same controlled, presentational
  * contract and the same sections (Basics with a READ-ONLY computed total, a dynamic Ingredients list with
  * per-line resolution-status badges + add/remove, a dynamic Instructions list + add/remove, and a
  * visibility toggle). Styled to the Commise design language (@commise/ui palette): card sections, labeled
@@ -10,7 +10,7 @@
  * Photo upload (wireframe step 4) is intentionally OUT OF SCOPE here — a later increment adds it.
  *
  * The field groups below (Basics, Ingredients, Instructions, Visibility) are the shared
- * `RecipeFormSections.native.js` leaves (w3) — this component's job is now just the `ScrollView` shell
+ * `Recipe*Fields.native.js`/`RecipeVisibilityField.native.js` leaves (w3) — this component's job is now just the `ScrollView` shell
  * (heading + submit/cancel chrome) that arranges them in one screen; the SAME leaves compose the 4-step edit
  * wizard (`wizard/Wizard.native.tsx`) one-to-one with its steps. This is a pure relocation: the rendered
  * output and every accessible name are unchanged from before the extraction.
@@ -23,12 +23,10 @@ import type { FC } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { recipeFormMessages } from './messages.js';
-import {
-    RecipeBasicsFields,
-    RecipeIngredientsFields,
-    RecipeInstructionsFields,
-    RecipeVisibilityField,
-} from './RecipeFormSections.native.js';
+import { RecipeBasicsFields } from './RecipeBasicsFields.native.js';
+import { RecipeIngredientsFields } from './RecipeIngredientsFields.native.js';
+import { RecipeInstructionsFields } from './RecipeInstructionsFields.native.js';
+import { RecipeVisibilityField } from './RecipeVisibilityField.native.js';
 import type { RecipeFormProps } from './props.js';
 
 export const RecipeForm: FC<RecipeFormProps> = ({
@@ -37,6 +35,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
     mode,
     submitting = false,
     onChange,
+    onRequestAddIngredient,
     onSubmit,
     onCancel,
 }) => {
@@ -60,7 +59,12 @@ export const RecipeForm: FC<RecipeFormProps> = ({
             </Text>
 
             <RecipeBasicsFields values={values} errors={errors} onChange={onChange} />
-            <RecipeIngredientsFields values={values} errors={errors} onChange={onChange} />
+            <RecipeIngredientsFields
+                values={values}
+                errors={errors}
+                onChange={onChange}
+                onRequestAddIngredient={onRequestAddIngredient}
+            />
             <RecipeInstructionsFields values={values} errors={errors} onChange={onChange} />
             <RecipeVisibilityField values={values} onChange={onChange} />
 

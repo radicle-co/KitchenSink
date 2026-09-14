@@ -22,13 +22,16 @@
  *
  * @implements REQ-IF-007 FR-038
  */
-import { Injectable, UnauthorizedException, type NestMiddleware } from '@nestjs/common';
+import { Inject, Injectable, Logger, UnauthorizedException, type NestMiddleware } from '@nestjs/common';
 import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 import type { NextFunction, Response } from 'express';
 
-import { ClerkAuthService } from './clerk-auth.service.js';
+import { ClerkAuthService } from './clerkAuth.service.js';
 import { extractBearer } from './bearer.js';
+import { CONTAINMENT_MODE } from './containmentMode.js';
+import { TestPrincipalsDal } from './dal/testPrincipals.dal.js';
 import type { AuthenticatedRequest, Principal } from './principal.js';
+import type { TestPrincipalContainment } from '../common/containmentPolicy.js';
 
 /** Routes served without authentication (liveness + readiness probes hit by the ALB / ECS, no token). */
 const PUBLIC_PATHS = new Set(['/health', '/health/ready']);
@@ -41,13 +44,29 @@ function getPath(req: AuthenticatedRequest): string {
 }
 
 /**
- * Resolve the non-production dev-bypass Principal, or `undefined`. Reads env at call time so it is
- * disabled the instant `NODE_ENV` is `production`, regardless of `RECIPE_DEV_AUTH_USER_ID`. Pure
- * w.r.t. its inputs (only reads env). The synthetic `sub` is deliberately distinct from `userId` so
- * even the bypass never conflates the owner key with a trace identifier.
+ * The ONLY `NODE_ENV` values that may enable the dev bypass: a developer's machine and the test tiers.
+ *
+ * ⛔ An ALLOWLIST, not `!== 'production'`. That gate refuses exactly one value and admits every other, and
+ * `RecipeServiceStack` ships `NODE_ENV: stage === 'prod' ? 'production' : 'staging'` — so on sandbox and on
+ * every `pr-{N}`, all internet-facing behind the shared ALB, the sole thing between the public internet and
+ * arbitrary-owner impersonation would be the ABSENCE of `RECIPE_DEV_AUTH_USER_ID`. A negative gate has to
+ * predict every environment name that will ever exist; a positive one does not, so a stage added later
+ * cannot opt itself in by being spelled something new.
+ *
+ * ⚠️ Identity and food hardcode `NODE_ENV: 'production'` and do not have this gap. Recipe keys its config on
+ * the value, which is why it is the one service where the bypass could reach a deployed stage.
  */
-function resolveDevBypass(): Principal | undefined {
-    if (process.env['NODE_ENV'] === 'production') {
+const DEV_BYPASS_ENVIRONMENTS = new Set(['development', 'test']);
+
+/**
+ * Resolve the local-only dev-bypass Principal, or `undefined`. Reads env at call time so it tracks the
+ * current value rather than a boot-time snapshot, and answers `undefined` for every environment outside
+ * {@link DEV_BYPASS_ENVIRONMENTS} regardless of `RECIPE_DEV_AUTH_USER_ID`. Pure w.r.t. its inputs (only
+ * reads env). The synthetic `sub` is deliberately distinct from `userId` so even the bypass never conflates
+ * the owner key with a trace identifier.
+ */
+function resolveDevBypass(containment: TestPrincipalContainment): Principal | undefined {
+    if (!DEV_BYPASS_ENVIRONMENTS.has(process.env['NODE_ENV'] ?? '')) {
         return undefined;
     }
 
@@ -62,12 +81,35 @@ function resolveDevBypass(): Principal | undefined {
         sub: `dev-bypass:${devUserId}`,
         scopes: [],
         permissions: [],
+        // The bypass has no signed claim to read, so it can never be a test principal.
+        principalKind: 'real',
+        containment,
     };
 }
 
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
-    public constructor(private readonly clerkAuth: ClerkAuthService) {}
+    private readonly logger = new Logger(AuthMiddleware.name);
+
+    /**
+     * The test principals THIS process has already written to the registry. The row is idempotent, so the set only
+     * saves a round trip per request. Bounded by the number of Clerk users carrying the signed marker, which only a
+     * Backend-API writer can set (ADR-0040).
+     *
+     * ⚠️ It is never invalidated, so it is sound only while nothing deletes the row of a principal that will act again
+     * on a running process — otherwise the test reset door (which reads the ROW) answers `404` until a restart. That
+     * holds today: the test purge keeps the row (`testResetSweepCoverage.test.ts`'s exemption), and the only other
+     * delete, account erasure, reaches a pool slot only through a consumable erasure subject that `resetPool` never
+     * resets and whose replacement is a new user with a new id. A change that lets a REUSED slot's row be deleted
+     * owes this memo an invalidation.
+     */
+    private readonly registered = new Set<string>();
+
+    public constructor(
+        private readonly clerkAuth: ClerkAuthService,
+        @Inject(CONTAINMENT_MODE) private readonly containment: TestPrincipalContainment,
+        private readonly testPrincipals: TestPrincipalsDal,
+    ) {}
 
     /**
      * Authenticate the request and attach the canonical Principal, or fail closed with `401`.
@@ -89,7 +131,7 @@ export class AuthMiddleware implements NestMiddleware {
         }
 
         // Local-dev-only shortcut; hard-disabled in production by resolveDevBypass().
-        const devPrincipal = resolveDevBypass();
+        const devPrincipal = resolveDevBypass(this.containment);
 
         if (devPrincipal) {
             req.principal = devPrincipal;
@@ -131,8 +173,42 @@ export class AuthMiddleware implements NestMiddleware {
             picture: claims.picture,
             scopes: claims.scopes,
             permissions: claims.permissions,
+            // ADR-0040: the kind comes from the SIGNED claim alone (containment is fail-closed on it); the stage's
+            // mode rides along so every policy call site reads both off the request it already holds.
+            principalKind: claims.testPrincipal ? 'test' : 'real',
+            containment: this.containment,
         };
 
+        if (claims.testPrincipal) {
+            await this.registerOnce(claims.userId);
+        }
+
         next();
+    }
+
+    /**
+     * Write a signed test principal to the service registry once per process.
+     *
+     * ⛔ A failure is LOGGED, never thrown, and never memoized. Containment keys on the claim, so the request is still
+     * correctly contained without the row; only the self-purge — which requires the registry to agree — is affected,
+     * and the next request retries the write. Failing the request would make a registry outage an auth outage.
+     *
+     * @param userId - The verified app-user ULID of a signed test principal.
+     * @sideEffect Inserts at most one `test_principals` row; logs on failure.
+     */
+    private async registerOnce(userId: string): Promise<void> {
+        if (this.registered.has(userId)) {
+            return;
+        }
+
+        try {
+            await this.testPrincipals.register(userId);
+            this.registered.add(userId);
+        } catch (error) {
+            this.logger.warn(
+                `Could not register test principal ${userId}; its self-purge will 404 until a later request succeeds.`,
+                error instanceof Error ? error.stack : String(error),
+            );
+        }
     }
 }

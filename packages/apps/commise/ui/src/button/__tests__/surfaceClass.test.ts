@@ -6,7 +6,7 @@
  * (`AlertDialog.Cancel`), or a trigger that must own its own `ref` — can still wear the DS surface WITHOUT
  * re-typing the palette, the radius, or the touch floor. These tests pin the properties consumers depend on:
  * the 44px touch floor with its desktop reset, a distinct visible surface per tier, and that the recipe the
- * {@link Button} itself renders is byte-identical to what this helper returns (so the two can never drift).
+ * `Button` itself renders is byte-identical to what this helper returns (so the two can never drift).
  *
  * ## The FOCUS RING is measured here, because this recipe is where the defect was systemic (#114)
  *
@@ -95,7 +95,7 @@ describe('buttonSurfaceClass', () => {
     it("paints secondary as the mockups' CORAL-outlined glass, not a grey-bordered white pill", () => {
         const className = buttonSurfaceClass('secondary');
 
-        // The mockups' secondary button (screen-grocery / screen-profile / screen-recipe-detail) is
+        // The mockups' secondary button (screenGrocery / screenProfile / screenRecipeDetail) is
         // `border-2 border-coral` over the translucent white glass — the accent edge IS the tier.
         expect(className).toContain('border-2');
         expect(className).toContain('border-coral');
@@ -161,5 +161,11 @@ describe('buttonSurfaceClass', () => {
 
     it('is pure — the same variant always yields the identical string', () => {
         expect(buttonSurfaceClass('secondary')).toBe(buttonSurfaceClass('secondary'));
+    });
+});
+
+describe('buttonSurfaceClass — the busy treatment', () => {
+    it('dims an aria-disabled (busy) control, since a busy button is no longer natively disabled', () => {
+        expect(buttonSurfaceClass('primary')).toContain('aria-disabled:opacity-60');
     });
 });

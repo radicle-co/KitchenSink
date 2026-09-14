@@ -2,16 +2,16 @@
 
 /**
  * Error boundary for the recipe-detail route segment (`/[locale]/recipes/[id]`, B18). Delegates to the
- * shared {@link RouteErrorBoundary} (DA9-reported + retry via `reset()`).
+ * shared {@link RouteErrorBoundary} (DA9-reported + retry that re-fetches via `retry()`).
  */
 import { RouteErrorBoundary } from '@/components/app/RouteErrorBoundary';
 
 export default function RecipeDetailError({
     error,
-    reset,
+    retry,
 }: {
     readonly error: Error & { digest?: string };
-    readonly reset: () => void;
+    readonly retry: () => void;
 }): React.JSX.Element {
-    return <RouteErrorBoundary error={error} reset={reset} routeName="recipe-detail" />;
+    return <RouteErrorBoundary error={error} retry={retry} routeName="recipe-detail" />;
 }

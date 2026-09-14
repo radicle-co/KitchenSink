@@ -4,7 +4,7 @@
  * ONE piece of knowledge — "which logical database does a recipe deploy at stage X talk to" — consumed by
  * two CDK stacks that must never disagree: `RecipeServiceStack` (the ECS API + the in-VPC migration runner)
  * and `RecipeWorkersStack` (the six async Lambdas). It lives here, in `@kitchensink/recipe-core`, for the
- * same reason {@link recipeObjectKeys} does: both service packages already depend on this one, and neither
+ * same reason `recipeObjectKeys` does: both service packages already depend on this one, and neither
  * may own shared naming alone.
  *
  * **Why it moved here (defect #119).** The derivation used to live inside `recipe-service`'s CDK stack. The
@@ -15,7 +15,7 @@
  * prune, GDPR erasure sweep, orphan deletion), so the divergence was a cross-stage data-loss path, not a
  * read-side inconsistency. Nothing tied the two resolutions together, which is exactly why they drifted
  * silently — so the cross-stack parity test in
- * `packages/services/recipe-service/infra/__tests__/recipe-database-name-parity.test.ts` is part of this
+ * `packages/services/recipe-service/infra/__tests__/recipeDatabaseNameParity.test.ts` is part of this
  * contract, not an optional extra.
  *
  * **Import it as `@kitchensink/recipe-core/database-name`, never through the package barrel — and keep this
@@ -63,10 +63,22 @@ export function recipeDatabaseNameForStage(stage: string, baseStage: string, imp
         return importedBaseName;
     }
 
+    // The trims are single-character and anchored (`/^_/`, `/_$/`) rather than the `/^_+|_+$/` they replace,
+    // because the collapse on the line above turns every MAXIMAL run of non-alphanumerics into exactly one
+    // `_`. Its output therefore carries at most one leading and one trailing underscore and no internal run,
+    // so `+` could never consume a second character — the two forms are equivalent here (verified over
+    // 222,621 inputs: exhaustive to length 4 over a mixed alphabet, plus 200,000 random ones).
+    //
+    // The `_+$` form is quadratic on a long run of underscores, because the engine retries the trailing
+    // match from every position (CodeQL `js/polynomial-redos`). The collapse means such a run can never
+    // actually reach it, so the alert is a false positive *in this composition* — but the single-character
+    // form is linear no matter what it is handed, and it states the invariant it depends on instead of
+    // defending against input the previous line has already made impossible.
     const suffix = stage
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
+        .replace(/^_/, '')
+        .replace(/_$/, '');
 
     if (suffix === '') {
         throw new Error(

@@ -8,3 +8,7 @@ coverage
 cdk.out
 cdk.context.json
 router/dist
+
+
+# Playwright storage state, one file per local e2e run (tests/e2e/auth.setup.ts). Gitignored scratch.
+.auth

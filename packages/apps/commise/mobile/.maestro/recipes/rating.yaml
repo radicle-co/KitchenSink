@@ -16,7 +16,7 @@ appId: io.commise.mobile
 #   REMOVES — restoring the caller's contribution to zero and leaving the shared aggregate net-unchanged for
 #   the next run. The exact recomputed aggregate (Sc6/Sc7) is verified end-to-end by the web spec.
 #
-# Uses "Herb Risotto" (the seeded public recipe owned by a DIFFERENT author that discover-clone.yaml relies
+# Uses "Herb Risotto" (the seeded public recipe owned by a DIFFERENT author that discoverClone.yaml relies
 # on) — reached via the Discover tab, since the caller's own library never contains a recipe they can rate.
 - runFlow: ../auth/signin.yaml
 
@@ -24,51 +24,65 @@ appId: io.commise.mobile
 - tapOn: 'Discover'
 - assertVisible: 'Discover recipes'
 
-- runFlow:
-      when:
-          visible: 'Herb Risotto'
-      commands:
-          # Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row
-          # "Clone Herb Risotto" quick-clone button whose label also contains the title.
-          #
-          # `above: 'New'` disambiguates WHICH rail's card is tapped, and it is load-bearing. Since U7,
-          # Discover renders curated rails and the same seeded recipe appears in BOTH "Trending" and "New";
-          # `^Herb Risotto$` therefore matches two elements. Maestro picked the "New" rail's card, which on the
-          # emulator straddles the screen edge underneath the system navigation bar — so the tap landed on the
-          # nav bar instead of the card, the detail never opened, and the following `scrollUntilVisible`
-          # swipe-ups (swipe-up-from-centre being Android's Home gesture) backgrounded the app to the launcher.
-          # Anchoring above the "New" heading selects the fully-visible Trending card.
-          - tapOn:
-                text: '^Herb Risotto$'
-                above: 'New'
+# ⛔ REACH THE RECIPE BY SEARCH, NEVER BY ITS PLACE IN A RAIL. This flow used to wait for Herb Risotto in the
+# browse rails and tap the "Trending" card. A rail is ONE fixed-sort page (`RECIPE_BROWSE_RAILS`: Trending sorts
+# by clone count, ties newest-first), and it scrolls SIDEWAYS. The run's world is created in two steps: the
+# co-author's Risotto at provision, then the signer's three recipes at the first flow's reset, minutes LATER.
+# That makes Risotto the fourth card in both rails, off the right edge of the screen, behind every public row
+# other suites have left on the preview. Run 34863424203 failed there, with the rail showing Salad, then
+# Asparagus, then a premium card at x=1315. A rail's order is data about the whole sandbox, not about this flow.
+# Typing the title's base switches Discover to the deterministic result list, the same way `discoverClone.yaml`
+# reaches the same recipe. The run key in the title means no other run's row can satisfy the anchored selector.
+- tapOn: 'Search public recipes'
+- inputText: 'Risotto'
+- scrollUntilVisible:
+      element:
+          text: '^${E2E_RECIPE_RISOTTO}$'
+      direction: DOWN
+      timeout: 30000
+# Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row "Clone Herb Risotto"
+# quick-clone button whose label also contains the title. The result list renders each recipe once, so the old
+# `above: 'New'` rail disambiguation no longer has anything to disambiguate.
+- tapOn:
+      text: '^${E2E_RECIPE_RISOTTO}$'
 
-          # The community aggregate (read-only social proof) and the rate call-to-action render. The presence
-          # of the rate radiogroup proves the recipe is RATEABLE — the own-recipe gate (Sc8) would replace it
-          # with "You can’t rate your own recipe." instead.
-          #
-          # Scroll to the STAR CONTROL, not to the "Community rating" heading above it. The heading sits high
-          # enough in the rating block to already be on screen when the detail opens, so `scrollUntilVisible`
-          # settled on try 0 without scrolling at all — leaving the star radiogroup ~150px below the fold,
-          # behind the system navigation bar, and the very next assertion failed on an element that was merely
-          # unscrolled-to. The detail is a `ScrollView` with 120dp of bottom padding, so the stars DO come into
-          # view; the flow just has to ask for them. Anchor the scroll on the thing about to be tapped.
-          - scrollUntilVisible:
-                element: 'Rate 4 stars'
-                direction: DOWN
-                timeout: 20000
-          - assertVisible: 'Community rating'
-          - assertVisible: 'Rate this recipe'
-          - assertVisible: 'Rate 4 stars'
+# The community aggregate (read-only social proof) and the rate call-to-action render. The presence
+# of the rate radiogroup proves the recipe is RATEABLE — the own-recipe gate (Sc8) would replace it
+# with "You can’t rate your own recipe." instead.
+#
+# Scroll to the STAR CONTROL, not to the "Community rating" heading above it. The heading sits high
+# enough in the rating block to already be on screen when the detail opens, so `scrollUntilVisible`
+# settled on try 0 without scrolling at all — leaving the star radiogroup ~150px below the fold,
+# behind the system navigation bar, and the very next assertion failed on an element that was merely
+# unscrolled-to. The detail is a `ScrollView` with 120dp of bottom padding, so the stars DO come into
+# view; the flow just has to ask for them. Anchor the scroll on the thing about to be tapped.
+- scrollUntilVisible:
+      element: 'Rate 4 stars'
+      direction: DOWN
+      timeout: 20000
+- assertVisible: 'Community rating'
+- assertVisible: 'Rate this recipe'
+- assertVisible: 'Rate 4 stars'
 
-          # Rate 4 stars — the selection registers through the radio's CHECKED state (not colour alone).
-          # Falsifiable: wiring the wrong value or dropping the checked semantics fails this assertion.
-          - tapOn: 'Rate 4 stars'
-          - assertVisible:
-                text: 'Rate 4 stars'
-                checked: true
+# Rate 4 stars — the selection registers through the radio's CHECKED state (not colour alone).
+# Falsifiable: wiring the wrong value or dropping the checked semantics fails this assertion.
+- tapOn: 'Rate 4 stars'
+- assertVisible:
+      text: 'Rate 4 stars'
+      checked: true
 
-          # Sc10 — rating reveals the remove affordance; removing it succeeds and withdraws the affordance,
-          # restoring the caller's contribution to zero (leaving the shared seed net-unchanged).
-          - assertVisible: 'Remove my rating'
-          - tapOn: 'Remove my rating'
-          - assertNotVisible: 'Remove my rating'
+# Sc10 — rating reveals the remove affordance; removing it succeeds and withdraws the affordance,
+# restoring the caller's contribution to zero (leaving the shared seed net-unchanged).
+# ⚠️ SCROLLED to, not merely asserted. Rating the recipe CHANGES THE LAYOUT ABOVE this control:
+# the community aggregate goes from the one-line "Not yet rated" to a star row, so everything
+# below it shifts down by roughly that difference. The scroll above stopped as soon as
+# `Rate 4 stars` was visible — i.e. near the bottom of the viewport — so the newly revealed
+# `Remove my rating` lands just off-screen and a bare `assertVisible` passes or fails on where
+# the scroll increments happened to stop. It is still an assertion that the control APPEARS;
+# `scrollUntilVisible` fails if it does not exist.
+- scrollUntilVisible:
+      element: 'Remove my rating'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Remove my rating'
+- assertNotVisible: 'Remove my rating'

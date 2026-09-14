@@ -1,24 +1,42 @@
 appId: io.commise.mobile
 ---
-# Recipe visibility toggle (US2, T113/T074/C-004). The clone half of T113 is covered by discover-clone.yaml;
-# this closes the visibility half. Signs in, opens an OWNED recipe, and asserts the visibility control's real,
-# machine-checkable semantics: the current visibility is exposed as the CHECKED radio, and the tier gate
-# (C-004) disables the private option for a free-tier account and says why.
+# Recipe visibility toggle, PREMIUM path (US2, T113/T074/C-004). The clone half of T113 is covered by
+# discoverClone.yaml; this closes the visibility half. Signs in, opens an OWNED private recipe, and drives a real
+# Private -> Public -> Private round trip through the control's machine-checkable semantics.
 #
-# WHY THIS FLOW ASSERTS THE GATE RATHER THAN PERFORMING A TOGGLE — read before "fixing" it:
+# ⛔ WHY THIS NO LONGER ASSERTS THE FREE-TIER GATE, and why that is not a weakening. Read before "restoring" it.
 #
-#   The Maestro signer (`commise-e2e-signin+clerk_test@example.com`) is read-through-created by the identity
-#   service, whose accounts default to `subscription_tier = 'free'` (identity `accounts` schema). Mobile gates
-#   the private option on `subscriptionTier === 'premium'` (RecipeDetailScreen), so this account can go
-#   public but NEVER back to private. A flow that flipped a seed recipe to public would therefore corrupt the
-#   shared seed IRREVERSIBLY (no UI path back) and leak it into the public Discover feed for every later run.
-#   So the honest, hermetic assertion for the identity we actually have is the tier-gated STATE MACHINE, not a
-#   mutation. Covering the successful public->private transition needs a PREMIUM e2e identity; until one
-#   exists that transition is verified only by the component tests, not end-to-end.
+#   This flow asserted that "Private" was DISABLED and showed "Upgrade to premium to make a recipe private."
+#   That was true only while the Maestro signer was a free-tier account. It is not free now: the signer is the
+#   Maestro pool's `signer` slot, declared `premium` (`packages/tools/e2e-fixtures/src/testPool.ts`,
+#   `lane('signer', { premium: true, … })`). It has to be premium, because the seeded world this flow opens
+#   contains PRIVATE recipes, which the recipe service refuses to create for a free-tier `user_created` owner
+#   (`e2e-seed`'s `provision.ts`). Run 34863424203's hierarchy shows the private radio checked, ENABLED, and no
+#   upgrade copy. The old assertion described an identity this suite no longer signs in as.
 #
-# Uses "Mediterranean Grilled Lamb" (seeded PRIVATE, owned by the FREE subject) — the one owned recipe no
-# other flow destroys (delete.yaml removes "Gourmet Garden Salad"). edit.yaml may have suffixed its title with
-# " (edited)"; Maestro's text matching is substring-based, so the guard and tap below match either way.
+#   Its docblock also named what was owed: "Covering the successful public->private transition needs a PREMIUM
+#   e2e identity; until one exists that transition is verified only by the component tests". That identity
+#   exists, so the transition is now covered here. The FREE-tier gate stays covered by
+#   `RecipeVisibilityToggle.native.test.tsx`, `RecipeDetailScreen.native.test.tsx` and the web Playwright suite.
+#   It no longer has an on-device check, because that would take a second, free-tier device sign-in the fixture
+#   contract does not provide.
+#
+# ⛔ THE ROUND TRIP ENDS PRIVATE, where it started, on the premium-only leg. A run that dies between the legs
+# leaves the lamb public. `e2e-seed`'s per-flow reset (`planWorldReset`) now compares VISIBILITY as well as
+# title, and replaces a seeded row found at the wrong one, so the next flow still opens the private lamb its
+# manifest describes. Before that, a title-only reset kept the public lamb for the rest of the run.
+#
+# The detail's checked radio follows the SERVER's answer, not a local choice: `useSetRecipeVisibility` has no
+# optimistic update and writes the PATCH response straight into `recipe(id)`. So a radio that becomes CHECKED
+# means the change was stored. A failed PATCH leaves the old radio checked and the wait goes red.
+#
+# ⚠️ WHICH STATE FILTERS CAN FAIL. Each radio is TWO matchable nodes: the accessible radio (label as
+# `accessibilityText`, carrying checked/enabled) and its visible `Text` child, which is never checked and never
+# disabled. So `checked: true` and `enabled: false` really test the radio. `checked: false` or `enabled: true`
+# would always match the child and prove nothing, which is why "enabled" is asserted as `assertNotVisible …
+# enabled: false`.
+#
+# Uses the run's "Mediterranean Grilled Lamb" (seeded PRIVATE, owned by the signer).
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
@@ -26,10 +44,10 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the owned recipe rather
 # than a `when: visible` guard that would silently SKIP when it is below the fold (the list scrolls).
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 # Owner-only actions confirm we are the owner — the visibility control renders only for the owner, so without
 # this the assertions below could vacuously pass on a non-owned detail. The owner block is at the foot of the
 # (scrolling) detail; the same scroll continues down to the visibility control.
@@ -51,33 +69,37 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 
-# The current visibility is reported through the radios' CHECKED state (not colour/position alone). The
-# recipe is seeded private, so private is checked and public is not. These are anchored (`^…$`) because the
-# disabled-reason copy below also contains the word "private". Falsifiable: invert the visibility->checked
-# mapping and both assertions fail.
+# The recipe is seeded private, so the private radio is the checked one.
 - assertVisible:
       text: '^Private$'
       checked: true
-- assertVisible:
-      text: '^Public$'
-      checked: false
 
-# C-004 tier gate: a free-tier owner cannot select private, and the control says why in TEXT rather than by
-# appearance. Falsifiable: if the gate regressed to allow free accounts through, the option would report
-# enabled and the reason would not render.
-- assertVisible:
+# C-004 for a PREMIUM owner: the private option is NOT gated, and no upgrade reason renders. A gate that wrongly
+# blocked a premium account fails here.
+- assertNotVisible:
       text: '^Private$'
       enabled: false
-- assertVisible: 'Upgrade to premium to make a recipe private.'
+- assertNotVisible: 'Upgrade to premium to make a recipe private.'
 
-# The gate is enforced in the press handler too, not only via `disabled` (RecipeVisibilityToggle deliberately
-# re-checks `canGoPrivate` in `selectPrivate`). Tapping the gated option must be inert: no navigation, no
-# mutation, state unchanged.
+# Private -> Public, stored.
+- tapOn:
+      text: '^Public$'
+- extendedWaitUntil:
+      visible:
+          text: '^Public$'
+          checked: true
+      timeout: 40000
+- assertNotVisible: 'We couldn.t change .*'
+
+# Public -> Private: the premium-only transition, and the restore this shared world depends on (see above).
 - tapOn:
       text: '^Private$'
-- assertVisible:
-      text: '^Private$'
-      checked: true
+- extendedWaitUntil:
+      visible:
+          text: '^Private$'
+          checked: true
+      timeout: 40000
+
 # Still on the owned detail (no navigation) — the owner action is now above the scrolled position, so scroll
 # back UP to it rather than asserting blind.
 - scrollUntilVisible:

@@ -21,7 +21,14 @@ export interface LinearGradientProps extends ViewProps {
 // ViewProps type; widen the View once so the stub typechecks under the real RN types tsc resolves.
 const MarkedView = View as unknown as FC<ViewProps & { readonly dataSet?: Record<string, string | undefined> }>;
 
-export const LinearGradient: FC<LinearGradientProps> = ({ colors, locations, start, end, children, ...rest }) => (
+export const LinearGradient: FC<LinearGradientProps> = ({
+    colors,
+    locations: _locations,
+    start: _start,
+    end: _end,
+    children,
+    ...rest
+}) => (
     <MarkedView {...rest} dataSet={{ commiseStub: 'linear-gradient', colors: colors.join('|') }}>
         {children}
     </MarkedView>

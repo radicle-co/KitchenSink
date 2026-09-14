@@ -1,0 +1,46 @@
+{
+    "name": "@kitchensink/recipe-workers-infra",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "//": [
+        "⛔ DELIBERATELY NOT AN npm WORKSPACE — absent from the root `workspaces` globs on purpose.",
+        "",
+        "CDK is not part of the workspace installs. `aws-cdk-lib` is 149 MB and is a runtime dependency of no",
+        "service; while it was declared on the service it hoisted to the root tree, was pulled into",
+        "`turbo prune`, and shipped inside the service's container image.",
+        "",
+        "This directory installs its own `node_modules`. Node resolves upward, so the CDK app finds aws-cdk-lib",
+        "here and still finds the `@kitchensink/*` workspace packages at the repo root.",
+        "",
+        "⚠️ `@radicle-co/infra-shared` peers on aws-cdk-lib and owns no copy, so the constructs resolve THIS",
+        "directory's instance. Two instances is not a packaging nuisance: SecretValue tokens minted by one are",
+        "unresolvable by a stack from the other, and tsc rejects the assignment outright.",
+        "",
+        "⚠️ CI pins the exact prerelease the run published (`cdk-checks`, `_ci.yml`), so a PR that changes a",
+        "shared construct is built and deployed against ITS OWN construct rather than the last published one."
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "deploy": "cdk deploy --app 'npx tsx bin/app.ts'",
+        "synth": "cdk synth --app 'npx tsx bin/app.ts'",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@radicle-co/infra-shared": "0.1.0-alpha.897",
+        "aws-cdk-lib": "^2.267.0",
+        "constructs": "^10.8.1",
+        "dotenv": "^17.4.2"
+    },
+    "devDependencies": {
+        "@types/node": "^24.13.3",
+        "aws-cdk": "^2.1134.0",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

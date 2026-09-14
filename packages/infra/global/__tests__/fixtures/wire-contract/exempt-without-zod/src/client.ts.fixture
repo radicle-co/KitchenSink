@@ -1,0 +1,13 @@
+/**
+ * Claims the §15.3 exemption and then validates NOTHING — the exemption used to delete a boundary rather
+ * than relocate it. This is the shape ADR-0014 says the exception exists to prevent.
+ */
+export interface UpstreamThingResponse {
+    readonly thingId: number;
+}
+
+export async function getThing(fetchImpl: typeof fetch): Promise<UpstreamThingResponse> {
+    const response = await fetchImpl('https://upstream.example/things/1');
+
+    return (await response.json()) as UpstreamThingResponse;
+}

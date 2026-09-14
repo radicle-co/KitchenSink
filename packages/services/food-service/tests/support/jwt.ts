@@ -1,7 +1,7 @@
 /**
  * Real Clerk-compatible RS256 JWT minting for the food-service e2e suite (T-190).
  *
- * The e2e boots the real Nest app with the REAL {@link FoodAuthGuard} → `@kitchensink/clerk-verify`
+ * The e2e boots the real Nest app with the REAL `FoodAuthGuard` → `@kitchensink/clerk-verify`
  * (no mock), so it needs genuinely-signed tokens that `@clerk/backend`'s networkless `verifyToken`
  * accepts against a pinned PEM public key. We generate a throwaway 2048-bit RSA keypair: Clerk's local
  * JWK loader strips the fixed SPKI prefix `MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA` and assumes

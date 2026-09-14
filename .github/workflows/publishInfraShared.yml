@@ -1,0 +1,169 @@
+name: Publish @radicle-co/infra-shared
+
+# ⛔ MANUAL ONLY, and deliberately so. Publishing is irreversible in the way that matters: npm reserves a
+# version number forever, so a bad publish is corrected by a new version rather than by undoing one. There is
+# no `pull_request` or `push` trigger here on purpose — a package that republishes itself on every merge is
+# how a broken CDK construct reaches six services before anyone reads the diff.
+on:
+    # ⛔ MERGING TO MAIN IS THE RELEASE. The bump comes from the Conventional Commits touching this package
+    # since the last `infra-shared-v*` tag, so the version is a consequence of what was merged rather than a
+    # number somebody picked. Gated on the path: a merge that does not touch the constructs publishes nothing,
+    # and `deriveVersion` refuses a release with no qualifying commits anyway.
+    push:
+        branches: [main]
+        paths:
+            - 'shared/infra/**'
+    workflow_dispatch:
+        inputs:
+            channel:
+                description: 'release = prod (major/minor/patch); prerelease = sandbox (alpha)'
+                type: choice
+                options: [release, prerelease]
+                default: prerelease
+            dry_run:
+                description: 'Derive, pack and validate without publishing'
+                type: boolean
+                default: true
+
+# Declared rather than inherited: with no `permissions:` block a workflow gets the repository's DEFAULT token
+# scope, which is set outside this file and can be read-all.
+# ⛔ WORKFLOW-LEVEL IS READ-ONLY. The write grants live on the ONE job that needs them, so nothing else this
+# workflow ever grows inherits the ability to publish or to move a tag.
+permissions:
+    contents: read # read-only by default; the publish job widens this for itself alone
+
+concurrency:
+    group: publish-infra-shared
+    cancel-in-progress: false
+
+jobs:
+    publish:
+        name: Publish the shared CDK constructs
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        permissions:
+            contents: write # writes the `infra-shared-v*` tag, the ledger the next version is derived from
+            packages: write # zizmor: ignore[use-trusted-publishing]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # ⛔ FULL HISTORY AND TAGS. The version is derived from the commits touching this package
+                  # since the last `infra-shared-v*` tag; a shallow clone silently sees none of them and would
+                  # derive a first release forever.
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  # ⛔ NO `registry-url:` on setup-node. That input also rewrites the DEFAULT registry, which would send
+                  # every public dependency — `aws-cdk-lib` included — to GitHub Packages. The scope mapping and the auth
+                  # line live in each CDK package's own `.npmrc`, which npm reads from the package directory in both
+                  # shapes CI uses (`cd <dir>` and `--prefix <dir>`); NODE_AUTH_TOKEN supplies the token.
+
+            # ⚠️ Its own install, in its own directory. This package is NOT an npm workspace — that is the
+            # entire point of it (see its package.json) — so the root `npm ci` neither installs nor builds it.
+            - name: Install
+              working-directory: shared/infra
+              run: npm ci
+
+            - name: Build
+              working-directory: shared/infra
+              run: npm run build
+
+            # ⛔ THE GUARD THAT MATTERS FOR THIS PACKAGE. It exists to hold no `aws-cdk-lib` of its own, so a
+            # consuming CDK app supplies the single instance. A `dependencies` entry here would put a second
+            # instance in every consumer's tree, and the failure is not a missing module — it is
+            # `SecretValue` tokens minted by one instance that the other cannot resolve, plus a TypeScript
+            # error about "separate declarations of a private property". Fail before publishing, not after.
+            - name: Refuse to publish if CDK stopped being a peer dependency
+              working-directory: shared/infra
+              run: |
+                  set -euo pipefail
+                  node -e '
+                    const m = require("./package.json");
+                    const owned = Object.keys(m.dependencies ?? {});
+                    const peers = Object.keys(m.peerDependencies ?? {});
+                    const bad = ["aws-cdk-lib", "constructs"].filter((p) => owned.includes(p));
+                    if (bad.length > 0) {
+                      console.error(`::error::${bad.join(", ")} moved into dependencies; they must stay peers`);
+                      process.exit(1);
+                    }
+                    for (const p of ["aws-cdk-lib", "constructs"]) {
+                      if (!peers.includes(p)) {
+                        console.error(`::error::${p} is not declared as a peerDependency`);
+                        process.exit(1);
+                      }
+                    }
+                    console.log("peer contract intact:", peers.join(", "));
+                  '
+
+            # ⛔ THE VERSION IS DERIVED, NEVER TYPED. `scripts/infraSharedVersion.mjs` reads the last
+            # `infra-shared-v*` tag and the Conventional Commits since it: `feat!:`/`BREAKING CHANGE:` is
+            # major, `feat:` minor, everything else patch — demoted one step while the major is 0, so 1.0.0
+            # stays a deliberate act. A prerelease is that same number with `-alpha.<run>`, which semver
+            # orders BELOW the release and which no `^`/`~` range will ever resolve.
+            # A `push` carries no inputs, so the channel and the dry-run default to a real release; a
+            # dispatch can still ask for a prerelease or a rehearsal.
+            # ⛔ Via `env:`, never `${{ }}` interpolated into the command body — this file's convention, and
+            # the reason is that an interpolation is SUBSTITUTED INTO THE SHELL before it runs, so the same
+            # pattern copied to a value an outsider controls becomes command injection. zizmor flags it.
+            - name: Resolve the run's intent
+              id: intent
+              env:
+                  INPUT_CHANNEL: ${{ inputs.channel }}
+                  INPUT_DRY_RUN: ${{ inputs.dry_run }}
+              run: |
+                  set -euo pipefail
+                  # A `push` carries no inputs, so both default to a real release.
+                  echo "channel=${INPUT_CHANNEL:-release}" >> "$GITHUB_OUTPUT"
+                  echo "dry_run=${INPUT_DRY_RUN:-false}" >> "$GITHUB_OUTPUT"
+
+            - name: Derive the version to publish
+              id: version
+              env:
+                  CHANNEL: ${{ steps.intent.outputs.channel }}
+                  BUILD_ID: ${{ github.run_number }}
+              run: node scripts/infraSharedVersion.mjs "$CHANNEL" "$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+            - name: Write the derived version into the manifest
+              working-directory: shared/infra
+              env:
+                  VERSION: ${{ steps.version.outputs.version }}
+              run: |
+                  set -euo pipefail
+                  # `--no-git-tag-version`: the tag is written below, and only for a release.
+                  npm version "$VERSION" --no-git-tag-version --allow-same-version
+                  node -e 'console.log("manifest version:", require("./package.json").version)'
+
+            - name: Pack and show what would ship
+              working-directory: shared/infra
+              run: |
+                  set -euo pipefail
+                  npm pack --dry-run
+
+            - name: Publish
+              if: ${{ steps.intent.outputs.dry_run == 'false' }}
+              working-directory: shared/infra
+              env:
+                  # GitHub Packages accepts the workflow's own token; the scope in the package name is what
+                  # routes it to `radicle-co`. A mismatched scope is rejected by the registry, not by us.
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # ⚠️ `--tag alpha` keeps a sandbox build off the `latest` dist-tag. Without it `npm install`
+                  # with no version would hand a consumer a prerelease.
+                  DIST_TAG: ${{ steps.intent.outputs.channel == 'prerelease' && 'alpha' || 'latest' }}
+              run: npm publish --tag "$DIST_TAG" # zizmor: ignore[use-trusted-publishing]
+
+            # ⛔ THE TAG IS THE LEDGER, and only a release writes one. It is what the NEXT derivation measures
+            # from, so a release that publishes without tagging would re-derive the same version forever.
+            # A prerelease deliberately writes none: sandbox builds are disposable and must not move the
+            # baseline every other consumer's version is computed against.
+            - name: Tag the release
+              if: ${{ steps.intent.outputs.dry_run == 'false' && steps.intent.outputs.channel == 'release' }}
+              env:
+                  TAG: ${{ steps.version.outputs.tag }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+                    -f "ref=refs/tags/${TAG}" -f "sha=${GITHUB_SHA}"
+                  echo "tagged ${TAG}"

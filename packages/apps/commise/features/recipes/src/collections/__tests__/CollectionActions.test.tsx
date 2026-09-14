@@ -58,13 +58,19 @@ describe('CollectionActions (web) — Pull Updates visibility (FR-011)', () => {
         expect(onPullUpdates).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the action and shows a busy affordance while pulling updates, and cannot re-fire', async () => {
+    /**
+     * REWRITTEN from `disabled === true`: the pull button is the one just pressed, and native `disabled` drops focus
+     * to <body> in a real browser (WCAG 2.2 SC 2.4.3). It stays focusable and `aria-disabled`, and the press is
+     * refused — so "cannot re-fire" is still asserted on the handler.
+     */
+    it('busies the action and shows a busy affordance while pulling updates, and cannot re-fire', async () => {
         const user = userEvent.setup();
         const onPullUpdates = vi.fn();
         renderActions({ isCloned: true, isPulling: true, onPullUpdates });
 
         const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Pull Updates from Source' });
-        expect(button.disabled).toBe(true);
+        expect(button.disabled).toBe(false);
+        expect(button.getAttribute('aria-disabled')).toBe('true');
         expect(button.getAttribute('aria-busy')).toBe('true');
         expect(screen.getByText('Pulling updates…')).toBeTruthy();
 
@@ -96,13 +102,16 @@ describe('CollectionActions (web) — Clone Collection', () => {
         expect(onClone).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the action and shows a busy affordance while cloning, and cannot re-fire', async () => {
+    it('busies the action and shows a busy affordance while cloning, and cannot re-fire', async () => {
         const user = userEvent.setup();
         const onClone = vi.fn();
         renderActions({ isCloning: true, onClone });
 
         const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Clone Collection' });
-        expect(button.disabled).toBe(true);
+        // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus in a real browser —
+        // WCAG 2.2 SC 2.4.3); the no-refire guarantee below is unchanged.
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.disabled).toBe(false);
         expect(button.getAttribute('aria-busy')).toBe('true');
         expect(screen.getByText('Cloning…')).toBeTruthy();
 

@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/button — shared, platform-neutral prop + variant contract for the design-system
- * {@link Button}. The web (`Button.tsx`) and native (`Button.native.tsx`) leaves both implement this exact
+ * `Button`. The web (`Button.tsx`) and native (`Button.native.tsx`) leaves both implement this exact
  * surface; the bundler resolves the right leaf per platform at import time (`@commise/ui/button`).
  *
  * The Button is the app-wide standard for a labelled action control, and it encodes two invariants at the
@@ -39,11 +39,18 @@ export interface ButtonProps {
      * (there is no form element); native submit buttons wire {@link onPress} instead. Defaults to `button`.
      */
     readonly type?: 'button' | 'submit';
-    /** Disables interaction and dims the control. */
+    /**
+     * Disables interaction and dims the control, for a rule the press did not cause. On web it yields to
+     * {@link busy}: a busy control is the one just pressed, so it stays focusable (see `busyControlProps`).
+     */
     readonly disabled?: boolean;
     /**
-     * Marks an in-flight action: the control is disabled (so it cannot be double-fired) and exposes a busy
-     * state to assistive tech (`aria-busy` on web, `accessibilityState.busy` on native).
+     * Marks an in-flight action: the control cannot be double-fired and exposes a busy state to assistive tech.
+     *
+     * ⚠️ The platforms reach "cannot double-fire" differently, on purpose. WEB: the button stays FOCUSABLE —
+     * `aria-disabled` + `aria-busy`, and the click is cancelled — because a real browser drops focus from a
+     * natively disabled control (WCAG 2.2 SC 2.4.3). NATIVE: the `Pressable` is disabled and exposes
+     * `accessibilityState.busy`; a disabled `Pressable` keeps screen-reader focus on device.
      */
     readonly busy?: boolean;
     /**

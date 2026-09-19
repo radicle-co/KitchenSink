@@ -82,9 +82,11 @@ describe('reconciliation handler', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         resetConfigCacheForTests();
-        process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-        process.env.IDP_SECRET_KEY = 'sk_test_abc';
-        process.env.STAGE = 'test';
+        process.env['DB_HOST'] = 'db.internal';
+        process.env['DB_PORT'] = '5432';
+        process.env['DB_NAME'] = 'kitchensink_identity';
+        process.env['IDP_SECRET_KEY'] = 'sk_test_abc';
+        process.env['STAGE'] = 'test';
 
         mockGetDb.mockResolvedValue({} as never);
         mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'ulid_x' } } as never);
@@ -152,26 +154,26 @@ describe('reconciliation handler', () => {
         expect(mockEmitMetric).toHaveBeenCalledWith('ReconciliationDrift', expect.any(Number));
     });
 
-    it('missing DB_SECRET_ARN → fails fast on the typed config before listing IdP users', async () => {
-        delete process.env.DB_SECRET_ARN;
+    it('missing DB_HOST (and no DATABASE_URL) → fails fast on the typed config before listing IdP users', async () => {
+        delete process.env['DB_HOST'];
 
         await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
         expect(mockListIdpUsers).not.toHaveBeenCalled();
     });
 
     it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN → fails fast on the typed config', async () => {
-        delete process.env.IDP_SECRET_KEY;
+        delete process.env['IDP_SECRET_KEY'];
 
         await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
         expect(mockListIdpUsers).not.toHaveBeenCalled();
     });
 
-    it('reads DB_SECRET_ARN from the typed config (not requireEnv)', async () => {
+    it('asks the shared connection factory for the handle, passing no credential (RDS IAM)', async () => {
         mockListIdpUsers.mockResolvedValue([]);
 
         await handler(makeEvent(), makeContext());
 
-        expect(mockGetDb).toHaveBeenCalledWith('arn:aws:secretsmanager:us-east-1:123:secret:db');
+        expect(mockGetDb).toHaveBeenCalledWith();
     });
 
     it('continues past a genuinely failing user, signals it, and counts it as failed', async () => {

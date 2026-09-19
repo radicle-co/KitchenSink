@@ -1,8 +1,11 @@
-import { eq } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { and, eq } from 'drizzle-orm';
+import type { IdentityWriter } from '../identityWriter.js';
 
-import { users, accounts, profiles } from '../schema/index.js';
-import type { NewUserRow, ProfileRow, UserRow } from '../schema/index.js';
+import { accounts } from '../schema/accounts.js';
+import { profiles } from '../schema/profiles.js';
+import { users } from '../schema/users.js';
+import type { ProfileRow } from '../schema/profiles.js';
+import type { NewUserRow, UserRow } from '../schema/users.js';
 import { newUserId, type UserId } from '../ulid.js';
 
 /**
@@ -23,7 +26,7 @@ const noopLogger: UserDaoLogger = { warn: () => {} };
 /** @implements REQ-013 REQ-014 REQ-015 REQ-017 REQ-018 REQ-019 REQ-025 FR-013 FR-014 FR-015 FR-017 FR-018 FR-019 FR-025 ARCH-011 ARCH-012 MOD-011 MOD-012 */
 export class UserDAO {
     constructor(
-        private readonly db: PostgresJsDatabase<Record<string, never>>,
+        private readonly db: IdentityWriter,
         private readonly logger: UserDaoLogger = noopLogger,
     ) {}
 
@@ -147,10 +150,21 @@ export class UserDAO {
                 .set({ name: data.name, picture: data.picture, updatedAt: data.now })
                 .where(eq(users.id, userId));
 
-            const profilePatch: Partial<Pick<ProfileRow, 'displayName' | 'avatarUrl'>> = {};
+            const profilePatch: Partial<
+                Pick<ProfileRow, 'displayName' | 'avatarUrl' | 'handleSyncOwedAt' | 'handleSyncFailureCode'>
+            > = {};
 
             if (nameChanged) {
                 profilePatch.displayName = data.name;
+                // ⛔ U9/R21: the OWED MARKER moves with the name, inside this transaction. The caller
+                // publishes to the handle-sync topic AFTER this commits and is deliberately best-effort, so
+                // without the marker a failed fan-out left nothing behind — the name changed here, never
+                // changed on the cook's recipes, and the only trace was one log line in the handler.
+                //
+                // ⚠️ Both columns, because a rename that re-owes a sync must not inherit the PREVIOUS
+                // attempt's failure code: the debt is new, and its verdict is not in yet.
+                profilePatch.handleSyncOwedAt = data.now;
+                profilePatch.handleSyncFailureCode = null;
             }
 
             if (pictureChanged) {
@@ -164,6 +178,52 @@ export class UserDAO {
 
             return { displayNameChanged: nameChanged };
         });
+    }
+
+    /**
+     * Settle the handle-sync debt this rename recorded (plan U9, R21/R25).
+     *
+     * ⛔ CONDITIONAL on the stamp the caller wrote, which is the whole safety of it. A second rename can land
+     * between a publish starting and finishing; settling unconditionally would erase the NEWER debt and leave
+     * that name un-synced with nothing recording it — the exact silence the marker exists to end,
+     * reintroduced by the successful path.
+     *
+     * @param userId - The renamed user.
+     * @param owedAt - The stamp the rename wrote; only a row still carrying it is settled.
+     * @param failureCode - `null` clears the debt (published); a code leaves it, saying why it is still owed.
+     * @sideEffect Updates `profiles`.
+     */
+    async settleHandleSync(userId: UserId, owedAt: Date, failureCode: string | null): Promise<void> {
+        await this.db
+            .update(profiles)
+            .set(
+                failureCode === null
+                    ? { handleSyncOwedAt: null, handleSyncFailureCode: null }
+                    : { handleSyncFailureCode: failureCode },
+            )
+            .where(and(eq(profiles.userId, userId), eq(profiles.handleSyncOwedAt, owedAt)));
+    }
+
+    /**
+     * Record that the provider was brought to `version` — CONDITIONALLY on the intent not having moved (U10).
+     *
+     * ⛔ The condition is the whole guarantee. A newer status change committed while the provider call was in
+     * flight means this result is already stale; settling anyway would mark the account converged at a state
+     * it is no longer in, and nothing downstream could tell. Zero rows matched IS that signal.
+     *
+     * @param id - The user.
+     * @param version - The `status_version` the caller read before calling the provider.
+     * @returns Whether the settle landed. `false` means the intent moved; the caller must not acknowledge.
+     * @sideEffect Updates `users.status_applied_version`.
+     */
+    async settleStatusVersion(id: UserId, version: number): Promise<boolean> {
+        const settled = await this.db
+            .update(users)
+            .set({ statusAppliedVersion: version })
+            .where(and(eq(users.id, id), eq(users.statusVersion, version)))
+            .returning({ id: users.id });
+
+        return settled.length > 0;
     }
 
     async softDelete(id: UserId): Promise<UserRow | undefined> {

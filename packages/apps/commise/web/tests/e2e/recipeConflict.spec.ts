@@ -47,9 +47,10 @@ async function enterConflict(page: Page, conflictSeed: EnrichedConflictSeed): Pr
 
     await page.goto(route('/recipes/rec_conflict/edit'));
     await page.getByLabel('Title').fill('My Merged Title');
-    // Publish is the footer's FINAL-step primary (U6). The seed is fully valid, so jump to Photos (step 4) via
+    // Publish is the action bar's FINAL-step primary. The seed is fully valid, so jump to Review (step 4) via
     // the rail — forward navigation is ungated even with the unsaved title edit — and publish to lose the race.
-    await page.getByRole('button', { name: /Photos:/ }).click();
+    await page.getByRole('button', { name: /Review:/ }).click();
+    await expect(page.getByText('Step 4 of 4')).toBeVisible();
     await page.getByRole('button', { name: 'Publish' }).click();
 
     await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
@@ -58,14 +59,62 @@ async function enterConflict(page: Page, conflictSeed: EnrichedConflictSeed): Pr
 }
 
 test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () => {
+    // ⛔ THE LOST UPDATE, through the real UI. The unit suite pins which version the editor sends; only a browser
+    // proves the whole path a cook takes: the tab regains focus, TanStack refetches the recipe, and the cache now holds
+    // the OTHER device's version. A save that sent the cache's version would be accepted and overwrite their change.
+    test("a save after the other device's change was REFETCHED still names the version it edited, and overwrites nothing", async ({
+        page,
+    }) => {
+        await page.clock.install();
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const seed = makeRecipeDetail({
+            id: 'rec_conflict',
+            ownerId: viewerId,
+            title: 'Original Title',
+            servings: 4,
+            currentVersion: 1,
+        });
+        const store = await mockRecipeApi(page, { viewerId, recipes: [seed] });
+        const detailRead = (request: { method(): string; url(): string }): boolean =>
+            request.method() === 'GET' && /\/api\/v1\/recipes\/rec_conflict(?:\?|$)/u.test(request.url());
+
+        await page.goto(route('/recipes/rec_conflict/edit'));
+        await page.getByLabel('Title').fill('My Edit');
+
+        // The other device saves: servings 8, version 2.
+        store.set('rec_conflict', { ...seed, servings: 8, currentVersion: 2 });
+
+        // The detail read is 30 s fresh; jump past it, then refocus the tab so the editor's cache refetches v2.
+        const refetched = page.waitForRequest(detailRead);
+        await page.clock.fastForward('00:31');
+        await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+        await refetched;
+
+        const save = page.waitForRequest(
+            (request) =>
+                request.method() === 'PATCH' && /\/api\/v1\/recipes\/rec_conflict(?:\?|$)/u.test(request.url()),
+        );
+        await page.getByRole('button', { name: /Review:/ }).click();
+        await page.getByRole('button', { name: 'Publish' }).click();
+
+        expect((await save).postDataJSON()).toMatchObject({ expectedVersion: 1 });
+        // The refusal reached the cook as the conflict view. Without it, a mock that answered a bare 409 with no
+        // enriched sides would pass this test while the cook saw an unresolvable error.
+        await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
+        // The server refused the stale write, so the other device's change stands.
+        expect(store.get('rec_conflict')).toMatchObject({ currentVersion: 2, servings: 8 });
+    });
+
     test('the conflict shows the per-side banner and the changed-only diff (markers, Server before Yours)', async ({
         page,
     }) => {
-        await enterConflict(page, { serverChanges: { servings: 8 }, deviceLabel: 'Kitchen iPad' });
+        await enterConflict(page, { serverChanges: { servings: 8 } });
 
-        // Per-side banner (X3): server side names its version, when it saved, and which device — mine has no
-        // version of its own (never persisted).
-        await expect(page.getByText(/^Server version \(v2\): Saved \d+ minutes? ago on Kitchen iPad$/u)).toBeVisible();
+        // Per-side banner (X3): server side names its version and when it saved — mine has no version of its
+        // own (never persisted). The banner's trailing ` on {device}` clause went with the 2026-08-26 owner
+        // ruling; the `$` anchor is what keeps it from creeping back.
+        await expect(page.getByText(/^Server version \(v2\): Saved \d+ minutes? ago$/u)).toBeVisible();
         await expect(page.getByText('Your version: local unsaved changes')).toBeVisible();
 
         // Changed-only diff (X1/X7): title (mine changed it) and servings (theirs changed it) — Server's

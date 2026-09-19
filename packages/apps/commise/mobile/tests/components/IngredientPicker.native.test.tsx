@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { AccessibilityInfo } from 'react-native';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
@@ -14,6 +15,7 @@ import {
     useAddIngredientByName,
     useCreateIngredient,
     useIngredientCandidates,
+    useRecordIngredientCorrection,
     useResolveIngredient,
     useSuggestIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
@@ -26,13 +28,55 @@ import { palette } from '@commise/ui';
 import { IngredientPicker } from '../../src/components/IngredientPicker.js';
 import { makeIngredient } from '../__fixtures__/recipes.js';
 
+/**
+ * The screen-reader API is MOCKED: react-native-web does not implement `sendAccessibilityEvent`. What these cases
+ * prove is the contract with React Native — which node, in which order. Whether VoiceOver/TalkBack honour it on a
+ * device is a device check this tier cannot make.
+ */
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        AccessibilityInfo: {
+            ...actual.AccessibilityInfo,
+            sendAccessibilityEvent: vi.fn(),
+            announceForAccessibilityWithOptions: vi.fn(),
+        },
+    };
+});
+
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useSuggestIngredients: vi.fn(),
     useAddIngredientByName: vi.fn(),
     useAddIngredientByFood: vi.fn(),
     useCreateIngredient: vi.fn(),
     useIngredientCandidates: vi.fn(),
     useResolveIngredient: vi.fn(),
+    // U29 — idle by default: the on-demand source search must never run unless a test presses it.
+    useSearchIngredientsLive: vi.fn(() => ({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+        data: undefined,
+        error: undefined,
+    })),
+    // U14 — the picker now also mounts the CORRECTION command. A module mock that omits a hook the
+    // component calls yields `undefined` at the call site and crashes the whole render, so every suite
+    // mocking this module must list every hook the leaf mounts. Its own states are covered next door, in
+    // `IngredientPickerCorrection.native.test.tsx`.
+    useRecordIngredientCorrection: vi.fn(),
+    // U16: the create-your-own-food mutation the picker now reads — inert idle default; these suites
+    // never drive the create flow (IngredientPickerCreateFood.native.test.tsx owns those states).
+    useCreateAuthoredFoodViaPicker: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
 }));
 
 const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);
@@ -41,6 +85,7 @@ const useAddIngredientByFoodMock = vi.mocked(useAddIngredientByFood);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 const useIngredientCandidatesMock = vi.mocked(useIngredientCandidates);
 const useResolveIngredientMock = vi.mocked(useResolveIngredient);
+const useRecordIngredientCorrectionMock = vi.mocked(useRecordIngredientCorrection);
 
 /** Wrap the caller's own catalog rows as `local` blended suggestions (search Stage 2). */
 function own(ingredients: readonly Ingredient[]): IngredientSuggestion[] {
@@ -144,6 +189,14 @@ beforeEach(() => {
     useCreateIngredientMock.mockReturnValue(createMutation());
     useIngredientCandidatesMock.mockReturnValue(candidatesResult());
     useResolveIngredientMock.mockReturnValue(resolveMutation());
+    useRecordIngredientCorrectionMock.mockReset();
+    useRecordIngredientCorrectionMock.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+        data: undefined,
+    } as unknown as ReturnType<typeof useRecordIngredientCorrection>);
 });
 
 /** Advance past the REQ-057 debounce window so `useDebouncedValue`'s pending `setState` settles. */
@@ -163,12 +216,80 @@ describe('IngredientPicker — search + select', () => {
         settleDebounce();
         fireEvent.click(screen.getByRole('button', { name: 'Basil' }));
 
+        // ⛔ REWRITTEN FOR U28: the WHOLE `ResolvedRecipeFormIngredient`, not a three-field projection.
+        // This leaf used to narrow the hook's line to `{ id, name, resolutionStatus }` and `RecipeEditor`
+        // rebuilt it — dropping `caloriesPer100g`/`proteinGPer100g`/`carbsGPer100g`/`fatGPer100g`/`portions`,
+        // so a picked ingredient showed calories on WEB and not here. The old assertion pinned the
+        // projection, which is why nothing caught it. `quantity: 1` is `toIngredientLine`'s default.
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_7',
+            ingredientId: 'ing_7',
             name: 'Basil',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
         });
         expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('');
+    });
+});
+
+describe('IngredientPicker (mobile) — a failed create is REPORTED, not swallowed', () => {
+    /**
+     * ⛔ THE WEB TWIN ALREADY DOES THIS AND MOBILE DID NOT — a §14 parity defect, not a missing nicety.
+     * `IngredientPicker.tsx:527` renders `picker.createError` in a `role="alert"` when `createStatus.isError`
+     * is true; the native picker read the same `createStatus` for its BUSY state only, so a failed freeform
+     * create left the cook with a control that stopped spinning and said nothing at all.
+     *
+     * ⚠️ NOTHING TO DO WITH OFFLINE. This is an ordinary online failure — a 5xx, a rejected name, a dropped
+     * socket — and it is the failure a cook is most likely to hit while building a recipe, because creating
+     * a freeform ingredient is the fallback the picker pushes them toward when the catalog has no match.
+     *
+     * ⚠️ The error belongs HERE, beside the create action, rather than at the top of the form: the cook is
+     * looking at the word they just typed, and a form-level banner cannot say which of several lines failed.
+     */
+    it('⛔ shows an error beside the create action when the freeform create fails', () => {
+        useCreateIngredientMock.mockReturnValue(createMutation({ isError: true } as never));
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'gochujang' } });
+        settleDebounce();
+
+        expect(screen.getByText('We couldn’t create that ingredient. Please try again.')).toBeTruthy();
+    });
+});
+
+describe('IngredientPicker (mobile) — after an add', () => {
+    afterEach(() => {
+        vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+    });
+
+    /**
+     * ⛔ WEB'S AFTER-ADD FOCUS, ADAPTED — NOT COPIED (staff-ux-engineer). The pressed row is gone once the picker
+     * resets, so the SCREEN-READER cursor returns to the search box; the keyboard is never raised (that would
+     * cover the recipe the cook is building). What was added is visible text that is also a polite live region.
+     */
+    it('⛔ returns screen-reader focus to the search box, never the keyboard, and says what was added', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult(own([makeIngredient({ id: 'ing_7', name: 'Basil' })])));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        const search = screen.getByLabelText('Search ingredients');
+        fireEvent.change(search, { target: { value: 'bas' } });
+        settleDebounce();
+        fireEvent.click(screen.getByRole('button', { name: 'Basil' }));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenLastCalledWith(search, 'focus');
+        expect(document.activeElement).not.toBe(search);
+        expect(screen.getByText('Added Basil').getAttribute('aria-live')).toBe('polite');
+
+        // …and it clears on the next keystroke, so the same food added again is announced again.
+        fireEvent.change(search, { target: { value: 'b' } });
+        expect(screen.queryByText('Added Basil')).toBeNull();
+    });
+
+    it('moves no focus and says nothing before anything has been added', () => {
+        render(<IngredientPicker onResolve={vi.fn()} />);
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
+        expect(screen.queryByText(/^Added /u)).toBeNull();
     });
 });
 
@@ -195,56 +316,99 @@ describe('IngredientPicker — search field controls (U6 styling)', () => {
         expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('');
     });
 
-    it('renders a styled — but inert (not a button) — "Search USDA for …" seam once a query is typed (U6)', () => {
+    /**
+     * ⚠️ **REWRITTEN, not deleted (plan U29).** This case used to assert the opposite — that the
+     * "Search USDA for …" seam was styled but INERT, deliberately not a button, because nothing was wired
+     * behind it. U29 wires it, so the old assertion was asserting the absence of the feature that now
+     * exists; leaving it would have made the suite fail for the right reason and be "fixed" by deleting the
+     * assertion, which is the outcome §7.1 forbids. It now pins the same slot's NEW contract, and the
+     * "Soon" tag it carried is gone with the behaviour it stood in for.
+     *
+     * The states BEHIND the control — searching, results, empty, busy, failed — live next door in
+     * `IngredientPickerLiveSearch.native.test.tsx`, mirroring how the correction affordance is split out.
+     */
+    it('renders a PRESSABLE "Search USDA for …" control once a query is typed (U29 wires the U6 seam)', () => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'kimchi' } });
         settleDebounce();
 
-        // The seam is visible with the query interpolated…
-        expect(screen.getByText('Search USDA for “kimchi”')).toBeTruthy();
-        // …but it is a placeholder for a future CR — NOT a pressable/button (nothing wired behind it yet).
-        expect(screen.queryByRole('button', { name: 'Search USDA for “kimchi”' })).toBeNull();
+        // The control is visible with the query interpolated, and is now a real button…
+        expect(screen.getByLabelText('Search USDA for “kimchi”')).toBeTruthy();
+        // …marked SLOW, because it reaches an upstream source and routinely takes seconds…
+        expect(screen.getByText('Slow')).toBeTruthy();
+        // …and the "Soon" placeholder tag is gone, along with the behaviour it was standing in for.
+        expect(screen.queryByText('Soon')).toBeNull();
     });
 });
 
 /**
- * REQ-057 gates the ingredient search at {@link MIN_INGREDIENT_QUERY_LENGTH} (2) characters, and the shared
- * resolver model encodes that as the `idle` view state. The web leaf renders its action row ONLY inside the
- * non-idle kinds (`searching`/`results`/`terminal`), so a single character offers nothing. Mobile gated the
- * same row on `trimmed.length > 0` instead — a platform divergence that offered all three query-keyed
- * affordances at ONE character (caught on-device by Maestro `create`, which asserts the negative).
+ * The search minimum, on MOBILE — 003-FR-010a (owner ruling 2026-08-24, plan U37), which RAISED the old
+ * REQ-057 2-character client trigger to three characters and made it a rule the server enforces too.
  *
- * It is not merely cosmetic: "Find nutrition for “T”" fires the very food-service search REQ-057 gates, and
- * "Create “T”" POSTs a real catalog ingredient named "T" — one stray keystroke away from junk catalog data.
+ * ⚠️ **This block is rewritten, not replaced.** The invariant it has always protected is unchanged and is
+ * the reason it exists: below the minimum the leaf must offer NO query-keyed affordance. That is not
+ * cosmetic — "Find nutrition for “T”" fires the very search the minimum gates, and "Create “T”" POSTs a
+ * real catalog ingredient named "T", one stray keystroke away from junk catalog data. Mobile once gated
+ * that row on `trimmed.length > 0` and offered all three at ONE character (caught on-device by Maestro
+ * `create`, which asserts the negative).
+ *
+ * ⛔ U37 makes it load-bearing a SECOND time. `tooShort` is a NEW non-idle view-state kind, so a leaf that
+ * gates its action row on `kind !== 'idle'` re-opens exactly that regression — the same defect, arriving
+ * through the fix for a different requirement.
  */
-describe('IngredientPicker — REQ-057 2-character search threshold', () => {
-    it('offers no query-keyed affordance for a single character', () => {
+describe('IngredientPicker — the 003-FR-010a three-character minimum', () => {
+    it.each(['T', 'To'])('offers no query-keyed affordance for the below-minimum query %j', (query) => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
-        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'T' } });
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: query } });
         settleDebounce();
 
-        expect(screen.queryByRole('button', { name: 'Find nutrition for “T”' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Create “T”' })).toBeNull();
-        expect(screen.queryByText('Search USDA for “T”')).toBeNull();
+        expect(screen.queryByRole('button', { name: `Find nutrition for “${query}”` })).toBeNull();
+        expect(screen.queryByRole('button', { name: `Create “${query}”` })).toBeNull();
+        expect(screen.queryByText(`Search USDA for “${query}”`)).toBeNull();
     });
 
-    it('offers them as soon as the query reaches two characters', () => {
+    it('explains the minimum instead of leaving the cook typing into a dead surface', () => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'To' } });
         settleDebounce();
 
-        expect(screen.getByRole('button', { name: 'Find nutrition for “To”' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Create “To”' })).toBeTruthy();
-        expect(screen.getByText('Search USDA for “To”')).toBeTruthy();
+        expect(
+            screen.getByText('Keep typing — 3 characters or more. Anything shorter matches half the pantry.'),
+        ).toBeTruthy();
+        // ⛔ NOT the empty-result copy: that asserts the catalog was searched and came back empty.
+        expect(screen.queryByText('No matching ingredients. Create a new one below.')).toBeNull();
     });
 
-    it('offers nothing at all while the field is still empty', () => {
+    it('offers them as soon as the query reaches THREE characters', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Tom' } });
+        settleDebounce();
+
+        expect(screen.getByRole('button', { name: 'Find nutrition for “Tom”' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Create “Tom”' })).toBeTruthy();
+        expect(screen.getByText('Search USDA for “Tom”')).toBeTruthy();
+        expect(screen.queryByText(/characters or more/)).toBeNull();
+    });
+
+    it('searches `egg` — the genuine three-character foods are not casualties', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'egg' } });
+        settleDebounce();
+
+        expect(screen.queryByText(/characters or more/)).toBeNull();
+    });
+
+    it('offers nothing at all — and says nothing at all — while the field is still empty', () => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
@@ -252,6 +416,8 @@ describe('IngredientPicker — REQ-057 2-character search threshold', () => {
 
         expect(screen.queryByRole('button', { name: /^Find nutrition for/ })).toBeNull();
         expect(screen.queryByRole('button', { name: /^Create/ })).toBeNull();
+        // ⛔ `idle` and `tooShort` are distinct: "keep typing" over an untouched box is noise on every open.
+        expect(screen.queryByText(/characters or more/)).toBeNull();
     });
 });
 
@@ -281,9 +447,11 @@ describe('IngredientPicker — create freeform', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Create “Nduja”' }));
 
         expect(mutate).toHaveBeenCalledWith('Nduja', expect.objectContaining({ onSuccess: expect.any(Function) }));
+        // REWRITTEN FOR U28 — the whole line (see the search-select test for the defect this closes).
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_new',
+            ingredientId: 'ing_new',
             name: 'Nduja',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
         });
     });
@@ -323,9 +491,11 @@ describe('IngredientPicker — addByName (the async-resolution entry point, R5)'
         expect(addMutate).toHaveBeenCalledWith('Quinoa', expect.objectContaining({ onSuccess: expect.any(Function) }));
         expect(createMutate).not.toHaveBeenCalled();
         // The line carries its ACTUAL (PENDING) status so the editor keeps polling it.
+        // REWRITTEN FOR U28 — the whole line (see the search-select test).
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_food',
+            ingredientId: 'ing_food',
             name: 'Quinoa',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.PENDING,
         });
     });
@@ -433,9 +603,11 @@ describe('IngredientPicker — UNRESOLVED disambiguation (R5)', () => {
             { id: 'ing_u', candidateIds: ['cand-a'] },
             expect.objectContaining({ onSuccess: expect.any(Function) }),
         );
+        // REWRITTEN FOR U28 — the whole line (see the search-select test).
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_u',
+            ingredientId: 'ing_u',
             name: 'Quinoa',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
         });
     });
@@ -559,9 +731,11 @@ describe('IngredientPicker — search Stage 2 (blended food-catalog suggestions)
         // The opaque food id — never the suggestion's name — is what the admit is keyed on.
         expect(mutate).toHaveBeenCalledWith('01J0FOOD', expect.anything());
         // The line carries the ADMITTED row's ingredient id, not a fabricated one off the suggestion.
+        // REWRITTEN FOR U28 — the whole line (see the search-select test).
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_admitted',
+            ingredientId: 'ing_admitted',
             name: 'Chicken breast, raw',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
         });
         // Mutation guard: the pick must NOT fall back to the by-name async fan-out.
@@ -606,7 +780,7 @@ describe('IngredientPicker — search Stage 2 (blended food-catalog suggestions)
         typeQuery();
         fireEvent.click(screen.getByRole('button', { name: 'My chicken' }));
 
-        expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({ id: 'ing_1' }));
+        expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({ ingredientId: 'ing_1' }));
         expect(mutate).not.toHaveBeenCalled();
     });
 
@@ -753,5 +927,103 @@ describe('IngredientPicker — tinted labels stay WCAG-AA legible', () => {
             contrastRatio(chevron?.getAttribute('data-icon-color') ?? '', palette.white),
             'result-row disclosure chevron',
         ).toBeGreaterThanOrEqual(3);
+    });
+});
+
+/**
+ * ⛔ EVERY PROGRESS AND FAILURE LINE IS SPOKEN — the native mirror of the web suite's "every live region carries its
+ * label as VISIBLE content". The web picker renders these as `role="status"` / `role="alert"`, which a browser
+ * speaks. A bare React Native `Text` with `accessibilityRole="alert"` is not announced by VoiceOver, and a muted
+ * progress `Text` by neither screen reader, so each line goes through `LiveRegion`: polite for progress, assertive
+ * for a failure. Whether a device then speaks it is a manual check in the 001 test plan (§9a).
+ */
+describe('IngredientPicker (mobile) — progress and failure lines are live regions', () => {
+    /** The live-region politeness carried by the node showing `text`. */
+    function politenessOf(text: string): string | null {
+        return screen.getByText(text).getAttribute('aria-live');
+    }
+
+    it('finding nutrition: progress is polite, a failure assertive', () => {
+        useAddIngredientByNameMock.mockReturnValue(addByNameMutation({ isPending: true }));
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        expect(politenessOf('Finding nutrition…')).toBe('polite');
+
+        cleanup();
+        useAddIngredientByNameMock.mockReturnValue(addByNameMutation({ isError: true }));
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        expect(politenessOf('We couldn’t add that ingredient. Create a custom one below instead.')).toBe('assertive');
+    });
+
+    it('adding from the food catalog: progress is polite, a failure assertive', () => {
+        useAddIngredientByFoodMock.mockReturnValue(addByFoodMutation({ isPending: true }));
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        expect(politenessOf('Adding from the food catalog…')).toBe('polite');
+
+        cleanup();
+        useAddIngredientByFoodMock.mockReturnValue(addByFoodMutation({ isError: true }));
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        expect(politenessOf('We couldn’t add that food. Try again, or create a custom one below.')).toBe('assertive');
+    });
+
+    it('creating a custom ingredient: progress is polite', () => {
+        useCreateIngredientMock.mockReturnValue(createMutation({ isPending: true }));
+        render(<IngredientPicker onResolve={vi.fn()} />);
+
+        expect(politenessOf('Adding…')).toBe('polite');
+    });
+
+    it('⛔ a failure region is MOUNTED before its failure arrives — Android speaks a change, not a mount', () => {
+        const { container, rerender } = render(<IngredientPicker onResolve={vi.fn()} />);
+        const assertiveBefore = [...container.querySelectorAll('[aria-live="assertive"]')];
+
+        useAddIngredientByNameMock.mockReturnValue(addByNameMutation({ isError: true }));
+        rerender(<IngredientPicker onResolve={vi.fn()} />);
+
+        expect(assertiveBefore).toContain(
+            screen.getByText('We couldn’t add that ingredient. Create a custom one below instead.'),
+        );
+    });
+
+    describe('disambiguation', () => {
+        /** Open the disambiguation panel for an UNRESOLVED "Quinoa" match. */
+        function openDisambiguation(): void {
+            useSuggestIngredientsMock.mockReturnValue(
+                searchResult(
+                    own([
+                        makeIngredient({
+                            id: 'ing_u',
+                            name: 'Quinoa',
+                            foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
+                        }),
+                    ]),
+                ),
+            );
+            render(<IngredientPicker onResolve={vi.fn()} />);
+            fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'quin' } });
+            settleDebounce();
+            fireEvent.click(screen.getByRole('button', { name: 'Quinoa' }));
+        }
+
+        it('loading options is polite, and a failure to load them assertive', () => {
+            useIngredientCandidatesMock.mockReturnValue(candidatesResult({ isLoading: true }));
+            openDisambiguation();
+            expect(politenessOf('Loading options…')).toBe('polite');
+
+            cleanup();
+            useIngredientCandidatesMock.mockReturnValue(candidatesResult({ isError: true }));
+            openDisambiguation();
+            expect(politenessOf('We couldn’t load options for that ingredient.')).toBe('assertive');
+        });
+
+        it('resolving is polite, and a failure to resolve assertive', () => {
+            useResolveIngredientMock.mockReturnValue(resolveMutation({ isPending: true }));
+            openDisambiguation();
+            expect(politenessOf('Resolving…')).toBe('polite');
+
+            cleanup();
+            useResolveIngredientMock.mockReturnValue(resolveMutation({ isError: true }));
+            openDisambiguation();
+            expect(politenessOf('We couldn’t resolve that ingredient.')).toBe('assertive');
+        });
     });
 });

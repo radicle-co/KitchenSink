@@ -4,11 +4,21 @@
  * External-API client only: no database, no HTTP server. Consumed by `@kitchensink/food-service`
  * (the Fargate fetch worker and bulk-sync lambdas).
  */
-export { UsdaApiClient } from './UsdaApiClient.js';
+export {
+    UsdaApiClient,
+    USDA_MAX_BATCH_SIZE,
+    USDA_REQUEST_TIMEOUT_MS,
+    USDA_SEARCH_PAGE_SIZE,
+    additionalDescriptionsOf,
+} from './UsdaApiClient.js';
 export type { UsdaApiClientOptions } from './UsdaApiClient.js';
+export { readRateLimitHeaders } from './rateLimit.js';
+export type { HeaderBag, UsdaRateLimitSnapshot } from './rateLimit.js';
 export type { UsdaDataType, UsdaFoodDetail, UsdaNutrient, UsdaSearchHit, UsdaSearchResult } from './types.js';
 export {
+    ADDITIONAL_DESCRIPTION_ATTRIBUTE,
     RawUsdaFoodArraySchema,
+    RawUsdaFoodAttributeSchema,
     RawUsdaFoodSchema,
     RawUsdaNutrientSchema,
     RawUsdaSearchHitSchema,
@@ -19,6 +29,7 @@ export {
 export type {
     RawUsdaFood,
     RawUsdaFoodArray,
+    RawUsdaFoodAttribute,
     RawUsdaNutrient,
     RawUsdaSearchHit,
     RawUsdaSearchResult,

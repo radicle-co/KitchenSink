@@ -1,0 +1,13 @@
+{
+    "name": "@kitchensink/third-party-exempt-client",
+    "private": true,
+    "dependencies": {
+        "zod": "^4.4.3"
+    },
+    "kitchensink": {
+        "wireContract": {
+            "thirdParty": true,
+            "reason": "Wraps an upstream API we do not serve, so there is no service of ours to own these types; the raw upstream shape is validated at the boundary with this package's own zod (CODING_STANDARDS §15.3 / ADR-0014)."
+        }
+    }
+}

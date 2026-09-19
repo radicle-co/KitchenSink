@@ -3,10 +3,12 @@
 /**
  * Container for the recipe version-history route: binds the shared, presentational `RecipeVersionList`
  * building block to live data, plus the Preview modal and two-version Compare view (W6 Task 5). It reads the
- * recipe's versions via `useRecipeVersions(id)` and the recipe's current version via `useRecipe(id)` (the
- * block marks that version and makes it non-restorable), and wires the restore action to
- * `useRestoreRecipeVersion`. The fetch-state affordances (loading, error with retry) belong to the app and
- * are localized through the web dictionary; the block owns the list + empty states. The row being restored
+ * recipe's versions and the recipe itself (for its current version, which the block marks and makes
+ * non-restorable) with suspense queries under a `ClientQueryBoundary`, and wires the restore action to
+ * `useRestoreRecipeVersion`. The boundary owns the fetch-state affordances (loading, and an error whose retry
+ * refetches), localized through the web dictionary; the block owns the list + empty states. The boundary is
+ * the hydration-gated one because this route is not server-prefetched: its server render was already the
+ * loading state, and a suspense read there would fetch on the server. The row being restored
  * is busied via `restoringVersion`, with the mutation carrying `{ id, versionNumber }`. It holds no server
  * data of its own — TanStack Query is the source of truth for the remote version list. Wires `onBack` (V6)
  * to navigate to the recipe-detail route, present in EVERY state (loading/error/populated) — the web parity
@@ -16,7 +18,7 @@
  *
  * `onPreview(n)` sets `previewTarget` to `n`; the previewed version's full snapshot is read straight off the
  * already-loaded `versionsQuery.data` (every entry the list endpoint returns carries its own `snapshot` —
- * see `useRecipeVersions`'s JSDoc), so opening the modal makes NO extra fetch. The "changed from current"
+ * see `recipeQueries(client).versions`), so opening the modal makes NO extra fetch. The "changed from current"
  * line needs the CURRENT version's snapshot too, looked up the SAME way (from the list) rather than
  * re-fetched: the DB retention window keeps the newest `VERSION_RETENTION_LIMIT` (10) versions
  * (`versions.dal.ts`), and the current version is BY CONSTRUCTION the highest version number that exists —
@@ -48,15 +50,16 @@ import {
     resolveVersionPreview,
     type RecipeVersionRestoreError,
 } from '@commise/features-recipes';
-import { toDetailQueryView } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
-import { isVersionConflictError } from '@kitchensink/recipe-service-client';
-import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
+import { isVersionConflictError, recipeQueries } from '@kitchensink/recipe-service-client';
+import { useRecipeServiceClient, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
+import { useSuspenseQueries } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type FC } from 'react';
 
+import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeVersionsContainer}. */
@@ -65,11 +68,10 @@ export interface RecipeVersionsContainerProps {
     readonly recipeId: string;
 }
 
-/** Shared "Back to Recipe" affordance for the container's loading/error early-returns (V6 fold-in, W6 Task
- *  5). The populated branch instead wires `onBack` straight into `RecipeVersionList`, which renders its own
- *  styled back control as part of its header chrome; this smaller link exists ONLY so the loading/error
- *  branches — which return before ever reaching that component — are never stranded without a way back to
- *  the recipe. Reuses `recipeVersionMessages.versionList.backToRecipe` (the SAME copy `RecipeVersionList`
+/** Shared "Back to Recipe" affordance for the boundary's loading and error fallbacks (V6 fold-in, W6 Task
+ *  5). The settled history instead wires `onBack` straight into `RecipeVersionList`, which renders its own
+ *  styled back control as part of its header chrome; this smaller link exists ONLY so the fallbacks — which
+ *  render in place of that component — are never stranded without a way back to the recipe. Reuses `recipeVersionMessages.versionList.backToRecipe` (the SAME copy `RecipeVersionList`
  *  renders) rather than a second `webMessages` key, so the label is one piece of knowledge either way. */
 const BackToRecipeLink: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
     const { versionList } = useMessages(recipeVersionMessages);
@@ -87,20 +89,84 @@ const BackToRecipeLink: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
     );
 };
 
+/** The version history's pending state: its way back, and what is loading. */
+const VersionsLoading: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
+    const { recipes } = useMessages(webMessages);
+
+    return (
+        <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
+            <BackToRecipeLink onBack={onBack} />
+            <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-slate">
+                {recipes.versions.loadingLabel}
+            </p>
+        </div>
+    );
+};
+
+/** The version history's failed state: its way back, and a retry. */
+const VersionsError: FC<{ readonly onBack: () => void; readonly onRetry: () => void }> = ({ onBack, onRetry }) => {
+    const { recipes } = useMessages(webMessages);
+
+    return (
+        <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
+            <BackToRecipeLink onBack={onBack} />
+            <div role="alert">
+                <p>{recipes.versions.errorTitle}</p>
+                <button type="button" onClick={onRetry}>
+                    {recipes.versions.retry}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 /**
- * The live recipe version-history container.
+ * The live recipe version-history container: the route's read boundary around {@link RecipeVersionsView}.
  *
  * @param props - The recipe id whose version history to load.
- * @returns The wired {@link RecipeVersionList} plus the Preview modal and Compare view, or a localized
- *   loading / error affordance (each carrying its own {@link BackToRecipeLink}).
+ * @returns The boundary: the loading and error states (each with its way back) and, once both reads settle, the
+ *   version history.
  */
 export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ recipeId }) => {
-    const { recipes } = useMessages(webMessages);
     const { locale } = useParams<{ locale: string }>();
-    const activeLocale = useLocale();
     const router = useRouter();
-    const versionsQuery = useRecipeVersions(recipeId);
-    const recipeQuery = useRecipe(recipeId);
+
+    const goToRecipe = (): void => {
+        router.push(`/${locale}/recipes/${recipeId}` as Route);
+    };
+
+    return (
+        <ClientQueryBoundary
+            loading={<VersionsLoading onBack={goToRecipe} />}
+            renderError={({ resetErrorBoundary }) => <VersionsError onBack={goToRecipe} onRetry={resetErrorBoundary} />}
+            resetKeys={[recipeId]}
+        >
+            <RecipeVersionsView recipeId={recipeId} onBack={goToRecipe} />
+        </ClientQueryBoundary>
+    );
+};
+
+/**
+ * The settled version history: both reads have resolved by the time this renders, so it holds no fetch state.
+ *
+ * @param props - The recipe id and the way back to it.
+ * @returns The wired {@link RecipeVersionList} plus the Preview modal and Compare view.
+ * @throws {Error} For an empty recipe id — a read that cannot be made fails into the boundary rather than issuing
+ *   a request for `''` (B21: never a permanent spinner).
+ */
+const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: () => void }> = ({
+    recipeId,
+    onBack,
+}) => {
+    if (recipeId.length === 0) {
+        throw new Error('A recipe version history needs a recipe id.');
+    }
+
+    const activeLocale = useLocale();
+    const client = useRecipeServiceClient();
+    const [versionsQuery, recipeQuery] = useSuspenseQueries({
+        queries: [recipeQueries(client).versions(recipeId), recipeQueries(client).detail(recipeId)],
+    });
     const restore = useRestoreRecipeVersion();
 
     // W6 Task 5 — Preview: which version (by number) is being previewed, or `null` when the modal is closed.
@@ -109,56 +175,8 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
     // they were picked (see `toggleCompare` for the cap-at-two UX this order feeds).
     const [compareSelection, setCompareSelection] = useState<readonly number[]>([]);
 
-    const goToRecipe = (): void => {
-        router.push(`/${locale}/recipes/${recipeId}` as Route);
-    };
-
-    // B21: ONE derivation of which fetch-state affordance to render, over BOTH queries combined — the pair
-    // is loading while either is, failed if either failed, and ready only with BOTH data present. The
-    // settled-but-absent case (neither loading nor errored, still no data) used to fall into a SECOND loading
-    // branch below the error one, stranding the viewer on a permanent spinner; mobile's
-    // `RecipeVersionsScreen` has always routed it into ERROR, and web now agrees BY CONSTRUCTION.
-    const view = toDetailQueryView({
-        isLoading: versionsQuery.isLoading || recipeQuery.isLoading,
-        isError: versionsQuery.isError || recipeQuery.isError,
-        data:
-            versionsQuery.data === undefined || recipeQuery.data === undefined
-                ? undefined
-                : { versions: versionsQuery.data, recipe: recipeQuery.data },
-    });
-
-    if (view.status === 'loading') {
-        return (
-            <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
-                <BackToRecipeLink onBack={goToRecipe} />
-                <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-slate">
-                    {recipes.versions.loadingLabel}
-                </p>
-            </div>
-        );
-    }
-
-    if (view.status === 'error') {
-        return (
-            <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
-                <BackToRecipeLink onBack={goToRecipe} />
-                <div role="alert">
-                    <p>{recipes.versions.errorTitle}</p>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            void versionsQuery.refetch();
-                            void recipeQuery.refetch();
-                        }}
-                    >
-                        {recipes.versions.retry}
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    const { versions, recipe } = view.data;
+    const versions = versionsQuery.data;
+    const recipe = recipeQuery.data;
     const restoringVersion = restore.isPending ? restore.variables.versionNumber : null;
 
     // B17 — a failed restore must never silently no-op. Map the mutation's error to an honest code: a 409 is
@@ -234,7 +252,7 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
                 restoringVersion={restoringVersion}
                 restoreError={restoreError}
                 selectedForCompare={compareSelection}
-                onBack={goToRecipe}
+                onBack={onBack}
                 onRestore={(versionNumber) => restoreVersion(versionNumber)}
                 onPreview={(versionNumber) => setPreviewTarget(versionNumber)}
                 onToggleCompare={toggleCompare}

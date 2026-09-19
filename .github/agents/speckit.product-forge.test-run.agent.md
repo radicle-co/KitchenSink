@@ -1,14 +1,14 @@
 ---
 name: speckit.product-forge.test-run
 description: 'Phase 8B: Executes test cases via playwright-cli (interactive browser
-  agent), tracks bugs in bugs/<BUG-NNN>.md, auto-fixes P0/P1 bugs and retests, performs
-  gap analysis when bugs require spec changes. Loop continues until all P0/P1 bugs
-  closed and exit criteria met. Use with: "run tests", "execute tests", "/speckit.product-forge.test-run"'
+    agent), tracks bugs in bugs/<BUG-NNN>.md, auto-fixes P0/P1 bugs and retests, performs
+    gap analysis when bugs require spec changes. Loop continues until all P0/P1 bugs
+    closed and exit criteria met. Use with: "run tests", "execute tests", "/speckit.product-forge.test-run"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Phase 8B: Test Execution & Bug Fix Loop
 
 You are the **Test Execution Coordinator** for Product Forge Phase 8B.
@@ -61,17 +61,21 @@ external side-effect.
 5. `playwright-cli` is available (or `npx playwright-cli`)
 
 If not ready:
+
 > ⚠️ Test plan not found. Run `/speckit.product-forge.test-plan` first.
 
 Load from `testing/test-plan.md`:
+
 - `FRONTEND_URL`, `API_URL`, `TEST_TYPES`, test case counts
 - Entry/exit criteria
 
 Load from `testing/env.md`:
+
 - `TEST_EMAIL`, `TEST_PASSWORD`, `TEST_ADMIN_EMAIL`, `TEST_ADMIN_PASSWORD` (if present)
 - Any additional environment-specific values
 
 Initialize counters:
+
 ```
 TEST_RUN = 1
 BUGS_FOUND = 0
@@ -119,6 +123,7 @@ test -f {FEATURE_DIR}/design-system/manifest.yml && echo "manifest: ok" \
   recorded **BLOCKED** (no token/selector source to assert against).
 
 **App reachability check:**
+
 ```bash
 playwright-cli open {FRONTEND_URL}
 playwright-cli snapshot
@@ -126,6 +131,7 @@ playwright-cli close
 ```
 
 If the snapshot shows an error page, connection refused, or blank page:
+
 ```
 ⚠️ Cannot reach {FRONTEND_URL}.
 Is the app running? Start it with:
@@ -180,6 +186,7 @@ Execution order:
 #### 4.1 Read the test case
 
 From `testing/test-cases.md`, read:
+
 - `TC-ID` (e.g. TC-E2E-003)
 - Preconditions (auth required? specific data state?)
 - Test steps (numbered actions)
@@ -197,6 +204,7 @@ playwright-cli -s=pf-test open {FRONTEND_URL}{start_path}
 ```
 
 Start tracing for evidence:
+
 ```bash
 playwright-cli -s=pf-test tracing-start
 ```
@@ -205,19 +213,19 @@ playwright-cli -s=pf-test tracing-start
 
 For each numbered step in the test case, translate to playwright-cli commands:
 
-| Test case action | playwright-cli command |
-|-----------------|------------------------|
-| Navigate to URL | `playwright-cli -s=pf-test goto {URL}` |
-| Click element | `playwright-cli -s=pf-test snapshot` → find ref → `playwright-cli -s=pf-test click e{N}` |
-| Fill input | `playwright-cli -s=pf-test snapshot` → find ref → `playwright-cli -s=pf-test fill e{N} "{value}"` |
-| Select dropdown | `playwright-cli -s=pf-test select e{N} "{value}"` |
-| Check checkbox | `playwright-cli -s=pf-test check e{N}` |
-| Press key | `playwright-cli -s=pf-test press Enter` |
-| Wait for element | `playwright-cli -s=pf-test snapshot` → verify element is present |
-| Scroll | `playwright-cli -s=pf-test mousewheel 0 300` |
-| Verify text present | `playwright-cli -s=pf-test eval "document.body.innerText.includes('{text}')"` |
-| Verify URL | `playwright-cli -s=pf-test eval "window.location.pathname"` |
-| Check network error | `playwright-cli -s=pf-test console` / `playwright-cli -s=pf-test network` |
+| Test case action    | playwright-cli command                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| Navigate to URL     | `playwright-cli -s=pf-test goto {URL}`                                                            |
+| Click element       | `playwright-cli -s=pf-test snapshot` → find ref → `playwright-cli -s=pf-test click e{N}`          |
+| Fill input          | `playwright-cli -s=pf-test snapshot` → find ref → `playwright-cli -s=pf-test fill e{N} "{value}"` |
+| Select dropdown     | `playwright-cli -s=pf-test select e{N} "{value}"`                                                 |
+| Check checkbox      | `playwright-cli -s=pf-test check e{N}`                                                            |
+| Press key           | `playwright-cli -s=pf-test press Enter`                                                           |
+| Wait for element    | `playwright-cli -s=pf-test snapshot` → verify element is present                                  |
+| Scroll              | `playwright-cli -s=pf-test mousewheel 0 300`                                                      |
+| Verify text present | `playwright-cli -s=pf-test eval "document.body.innerText.includes('{text}')"`                     |
+| Verify URL          | `playwright-cli -s=pf-test eval "window.location.pathname"`                                       |
+| Check network error | `playwright-cli -s=pf-test console` / `playwright-cli -s=pf-test network`                         |
 
 Take a snapshot **after every meaningful action** to confirm state.
 
@@ -238,6 +246,7 @@ playwright-cli -s=pf-test close
 #### 4.6 Record result
 
 Compare final snapshot with **Expected Result** from test case:
+
 - **PASS** — final state matches expected result
 - **FAIL** — state does not match, error shown, or unexpected behavior
 - **BLOCKED** — prerequisite step failed (e.g. auth not available)
@@ -318,7 +327,7 @@ node -e "const {parseYaml}=require('$PLUGIN_ROOT/scripts/lib-yaml.js');const fs=
 ```
 
 Substitute that array as `{SELECTORS}` below. **Allowed token colors are NOT
-hardcoded** — the manifest keeps token *names* / CSS-var references, not resolved
+hardcoded** — the manifest keeps token _names_ / CSS-var references, not resolved
 hex. Resolve them at runtime from the live page (the design system is loaded), so
 the comparison is real: read every `--*` custom property off `:root`, take the
 color-valued ones as the allow-set, then flag any computed color not in it.
@@ -379,6 +388,7 @@ playwright-cli -s=pf-test run-code "async page => {
 Execute each `TC-SMK-*` test case using the pattern above.
 
 **If any smoke test results in FAIL:**
+
 ```
 🚫 BLOCKER: Smoke test {TC-SMK-NNN} failed.
 
@@ -411,6 +421,7 @@ If `TC-API-*` test cases exist in `testing/test-cases.md`:
 ```
 
 For each API test case:
+
 ```bash
 # Navigate to the API endpoint directly to verify response
 playwright-cli -s=pf-api open {API_URL}{endpoint}
@@ -461,16 +472,17 @@ context, no browser, no auth setup.
    belongs in by convention (`*.spec.ts`, `*_test.go`, etc.).
 3. Resolve the workspace-scoped command (monorepo mode — see
    [runtime.md §9.3](../docs/runtime.md#93-test-runner-resolution)):
-   - Single-root pnpm: `pnpm test --run -t "TC-UNIT-{NNN}"`
-   - Monorepo pnpm: `pnpm --filter={workspace} test --run -t "TC-UNIT-{NNN}"`
-   - pytest: `pytest -k "TC_UNIT_{NNN}"`
-   - go test: `go test -run TestTCUnit{NNN} ./...`
+    - Single-root pnpm: `pnpm test --run -t "TC-UNIT-{NNN}"`
+    - Monorepo pnpm: `pnpm --filter={workspace} test --run -t "TC-UNIT-{NNN}"`
+    - pytest: `pytest -k "TC_UNIT_{NNN}"`
+    - go test: `go test -run TestTCUnit{NNN} ./...`
 4. Execute, capture stdout + stderr + exit code.
 5. Parse result: PASS / FAIL / SKIP.
 6. Record in `testing/results-{run_n}.json` with duration and stack on
    FAIL.
 
 **Evidence on failure** — no screenshot (non-browser). Capture:
+
 - Full test output (stdout + stderr).
 - Source diff if implementation changed between runs.
 - Heap snapshot (opt-in, for memory-sensitive tests).
@@ -517,6 +529,7 @@ E2E.
 6. Record in `testing/results-{run_n}.json`.
 
 **Evidence on failure:**
+
 - Full test output.
 - Last 100 lines of relevant backing-service logs (DB query log,
   Redis MONITOR output, queue events).
@@ -525,6 +538,7 @@ E2E.
 - Schema / migration state snapshot (for DB integration failures).
 
 **Isolation guarantees:**
+
 - Every 4F test must start and end with the same backing-service state
   the next test expects. Enforced via transactions, containers, or
   explicit truncate steps.
@@ -562,6 +576,7 @@ After all test types complete, aggregate:
 ```
 
 For each FAILED test → auto-assign severity:
+
 - **P0** — smoke failure, auth broken, or app unreachable
 - **P1** — Must Have story E2E failure (happy path)
 - **P2** — Should Have story or error-state failure
@@ -570,14 +585,14 @@ For each FAILED test → auto-assign severity:
 
 For each **§4.7 a11y / conformance** finding → auto-assign severity (v1.6, W5-B2/B5):
 
-| Finding | Source field | Severity |
-|---------|--------------|----------|
-| axe violation, `impact: critical` | `violations[].impact` | **P1** |
-| axe violation, `impact: serious` | `violations[].impact` | **P2** |
-| axe violation, `impact: moderate` | `violations[].impact` | **P3** |
-| axe violation, `impact: minor` | `violations[].impact` | **P4** |
-| Missing `CMP-*` component | `missingComponents[]` | **P2** |
-| Off-token computed style | `offTokenStyles[]` | **P3** |
+| Finding                           | Source field          | Severity |
+| --------------------------------- | --------------------- | -------- |
+| axe violation, `impact: critical` | `violations[].impact` | **P1**   |
+| axe violation, `impact: serious`  | `violations[].impact` | **P2**   |
+| axe violation, `impact: moderate` | `violations[].impact` | **P3**   |
+| axe violation, `impact: minor`    | `violations[].impact` | **P4**   |
+| Missing `CMP-*` component         | `missingComponents[]` | **P2**   |
+| Off-token computed style          | `offTokenStyles[]`    | **P3**   |
 
 These flow through the same triage, bug creation, auto-fix loop, and exit criteria
 as functional failures — they are not a separate gate.
@@ -597,39 +612,49 @@ For EACH failed test, create `{BUGS_DIR}/BUG-{NNN}.md`:
 > Journey: {JRN-NNN} | Step/Edge: {STEP-NNN|EDGE-NNN}
 
 ## Description
+
 {Clear one-sentence description of what's wrong}
 
 ## Steps to Reproduce
+
 1. Open: {FRONTEND_URL}{start_path}
 2. {step}
 3. {step}
 
 ## Expected Behavior
+
 {What should happen per acceptance criteria}
+
 > AC Reference: {US-NNN} — {AC text from spec.md}
 
 ## Actual Behavior
+
 {What actually happened — from final snapshot / screenshot}
 
 ## Evidence
+
 - Screenshot: `testing/playwright-results/{TC-ID}-final.png`
 - Trace: `testing/playwright-results/{TC-ID}-trace.zip`
 - Console errors: {from playwright-cli console output}
 - Network: {from playwright-cli network output if applicable}
 
 ## Gap Analysis
+
 - [ ] Implementation bug (code doesn't match spec — fix code)
 - [ ] Spec gap (spec is ambiguous — needs clarification)
 - [ ] Test issue (test steps are wrong — fix test case)
 - [ ] Environment issue (test env problem — not a product bug)
 
 ## Fix Approach
+
 {Agent's analysis of root cause and fix plan}
 
 ## Fix Applied
+
 {Filled after fix — files changed, description of change}
 
 ## Retest Result
+
 {Filled after retest — PASS / FAIL / BLOCKED}
 ```
 
@@ -638,6 +663,7 @@ Update `{BUGS_DIR}/README.md` dashboard with all new bugs.
 **a11y / conformance findings use this same pipeline (v1.6, W5-B2/B5).** A §4.7
 axe violation or component/token conformance failure is filed as an ordinary
 `BUG-NNN.md` — no separate format. Populate the existing fields:
+
 - `Journey:` / `Step/Edge:` → the running case's `JRN`/`STEP`/`EDGE` (line above),
   and update the matching `traceability.yml` row, exactly as for functional bugs.
 - `## Evidence` → record the axe `id` + `impact` + `helpUrl`, or the missing
@@ -654,15 +680,16 @@ Read `spec.md` → find the acceptance criteria for the broken user story.
 
 **Decision matrix:**
 
-| Bug type | Impact on spec | Action |
-|----------|---------------|--------|
-| Implementation doesn't match clear AC | None — code is wrong | Fix code only |
-| AC is ambiguous | Minor — clarify spec.md | Update spec.md § acceptance criteria |
-| Bug reveals missing requirement | Medium — spec gap | Add to spec.md + product-spec.md |
-| Bug reveals incorrect requirement | Medium — spec error | Update spec.md + product-spec.md |
-| Valid behavior per spec but bad UX | Medium — UX gap | Ask user — should spec change? |
+| Bug type                              | Impact on spec          | Action                               |
+| ------------------------------------- | ----------------------- | ------------------------------------ |
+| Implementation doesn't match clear AC | None — code is wrong    | Fix code only                        |
+| AC is ambiguous                       | Minor — clarify spec.md | Update spec.md § acceptance criteria |
+| Bug reveals missing requirement       | Medium — spec gap       | Add to spec.md + product-spec.md     |
+| Bug reveals incorrect requirement     | Medium — spec error     | Update spec.md + product-spec.md     |
+| Valid behavior per spec but bad UX    | Medium — UX gap         | Ask user — should spec change?       |
 
 For bugs that need spec updates, show the user:
+
 ```
 📋 Spec Gap Detected — BUG-{NNN}
 
@@ -693,15 +720,17 @@ For each P0/P1 bug (in severity order), fix and retest:
 ```
 
 Launch a Fix Agent:
-> *"You are the Bug Fix Agent for Product Forge.*
-> *Bug: {bug description}*
-> *Failed test: {TC-ID} — steps: {steps from test case}*
-> *Expected per spec: {AC text from spec.md}*
-> *Evidence: {screenshot path} — {what was visible}*
-> *Gap analysis: {implementation / spec / test / env}*
-> *Fix ONLY what's needed. Report: files changed + description."*
+
+> _"You are the Bug Fix Agent for Product Forge._
+> _Bug: {bug description}_
+> _Failed test: {TC-ID} — steps: {steps from test case}_
+> _Expected per spec: {AC text from spec.md}_
+> _Evidence: {screenshot path} — {what was visible}_
+> _Gap analysis: {implementation / spec / test / env}_
+> _Fix ONLY what's needed. Report: files changed + description."_
 
 After fix agent returns:
+
 - Update `BUG-NNN.md` § Fix Applied
 - Record in `{FEATURE_DIR}/review.md` (testing phase section)
 
@@ -719,6 +748,7 @@ playwright-cli close
 
 If PASS → update `BUG-NNN.md` status: `✅ Verified`
 If FAIL → escalate:
+
 ```
 ⚠️ BUG-{NNN} still failing after fix attempt.
 
@@ -740,6 +770,7 @@ After fixing any P0/P1 bug, re-run the smoke test cases to ensure no regression:
 ```
 
 If new smoke failures appeared:
+
 ```
 ⚠️ Fix for BUG-{NNN} caused smoke regression:
   {TC-SMK-NNN} now failing.
@@ -749,6 +780,7 @@ If new smoke failures appeared:
 ### 8D: Progress Update
 
 After each fix+retest:
+
 ```
 Bug Fix Progress: {N}/{N} fixed ✅ | {N} remaining | {N} skipped
 ```
@@ -780,7 +812,7 @@ Bug Fix Progress: {N}/{N} fixed ✅ | {N} remaining | {N} skipped
     Blocked:   {N}
 ```
 
-Ask: *"Continue fixing remaining bugs, or want to take over any fixes manually?"*
+Ask: _"Continue fixing remaining bugs, or want to take over any fixes manually?"_
 
 ---
 
@@ -796,6 +828,7 @@ After ALL auto-fixes applied, run the complete suite once more using playwright-
 Re-execute all test cases (Steps 4A–4D) using the same playwright-cli pattern.
 
 Compare vs. previous run:
+
 ```
 Δ Retest Results:
   Before: {N_pass}/{N_total} ({%%})
@@ -850,47 +883,54 @@ Create `{FEATURE_DIR}/test-report.md`:
 > Result: ✅ PASS / ⚠️ PASS WITH KNOWN ISSUES / ❌ FAIL
 
 ## Executive Summary
+
 {2-3 sentences: what was tested, how, overall outcome, key stats}
 
 ## Results Summary
 
-| Type | Pass | Fail | Skip | Total | Pass Rate |
-|------|------|------|------|-------|-----------|
-| Smoke | {N} | {N} | {N} | {N} | {%%} |
-| E2E | {N} | {N} | {N} | {N} | {%%} |
-| API | {N} | {N} | {N} | {N} | {%%} |
-| Regression | {N} | {N} | {N} | {N} | {%%} |
-| **Total** | **{N}** | **{N}** | **{N}** | **{N}** | **{%%}** |
+| Type       | Pass    | Fail    | Skip    | Total   | Pass Rate |
+| ---------- | ------- | ------- | ------- | ------- | --------- |
+| Smoke      | {N}     | {N}     | {N}     | {N}     | {%%}      |
+| E2E        | {N}     | {N}     | {N}     | {N}     | {%%}      |
+| API        | {N}     | {N}     | {N}     | {N}     | {%%}      |
+| Regression | {N}     | {N}     | {N}     | {N}     | {%%}      |
+| **Total**  | **{N}** | **{N}** | **{N}** | **{N}** | **{%%}**  |
 
 ## Story Coverage
 
-| Story | Priority | Test Cases | Result |
-|-------|----------|-----------|--------|
-| US-001: {title} | Must Have | TC-E2E-001, TC-E2E-002 | ✅ PASS |
-| US-002: {title} | Must Have | TC-E2E-005 | ⚠️ BUG-003 known |
+| Story           | Priority  | Test Cases             | Result           |
+| --------------- | --------- | ---------------------- | ---------------- |
+| US-001: {title} | Must Have | TC-E2E-001, TC-E2E-002 | ✅ PASS          |
+| US-002: {title} | Must Have | TC-E2E-005             | ⚠️ BUG-003 known |
 
 ## Bugs Summary
 
-| ID | Title | Severity | Status |
-|----|-------|----------|--------|
-| BUG-001 | {title} | P1 | ✅ Fixed & Verified |
-| BUG-002 | {title} | P2 | ⚠️ Deferred to next sprint |
+| ID      | Title   | Severity | Status                     |
+| ------- | ------- | -------- | -------------------------- |
+| BUG-001 | {title} | P1       | ✅ Fixed & Verified        |
+| BUG-002 | {title} | P2       | ⚠️ Deferred to next sprint |
 
 ## Evidence
+
 All screenshots and traces saved in `testing/playwright-results/`:
+
 - {TC-ID}-final.png — final state screenshot per test
 - {TC-ID}-trace.zip — Playwright trace for debugging
 
 ## Spec Changes Applied During Testing
+
 {List spec.md / product-spec.md updates from gap analysis}
 
 ## Known Issues / Deferred Bugs
+
 {Bugs accepted or deferred — with rationale and workaround}
 
 ## Conclusion
+
 {Feature status: Ready to Ship / Ship with Known Issues / Needs More Work}
 
 ## Traceability
+
 Research → Product Spec → spec.md → Plan → Tasks → Code → Tests → Bugs → Fixes → Verified
 ```
 
@@ -899,20 +939,22 @@ Research → Product Spec → spec.md → Plan → Tasks → Code → Tests → 
 ## Step 13: Final Completion
 
 Update `.forge-status.yml`:
+
 ```yaml
 phases:
-  test_run: completed        # or: completed_with_known_issues
+    test_run: completed # or: completed_with_known_issues
 testing:
-  final_pass_rate: "{%%}"
-  bugs_found: {N}
-  bugs_fixed: {N}
-  bugs_deferred: {N}
-  test_runs_total: {N}
-last_updated: "{ISO timestamp}"
+    final_pass_rate: '{%%}'
+    bugs_found: { N }
+    bugs_fixed: { N }
+    bugs_deferred: { N }
+    test_runs_total: { N }
+last_updated: '{ISO timestamp}'
 ```
 
 Update the live traceability matrix (`{FEATURE_DIR}/traceability.yml`, see
 [docs/templates/traceability-matrix.md](../docs/templates/traceability-matrix.md)):
+
 - Confirm/complete the `tests: [TC-*]` column for the rows whose cases ran
   (`test-plan` seeded it; reconcile against what actually executed).
 - For each row whose covering cases all **passed**, advance `status: tested`
@@ -922,6 +964,7 @@ Update the live traceability matrix (`{FEATURE_DIR}/traceability.yml`, see
 - In the `journeys` block, the per-edge `tests:` reflect the edge cases that ran.
 
 Clean up browser sessions:
+
 ```bash
 playwright-cli close-all
 ```
@@ -929,6 +972,7 @@ playwright-cli close-all
 Update feature `README.md` — Phase 8B ✅ Complete.
 
 Show final message:
+
 ```
 🎉 Testing Complete: {Feature Name}
 

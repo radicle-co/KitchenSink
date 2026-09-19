@@ -1,0 +1,22 @@
+/** Imports the contract's zod and then never runs it — a contract in name only. */
+import { thingResponseSchema } from '@kitchensink/schema-thing';
+import type { ThingResponse } from '@kitchensink/schema-thing';
+
+/** Reads `.json()` and asserts the shape instead of establishing it. */
+export async function getThing(fetchImpl: typeof fetch): Promise<ThingResponse> {
+    const response = await fetchImpl('/api/v1/things/1');
+
+    return (await response.json()) as ThingResponse;
+}
+
+/** Reads `res.body` and asserts an error envelope. */
+export function toError(res: { readonly status: number; readonly body: unknown }): Error {
+    const body = (res.body ?? {}) as { message?: string };
+
+    return new Error(body.message ?? `HTTP ${res.status}`);
+}
+
+/** Present so the package is not flagged for lacking a validator at all. */
+export function readThing(payload: unknown): unknown {
+    return thingResponseSchema.parse(payload);
+}

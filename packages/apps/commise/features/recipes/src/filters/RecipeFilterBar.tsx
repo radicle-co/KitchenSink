@@ -18,6 +18,7 @@ import type { Ingredient } from '@kitchensink/recipe-core';
 import type { FC, ReactElement } from 'react';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { filterMessages, type FilterMessages } from './messages.js';
 import {
     TIME_BUCKETS_MINUTES,
@@ -60,40 +61,10 @@ const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
     { id: 'ingredients', kind: 'ingredientTypeahead', labelKey: 'ingredientsLabel' },
 ];
 
-/** The `timeField` → setter map the `timeBucket` renderer dispatches on. */
-function timeSetterFor(
-    timeField: 'maxPrepTime' | 'maxCookTime' | 'maxTotalTime',
-    setters: {
-        onSetMaxPrepTime: (minutes: number | undefined) => void;
-        onSetMaxCookTime: (minutes: number | undefined) => void;
-        onSetMaxTotalTime: (minutes: number | undefined) => void;
-    },
-): (minutes: number | undefined) => void {
-    if (timeField === 'maxPrepTime') {
-        return setters.onSetMaxPrepTime;
-    }
-
-    if (timeField === 'maxCookTime') {
-        return setters.onSetMaxCookTime;
-    }
-
-    return setters.onSetMaxTotalTime;
-}
-
-export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
-    facets,
-    filters,
-    onToggleFacet,
-    onSetCuisine,
-    onSetMaxPrepTime,
-    onSetMaxCookTime,
-    onSetMaxTotalTime,
-    ingredientSearch,
-    onAddIngredientFilter,
-    onRemoveIngredientFilter,
-    onClearAll,
-}) => {
+export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ingredientSearch, onFilterAction }) => {
     const m = useMessages(filterMessages);
+    // The FR-010a minimum copy is shared by all four ingredient-search surfaces — see its message doc.
+    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const locale = useLocale();
     const countLabels = { one: m.chipCountOne, other: m.chipCountOther };
 
@@ -133,7 +104,11 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
             return group(
                 m[labelKey],
-                chips.map((chip) => chipButton(chip, () => onToggleFacet(dimension!, chip.value))),
+                chips.map((chip) =>
+                    chipButton(chip, () =>
+                        onFilterAction({ kind: 'toggleFacet', dimension: dimension!, value: chip.value }),
+                    ),
+                ),
             );
         },
         singleChip: ({ labelKey }) => {
@@ -145,11 +120,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
             return group(
                 m[labelKey],
-                chips.map((chip) => chipButton(chip, () => onSetCuisine(chip.value))),
+                chips.map((chip) =>
+                    chipButton(chip, () => onFilterAction({ kind: 'setCuisine', cuisine: chip.value })),
+                ),
             );
         },
         timeBucket: ({ timeField, labelKey }) => {
-            const set = timeSetterFor(timeField!, { onSetMaxPrepTime, onSetMaxCookTime, onSetMaxTotalTime });
+            const set = (minutes: number | undefined): void =>
+                onFilterAction({ kind: 'setTimeBound', field: timeField!, minutes });
 
             return group(
                 m[labelKey],
@@ -196,6 +174,15 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         node is zero-height (invisible to a sighted viewer) and silent (a live region
                         announces content CHANGES, and there is none). Same doctrine as `RecipePhotoManager`
                         and the mobile `LoadingState` — the contextual label doubles as the visible caption. */}
+                    {/* 003-FR-010a: something is typed but below the minimum. Deliberately NOT the
+                        no-matches copy — nothing was searched — and deliberately not a `role="status"`,
+                        because it is guidance about the input rather than the outcome of a request. */}
+                    {viewState.kind === 'tooShort' && (
+                        <p className="text-body-sm text-slate">
+                            {fillTemplate(minimumCopy.tooShort, { minimum: viewState.minimum })}
+                        </p>
+                    )}
+
                     {viewState.kind === 'searching' && (
                         <p role="status" aria-label={m.ingredientSearching} className="text-body-sm text-slate">
                             {m.ingredientSearching}
@@ -224,7 +211,10 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                                         type="button"
                                         aria-label={fillTemplate(m.addIngredientFilter, { name: ingredient.name })}
                                         onClick={() =>
-                                            onAddIngredientFilter({ id: ingredient.id, name: ingredient.name })
+                                            onFilterAction({
+                                                kind: 'addIngredient',
+                                                ingredient: { id: ingredient.id, name: ingredient.name },
+                                            })
                                         }
                                         className="w-full rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl"
                                     >
@@ -242,7 +232,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                                     key={entry.id}
                                     type="button"
                                     aria-label={fillTemplate(m.removeIngredientFilter, { name: entry.name })}
-                                    onClick={() => onRemoveIngredientFilter(entry.id)}
+                                    onClick={() => onFilterAction({ kind: 'removeIngredient', id: entry.id })}
                                     className={`${CHIP_BASE} ${CHIP_SELECTED}`}
                                 >
                                     <span aria-hidden="true">{entry.name}</span>
@@ -265,7 +255,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                 <div>
                     <button
                         type="button"
-                        onClick={onClearAll}
+                        onClick={() => onFilterAction({ kind: 'clearAll' })}
                         // The LABEL is `ocean-dark` while the FOCUS RING stays seafoam — that split is the
                         // palette rule (see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`), not drift.
                         className="rounded-full px-3.5 py-1.5 text-body-sm font-semibold text-ocean-dark underline-offset-2 transition-colors motion-reduce:transition-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"

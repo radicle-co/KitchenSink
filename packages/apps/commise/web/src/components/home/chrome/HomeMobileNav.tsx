@@ -3,10 +3,15 @@
 /**
  * @module home/chrome/HomeMobileNav — the mobile navigation drawer (web; US-000 / FR-046, B6/CR-003).
  *
- * The slide-over the top-bar hamburger opens below the `md` breakpoint. The bottom tab bar carries the
- * primary mobile nav as compact icons; this drawer is the fuller rendering — the same destinations with
- * their text labels and the product wordmark, and the "coming soon" context that the icon-only tab bar
+ * The slide-over the top-bar hamburger opens below the `lg` breakpoint. The bottom tab bar carries the
+ * primary narrow-viewport nav as compact icons; this drawer is the fuller rendering — the same destinations
+ * with their text labels and the product wordmark, and the "coming soon" context that the icon-only tab bar
  * cannot show. It renders the SAME shared nav model, so it cannot drift from the sidebar or the tab bar.
+ *
+ * ⚠️ Its cutover must stay the hamburger's (`HomeTopBar`, `lg:hidden`) and therefore the sidebar's
+ * (`HomeSidebar`, `lg:flex`). Overlay and panel both hid at `md` while the sidebar only appeared at `lg`, so
+ * 768–1023px had no full navigation at all — and a drawer that hides at a width where its own trigger is
+ * still shown opens onto nothing (U39).
  *
  * A11y: built on Radix `Dialog` (mirrors `PullUpdatesDialog`'s pattern) — Radix owns the focus TRAP,
  * Escape-to-dismiss, backdrop-click dismiss, and background inert, so this component hand-rolls none of
@@ -14,26 +19,26 @@
  * outside-click dismissal). `onOpenChange` maps every Radix close path onto the same `onClose` the explicit
  * close control uses — one exit path, not two.
  *
- * Focus is moved explicitly, NOT left to Radix's defaults, in both directions: `onOpenAutoFocus` focuses the
- * close control (`closeRef`) on open (preserving the drawer's pre-Radix behavior), and `onCloseAutoFocus`
- * restores focus to the hamburger that opened it. The hamburger is a SIBLING control in `HomeTopBar`, not an
- * owned `Dialog.Trigger`, so Radix's own default `onCloseAutoFocus` (which only restores an OWNED trigger —
- * see `PullUpdatesDialog`'s module doc) would silently focus nothing; `triggerRef` captures
- * `document.activeElement` at the render where `open` flips true, before `Dialog.Content` ever commits.
+ * Focus on OPEN is Radix's own default, and it lands on the close control by construction: `FocusScope`
+ * focuses the first tabbable in `Content` after removing links, and the close button is the only non-link
+ * control in the drawer. That is why this component holds no ref. It used to override `onOpenAutoFocus` to
+ * `.focus()` a `closeRef` — the same element Radix already picks — so the override bought nothing and cost a
+ * sanctioned ref. `HomeChrome.test.tsx`'s "moves focus to the close control" case pins the outcome, so a markup
+ * change that puts another control ahead of the close button reds there rather than silently moving focus.
  *
- * ALLOWED REF (§3, `closeRef`) — B14 re-verified this is NOT the render-mutated/state-in-ref smell that task
- * eliminates elsewhere: `closeRef` wraps the close button's actual DOM node so `onOpenAutoFocus` can call the
- * imperative `.focus()` the DOM API requires — there is no declarative way to say "focus THIS specific
- * element" instead of Radix's own default (first-focusable/`Content`). Removing it would silently regress to
- * Radix's default autofocus target, changing the drawer's documented open-focus behavior (pinned by
- * `HomeChrome.test.tsx`'s "moves focus to the close control" case). `triggerRef`/`wasOpenRef` are the
- * separate, React-sanctioned "read the previous render's value" pattern (conditionally captured on the
- * false→true edge, not an unconditional latest-value bridge) and are unrelated to this ref.
+ * Focus on CLOSE is NOT Radix's default: the hamburger is a SIBLING control in `HomeTopBar`, not an owned
+ * `Dialog.Trigger`, so Radix's own `onCloseAutoFocus` (which only restores an OWNED trigger — see
+ * `PullUpdatesDialog`'s module doc) would silently focus nothing. `useReturnFocusOnClose`
+ * (`@commise/ui/dialog-focus`) owns that half, snapshotting `document.activeElement` at the render where `open`
+ * flips true, before `Dialog.Content` ever commits.
+ *
+ * @pattern Adapter over the house Radix `Dialog` for the slide-over drawer.
  */
 import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import * as Dialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
-import { useRef, type JSX } from 'react';
+import type { JSX } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
@@ -73,41 +78,31 @@ export function HomeMobileNav({
     liveCapabilities,
     activeId,
 }: HomeMobileNavProps): JSX.Element {
-    const closeRef = useRef<HTMLButtonElement>(null);
-
-    // Capture whatever had focus right before this drawer opened, during render (not an effect) — see the
-    // module doc. Guarded on the false→true edge so it isn't re-captured on every re-render while open.
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this drawer opened, and restore it on close — see the module
+    // doc. The false→true edge guard lives inside the hook.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     const destinations = resolveHomeNav(liveCapabilities);
 
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/30 backdrop-blur-[2px] md:hidden" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/30 backdrop-blur-[2px] lg:hidden" />
                 <Dialog.Content
                     aria-label={chrome.primaryNavLabel}
-                    onOpenAutoFocus={(event) => {
-                        event.preventDefault();
-                        closeRef.current?.focus();
-                    }}
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
-                    className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/20 bg-gradient-to-b from-[#F5F8FA] to-[#EDF5F8] shadow-[var(--shadow-xl)] md:hidden"
+                    onCloseAutoFocus={onCloseAutoFocus}
+                    /*
+                     * `bg-hero` is the token-derived beach-glow ramp (`@commise/ui` `gradient.hero`, emitted as
+                     * `--background-image-hero`). This drawer previously hand-spelled a two-stop ramp from the
+                     * SAME pair of drifted tints the app shell used (#F5F8FA → #EDF5F8) — a third spelling of
+                     * one gradient, and the reason the drift outlived the shell fix. It stays fully OPAQUE
+                     * (every stop is a solid colour), which an overlay panel above page content requires.
+                     */
+                    className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/20 bg-hero shadow-[var(--shadow-xl)] lg:hidden"
                 >
                     <div className="flex items-center justify-between p-6">
                         <span className="font-display text-xl font-bold text-charcoal">{chrome.wordmark}</span>
                         <Dialog.Close
-                            ref={closeRef}
                             aria-label={chrome.closeNav}
                             className="rounded-full p-1 text-slate transition-colors hover:text-charcoal"
                         >

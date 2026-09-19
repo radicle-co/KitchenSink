@@ -1,0 +1,9 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "noEmit": true
+    },
+    "include": ["tests/**/*.ts", "scripts/**/*.ts", "*.ts"],
+    "exclude": ["node_modules"]
+}

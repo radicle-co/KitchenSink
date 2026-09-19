@@ -937,26 +937,26 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ## Test Harness & Mocking Strategy
 
-| Test Case | External Dependency            | Mock/Stub Strategy                                   | Rationale                                                           |
-| --------- | ------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------- |
-| ITP-001-A | IdP `/oauth/token`             | HTTP stub returning valid token response             | Isolate ARCH-001↔ARCH-003 boundary from IdP availability            |
-| ITP-001-B | IdP `/oauth/token`             | HTTP stub returning 400 `invalid_grant`              | Test error propagation without live IdP                             |
-| ITP-002-B | ARCH-008 Token Refresh Service | Spy on ARCH-008 delegation call                      | Verify ARCH-002 correctly delegates on token expiry                 |
-| ITP-003-B | Cookie decryption              | Inject tampered cookie bytes                         | Verify ARCH-003 returns null without throwing                       |
-| ITP-006-B | IdP `/oauth/token`             | HTTP stub returning 400                              | Verify ARCH-006 does not write to ARCH-005 on failure               |
-| ITP-008-C | IdP `/oauth/token`             | HTTP stub with 200ms delay                           | Simulate concurrent refresh race; verify single IdP call            |
-| ITP-010-A | IdP Backend API                | HTTP stub for `PATCH /api/v2/users/{id}`             | Isolate ARCH-010 from live IdP Backend API                          |
-| ITP-011-B | PostgreSQL (RDS)               | Fault-injecting DB proxy (first call fails)          | Simulate transient DB failure for retry verification                |
-| ITP-011-C | PostgreSQL (RDS)               | Real DB with unique constraint on `identity_id`      | Verify idempotency via DB constraint                                |
-| ITP-012-A | IdP Backend API + DB           | HTTP stub for user list; seeded test DB              | Control reconciliation inputs precisely                             |
-| ITP-017-B | IdP Backend API                | HTTP stub returning 500 on DELETE                    | Verify DB rollback on IdP deletion failure                          |
-| ITP-022-B | IdP token exchange             | Stub not called; verify via spy                      | Confirm IdP is not called for unauthorized impersonation requests   |
-| ITP-024-C | IdP JWKS endpoint              | Spy on JWKS fetch; warm Lambda instance              | Verify cache reuse across concurrent invocations                    |
-| ITP-026-A | IdP Backend API + DB           | HTTP stub for PATCH; real test DB                    | Verify both IdP block and DB status update                          |
-| ITP-030-A | AWS CDK deployment             | CDK integration test (CDK Assertions or real deploy) | Verify Lambda routing and IAM role assignment post-deploy           |
-| ITP-030-B | AWS SQS + Lambda               | LocalStack or real AWS test environment              | Verify SQS→Lambda event source mapping                              |
-| ITP-031-A | TypeScript compiler            | `tsc --noEmit` in CI                                 | Type compatibility verified at compile time                         |
-| ITP-033-A | DOM / React Native renderer    | Jest + Testing Library render                        | Verify accessible names via `getByRole`/`getByLabel`                |
+| Test Case | External Dependency            | Mock/Stub Strategy                                   | Rationale                                                         |
+| --------- | ------------------------------ | ---------------------------------------------------- | ----------------------------------------------------------------- |
+| ITP-001-A | IdP `/oauth/token`             | HTTP stub returning valid token response             | Isolate ARCH-001↔ARCH-003 boundary from IdP availability          |
+| ITP-001-B | IdP `/oauth/token`             | HTTP stub returning 400 `invalid_grant`              | Test error propagation without live IdP                           |
+| ITP-002-B | ARCH-008 Token Refresh Service | Spy on ARCH-008 delegation call                      | Verify ARCH-002 correctly delegates on token expiry               |
+| ITP-003-B | Cookie decryption              | Inject tampered cookie bytes                         | Verify ARCH-003 returns null without throwing                     |
+| ITP-006-B | IdP `/oauth/token`             | HTTP stub returning 400                              | Verify ARCH-006 does not write to ARCH-005 on failure             |
+| ITP-008-C | IdP `/oauth/token`             | HTTP stub with 200ms delay                           | Simulate concurrent refresh race; verify single IdP call          |
+| ITP-010-A | IdP Backend API                | HTTP stub for `PATCH /api/v2/users/{id}`             | Isolate ARCH-010 from live IdP Backend API                        |
+| ITP-011-B | PostgreSQL (RDS)               | Fault-injecting DB proxy (first call fails)          | Simulate transient DB failure for retry verification              |
+| ITP-011-C | PostgreSQL (RDS)               | Real DB with unique constraint on `identity_id`      | Verify idempotency via DB constraint                              |
+| ITP-012-A | IdP Backend API + DB           | HTTP stub for user list; seeded test DB              | Control reconciliation inputs precisely                           |
+| ITP-017-B | IdP Backend API                | HTTP stub returning 500 on DELETE                    | Verify DB rollback on IdP deletion failure                        |
+| ITP-022-B | IdP token exchange             | Stub not called; verify via spy                      | Confirm IdP is not called for unauthorized impersonation requests |
+| ITP-024-C | IdP JWKS endpoint              | Spy on JWKS fetch; warm Lambda instance              | Verify cache reuse across concurrent invocations                  |
+| ITP-026-A | IdP Backend API + DB           | HTTP stub for PATCH; real test DB                    | Verify both IdP block and DB status update                        |
+| ITP-030-A | AWS CDK deployment             | CDK integration test (CDK Assertions or real deploy) | Verify Lambda routing and IAM role assignment post-deploy         |
+| ITP-030-B | AWS SQS + Lambda               | LocalStack or real AWS test environment              | Verify SQS→Lambda event source mapping                            |
+| ITP-031-A | TypeScript compiler            | `tsc --noEmit` in CI                                 | Type compatibility verified at compile time                       |
+| ITP-033-A | DOM / React Native renderer    | Jest + Testing Library render                        | Verify accessible names via `getByRole`/`getByLabel`              |
 
 ---
 

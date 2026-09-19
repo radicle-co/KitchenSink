@@ -1,0 +1,67 @@
+# Offline save on a device — the owner's model exercised where it actually matters.
+#
+# ⛔ MOBILE IS THE PLATFORM THAT PERSISTS (owner ruling): web's queue is in-memory, so a genuinely durable
+# offline write can only be proved here.
+#
+# ⛔ `setAirplaneMode` IS ANDROID-ONLY. Verified against Maestro's own reference: iOS simulators have no
+# airplane mode, so this flow is Android-bound by the platform rather than by preference. The repo's Maestro
+# tier runs an Android emulator (`_ci-heavy.yml`), so that is a constraint and not a blocker.
+#
+# ⚠️ Maestro is MANUAL-ONLY here (owner ruling 2026-09-05) and targets a deployed sandbox. A skipped run
+# claims nothing — never report one as a pass.
+appId: io.commise.mobile
+name: offline save survives, then syncs on reconnect
+tags:
+    - offline
+---
+- launchApp:
+      clearState: true
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+# The owner's edit entry point sits in the detail's TITLE BAND, below the hero, so reach it rather than
+# asserting blind.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Step 1 of 4'
+
+# ── go offline ────────────────────────────────────────────────────────────────
+- setAirplaneMode: enabled
+
+- runFlow: ../recipes/common/clearTitle.yaml
+- inputText: ' offline edit'
+- tapOn: 'Save'
+
+# ⛔ THE SAVE SUCCEEDS FROM THE COOK'S POINT OF VIEW. Offline is a pause, so the editor must reach its saved
+# state rather than reporting a failure — this assertion is the whole owner ruling in one line.
+- assertVisible: 'Saved'
+
+# ⛔ AND THEY ARE TOLD. "As long as we are clearly notifying a user that they are offline and what data/recipe
+# hasn't been synced with the servers, then that should be good."
+- assertVisible:
+      text: '.*offline.*'
+- assertVisible:
+      text: '.*(not synced|1 change).*'
+
+# ── come back online ──────────────────────────────────────────────────────────
+- setAirplaneMode: disabled
+
+# ⛔ NO USER ACTION. Nothing is tapped between reconnecting and the queue draining — if a Retry were required,
+# offline would be a mode with a recovery ritual rather than a delay.
+- extendedWaitUntil:
+      notVisible:
+          text: '.*(not synced|1 change).*'
+      timeout: 30000
+
+# The edit is on the server: a fresh read of the detail shows it.
+- tapOn: 'Back'
+- assertVisible:
+      text: '.*offline edit.*'

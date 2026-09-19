@@ -88,7 +88,9 @@ describe('mobile endpoint configuration', () => {
             [IDENTITY]: 'https://identity.example.com',
         });
 
-        expect(env[IDENTITY]).not.toMatch(/api\.commise\.io/);
-        expect(env[RECIPE]).not.toMatch(/api\.commise\.io/);
+        // `toContain`, not `toMatch`: the assertion is "this substring is absent anywhere", which a plain
+        // string states exactly and a regex only approximates.
+        expect(env[IDENTITY]).not.toContain('api.commise.io');
+        expect(env[RECIPE]).not.toContain('api.commise.io');
     });
 });

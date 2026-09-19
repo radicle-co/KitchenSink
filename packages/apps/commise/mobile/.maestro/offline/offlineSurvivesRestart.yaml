@@ -1,0 +1,53 @@
+# A queued write survives the app being killed — the property WEB DOES NOT HAVE.
+#
+# ⛔ THIS IS THE FLOW THAT JUSTIFIES ON-DEVICE PERSISTENCE. Everything else about offline is reproducible with
+# an in-memory queue; only this proves the outbox is actually durable. If this passes on web's volatile store
+# it is testing the wrong thing.
+#
+# ⚠️ `clearState: false` on the relaunch is load-bearing — clearing it would wipe the very outbox under test
+# and the flow would pass vacuously.
+appId: io.commise.mobile
+name: a queued write survives an app restart
+tags:
+    - offline
+---
+- launchApp:
+      clearState: true
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+# The owner's edit entry point sits in the detail's TITLE BAND, below the hero, so reach it rather than
+# asserting blind.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Step 1 of 4'
+
+- setAirplaneMode: enabled
+- runFlow: ../recipes/common/clearTitle.yaml
+- inputText: ' survives restart'
+- tapOn: 'Save'
+- assertVisible: 'Saved'
+
+# Kill and relaunch WITHOUT clearing state — the queue must still be there.
+- stopApp
+- launchApp:
+      clearState: false
+
+# ⛔ STILL PENDING AFTER A RESTART. On a volatile queue this is where the write would have vanished silently,
+# having told the cook it was saved.
+- assertVisible:
+      text: '.*(not synced|1 change).*'
+
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+      notVisible:
+          text: '.*(not synced|1 change).*'
+      timeout: 30000

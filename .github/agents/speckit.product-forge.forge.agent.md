@@ -1,18 +1,18 @@
 ---
 name: speckit.product-forge.forge
 description: 'Full lifecycle orchestrator for Product Forge v1.6.0. Drives a feature
-  from idea to shipped, measured code through the phase map selected by `feature_mode`
-  (express / lite / standard / v-model) with human-in-the-loop gates, cross-artifact
-  sync-verify between transitions, and a complete gate audit trail. Standard phases:
-  research → product-spec → revalidation → bridge → plan → tasks → pre-impl-review
-  → implement → code-review → verify → test-plan → test-run → release-readiness. Lite
-  phases: problem-discovery (opt) → product-spec → plan → implement → verify. Use
-  with: "forge feature", "run full cycle", "product-forge", "/speckit.product-forge.forge"'
+    from idea to shipped, measured code through the phase map selected by `feature_mode`
+    (express / lite / standard / v-model) with human-in-the-loop gates, cross-artifact
+    sync-verify between transitions, and a complete gate audit trail. Standard phases:
+    research → product-spec → revalidation → bridge → plan → tasks → pre-impl-review
+    → implement → code-review → verify → test-plan → test-run → release-readiness. Lite
+    phases: problem-discovery (opt) → product-spec → plan → implement → verify. Use
+    with: "forge feature", "run full cycle", "product-forge", "/speckit.product-forge.forge"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Full Lifecycle Orchestrator (v1.6.0)
 
 > **Command syntax.** This file's prose and every cross-reference use the SpecKit
@@ -37,6 +37,7 @@ $ARGUMENTS
 ```
 
 Parse the input:
+
 1. **Feature description** (e.g., "Build a push notification preferences screen") → store as `FEATURE_DESCRIPTION`, skip to Phase detection.
 2. **Phase override** (e.g., "resume at Phase 3", "start from revalidate") → override auto-detected resume point.
 3. **Mode override** (e.g., `--mode=lite`, `--mode=standard`) → sets `feature_mode` on the status file before resume. See [docs/policy.md §4](../docs/policy.md#4-feature-modes-e1).
@@ -53,30 +54,31 @@ Parse the input:
 > When adding/removing a phase or changing a mode, edit `phase-map.yml` first,
 > then update these tables to match.
 
-| Phase | Command | Artifact Signal | Gate |
-|-------|---------|-----------------|------|
-| 0. Problem Discovery *(opt)* | `speckit.product-forge.problem-discovery` | `problem-discovery/problem-statement.md` | Go / No-go decision |
-| 1. Research | `speckit.product-forge.research` | `research/` folder with ≥2 files | User approves research |
-| 2. Product Spec | `speckit.product-forge.product-spec` | `product-spec/README.md` exists | User approves product spec |
-| 2H. Design System Harvest *(UI features; helper within Phase 2)* | `speckit.product-forge.design-system-harvest` | `design-system/manifest.yml` exists | Auto / `not_applicable` for backend-only |
-| 3. Revalidation | `speckit.product-forge.revalidate` | `review.md` with status `APPROVED` | User explicitly approves |
-| 4. Bridge → SpecKit | `speckit.product-forge.bridge` | `spec.md` exists in FEATURE_DIR | User approves spec.md |
-| 4.5. i18n Harvest *(opt, conditional)* | `speckit.product-forge.i18n-harvest` | `i18n/keys.yml` exists | User approves harvested keys |
-| 5. Plan | `speckit.product-forge.plan` | `plan.md` exists | User approves plan |
-| 5B. Tasks | `speckit.product-forge.tasks` | `tasks.md` exists | User approves tasks |
-| 5.5. Migration Plan *(opt, conditional)* | `speckit.product-forge.migration-plan` | `migrations/migration-plan.md` + `forward.sql` + `rollback.sql` | User approves strategy and scripts |
-| 5C. Pre-Impl Review *(opt)* | `speckit.product-forge.pre-impl-review` | `pre-impl-review.md` exists | User approves review |
-| 6. Implement | `speckit.product-forge.implement` | All tasks `[x]` in tasks.md | Implementation complete |
-| 6B. Code Review *(opt)* | `speckit.product-forge.code-review` | `code-review.md` exists | User approves review |
-| 7. Verify Full | `speckit.product-forge.verify-full` | `verify-report.md` with no CRITICAL | User acknowledges report |
-| 8A. Test Plan *(opt)* | `speckit.product-forge.test-plan` | `testing/test-plan.md` + `testing/playwright-tests/` | User approves test plan |
-| 8B. Test Run *(opt)* | `speckit.product-forge.test-run` | `test-report.md` + `bugs/README.md` | Pass rate ≥80% + zero P0/P1 open |
-| 9. Release Readiness *(opt)* | `speckit.product-forge.release-readiness` | `release-readiness.md` + `monitoring/dashboard.json` + `flags/registry.yml` | User confirms readiness |
-| 9.5. Monitoring Setup *(opt)* | `speckit.product-forge.monitoring-setup` | `monitoring/slo.md` + `alerts.yml` | User confirms monitoring artifacts |
-| 9B. Experiment Design *(opt, conditional)* | `speckit.product-forge.experiment-design` | `experiment/experiment-design.md` + `experiment.yml` | User pre-registers plan |
-| 10. Spec Merge *(living spec; after release-readiness)* | `speckit.product-forge.spec-merge` | canonical `specs/` updated; change archived | User confirms merge of delta specs |
+| Phase                                                            | Command                                       | Artifact Signal                                                             | Gate                                     |
+| ---------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------- |
+| 0. Problem Discovery _(opt)_                                     | `speckit.product-forge.problem-discovery`     | `problem-discovery/problem-statement.md`                                    | Go / No-go decision                      |
+| 1. Research                                                      | `speckit.product-forge.research`              | `research/` folder with ≥2 files                                            | User approves research                   |
+| 2. Product Spec                                                  | `speckit.product-forge.product-spec`          | `product-spec/README.md` exists                                             | User approves product spec               |
+| 2H. Design System Harvest _(UI features; helper within Phase 2)_ | `speckit.product-forge.design-system-harvest` | `design-system/manifest.yml` exists                                         | Auto / `not_applicable` for backend-only |
+| 3. Revalidation                                                  | `speckit.product-forge.revalidate`            | `review.md` with status `APPROVED`                                          | User explicitly approves                 |
+| 4. Bridge → SpecKit                                              | `speckit.product-forge.bridge`                | `spec.md` exists in FEATURE_DIR                                             | User approves spec.md                    |
+| 4.5. i18n Harvest _(opt, conditional)_                           | `speckit.product-forge.i18n-harvest`          | `i18n/keys.yml` exists                                                      | User approves harvested keys             |
+| 5. Plan                                                          | `speckit.product-forge.plan`                  | `plan.md` exists                                                            | User approves plan                       |
+| 5B. Tasks                                                        | `speckit.product-forge.tasks`                 | `tasks.md` exists                                                           | User approves tasks                      |
+| 5.5. Migration Plan _(opt, conditional)_                         | `speckit.product-forge.migration-plan`        | `migrations/migration-plan.md` + `forward.sql` + `rollback.sql`             | User approves strategy and scripts       |
+| 5C. Pre-Impl Review _(opt)_                                      | `speckit.product-forge.pre-impl-review`       | `pre-impl-review.md` exists                                                 | User approves review                     |
+| 6. Implement                                                     | `speckit.product-forge.implement`             | All tasks `[x]` in tasks.md                                                 | Implementation complete                  |
+| 6B. Code Review _(opt)_                                          | `speckit.product-forge.code-review`           | `code-review.md` exists                                                     | User approves review                     |
+| 7. Verify Full                                                   | `speckit.product-forge.verify-full`           | `verify-report.md` with no CRITICAL                                         | User acknowledges report                 |
+| 8A. Test Plan _(opt)_                                            | `speckit.product-forge.test-plan`             | `testing/test-plan.md` + `testing/playwright-tests/`                        | User approves test plan                  |
+| 8B. Test Run _(opt)_                                             | `speckit.product-forge.test-run`              | `test-report.md` + `bugs/README.md`                                         | Pass rate ≥80% + zero P0/P1 open         |
+| 9. Release Readiness _(opt)_                                     | `speckit.product-forge.release-readiness`     | `release-readiness.md` + `monitoring/dashboard.json` + `flags/registry.yml` | User confirms readiness                  |
+| 9.5. Monitoring Setup _(opt)_                                    | `speckit.product-forge.monitoring-setup`      | `monitoring/slo.md` + `alerts.yml`                                          | User confirms monitoring artifacts       |
+| 9B. Experiment Design _(opt, conditional)_                       | `speckit.product-forge.experiment-design`     | `experiment/experiment-design.md` + `experiment.yml`                        | User pre-registers plan                  |
+| 10. Spec Merge _(living spec; after release-readiness)_          | `speckit.product-forge.spec-merge`            | canonical `specs/` updated; change archived                                 | User confirms merge of delta specs       |
 
 > **Conditional triggers:**
+>
 > - Phase 4.5 runs when the project has multiple locales.
 > - Phase 5.5 runs when `plan.md` has a non-empty Data Model section.
 > - Phase 9B runs when `flags/registry.yml` has any flag with `experiment: true`.
@@ -89,6 +91,7 @@ Parse the input:
 > [docs/policy.md §4](../docs/policy.md#4-feature-modes-e1).
 
 > **Cross-cutting commands** (runnable at any time):
+>
 > - `/speckit.product-forge.sync-verify` — artifact consistency across layers
 > - `/speckit.product-forge.change-request` — formal scope change with impact analysis
 > - `/speckit.product-forge.spec-merge` — merge delta specs into canonical `specs/` + archive (living spec)
@@ -118,6 +121,7 @@ where the host supports `AskUserQuestion`, emit the equivalent structured call.
 Always allow a free-text "Other" answer; never trap the user in a closed list.
 
 **Unified gate surface + risk routing (normative, W5-A).** At each human gate:
+
 1. Run `node "$PLUGIN_ROOT/scripts/gate-risk.js" --feature-dir {FEATURE_DIR} --json`
    (resolve `$PLUGIN_ROOT` per [docs/runtime.md §1A](../docs/runtime.md#1a-locating-bundled-scripts-plugin_root);
    if the script is unreachable, WARN and classify risk by the documented
@@ -166,7 +170,7 @@ intake step before fixing the mode (see [docs/policy.md §4.0](../docs/policy.md
    default** in the prompt. The hint is advisory only — a confident classification
    recommendation still wins, and the user can always override.
 3. Write the chosen value to **`feature_mode`** (`express | lite | standard |
-   v-model`). "Track" is just the user-facing word for the choice at intake; the
+v-model`). "Track" is just the user-facing word for the choice at intake; the
    persisted field is `feature_mode` (express is a first-class mode value — see
    [docs/schema.md](../docs/schema.md)). There is no separate `track` field.
 
@@ -194,7 +198,7 @@ Read `flow_mode` from config (default `gated`):
 - **`fluid`** — "actions, not phases": after each phase, instead of forcing the
   single next phase, present the **set of currently-runnable phases** (those whose
   dependencies are satisfied) as a structured `Next step` prompt and let the user
-  pick. Dependencies are *enablers*, not hard gates. `sync-verify` still runs at
+  pick. Dependencies are _enablers_, not hard gates. `sync-verify` still runs at
   transitions and gate decisions are still recorded. A phase is "runnable" when its
   required upstream artifacts exist (e.g. `plan` is runnable once `spec.md` exists).
 
@@ -210,21 +214,21 @@ gate), must stop for a human, or must fail the run.
 **Step 0 — load the policy.** Read `.product-forge/gate-policy.yml`
 (copy the template at [docs/templates/gate-policy.yml](../docs/templates/gate-policy.yml)
 if absent). If the file does not exist, **do not invent a policy** — print
-*"`--ci` requires .product-forge/gate-policy.yml (see docs/templates/gate-policy.yml). Aborting."*
+_"`--ci` requires .product-forge/gate-policy.yml (see docs/templates/gate-policy.yml). Aborting."_
 and exit non-zero.
 
 **At each gate** that interactive mode would present to a human, do this instead:
 
 1. **Compute risk** (deterministic, the same classifier the interactive gate uses):
 
-   ```bash
-   PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(specify extension path product-forge 2>/dev/null || echo .)}"
-   node "$PLUGIN_ROOT/scripts/gate-risk.js" --feature-dir {FEATURE_DIR} --json
-   ```
+    ```bash
+    PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(specify extension path product-forge 2>/dev/null || echo .)}"
+    node "$PLUGIN_ROOT/scripts/gate-risk.js" --feature-dir {FEATURE_DIR} --json
+    ```
 
-   Parse the JSON `{ risk, signals, reasons, routing }`. Read `risk`
-   (`low | medium | high`) from the JSON — `gate-risk.js` exits 0 on success
-   regardless of risk (exit 2 only on bad/unreadable input; treat that as `block`).
+    Parse the JSON `{ risk, signals, reasons, routing }`. Read `risk`
+    (`low | medium | high`) from the JSON — `gate-risk.js` exits 0 on success
+    regardless of risk (exit 2 only on bad/unreadable input; treat that as `block`).
 
 2. **Look up the action** for `{phase × risk}` in `gate-policy.yml`: use
    `phases.<phase>.<risk>` if the phase is listed, else `defaults.<risk>`. The
@@ -235,51 +239,51 @@ and exit non-zero.
 
 3. **Branch on the action:**
 
-   - **`block`** → STOP and fail the run (non-zero exit). Emit the risk reasons.
+    - **`block`** → STOP and fail the run (non-zero exit). Emit the risk reasons.
 
-   - **`require-human`** → STOP without approving. Emit a **reviewable**
-     request honoring `safe_outputs` (never the gate decision itself). With the
-     default `writes_as: pull_request`:
+    - **`require-human`** → STOP without approving. Emit a **reviewable**
+      request honoring `safe_outputs` (never the gate decision itself). With the
+      default `writes_as: pull_request`:
 
-     ```bash
-     gh pr comment "$PR_NUMBER" --body-file {FEATURE_DIR}/gate-review.md
-     ```
+        ```bash
+        gh pr comment "$PR_NUMBER" --body-file {FEATURE_DIR}/gate-review.md
+        ```
 
-     (or `gh issue create --title "[forge] human gate: {phase}" --body-file {FEATURE_DIR}/gate-review.md`
-     when there is no PR). Then exit so a human can approve out-of-band. Do **not**
-     write an `approved` gate.
+        (or `gh issue create --title "[forge] human gate: {phase}" --body-file {FEATURE_DIR}/gate-review.md`
+        when there is no PR). Then exit so a human can approve out-of-band. Do **not**
+        write an `approved` gate.
 
-   - **`auto-recommend`** → only permitted after the **deterministic pre-gate**
-     passes (`require_clean` in the policy). BOTH checks must hold:
+    - **`auto-recommend`** → only permitted after the **deterministic pre-gate**
+      passes (`require_clean` in the policy). BOTH checks must hold:
 
-     ```bash
-     # (a) structural traceability is clean (exit 0 = pass). Resolve $PLUGIN_ROOT
-     #     per docs/runtime.md §1A; WARN + skip the pre-gate if unreachable.
-     node "$PLUGIN_ROOT/scripts/validate-traceability.js" --feature-dir {FEATURE_DIR} --strict
-     # (b) zero OPEN CRITICAL findings in the unified gate surface.
-     # gate-review.md lists findings as bullets, e.g.
-     #   - **F-001** · ❌ CRITICAL · `code-review/security` · raised@`{sha}` · ...
-     grep -E '^- \*\*F-[0-9]+\*\*.*CRITICAL' {FEATURE_DIR}/gate-review.md \
-       | grep -viE '\b(resolved|acknowledged|waived)\b'
-     ```
+        ```bash
+        # (a) structural traceability is clean (exit 0 = pass). Resolve $PLUGIN_ROOT
+        #     per docs/runtime.md §1A; WARN + skip the pre-gate if unreachable.
+        node "$PLUGIN_ROOT/scripts/validate-traceability.js" --feature-dir {FEATURE_DIR} --strict
+        # (b) zero OPEN CRITICAL findings in the unified gate surface.
+        # gate-review.md lists findings as bullets, e.g.
+        #   - **F-001** · ❌ CRITICAL · `code-review/security` · raised@`{sha}` · ...
+        grep -E '^- \*\*F-[0-9]+\*\*.*CRITICAL' {FEATURE_DIR}/gate-review.md \
+          | grep -viE '\b(resolved|acknowledged|waived)\b'
+        ```
 
-     If `validate-traceability.js --strict` exits non-zero **or** the `grep`
-     finds any open CRITICAL row, **downgrade to `require-human`** (emit the
-     reviewable request as above) — do **not** auto-recommend. Only when (a)
-     exits 0 **and** (b) matches nothing may CI record an `approved` gate
-     unattended, stamped per `record_on_auto_recommend`:
+        If `validate-traceability.js --strict` exits non-zero **or** the `grep`
+        finds any open CRITICAL row, **downgrade to `require-human`** (emit the
+        reviewable request as above) — do **not** auto-recommend. Only when (a)
+        exits 0 **and** (b) matches nothing may CI record an `approved` gate
+        unattended, stamped per `record_on_auto_recommend`:
 
-     ```yaml
-     # appended to gates[] on .forge-status.yml
-     - phase: {phase}
-       decision: approved
-       mode: ci-auto-recommend
-       reviewed_sha: {git SHA reviewed}      # §9.2 delta-review carrier
-       risk: {risk}                          # from gate-risk.js
-       policy_version: 1                     # gate-policy.yml version
-       signals: { ... }                      # gate-risk.js signals[]
-       validate_traceability: pass           # require_clean evidence
-     ```
+        ```yaml
+        # appended to gates[] on .forge-status.yml
+        - phase: { phase }
+          decision: approved
+          mode: ci-auto-recommend
+          reviewed_sha: { git SHA reviewed } # §9.2 delta-review carrier
+          risk: { risk } # from gate-risk.js
+          policy_version: 1 # gate-policy.yml version
+          signals: { ... } # gate-risk.js signals[]
+          validate_traceability: pass # require_clean evidence
+        ```
 
 **Safe-outputs discipline (gh-aw model, `safe_outputs` block).** Honor it on
 every headless action: `never_auto_merge: true` (CI may open a PR, **never
@@ -325,9 +329,9 @@ Before executing any phase, resolve the feature mode:
    `"express" | "lite" | "standard" | "v-model"`. If anything else (typo, unknown
    literal, non-string) appears — either in the status file, config
    default, or `--mode=` override — abort immediately with:
-   *"Invalid feature_mode: '{value}'. Expected one of express, lite, standard,
+   _"Invalid feature_mode: '{value}'. Expected one of express, lite, standard,
    v-model. Fix .forge-status.yml or .product-forge/config.yml and
-   re-run."* Do NOT silently fall through to standard. The same
+   re-run."_ Do NOT silently fall through to standard. The same
    validation applies to every `phases.<name>.status` read during
    pre-flight — see [docs/runtime.md §4](../docs/runtime.md#4-step-2--pre-flight-check).
 5. If resolved mode is `v-model`, run the V-Model detection step
@@ -340,16 +344,17 @@ V-Model mode requires the external [V-Model Extension Pack](../docs/v-model-inte
 extension in this plugin's `extension.yml` but NOT bundled.
 
 Detection:
+
 1. Check whether the command `speckit.v-model.requirements` is available.
 2. If present: read its version (from the extension's manifest) and verify `>=0.5.0`.
 
 Behaviour:
 
-| Detection result | Action |
-|------------------|--------|
-| Present, version OK | Proceed with the v-model phase map below. Read optional `v-model-config.yml` (domain selection) if it exists. |
-| Present, version below required | Abort. Print: *"V-Model plugin version {X} detected; Product Forge needs ≥0.5.0. Upgrade with: `specify extension update v-model`."* |
-| Not installed | Abort. Print: *"V-Model mode requires the V-Model Extension Pack. Install with:*<br>`specify extension add v-model --from https://github.com/leocamello/spec-kit-v-model/archive/refs/tags/v0.5.0.zip`<br>*Re-run after install. See docs/v-model-integration.md."* |
+| Detection result                | Action                                                                                                                                                                                                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Present, version OK             | Proceed with the v-model phase map below. Read optional `v-model-config.yml` (domain selection) if it exists.                                                                                                                                                       |
+| Present, version below required | Abort. Print: _"V-Model plugin version {X} detected; Product Forge needs ≥0.5.0. Upgrade with: `specify extension update v-model`."_                                                                                                                                |
+| Not installed                   | Abort. Print: _"V-Model mode requires the V-Model Extension Pack. Install with:_<br>`specify extension add v-model --from https://github.com/leocamello/spec-kit-v-model/archive/refs/tags/v0.5.0.zip`<br>_Re-run after install. See docs/v-model-integration.md."_ |
 
 Do NOT fall back to standard mode. Regulated / safety-critical work
 must not silently degrade.
@@ -360,41 +365,41 @@ feature, reject and suggest creating a new feature in v-model mode.
 
 ### Phase execution map by mode
 
-| Phase | express | lite | standard | v-model |
-|-------|:-------:|:----:|:--------:|:-------:|
-| 0. Problem Discovery | — | opt | opt | opt |
-| 1. Research | — | — | ✅ | ✅ |
-| 2. Product Spec | ✅ (minimal) | ✅ (light) | ✅ | ✅ |
-| 2H. Design System Harvest | — | — | opt (conditional on UI features) | opt |
-| 3. Revalidation | — | — | ✅ | ✅ |
-| 4. Bridge → SpecKit | — | — | ✅ | ✅ |
-| 4.5. i18n Harvest | — | — | opt (conditional on multi-locale) | opt |
-| 5. Plan | ✅ (inline) | ✅ | ✅ | ✅ |
-| 5B. Tasks | — | — | ✅ | ✅ |
-| 5.5. Migration Plan | — | — | opt (conditional on schema changes) | opt |
-| 5C. Pre-Impl Review | — | — | opt | opt |
-| 6. Implement | ✅ | ✅ | ✅ | ✅ |
-| 6B. Code Review | — | — | opt | opt |
-| 7. Verify Full | ✅ | ✅ | ✅ | ✅ |
-| 8A. Test Plan | — | — | opt | opt |
-| 8B. Test Run | — | — | opt | opt |
-| 9. Release Readiness | — | — | opt | opt |
-| 9.5. Monitoring Setup | — | — | opt | opt |
-| 9B. Experiment Design | — | — | opt (conditional on experiment flag) | opt |
-| 10. Spec Merge | — | — | opt | opt |
-| V1 Requirements (`speckit.v-model.requirements`) | — | — | — | ✅ (replaces Phase 2) |
-| V2 Hazard analysis (`speckit.v-model.hazard-analysis`) | — | — | — | opt (safety-critical domain) |
-| V3 Acceptance test plan (`speckit.v-model.acceptance`) | — | — | — | ✅ |
-| V4 System design (`speckit.v-model.system-design`) | — | — | — | ✅ |
-| V5 System test (`speckit.v-model.system-test`) | — | — | — | ✅ |
-| V6 Architecture design (`speckit.v-model.architecture-design`) | — | — | — | ✅ |
-| V7 Integration test (`speckit.v-model.integration-test`) | — | — | — | ✅ |
-| V8 Module design (`speckit.v-model.module-design`) | — | — | — | ✅ |
-| V9 Unit test (`speckit.v-model.unit-test`) | — | — | — | ✅ |
-| V10 Trace checkpoint (`speckit.v-model.trace`) | — | — | — | ✅ (automatic between level pairs) |
-| V11 Peer review (`speckit.v-model.peer-review`) | — | — | — | opt (any artifact) |
-| V12 Test results (`speckit.v-model.test-results`) | — | — | — | ✅ (after Phase 8B) |
-| V13 Audit report (`speckit.v-model.audit-report`) | — | — | — | ✅ (gates Phase 9) |
+| Phase                                                          |   express    |    lite    |               standard               |              v-model               |
+| -------------------------------------------------------------- | :----------: | :--------: | :----------------------------------: | :--------------------------------: |
+| 0. Problem Discovery                                           |      —       |    opt     |                 opt                  |                opt                 |
+| 1. Research                                                    |      —       |     —      |                  ✅                  |                 ✅                 |
+| 2. Product Spec                                                | ✅ (minimal) | ✅ (light) |                  ✅                  |                 ✅                 |
+| 2H. Design System Harvest                                      |      —       |     —      |   opt (conditional on UI features)   |                opt                 |
+| 3. Revalidation                                                |      —       |     —      |                  ✅                  |                 ✅                 |
+| 4. Bridge → SpecKit                                            |      —       |     —      |                  ✅                  |                 ✅                 |
+| 4.5. i18n Harvest                                              |      —       |     —      |  opt (conditional on multi-locale)   |                opt                 |
+| 5. Plan                                                        | ✅ (inline)  |     ✅     |                  ✅                  |                 ✅                 |
+| 5B. Tasks                                                      |      —       |     —      |                  ✅                  |                 ✅                 |
+| 5.5. Migration Plan                                            |      —       |     —      | opt (conditional on schema changes)  |                opt                 |
+| 5C. Pre-Impl Review                                            |      —       |     —      |                 opt                  |                opt                 |
+| 6. Implement                                                   |      ✅      |     ✅     |                  ✅                  |                 ✅                 |
+| 6B. Code Review                                                |      —       |     —      |                 opt                  |                opt                 |
+| 7. Verify Full                                                 |      ✅      |     ✅     |                  ✅                  |                 ✅                 |
+| 8A. Test Plan                                                  |      —       |     —      |                 opt                  |                opt                 |
+| 8B. Test Run                                                   |      —       |     —      |                 opt                  |                opt                 |
+| 9. Release Readiness                                           |      —       |     —      |                 opt                  |                opt                 |
+| 9.5. Monitoring Setup                                          |      —       |     —      |                 opt                  |                opt                 |
+| 9B. Experiment Design                                          |      —       |     —      | opt (conditional on experiment flag) |                opt                 |
+| 10. Spec Merge                                                 |      —       |     —      |                 opt                  |                opt                 |
+| V1 Requirements (`speckit.v-model.requirements`)               |      —       |     —      |                  —                   |       ✅ (replaces Phase 2)        |
+| V2 Hazard analysis (`speckit.v-model.hazard-analysis`)         |      —       |     —      |                  —                   |    opt (safety-critical domain)    |
+| V3 Acceptance test plan (`speckit.v-model.acceptance`)         |      —       |     —      |                  —                   |                 ✅                 |
+| V4 System design (`speckit.v-model.system-design`)             |      —       |     —      |                  —                   |                 ✅                 |
+| V5 System test (`speckit.v-model.system-test`)                 |      —       |     —      |                  —                   |                 ✅                 |
+| V6 Architecture design (`speckit.v-model.architecture-design`) |      —       |     —      |                  —                   |                 ✅                 |
+| V7 Integration test (`speckit.v-model.integration-test`)       |      —       |     —      |                  —                   |                 ✅                 |
+| V8 Module design (`speckit.v-model.module-design`)             |      —       |     —      |                  —                   |                 ✅                 |
+| V9 Unit test (`speckit.v-model.unit-test`)                     |      —       |     —      |                  —                   |                 ✅                 |
+| V10 Trace checkpoint (`speckit.v-model.trace`)                 |      —       |     —      |                  —                   | ✅ (automatic between level pairs) |
+| V11 Peer review (`speckit.v-model.peer-review`)                |      —       |     —      |                  —                   |         opt (any artifact)         |
+| V12 Test results (`speckit.v-model.test-results`)              |      —       |     —      |                  —                   |        ✅ (after Phase 8B)         |
+| V13 Audit report (`speckit.v-model.audit-report`)              |      —       |     —      |                  —                   |         ✅ (gates Phase 9)         |
 
 In v-model mode, our Phase 2 (product-spec), Phase 3 (revalidation),
 Phase 4 (bridge), and Phase 5 (plan) are replaced by the V-Model
@@ -420,8 +425,8 @@ During a lite run, watch for escalation triggers:
 - `len(tasks) > 10`.
 - `plan.md` references more than 3 modules.
 
-When triggered, prompt the user: *"This feature is exceeding lite-mode
-bounds ({trigger reason}). Escalate to standard mode?"* If the user
+When triggered, prompt the user: _"This feature is exceeding lite-mode
+bounds ({trigger reason}). Escalate to standard mode?"_ If the user
 accepts, set `feature_mode: standard`, keep all existing artifacts, and
 run the missing standard-mode phases on the next loop.
 
@@ -439,9 +444,10 @@ Writers must follow the migration rules in
 
 ---
 
-## Phase 0: Problem Discovery *(Optional)*
+## Phase 0: Problem Discovery _(Optional)_
 
 Before Phase 1, offer:
+
 ```
 💡 Problem Discovery (Phase 0)
 
@@ -457,6 +463,7 @@ If user confirms → **Delegate to:** `speckit.product-forge.problem-discovery`
 Provide: FEATURE_DESCRIPTION, FEATURE_DIR
 
 After completion:
+
 - Read `{FEATURE_DIR}/problem-discovery/problem-statement.md`
 - Show: go/no-go decision, confidence score, key hypotheses
 - If **No-go**: stop and inform user. Do not proceed to Phase 1.
@@ -475,6 +482,7 @@ Update `.forge-status.yml`: `problem_discovery.status = completed` (or `skipped`
 Provide: FEATURE_DESCRIPTION, FEATURE_DIR, project_name, project_domain, project_tech_stack, codebase_path.
 
 After completion:
+
 - Read `{FEATURE_DIR}/research/README.md` for summary
 - Show key findings from each research dimension
 - **Gate:** `[Gate] Research complete — research dimensions gathered. How do you want to proceed? 1. Approve (recommended) → continue to Product Spec [approved] · 2. Revise — request additional research dimensions [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
@@ -491,6 +499,7 @@ Update `.forge-status.yml`: `research.status = completed`.
 Provide: FEATURE_DESCRIPTION, FEATURE_DIR, all research artifacts summary, project settings.
 
 After completion:
+
 - Read `{FEATURE_DIR}/product-spec/README.md`
 - List all created documents
 - **Quick sync:** Layer 1 (research ↔ product-spec)
@@ -510,6 +519,7 @@ Provide: FEATURE_DIR, list of all product-spec documents.
 The revalidation skill handles its own approval loop. Returns only when user approves.
 
 After completion:
+
 - Confirm approval from `{FEATURE_DIR}/review.md`
 - **Quick sync:** Layer 1
 - **Gate:** `[Gate] Revalidation complete — product spec approved and locked. How do you want to proceed? 1. Approve (recommended) → continue to Bridge → SpecKit [approved] · 2. Revise — re-run revalidation with feedback [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
@@ -526,6 +536,7 @@ Update `.forge-status.yml`: `revalidation.status = approved`.
 Provide: FEATURE_DIR, all product-spec artifacts, `default_speckit_mode`.
 
 After completion:
+
 - Confirm `spec.md` exists
 - Show summary (goals, user stories count, acceptance criteria)
 - **Quick sync:** Layer 2 (product-spec ↔ spec.md)
@@ -536,12 +547,13 @@ Update `.forge-status.yml`: `bridge.status = completed`.
 
 ---
 
-## Phase 4.5: i18n Harvest *(Optional, conditional)*
+## Phase 4.5: i18n Harvest _(Optional, conditional)_
 
 Trigger: project is multi-locale (per config or detected `i18n/` folder).
 Skip automatically otherwise.
 
 Ask user:
+
 ```
 🌍 i18n Harvest (Phase 4.5)
 
@@ -557,6 +569,7 @@ If user confirms → **Delegate to:** `speckit.product-forge.i18n-harvest`.
 Provide: FEATURE_DIR with bridge output, project locale list.
 
 After completion:
+
 - Confirm `i18n/keys.yml` exists
 - **Gate:** `[Gate] i18n Harvest complete — locale key stubs created. How do you want to proceed? 1. Approve (recommended) → continue to Plan [approved] · 2. Revise — re-run the harvest with feedback [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
 - Record gate decision; if skipped, apply [docs/policy.md §3](../docs/policy.md#3-skip-reason-policy-e2).
@@ -572,6 +585,7 @@ Update `.forge-status.yml`: `i18n_harvest.status = completed` (or `skipped` / `n
 Provide: FEATURE_DIR with spec.md, product-spec artifacts summary, codebase_path.
 
 After plan approved:
+
 - Confirm `plan.md` exists
 - **Quick sync:** Layer 3 (spec.md ↔ plan.md)
 - **Gate:** `[Gate] Plan complete — technical plan ready. How do you want to proceed? 1. Approve (recommended) → continue to Tasks [approved] · 2. Revise — re-run the plan with feedback [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
@@ -579,7 +593,7 @@ After plan approved:
 
 Update `.forge-status.yml`: `plan.status = completed`.
 
-> **Extension point:** *"Want to insert a custom step here (e.g., architecture review, cost estimation)?"*
+> **Extension point:** _"Want to insert a custom step here (e.g., architecture review, cost estimation)?"_
 
 ---
 
@@ -590,6 +604,7 @@ Update `.forge-status.yml`: `plan.status = completed`.
 Provide: FEATURE_DIR with plan.md.
 
 After tasks approved:
+
 - Show task count, group summary, story coverage
 - **Quick sync:** Layer 4 (plan.md ↔ tasks.md)
 - **Gate:** `[Gate] Tasks complete — task breakdown ready. How do you want to proceed? 1. Approve (recommended) → continue to Pre-Implementation Review [approved] · 2. Revise — re-run the breakdown with feedback [revised] · 3. Skip Pre-Implementation Review [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
@@ -599,13 +614,14 @@ Update `.forge-status.yml`: `tasks.status = completed`.
 
 ---
 
-## Phase 5.5: Migration Plan *(Optional, conditional)*
+## Phase 5.5: Migration Plan _(Optional, conditional)_
 
 Trigger: `plan.md` contains a non-empty "Data Model" section OR references
 schema changes (Prisma schema diff, Mongoose `Schema(...)` addition,
 SQL migration file added). Skip automatically if plan has no schema work.
 
 Ask user:
+
 ```
 🗄 Migration Plan (Phase 5.5)
 
@@ -622,6 +638,7 @@ If user confirms → **Delegate to:** `speckit.product-forge.migration-plan`.
 Provide: FEATURE_DIR with plan.md, codebase_path, detected DB kind.
 
 After completion:
+
 - Confirm `migrations/migration-plan.md`, `forward.sql`, `rollback.sql`, `validation.sql` exist
 - **Gate:** `[Gate] Migration Plan complete — forward/rollback scripts ready. How do you want to proceed? 1. Approve (recommended) → continue to Pre-Implementation Review [approved] · 2. Revise — re-run the migration plan with feedback [revised] · 3. Skip Pre-Implementation Review [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
 - Record gate decision; if skipped, apply [docs/policy.md §3](../docs/policy.md#3-skip-reason-policy-e2).
@@ -630,9 +647,10 @@ Update `.forge-status.yml`: `migration_plan.status = completed` (or `skipped` / 
 
 ---
 
-## Phase 5C: Pre-Implementation Review *(Optional)*
+## Phase 5C: Pre-Implementation Review _(Optional)_
 
 Ask user:
+
 ```
 📋 Pre-Implementation Review (Phase 5C)
 
@@ -648,13 +666,14 @@ If user confirms → **Delegate to:** `speckit.product-forge.pre-impl-review`.
 Provide: FEATURE_DIR with all artifacts.
 
 After completion:
+
 - Show summary: design findings, architecture findings, risk count
 - **Gate:** `[Gate] Pre-Implementation Review complete — design/architecture/risk reviewed. How do you want to proceed? 1. Approve (recommended; record accepted risks and conditions) → continue to Implement [approved] · 2. Revise — re-run the review with feedback [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
 - Record gate decision (including accepted risks and conditions)
 
 Update `.forge-status.yml`: `pre_impl_review.status = completed` (or `skipped`; if skipped, apply [docs/policy.md §3](../docs/policy.md#3-skip-reason-policy-e2)).
 
-> **Extension point:** *"Want to insert a custom step here (e.g., sprint estimation, migration plan)?"*
+> **Extension point:** _"Want to insert a custom step here (e.g., sprint estimation, migration plan)?"_
 
 ---
 
@@ -662,10 +681,11 @@ Update `.forge-status.yml`: `pre_impl_review.status = completed` (or `skipped`; 
 
 **Test-first Red gate (before delegating).** Tasks marked `Test-first: true` in
 tasks.md must fail before any implementation runs. Before handing off:
+
 1. Have `implement` run the `Test-first: true` test tasks and report the result by
    that field name; verify the listed `TC-*` tests are currently **failing**.
 2. Record the outcome in `phases.implement.red_gate { status, tests: [TC-*],
-   skip_reason }` on `.forge-status.yml`, where `status` is one of
+skip_reason }` on `.forge-status.yml`, where `status` is one of
    `confirmed_failing | skipped`.
 3. **Do not advance** unless `status: confirmed_failing`, OR the user explicitly
    skips via the structured skip-reason prompt (see
@@ -678,12 +698,14 @@ tasks.md must fail before any implementation runs. Before handing off:
 Provide: FEATURE_DIR with tasks.md, plan.md, spec.md, product-spec/.
 
 `speckit.product-forge.implement` will:
+
 1. Delegate to SpecKit `implement` with product-spec context.
 2. Run progressive verification checkpoints every N tasks (`progressive_verify_interval`).
 3. Monitor task completion; populate `task_log[]` on `.forge-status.yml` with sizes, paths, status, and commit SHAs.
 4. Surface product-spec artifacts to implementation agents as needed.
 
 After all tasks `[x]`:
+
 - Summarize implemented files and progressive verify results
 - **Quick sync:** Layers 5, 6 (tasks ↔ code, spec ↔ code)
 - **Gate:** `[Gate] Implementation complete — all tasks done. How do you want to proceed? 1. Approve (recommended) → continue to Code Review [approved] · 2. Revise — re-run implementation with feedback [revised] · 3. Skip Code Review [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
@@ -694,9 +716,10 @@ Update `.forge-status.yml`: `implement.status = completed`.
 
 ---
 
-## Phase 6B: Code Review *(Optional)*
+## Phase 6B: Code Review _(Optional)_
 
 Ask user:
+
 ```
 🔍 Code Review (Phase 6B)
 
@@ -711,6 +734,7 @@ If user confirms → **Delegate to:** `speckit.product-forge.code-review`.
 Provide: FEATURE_DIR with all artifacts.
 
 After completion:
+
 - Show summary: findings by dimension and severity
 - **Gate:** `[Gate] Code Review complete — findings by dimension and severity reported. How do you want to proceed? 1. Approve (recommended; record findings count and acknowledged items) → continue to Verify Full [approved] · 2. Revise — re-run the review with feedback [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
 - Record gate decision (including findings count and acknowledged items)
@@ -726,6 +750,7 @@ Update `.forge-status.yml`: `code_review.status = completed` (or `skipped`).
 Provide: FEATURE_DIR (with all artifacts), codebase_path.
 
 After completion:
+
 - Read `{FEATURE_DIR}/verify-report.md`
 - Show: CRITICAL count, WARNING count, PASSED count
 - If CRITICAL > 0: ask user to fix and re-run verify
@@ -737,7 +762,7 @@ Update `.forge-status.yml`: `verify.status = completed`.
 
 ---
 
-## Phase 8A: Test Plan *(Optional)*
+## Phase 8A: Test Plan _(Optional)_
 
 After Phase 7 completes, ask:
 
@@ -756,6 +781,7 @@ If user confirms → **Delegate to:** `speckit.product-forge.test-plan`.
 Provide: FEATURE_DIR, codebase_path, project_tech_stack.
 
 After completion:
+
 - Show test case counts per type
 - **Gate:** `[Gate] Test Plan complete — test cases generated. How do you want to proceed? 1. Approve (recommended) → continue to Test Run [approved] · 2. Revise — re-run the test plan with feedback [revised] · 3. Skip Test Run [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
 - Record gate decision
@@ -764,7 +790,7 @@ Update `.forge-status.yml`: `test_plan.status = completed` (or `skipped`).
 
 ---
 
-## Phase 8B: Test Run *(Optional)*
+## Phase 8B: Test Run _(Optional)_
 
 **Delegate to:** `speckit.product-forge.test-run`
 
@@ -773,6 +799,7 @@ Provide: FEATURE_DIR, codebase_path.
 The skill handles its own execution loop and returns when exit criteria are met.
 
 After completion:
+
 - Read `{FEATURE_DIR}/test-report.md`
 - Show: pass rate, bugs found, bugs fixed, bugs deferred
 - Offer git commit with all test artifacts
@@ -783,7 +810,7 @@ Update `.forge-status.yml`: `test_run.status = completed` (or `completed_with_kn
 
 ---
 
-## Phase 9: Release Readiness *(Optional)*
+## Phase 9: Release Readiness _(Optional)_
 
 After testing (or after Phase 7 if testing skipped), ask:
 
@@ -803,6 +830,7 @@ If user confirms → **Delegate to:** `speckit.product-forge.release-readiness`.
 Provide: FEATURE_DIR with all artifacts.
 
 After completion:
+
 - Confirm `release-readiness.md`, `monitoring/dashboard.json`, `flags/registry.yml` exist
 - Show readiness verdict and action items
 - **Gate:** `[Gate] Release Readiness complete — readiness verdict and action items reported. How do you want to proceed? 1. Approve (recommended if ready to ship) → continue to Monitoring Setup [approved] · 2. Revise — address action items and re-run readiness [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
@@ -812,12 +840,13 @@ Update `.forge-status.yml`: `release_readiness.status = completed` (or `skipped`
 
 ---
 
-## Phase 9.5: Monitoring Setup *(Optional)*
+## Phase 9.5: Monitoring Setup _(Optional)_
 
 After release-readiness, offer monitoring artifacts beyond the registry
 and dashboard JSON already produced in Phase 9.
 
 Ask user:
+
 ```
 📈 Monitoring Setup (Phase 9.5)
 
@@ -833,6 +862,7 @@ telemetry.dashboards: newrelic).
 If user confirms → **Delegate to:** `speckit.product-forge.monitoring-setup`.
 
 After completion:
+
 - Confirm `monitoring/slo.md`, `alerts.yml`, and extended `dashboard.json` exist
 - **Gate:** `[Gate] Monitoring Setup complete — SLO doc, alerts, and dashboard panels generated. How do you want to proceed? 1. Approve (recommended) → continue to the next phase [approved] · 2. Revise — re-run monitoring setup with feedback [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
 - Record gate decision; if skipped, apply [docs/policy.md §3](../docs/policy.md#3-skip-reason-policy-e2).
@@ -841,13 +871,14 @@ Update `.forge-status.yml`: `monitoring_setup.status = completed` (or `skipped`)
 
 ---
 
-## Phase 9B: Experiment Design *(Optional, conditional)*
+## Phase 9B: Experiment Design _(Optional, conditional)_
 
 Trigger: the feature ships behind a flag flagged for A/B testing in
 `flags/registry.yml` (field `experiment: true`). Skip automatically
 otherwise.
 
 Ask user:
+
 ```
 🧪 Experiment Design (Phase 9B)
 
@@ -861,6 +892,7 @@ decision rule — before the experiment starts collecting data.
 If user confirms → **Delegate to:** `speckit.product-forge.experiment-design`.
 
 After completion:
+
 - Confirm `experiment/experiment-design.md` and `experiment.yml` exist
 - **Gate:** `[Gate] Experiment Design complete — A/B plan pre-registered. How do you want to proceed? 1. Approve (recommended if ready to ship) → continue to the next phase [approved] · 2. Revise — re-run experiment design with feedback [revised] · 3. Skip the next optional phase [skipped] · 4. Rollback to an earlier phase [rolled_back, set rolled_back_to] · 5. Abort [aborted] · (or type your own answer)`
 - Record gate decision; if skipped, apply [docs/policy.md §3](../docs/policy.md#3-skip-reason-policy-e2).
@@ -869,7 +901,7 @@ Update `.forge-status.yml`: `experiment_design.status = completed` (or `skipped`
 
 ---
 
-## Phase 10: Spec Merge *(living spec)*
+## Phase 10: Spec Merge _(living spec)_
 
 After release-readiness (or at completion), offer to fold this feature's **delta
 specs** into the canonical `specs/` source of truth and archive the change:
@@ -940,6 +972,7 @@ express:  Product Spec ✅ → Plan ✅ → Code ✅ → Verified ✅
 ```
 
 Offer:
+
 1. Create a git tag for the feature
 2. Generate a summary report with `/speckit.product-forge.status`
 3. Run `/speckit.product-forge.retrospective` after launch (recommend ≥14 days)

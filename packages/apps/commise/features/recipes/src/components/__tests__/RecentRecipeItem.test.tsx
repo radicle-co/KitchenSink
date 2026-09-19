@@ -3,7 +3,7 @@
  * Component tests for the web recent-recipe card — the Home-widget leaf. It renders the shared mockup-parity
  * card (title, meta, rating) named by the title; the STARS stay display-only (the widget shows the viewer's own
  * recipes, so there is no in-widget rating action), while the CARD is tappable through to the recipe detail
- * when the host supplies `onSelect` (mockup `screen-home`). The full card-state matrix is covered by the
+ * when the host supplies `onSelect` (mockup `screenHome`). The full card-state matrix is covered by the
  * RecipeCard suite; this pins BOTH of this leaf's branches — actionable and inert.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';

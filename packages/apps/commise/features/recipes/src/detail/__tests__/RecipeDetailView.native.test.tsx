@@ -6,8 +6,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Pressable, Text } from 'react-native';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { AccessibilityInfo, Pressable, Text } from 'react-native';
+import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { computedContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
@@ -22,7 +22,17 @@ import {
     makeStepView,
 } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { RecipeDetailBody } from '../RecipeDetailBody.native.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
+import { resetServingScale } from '../servingScale.js';
+import { recipeMessages } from '../../messages.js';
+
+// react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+});
 
 afterEach(cleanup);
 
@@ -99,7 +109,9 @@ describe('RecipeDetailView (native)', () => {
         render(
             <RecipeDetailView
                 recipe={makeRecipeDetail({
-                    ingredients: [makeIngredientView({ name: 'Lamb leg', quantity: 1.5, unit: 'lbs' })],
+                    ingredients: [
+                        makeIngredientView({ name: 'Lamb leg', quantity: { kind: 'exact', value: 1.5 }, unit: 'lbs' }),
+                    ],
                 })}
             />,
         );
@@ -148,6 +160,49 @@ describe('RecipeDetailView (native)', () => {
 
         render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: true }) })} />);
         expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
+    });
+
+    it('⛔ shows the stale-data notice only when the figures were served from saved food data (KTD-3b)', () => {
+        const stale = 'These figures include saved food data, so they may be out of date.';
+        const { unmount } = render(
+            <RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ freshness: 'stale' }) })} />,
+        );
+        expect(screen.getByText(stale)).toBeTruthy();
+        unmount();
+
+        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ freshness: 'fresh' }) })} />);
+        expect(screen.queryByText(stale)).toBeNull();
+    });
+
+    it('renders the stale notice ALONGSIDE the partial one — each its own sentence', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: false, freshness: 'stale' }) })}
+            />,
+        );
+
+        expect(screen.getByText('Estimated — some items aren’t counted yet')).toBeTruthy();
+        expect(screen.getByText('These figures include saved food data, so they may be out of date.')).toBeTruthy();
+    });
+
+    it('keeps the notices in reading order: partial, range, stale, then review', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    nutrition: makeNutrition({ isComplete: false, rangeDerivedBound: 'low', freshness: 'stale' }),
+                    ingredients: [makeIngredientView({ resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW })],
+                })}
+            />,
+        );
+
+        const partial = screen.getByText('Estimated — some items aren’t counted yet');
+        const range = screen.getByText('Estimated from the lower amount of each stated range');
+        const stale = screen.getByText('These figures include saved food data, so they may be out of date.');
+        const review = screen.getByText(recipeMessages.en.detail.needsReviewNoticeOne);
+
+        expect(partial.compareDocumentPosition(range) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(range.compareDocumentPosition(stale) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(stale.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('shows the standing USDA-source note when the recipe has a user-entered ingredient (REQ-034)', () => {
@@ -486,6 +541,7 @@ describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
 
         // The elevation is present (the guard would be vacuous if the shadows had simply been dropped)…
         expect(elevated.length).toBeGreaterThan(0);
+
         // …and no elevated node clips.
         for (const node of elevated) {
             expect(window.getComputedStyle(node).overflowX).not.toBe('hidden');
@@ -493,7 +549,7 @@ describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
     });
 });
 
-describe('RecipeDetailView (native) — hero cover (mockup screen-recipe-detail)', () => {
+describe('RecipeDetailView (native) — hero cover (mockup screenRecipeDetail)', () => {
     /**
      * The hero cover, addressed by the `<img alt>` react-native-web renders for it. Deliberately NOT
      * `getByLabelText(title)`: the detail's own root View is labelled with the recipe title too, so a
@@ -707,5 +763,306 @@ describe('RecipeDetailView (native) — step marker done/not-done parity (#113)'
         const tick = within(screen.getByLabelText('Mark step 1 complete')).getByText('✓');
 
         expect(computedContrast(tick, { surface: palette.seafoam }), 'done step tick').toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * Gap A — the recipe's ORIGIN, on the detail view itself (native leaf).
+ *
+ * Provenance used to reach the screen only through `RecipeCloneAction`, which mobile mounts only when the
+ * viewer CAN clone — so an owner never saw it, and `sourceUrl` reached nobody on either platform.
+ */
+describe('RecipeDetailView (native) — recipe source', () => {
+    it('renders the source link for a recipe that has one, with no viewer context at all', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    sourceUrl: 'https://www.seriouseats.com/recipes/lamb',
+                    sourceAttribution: 'Serious Eats',
+                })}
+            />,
+        );
+
+        // The link is labelled by the VERIFIED host; the untrusted attribution renders beside it as text.
+        expect(screen.getByRole('link').textContent).toBe('www.seriouseats.com');
+        expect(screen.getByText('Serious Eats')).toBeTruthy();
+    });
+
+    it('renders the attribution alone when there is no linkable URL', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ sourceAttribution: 'Grandma’s cookbook' })} />);
+
+        expect(screen.getByText('Grandma’s cookbook')).toBeTruthy();
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+
+    it('renders NO source affordance for a recipe that has none', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({})} />);
+
+        expect(screen.queryByText('Source')).toBeNull();
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+});
+
+/**
+ * Gap B — configurable serving size (native leaf). Mirrors the web assertions so the two platforms cannot
+ * diverge on WHAT scales: quantities and prep yes, cook time and step timers deliberately not.
+ */
+describe('RecipeDetailView (native) — serving scale', () => {
+    // Session state in a module singleton: without this, one test's doubling leaks into the next.
+    afterEach(resetServingScale);
+
+    const scalable = () =>
+        makeRecipeDetail({
+            servings: 4,
+            prepTimeMinutes: 15,
+            cookTimeMinutes: 25,
+            totalTimeMinutes: 45,
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: 'ing_1',
+                    name: 'Olive oil',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'tbsp',
+                }),
+            ],
+            steps: [makeStepView({ stepNumber: 1, instruction: 'Simmer gently.', timerSeconds: 600 })],
+            nutrition: makeNutrition({ calories: 520, isComplete: true }),
+        });
+
+    /** Render the PURE body at an explicit serving count — the ratio cases, with no store involved. */
+    const renderAt = (servings: number) =>
+        render(<RecipeDetailBody recipe={scalable()} servings={servings} onServingsChange={vi.fn()} />);
+
+    it('opens at the serving count the recipe was created with', () => {
+        render(<RecipeDetailView recipe={scalable()} />);
+
+        expect(screen.getByText('4')).toBeTruthy();
+        expect(screen.queryByText(/Adjusted from/)).toBeNull();
+    });
+
+    it('rescales the WHOLE view when the cook uses the control — no app wiring involved', async () => {
+        // The wiring assertion: the native detail binds the scale itself, exactly as the web leaf does, so
+        // `RecipeDetailScreen` cannot ship the screen with the control inert.
+        render(<RecipeDetailView recipe={scalable()} />);
+
+        await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
+
+        expect(screen.getByText('5')).toBeTruthy();
+        expect(screen.getByText('2.5 tbsp')).toBeTruthy();
+        expect(screen.getByText(/Adjusted from 4 servings/)).toBeTruthy();
+    });
+
+    it('scales ingredient quantities to the chosen serving count', () => {
+        renderAt(8);
+
+        expect(screen.getByText('4 tbsp')).toBeTruthy();
+        expect(screen.queryByText('2 tbsp')).toBeNull();
+    });
+
+    it('scales prep and the total, and leaves cook time and step timers alone', () => {
+        renderAt(8);
+
+        expect(screen.getByText('30 min')).toBeTruthy(); // prep 15 -> 30
+        expect(screen.getByText('60 min')).toBeTruthy(); // total 45 + the prep delta
+        expect(screen.getByText('25 min')).toBeTruthy(); // cook: UNCHANGED
+        expect(screen.getByText('600s timer')).toBeTruthy(); // step timer: UNCHANGED
+    });
+
+    it('leaves PER-SERVING nutrition untouched, because it is invariant under scaling', () => {
+        renderAt(12);
+
+        expect(screen.getByText('520')).toBeTruthy();
+    });
+
+    it('discloses what scaled and what deliberately did not, but only while scaled', () => {
+        const { unmount } = renderAt(4);
+
+        expect(screen.queryByText(/Cook times and step timers are shown unchanged/)).toBeNull();
+        unmount();
+
+        renderAt(6);
+
+        expect(screen.getByText(/Adjusted from 4 servings/)).toBeTruthy();
+        expect(screen.getByText(/Cook times and step timers are shown unchanged/)).toBeTruthy();
+    });
+
+    it('scales DOWN as well as up', () => {
+        renderAt(2);
+
+        expect(screen.getByText('1 tbsp')).toBeTruthy();
+        expect(screen.getByText('8 min')).toBeTruthy(); // prep 15 -> 7.5, rounded to a whole minute
+    });
+
+    it('renders a recipe authored beyond the display cap at its own yield rather than crashing', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ id: 'rec_huge', servings: 250 })} />);
+
+        expect(screen.getByText('250')).toBeTruthy();
+    });
+});
+
+/**
+ * U9 / R42 + R38 — a ranged or absent quantity on the READ surface, native leaf.
+ *
+ * The one-for-one mirror of the web suite's block. The accessible name is composed from the SAME
+ * `formatQuantity` output both platforms share, so an en-dash rendered on one and not the other fails here.
+ */
+describe('RecipeDetailView (native) — ranged and absent quantities (U9)', () => {
+    it('renders a stated range as a span, not as its lower bound alone', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            quantity: { kind: 'range', low: 2, high: 3 },
+                            unit: 'cups',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByLabelText('2–3 cups Flour')).toBeTruthy();
+    });
+
+    it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Butter',
+                            quantity: { kind: 'absent' },
+                            unit: 'the size of an egg',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByLabelText('the size of an egg Butter')).toBeTruthy();
+        expect(screen.queryByLabelText(/^0 /u)).toBeNull();
+        expect(screen.queryByLabelText(/^1 /u)).toBeNull();
+    });
+
+    it('discloses that the nutrition figure came from one bound of a stated range (R38)', () => {
+        render(
+            <RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ rangeDerivedBound: 'low' }) })} />,
+        );
+
+        expect(screen.getByText('Estimated from the lower amount of each stated range')).toBeTruthy();
+    });
+
+    it('shows NO range disclosure when nothing was collapsed', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition() })} />);
+
+        expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
+    });
+});
+
+/**
+ * U26 — the preparation on the NATIVE read surface, mirroring the web leaf.
+ *
+ * ⛔ §14's cross-platform rule is the point: the two detail leaves are separate files with no compiler edge,
+ * so a field rendered on one and forgotten on the other ships a recipe that reads differently depending on
+ * which device the cook picked up.
+ */
+describe('RecipeDetailView (native) — ingredient preparation (U26)', () => {
+    it('renders the preparation when the line carries one', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Onion', preparation: 'finely chopped' })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('finely chopped')).toBeTruthy();
+    });
+
+    it('⛔ NEVER concatenates the preparation into the food name', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Onion', preparation: 'finely chopped' })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('Onion')).toBeTruthy();
+        expect(screen.queryByText('Onion finely chopped')).toBeNull();
+    });
+
+    it('renders BOTH the preparation and a `notes` display override — they are different facts', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            preparation: 'sifted',
+                            notes: '2 cups all-purpose flour, sifted',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('sifted')).toBeTruthy();
+        expect(screen.getByText('2 cups all-purpose flour, sifted')).toBeTruthy();
+    });
+
+    it('renders NOTHING extra for a line that states no preparation', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ name: 'Salt' })] })} />);
+
+        expect(screen.getByText('Salt')).toBeTruthy();
+    });
+});
+
+describe('RecipeDetailView (native) — a failed refresh of what is on screen', () => {
+    const notice = (
+        overrides: Partial<{ failed: boolean; refreshing: boolean; recoveries: number; onRetry: () => void }> = {},
+    ) => ({
+        failed: false,
+        refreshing: false,
+        onRetry: () => undefined,
+        recoveries: 0,
+        ...overrides,
+    });
+
+    function viewWith(refreshNotice: ReturnType<typeof notice>) {
+        return (
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ title: 'Mediterranean Grilled Lamb' })}
+                refreshNotice={refreshNotice}
+            />
+        );
+    }
+
+    it('shows no notice while nothing has failed', () => {
+        render(viewWith(notice()));
+
+        expect(screen.queryByText('We couldn’t refresh this recipe.')).toBeNull();
+    });
+
+    it('⛔ keeps what is shown and says the refresh failed, with a Try again that retries', () => {
+        const onRetry = vi.fn();
+        render(viewWith(notice({ failed: true, onRetry })));
+
+        expect(screen.getByRole('heading', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+        expect(screen.getAllByText('We couldn’t refresh this recipe.').length).toBeGreaterThan(0);
+        screen.getByRole('button', { name: 'Try again' }).click();
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ moves focus to the title when a retry from the notice succeeds, since its button is gone', () => {
+        const { rerender } = render(viewWith(notice({ failed: true })));
+
+        rerender(viewWith(notice({ recoveries: 1 })));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('heading', { name: 'Mediterranean Grilled Lamb' }),
+            'focus',
+        );
     });
 });

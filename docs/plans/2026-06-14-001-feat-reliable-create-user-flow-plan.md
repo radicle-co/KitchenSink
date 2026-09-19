@@ -131,9 +131,9 @@ flowchart TD
 **Files:**
 
 - `packages/services/identity/package.json` — add `@clerk/backend` dependency.
-- `packages/services/identity/src/auth/clerk-auth.service.ts` — new `ClerkAuthService`.
+- `packages/services/identity/src/auth/clerkAuth.service.ts` — new `ClerkAuthService`.
 - `packages/services/identity/src/auth/auth.module.ts` (or wherever middleware deps are provided) — provide `ClerkAuthService`.
-- `packages/services/identity/tests/clerk-auth.service.test.ts` — unit tests.
+- `packages/services/identity/tests/clerkAuth.service.test.ts` — unit tests.
 
 **Approach:** Wrap `verifyToken(token, { jwtKey: <CLERK_JWT_KEY>, authorizedParties: <CLERK_AUTHORIZED_PARTIES[]> })`. Expose `verify(token: string): Promise<VerifiedClerkClaims>` returning `{ sub, email?, firstName?, lastName?, azp, sid }`. Map any verification failure (bad signature, expired, wrong `azp`, malformed) to a NestJS `UnauthorizedException` with a single generic message (do not leak the reason). Construct the verifier once (module-level / singleton) reading config at init. `email`/name claims are optional on the type — downstream handles absence (see U3).
 
@@ -239,7 +239,7 @@ flowchart TD
 **Dependencies:** U3, U4.
 **Files:**
 
-- `packages/services/identity/tests/create-user-flow.integration.test.ts` (new; `*.integration.test.ts` convention) — runs against a test Postgres (the repo's integration DB harness).
+- `packages/services/identity/tests/createUserFlow.integration.test.ts` (new; `*.integration.test.ts` convention) — runs against a test Postgres (the repo's integration DB harness).
 
 **Approach:** With a single Clerk identity id, fire the read-through creation path and the webhook creation path concurrently (Promise.all), then assert exactly one `user`, one `account`, one `profile`. Repeat with reversed start order. This validates the `users.identityId` unique-constraint anchor (KTD6) rather than asserting it by inspection.
 
@@ -260,13 +260,13 @@ flowchart TD
 **Dependencies:** U2 (consumes the env names).
 **Files:**
 
-- `packages/services/identity/infra/lib/identity-service-stack.ts` — add the two env vars to the task definition (around the existing env block, lines ~157–184).
+- `packages/services/identity/infra/lib/IdentityServiceStack.ts` — add the two env vars to the task definition (around the existing env block, lines ~157–184).
 - SSM params per stage: `/kitchensink/{stage}/clerk/jwt-public-key` (String — the PEM is public) and `/kitchensink/{stage}/clerk/authorized-parties`. Wire the stack to read them (mirroring the existing `/kitchensink/{stage}/sentry/...` SSM read).
 - `packages/services/identity-webhooks/infra/__tests__/stacks.test.ts` or the identity infra test — assert the env vars are present on the task def.
 
 **Approach:** Follow the existing SSM-param pattern used for `SENTRY_DSN`. The JWT public key is not secret, so an SSM `String` parameter (not Secrets Manager) is appropriate; `CLERK_AUTHORIZED_PARTIES` likewise. Provision the param values per stage (prod issuer `https://clerk.commise.app`, sandbox the dev instance — see memory `clerk-instance-domains`). Do **not** reuse the existing `AUTH_SECRET_ARN`/`AUTH_PUBLISHABLE_KEY` — those are Clerk publishable/secret keys, distinct from the JWT verification public key.
 
-**Patterns to follow:** The `SENTRY_DSN` SSM read + container env injection already in `identity-service-stack.ts`.
+**Patterns to follow:** The `SENTRY_DSN` SSM read + container env injection already in `IdentityServiceStack.ts`.
 
 **Test scenarios:**
 
@@ -358,7 +358,7 @@ flowchart TD
 
 Codebase findings (verified by reading):
 
-- `packages/services/identity/src/auth/middleware/auth.middleware.ts`, `src/types/jwt.ts` (`AuthorizerContext`, `isAuthorizerContext`), `src/auth/decorators/current-user.decorator.ts`.
+- `packages/services/identity/src/auth/middleware/auth.middleware.ts`, `src/types/jwt.ts` (`AuthorizerContext`, `isAuthorizerContext`), `src/auth/decorators/currentUser.decorator.ts`.
 - `src/users/resolveUser.ts`, `src/users/users.service.ts` (`upsertUser` idempotent shape; `getUserMe` requires user+account+profile).
 - `src/database/dao/{user,account}.dao.ts` (`upsertByIdentityId`, `findByIdentityId`, `AccountDAO.upsert/createForUser`); schema `users`(unique `identityId`)/`accounts`(unique `userId`)/`profiles`(unique `userId`, `displayName` NOT NULL).
 - `packages/services/identity-webhooks/src/handlers/identityWebhook.ts` (webhook creates user+profile, **not** account).

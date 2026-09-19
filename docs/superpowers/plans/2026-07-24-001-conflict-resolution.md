@@ -1,5 +1,7 @@
 # W7 — Edit-Time Conflict Resolution: Changed-Only Diff + A/B/C Cards Implementation Plan
 
+> ⛔ **SUPERSEDED IN PART (owner ruling, 2026-08-26): device attribution is DELETED.** Every instruction below about `deviceLabel` / `device_label` — the version row's ` (from {device})` suffix, the conflict banner's ` on {device}` clause, the per-side card's `Device:` row and their escaping tests — describes a feature that no longer ships. Nothing ever wrote the field, so none of it had ever rendered. The ruling and what it costs are recorded in [`CR-004`](../../../specs/001-commise-recipe-app/change-requests/CR-004-version-compare-and-conflict-diff.md); `editorHandle` attribution is UNAFFECTED and still ships.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild the edit-time version-conflict resolver to its wireframe floor (FR-007c, X1–X7): a per-side banner (version/device/timestamp), a **changed-only** 3-way diff with `[=]`/`[→]`/`[!!]` markers + legend, three **A/B/C option cards** (Keep server / Overwrite with yours / Merge manually), a **per-element** field-by-field merge with selection-gating + a running summary + a >10-versions-behind warning, correct Server-left/Yours-right column order, and a phantom zero-diff fast-path — on **both** web and mobile.
@@ -166,7 +168,7 @@ export const computeConflictDiff = (base: RecipeSnapshot | undefined, mine: Reci
 **Files:**
 
 - Rewrite: `packages/apps/commise/web/tests/e2e/recipeConflict.spec.ts` — extend the `mockRecipeApi` so a stale-version update returns the enriched 409 (`server`+`base` snapshots with differing content + deviceLabel/versionNumber/updatedAt). Specs: trigger a 409 → assert the banner (server device/time/version) + the changed-only diff (markers, only changed fields) + the three A/B/C cards; exercise [B] Overwrite → persisted + lands on detail; exercise [C] Merge → per-element pick → persisted + detail; assert Resolve is gated until a selection.
-- Update: `packages/apps/commise/mobile/.maestro/recipes/conflict-merge.yaml` — the new banner + A/B/C + per-element merge flow (document any un-drivable step inline).
+- Update: `packages/apps/commise/mobile/.maestro/recipes/conflictMerge.yaml` — the new banner + A/B/C + per-element merge flow (document any un-drivable step inline).
 - Test: the specs themselves.
 
 - [ ] **Step 1: Extend the mock + rewrite the Playwright spec; run it — expect PASS against the real UI** (exercises Tasks 2–6). If the harness can't run locally, report which specs are authored-for-CI (never skip).

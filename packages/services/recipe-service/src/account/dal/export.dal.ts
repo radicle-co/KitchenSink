@@ -39,7 +39,7 @@ import {
 import { recipeRatings, type RecipeRatingRow } from '../../database/schema/ratings.js';
 import { recipePhotos, type RecipePhotoRow } from '../../database/schema/photos.js';
 import { recipeVersions } from '../../database/schema/versions.js';
-import { authorHandles, type AuthorHandleRow } from '../../database/schema/author-handles.js';
+import { authorHandles, type AuthorHandleRow } from '../../database/schema/authorHandles.js';
 
 /**
  * A `recipes` row as returned for export: every column EXCEPT the two internal search-index artifacts
@@ -56,7 +56,6 @@ export interface VersionMetadataRow {
     readonly s3Key: string | null;
     readonly createdBy: string;
     readonly changeSummary: string | null;
-    readonly deviceLabel: string | null;
     readonly editorHandle: string | null;
     readonly createdAt: Date | string;
 }
@@ -164,7 +163,6 @@ export class AccountExportDal {
                 s3Key: recipeVersions.s3Key,
                 createdBy: recipeVersions.createdBy,
                 changeSummary: recipeVersions.changeSummary,
-                deviceLabel: recipeVersions.deviceLabel,
                 editorHandle: recipeVersions.editorHandle,
                 createdAt: recipeVersions.createdAt,
             })

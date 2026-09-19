@@ -16,7 +16,7 @@
  * text/role, never colour alone) and Server-then-Yours values (X7), plus a legend.
  *
  * Merge mode (Option C, W7 Task 5) renders ONLY `diff.rows` — the CHANGED fields/elements, one radiogroup
- * per row, Server FIRST then Yours (X7), reusing {@link import('./model.js').conflictRowLabel} so a merge
+ * per row, Server FIRST then Yours (X7), reusing `conflictRowLabel` so a merge
  * row can never disagree with the diff panel above on how it names itself. Selecting is the user's EXPLICIT
  * choice: no radio is pre-checked, so the running "Summary of choices" starts at zero and the Save/Resolve
  * action is GATED (X5) on at least one selection existing. A base that was evicted from version history, or
@@ -29,31 +29,41 @@
  * and BOTH reset whenever `server.versionNumber` changes, i.e. whenever a NEW conflict (not merely a
  * re-render of the SAME one) arrives on this component instance, so neither can leak across conflicts.
  */
+
+// ⛔ NO `px-*` HERE. This renders inside `AppShell`'s `<main>`, which already supplies `px-4 md:px-6`, so a
+// second `px-4` doubled the gutter to 32px a side — at 320 that leaves 256px of content. The section keeps
+// `mx-auto max-w-3xl` because centering is its own job; the gutter is the shell's.
+import { busyControlProps } from '@commise/ui/button';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
 import type { ConflictMarker } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
+import { fillTemplate } from '../list/model.js';
 import {
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
-    conflictRowLabel,
-    fillTemplate,
+    type RecipeConflictViewProps,
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatYourCardHeading,
     isConflictBaseStale,
-    type MergeSide,
-    type RecipeConflictViewProps,
-} from './model.js';
+} from './conflictView.js';
+import { conflictMarkerGlyph, conflictMarkerLabel, conflictRowLabel } from './diffLabels.js';
+import type { MergeSide } from './merge.js';
 
 /** The three markers, in the order the legend explains them (matching the wireframe's own `[=] [→] [!!]`
  *  order). */
 const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conflict'];
+
+/**
+ * How this view dims a control it will not act on, stated once for the natively disabled (a rule the press did
+ * not cause) and the busy (`aria-disabled`, a resolve in flight) states alike, so one screen shows one level of
+ * "unavailable". The shared `BUSY_CONTROL_CLASS` dims to 60%; this view has always dimmed to 50%.
+ */
+const UNAVAILABLE_CLASS =
+    'disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50';
 
 /**
  * One A/B/C option card — a title, a description, and the choice it fires. `aria-label` pins the button's
@@ -61,24 +71,27 @@ const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conf
  * text on too, e.g. "Keep server version Discard your local changes…"); `aria-describedby` still attaches
  * the description as the button's accessible DESCRIPTION, so assistive tech reads both, just not run
  * together as one name. `disabled` (W7 Task 5 / X6) is the stale-base confirm gate on Option B (Overwrite)
- * — Option A and C are never gated this way (see the module doc).
+ * — Option A and C are never gated this way (see the module doc). `busy` is a resolve in flight: a card the cook
+ * just pressed must keep focus, so it is `aria-disabled` with the press refused (`busyControlProps`), never native
+ * `disabled`. A blocked card stays natively `disabled` through a resolve: the cook cannot have pressed it, so it
+ * has no focus to keep and must not join the tab order only to be disabled again if the resolve fails.
  */
 const OptionCard: FC<{
     readonly title: string;
     readonly description: string;
     readonly onChoose: () => void;
     readonly disabled?: boolean;
-}> = ({ title, description, onChoose, disabled = false }) => {
+    readonly busy: boolean;
+}> = ({ title, description, onChoose, disabled = false, busy }) => {
     const descriptionId = useId();
 
     return (
         <button
             type="button"
-            onClick={onChoose}
-            disabled={disabled}
+            {...busyControlProps({ busy: busy && !disabled, blocked: disabled, onClick: onChoose })}
             aria-label={title}
             aria-describedby={descriptionId}
-            className="flex flex-1 flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:bg-pearl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-card"
+            className={`flex flex-1 flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:bg-pearl disabled:hover:bg-card aria-disabled:hover:bg-card ${UNAVAILABLE_CLASS}`}
         >
             <span aria-hidden="true" className="font-display text-body-lg font-semibold text-charcoal">
                 {title}
@@ -123,12 +136,10 @@ const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndC
 const VersionSideCard: FC<{
     readonly heading: string;
     readonly savedLine?: string;
-    readonly deviceLine?: string;
-}> = ({ heading, savedLine, deviceLine }) => (
+}> = ({ heading, savedLine }) => (
     <div className="flex-1 rounded-2xl bg-card p-4 ring-1 ring-border">
         <p className="text-caption font-semibold uppercase tracking-wide text-charcoal">{heading}</p>
         {savedLine !== undefined && <p className="text-body-sm text-slate">{savedLine}</p>}
-        {deviceLine !== undefined && <p className="text-body-sm text-slate">{deviceLine}</p>}
     </div>
 );
 
@@ -183,10 +194,17 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     // confirmed (X6 robustness gap), and the merge panel would stay open showing the STALE conflict's rows.
     // `server.versionNumber` is this conflict's stable identity token (a fresh 409 always carries the
     // server's CURRENT version, so two DIFFERENT conflicts can never share one).
-    useEffect(() => {
+    //
+    // Reset DURING RENDER, React's documented form for state keyed on a prop — not in an effect, which committed
+    // one frame of the NEW conflict with the OLD confirmation still ticked before correcting it.
+    const [conflictVersion, setConflictVersion] = useState(server.versionNumber);
+
+    if (conflictVersion !== server.versionNumber) {
+        setConflictVersion(server.versionNumber);
         setStaleConfirmed(false);
         setMerging(false);
-    }, [server.versionNumber]);
+    }
+
     // Reading the clock is THIS component's own side effect (mirrors `HomeGreeting`'s split of "the caller
     // reads `new Date()`, the pure formatter only maps an instant to a string") — `formatServerBanner`/
     // `formatRelativeTimeAgo` stay pure and testable without freezing time.
@@ -212,12 +230,12 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
         // "mine" downstream, in `composeConflictMerge` — this is a display/gating distinction, not a data one).
         const sideOf = (key: string): MergeSide | undefined => selections[key];
         const choose = (key: string, side: MergeSide): void => onSelectionsChange({ ...selections, [key]: side });
-        // `isResolving` (concurrency/double-submit fix) is combined with, not a replacement for, the existing
-        // selection + stale-base gates — any one of the three blocks the submit.
-        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed) || isResolving;
+        // The selection + stale-base gates. `isResolving` (concurrency/double-submit fix) is applied beside them
+        // on the Save control, as a refused press rather than a native disable — see that control.
+        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed);
 
         return (
-            <section aria-label={conflict.mergeHeading} className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+            <section aria-label={conflict.mergeHeading} className="mx-auto flex max-w-3xl flex-col gap-4 py-8">
                 <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
                 <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.mergeHeading}</h2>
                 <p className="text-body-md text-slate">{conflict.mergeExplanation}</p>
@@ -269,9 +287,14 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <div className="flex flex-wrap gap-3">
                     <button
                         type="button"
-                        onClick={() => onMerge(selections)}
-                        disabled={mergeDisabled}
-                        className="rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-seafoam"
+                        // The selection and stale-base gates are rules the press did not cause; a resolve in
+                        // flight follows the press, so Save keeps focus (`busyControlProps` owns the precedence).
+                        {...busyControlProps({
+                            busy: isResolving,
+                            blocked: mergeDisabled,
+                            onClick: () => onMerge(selections),
+                        })}
+                        className={`rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:hover:bg-seafoam aria-disabled:hover:bg-seafoam ${UNAVAILABLE_CLASS}`}
                     >
                         {conflict.mergeSubmit}
                     </button>
@@ -291,7 +314,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     }
 
     return (
-        <section aria-label={conflict.heading} className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+        <section aria-label={conflict.heading} className="mx-auto flex max-w-3xl flex-col gap-4 py-8">
             <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
             <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.heading}</h2>
             <p className="text-body-md text-slate">{conflict.explanation}</p>
@@ -307,7 +330,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <VersionSideCard
                     heading={formatServerCardHeading(server, conflict)}
                     savedLine={formatVersionCardSavedLine(server, locale, conflict)}
-                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
                 />
                 <VersionSideCard
                     heading={formatYourCardHeading(base, conflict)}
@@ -315,7 +337,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         ? {}
                         : {
                               savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                              deviceLine: formatVersionCardDeviceLine(base, conflict),
                           })}
                 />
             </div>
@@ -323,27 +344,29 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}
             {staleWarning}
 
-            {/* Three A/B/C option cards (X2). `isResolving` (concurrency/double-submit fix) disables ALL
-                three — combined with, not replacing, Overwrite's existing stale-base gate — while a resolve
-                is in flight, so a rapid double-click cannot fire a second resolve before the first settles. */}
+            {/* Three A/B/C option cards (X2). `isResolving` (concurrency/double-submit fix) busies ALL three —
+                combined with, not replacing, Overwrite's existing stale-base gate — while a resolve is in flight,
+                so a rapid double-click cannot fire a second resolve before the first settles. Busy refuses the
+                press without natively disabling the card the cook just pressed. */}
             <div className="flex flex-col gap-4 sm:flex-row">
                 <OptionCard
                     title={conflict.optionServerTitle}
                     description={conflict.optionServerDescription}
                     onChoose={onKeepServer}
-                    disabled={isResolving}
+                    busy={isResolving}
                 />
                 <OptionCard
                     title={conflict.optionOverwriteTitle}
                     description={conflict.optionOverwriteDescription}
                     onChoose={onOverwrite}
-                    disabled={isResolving || (isStale && !staleConfirmed)}
+                    disabled={isStale && !staleConfirmed}
+                    busy={isResolving}
                 />
                 <OptionCard
                     title={conflict.optionMergeTitle}
                     description={conflict.optionMergeDescription}
                     onChoose={() => setMerging(true)}
-                    disabled={isResolving}
+                    busy={isResolving}
                 />
             </div>
 

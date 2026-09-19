@@ -1,15 +1,15 @@
 ---
 name: speckit.product-forge.release-readiness
 description: 'Phase 9: Pre-ship readiness checklist. Covers feature flags, rollout
-  strategy, rollback plan, documentation, monitoring, analytics, and deployment dependencies.
-  Consolidates api-docs, tracking-plan, and security-check status into one gate. Optional
-  for internal/backend-only features. Use: "release readiness", "ready to ship?",
-  "/speckit.product-forge.release-readiness"'
+    strategy, rollback plan, documentation, monitoring, analytics, and deployment dependencies.
+    Consolidates api-docs, tracking-plan, and security-check status into one gate. Optional
+    for internal/backend-only features. Use: "release readiness", "ready to ship?",
+    "/speckit.product-forge.release-readiness"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Release Readiness (Phase 9)
 
 You are the **Release Readiness Analyst** for Product Forge.
@@ -31,6 +31,7 @@ $ARGUMENTS
 3. If verify is not completed: **STOP** — "Phase 7 (Verification) must pass first."
 
 Load artifacts:
+
 - `{FEATURE_DIR}/spec.md` — requirements, NFRs, success metrics
 - `{FEATURE_DIR}/plan.md` — architecture, data model, migrations
 - `{FEATURE_DIR}/tasks.md` — implementation scope
@@ -65,6 +66,7 @@ No standalone report is produced — this is the input to the registry
 builder.
 
 Patterns searched:
+
 - Framework SDK imports: `LaunchDarkly`, `Unleash`, `GrowthBook`, `flagsmith`.
 - Custom predicates: `isFeatureEnabled(...)`, `flags.get(...)`,
   `useFlag(...)`, `featureFlags.*`.
@@ -77,6 +79,7 @@ branch that represents the treatment.
 ### 1B: Build rollout strategy (input)
 
 Derive from:
+
 - `pre-impl-review.md` risk level (if present).
 - `plan.md` — data migrations, breaking API changes.
 - `spec.md` — user-facing surface area, success metrics.
@@ -85,16 +88,16 @@ Produce a rollout plan object (feeds into Step 1D and into
 `release-readiness.md` §Rollout Plan):
 
 ```yaml
-strategy: "{canary | percentage | internal-first | big-bang}"
+strategy: '{canary | percentage | internal-first | big-bang}'
 stages:
-  - { name: "internal", duration: "1d" }
-  - { name: "canary-5",  duration: "3d" }
-  - { name: "25%",       duration: "3d" }
-  - { name: "100% GA",   duration: "—" }
+    - { name: 'internal', duration: '1d' }
+    - { name: 'canary-5', duration: '3d' }
+    - { name: '25%', duration: '3d' }
+    - { name: '100% GA', duration: '—' }
 rollback_triggers:
-  - "error_rate > 5% for 5m"
-  - "p95_ms > <NFR target> for 10m"
-  - "<custom metric from spec>"
+    - 'error_rate > 5% for 5m'
+    - 'p95_ms > <NFR target> for 10m'
+    - '<custom metric from spec>'
 ```
 
 ### 1C: Build rollback plan (input)
@@ -127,14 +130,14 @@ Registry shape:
 ```yaml
 # {FEATURE_DIR}/flags/registry.yml
 flags:
-  - key: "{flag-key}"
-    feature: "{feature-slug}"
-    default: false
-    owner: "{team-or-user}"
-    rollout_plan: "{strategy from Step 1B}"
-    cleanup_after: "{ISO date — when the flag becomes dead code}"
-    kill_switch: true
-    experiment: false     # set to true to trigger Phase 9B experiment-design
+    - key: '{flag-key}'
+      feature: '{feature-slug}'
+      default: false
+      owner: '{team-or-user}'
+      rollout_plan: '{strategy from Step 1B}'
+      cleanup_after: '{ISO date — when the flag becomes dead code}'
+      kill_switch: true
+      experiment: false # set to true to trigger Phase 9B experiment-design
 ```
 
 Record file path on `.forge-status.yml` under
@@ -152,30 +155,30 @@ The artifacts produced in 1D and the sections later compiled into
 
 Analyze spec.md user stories — does this feature need user docs?
 
-| Check | Status | Action Needed |
-|-------|:------:|--------------|
-| User-facing feature? | {Yes/No} | |
-| User docs needed? | {✅ Exists / ❌ Missing / N-A} | {what to write} |
-| In-app help/tooltips needed? | {✅/❌/N-A} | {screens needing help text} |
-| Changelog entry drafted? | {✅/❌} | |
-| Migration guide needed? | {✅/❌/N-A} | {if breaking change for users} |
+| Check                        |             Status             | Action Needed                  |
+| ---------------------------- | :----------------------------: | ------------------------------ |
+| User-facing feature?         |            {Yes/No}            |                                |
+| User docs needed?            | {✅ Exists / ❌ Missing / N-A} | {what to write}                |
+| In-app help/tooltips needed? |          {✅/❌/N-A}           | {screens needing help text}    |
+| Changelog entry drafted?     |            {✅/❌}             |                                |
+| Migration guide needed?      |          {✅/❌/N-A}           | {if breaking change for users} |
 
 ### 2B: Developer Documentation
 
-| Check | Status | Action Needed |
-|-------|:------:|--------------|
-| API docs generated? | {✅ api-docs/ exists / ❌ Run /speckit.product-forge.api-docs} | |
-| README updated? | {✅/❌/N-A} | |
-| Architecture decision recorded? | {✅/❌} | {from plan.md} |
-| Environment variables documented? | {✅/❌} | {new env vars from implementation} |
+| Check                             |                             Status                             | Action Needed                      |
+| --------------------------------- | :------------------------------------------------------------: | ---------------------------------- |
+| API docs generated?               | {✅ api-docs/ exists / ❌ Run /speckit.product-forge.api-docs} |                                    |
+| README updated?                   |                          {✅/❌/N-A}                           |                                    |
+| Architecture decision recorded?   |                            {✅/❌}                             | {from plan.md}                     |
+| Environment variables documented? |                            {✅/❌}                             | {new env vars from implementation} |
 
 ### 2C: Operational Documentation
 
-| Check | Status | Action Needed |
-|-------|:------:|--------------|
-| Runbook entry needed? | {✅ Exists / ❌ Write / N-A} | |
-| On-call context documented? | {✅/❌/N-A} | |
-| Known limitations documented? | {✅/❌} | |
+| Check                         |            Status            | Action Needed |
+| ----------------------------- | :--------------------------: | ------------- |
+| Runbook entry needed?         | {✅ Exists / ❌ Write / N-A} |               |
+| On-call context documented?   |         {✅/❌/N-A}          |               |
+| Known limitations documented? |           {✅/❌}            |               |
 
 ---
 
@@ -184,6 +187,7 @@ Analyze spec.md user stories — does this feature need user docs?
 ### 3A: Derive SLI candidates (input)
 
 Extract SLI candidates from three sources, deduplicated:
+
 - `spec.md` NFRs (latency targets, error-rate bounds, availability).
 - `research/metrics-roi.md` predicted KPIs.
 - `tracking/tracking-plan.md` events that imply rate/latency SLIs.
@@ -194,11 +198,11 @@ Each SLI candidate has: name, target, measurement window, source.
 
 From the SLI list above, propose alert rules:
 
-| Alert | Condition | Severity | Channel |
-|-------|-----------|:--------:|---------|
-| Error rate spike | `error_rate > 5% for 5m` | P1 | {project default} |
-| Latency degradation | `p95_ms > <target> for 10m` | P2 | {project default} |
-| {feature-specific} | ... | ... | ... |
+| Alert               | Condition                   | Severity | Channel           |
+| ------------------- | --------------------------- | :------: | ----------------- |
+| Error rate spike    | `error_rate > 5% for 5m`    |    P1    | {project default} |
+| Latency degradation | `p95_ms > <target> for 10m` |    P2    | {project default} |
+| {feature-specific}  | ...                         |   ...    | ...               |
 
 ### 3C: Build monitoring artifacts (active)
 
@@ -231,12 +235,12 @@ is the only output.
 
 ### 4A: Tracking Plan Status
 
-| Check | Status | Action Needed |
-|-------|:------:|--------------|
-| Tracking plan exists? | {✅ tracking/ exists / ❌ Run /speckit.product-forge.tracking-plan} | |
-| Key events instrumented? | {✅/❌} | {events to add} |
-| Funnel defined? | {✅/❌/N-A} | |
-| Success metrics measurable? | {✅/❌} | {which metrics can't be measured yet} |
+| Check                       |                               Status                                | Action Needed                         |
+| --------------------------- | :-----------------------------------------------------------------: | ------------------------------------- |
+| Tracking plan exists?       | {✅ tracking/ exists / ❌ Run /speckit.product-forge.tracking-plan} |                                       |
+| Key events instrumented?    |                               {✅/❌}                               | {events to add}                       |
+| Funnel defined?             |                             {✅/❌/N-A}                             |                                       |
+| Success metrics measurable? |                               {✅/❌}                               | {which metrics can't be measured yet} |
 
 ---
 
@@ -244,30 +248,30 @@ is the only output.
 
 ### 5A: Environment Readiness
 
-| Environment | Ready? | Blockers |
-|-------------|:------:|---------|
-| Development | {✅/❌} | |
-| Staging | {✅/❌} | {missing env vars, configs, etc.} |
-| Production | {✅/❌} | {missing env vars, configs, etc.} |
+| Environment | Ready?  | Blockers                          |
+| ----------- | :-----: | --------------------------------- |
+| Development | {✅/❌} |                                   |
+| Staging     | {✅/❌} | {missing env vars, configs, etc.} |
+| Production  | {✅/❌} | {missing env vars, configs, etc.} |
 
 ### 5B: Infrastructure
 
-| Check | Status | Details |
-|-------|:------:|---------|
-| New env vars set in all envs? | {✅/❌} | {list of new vars} |
-| Database migrations queued? | {✅/❌/N-A} | {migration status} |
-| External service access confirmed? | {✅/❌/N-A} | {APIs, webhooks, etc.} |
-| CI/CD pipeline updated? | {✅/❌/N-A} | {new build steps, test stages} |
-| Resource scaling needed? | {✅/❌/N-A} | {memory, CPU, storage} |
+| Check                              |   Status    | Details                        |
+| ---------------------------------- | :---------: | ------------------------------ |
+| New env vars set in all envs?      |   {✅/❌}   | {list of new vars}             |
+| Database migrations queued?        | {✅/❌/N-A} | {migration status}             |
+| External service access confirmed? | {✅/❌/N-A} | {APIs, webhooks, etc.}         |
+| CI/CD pipeline updated?            | {✅/❌/N-A} | {new build steps, test stages} |
+| Resource scaling needed?           | {✅/❌/N-A} | {memory, CPU, storage}         |
 
 ### 5C: Security Status
 
-| Check | Status | Details |
-|-------|:------:|---------|
-| Security check run? | {✅ security-check.md exists / ❌ Run /speckit.product-forge.security-check} | |
-| Critical security issues? | {✅ None / ❌ {N} unresolved} | |
-| Secrets management OK? | {✅/❌} | |
-| Permissions/RBAC configured? | {✅/❌/N-A} | |
+| Check                        |                                    Status                                    | Details |
+| ---------------------------- | :--------------------------------------------------------------------------: | ------- |
+| Security check run?          | {✅ security-check.md exists / ❌ Run /speckit.product-forge.security-check} |         |
+| Critical security issues?    |                        {✅ None / ❌ {N} unresolved}                         |         |
+| Secrets management OK?       |                                   {✅/❌}                                    |         |
+| Permissions/RBAC configured? |                                 {✅/❌/N-A}                                  |         |
 
 ### 5C-bis: Supply chain (active) (v1.6, W5-B3)
 
@@ -276,7 +280,7 @@ carriers below against `codebase_path`, write the outputs under
 `{FEATURE_DIR}/supply-chain/`, and feed findings into the Step 6 Action Items
 table. This is the same SCA tool named in [code-review.md](./code-review.md)'s
 Step 1.5 machine-gate row (OSV-Scanner) — release-readiness runs it in
-**PR-diff mode** so the gate blocks only on *newly introduced* high/critical
+**PR-diff mode** so the gate blocks only on _newly introduced_ high/critical
 findings (delta philosophy: a feature isn't penalised for pre-existing debt).
 
 Each carrier follows the **graceful-degradation** guard of Operating Principle
@@ -296,7 +300,7 @@ Record the SBOM path on `.forge-status.yml` under
 
 **(b) SCA — OSV-Scanner in PR-diff mode (block only on NEW high/critical):**
 
-Scan the merge base and HEAD, then take the *new* findings as the set
+Scan the merge base and HEAD, then take the _new_ findings as the set
 difference. Only NEW high/critical findings gate the verdict.
 
 ```bash
@@ -348,7 +352,7 @@ job step that attests the built artifact:
 - name: Attest build provenance
   uses: actions/attest-build-provenance@v2
   with:
-    subject-path: "dist/**"   # the shipped build artifact(s)
+      subject-path: 'dist/**' # the shipped build artifact(s)
 ```
 
 If no attestation step exists, log a SHOULD action item ("add
@@ -357,13 +361,13 @@ attest-build-provenance to the release workflow").
 **Wire into the gate.** Translate the carriers into Step 6 Action Items and the
 Security category verdict:
 
-| Carrier finding | Action item priority | Verdict effect |
-|-----------------|:--------------------:|----------------|
-| NEW critical CVE (from `osv-new-ids.txt`) | MUST | NOT READY until resolved or accepted as a documented condition |
-| NEW high CVE | MUST | CONDITIONALLY READY (record as accepted risk) or fix |
-| Disallowed license | MUST | NOT READY / documented exception |
-| Missing SBOM / SCA tool | MUST | action item; do not block the gate on tool absence |
-| Missing provenance step | SHOULD | recorded, non-blocking |
+| Carrier finding                           | Action item priority | Verdict effect                                                 |
+| ----------------------------------------- | :------------------: | -------------------------------------------------------------- |
+| NEW critical CVE (from `osv-new-ids.txt`) |         MUST         | NOT READY until resolved or accepted as a documented condition |
+| NEW high CVE                              |         MUST         | CONDITIONALLY READY (record as accepted risk) or fix           |
+| Disallowed license                        |         MUST         | NOT READY / documented exception                               |
+| Missing SBOM / SCA tool                   |         MUST         | action item; do not block the gate on tool absence             |
+| Missing provenance step                   |        SHOULD        | recorded, non-blocking                                         |
 
 Record paths on `.forge-status.yml` under
 `release_readiness.supply_chain_paths` (sbom / sca / licenses).
@@ -382,23 +386,23 @@ Write `{FEATURE_DIR}/release-readiness.md`:
 
 ## Summary
 
-| Category | Status | Action Items |
-|----------|:------:|:------------:|
-| Feature Flags & Rollout | {✅/⚠️/❌} | {N} |
-| Documentation | {✅/⚠️/❌} | {N} |
-| Monitoring & Observability | {✅/⚠️/❌} | {N} |
-| Analytics | {✅/⚠️/❌} | {N} |
-| Deployment Dependencies | {✅/⚠️/❌} | {N} |
-| Security | {✅/⚠️/❌} | {N} |
+| Category                   |   Status   | Action Items |
+| -------------------------- | :--------: | :----------: |
+| Feature Flags & Rollout    | {✅/⚠️/❌} |     {N}      |
+| Documentation              | {✅/⚠️/❌} |     {N}      |
+| Monitoring & Observability | {✅/⚠️/❌} |     {N}      |
+| Analytics                  | {✅/⚠️/❌} |     {N}      |
+| Deployment Dependencies    | {✅/⚠️/❌} |     {N}      |
+| Security                   | {✅/⚠️/❌} |     {N}      |
 
 ## Prior Quality Gates
 
-| Gate | Status | Date |
-|------|:------:|------|
+| Gate            |                    Status                     | Date   |
+| --------------- | :-------------------------------------------: | ------ |
 | Pre-Impl Review | {result from pre-impl-review.md or "Skipped"} | {date} |
-| Code Review | {result from code-review.md or "Skipped"} | {date} |
-| Verification | {result from verify-report.md} | {date} |
-| Test Run | {result from test-report.md or "Skipped"} | {date} |
+| Code Review     |   {result from code-review.md or "Skipped"}   | {date} |
+| Verification    |        {result from verify-report.md}         | {date} |
+| Test Run        |   {result from test-report.md or "Skipped"}   | {date} |
 
 ## Rollout Plan
 
@@ -410,9 +414,9 @@ Write `{FEATURE_DIR}/release-readiness.md`:
 
 ## Action Items Before Ship
 
-| # | Category | Action | Priority | Status |
-|---|----------|--------|:--------:|:------:|
-| 1 | {cat} | {action} | {MUST/SHOULD/NICE-TO-HAVE} | {TODO/DONE} |
+| #   | Category | Action   |          Priority          |   Status    |
+| --- | -------- | -------- | :------------------------: | :---------: |
+| 1   | {cat}    | {action} | {MUST/SHOULD/NICE-TO-HAVE} | {TODO/DONE} |
 
 ## Ship Checklist
 
@@ -482,36 +486,36 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  release_readiness: completed  # or "skipped"
+    release_readiness: completed # or "skipped"
 ```
 
 Record the gate decision using the canonical enum
 (`approved | approved_with_conditions | revised | skipped | rolled_back | aborted`).
 Map the Step 7 choice onto exactly one literal:
 
-| Step 7 choice | Verdict that recommends it | `decision` literal |
-|---------------|----------------------------|--------------------|
-| Approve (ship it) | READY TO SHIP | `approved` |
-| Approve (ship with known issues) | CONDITIONALLY READY | `approved_with_conditions` — populate `conditions[]` |
-| Revise (fix and re-check) | NOT READY | `revised` |
-| Abort (hold) | NOT READY | `aborted` |
-| Rollback | any | `rolled_back` — set `rolled_back_to: "<phase>"` |
-| Skip (phase skipped) | n/a | `skipped` |
+| Step 7 choice                    | Verdict that recommends it | `decision` literal                                   |
+| -------------------------------- | -------------------------- | ---------------------------------------------------- |
+| Approve (ship it)                | READY TO SHIP              | `approved`                                           |
+| Approve (ship with known issues) | CONDITIONALLY READY        | `approved_with_conditions` — populate `conditions[]` |
+| Revise (fix and re-check)        | NOT READY                  | `revised`                                            |
+| Abort (hold)                     | NOT READY                  | `aborted`                                            |
+| Rollback                         | any                        | `rolled_back` — set `rolled_back_to: "<phase>"`      |
+| Skip (phase skipped)             | n/a                        | `skipped`                                            |
 
 ```yaml
 gates:
-  - phase: release_readiness
-    decision: "approved"  # one of: approved | approved_with_conditions | revised | skipped | rolled_back | aborted
-    timestamp: "{ISO timestamp}"
-    notes: "{verdict summary}"
-    conditions:           # required when decision == approved_with_conditions; the accepted risks
-      - "{accepted risk / known issue documented at ship time}"
-    rolled_back_to: "{phase}"  # required when decision == rolled_back; omit otherwise
-    action_items:
-      must: {N}
-      must_completed: {N}
-      should: {N}
-      nice_to_have: {N}
+    - phase: release_readiness
+      decision: 'approved' # one of: approved | approved_with_conditions | revised | skipped | rolled_back | aborted
+      timestamp: '{ISO timestamp}'
+      notes: '{verdict summary}'
+      conditions: # required when decision == approved_with_conditions; the accepted risks
+          - '{accepted risk / known issue documented at ship time}'
+      rolled_back_to: '{phase}' # required when decision == rolled_back; omit otherwise
+      action_items:
+          must: { N }
+          must_completed: { N }
+          should: { N }
+          nice_to_have: { N }
 ```
 
 On **Approve** / **Approve with conditions**, release-readiness MAY promote

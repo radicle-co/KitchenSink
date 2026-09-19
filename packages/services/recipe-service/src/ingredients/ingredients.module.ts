@@ -9,7 +9,7 @@
  * **Factory (`FoodServiceClients`) over singleton clients — because the credential is per request.** Food's
  * `FoodAuthGuard` verifies a *Clerk* token, so the only credential that can satisfy it is the CALLER's own
  * (issue #120). This module therefore provides no long-lived client at all: it provides one **Factory**, and
- * the controller threads an opaque {@link CallerToken} (a redacting **Value Object**, `auth/caller-token.ts`)
+ * the controller threads an opaque `CallerToken` (a redacting **Value Object**, `auth/CallerToken.ts`)
  * down to it, where it is exchanged for a client bound to that caller and to the ONE config-supplied origin.
  * The alternative — a `Scope.REQUEST` provider — was rejected because request scope bubbles up the whole
  * injection chain (gateway, service, controller) to buy an implicit version of a value that reads better
@@ -17,22 +17,32 @@
  * credential reviewable rather than ambient. The pre-#120 wiring was two singleton clients sharing a static
  * `FOOD_SERVICE_TOKEN` env string — a value that was never set anywhere and could not have worked if it were.
  *
- * **The two latency contracts survive the change — do NOT collapse them.** They now live as the factory's two
- * methods rather than two providers:
+ * **The latency contracts survive the change — do NOT collapse them.** They live as the factory's methods rather
+ * than as separate providers:
  *
+ *  - `nutrition()` is bounded by {@link READ_NUTRITION_DEADLINE_MS}, and the gateway enforces that same number as ONE
+ *    deadline over every request a read's lookup issues — see `FoodServiceClients.nutritionLookupDeadlineMs`.
  *  - `standard()` (the client's default 8s) backs `addByName` / `getStatus` / `getCandidates` / `resolve` —
  *    user-initiated writes and polls where waiting several seconds for a real answer beats failing.
  *  - `typeahead()` uses {@link TYPEAHEAD_TIMEOUT_MS} (sub-second) because {@link FoodCatalogGateway} runs on a
  *    PER-KEYSTROKE path (Stage 2 / F2). Sharing the 8s budget there would let a degraded food service stall
  *    the typeahead for 8s per keystroke and pile up in-flight requests — the exact failure the short timeout
  *    plus the gateway's local-only fallback exists to prevent.
+ *  - `postCommitNutrition()` uses {@link POST_COMMIT_NUTRITION_TIMEOUT_MS} for the nutrition a response carries
+ *    AFTER a committed write — see the factory's class doc.
  *
- * Both bounds are enforced at the transport (a real `AbortSignal` inside the client), NOT by racing a timer in
+ * All bounds are enforced at the transport (a real `AbortSignal` inside the client), NOT by racing a timer in
  * the caller — a race would return early while leaving the underlying request pending, leaking a socket per
  * keystroke during an outage.
  *
  * **Gateway (`FoodCatalogGateway`)** still owns the availability discipline for the blend, and is now the
  * place a caller with NO credential degrades honestly instead of issuing a call that could only 401.
+ *
+ * **U14 — the correction route's collaborator.** `IngredientsController` now takes
+ * {@link ResolutionMappingsService} alongside {@link IngredientsService}. It is a second collaborator rather
+ * than a method on the first because it owns its own Unit of Work over a different table and answers a
+ * different question: what a PHRASE means, not which ingredient row exists. Both are provided here, and the
+ * service stays exported so `RecipesModule` and the integration tier reach the same instance.
  *
  * Configuration comes from the Zod-validated config (`foodServiceConfigSchema`) rather than raw
  * `process.env`, so boot-time validation governs the values used: `FOOD_SERVICE_URL` (origin — REQUIRED, with
@@ -40,15 +50,23 @@
  * calling `localhost`), `FOOD_CATALOG_BLEND_ENABLED` (Stage-2 rollout switch) and
  * `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` (the per-keystroke bound).
  */
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
+import type pg from 'pg';
 import { ConfigService } from '@nestjs/config';
 
-import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
+import { DrizzleProvider, PgPoolProvider, type RecipeDrizzle } from '../database/database.module.js';
 import { IngredientsController } from './ingredients.controller.js';
 import { IngredientsService } from './ingredients.service.js';
-import { FoodCatalogGateway } from './food-catalog.gateway.js';
-import { FoodServiceClients } from './food-service-clients.factory.js';
+import { FoodCatalogGateway } from './foodCatalog.gateway.js';
+import { FoodServiceClients } from './FoodServiceClients.factory.js';
+import { FoodNutritionGateway } from './foodNutrition.gateway.js';
 import { IngredientsDal } from './dal/ingredients.dal.js';
+import { createResolutionRegistry } from './resolution/resolutionRegistry.js';
+import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
+import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
+import { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
+import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
+import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
 
 /**
  * Default per-keystroke bound on the catalog-blend request (ms).
@@ -60,6 +78,31 @@ import { IngredientsDal } from './dal/ingredients.dal.js';
  * brief wait for the catalog section, never a stalled typeahead.
  */
 const TYPEAHEAD_TIMEOUT_MS = 600;
+
+/**
+ * Default per-request bound for the nutrition lookup on a response to a COMMITTED write.
+ *
+ * Sized by the arithmetic, not by a latency measurement (none exists yet — recipe→food is an internet round
+ * trip under ADR-0020, not "tens of ms inside one VPC"): a single-recipe lookup is at
+ * most two requests, so 1.5 s bounds the wait at 3 s and leaves 7 s of the recipe client's 10 s for the
+ * transaction, the verification enqueue and serialisation. Overridable, within bounds, by
+ * `FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS`. A too-low value degrades honestly (stale-marked or incomplete).
+ */
+const POST_COMMIT_NUTRITION_TIMEOUT_MS = 1_500;
+
+/**
+ * Default deadline over everything one nutrition READ waits on food (the GET detail and the card batch).
+ *
+ * Sized from measurement rather than the client's 8 s default. The sandbox food target group (ALB
+ * `TargetResponseTime`, every route, the two days to 2026-09-13, 63,957 requests) answered p50 1.4 ms, p99 190 ms,
+ * p99.9 3.0 s, max 7.3 s. The widest read the contract allows — a 500-recipe card batch with no ingredient overlap —
+ * is ten sequential steps (nine waves of six chunks plus the authored call): 10 x p99 ≈ 1.9 s, inside 3 s. An
+ * ordinary detail read is two steps. ⚠️ The deadline sits AT the per-request p99.9, deliberately: a read that meets
+ * that tail answers at 3 s with stale-or-absent nutrition instead of waiting up to 7 s and meeting the recipe client's
+ * 10 s timeout, which reports the WHOLE read as failed. It leaves 7 s of that 10 s. Overridable, within
+ * `MAX_READ_NUTRITION_DEADLINE_MS`, by `FOOD_NUTRITION_READ_DEADLINE_MS`.
+ */
+const READ_NUTRITION_DEADLINE_MS = 3_000;
 
 @Module({
     controllers: [IngredientsController],
@@ -77,6 +120,10 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
                     // `getOrThrow` states the invariant locally too: there is no default, at any layer.
                     baseUrl: config.getOrThrow<string>('FOOD_SERVICE_URL'),
                     typeaheadTimeoutMs: config.get<number>('FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS') ?? TYPEAHEAD_TIMEOUT_MS,
+                    postCommitNutritionTimeoutMs:
+                        config.get<number>('FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS') ?? POST_COMMIT_NUTRITION_TIMEOUT_MS,
+                    readNutritionDeadlineMs:
+                        config.get<number>('FOOD_NUTRITION_READ_DEADLINE_MS') ?? READ_NUTRITION_DEADLINE_MS,
                 }),
         },
         {
@@ -88,8 +135,77 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
                     enabled: config.get<boolean>('FOOD_CATALOG_BLEND_ENABLED') !== false,
                 }),
         },
-        IngredientsService,
+        {
+            // The recipe read path's nutrition source (U10). Provided HERE, beside the food client factory
+            // it depends on, and exported so `RecipesModule` consumes it rather than building a second
+            // instance — a second instance would mean a second cache, halving the hit rate and letting the
+            // two disagree about what food last said.
+            provide: FoodNutritionGateway,
+            inject: [FoodServiceClients],
+            useFactory: (clients: FoodServiceClients): FoodNutritionGateway => new FoodNutritionGateway(clients),
+        },
+        {
+            provide: IngredientResolutionsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): IngredientResolutionsDal => new IngredientResolutionsDal(db),
+        },
+        {
+            provide: ResolutionMappingsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): ResolutionMappingsDal => new ResolutionMappingsDal(db),
+        },
+        {
+            provide: ResolutionBandsDal,
+            inject: [PgPoolProvider],
+            useFactory: (pool: pg.Pool): ResolutionBandsDal => new ResolutionBandsDal(pool),
+        },
+        {
+            // The promotion audit's log half goes through Nest's `Logger`, so the identifiers it carries are
+            // scrubbed on the way out; the metric half writes EMF straight to stdout by default.
+            provide: MappingPromotionAudit,
+            useFactory: (): MappingPromotionAudit => {
+                const logger = new Logger(MappingPromotionAudit.name);
+
+                return new MappingPromotionAudit(undefined, undefined, (message, context) =>
+                    logger.log(message, context),
+                );
+            },
+        },
+        ResolutionMappingsService,
+        {
+            provide: IngredientsService,
+            inject: [
+                IngredientsDal,
+                FoodServiceClients,
+                FoodCatalogGateway,
+                ResolutionMappingsDal,
+                IngredientResolutionsDal,
+                ResolutionBandsDal,
+            ],
+            useFactory: (
+                dal: IngredientsDal,
+                clients: FoodServiceClients,
+                catalog: FoodCatalogGateway,
+                mappings: ResolutionMappingsDal,
+                resolutions: IngredientResolutionsDal,
+                bands: ResolutionBandsDal,
+            ): IngredientsService =>
+                new IngredientsService(
+                    dal,
+                    clients,
+                    catalog,
+                    createResolutionRegistry(mappings, catalog),
+                    resolutions,
+                    bands,
+                ),
+        },
     ],
-    exports: [IngredientsService],
+    exports: [
+        IngredientsService,
+        FoodNutritionGateway,
+        ResolutionMappingsService,
+        IngredientResolutionsDal,
+        ResolutionBandsDal,
+    ],
 })
 export class IngredientsModule {}

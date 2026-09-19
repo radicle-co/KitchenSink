@@ -1,0 +1,10 @@
+{
+    "name": "@kitchensink/exempt-without-zod-client",
+    "private": true,
+    "kitchensink": {
+        "wireContract": {
+            "thirdParty": true,
+            "reason": "Wraps an upstream API we do not serve, so there is no service of ours to own these types (CODING_STANDARDS §15.3 / ADR-0014)."
+        }
+    }
+}

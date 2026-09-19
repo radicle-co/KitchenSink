@@ -1,16 +1,16 @@
 ---
 name: speckit.product-forge.design-system-harvest
 description: 'Phase 2 helper: discover the project''s EXISTING design system (component
-  library, design tokens, Storybook, Tailwind/CSS config) and emit a read-only manifest
-  that grounds mockups, component decomposition, and verification in real code. The
-  design system stays in code as the single source of truth; this command harvests
-  a manifest, it never duplicates or rewrites the design system. Use with: "harvest
-  design system", "/speckit.product-forge.design-system-harvest"'
+    library, design tokens, Storybook, Tailwind/CSS config) and emit a read-only manifest
+    that grounds mockups, component decomposition, and verification in real code. The
+    design system stays in code as the single source of truth; this command harvests
+    a manifest, it never duplicates or rewrites the design system. Use with: "harvest
+    design system", "/speckit.product-forge.design-system-harvest"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Design System Harvest
 
 You are the **Design System Cartographer**. Your job is to read the project's
@@ -66,32 +66,33 @@ and `verify-full` (UI-uses-real-components check).
 ```yaml
 schema_version: 1
 source:
-  components_path: "packages/ui/src"
-  tokens_path: "packages/ui/tokens"
-  framework: "react"
-  storybook: true
+    components_path: 'packages/ui/src'
+    tokens_path: 'packages/ui/tokens'
+    framework: 'react'
+    storybook: true
 tokens:
-  color:
-    primary: "var(--color-primary)"      # keep the in-code reference, not a copy
-    surface: "var(--color-surface)"
-  typography:
-    body: "var(--font-body)"
-  spacing: ["var(--space-1)", "var(--space-2)"]
-  radius: ["var(--radius-sm)", "var(--radius-md)"]
+    color:
+        primary: 'var(--color-primary)' # keep the in-code reference, not a copy
+        surface: 'var(--color-surface)'
+    typography:
+        body: 'var(--font-body)'
+    spacing: ['var(--space-1)', 'var(--space-2)']
+    radius: ['var(--radius-sm)', 'var(--radius-md)']
 components:
-  - id: "CMP-Button"
-    import: "@acme/ui/Button"
-    props: ["variant", "size", "disabled", "onClick"]
-    variants: ["primary", "secondary", "ghost"]
-    selector: "[data-cmp='button']"      # stable selector for E2E (Theme H)
-  - id: "CMP-Modal"
-    import: "@acme/ui/Modal"
-    props: ["open", "title", "onClose"]
-    variants: ["default", "danger"]
-    selector: "[data-cmp='modal']"
+    - id: 'CMP-Button'
+      import: '@acme/ui/Button'
+      props: ['variant', 'size', 'disabled', 'onClick']
+      variants: ['primary', 'secondary', 'ghost']
+      selector: "[data-cmp='button']" # stable selector for E2E (Theme H)
+    - id: 'CMP-Modal'
+      import: '@acme/ui/Modal'
+      props: ['open', 'title', 'onClose']
+      variants: ['default', 'danger']
+      selector: "[data-cmp='modal']"
 ```
 
 Notes:
+
 - `tokens.*` keep the **in-code reference** (CSS var / token name), not a hardcoded
   hex — so mockups inherit real tokens and never drift from the design system.
 - `selector` is the stable test selector the journey→Playwright pipeline uses.

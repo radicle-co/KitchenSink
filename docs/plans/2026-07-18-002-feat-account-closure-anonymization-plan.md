@@ -198,10 +198,10 @@ erased owner.
 - **Requirements:** R5
 - **Dependencies:** none
 - **Files:** `packages/services/food-service/src/db/schema/operational.ts` (`sub` → `requesterId`);
-  `.../db/migrations/` (migration + cutover); `.../auth/food-auth.guard.ts` + `authenticated-principal.ts`
+  `.../db/migrations/` (migration + cutover); `.../auth/foodAuth.guard.ts` + `authenticatedPrincipal.ts`
   (surface `claims.userId` = the token's `external_id`, **already provided by the shared verifier**);
-  `.../worker/provenance.ts` + `food-consumer.service.ts` (`isValidPrincipal` → valid-ULID-or-`svc_*`);
-  `.../foods/dao/fetch-requesters.dao.ts`, `user-erasure.service.ts` (only to re-key what `eraseUser` deletes
+  `.../worker/provenance.ts` + `foodConsumer.service.ts` (`isValidPrincipal` → valid-ULID-or-`svc_*`);
+  `.../foods/dao/fetchRequesters.dao.ts`, `userErasure.service.ts` (only to re-key what `eraseUser` deletes
   by, `sub` → ULID — U1 does NOT invoke `eraseUser`; wiring the actual food-erasure leg is U4b/R11). Tests.
 - **Approach:** Discriminated value — user ULID or allowlisted `svc_*`. **Cutover ordering is load-bearing:**
   tightening `isValidPrincipal` while `sub`-keyed rows remain fails FR-048 for in-flight leased foods (zero
@@ -242,7 +242,7 @@ erased owner.
       see R10) + **`packages/services/identity-webhooks/src/handlers/reconciliation.ts`** (skip
       tombstoned/erased users so the nightly `provisionCompleteUser` sweep can't resurrect them);
       **`packages/services/identity-webhooks/src/common/identityClient.ts`** (add `banUser`/`unbanUser` — admin
-      client + secret already here; `deleteUser` already exists, currently dead code); `.../handlers/deletion-worker.ts`
+      client + secret already here; `deleteUser` already exists, currently dead code); `.../handlers/deletionWorker.ts`
       (orchestrate per event: field-scrub → `banUser` for closure; recipe-job-then-`deleteUser` for erasure) +
       `identityWebhook.ts` (`user.deleted` → erasure, KTD-2); an **admin-scoped reactivation endpoint** (identity
       already has an admin surface) that calls `unbanUser` + clears the tombstone; tests + an identity integration
@@ -281,7 +281,7 @@ erased owner.
 - **Requirements:** R4
 - **Dependencies:** U2 (erasure event); **U3b** (the donate-flip runs first, within the same erasure
   transaction, so what remains owner-only = to-be-removed); the shipped account-erasure worker (Track A)
-- **Files:** `packages/services/recipe-workers/src/handlers/account-erasure-worker.ts`
+- **Files:** `packages/services/recipe-workers/src/handlers/accountErasureWorker.ts`
   (`eraseRecipeRows`/`eraseRecipeObjects`); tests.
 - **Approach:** In one erasure transaction, ordered: (1) U3b flips elected recipes to
   `visibility='public', status='published'`; (2) U3a computes the **removed-recipe id set** = the owner's rows
@@ -319,9 +319,9 @@ erased owner.
   **`packages/services/recipe-service/src/database/schema/account.ts`** (an election column + `confirmed_at` on
   `account_erasure_jobs`) + the `ErasureJobsDal`; `packages/shared/recipe-core/src/*` (`AccountErasureMessage`
   gains the election — **rollout: deploy consumer-tolerant (optional read) first, then producers**);
-  `.../account-erasure-worker.ts` (publish-flip + **delete the user's `recipe_ratings` rows** — the CR-001
+  `.../accountErasureWorker.ts` (publish-flip + **delete the user's `recipe_ratings` rows** — the CR-001
   statement-level trigger re-derives each affected recipe's aggregate; **no manual aggregate write**, which is
-  forbidden by the single-writer invariant) + `erasure-sweeper.ts` (`toErasureMessage` reads the persisted
+  forbidden by the single-writer invariant) + `erasureSweeper.ts` (`toErasureMessage` reads the persisted
   election — today it returns `{ownerId, requestedAt}` only); `contracts/api.openapi.yaml`; the app's
   publish-election UI copy (a **permanence warning**: "donated recipes become public and are permanently
   unremovable by you once your account is erased"); tests.
@@ -360,7 +360,7 @@ erased owner.
 - **Requirements:** R4
 - **Dependencies:** U2 (erasure event) — orthogonal to the recipe-scoping (different table), so independent of
   U3a/U3b
-- **Files:** `.../account-erasure-worker.ts` (collections delete); `packages/services/recipe-service/src/database/schema/collections.ts`
+- **Files:** `.../accountErasureWorker.ts` (collections delete); `packages/services/recipe-service/src/database/schema/collections.ts`
   (verify `source_collection_id` `ON DELETE SET NULL`); tests.
 - **Approach:** Delete the owner's `collections` rows + memberships. `source_collection_id` is a self-FK
   `ON DELETE SET NULL` (verified), so clones survive with a nulled source pointer; the "pull-from-source"
@@ -411,11 +411,11 @@ erased owner.
 - **Files:** the app account screens (distinct "close account" → closure; "erase / forget me" → the
   confirmation-gated erasure with per-recipe donate election) — web + mobile; the deletion-worker
   orchestration (recipe-job → **food `eraseUser`** → Clerk-delete) + the `user.deleted` echo guard; **the
-  food-erasure leg** — the shipped `packages/services/food-service/src/foods/user-erasure.service.ts`
+  food-erasure leg** — the shipped `packages/services/food-service/src/foods/userErasure.service.ts`
   (`eraseUser`, currently DEAD CODE: no handler/subscription) must be invoked on erasure, either via a new
   food deletion Lambda subscribed to the fan-out or an M2M call from the deletion-worker (+ its CDK/IAM — the
   service explicitly deferred this wiring); **the R7 reconciliation job** — a NEW scheduled handler
-  `packages/services/identity-webhooks/src/handlers/erasure-reconciliation.ts` (distinct from the existing
+  `packages/services/identity-webhooks/src/handlers/erasureReconciliation.ts` (distinct from the existing
   provisioning `reconciliation.ts`) that scans identity `status='erased'` rows against recipe
   `account_erasure_jobs` terminal state (correlation key = the owner ULID, across the two DBs) + food, and
   emits the "erasure incomplete" metric/alarm; tests incl. cross-platform UI.
@@ -538,6 +538,6 @@ prod-exposure and prioritize accordingly**, independent of this CR's merge.
   accepts only Clerk user tokens + unconditionally requires the phrase (the service-principal path + phrase
   skip are net-new); `external_id` present on the food path (U1 needs no new dependency).
 - Specs: `specs/001-commise-recipe-app` (US2, FR-005, FR-010, FR-011, C-004, C-007, data-model.md §D2);
-  identity `users.service.ts`, `users.ts`, `clerk-auth.service.ts`, `identityClient.ts`, `deletion-worker.ts`;
-  food `operational.ts`, `provenance.ts`, `food-auth.guard.ts`; recipe `account-erasure-worker.ts`,
-  `erasure-sweeper.ts`, `account.ts`, `collections.ts`, `recipes.ts`.
+  identity `users.service.ts`, `users.ts`, `clerkAuth.service.ts`, `identityClient.ts`, `deletionWorker.ts`;
+  food `operational.ts`, `provenance.ts`, `foodAuth.guard.ts`; recipe `accountErasureWorker.ts`,
+  `erasureSweeper.ts`, `account.ts`, `collections.ts`, `recipes.ts`.

@@ -5,7 +5,8 @@ import type { NextFunction, Response } from 'express';
 import type { VerifiedClerkClaims } from '@kitchensink/clerk-verify';
 
 import { AuthMiddleware } from '../auth.middleware.js';
-import { ClerkAuthService } from '../clerk-auth.service.js';
+import { ClerkAuthService } from '../clerkAuth.service.js';
+import type { TestPrincipalsDal } from '../dal/testPrincipals.dal.js';
 import type { AuthenticatedRequest } from '../principal.js';
 
 /**
@@ -29,8 +30,18 @@ const makeClaims = (overrides: Partial<VerifiedClerkClaims> = {}): VerifiedClerk
     picture: 'https://cdn.commise.app/a.png',
     scopes: [],
     permissions: [],
+    testPrincipal: false,
     ...overrides,
 });
+
+/** A registry double recording every registration, so the memo and the failure path are observable. */
+const makeRegistry = (): TestPrincipalsDal & { register: ReturnType<typeof vi.fn> } =>
+    ({
+        register: vi.fn(async () => undefined),
+        isRegistered: vi.fn(async () => true),
+    }) as unknown as TestPrincipalsDal & {
+        register: ReturnType<typeof vi.fn>;
+    };
 
 interface MockContext {
     readonly req: AuthenticatedRequest;
@@ -65,6 +76,7 @@ describe('AuthMiddleware', () => {
     let clerkAuth: ClerkAuthService;
     let verifySpy: ReturnType<typeof vi.spyOn>;
     let middleware: AuthMiddleware;
+    let registry: ReturnType<typeof makeRegistry>;
     const savedEnv: Record<string, string | undefined> = {};
 
     beforeEach(() => {
@@ -78,7 +90,8 @@ describe('AuthMiddleware', () => {
 
         clerkAuth = new ClerkAuthService();
         verifySpy = vi.spyOn(clerkAuth, 'verify');
-        middleware = new AuthMiddleware(clerkAuth);
+        registry = makeRegistry();
+        middleware = new AuthMiddleware(clerkAuth, 'enforce', registry);
     });
 
     afterEach(() => {
@@ -111,7 +124,11 @@ describe('AuthMiddleware', () => {
             picture: claims.picture,
             scopes: claims.scopes,
             permissions: claims.permissions,
+            principalKind: 'real',
+            containment: 'enforce',
         });
+        // A real principal is never written to the test-principal registry.
+        expect(registry.register).not.toHaveBeenCalled();
         // The owner key is the app-user ULID from `external_id` — NOT the Clerk sub.
         expect(req.principal?.userId).toBe('01HZY0OWNERULID0000000000');
         expect(req.principal?.userId).not.toBe(claims.sub);
@@ -221,6 +238,58 @@ describe('AuthMiddleware', () => {
         });
     });
 
+    describe('test principals (ADR-0040)', () => {
+        it('⛔ marks a signed test principal `test` and carries the stage containment onto the Principal', async () => {
+            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true }));
+            const { req, res, next } = makeContext({ authorization: 'Bearer good.session.token' });
+
+            await middleware.use(req, res, next);
+
+            expect(req.principal?.principalKind).toBe('test');
+            expect(req.principal?.containment).toBe('enforce');
+            expect(next).toHaveBeenCalledOnce();
+        });
+
+        it('carries an `off` stage onto the Principal unchanged', async () => {
+            middleware = new AuthMiddleware(clerkAuth, 'off', registry);
+            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true }));
+            const { req, res, next } = makeContext({ authorization: 'Bearer good.session.token' });
+
+            await middleware.use(req, res, next);
+
+            expect(req.principal?.principalKind).toBe('test');
+            expect(req.principal?.containment).toBe('off');
+        });
+
+        it('⛔ registers a test principal in the service registry, ONCE per process', async () => {
+            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true }));
+
+            for (let request = 0; request < 3; request += 1) {
+                const { req, res, next } = makeContext({ authorization: 'Bearer good.session.token' });
+
+                await middleware.use(req, res, next);
+            }
+
+            expect(registry.register).toHaveBeenCalledExactlyOnceWith('01HZY0OWNERULID0000000000');
+        });
+
+        it('⛔ never fails the request when the registry write fails, and retries it on the next request', async () => {
+            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true }));
+            registry.register.mockRejectedValueOnce(new Error('connection refused'));
+            const first = makeContext({ authorization: 'Bearer good.session.token' });
+            const second = makeContext({ authorization: 'Bearer good.session.token' });
+
+            await middleware.use(first.req, first.res, first.next);
+            await middleware.use(second.req, second.res, second.next);
+
+            // Containment keys on the CLAIM, so the request is still correctly contained; only the purge, which
+            // needs the registry to agree, is affected — and a failed write is not memoized, so it is retried.
+            expect(first.req.principal?.principalKind).toBe('test');
+            expect(first.next).toHaveBeenCalledOnce();
+            expect(registry.register).toHaveBeenCalledTimes(2);
+        });
+    });
+
     describe('dev bypass', () => {
         it('injects a dev Principal from RECIPE_DEV_AUTH_USER_ID outside production (no token, no verify)', async () => {
             process.env['NODE_ENV'] = 'development';
@@ -231,6 +300,9 @@ describe('AuthMiddleware', () => {
 
             expect(verifySpy).not.toHaveBeenCalled();
             expect(req.principal?.userId).toBe('01HZZDEVBYPASSULID00000000');
+            // The bypass has no signed claim to read, so it is never a test principal.
+            expect(req.principal?.principalKind).toBe('real');
+            expect(req.principal?.containment).toBe('enforce');
             // Even the bypass never conflates userId with sub — sub is a synthetic trace marker.
             expect(req.principal?.userId).not.toBe(req.principal?.sub);
             expect(next).toHaveBeenCalledOnce();
@@ -245,6 +317,40 @@ describe('AuthMiddleware', () => {
             expect(verifySpy).not.toHaveBeenCalled();
             expect(req.principal).toBeUndefined();
             expect(next).not.toHaveBeenCalled();
+        });
+
+        it.each(['staging', 'sandbox', 'preview', ''])(
+            '⛔ IGNORES the dev bypass on a DEPLOYED stage (NODE_ENV=%s) — only a local signal enables it',
+            async (nodeEnv) => {
+                // ⛔ The gate asked whether NODE_ENV was `production` and admitted EVERYTHING ELSE.
+                // `RecipeServiceStack` ships `NODE_ENV: stage === 'prod' ? 'production' : 'staging'`, so on
+                // sandbox and on every `pr-{N}` — all of them internet-facing behind the shared ALB — the only
+                // thing standing between the public internet and arbitrary-owner impersonation was the ABSENCE
+                // of an environment variable. One task definition, one `.env` leak, one copied compose file is
+                // the whole exploit, and it authenticates as any userId the caller names.
+                //
+                // Identity and food hardcode `NODE_ENV: 'production'` and never had this gap; recipe keys its
+                // config on the value, which is why it is the one service that does. The gate now requires a
+                // POSITIVE local signal, so a new deployed stage name cannot opt itself in by accident.
+                process.env['NODE_ENV'] = nodeEnv;
+                process.env['RECIPE_DEV_AUTH_USER_ID'] = '01HZZDEVBYPASSULID00000000';
+                const { req, res, next } = makeContext();
+
+                await expect(middleware.use(req, res, next)).rejects.toBeInstanceOf(UnauthorizedException);
+                expect(req.principal).toBeUndefined();
+                expect(next).not.toHaveBeenCalled();
+            },
+        );
+
+        it('still works under NODE_ENV=test, which the integration and e2e tiers rely on', async () => {
+            process.env['NODE_ENV'] = 'test';
+            process.env['RECIPE_DEV_AUTH_USER_ID'] = '01HZZDEVBYPASSULID00000000';
+            const { req, res, next } = makeContext();
+
+            await middleware.use(req, res, next);
+
+            expect(req.principal?.userId).toBe('01HZZDEVBYPASSULID00000000');
+            expect(next).toHaveBeenCalledOnce();
         });
     });
 });

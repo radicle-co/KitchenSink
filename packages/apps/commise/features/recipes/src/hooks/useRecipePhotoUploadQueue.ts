@@ -1,6 +1,6 @@
 /**
  * Per-file upload QUEUE layer (w3/e4) — a FIFO work queue (Producer/Consumer, drained one item at a time)
- * layered ABOVE the existing single-flight {@link useRecipePhotoUpload} hook, never reimplementing or
+ * layered ABOVE the existing single-flight `useRecipePhotoUpload` hook, never reimplementing or
  * modifying it (Decorator/Adapter: this hook composes the unchanged `{ uploading, errorMessage, upload }`
  * contract, it does not alter it). The step-4 wireframe needs a 3-column grid where EACH file shows its own
  * status (queued / uploading / ok / failed) with a retry — but `useRecipePhotoUpload` is deliberately sized
@@ -10,24 +10,19 @@
  * `upload` once per file, one at a time, so bytes still go over the wire single-flight while the grid can
  * show every file's own status.
  *
- * **How "sequential" is achieved without touching the single-flight hook.** Two effects coordinate purely
- * off the CALLER-SUPPLIED `uploader.uploading`/`uploader.errorMessage` (the exact state
- * `useRecipePhotoUpload` already exposes) plus one local `activeFileId`:
- *  - **"start next"** — whenever nothing is active (`activeFileId === null`) and the uploader itself is
- *    idle (`!uploader.uploading`), pick the earliest `queued` item, record it as active, and call
- *    `uploader.upload(item.file)`. Because this only ever fires when the uploader is idle, it can never
- *    overlap the B24 guard — this hook is the uploader's ONLY caller once composed into a container, so the
- *    guard is never even exercised concurrently.
- *  - **"settle"** — whenever there IS an active file and the uploader has gone idle again
- *    (`activeFileId !== null && !uploader.uploading`), the just-finished attempt is resolved from
- *    `uploader.errorMessage` (present → `failed` with that message; absent → `ok`), and `activeFileId`
- *    clears. `useRecipePhotoUpload.upload()`'s own promise never rejects (it swallows every failure into its
- *    `errorMessage` state) — so this is the ONLY correct way to observe a per-file outcome without changing
- *    that hook's contract.
- * Because "start next" only fires once "settle" has cleared `activeFileId`, and both gate on the SAME
- * `uploader.uploading` flag the real hook flips synchronously before its first internal `await`, the two
- * effects can never race: at most one file is ever mid-flight, and the next never starts until the current
- * one has fully resolved.
+ * **How "sequential" is achieved.** One effect drives and AWAITS, using only this hook's own
+ * `activeFileId`:
+ *  - **"drive"** — whenever nothing is active (`activeFileId === null`), pick the earliest `queued` item,
+ *    record it as active, `await uploader.upload(item.file)`, and dispatch the RESOLVED verdict. At most one
+ *    file is in flight because `activeFileId` is set synchronously before the await.
+ *  - **"drain"** — runs each owed `onUploaded` continuation from COMMITTED reducer state, exactly once.
+ *
+ * ⛔ IT DOES NOT COORDINATE OFF `uploader.uploading`. Effects gated on that flag silently require
+ * `useRecipePhotoUpload` to flip it SYNCHRONOUSLY before its first internal `await` — an invariant nothing
+ * enforces, living in a different hook, which a react-query mutation (status propagates asynchronously)
+ * breaks: "settle" fires while `uploading` is still false, marking a photo `ok` that never uploaded. The
+ * verdict is a VALUE the drive awaits, and a value has no edge to mis-time — so this hook has no opinion
+ * about the other one's internals.
  *
  * **Post-commit continuations.** "settle" is also the single place a file's optional
  * {@link RecipePhotoQueueFile.onUploaded} continuation runs — exactly once, only on the `ok` arm, only while
@@ -39,14 +34,21 @@
  * in reducer state (not `Math.random`/`Date.now`, and not a ref: the counter is itself part of the pure
  * reducer's state transition, keeping the reducer the single source of truth for the queue's shape).
  *
- * **The 10-photo cap** (confirmed + active queue items, never exceeding {@link MAX_RECIPE_PHOTOS}) is
- * enforced in `enqueue`: an `ok` item is treated as already folded into the caller's `confirmedCount` (once
- * a file lands, the confirmed-photos query refetch is the source of truth for it — see `confirm →
- * invalidateRecipeProjections` in `useRecipePhotoUpload`'s module doc), so only `queued`/`failed` items (plus
- * whichever one is currently the active upload) count against the remaining slots. A caller may keep an `ok`
- * item's row in `items` after it resolves (e.g. to show a final checkmark for one more render); this hook
- * never expires it on a timer — the grid leaf decides whether to keep rendering it or to prefer the confirmed
- * `photos` list once it refetches.
+ * **The 10-photo cap** (confirmed + active queue items, never exceeding `MAX_RECIPE_PHOTOS`) is
+ * enforced in `enqueue` through the pure {@link admitPhotoBatch} policy: a batch is admitted WHOLE or refused
+ * whole, and `enqueue` RETURNS that verdict. An `ok` item is treated as already folded into the caller's
+ * `confirmedCount` (once a file lands, the confirmed-photos query refetch is the source of truth for it — see
+ * `confirm → invalidateRecipeProjections` in `useRecipePhotoUpload`'s module doc), so only `queued`/`failed`
+ * items (plus whichever one is currently the active upload) count against the remaining slots. A caller may
+ * keep an `ok` item's row in `items` after it resolves (e.g. to show a final checkmark for one more render);
+ * this hook never expires it on a timer — the grid leaf decides whether to keep rendering it or to prefer the
+ * confirmed `photos` list once it refetches.
+ *
+ * ⛔ **Why a verdict and not a silent slice.** `enqueue` used to take what fit and drop the rest without a word,
+ * on the premise that every caller would check capacity first. The edit container never did: a ten-file pick
+ * with two slots left queued two, dropped eight, told the cook nothing, and leaked the eight object URLs the
+ * container had already minted. The verdict is what lets a caller release what it minted and say how many fit.
+ * It is computed in the `enqueue` wrapper, not the reducer, because `dispatch` cannot return a value.
  *
  * **What this hook does NOT do**: it does not call `confirm`/invalidate anything itself — every successful
  * upload already runs through `useRecipePhotoUpload`, which owns that single call site. It does not acquire
@@ -70,11 +72,15 @@
  * which is what the grid leaves render. That keeps "which failures can a retry fix?" a single fact owned here,
  * beside the admission gate that creates the distinction, rather than re-derived in each platform's leaf.
  */
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useEffectEvent, useReducer, useState } from 'react';
 
-import { MAX_RECIPE_PHOTOS } from '../photos/model.js';
+import { admitPhotoBatch, remainingPhotoSlots, type RecipePhotoAdmission } from '../photos/model.js';
 import { validatePhotoFile, type PhotoValidationErrorCode } from '../photos/photoValidation.js';
-import type { RecipePhotoUploadFile, UseRecipePhotoUploadResult } from './useRecipePhotoUpload.js';
+import type {
+    RecipePhotoUploadFile,
+    RecipePhotoUploadOutcome,
+    UseRecipePhotoUploadResult,
+} from './useRecipePhotoUpload.js';
 
 /** A per-file item's lifecycle, as stored by the reducer. `uploading` is DERIVED (see {@link toPublicItems}). */
 type StoredStatus = 'queued' | 'ok' | 'failed';
@@ -111,7 +117,7 @@ export interface RecipePhotoQueueFile extends RecipePhotoUploadFile {
 
 /** One file's state as exposed to the grid. */
 export interface RecipePhotoQueueItem {
-    /** Stable id this hook assigned at enqueue time — the handle {@link retry}/{@link remove} take. */
+    /** Stable id this hook assigned at enqueue time — the handle `retry`/`remove` take. */
     readonly fileId: number;
     /** The original file name, for the grid's accessible labeling. */
     readonly fileName: string;
@@ -156,14 +162,18 @@ export interface UseRecipePhotoUploadQueueResult {
     /** Every queued/in-flight/settled file, in the order they were enqueued. */
     readonly items: readonly RecipePhotoQueueItem[];
     /**
-     * Enqueue one or more newly-picked files. Silently caps the accepted files at however many slots remain
-     * under {@link MAX_RECIPE_PHOTOS} (confirmed photos + this queue's own active items) — a caller that
-     * wants to surface "you can only add N more" should check that itself before calling (the cap here is a
-     * defensive floor, not the primary UX signal). Each accepted file is admitted through
-     * {@link validatePhotoFile} (REQ-011/REQ-012) BEFORE it ever becomes eligible for upload — a file that
-     * fails validation is added straight into `failed` status with its localized reason, never `queued`.
+     * Enqueue one or more newly-picked files, WHOLE or not at all. When the batch is larger than
+     * {@link remaining}, nothing is queued and the verdict is `overCap` carrying how many would fit — the caller
+     * releases anything it prepared for those files (a web object URL) and tells the cook. Each admitted file
+     * then passes {@link validatePhotoFile} (REQ-011/REQ-012) BEFORE it becomes eligible for upload — a file
+     * that fails validation is added straight into `failed` status with its localized reason, never `queued`.
      */
-    readonly enqueue: (files: readonly RecipePhotoQueueFile[]) => void;
+    readonly enqueue: (files: readonly RecipePhotoQueueFile[]) => RecipePhotoAdmission;
+    /**
+     * How many more files this queue would admit now: the cap, less the confirmed count, less every item still
+     * holding a grid cell. The same number `enqueue` judges against — read it instead of re-deriving it.
+     */
+    readonly remaining: number;
     /**
      * Re-run exactly the file with this id — a no-op unless that file's status is currently `failed`.
      * Re-validates (not a bare status flip) before re-admitting, so a previously validation-rejected file
@@ -190,9 +200,20 @@ interface StoredItem {
 interface QueueState {
     readonly nextFileId: number;
     readonly items: readonly StoredItem[];
+    /**
+     * File ids whose `onUploaded` continuation is OWED but not yet run.
+     *
+     * ⛔ WHY THE REDUCER OWNS THIS. A continuation typically DELETES a confirmed photo (U6 Replace), so
+     * firing it twice destroys the wrong image and firing it for a withdrawn file destroys one the cook
+     * still has. An `item.status !== 'ok'` read in the effect is not safe: the verdict arrives on a resolved
+     * promise, so that read is a STALE CLOSURE over the render that started the upload. Recording the debt
+     * inside the same pure transition that marks the item `ok` makes exactly-once a reducer INVARIANT rather
+     * than a timing argument: the debt can only be created by the transition that succeeds, and only once.
+     */
+    readonly owedContinuations: readonly number[];
 }
 
-const INITIAL_STATE: QueueState = { nextFileId: 1, items: [] };
+const INITIAL_STATE: QueueState = { nextFileId: 1, items: [], owedContinuations: [] };
 
 type QueueAction =
     | {
@@ -202,6 +223,8 @@ type QueueAction =
       }
     | { readonly type: 'succeed'; readonly fileId: number }
     | { readonly type: 'fail'; readonly fileId: number; readonly errorMessage: string }
+    | { readonly type: 'settle'; readonly fileId: number; readonly outcome: RecipePhotoUploadOutcome }
+    | { readonly type: 'continuationRan'; readonly fileId: number }
     | { readonly type: 'retry'; readonly fileId: number; readonly validationMessages: RecipePhotoValidationMessages }
     | { readonly type: 'remove'; readonly fileId: number };
 
@@ -244,7 +267,7 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
                 return admit(fileId, file, action.validationMessages);
             });
 
-            return { nextFileId, items: [...state.items, ...added] };
+            return { ...state, nextFileId, items: [...state.items, ...added] };
         }
 
         case 'succeed':
@@ -253,6 +276,47 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
                 items: state.items.map((item) =>
                     item.fileId === action.fileId ? { fileId: item.fileId, file: item.file, status: 'ok' } : item,
                 ),
+            };
+
+        case 'settle': {
+            // ⛔ ONE TRANSITION FOR THE WHOLE VERDICT, so the item's presence and its new status are decided
+            // from COMMITTED state rather than from whatever the drive effect closed over.
+            const present = state.items.find((item) => item.fileId === action.fileId);
+
+            if (present === undefined) {
+                // Withdrawn mid-flight: nothing to mark, and — critically — no continuation owed. The cook
+                // removed the file, so a `DELETE` on its behalf would destroy a photo they still hold.
+                return state;
+            }
+
+            if (action.outcome.status === 'busy') {
+                // The uploader refused to START, which is ABSENCE, not an outcome. Leave the item `queued`
+                // so the next commit re-drives it; marking it either way would be a lie about a file whose
+                // bytes never moved.
+                return state;
+            }
+
+            if (action.outcome.status === 'failed') {
+                return queueReducer(state, {
+                    type: 'fail',
+                    fileId: action.fileId,
+                    errorMessage: action.outcome.errorMessage,
+                });
+            }
+
+            return {
+                ...queueReducer(state, { type: 'succeed', fileId: action.fileId }),
+                // Owed only when this transition is the one that marked it `ok` — an already-`ok` item
+                // cannot owe a second continuation.
+                owedContinuations:
+                    present.status === 'ok' ? state.owedContinuations : [...state.owedContinuations, action.fileId],
+            };
+        }
+
+        case 'continuationRan':
+            return {
+                ...state,
+                owedContinuations: state.owedContinuations.filter((fileId) => fileId !== action.fileId),
             };
         case 'fail':
             return {
@@ -315,7 +379,7 @@ function toPublicItems(items: readonly StoredItem[], activeFileId: number | null
 }
 
 /**
- * The per-file photo upload queue, driving the existing single-flight {@link useRecipePhotoUpload} once per
+ * The per-file photo upload queue, driving the existing single-flight `useRecipePhotoUpload` once per
  * file, sequentially.
  *
  * @param uploader - The `{ uploading, errorMessage, upload }` surface of a `useRecipePhotoUpload` instance
@@ -328,18 +392,31 @@ function toPublicItems(items: readonly StoredItem[], activeFileId: number | null
  * @returns The queue's items plus `enqueue`/`retry`/`remove`.
  */
 export function useRecipePhotoUploadQueue(
-    uploader: Pick<UseRecipePhotoUploadResult, 'uploading' | 'errorMessage' | 'upload'>,
+    // ⛔ ONLY `upload`. Reading `uploading` and `errorMessage` would couple the queue's scheduling to another
+    // hook's internal timing. Narrowing the ask is the seam: display state (async-safe) and coordination (the
+    // resolved verdict) are not the same wire.
+    uploader: Pick<UseRecipePhotoUploadResult, 'upload'>,
     confirmedCount: number,
     validationMessages: RecipePhotoValidationMessages,
 ): UseRecipePhotoUploadQueueResult {
     const [state, dispatch] = useReducer(queueReducer, INITIAL_STATE);
     const [activeFileId, setActiveFileId] = useState<number | null>(null);
 
-    // "start next": once idle (nothing active, the underlying hook itself not mid-flight), drive the
-    // earliest queued item. Gating on `!uploader.uploading` means this can never call `upload` while a
-    // previous call driven by THIS hook (or, degenerately, any other caller) is still in flight.
+    // "drive": once nothing is active, start the earliest queued item and AWAIT ITS VERDICT.
+    //
+    // ⛔ IT DOES NOT READ `uploader.uploading`. Gating on that flag would require the underlying hook to flip
+    // it synchronously before its first `await` — an invariant nothing enforces, which a react-query
+    // implementation of that hook breaks (status propagates through the notify manager, asynchronously and
+    // correctly), settling an attempt that has not started and marking a photo `ok` that never uploaded.
+    // `activeFileId` is this hook's OWN synchronous state, so at most one file is in flight by
+    // construction here rather than by agreement with another hook's internals.
+    //
+    // `uploader.upload` is reached through an Effect Event: the drive must use the CURRENT uploader, but a new
+    // uploader reference is not a reason to drive — re-firing on it could start a second upload.
+    const startUpload = useEffectEvent((file: RecipePhotoQueueFile) => uploader.upload(file));
+
     useEffect(() => {
-        if (activeFileId !== null || uploader.uploading) {
+        if (activeFileId !== null) {
             return;
         }
 
@@ -349,53 +426,66 @@ export function useRecipePhotoUploadQueue(
             return;
         }
 
+        // ⛔ Set synchronously, in the effect, BEFORE the upload starts — `react-hooks/set-state-in-effect` flags it,
+        // and it is deliberate. This effect IS the synchronisation with an external process (an upload), and the
+        // active id is what makes that process single-flight: it must be recorded in the same tick the upload is
+        // started, or the re-render a second enqueue causes would start another. The rule's premise, that the
+        // value could be derived during render, does not hold for "which upload have I started".
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- see the note above
         setActiveFileId(next.fileId);
-        void uploader.upload(next.file);
-        // `uploader.upload` is intentionally NOT a dep: it is stable per recipeId (memoized by the underlying
-        // hook), and this effect's own trigger is `state.items`/`activeFileId`/`uploader.uploading` — adding
-        // an unstable caller-supplied function reference here would risk re-firing on unrelated re-renders.
-    }, [state.items, activeFileId, uploader.uploading]);
 
-    // "settle": once the active file's upload has gone idle again, resolve its outcome from the underlying
-    // hook's OWN `errorMessage` — its `upload()` promise never rejects, so this is the only way to observe
-    // per-file success/failure without changing that hook's contract.
-    useEffect(() => {
-        if (activeFileId === null || uploader.uploading) {
-            return;
-        }
+        void (async () => {
+            const outcome = await startUpload(next.file);
 
-        if (uploader.errorMessage !== undefined) {
-            dispatch({ type: 'fail', fileId: activeFileId, errorMessage: uploader.errorMessage });
-        } else {
-            // The item is looked up (rather than closed over) so a file the user WITHDREW mid-flight has no
-            // continuation left to run: `remove` dropped it, so there is nothing to find and nothing fires.
-            // `status !== 'ok'` makes the invocation idempotent by construction — a continuation typically
-            // DELETES a confirmed photo (U6 Replace), so firing it twice must be impossible even if this
-            // effect were ever re-entered after its own `succeed` dispatch had applied.
-            const settled = state.items.find((item) => item.fileId === activeFileId);
+            // ⚠️ Dispatched unconditionally, including after unmount: React 18 makes a post-unmount state
+            // update a silent no-op, so no mounted-flag is owed HERE. The continuation is the part that must
+            // not run after unmount, and it is fired from the drain effect below for exactly that reason.
+            dispatch({ type: 'settle', fileId: next.fileId, outcome });
 
-            dispatch({ type: 'succeed', fileId: activeFileId });
-
-            if (settled !== undefined && settled.status !== 'ok') {
-                settled.file.onUploaded?.();
+            // ⛔ NOT CLEARED ON `busy`, AND THAT IS WHAT STOPS A SPIN. A `busy` verdict leaves the item
+            // `queued` and the reducer state identical, so clearing the active id would re-fire this very
+            // effect, pick the same file, and loop as fast as promises resolve. Holding the id instead
+            // PAUSES the queue: whatever call currently owns the uploader's mutex releases it in its own
+            // `finally` and dispatches its own settle, which clears the id and resumes driving. Since this
+            // hook is the uploader's only caller and awaits every verdict, that is the only reachable way
+            // to see `busy` at all.
+            if (outcome.status !== 'busy') {
+                setActiveFileId(null);
             }
+        })();
+        // ⛔ NO CLEANUP that cancels the in-flight settle. `state.items` is a dep, so a cleanup would fire
+        // whenever the cook enqueues another file — cancelling a settle for an upload still in progress and
+        // stranding it as permanently `uploading`. `startUpload` is an Effect Event and is never a dependency.
+    }, [state.items, activeFileId]);
+
+    // "drain": run each owed `onUploaded` continuation exactly once, from COMMITTED reducer state.
+    //
+    // ⛔ AN EFFECT, NOT THE PROMISE. A continuation typically DELETES a confirmed photo (U6 Replace), and an
+    // effect cannot run on an unmounted component — so a confirm that lands while the surface is being torn
+    // down leaves both photos, which is exactly what the previous shape did. Firing it from the awaited
+    // promise instead would newly issue that DELETE from an unmounted component.
+    useEffect(() => {
+        for (const fileId of state.owedContinuations) {
+            state.items.find((item) => item.fileId === fileId)?.file.onUploaded?.();
+            dispatch({ type: 'continuationRan', fileId });
+        }
+    }, [state.owedContinuations, state.items]);
+
+    const items = toPublicItems(state.items, activeFileId);
+    const remaining = remainingPhotoSlots(confirmedCount, items);
+
+    const enqueue = (files: readonly RecipePhotoQueueFile[]): RecipePhotoAdmission => {
+        const admission = admitPhotoBatch(remaining, files.length);
+
+        if (admission.status === 'accepted' && files.length > 0) {
+            dispatch({ type: 'enqueue', files, validationMessages });
         }
 
-        setActiveFileId(null);
-    }, [activeFileId, uploader.uploading, uploader.errorMessage, state.items]);
-
-    const enqueue = (files: readonly RecipePhotoQueueFile[]): void => {
-        const activeCount = state.items.filter((item) => item.status !== 'ok').length;
-        const available = Math.max(0, MAX_RECIPE_PHOTOS - confirmedCount - activeCount);
-        const accepted = files.slice(0, available);
-
-        if (accepted.length > 0) {
-            dispatch({ type: 'enqueue', files: accepted, validationMessages });
-        }
+        return admission;
     };
 
     const retry = (fileId: number): void => dispatch({ type: 'retry', fileId, validationMessages });
     const remove = (fileId: number): void => dispatch({ type: 'remove', fileId });
 
-    return { items: toPublicItems(state.items, activeFileId), enqueue, retry, remove };
+    return { items, remaining, enqueue, retry, remove };
 }

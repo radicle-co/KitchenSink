@@ -15,7 +15,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useAuth } from '@clerk/expo';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { MAX_QUERY_RETRIES } from '@commise/query';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { Text } from 'react-native';
 
@@ -79,6 +80,55 @@ describe('AppProviders (DA10-a facade)', () => {
 
         await waitFor(() => expect(screen.getByText('auth,query,recipe')).toBeTruthy());
     });
+
+    it.each([
+        ['a 404 costs exactly ONE request', 'not-found', 1],
+        ['a 500 still retries to the cap', 'server-error', MAX_QUERY_RETRIES + 1],
+        ['a transport failure still retries to the cap', 'transport', MAX_QUERY_RETRIES + 1],
+    ] as const)(
+        'mounts a query client carrying the SHARED retry policy — %s',
+        async (_label, kind, attempts) => {
+            // ⛔ THE MOBILE MIRROR of the web facade's assertion, and it is not redundant: the two roots each
+            // built their OWN `new QueryClient()`, so a fix applied to one platform could silently miss the
+            // other — which is exactly the drift the cross-platform rule exists to stop. Driven with a real
+            // `useQuery` rather than `queryClient.fetchQuery`, because `fetchQuery` forces `retry: false` when
+            // the resolved option is `undefined` (query-core, TanStack #652), so the 404 row would have passed
+            // against a bare client. The other two rows are what stops the fix from being "retries off".
+            //
+            // ⚠ THE ERROR IS BUILT FROM A DYNAMIC IMPORT, deliberately. This suite's `afterEach` calls
+            // `vi.resetModules()`, so the `await import(...)` below loads a FRESH copy of the whole graph —
+            // including `@kitchensink/recipe-service-client`. A `NotFoundError` constructed from a top-level
+            // static import would belong to the PREVIOUS registry, fail the policy's `instanceof`, be treated as
+            // a foreign error and be retried: a red test caused entirely by the harness. Both modules must come
+            // from the same registry, so both are imported here.
+            const { AppProviders } = await import('../../src/providers/AppProviders.js');
+            const { NotFoundError, UnexpectedResponseError } = await import('@kitchensink/recipe-service-client');
+            const error =
+                kind === 'not-found'
+                    ? new NotFoundError()
+                    : kind === 'server-error'
+                      ? new UnexpectedResponseError(500)
+                      : new TypeError('Failed to fetch');
+            const queryFn = vi.fn().mockRejectedValue(error);
+
+            function FailingProbe() {
+                const { isError } = useQuery({ queryKey: ['probe', kind], queryFn });
+
+                return <Text>{isError ? 'errored' : 'pending'}</Text>;
+            }
+
+            render(
+                <AppProviders>
+                    <FailingProbe />
+                </AppProviders>,
+            );
+
+            await screen.findByText('errored', undefined, { timeout: 25_000 });
+
+            expect(queryFn).toHaveBeenCalledTimes(attempts);
+        },
+        30_000,
+    );
 
     it('throws if a child tries to read the recipe-service client OUTSIDE the tree (order is load-bearing)', () => {
         // `useRecipeServiceClient` (unwrapped) proves the gate is genuinely providing context, not a no-op —

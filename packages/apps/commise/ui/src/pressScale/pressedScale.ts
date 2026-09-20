@@ -1,10 +1,11 @@
 /**
  * @module @commise/ui/press-scale — the pure press-scale computation shared by the native
- * {@link import('./PressScale.native.js').PressScale} leaf.
+ * `PressScale` (`./PressScale.native.tsx`) leaf.
  *
  * The native leaf drives a `transform: [{ scale }]` from its `Pressable`'s `pressed` state; this module
  * isolates the branch logic so it is unit-testable without a renderer. The web leaf does the same thing
- * declaratively with a Tailwind `motion-safe:active:scale-*` utility, so it has no counterpart here.
+ * declaratively with a Tailwind `motion-safe:not-has-aria-disabled:active:scale-*` utility, so it has no
+ * counterpart here.
  */
 
 /**

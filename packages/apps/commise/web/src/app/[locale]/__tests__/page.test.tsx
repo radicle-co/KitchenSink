@@ -26,7 +26,7 @@ const mockedAuth = vi.mocked(auth);
 const { redirect } = await import('next/navigation');
 const mockedRedirect = vi.mocked(redirect);
 
-const { HomeWidgetSurface } = await import('@/components/home');
+const { HomeWidgetSurface } = await import('@/components/home/HomeWidgetSurface');
 const { default: HomePage } = await import('../page.js');
 
 /** Resolve `auth()` as a signed-out caller. */

@@ -50,10 +50,10 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 **FRs**: [FR-010](../spec.md#fr-010), [FR-011](../spec.md#fr-011), [FR-012](../spec.md#fr-012)
 
-| Metric ID    | Metric                               | Target | Source                 | Signal                                     |
-| ------------ | ------------------------------------ | ------ | ---------------------- | ------------------------------------------ |
-| MET-US003-01 | Logout completion success            | >= 99% | auth API telemetry     | logout success / logout attempts           |
-| MET-US003-02 | Post-logout protected-request denial | 100%   | API logs               | protected calls after logout returning 401 |
+| Metric ID    | Metric                               | Target | Source               | Signal                                     |
+| ------------ | ------------------------------------ | ------ | -------------------- | ------------------------------------------ |
+| MET-US003-01 | Logout completion success            | >= 99% | auth API telemetry   | logout success / logout attempts           |
+| MET-US003-02 | Post-logout protected-request denial | 100%   | API logs             | protected calls after logout returning 401 |
 | MET-US003-03 | Token revocation call success        | >= 99% | IdP integration logs | revocation success / revocation attempts   |
 
 ---
@@ -64,11 +64,11 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 **FRs**: [FR-013](../spec.md#fr-013), [FR-014](../spec.md#fr-014), [FR-015](../spec.md#fr-015), [FR-016](../spec.md#fr-016), [FR-017](../spec.md#fr-017)
 
-| Metric ID    | Metric                          | Target   | Source                | Signal                                           |
-| ------------ | ------------------------------- | -------- | --------------------- | ------------------------------------------------ |
-| MET-US004-01 | Initial signup sync success     | >= 99%   | webhook/action logs   | successful User+Account writes / signup events   |
-| MET-US004-02 | Retry-assisted recovery rate    | >= 99.5% | webhook retry metrics | eventual success after retries / retry attempts  |
-| MET-US004-03 | Reconciliation unresolved drift | 0        | nightly job report    | orphaned IdP users without DB record after run |
+| Metric ID    | Metric                          | Target   | Source                | Signal                                          |
+| ------------ | ------------------------------- | -------- | --------------------- | ----------------------------------------------- |
+| MET-US004-01 | Initial signup sync success     | >= 99%   | webhook/action logs   | successful User+Account writes / signup events  |
+| MET-US004-02 | Retry-assisted recovery rate    | >= 99.5% | webhook retry metrics | eventual success after retries / retry attempts |
+| MET-US004-03 | Reconciliation unresolved drift | 0        | nightly job report    | orphaned IdP users without DB record after run  |
 
 ---
 

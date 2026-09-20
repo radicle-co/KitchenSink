@@ -22,7 +22,10 @@ import { palette } from '@commise/ui';
 import { cssColor, tintOf } from '../../__tests__/cssColor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionRecipePicker } from '../CollectionRecipePicker.native.js';
-import type { CollectionRecipePickerProps } from '../model.js';
+import { CollectionRecipePickerCandidates } from '../CollectionRecipePickerCandidates.native.js';
+import { CollectionRecipePickerLoadError } from '../CollectionRecipePickerLoadError.native.js';
+import { CollectionRecipePickerLoading } from '../CollectionRecipePickerLoading.native.js';
+import type { CollectionRecipePickerCandidatesProps, CollectionRecipePickerProps } from '../model.js';
 
 afterEach(cleanup);
 
@@ -33,23 +36,52 @@ const RECIPES = [
     { id: 'rec_2', title: 'Sheet-Pan Chicken', totalTimeMinutes: 45, updatedAt: '2026-04-18T09:30:00.000Z' },
 ] as const;
 
-function renderPicker(overrides: Partial<CollectionRecipePickerProps> = {}) {
-    const props: CollectionRecipePickerProps = {
-        collectionName: 'Weeknight Dinners',
-        status: 'ready',
-        recipes: RECIPES,
-        memberRecipeIds: [],
-        query: '',
-        onQueryChange: noop,
-        onAdd: noop,
-        onRetry: noop,
-        onCreateRecipe: noop,
-        onDone: noop,
-        ...overrides,
-    };
-    render(<CollectionRecipePicker {...props} />);
+type FrameProps = Omit<CollectionRecipePickerProps, 'children'>;
 
-    return props;
+/** The frame's props, with the fixture collection and inert callbacks. */
+function frameProps(overrides: Partial<FrameProps> = {}): FrameProps {
+    return { collectionName: 'Weeknight Dinners', query: '', onQueryChange: noop, onDone: noop, ...overrides };
+}
+
+/** Render the frame around the settled candidates. */
+function renderPicker(overrides: Partial<FrameProps & CollectionRecipePickerCandidatesProps> = {}) {
+    const { collectionName, onQueryChange, onDone, ...candidates } = overrides;
+    const frame = frameProps({
+        ...(collectionName === undefined ? {} : { collectionName }),
+        ...(onQueryChange === undefined ? {} : { onQueryChange }),
+        ...(onDone === undefined ? {} : { onDone }),
+        ...(candidates.query === undefined ? {} : { query: candidates.query }),
+    });
+    render(
+        <CollectionRecipePicker {...frame}>
+            <CollectionRecipePickerCandidates
+                recipes={RECIPES}
+                memberRecipeIds={[]}
+                query={frame.query}
+                onAdd={noop}
+                onCreateRecipe={noop}
+                {...candidates}
+            />
+        </CollectionRecipePicker>,
+    );
+}
+
+/** Render the frame around the loading body. */
+function renderLoading() {
+    render(
+        <CollectionRecipePicker {...frameProps()}>
+            <CollectionRecipePickerLoading />
+        </CollectionRecipePicker>,
+    );
+}
+
+/** Render the frame around the load-error body. */
+function renderLoadError(onRetry: () => void = noop) {
+    render(
+        <CollectionRecipePicker {...frameProps()}>
+            <CollectionRecipePickerLoadError onRetry={onRetry} />
+        </CollectionRecipePicker>,
+    );
 }
 
 describe('CollectionRecipePicker (native) — chrome', () => {
@@ -92,7 +124,7 @@ describe('CollectionRecipePicker (native) — text controls clear the AA body-te
     });
 
     it('keeps the load-error Try again label legible on its white card', () => {
-        renderPicker({ status: 'error', recipes: [] });
+        renderLoadError();
 
         expect(computedContrast(screen.getByText('Try again')), 'Try again').toBeGreaterThanOrEqual(4.5);
     });
@@ -114,17 +146,21 @@ describe('CollectionRecipePicker (native) — text controls clear the AA body-te
 
 describe('CollectionRecipePicker (native) — fetch states', () => {
     it('shows the loading label and no rows while loading', () => {
-        renderPicker({ status: 'loading', recipes: [] });
+        renderLoading();
 
         expect(screen.getByLabelText('Loading your recipes')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Add Weeknight Pasta' })).toBeNull();
+        // The frame is the same in every state: the search field and Done (the only way out) stay put.
+        expect(screen.getByLabelText('Search your recipes')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
     });
 
     it('shows an alert and retries on request when the load fails', () => {
         const onRetry = vi.fn();
-        renderPicker({ status: 'error', recipes: [], onRetry });
+        renderLoadError(onRetry);
 
         expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 

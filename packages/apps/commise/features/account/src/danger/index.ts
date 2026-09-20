@@ -3,7 +3,7 @@
  * blocks (CR-002 / U4b). The `AccountEraseDialog` specifier resolves to its web (`.tsx`) or native
  * (`.native.tsx`) leaf at bundle time; the model + messages layers are platform-agnostic. The apps compose
  * these into their account screens, and render closure through `@commise/ui`'s `ConfirmDialog` with the
- * `close` copy from {@link accountDangerMessages}.
+ * `close` copy from `accountDangerMessages`.
  */
 export { AccountEraseDialog } from './AccountEraseDialog.js';
 

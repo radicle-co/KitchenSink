@@ -2,28 +2,29 @@
  * @module @commise/features-recipes — web recipe version-history view (T069 building block).
  *
  * Controlled, presentational version list: renders a recipe's versions newest-first, each with its number,
- * timestamp, editor/device attribution (when known), and a computed "Changed: {fields}" summary versus its
+ * timestamp, editor attribution (when known), and a computed "Changed: {fields}" summary versus its
  * immediately-prior version (the earliest version shows an "Initial version" label instead). The current
  * version is marked and not restorable; every other version offers Restore and (when `onPreview` is wired)
  * Preview actions, and the version being restored shows a busy status (with all restore actions disabled to
  * prevent a concurrent restore). Empty state when there is no history. A "Back to Recipe" affordance renders
  * when `onBack` is wired (V6 — the native `RecipeVersionsScreen` already composes its own back chrome, so
- * only this web leaf needs it). It fetches nothing; the composing app wires `useRecipeVersions` +
+ * only this web leaf needs it). It fetches nothing; the composing app wires its history read +
  * `useRestoreRecipeVersion` to these props.
  */
+import { BUSY_CONTROL_CLASS, busyControlProps } from '@commise/ui/button';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
 import { recipeVersionMessages } from './messages.js';
+import { fillTemplate } from '../list/model.js';
 import {
+    type RecipeVersionListProps,
     changeSummaryForVersion,
-    fillTemplate,
     formatChangedFieldNames,
     formatVersionAttribution,
-    formatVersionTimestamp,
     sortVersionsDescending,
-    type RecipeVersionListProps,
-} from './model.js';
+} from './history.js';
+import { formatVersionTimestamp } from './timeFormat.js';
 
 /**
  * The heading + optional "Back to Recipe" affordance shared by the empty and populated states.
@@ -96,11 +97,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                 {sortVersionsDescending(versions).map((version) => {
                     const isCurrent = version.versionNumber === currentVersion;
                     const isBusy = restoringVersion === version.versionNumber;
-                    const attribution = formatVersionAttribution(
-                        version.editorHandle,
-                        version.deviceLabel,
-                        versionList,
-                    );
+                    const attribution = formatVersionAttribution(version.editorHandle, versionList);
                     const { hasPrior, changedFields } = changeSummaryForVersion(versions, version);
 
                     return (
@@ -171,9 +168,11 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                         aria-label={fillTemplate(versionList.restoreAction, {
                                             version: version.versionNumber,
                                         })}
-                                        disabled={isRestoring}
-                                        onClick={() => onRestore(version.versionNumber)}
-                                        className="rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10 disabled:opacity-60"
+                                        {...busyControlProps({
+                                            busy: isRestoring,
+                                            onClick: () => onRestore(version.versionNumber),
+                                        })}
+                                        className={`rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10 ${BUSY_CONTROL_CLASS}`}
                                     >
                                         {versionList.restore}
                                     </button>

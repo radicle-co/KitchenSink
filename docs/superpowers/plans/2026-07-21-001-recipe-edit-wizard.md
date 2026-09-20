@@ -35,7 +35,7 @@
 
 **Interfaces (unchanged, new home):** `computeRecipeNutrition(lines: readonly NutritionLine[], servings: number): RecipeNutrition`; `leadCaloriesPerServing(...): number | undefined`; `unitToGrams(quantity, unit, portions?): number | null`. `RecipeNutrition` already lives in recipe-core.
 
-- [ ] Step 1: move the files + tests into `recipe-core`; re-export. Step 2: update `recipe-service` imports (`recipes.service.ts`/`collections.service.ts`/`recipes.dal.ts`/`search.dal.ts`/`recipe-response.dto.ts`/`schema/recipes.ts`) to `@kitchensink/recipe-core`. Step 3: run recipe-core + recipe-service suites — the SAME tests must pass in the new home; the service's synth/behavior is byte-identical (verify no diff in what it computes). Step 4: `npm run typecheck` monorepo-wide (the move touches a service). Commit `refactor(recipe-core): host the nutrition aggregator for client reuse (w3/e3)`.
+- [ ] Step 1: move the files + tests into `recipe-core`; re-export. Step 2: update `recipe-service` imports (`recipes.service.ts`/`collections.service.ts`/`recipes.dal.ts`/`search.dal.ts`/`recipeResponse.dto.ts`/`schema/recipes.ts`) to `@kitchensink/recipe-core`. Step 3: run recipe-core + recipe-service suites — the SAME tests must pass in the new home; the service's synth/behavior is byte-identical (verify no diff in what it computes). Step 4: `npm run typecheck` monorepo-wide (the move touches a service). Commit `refactor(recipe-core): host the nutrition aggregator for client reuse (w3/e3)`.
 
 ---
 
@@ -96,7 +96,7 @@
 
 ## Task 8: E2E rewrite + full-pyramid closure (web Playwright + mobile Maestro)
 
-**Files:** rewrite `web/tests/e2e/recipeCrud.spec.ts` (the edit path) + add a wizard-specific spec (`recipeEditWizard.spec.ts`) driving all 4 steps (create happy path through Basic→Ingredients→Instructions→Photos→Publish; Save-Draft-then-return; Publish-blocked-on-invalid flags the step; per-file photo status; discard guard). Rewrite mobile Maestro `create.yaml`/`edit.yaml` for the 4-step screen-per-step flow (the old single-tall-form choreography is gone). Keep every preserved accessible name (see Global Constraints). Confirm `recipeConflict.spec.ts` + `conflict-merge.yaml` still pass (the wizard composes the SAME `useRecipeEditor` conflict path).
+**Files:** rewrite `web/tests/e2e/recipeCrud.spec.ts` (the edit path) + add a wizard-specific spec (`recipeEditWizard.spec.ts`) driving all 4 steps (create happy path through Basic→Ingredients→Instructions→Photos→Publish; Save-Draft-then-return; Publish-blocked-on-invalid flags the step; per-file photo status; discard guard). Rewrite mobile Maestro `create.yaml`/`edit.yaml` for the 4-step screen-per-step flow (the old single-tall-form choreography is gone). Keep every preserved accessible name (see Global Constraints). Confirm `recipeConflict.spec.ts` + `conflictMerge.yaml` still pass (the wizard composes the SAME `useRecipeEditor` conflict path).
 
 - [ ] Playwright: the 4-step create + edit + draft + publish-blocked + discard flows (`getByRole`/`getByLabel` only). Maestro: the rewritten create/edit flows step-by-step. Run the web suite + confirm the E2E specs are well-formed (they execute in CI). Commit `test(recipes): e2e for the 4-step edit wizard, rewrite create/edit flows (w3/e7)`.
 

@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/aws-serverless';
 import type { Handler } from 'aws-lambda';
 
-import { scrubEvent, scrubLog } from './sentry-scrubbers.js';
+import { scrubEvent, scrubLog } from './sentryScrubbers.js';
 
 /**
  * Observability for the identity-webhooks Lambdas.

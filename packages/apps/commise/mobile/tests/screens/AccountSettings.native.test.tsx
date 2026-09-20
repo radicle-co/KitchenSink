@@ -32,7 +32,7 @@ vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({
     useSignOutAndVerify: () => ({ signOutAndVerify }),
 }));
 
-vi.mock('../../src/hooks/useUserProfile.js', () => ({
+vi.mock('../../src/hooks/useDeleteAccount.js', () => ({
     useDeleteAccount: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
 }));
 

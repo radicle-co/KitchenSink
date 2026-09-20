@@ -89,22 +89,22 @@ Cross-cutting: SYS-011 (TS Strict) ──uses──► SYS-001, SYS-004, SYS-007
 
 ### External Interfaces
 
-| Component | Interface Name       | Protocol         | Input                                                                                         | Output                                                 | Error Handling                                          |
+| Component | Interface Name | Protocol | Input | Output | Error Handling |
 | --------- | -------------------- | ---------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------- | -------------------------------------- |
-| SYS-009   | Subscription Webhook | HTTPS POST       | Derived — supports cross-cutting implementation constraints for traced parent system behavior | 200 OK or 4xx/5xx (Derived)                            | Retry with exponential backoff; DLQ on repeated failure |
-| SYS-008   | Clerk User Identity  | `@clerk/backend` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | User object with `subscriptionTier: 'free' \ (Derived) | 'premium'`                                              | Throw `AuthIdentityError`; deny access |
-| SYS-006   | Upgrade Prompt UI    | React component  | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Rendered upgrade prompt with feature preview (Derived) | Fallback to generic upgrade CTA                         |
+| SYS-009 | Subscription Webhook | HTTPS POST | Derived — supports cross-cutting implementation constraints for traced parent system behavior | 200 OK or 4xx/5xx (Derived) | Retry with exponential backoff; DLQ on repeated failure |
+| SYS-008 | Clerk User Identity | `@clerk/backend` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | User object with `subscriptionTier: 'free' \ (Derived) | 'premium'` | Throw `AuthIdentityError`; deny access |
+| SYS-006 | Upgrade Prompt UI | React component | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Rendered upgrade prompt with feature preview (Derived) | Fallback to generic upgrade CTA |
 
 ### Internal Interfaces
 
-| Source  | Target  | Interface Name                     | Protocol                                                                                      | Data Format                                                | Error Handling                    |
+| Source | Target | Interface Name | Protocol | Data Format | Error Handling |
 | ------- | ------- | ---------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------- | ---------------------------------------- |
-| SYS-004 | SYS-008 | `getUserTier(userId)`              | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ userId: string } → 'free' \ (Derived)                   | 'premium'`                        | Throw `TierResolutionError`; fail-closed |
-| SYS-004 | SYS-013 | `getFeatureTier(featureId)`        | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ featureId: string } → 'free' \ (Derived)                | 'premium'`                        | Throw `FeatureNotRegisteredError`; deny  |
-| SYS-007 | SYS-001 | `setUserTier(userId, tier)`        | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ userId: string, tier: Tier, reason: string }` (Derived) | Throw `TierUpdateError`; rollback |
-| SYS-009 | SYS-007 | `handleLifecycleEvent(event)`      | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `SubscriptionEvent` (typed union) (Derived)                | Throw `LifecycleEventError`; DLQ  |
-| SYS-007 | SYS-005 | `enforceVisibilityOnLapse(userId)` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ userId: string }` (Derived)                             | Log and alert; do not block lapse |
-| SYS-007 | SYS-010 | `retainUserData(userId)`           | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ userId: string }` (Derived)                             | Throw `DataRetentionError`; alert |
+| SYS-004 | SYS-008 | `getUserTier(userId)` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ userId: string } → 'free' \ (Derived)                   | 'premium'` | Throw `TierResolutionError`; fail-closed |
+| SYS-004 | SYS-013 | `getFeatureTier(featureId)` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ featureId: string } → 'free' \ (Derived)                | 'premium'` | Throw `FeatureNotRegisteredError`; deny |
+| SYS-007 | SYS-001 | `setUserTier(userId, tier)` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ userId: string, tier: Tier, reason: string }` (Derived) | Throw `TierUpdateError`; rollback |
+| SYS-009 | SYS-007 | `handleLifecycleEvent(event)` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `SubscriptionEvent` (typed union) (Derived) | Throw `LifecycleEventError`; DLQ |
+| SYS-007 | SYS-005 | `enforceVisibilityOnLapse(userId)` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ userId: string }` (Derived) | Log and alert; do not block lapse |
+| SYS-007 | SYS-010 | `retainUserData(userId)` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `{ userId: string }` (Derived) | Throw `DataRetentionError`; alert |
 
 ## Data Design View (IEEE 1016 §5.4)
 

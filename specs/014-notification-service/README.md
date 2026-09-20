@@ -1,8 +1,8 @@
 # Feature 014: Notification Service
 
 **Branch**: `014-notification-service`
-**Status**: Bootstrap — initial product context only
-**Created**: 2026-05-10
+**Status**: Planning complete, reconciled — **not implemented**
+**Created**: 2026-05-10 · **Last reconciled**: 2026-08-10
 
 ---
 
@@ -10,7 +10,7 @@
 
 Multiple features publish events that should reach users (or systems acting on behalf of users):
 
-- **003 — USDA Food Data**: `food.backfill.completed`, fetch-failure events.
+- **003 — USDA Food Data**: `food.resolution.completed` (the keyword named by 003's decision register), plus fetch-failure notices. The envelope is published by the **recipe service**, not the food service — see `spec.md` → Dependencies.
 - **001 — Commise**: recipe lifecycle events referenced in product-spec.
 - **005 — AI Integration**: AI-generated content disclosures.
 - **008 — Cooking Mode**: timer alerts.
@@ -26,7 +26,9 @@ This feature owns that infrastructure.
 
 **In scope (launch)**
 
-- Generic publish API for any backend service to emit a message.
+- Generic publish contract reachable over **two ingress paths** — an authenticated HTTP endpoint and an
+  EventBridge subscription on a reserved `detailType` — implemented as adapters over one core, so a rule
+  cannot hold on one path and not the other (`spec.md` FR-024).
 - Recipient descriptor model: single user, group, or global.
 - Subscription model for clients to receive messages whose recipient matches their identity / group membership.
 - `messageType` keyword on every message; receiving clients dispatch behavior based on that keyword.
@@ -43,6 +45,11 @@ This feature owns that infrastructure.
 **Explicit non-goals**
 
 - Owning the events themselves. Producers define their own `messageType` namespace.
+- **Aggregating, batching or correlating messages.** A publisher whose work fans out correlates its own
+  fan-out and publishes one envelope per user-meaningful outcome; one envelope per underlying completion is
+  a publisher defect (`spec.md` FR-031). This service cannot do it without reading `payload`, which FR-023
+  forbids, and "user-meaningful outcome" is knowledge only the publisher has.
+- Ingesting producers' **domain events**. The event path takes notification envelopes only (FR-025).
 - Replacing transactional email (USDA confirmation, auth flows, etc.).
 
 ---
@@ -61,21 +68,59 @@ This feature owns that infrastructure.
 
 ## Status
 
-**Bootstrap only.** This folder currently contains:
+> The previous version of this section claimed `spec.md`, `plan.md`, `tasks.md` and
+> `v-model/` did not exist. All four have existed since the 007–014 reconciliation
+> commit; the section was never updated.
 
-- Product-spec foundation (vision, personas, story map, open questions).
-- Light research scaffolding pointing at the cross-feature evidence.
-- An empty review log ready for the first revalidation pass.
+**Planning complete and reconciled. No code has been written.**
 
-It does **not** yet contain:
+> **Amended 2026-08-12 (owner rulings on retention, deduplication, producer identity and quotas).** `spec.md`
+> gained a `Clarifications → Session 2026-08-12` block, **US-012** (client acknowledges consumption) and
+> **US-013** (identical pending payloads collapse), **FR-034 – FR-044**, **SC-012 – SC-016**, amendments to
+> FR-012 / FR-018 / FR-019 / FR-023 / FR-026 / FR-027 / FR-033 and to SC-003 / SC-011, and its
+> _Open Questions_ section is now **_Resolved Questions_** — **OPEN-014-A, OPEN-014-B and OPEN-014-C are all
+> ruled**, as is the `messageType`-registry question that sat in _Wire Contract Ownership_. Design record:
+> [ADR-0016](../../docs/architecture/decisions/0016-notification-retention-payload-dedup-and-valkey.md).
+> Two portfolio rules were also ratified out of these rulings — `specs/governance-rules.md` **GR-018** (one
+> rejection path, invalid input never retried) and **GR-020** (dual-signal principal binding) — plus **GR-017**
+> and **GR-019**. The counts below are updated; the `sync-report`/`verify-report` staleness note still stands
+> and is now further out of date, not less.
 
-- `spec.md` (SpecKit FR-NNN decomposition)
-- `plan.md` (architecture / sequencing)
-- `tasks.md`
-- `v-model/` artifacts
-- `research/competitors.md`, `research/ux-patterns.md`, `research/tech-stack.md`, `research/metrics-roi.md`
+Present:
 
-These should be authored in a follow-up Product Forge cycle once the open questions in the product spec are resolved.
+- `spec.md` — **44 FR**, 8 NFR, **16 SC**, **13 user stories**
+- `plan.md` — dual-ingress contract, ordering/partitioning, data model, group model, NFR budgets
+- `tasks.md` — 48 dependency-ordered tasks, **1 complete** (T-048)
+- `v-model/` — 21 artifacts incl. peer reviews; 41 `REQ-NNN` mapped, **all scenarios untested**
+- `product-spec/` (4 docs), `research/` (2 docs), `review.md`, `sync-report.md`
+
+Still thin or outstanding:
+
+- `research/competitors.md`, `ux-patterns.md`, `tech-stack.md`, `metrics-roi.md` — unauthored
+- `contracts/` — no OpenAPI/AsyncAPI yet, so contract-drift checking cannot run. The 2026-08-10 amendment
+  makes this more consequential: FR-026 is a **normative wire contract** on two ingress paths, and
+  `payload-reference.md` (T-046) does not exist yet.
+- The `v-model/` chain was extended by hand on 2026-08-10 for FR-024 – FR-033. It still does not cover the
+  2026-08-05 scope additions (identity groups, the sequence authority, the client bell) and still owes
+  regeneration (see `review.md` → Outstanding).
+- `sync-report.{md,json}` and `verify-report.md` are **generated and stale** — they describe the
+  23-requirement, 33-task version. Do not read them as current.
+- Revalidation gate is **pending**.
+
+One open question blocks implementation start: the realtime subscribe protocol, SSE vs WebSocket (blocks
+T-012). **Q-004 producer authentication is now closed** — FR-032 names the platform Ed25519
+service-principal token, verified networklessly. Q-001, Q-002, Q-003, Q-005, Q-007 and Q-008 are resolved.
+**Q-003's retention value is now fixed at 72 hours with consumption as the primary terminator** (FR-012).
+
+Two items remain genuinely open after the 2026-08-12 rulings, and both are recorded in `spec.md` →
+_Resolved Questions_ → _Still open_ rather than hidden:
+
+- 🟠 whether **ElastiCache durability is available on Serverless Valkey** at the engine version provisioned —
+  a factual question about AWS that must be answered **before the cache is provisioned**, and which decides a
+  ≈ $3.21/month trade between a durable node and a non-durable serverless cache;
+- 🟠 the concrete **`payload` and envelope SIZE bounds** — product decisions with no storage floor to derive
+  from, which set both the fan-out cost and the metered-memory profile, and which must be numbers in the schema
+  before the envelope zod is generated.
 
 ---
 

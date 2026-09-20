@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes — web recipe-detail HERO cover (mockup `screen-recipe-detail`).
+ * @module @commise/features-recipes — web recipe-detail HERO cover (mockup `screenRecipeDetail`).
  *
  * The mockup opens the recipe detail with the cover photo: a full-width image (`h-64 md:h-96 object-cover`)
  * under a bottom-up scrim (`bg-gradient-to-t from-charcoal/60 to-transparent`) that keeps overlaid chrome
@@ -21,6 +21,9 @@
  *
  * Pure `props → JSX`: no fetching, no state, no navigation. The mockup's overlaid back/share/save controls are
  * NOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.
+ *
+ * @pattern Null Object for the no-cover state — a designed, branded placeholder stands in for the missing photo,
+ *     rather than an empty `src`, a zero-height box or an unlabelled rectangle.
  */
 import { useMessages } from '@commise/i18n/react';
 import { GradientSurface } from '@commise/ui/surface';

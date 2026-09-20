@@ -14,6 +14,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
+import { recipeDb } from '../../../tests/support/roleDb.js';
 
 /** A seeded catalog ingredient (Flour) from the baseline global setup. */
 const FLOUR_ID = '00000000-0000-4000-8000-0000000000aa';
@@ -36,16 +37,18 @@ const CREATE_BODY = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
+    ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: { kind: 'exact', value: 2 }, unit: 'cup' }],
     steps: [{ instruction: 'Mix the batter.' }],
 };
+
+const roleDb = recipeDb();
 
 describe.skipIf(!hasDatabaseUrl)('recipe version history populates (integration)', () => {
     let booted: BootedRecipeApp;
     let baseUrl: string;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp({ devAuthUserId: OWNER });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: OWNER });
         baseUrl = booted.baseUrl;
     });
 
@@ -56,6 +59,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version history populates (integration)
     const listVersions = async (recipeId: string): Promise<VersionBody[]> => {
         const res = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/versions`);
         expect(res.status).toBe(200);
+
         return (await res.json()) as VersionBody[];
     };
 

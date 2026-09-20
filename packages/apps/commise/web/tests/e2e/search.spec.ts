@@ -1,7 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import {
+    E2E_INGREDIENT_IDS,
+    E2E_RECIPE_IDS,
+    makeRecipeDetail,
+    mockRecipeApi,
+    readViewerAppId,
+} from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -33,6 +39,18 @@ import { signInWithTicket } from './utils/auth';
  * assertions to the post-filter half: the non-match reaching `toHaveCount(0)` across the WHOLE page and the
  * result count reading "1 recipe" can only happen if the criterion actually reached the API.
  */
+/**
+ * A discovery results sentence is rendered TWICE by design: once as the visible results header (or the no-match
+ * title), and once in the frame's polite `status` region that announces results when they settle. Asserting exactly
+ * two proves both — the viewer sees it and a screen reader hears it — and keeps Playwright's strict mode satisfied.
+ *
+ * @param page - The discovery page.
+ * @param sentence - The exact header sentence.
+ */
+function discoverySentence(page: Page, sentence: string): Locator {
+    return page.getByText(sentence, { exact: true });
+}
+
 test.describe('recipe search (T110)', () => {
     test('narrows public recipes to the typed term', async ({ page }) => {
         await signInWithTicket(page);
@@ -40,8 +58,8 @@ test.describe('recipe search (T110)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                makeRecipeDetail({ id: 'rec_paella', ownerId: 'usr_other', title: 'Seafood Paella' }),
-                makeRecipeDetail({ id: 'rec_pasta', ownerId: 'usr_other', title: 'Weeknight Pasta' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.paella, ownerId: 'usr_other', title: 'Seafood Paella' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.pasta, ownerId: 'usr_other', title: 'Weeknight Pasta' }),
             ],
         });
 
@@ -58,7 +76,8 @@ test.describe('recipe search (T110)', () => {
         await page.getByRole('searchbox', { name: 'Search public recipes' }).fill('paella');
         await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Seafood Paella' })).toBeVisible();
-        await expect(page.getByText('1 recipe')).toBeVisible();
+        // With a term typed the header names it (`resultsForQuery`); a bare count is a filter-only narrowing's.
+        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(2);
     });
 
     test('shows the empty state when nothing matches the term', async ({ page }) => {
@@ -66,7 +85,7 @@ test.describe('recipe search (T110)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            recipes: [makeRecipeDetail({ id: 'rec_paella', ownerId: 'usr_other', title: 'Seafood Paella' })],
+            recipes: [makeRecipeDetail({ id: E2E_RECIPE_IDS.paella, ownerId: 'usr_other', title: 'Seafood Paella' })],
         });
 
         await page.goto(route('/discover'));
@@ -77,7 +96,7 @@ test.describe('recipe search (T110)', () => {
         // Next's permanent route-announcer `<div role="alert" id="__next-route-announcer__">` occupies on
         // every page.) "No matching recipes" ≠ the browse-empty "No recipes found": the caller searched.
         await page.getByRole('searchbox', { name: 'Search public recipes' }).fill('tiramisu');
-        await expect(page.getByText('No matching recipes')).toBeVisible();
+        await expect(discoverySentence(page, 'No matching recipes')).toHaveCount(2);
         await expect(page.getByRole('article', { name: 'Seafood Paella' })).toHaveCount(0);
         await expect(page.getByText('We couldn’t load recipes.')).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
@@ -90,14 +109,14 @@ test.describe('recipe search (T110)', () => {
             viewerId,
             recipes: [
                 makeRecipeDetail({
-                    id: 'rec_salad',
+                    id: E2E_RECIPE_IDS.gardenSalad,
                     ownerId: 'usr_other',
                     title: 'Gourmet Garden Salad',
                     dietaryFlags: ['vegan'],
                     totalTimeMinutes: 15,
                 }),
                 makeRecipeDetail({
-                    id: 'rec_lamb',
+                    id: E2E_RECIPE_IDS.lamb,
                     ownerId: 'usr_other',
                     title: 'Mediterranean Grilled Lamb',
                     dietaryFlags: [],
@@ -121,7 +140,7 @@ test.describe('recipe search (T110)', () => {
         await expect(page.getByRole('button', { name: 'vegan, 1 recipe' })).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('article', { name: 'Mediterranean Grilled Lamb' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Gourmet Garden Salad' })).toBeVisible();
-        await expect(page.getByText('1 recipe')).toBeVisible();
+        await expect(discoverySentence(page, '1 recipe')).toHaveCount(2);
 
         // The URL now carries the filter (shareable / reload-safe).
         await expect(page).toHaveURL(/dietaryFlags=vegan/);
@@ -134,14 +153,14 @@ test.describe('recipe search (T110)', () => {
             viewerId,
             recipes: [
                 makeRecipeDetail({
-                    id: 'rec_seared',
+                    id: E2E_RECIPE_IDS.scallops,
                     ownerId: 'usr_other',
                     title: 'Pan-Seared Scallops',
                     prepTimeMinutes: 5,
                     cookTimeMinutes: 10,
                 }),
                 makeRecipeDetail({
-                    id: 'rec_braised',
+                    id: E2E_RECIPE_IDS.shortRibs,
                     ownerId: 'usr_other',
                     title: 'Braised Short Ribs',
                     prepTimeMinutes: 5,
@@ -166,7 +185,7 @@ test.describe('recipe search (T110)', () => {
         await expect(under15).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Pan-Seared Scallops' })).toBeVisible();
-        await expect(page.getByText('1 recipe')).toBeVisible();
+        await expect(discoverySentence(page, '1 recipe')).toHaveCount(2);
 
         // The URL now carries the filter (shareable / reload-safe).
         await expect(page).toHaveURL(/maxCookTime=15/);
@@ -178,15 +197,22 @@ test.describe('recipe search (T110)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                // Default ingredients (`utils/recipeApi.ts`'s `makeRecipeDetail`) carry the catalog id `ing_salt`
-                // ("Salt") the mocked `/api/v1/ingredients/search` always returns, regardless of the typed query.
-                makeRecipeDetail({ id: 'rec_soup', ownerId: 'usr_other', title: 'Weeknight Ramen Bowl' }),
+                // Default ingredients (`utils/recipeApi.ts`'s `makeRecipeDetail`) carry the catalog id
+                // `E2E_INGREDIENT_IDS.salt` ("Salt") the mocked `/api/v1/ingredients/search` always returns,
+                // regardless of the typed query.
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.ramen, ownerId: 'usr_other', title: 'Weeknight Ramen Bowl' }),
                 makeRecipeDetail({
-                    id: 'rec_salad',
+                    id: E2E_RECIPE_IDS.fruitSalad,
                     ownerId: 'usr_other',
                     title: 'Tropical Fruit Salad',
                     ingredients: [
-                        { ingredientId: 'ing_mango', name: 'Mango', quantity: 1, unit: 'each', isUserEntered: false },
+                        {
+                            ingredientId: E2E_INGREDIENT_IDS.mango,
+                            name: 'Mango',
+                            quantity: { kind: 'exact', value: 1 },
+                            unit: 'each',
+                            isUserEntered: false,
+                        },
                     ],
                 }),
             ],
@@ -199,7 +225,7 @@ test.describe('recipe search (T110)', () => {
 
         // FILTER — typing an ingredient name surfaces the catalog match; picking it narrows the set. The
         // non-matching salad disappearing is the assertion that matters: it can only happen if
-        // `ingredientIds=ing_salt` actually reached the API.
+        // the salt ingredient id actually reached the API as a filter.
         // The option is addressed by its ACTION name ("Filter by Salt"), which is what makes it distinguishable
         // from the search box that now holds the typed query — a bare "Salt" would also match the field.
         await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('sal');
@@ -209,12 +235,12 @@ test.describe('recipe search (T110)', () => {
 
         await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
-        await expect(page.getByText('1 recipe')).toBeVisible();
+        await expect(discoverySentence(page, '1 recipe')).toHaveCount(2);
 
         // The picked ingredient renders as a removable chip, and the URL now carries it (shareable / reload-safe).
         const chip = page.getByRole('button', { name: 'Remove Salt' });
         await expect(chip).toBeVisible();
-        await expect(page).toHaveURL(/ingredientId=ing_salt/);
+        await expect(page).toHaveURL(new RegExp(`ingredientId=${E2E_INGREDIENT_IDS.salt}`, 'u'));
 
         // Removing the chip clears the last criterion, so the surface returns to the curated browse default
         // (rails over the full public set), not a flat list — hence `.first()` again.
@@ -230,8 +256,8 @@ test.describe('recipe search (T110)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                makeRecipeDetail({ id: 'rec_paella', ownerId: 'usr_other', title: 'Seafood Paella' }),
-                makeRecipeDetail({ id: 'rec_pasta', ownerId: 'usr_other', title: 'Weeknight Pasta' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.paella, ownerId: 'usr_other', title: 'Seafood Paella' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.pasta, ownerId: 'usr_other', title: 'Weeknight Pasta' }),
             ],
         });
 
@@ -239,7 +265,7 @@ test.describe('recipe search (T110)', () => {
 
         // S5 — an active query names the result set it is FOR (not just a bare count).
         await page.getByRole('searchbox', { name: 'Search public recipes' }).fill('paella');
-        await expect(page.getByText('Showing 1 recipe for “paella”')).toBeVisible();
+        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(2);
 
         // S3 — the sort control is a single-select radiogroup; choosing Quickest moves the selection there.
         const sort = page.getByRole('radiogroup', { name: 'Sort by' });
@@ -249,14 +275,79 @@ test.describe('recipe search (T110)', () => {
         await expect(sort.getByRole('radio', { name: 'Relevance' })).toHaveAttribute('aria-checked', 'false');
     });
 
+    /**
+     * A newer search pending behind the results on screen (`recipe-search.md`, "Updating Results State"). The
+     * discovery criteria are deferred, so the previous results stay — readable, still naming the query they belong
+     * to — instead of the skeleton replacing them. The region is deliberately NOT `aria-busy` (JAWS hides busy
+     * content), and the pending bar is decorative and hidden from assistive tech, so what is asserted is what a
+     * viewer and a screen reader both get: the old card, a header still naming the old query, and no loading status.
+     *
+     * The second search is HELD by the spec rather than delayed by a clock: the assertions run while it is
+     * provably pending, and the spec releases it.
+     */
+    test('keeps the previous results on screen while a newer search is pending', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.paella, ownerId: 'usr_other', title: 'Seafood Paella' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.pasta, ownerId: 'usr_other', title: 'Weeknight Pasta' }),
+            ],
+        });
+
+        let releaseSearch: () => void = () => undefined;
+        const released = new Promise<void>((resolve) => {
+            releaseSearch = resolve;
+        });
+        let heldSearchArrived: () => void = () => undefined;
+        const heldSearch = new Promise<void>((resolve) => {
+            heldSearchArrived = resolve;
+        });
+        // Registered after `mockRecipeApi`, so Playwright asks it first; `fallback` hands the request to the mock.
+        await page.route(
+            (url) => url.pathname.endsWith('/api/v1/search/recipes') && url.searchParams.get('query') === 'pasta',
+            async (heldRoute) => {
+                heldSearchArrived();
+                await released;
+                await heldRoute.fallback();
+            },
+        );
+
+        await page.goto(route('/discover'));
+        const searchBox = page.getByRole('searchbox', { name: 'Search public recipes' });
+        await searchBox.fill('paella');
+        const previous = page.getByRole('article', { name: 'Seafood Paella' });
+        await expect(previous).toBeVisible();
+        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(2);
+
+        await searchBox.fill('pasta');
+        await heldSearch;
+
+        await expect(
+            page.getByRole('region', { name: 'Search results' }).getByRole('article', { name: 'Seafood Paella' }),
+        ).toBeVisible();
+        await expect(searchBox).toHaveValue('pasta');
+        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(2);
+        await expect(page.getByRole('status', { name: 'Loading recipes' })).toHaveCount(0);
+
+        releaseSearch();
+
+        const next = page.getByRole('article', { name: 'Weeknight Pasta' });
+        await expect(next).toBeVisible();
+        await expect(previous).toHaveCount(0);
+        await expect(discoverySentence(page, 'Showing 1 recipe for “pasta”')).toHaveCount(2);
+        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(0);
+    });
+
     test('narrows the caller’s own recipe list to the term', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                makeRecipeDetail({ id: 'rec_pasta', ownerId: viewerId, title: 'Weeknight Pasta' }),
-                makeRecipeDetail({ id: 'rec_soup', ownerId: viewerId, title: 'Lentil Soup' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.pasta, ownerId: viewerId, title: 'Weeknight Pasta' }),
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.lentilSoup, ownerId: viewerId, title: 'Lentil Soup' }),
             ],
         });
 

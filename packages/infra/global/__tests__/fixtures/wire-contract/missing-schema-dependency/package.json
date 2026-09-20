@@ -1,0 +1,7 @@
+{
+    "name": "@kitchensink/missing-schema-dependency-client",
+    "private": true,
+    "dependencies": {
+        "zod": "^4.4.3"
+    }
+}

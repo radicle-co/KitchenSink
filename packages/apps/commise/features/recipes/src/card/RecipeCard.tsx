@@ -12,7 +12,10 @@
  * `<RecipeCard recipe onSelect />` still works.
  *
  * Design rules encoded here (do not "simplify" them away):
- * - ABSENT difficulty / cuisine / calories / tags render NOTHING — never a default (FR-001b, CR-002).
+ * - ABSENT difficulty / cuisine / tags render NOTHING — never a default (FR-001b, CR-002).
+ * - Nutrition is a SLOT, not a field: the per-serving figure is a deferred lookup that lands after the card,
+ *   so the composing surface decides what goes in the meta row (a `RecipeNutritionBoundary`, a settled chip,
+ *   or nothing) and the card stays pure and ignorant of loading. See `nutrition/` and `RecipeCardProps`.
  * - The PRO badge is driven by the materialized `usesPremiumCapability` flag — never re-derived (FR-003a).
  * - A DRAFT renders a "Draft" badge that REPLACES the visibility badge — never "Public" on a draft, which a
  *   free-tier draft (visibility='public', community-invisible) would make a lie.
@@ -33,7 +36,6 @@ import {
     STAR_COUNT,
     difficultyTone,
     formatAverageRating,
-    formatCalories,
     formatRatingCount,
     formatRelativeTime,
     toStarFills,
@@ -46,12 +48,35 @@ export interface RecipeCardProps {
     readonly recipe: RecipeCardModel;
     /** When provided, the card is an actionable button that reports the recipe id (the list card). */
     readonly onSelect?: (id: string) => void;
+    /**
+     * The recipe's per-serving nutrition, as an already-decided NODE rendered in the meta row.
+     *
+     * A SLOT rather than a field, because the figure is a DEFERRED lookup that lands after the card does:
+     * the list holds the promise and decides what belongs here (`RecipeNutritionBoundary`, a settled
+     * `RecipeCalorieChip`, or nothing at all), and the card stays pure and knows nothing about loading. An
+     * ABSENT slot renders no line at all — the same absent-value rule as difficulty, cuisine and tags, and
+     * never a placeholder or a fabricated 0.
+     *
+     * ⚠️ It is `RecipeCard.Meta` that renders this. A custom arrangement (`children`) that omits `.Meta`
+     * DROPS the slot silently — unlike a misplaced part, which throws — because an unrendered optional node
+     * is indistinguishable from an absent one. `RecipeDiscoveryCard` and `CollectionMemberRow` are exactly
+     * such arrangements, so check for `<RecipeCard.Meta />` before concluding the figure never arrived.
+     */
+    readonly nutrition?: ReactNode;
     /** Custom arrangement of `RecipeCard.*` parts. Omit for the default merged card (list/widget). */
     readonly children?: ReactNode;
 }
 
 /** The card's view-model, carried to the parts so no surface has to thread props through the arrangement. */
 const RecipeCardContext = createContext<RecipeCardModel | null>(null);
+
+/**
+ * The nutrition slot's content, carried to `RecipeCard.Meta` the same way the view-model reaches the other
+ * parts. Kept as its OWN context rather than folded into the view-model: the model is data projected from a
+ * recipe, and this is a rendered node the composing surface supplies — merging them would put a `ReactNode`
+ * inside a pure, serializable view-model.
+ */
+const RecipeCardNutritionContext = createContext<ReactNode>(null);
 
 /** Read the card view-model from the nearest {@link RecipeCard}. Throws if a part is rendered outside one. */
 function useCardModel(): RecipeCardModel {
@@ -127,7 +152,13 @@ const CardCover: FC = () => {
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-pearl">
             {recipe.coverPhotoUrl !== undefined ? (
                 // FOLLOW-UP-CR-001-A: full-size original into a thumbnail-sized tile (no derived variants).
-                <img src={recipe.coverPhotoUrl} alt={recipe.title} className="h-full w-full object-cover" />
+                //
+                // #140 — `alt=""` marks the cover DECORATIVE, removing it from the accessibility tree. It used
+                // to be `alt={recipe.title}`: the same accessible name as the `<article>` (and, on the
+                // actionable card, the `<button>`) wrapping it, so one card exposed the recipe's name on two
+                // nodes and a screen reader announced it twice. The model carries no alternative text for the
+                // photo and `CardTitle` already renders the title, so an empty alt loses nothing.
+                <img src={recipe.coverPhotoUrl} alt="" className="h-full w-full object-cover" />
             ) : (
                 <div
                     role="img"
@@ -168,11 +199,11 @@ const CardTitle: FC = () => {
     return <h3 className="line-clamp-2 font-display text-heading-md font-semibold text-charcoal">{recipe.title}</h3>;
 };
 
-/** The meta row: total time · servings · difficulty · cuisine · calories (each rendered only when present). */
+/** The meta row: total time · servings · nutrition slot · difficulty · cuisine (each only when present). */
 const CardMeta: FC = () => {
     const { list, card } = useMessages(recipeMessages);
-    const locale = useLocale();
     const recipe = useCardModel();
+    const nutrition = useContext(RecipeCardNutritionContext);
     const duration = formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes);
     const difficultyLabel: Record<RecipeDifficulty, string> = {
         [RecipeDifficulty.EASY]: card.difficultyEasy,
@@ -196,11 +227,7 @@ const CardMeta: FC = () => {
                 <PeopleIcon />
                 {recipe.servings}
             </span>
-            {recipe.leadCaloriesPerServing !== undefined && (
-                <span>
-                    {card.caloriesLabel.replace('{calories}', formatCalories(recipe.leadCaloriesPerServing, locale))}
-                </span>
-            )}
+            {nutrition}
             {recipe.difficulty !== undefined && (
                 <span
                     className={`rounded-full px-2 py-0.5 text-caption font-semibold ${TONE_CLASS[difficultyTone(recipe.difficulty)]}`}
@@ -377,8 +404,12 @@ const CARD_GLASS = toWebGlass(glass.card, true);
  * `grid` — blockifying the span into a grid item that stretches to the full cell width, preserving the
  * card's layout while adding only motion.
  */
-const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => {
-    const content = children ?? <DefaultCardContent />;
+const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, nutrition = null, children }) => {
+    const content = (
+        <RecipeCardNutritionContext.Provider value={nutrition}>
+            {children ?? <DefaultCardContent />}
+        </RecipeCardNutritionContext.Provider>
+    );
 
     return (
         <RecipeCardContext.Provider value={recipe}>

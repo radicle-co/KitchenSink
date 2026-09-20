@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native collection form (T073 building block).
  *
- * The React Native leaf of {@link import('./CollectionForm.js').CollectionForm} — same controlled,
+ * The React Native leaf of `CollectionForm` — same controlled,
  * presentational create/rename contract, rendered with RN primitives. `mode` selects the title and submit
  * label; while `submitting`, the field and both actions are disabled to prevent duplicate submissions.
  */

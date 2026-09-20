@@ -1,0 +1,75 @@
+name: Create a Sentry release and upload its source maps
+description: >-
+    Register this commit as a Sentry release for one deployable and upload the source maps for its built
+    artifact. The ONE place that knows how a release is created in this repository, so every deployable
+    creates it the same way and a new one inherits the behaviour instead of copying it.
+
+inputs:
+    project:
+        description: The Sentry project slug this deployable reports to, e.g. kitchensink-recipe-workers
+        required: true
+    dist:
+        description: Path to the built artifact whose source maps are uploaded, e.g. packages/services/x/dist
+        required: true
+    release:
+        description: The release identifier. Must equal what the runtime sends as SENTRY_RELEASE — the commit SHA.
+        required: true
+    auth-token:
+        description: Sentry auth token. When empty every step below no-ops with a notice.
+        required: false
+        default: ''
+
+runs:
+    using: composite
+    steps:
+        # ⛔ IT ANNOUNCES ITS OWN ABSENCE RATHER THAN SKIPPING SILENTLY. A missing token is a legitimate
+        # state — a fork PR, a stage nobody has configured — but a step that vanishes leaves a deploy that
+        # looks complete and a release that does not exist, and the symptom arrives weeks later as a stack
+        # trace pointing at minified column 41209 of a file nobody can read.
+        - name: Announce when no Sentry token is configured
+          if: ${{ inputs.auth-token == '' }}
+          shell: bash
+          # ⚠️ Through `env`, never interpolated into the script. A `${{ }}` inside a `run:` block is
+          # expanded by the runner BEFORE bash sees it, so an input carrying shell metacharacters becomes
+          # code rather than text — zizmor's `template-injection`, and the reason every other step in this
+          # repository reads its values as shell variables.
+          env:
+              PROJECT: ${{ inputs.project }}
+              RELEASE: ${{ inputs.release }}
+          run: |
+              echo "::notice::NOT UPLOADED — no Sentry auth token on this run, so ${PROJECT} has no release for ${RELEASE}"
+
+        # ⛔ `--no-install`, so the binary that runs with the Sentry token in scope is the one the lockfile
+        # pins. It used to be `npx @sentry/cli@latest` in this repository, which executed whatever the
+        # registry served that day inside the production deploy; `postPruneToolchain.test.ts` now refuses any
+        # `npx` the lockfile does not pin.
+        #
+        # ⚠️ `continue-on-error` is deliberate and is the ONLY thing here that is best-effort: a Sentry
+        # outage must not fail a deploy that is otherwise correct. The release simply goes un-uploaded, and
+        # the notice above is why that is visible rather than silent.
+        - name: Create the release and upload source maps
+          if: ${{ inputs.auth-token != '' }}
+          continue-on-error: true
+          shell: bash
+          env:
+              SENTRY_AUTH_TOKEN: ${{ inputs.auth-token }}
+              SENTRY_ORG: radicle-co
+              SENTRY_PROJECT: ${{ inputs.project }}
+              SENTRY_RELEASE: ${{ inputs.release }}
+              DIST: ${{ inputs.dist }}
+          run: |
+              set -euo pipefail
+
+              if [ ! -d "${DIST}" ]; then
+                  echo "::error::${DIST} does not exist — this deployable was not built before its release step"
+                  exit 1
+              fi
+
+              # ⛔ THE RELEASE IS CREATED BEFORE THE MAPS ARE UPLOADED, and finalised after. An upload against
+              # a release that does not exist yet is accepted and then orphaned: the files are stored, and
+              # nothing associates them with the version a stack trace names.
+              npx --no-install sentry-cli releases new "${SENTRY_RELEASE}"
+              npx --no-install sentry-cli releases set-commits "${SENTRY_RELEASE}" --auto --ignore-missing
+              npx --no-install sentry-cli sourcemaps inject "${DIST}"
+              npx --no-install sentry-cli sourcemaps upload --release "${SENTRY_RELEASE}" "${DIST}"
+              npx --no-install sentry-cli releases finalize "${SENTRY_RELEASE}"

@@ -1,7 +1,7 @@
 # Stabilization Diagnosis — "spec" cluster (Feature 003)
 
 **Cluster docs reviewed:** `spec.md`, `checklists/requirements.md`
-**Cross-checked against:** `.stabilization/inputs/staff-review.md`, `.stabilization/inputs/autoresolutions.md`, `plan.md` (§2 canonical data model + §4), `v-model/*`, `product-spec/*`, and the implemented CDK (`packages/services/food-service/infra/lib/food-service-stack.ts`).
+**Cross-checked against:** `.stabilization/inputs/staff-review.md`, `.stabilization/inputs/autoresolutions.md`, `plan.md` (§2 canonical data model + §4), `v-model/*`, `product-spec/*`, and the implemented CDK (`packages/services/food-service/infra/lib/FoodServiceStack.ts`).
 **Scope:** STABILIZE-AND-COMPLETE the design docs. plan.md §2 (+`food_candidates`) is canonical; all findings resolve to an autoresolution default unless marked **needs decision**.
 
 Legend for severity: **C** critical, **H** high, **M** medium, **L** low.
@@ -14,7 +14,7 @@ Legend for severity: **C** critical, **H** high, **M** medium, **L** low.
 
 - **Location — spec.md:** US-0 scenario 8 (line 86), US-9 scenario 1 (line 265), FR-011 (line 355), FR-024 (line 390), FR-034 (line 417), FoodDataEvent entity (line 479).
 - **Location — checklists/requirements.md:** item 10 evidence (line 127, line 129), item 16 evidence (line 203).
-- **Problem:** spec.md and the checklist exclusively use `FoodDataReceived`. The **implemented CDK already uses `FoodFetchCompleted`** (`food-service-stack.ts:291` `FoodFetchCompletedRule`, `:296` `detailType: ['FoodFetchCompleted']`), and plan §4 / tasks `FU-EVENTNAME` (tasks.md:615) flag the name as needing harmonization. plan.md, v-model (`module-design.md` 15×, `system-test.md` 13×, `integration-test.md` 15×, etc.), and product-spec also still say `FoodDataReceived`. The CDK is the load-bearing anchor, so the rest is drift.
+- **Problem:** spec.md and the checklist exclusively use `FoodDataReceived`. The **implemented CDK already uses `FoodFetchCompleted`** (`FoodServiceStack.ts:291` `FoodFetchCompletedRule`, `:296` `detailType: ['FoodFetchCompleted']`), and plan §4 / tasks `FU-EVENTNAME` (tasks.md:615) flag the name as needing harmonization. plan.md, v-model (`module-design.md` 15×, `system-test.md` 13×, `integration-test.md` 15×, etc.), and product-spec also still say `FoodDataReceived`. The CDK is the load-bearing anchor, so the rest is drift.
 - **Resolved by:** **D-EVENT** — canonical name = `FoodFetchCompleted`. Replace every `FoodDataReceived` in spec.md (6 occurrences) and in the checklist's evidence text; reconcile the FoodDataEvent entity's type list.
 
 ### A2. [C] Demand counting: raw `+1` (FR-014 / US-5) vs distinct-requester (FR-044 / plan)
@@ -22,7 +22,7 @@ Legend for severity: **C** critical, **H** high, **M** medium, **L** low.
 - **Location — spec.md:** FR-014 SQL `... DO UPDATE SET request_count = fetch_queue.request_count + 1 ...` (line 361); US-5 narrative "increment a counter" (line 185); US-5 Independent Test `request_count=50` (line 189); US-5 scenarios 1 & 3 (lines 193, 195: "the existing row's `request_count` increments by 1"); FetchQueueRow entity `request_count` (line 477). This directly contradicts FR-044 (line 433: "MUST count **distinct authenticated `sub`s** … MUST NOT increment priority more than once … priority contribution MUST be capped").
 - **Cross-layer:** plan.md uses the distinct-requester model via `fetch_requesters(food_id, sub, requested_at)` (plan.md:253, 387: "a `sub` cannot inflate priority by repeating"). So spec FR-014/US-5 are the divergent ones.
 - **Problem:** the canonical enqueue cannot both "`+1` raw count" and "capped distinct-`sub` count (PRIORITY_CAP=1)". US-5's test asserts the raw model.
-- **Resolved by:** **D-DEMAND** — enqueue demand = distinct-requester: upsert `(food_id, sub)` into `fetch_requesters`, set `fetch_queue.request_count` to the capped distinct-`sub` count (PRIORITY_CAP=1), never raw `+1`. Rewrite FR-014, US-5 narrative (line 185), US-5 Independent Test (line 189), and US-5 scenarios 1/3 (lines 193, 195). Note US-5 scenario 1's "`request_count=50`" example must become 50 _distinct_ `sub`s, not 50 repeats by one `sub`.
+- **Resolved by:** **D-DEMAND** — enqueue demand = distinct-requester: upsert `(food_id, sub)` into `fetch_requesters`, set `fetch_queue.request_count` to the capped distinct-`sub` count (PRIORITY*CAP=1), never raw `+1`. Rewrite FR-014, US-5 narrative (line 185), US-5 Independent Test (line 189), and US-5 scenarios 1/3 (lines 193, 195). Note US-5 scenario 1's "`request_count=50`" example must become 50 \_distinct* `sub`s, not 50 repeats by one `sub`.
 
 ### A3. [C] SC-005 throughput vs SC-002 / USDA budget
 

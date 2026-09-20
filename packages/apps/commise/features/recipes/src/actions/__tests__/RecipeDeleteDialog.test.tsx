@@ -89,13 +89,16 @@ describe('RecipeDeleteDialog (web)', () => {
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the confirm action while deleting and does not fire again', async () => {
+    it('busies the confirm action while deleting and does not fire again', async () => {
         const user = userEvent.setup();
         const onConfirm = vi.fn();
         renderDialog({ deleting: true, onConfirm });
 
         const confirm = screen.getByRole<HTMLButtonElement>('button', { name: 'Delete' });
-        expect(confirm.disabled).toBe(true);
+        // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus in a real browser —
+        // WCAG 2.2 SC 2.4.3); the no-refire guarantee below is unchanged.
+        expect(confirm.getAttribute('aria-disabled')).toBe('true');
+        expect((confirm as HTMLButtonElement).disabled).toBe(false);
         expect(confirm.getAttribute('aria-busy')).toBe('true');
 
         await user.click(confirm);
@@ -172,6 +175,7 @@ describe('RecipeDeleteDialog (web) \u2014 Radix a11y machinery (B6/CR-003)', () 
 
         function Harness() {
             const [open, setOpen] = useState(false);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>
@@ -211,6 +215,7 @@ describe('RecipeDeleteDialog (web) \u2014 Radix a11y machinery (B6/CR-003)', () 
 
         function Harness() {
             const [open, setOpen] = useState(true);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>

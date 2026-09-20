@@ -11,6 +11,15 @@
  * - `list` / `delete` / `reorder` delegate to the DAL and shape rows into the `RecipePhoto` contract.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// The issue path is a different product from the log line, so it needs its own observation point.
+const { mockCaptureException } = vi.hoisted(() => ({ mockCaptureException: vi.fn() }));
+
+vi.mock('@sentry/nestjs', () => ({
+    captureException: mockCaptureException,
+    getClient: () => undefined,
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
 import {
     ownerMediaPrefix,
     recipePhotoKeyPrefix,
@@ -43,21 +52,46 @@ const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 const CONFIG: PhotosConfig = { cloudfrontUrl: 'https://cdn.example.com', thumbnailMaxPx: 400, thumbnailQuality: 80 };
 
 /**
- * A recipes service whose `getById` resolves to a recipe owned by the caller (default happy path).
- * Override `getById` to simulate a public-but-not-owned recipe (resolves with a different `ownerId`),
- * another owner's private recipe (throws NOT_OWNER), or a missing one (throws RECIPE_NOT_FOUND).
+ * A recipes service answering the two row-only permission checks — by default, a recipe the caller owns.
+ *
+ * ⛔ REWRITTEN. The ownership rule lives once, in `RecipesService.findOwnedRecipe`, so a non-owner is
+ * simulated by that method REJECTING — and `getById`, the DETAIL read, throws, so a photos path that uses
+ * the detail read as a permission check fails loudly instead of passing.
  */
-function fakeRecipes(getById = vi.fn().mockResolvedValue({ ownerId: OWNER })): RecipesService {
-    return { getById } as unknown as RecipesService;
+function fakeRecipes(
+    access: {
+        readonly findReadableRecipe?: ReturnType<typeof vi.fn>;
+        readonly findOwnedRecipe?: ReturnType<typeof vi.fn>;
+    } = {},
+): RecipesService & {
+    findReadableRecipe: ReturnType<typeof vi.fn>;
+    findOwnedRecipe: ReturnType<typeof vi.fn>;
+} {
+    return {
+        findReadableRecipe: access.findReadableRecipe ?? vi.fn().mockResolvedValue({ ownerId: OWNER }),
+        findOwnedRecipe: access.findOwnedRecipe ?? vi.fn().mockResolvedValue({ ownerId: OWNER }),
+        getById: vi.fn().mockRejectedValue(new Error('photos must not authorize through the detail read')),
+    } as unknown as RecipesService & {
+        findReadableRecipe: ReturnType<typeof vi.fn>;
+        findOwnedRecipe: ReturnType<typeof vi.fn>;
+    };
 }
 
 // Magic-byte signatures (only the leading bytes matter to the detector).
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 // A REAL minimal 1×1 PNG (base64). file-type parses the IHDR chunk, so the bare 8-byte signature is not
 // enough — a legitimate, complete image is the honest fixture (and not hand-crafted bytes).
+//
+// ⚠️ AND IT MUST ACTUALLY DECODE, not merely claim to. This slot previously held a 70-byte string whose
+// IDAT chunk carried a WRONG CRC over a TRUNCATED zlib stream. sharp 0.34's libpng was lenient enough to
+// read it; libvips 8.18.6 (sharp 0.35) is not, and answers `vipspng: libpng read error`. The confirm path
+// treats a thumbnail failure as non-fatal, so the only symptom was `putObject` silently never being called
+// — the malformed fixture had been asserting the DEGRADE path while the comment above claimed otherwise.
+// Two malformed variants were in use across 7 files. Verify any replacement end-to-end, not by eye:
+// every chunk CRC must match and the IDAT must inflate.
 const PNG = new Uint8Array(
     Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         'base64',
     ),
 );
@@ -285,7 +319,7 @@ describe('PhotosService.confirm', () => {
         const craftedKey = `${recipePhotoKeyPrefix(OWNER, craftedRecipeId)}object-1`;
         const row = makeRecipePhotoRow({ recipeId: craftedRecipeId, s3Key: craftedKey });
         const create = vi.fn().mockResolvedValue(row);
-        // getById resolves to OWNER, so the OWNER caller passes the owner check for this (crafted) recipeId.
+        // The owner check passes for the OWNER caller on this (crafted) recipeId.
         const service = new PhotosService(fakeDal({ create }), fakeStorage(), CONFIG, fakeRecipes(), fakeCdn());
 
         await service.confirm(OWNER, craftedRecipeId, craftedKey);
@@ -405,6 +439,48 @@ describe('PhotosService.delete (HAZ-051/067/039 — S3 delete + CDN invalidation
         expect(cdn.invalidate).not.toHaveBeenCalled();
     });
 
+    /**
+     * ⛔ THE ORPHAN IS REPORTED, not just logged (plan U22a step 3). The DB row is already gone when this
+     * fires, so nothing references the object any more: there is no sweeper, no retry and no second chance,
+     * and the residue is a photo of the user's that outlived their delete. HAZ-039 calls that tolerable only
+     * because the path is expected to succeed almost always — which is a statement the operator has to be
+     * able to check. A log line does not group, does not alert, and does not say WHICH S3 failure it was,
+     * and throttling and a permissions regression need opposite responses.
+     */
+    it('⛔ raises an issue when the S3 delete fails, because the object is now orphaned', async () => {
+        const row = makeRecipePhotoRow({ id: 'p-1', recipeId: RECIPE_ID, s3Key: keyFor('orig'), thumbnailKey: null });
+        const failure = new Error('AccessDenied');
+        const storage = fakeStorage({ deleteObject: vi.fn().mockRejectedValue(failure) });
+        const service = new PhotosService(
+            fakeDal({ delete: vi.fn().mockResolvedValue(row) }),
+            storage,
+            CONFIG,
+            fakeRecipes(),
+            fakeCdn(),
+        );
+
+        mockCaptureException.mockClear();
+        await service.delete(OWNER, RECIPE_ID, 'p-1');
+
+        expect(mockCaptureException).toHaveBeenCalledWith(failure);
+    });
+
+    it('⚠️ raises NO issue on a successful delete — an issue per photo is how a project becomes ignored', async () => {
+        const row = makeRecipePhotoRow({ id: 'p-2', recipeId: RECIPE_ID, s3Key: keyFor('orig'), thumbnailKey: null });
+        const service = new PhotosService(
+            fakeDal({ delete: vi.fn().mockResolvedValue(row) }),
+            fakeStorage(),
+            CONFIG,
+            fakeRecipes(),
+            fakeCdn(),
+        );
+
+        mockCaptureException.mockClear();
+        await service.delete(OWNER, RECIPE_ID, 'p-2');
+
+        expect(mockCaptureException).not.toHaveBeenCalled();
+    });
+
     it('does not fail the request when CDN invalidation fails after a successful S3 delete', async () => {
         const row = makeRecipePhotoRow({ id: 'p-1', recipeId: RECIPE_ID, s3Key: keyFor('orig'), thumbnailKey: null });
         const del = vi.fn().mockResolvedValue(row);
@@ -444,13 +520,34 @@ describe('PhotosService.reorder', () => {
 });
 
 describe('PhotosService recipe-ownership authorization', () => {
-    // A PUBLIC recipe owned by OWNER; getById resolves (read allowed for anyone) with ownerId=OWNER, so a
-    // caller of OTHER is a non-owner. Drives the mutation-rejection + public-read-allowed cases.
-    const publicOwnedByOwner = (): RecipesService => fakeRecipes(vi.fn().mockResolvedValue({ ownerId: OWNER }));
-    // A private recipe of another owner: getById itself throws NOT_OWNER (read denied).
-    const privateOtherOwner = (): RecipesService => fakeRecipes(vi.fn().mockRejectedValue(notOwner(RECIPE_ID)));
-    // A missing recipe: getById throws RECIPE_NOT_FOUND.
-    const missingRecipe = (): RecipesService => fakeRecipes(vi.fn().mockRejectedValue(recipeNotFound(RECIPE_ID)));
+    // A PUBLIC recipe owned by OWNER: readable by anyone, owned only by OWNER — so for OTHER the read passes
+    // and the owner check answers NOT_OWNER. Drives the mutation-rejection + public-read-allowed cases.
+    const publicOwnedByOwner = (): RecipesService =>
+        fakeRecipes({ findOwnedRecipe: vi.fn().mockRejectedValue(notOwner(RECIPE_ID)) });
+    // A private recipe of another owner: not even visible, so BOTH checks answer RECIPE_NOT_FOUND (W8-a.4).
+    const privateOtherOwner = (): RecipesService =>
+        fakeRecipes({
+            findReadableRecipe: vi.fn().mockRejectedValue(recipeNotFound(RECIPE_ID)),
+            findOwnedRecipe: vi.fn().mockRejectedValue(recipeNotFound(RECIPE_ID)),
+        });
+    // A missing recipe: both checks answer RECIPE_NOT_FOUND.
+    const missingRecipe = (): RecipesService =>
+        fakeRecipes({
+            findReadableRecipe: vi.fn().mockRejectedValue(recipeNotFound(RECIPE_ID)),
+            findOwnedRecipe: vi.fn().mockRejectedValue(recipeNotFound(RECIPE_ID)),
+        });
+
+    it('reads authorize through findReadableRecipe and mutations through findOwnedRecipe — never getById', async () => {
+        const recipes = fakeRecipes();
+        const dal = fakeDal({ findByRecipe: vi.fn().mockResolvedValue([]) });
+        const service = new PhotosService(dal, fakeStorage(), CONFIG, recipes, fakeCdn());
+
+        await service.list(OTHER, RECIPE_ID);
+        expect(recipes.findReadableRecipe).toHaveBeenCalledWith(OTHER, RECIPE_ID);
+
+        await service.createUploadUrl(OWNER, RECIPE_ID, uploadRequest('image/jpeg'));
+        expect(recipes.findOwnedRecipe).toHaveBeenCalledWith(OWNER, RECIPE_ID);
+    });
 
     it('createUploadUrl rejects a non-owner before presigning', async () => {
         const storage = fakeStorage();
@@ -497,12 +594,14 @@ describe('PhotosService recipe-ownership authorization', () => {
         expect(reorder).not.toHaveBeenCalled();
     });
 
-    it('propagates NOT_OWNER when the recipe is private and owned by someone else', async () => {
+    // ⛔ REWRITTEN: not NOT_OWNER, which is not what the route answers — a private recipe the caller cannot
+    // see is RECIPE_NOT_FOUND (404), never a 403 that would confirm it exists.
+    it('propagates RECIPE_NOT_FOUND when the recipe is private and owned by someone else', async () => {
         const service = new PhotosService(fakeDal(), fakeStorage(), CONFIG, privateOtherOwner(), fakeCdn());
 
         const error = await catchError(service.list(OTHER, RECIPE_ID));
 
-        expect(isRecipeDomainError(error) && error.code).toBe('NOT_OWNER');
+        expect(isRecipeDomainError(error) && error.code).toBe('RECIPE_NOT_FOUND');
     });
 
     it('propagates RECIPE_NOT_FOUND for a missing recipe', async () => {

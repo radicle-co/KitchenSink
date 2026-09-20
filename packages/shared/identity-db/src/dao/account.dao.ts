@@ -1,14 +1,14 @@
 import { eq } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { IdentityWriter } from '../identityWriter.js';
 
-import { accounts } from '../schema/index.js';
-import type { AccountRow, NewAccountRow } from '../schema/index.js';
+import { accounts } from '../schema/accounts.js';
+import type { AccountRow, NewAccountRow } from '../schema/accounts.js';
 import type { UserId } from '../ulid.js';
 
 export type AccountTier = 'free' | 'premium';
 
 export class AccountDAO {
-    constructor(private readonly db: PostgresJsDatabase<Record<string, never>>) {}
+    constructor(private readonly db: IdentityWriter) {}
 
     async findByUserId(userId: UserId): Promise<AccountRow | undefined> {
         const rows = await this.db.select().from(accounts).where(eq(accounts.userId, userId));

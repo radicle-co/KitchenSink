@@ -12,12 +12,14 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP if it were below the fold.
 - scrollUntilVisible:
-      element: 'Gourmet Garden Salad'
+      element: '${E2E_RECIPE_SALAD}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Gourmet Garden Salad'
-# RecipeDetailScreen: Edit + the "More" overflow trigger sit together at the foot of the scrolling detail
-# (C4 wireframe parity); the owner-only delete trigger lives behind "More".
+- tapOn: '${E2E_RECIPE_SALAD}'
+# RecipeDetailScreen: Edit + the "More" overflow trigger sit together in the detail's TITLE BAND, beside the
+# recipe name (C4 wireframe parity); the owner-only delete trigger lives behind "More". They used to sit at
+# the foot of the scrolling detail, which is why the scroll below still exists — the band is near the top but
+# below the hero image, so it is not guaranteed to be in the first viewport.
 - scrollUntilVisible:
       element: 'More'
       direction: DOWN
@@ -28,13 +30,32 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Delete recipe'
-# RecipeDeleteDialog (shared with web) renders inline below the trigger; the detail scrolls, so scroll to the
-# confirm. 'Delete' is the confirm's exact text; the trigger/title are 'Delete recipe', which Maestro's
-# full-string match won't confuse with 'Delete'.
-- scrollUntilVisible:
-      element: 'Delete'
-      direction: DOWN
-      timeout: 20000
+# ⛔ NO `scrollUntilVisible` HERE, DELIBERATELY — and this is the whole point of the step. RecipeDeleteDialog
+# is an RN `Modal` overlaying the screen, so the confirm is visible the instant the trigger is tapped; it does
+# not need to be scrolled to and MUST NOT need to be. A `scrollUntilVisible` here would PASS against the exact
+# defect this flow should catch: the dialog was briefly an INLINE block left at the foot of the ScrollView
+# while its trigger moved to the title band, so tapping Delete opened a confirmation off-screen — and a
+# scroll-until-found step would have hunted it down and reported success. Same reasoning, same shape as
+# `pinnedActionBar.yaml`'s own note. 'Delete' is the confirm's exact text; the trigger/title are
+# 'Delete recipe', which Maestro's full-string match won't confuse with 'Delete'.
+- assertVisible: 'Delete'
 - tapOn: 'Delete'
-# Back on the recipe list.
+
+# ⛔ THE ASSERTION THAT MAKES THIS FLOW A DELETE TEST. Returning to the list proves navigation, nothing more:
+# `assertVisible: 'Recipes'` is satisfied by a delete that answered 500 and by one that silently no-op'd,
+# because the chrome renders in every state. The seed gives the signed-in FREE owner exactly THREE recipes
+# (`packages/services/recipe-service/src/database/seed.ts`), the delete mutation invalidates the list query
+# (`useDeleteRecipe` → `invalidateEditedRecipeRows`), and the populated branch renders the count — so the
+# library settling at TWO is the one observable only a delete that actually reached the service can produce.
+# `extendedWaitUntil` (not `assertVisible`) because the refetch is asynchronous.
 - assertVisible: 'Recipes'
+- extendedWaitUntil:
+      visible:
+          text: '^2 recipes$'
+      timeout: 40000
+
+# ...and the row itself is gone. Maestro matches the whole rendered hierarchy rather than only the visible
+# viewport (which is why this flow's sibling can assert three headings down a long detail without scrolling),
+# so this catches a tombstoned recipe that the list still projects. It is the WEAKER of the two assertions —
+# a list that failed to render at all would also satisfy it — which is exactly why the count above leads.
+- assertNotVisible: '${E2E_RECIPE_SALAD}'

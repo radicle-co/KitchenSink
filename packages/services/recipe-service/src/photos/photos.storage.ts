@@ -2,7 +2,7 @@
  * T035 — the real S3 adapter behind {@link PhotoStoragePort}.
  *
  * Wraps an `@aws-sdk/client-s3` `S3Client` and `getSignedUrl` (`@aws-sdk/s3-request-presigner`) into the
- * narrow port the {@link PhotosService} depends on. Isolating the SDK here keeps the service unit-testable
+ * narrow port the `PhotosService` depends on. Isolating the SDK here keeps the service unit-testable
  * against a mock port (no network), while this adapter is exercised by the LocalStack integration spec.
  *
  * @sideEffect Every method issues an S3 request (presign is offline; reads/HEAD hit S3).

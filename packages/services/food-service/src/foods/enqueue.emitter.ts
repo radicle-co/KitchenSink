@@ -19,6 +19,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { PgPoolProvider } from '../database/database.module.js';
 import type pg from 'pg';
+import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 /** `LISTEN/NOTIFY` channel the Fargate consumer worker subscribes to. */
 const NOTIFY_CHANNEL = 'fetch_queued';
@@ -131,7 +132,7 @@ export class EnqueueEmitter {
     ): Promise<void> {
         // Serialize concurrent enqueues for the SAME id so the distinct-requester recompute below cannot
         // race on the committed `fetch_requesters` snapshot (FR-044). Released on COMMIT/ROLLBACK.
-        await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [id]);
+        await client.query(`SELECT pg_advisory_xact_lock($1, hashtext($2))`, [ADVISORY_LOCK_CLASSES.foodEnqueue, id]);
 
         await client.query(
             `INSERT INTO fetch_requesters (food_id, requester_id) VALUES ($1, $2)

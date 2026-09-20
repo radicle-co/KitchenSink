@@ -1,0 +1,27 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "noEmit": true,
+        // ⛔ OVERRIDES the base `NodeNext`, and the reason is a real disagreement about what these
+        // files ARE — not a preference.
+        //
+        // This package carries no `"type": "module"` (see package.json: Docusaurus's SSR step
+        // evaluates a CommonJS server bundle and dies under ESM), so `NodeNext` classifies every
+        // `.ts` here as CommonJS and rejects `import.meta` with TS1470. But nothing loads these
+        // files as CommonJS: vitest transforms them through Vite, and Docusaurus loads its TS config
+        // through its own ESM-capable loader — both give `import.meta` its ESM meaning, and the site
+        // builds using it.
+        //
+        // `Preserve` is the mode that describes exactly that situation ("a bundler handles the module
+        // system"), so it makes the type-checker agree with how the files are actually evaluated
+        // rather than with an inference drawn from a field that is set for an unrelated reason.
+        // `moduleResolution` moves with it: `Preserve` implies `Bundler`, and the base config's
+        // explicit `NodeNext` would otherwise contradict it (TS5110).
+        "module": "Preserve",
+        "moduleResolution": "Bundler",
+        "types": ["node"]
+    },
+    "include": ["src/**/*.ts", "*.ts"],
+    "exclude": ["node_modules", "build", ".docusaurus"]
+}

@@ -7,7 +7,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import type pg from 'pg';
 
-import { BASE_FOOD_DATABASE_NAME, dropDatabase, ensureDatabaseExists, isValidFoodDatabaseName } from '../handler.js';
+import { BASE_FOOD_DATABASE_NAME, ensureDatabaseExists, handler, isValidFoodDatabaseName } from '../handler.js';
+import { isFoodDatabaseCloneError, type FoodDatabaseCloneError } from '../migrate.errors.js';
 
 /** Build a fake maintenance pool whose `query` returns the queued results in order. */
 function fakePool(results: Array<{ rowCount: number }>): { pool: pg.Pool; query: ReturnType<typeof vi.fn> } {
@@ -38,7 +39,12 @@ describe('isValidFoodDatabaseName', () => {
 });
 
 describe('ensureDatabaseExists', () => {
-    it('short-circuits the shared base database (never CREATEs it)', async () => {
+    /**
+     * The base is provisioned (and, per U38, SEEDED) by the platform bootstrap. The short-circuit is
+     * what stops the runner asking PostgreSQL to clone `kitchensink_food` onto itself when a base stage
+     * deploys — every prod and sandbox migration run takes this path.
+     */
+    it('short-circuits the shared base database — no SELECT, no CREATE, no self-clone', async () => {
         const { pool, query } = fakePool([]);
 
         await expect(
@@ -66,13 +72,25 @@ describe('ensureDatabaseExists', () => {
         expect(query.mock.calls[0][0]).toMatch(/pg_database/);
     });
 
-    it('creates the database (quoted identifier) when absent', async () => {
+    /**
+     * U38 — a per-PR database is CLONED from the seeded base, not created empty. Before this, a fresh
+     * `pr-{N}` came up with a migrated but EMPTY catalog and every ingredient search in that preview
+     * answered `catalogAvailability: 'unavailable'` behind green checks.
+     *
+     * ⚠️ This REPLACES the previous `'created'` assertion rather than relaxing it: the old test proved
+     * `CREATE DATABASE "…"` with no template, which is now precisely the defect (a silently-empty
+     * catalog). It is restated as the clone, and the failure paths below are the guard the plan calls the
+     * most important test in the unit.
+     */
+    it('clones the seeded base into the per-PR database (quoted identifiers) when absent', async () => {
         const { pool, query } = fakePool([{ rowCount: 0 }]);
 
         await expect(
             ensureDatabaseExists({ maintenancePool: pool, databaseName: 'kitchensink_food_pr_7' }),
-        ).resolves.toBe('created');
-        expect(query).toHaveBeenLastCalledWith('CREATE DATABASE "kitchensink_food_pr_7"');
+        ).resolves.toBe('cloned');
+        expect(query).toHaveBeenLastCalledWith(
+            'CREATE DATABASE "kitchensink_food_pr_7" TEMPLATE "kitchensink_food" OWNER "food_owner"',
+        );
     });
 
     it('treats a lost CREATE race (SQLSTATE 42P04) as "exists" instead of failing', async () => {
@@ -91,55 +109,116 @@ describe('ensureDatabaseExists', () => {
         await expect(
             ensureDatabaseExists({ maintenancePool: pool, databaseName: 'kitchensink_food_pr_7' }),
         ).resolves.toBe('exists');
-        expect(query).toHaveBeenLastCalledWith('CREATE DATABASE "kitchensink_food_pr_7"');
     });
 
-    it('propagates a non-duplicate CREATE failure', async () => {
+    /**
+     * ⛔ THE test of this unit. A session holding the template makes PostgreSQL refuse the clone
+     * (`source database … is being accessed by other users`, SQLSTATE 55006). The only acceptable
+     * outcome is a loud failure that fails the deploy: catching it and falling through to a plain
+     * `CREATE DATABASE` would produce exactly the silently-empty catalog ADR-0010 exists to prevent,
+     * and every check would stay green.
+     */
+    it('FAILS LOUDLY when a session holds the template, and creates nothing in its place', async () => {
+        const query = vi
+            .fn()
+            .mockResolvedValueOnce({ rowCount: 0 })
+            .mockRejectedValueOnce(
+                Object.assign(new Error('source database "kitchensink_food" is being accessed by other users'), {
+                    code: '55006',
+                }),
+            );
+        const pool = { query } as unknown as pg.Pool;
+
+        const error = await ensureDatabaseExists({
+            maintenancePool: pool,
+            databaseName: 'kitchensink_food_pr_7',
+        }).catch((caught: unknown) => caught);
+
+        expect(isFoodDatabaseCloneError(error)).toBe(true);
+        expect((error as FoodDatabaseCloneError).reason).toBe('template-in-use');
+        expect((error as FoodDatabaseCloneError).databaseName).toBe('kitchensink_food_pr_7');
+        expect((error as FoodDatabaseCloneError).templateDatabase).toBe(BASE_FOOD_DATABASE_NAME);
+        // No second, template-less CREATE — the empty database must never come into existence.
+        const created = query.mock.calls.map(String).filter((sql) => sql.includes('CREATE DATABASE'));
+        expect(created).toEqual([
+            'CREATE DATABASE "kitchensink_food_pr_7" TEMPLATE "kitchensink_food" OWNER "food_owner"',
+        ]);
+    });
+
+    it('FAILS LOUDLY when the base database is not there to clone (SQLSTATE 3D000)', async () => {
+        const query = vi
+            .fn()
+            .mockResolvedValueOnce({ rowCount: 0 })
+            .mockRejectedValueOnce(
+                Object.assign(new Error('database "kitchensink_food" does not exist'), { code: '3D000' }),
+            );
+        const pool = { query } as unknown as pg.Pool;
+
+        const error = await ensureDatabaseExists({
+            maintenancePool: pool,
+            databaseName: 'kitchensink_food_pr_7',
+        }).catch((caught: unknown) => caught);
+
+        expect(isFoodDatabaseCloneError(error)).toBe(true);
+        expect((error as FoodDatabaseCloneError).reason).toBe('template-missing');
+    });
+
+    it('FAILS LOUDLY when the role may not copy the base (SQLSTATE 42501), naming what to grant', async () => {
         const query = vi
             .fn()
             .mockResolvedValueOnce({ rowCount: 0 })
             .mockRejectedValueOnce(Object.assign(new Error('permission denied to create database'), { code: '42501' }));
         const pool = { query } as unknown as pg.Pool;
 
-        await expect(
-            ensureDatabaseExists({ maintenancePool: pool, databaseName: 'kitchensink_food_pr_7' }),
-        ).rejects.toThrow(/permission denied/i);
+        const error = await ensureDatabaseExists({
+            maintenancePool: pool,
+            databaseName: 'kitchensink_food_pr_7',
+        }).catch((caught: unknown) => caught);
+
+        expect(isFoodDatabaseCloneError(error)).toBe(true);
+        expect((error as FoodDatabaseCloneError).reason).toBe('insufficient-privilege');
+    });
+
+    it('propagates an unclassified CREATE failure untouched (no diagnosis it cannot support)', async () => {
+        const cause = Object.assign(new Error('could not write to file: No space left on device'), { code: '53100' });
+        const query = vi.fn().mockResolvedValueOnce({ rowCount: 0 }).mockRejectedValueOnce(cause);
+        const pool = { query } as unknown as pg.Pool;
+
+        const error = await ensureDatabaseExists({
+            maintenancePool: pool,
+            databaseName: 'kitchensink_food_pr_7',
+        }).catch((caught: unknown) => caught);
+
+        expect(error).toBe(cause);
+        expect(isFoodDatabaseCloneError(error)).toBe(false);
+    });
+
+    it('carries the underlying Postgres error as the cause, so the deploy log keeps the SQLSTATE', async () => {
+        const cause = Object.assign(new Error('source database "kitchensink_food" is being accessed by other users'), {
+            code: '55006',
+        });
+        const query = vi.fn().mockResolvedValueOnce({ rowCount: 0 }).mockRejectedValueOnce(cause);
+        const pool = { query } as unknown as pg.Pool;
+
+        const error = await ensureDatabaseExists({
+            maintenancePool: pool,
+            databaseName: 'kitchensink_food_pr_7',
+        }).catch((caught: unknown) => caught);
+
+        expect((error as FoodDatabaseCloneError).cause).toBe(cause);
     });
 });
 
-describe('dropDatabase', () => {
-    it('never drops the shared base database', async () => {
-        const { pool, query } = fakePool([]);
-
-        await expect(dropDatabase({ maintenancePool: pool, databaseName: BASE_FOOD_DATABASE_NAME })).resolves.toBe(
-            'skipped-base',
+describe('handler — the event is a migrate and nothing else', () => {
+    it('⛔ refuses a { action: "drop" } event instead of silently migrating (the drop door is gone)', async () => {
+        // The per-PR reaper (ADR-0031) is the one drop authority; a stale caller still sending `drop` must
+        // fail loudly, not have its payload's extra key ignored and a migration run in its place.
+        await expect(handler({ action: 'drop', expectManifestSha: 'a'.repeat(64) })).rejects.toThrow(
+            /malformed event/u,
         );
-        expect(query).not.toHaveBeenCalled();
     });
 
-    it('returns "absent" when the database does not exist', async () => {
-        const { pool, query } = fakePool([{ rowCount: 0 }]);
-
-        await expect(dropDatabase({ maintenancePool: pool, databaseName: 'kitchensink_food_pr_7' })).resolves.toBe(
-            'absent',
-        );
-        expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('force-drops an existing per-PR database', async () => {
-        const { pool, query } = fakePool([{ rowCount: 1 }]);
-
-        await expect(dropDatabase({ maintenancePool: pool, databaseName: 'kitchensink_food_pr_7' })).resolves.toBe(
-            'dropped',
-        );
-        expect(query).toHaveBeenLastCalledWith('DROP DATABASE IF EXISTS "kitchensink_food_pr_7" WITH (FORCE)');
-    });
-
-    it('refuses to drop an invalid name', async () => {
-        const { pool } = fakePool([]);
-
-        await expect(dropDatabase({ maintenancePool: pool, databaseName: 'postgres' })).rejects.toThrow(
-            /invalid name/i,
-        );
+    it('refuses a migrate with no manifest expectation (ADR-0035)', async () => {
+        await expect(handler({})).rejects.toThrow(/expectManifestSha/u);
     });
 });

@@ -15,7 +15,7 @@
  *  - {@link CdnInvalidationPort} — the narrow "issue an invalidation for these paths" seam BOTH packages
  *    implement their own real (`@aws-sdk/client-cloudfront`) adapter against, mirroring how each package
  *    already implements its own S3 adapter rather than sharing one (recipe-service's `PhotoStoragePort` /
- *    `photos.storage.ts` vs recipe-workers' direct `S3Client` calls in `account-erasure-worker.ts`) — the
+ *    `photos.storage.ts` vs recipe-workers' direct `S3Client` calls in `accountErasureWorker.ts`) — the
  *    two packages are different runtimes (a NestJS DI app vs plain Lambda handlers), so the CONTRACT is
  *    shared here while each adapter stays local to its own dependency-injection/construction style.
  *  - {@link cdnPathForKey} / {@link cdnOwnerPrefixInvalidationPath} — pure derivations from the SAME S3

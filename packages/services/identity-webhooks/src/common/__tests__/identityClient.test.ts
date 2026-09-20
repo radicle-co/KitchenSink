@@ -68,7 +68,7 @@ afterEach(() => {
 afterAll(() => server.close());
 
 beforeEach(() => {
-    process.env.IDP_SECRET_KEY = 'sk_test_fake_key_for_testing';
+    process.env['IDP_SECRET_KEY'] = 'sk_test_fake_key_for_testing';
 });
 
 describe('identity backend client', () => {

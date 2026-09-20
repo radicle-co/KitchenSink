@@ -1,0 +1,42 @@
+{
+    "name": "@kitchensink/bedrock-client",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "dependencies": {
+        "@aws-sdk/client-bedrock-runtime": "^3.935.0",
+        "zod": "^4.4.3"
+    },
+    "kitchensink": {
+        "wireContract": {
+            "thirdParty": true,
+            "reason": "Amazon Bedrock is a third-party API we do not serve, so there is no service of ours whose zod could own these shapes and nothing to generate a schema package from (CODING_STANDARDS \u00a715.3 / ADR-0014 / GR-015 \u00a715-d, which names LLM providers explicitly). src/schemas.ts validates the RAW `Converse` response at the boundary with this package's own zod and deliberately differs from the normalized outcome the client returns \u2014 and no OpenAPI document is written for an API we do not serve. This marker is per-package and is NOT inherited by name or location."
+        }
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

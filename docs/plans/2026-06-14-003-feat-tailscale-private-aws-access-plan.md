@@ -22,7 +22,7 @@ Two reachability details are carried as **working assumptions** (the pre-impleme
 
 ## Problem Frame
 
-The identity RDS lives in `PRIVATE_ISOLATED` subnets with `publiclyAccessible: false`, reachable only from the ECS and Lambda security groups (`packages/infra/global/lib/platform/network-stack.ts:84-94`). There is no bastion, SSM tunnel, or VPN, so the database is unreachable from a laptop. Schema changes can only be applied through the in-VPC `MigrationFunction` Lambda (`packages/services/identity-webhooks/src/handlers/migrate.ts:56-138`); when that path stalls — the tracked "prod schema never migrated" issue — there is no way to connect and inspect the live schema or data. This plan delivers an on-tailnet path to the private databases without exposing anything publicly (see origin: `docs/brainstorms/2026-06-14-tailscale-private-aws-access-requirements.md`).
+The identity RDS lives in `PRIVATE_ISOLATED` subnets with `publiclyAccessible: false`, reachable only from the ECS and Lambda security groups (`packages/infra/global/lib/platform/NetworkStack.ts:84-94`). There is no bastion, SSM tunnel, or VPN, so the database is unreachable from a laptop. Schema changes can only be applied through the in-VPC `MigrationFunction` Lambda (`packages/services/identity-webhooks/src/handlers/migrate.ts:56-138`); when that path stalls — the tracked "prod schema never migrated" issue — there is no way to connect and inspect the live schema or data. This plan delivers an on-tailnet path to the private databases without exposing anything publicly (see origin: `docs/brainstorms/2026-06-14-tailscale-private-aws-access-requirements.md`).
 
 ---
 
@@ -67,7 +67,7 @@ Traceability to the origin requirements doc. Some origin requirements are reshap
 
 - **Non-burstable Graviton, first raw EC2 construct.** No EC2/userdata/AMI precedent exists. Amazon Linux 2023 ARM64, `c7g.medium` (cheapest non-burstable Graviton; `m7g.medium` alternative). Stop-when-idle keeps cost to roughly $1.5–3/mo (one instance). The root EBS volume is encrypted (it holds the `tailscaled` node private key). AMI selection resolves at synth time, so an AMI roll on an unrelated global deploy could replace the instance — see replacement consequences.
 
-- **OAuth client secret, fetched at boot from SSM, with bounded IAM.** The router authenticates with a Tailscale **OAuth client secret** (scope `auth_keys`, bound to `tag:subnet-router`) — not a personal API token, not a hand-rotated auth key. Tailscale accepts the OAuth secret directly as `--auth-key` and auto-mints a tagged key, so it never expires and survives instance replacement. Stored as an SSM **SecureString** at `/kitchensink/prod/tailscale/oauth-client-secret`, fetched at boot via the instance role. CDK L2 `StringParameter` cannot create a SecureString, so the parameter is created out-of-band as a deploy prerequisite (same pattern as the Clerk SSM params at `identity-service-stack.ts:181-189`). The instance role attaches `AmazonSSMManagedInstanceCore` for Session Manager, which grants broad `ssm:GetParameter*`; a permission boundary restricts parameter reads to `/kitchensink/prod/tailscale/*` so a compromised router can't read other secrets.
+- **OAuth client secret, fetched at boot from SSM, with bounded IAM.** The router authenticates with a Tailscale **OAuth client secret** (scope `auth_keys`, bound to `tag:subnet-router`) — not a personal API token, not a hand-rotated auth key. Tailscale accepts the OAuth secret directly as `--auth-key` and auto-mints a tagged key, so it never expires and survives instance replacement. Stored as an SSM **SecureString** at `/kitchensink/prod/tailscale/oauth-client-secret`, fetched at boot via the instance role. CDK L2 `StringParameter` cannot create a SecureString, so the parameter is created out-of-band as a deploy prerequisite (same pattern as the Clerk SSM params at `IdentityServiceStack.ts:181-189`). The instance role attaches `AmazonSSMManagedInstanceCore` for Session Manager, which grants broad `ssm:GetParameter*`; a permission boundary restricts parameter reads to `/kitchensink/prod/tailscale/*` so a compromised router can't read other secrets.
 
 - **Instance replacement re-introduces failures the per-node settings prevent.** Stop/start preserves the EBS volume and `tailscaled` state, so R9 (key expiry disabled) and AE4 (no re-auth) hold. Replacement (userdata/AMI/instance-type change) provisions a fresh volume: the OAuth secret re-registers a **new node** with default 180-day expiry re-enabled and leaves a ghost node. So disable-key-expiry must be re-applied after replacement (runbook step), and AMI selection should be pinned or its replacement effect accepted explicitly.
 
@@ -122,9 +122,9 @@ Boot sequence (userdata): enable IPv4 forwarding (sysctl) → install `tailscale
 - **Requirements:** R6, R7, R11
 - **Dependencies:** none (plan 004 landed)
 - **Files:**
-    - `packages/infra/global/lib/platform/network-stack.ts` (prod DB ingress from router SG)
-- **Approach:** Create a `tailscaleRouterSecurityGroup` (`allowAllOutbound: false`). Gate the SG and the prod DB ingress rule on a `tailscaleRouterEnabled` signal so they never exist without a router. Add `databaseSecurityGroup.addIngressRule(routerSg, ec2.Port.tcp(5432), ...)` and the paired `routerSg.addEgressRule(databaseSecurityGroup, ec2.Port.tcp(5432), ...)`. Add router egress: `ec2.Port.tcp(443)` to `ec2.Peer.anyIpv4()` (Tailscale control plane/DERP + SSM Session Manager + SSM Parameter Store), `ec2.Port.udp(3478)`, `ec2.Port.udp(41641)`, DNS (`udp/tcp 53`) to the VPC resolver. Export the router SG id so the sandbox cross-VPC rule (U3) and the router stack (U2) can reference it. (Note: the duplicate `network-stack.ts` copies are removed by plan 004/U4 — no mirroring needed once 004 lands.)
-- **Patterns to follow:** SG idiom and paired-egress comment at `network-stack.ts:39-109`; the `443` anyIpv4 + comment style at `:72-82`.
+    - `packages/infra/global/lib/platform/NetworkStack.ts` (prod DB ingress from router SG)
+- **Approach:** Create a `tailscaleRouterSecurityGroup` (`allowAllOutbound: false`). Gate the SG and the prod DB ingress rule on a `tailscaleRouterEnabled` signal so they never exist without a router. Add `databaseSecurityGroup.addIngressRule(routerSg, ec2.Port.tcp(5432), ...)` and the paired `routerSg.addEgressRule(databaseSecurityGroup, ec2.Port.tcp(5432), ...)`. Add router egress: `ec2.Port.tcp(443)` to `ec2.Peer.anyIpv4()` (Tailscale control plane/DERP + SSM Session Manager + SSM Parameter Store), `ec2.Port.udp(3478)`, `ec2.Port.udp(41641)`, DNS (`udp/tcp 53`) to the VPC resolver. Export the router SG id so the sandbox cross-VPC rule (U3) and the router stack (U2) can reference it. (Note: the duplicate `NetworkStack.ts` copies are removed by plan 004/U4 — no mirroring needed once 004 lands.)
+- **Patterns to follow:** SG idiom and paired-egress comment at `NetworkStack.ts:39-109`; the `443` anyIpv4 + comment style at `:72-82`.
 - **Test scenarios:**
     - Covers AE2. Synth asserts the prod DB SG has an ingress rule on 5432 from the router SG.
     - Synth asserts the router SG has the paired egress to the DB on 5432.
@@ -140,11 +140,11 @@ Boot sequence (userdata): enable IPv4 forwarding (sysctl) → install `tailscale
 - **Dependencies:** U1
 - **Files:**
     - `packages/infra/global/lib/platform/tailscale-router-stack.ts` (new dedicated stack; imports prod subnet + router SG ids)
-    - `packages/infra/global/lib/platform/global-stack.ts` (instantiate the new stack for prod)
+    - `packages/infra/global/lib/platform/GlobalStack.ts` (instantiate the new stack for prod)
 - **Approach:** Create an `ec2.Instance` in the prod `private-app` subnet (`PRIVATE_WITH_EGRESS`), `c7g.medium`, Amazon Linux 2023 ARM64, the router SG from U1, `associatePublicIpAddress: false`, **encrypted** root volume. IAM role with `ServicePrincipal('ec2.amazonaws.com')`, `AmazonSSMManagedInstanceCore`, a least-privilege inline grant for `ssm:GetParameter*` + `kms:Decrypt` scoped to `/kitchensink/prod/tailscale/*`, and a permission boundary restricting parameter reads to that path. Add a `CreationPolicy` so userdata must `cfn-signal` success. Userdata runs the HTD boot sequence advertising **both** CIDRs (`10.0.0.0/16,10.1.0.0/16`), `tag:subnet-router`, `--accept-dns=false`; enable IP forwarding.
 - **Execution note:** Add the CDK `Template` test before wiring userdata details so the instance/role/policy/CreationPolicy shape is pinned first.
 - **Technical design (directional):** userdata is a shell template; do not embed the resolved secret into the synthesized template — fetch at boot.
-- **Patterns to follow:** IAM role + `grantRead` and SSM-resolved config at `identity-service-stack.ts:110-195`; SSM path layout `ssmParamPath` at `packages/services/identity-webhooks/infra/lib/config.ts:11`.
+- **Patterns to follow:** IAM role + `grantRead` and SSM-resolved config at `IdentityServiceStack.ts:110-195`; SSM path layout `ssmParamPath` at `packages/services/identity-webhooks/infra/lib/config.ts:11`.
 - **Test scenarios:**
     - Synth asserts exactly one `AWS::EC2::Instance` of type `c7g.medium`, no public IP, in a prod private-app subnet, encrypted root volume.
     - Synth asserts a `CreationPolicy`/signal on the instance.
@@ -159,7 +159,7 @@ Boot sequence (userdata): enable IPv4 forwarding (sysctl) → install `tailscale
 - **Dependencies:** U1, U2; plan 004 (distinct CIDRs)
 - **Files:**
     - `packages/infra/global/lib/platform/tailscale-router-stack.ts` (peering connection + route entries)
-    - `packages/infra/global/lib/platform/network-stack.ts` (sandbox DB SG ingress from the router SG)
+    - `packages/infra/global/lib/platform/NetworkStack.ts` (sandbox DB SG ingress from the router SG)
 - **Approach:** Create a VPC peering connection between the prod and sandbox VPCs (same account, same region — auto-accept). Add route-table entries: prod private-app subnets route `10.1.0.0/16` to the peering connection; sandbox private-data subnets route `10.0.0.0/16` back. Add `sandboxDatabaseSecurityGroup.addIngressRule(routerSg, ec2.Port.tcp(5432), ...)` with the paired router egress to the sandbox DB. Gate all of this on `tailscaleRouterEnabled`. Note: same-region same-account peering permits referencing the prod router SG as the source on the sandbox DB SG; confirm at implementation, else fall back to the prod CIDR as source.
 - **Patterns to follow:** the paired-rule SG convention; standard `ec2.CfnVPCPeeringConnection` + route additions.
 - **Test scenarios:**
@@ -267,9 +267,9 @@ Boot sequence (userdata): enable IPv4 forwarding (sysctl) → install `tailscale
 
 - Prerequisite: `docs/plans/2026-06-14-004-refactor-vpc-consolidation-plan.md` (distinct CIDRs + Option A peering decision).
 - Origin requirements: `docs/brainstorms/2026-06-14-tailscale-private-aws-access-requirements.md` (embeds the Tailscale documentation research — subnet routers, OAuth clients, the AWS RDS guide, key expiry).
-- Deployed infra: `packages/infra/global/lib/platform/network-stack.ts:17-141`, `data-stack.ts:40-98`, `identity-global-stack.ts:33-49`.
-- SG paired-egress convention and `443` anyIpv4 idiom: `packages/infra/global/lib/platform/network-stack.ts:72-109`.
-- Compute/IAM/secret precedent: `packages/services/identity/infra/lib/identity-service-stack.ts:110-195`.
+- Deployed infra: `packages/infra/global/lib/platform/NetworkStack.ts:17-141`, `DataStack.ts:40-98`, `identity-global-stack.ts:33-49`.
+- SG paired-egress convention and `443` anyIpv4 idiom: `packages/infra/global/lib/platform/NetworkStack.ts:72-109`.
+- Compute/IAM/secret precedent: `packages/services/identity/infra/lib/IdentityServiceStack.ts:110-195`.
 - SSM path convention: `packages/services/identity-webhooks/infra/lib/config.ts:11`.
 - ADR precedent and "trap" guard style: `docs/architecture/decisions/0001-sandbox-front-end-addressing.md`.
 - Project memory: `prod-identity-db-access.md`, `clerk-instance-domains.md`.

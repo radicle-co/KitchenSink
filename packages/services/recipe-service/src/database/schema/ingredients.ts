@@ -12,15 +12,15 @@ import {
     check,
     index,
     integer,
-    jsonb,
     numeric,
     pgTable,
     text,
     timestamp,
     uniqueIndex,
     uuid,
+    varchar,
 } from 'drizzle-orm/pg-core';
-import type { FoodResolutionStatus, IngredientPortion } from '@kitchensink/recipe-core';
+import type { CatalogFoodResolutionStatus, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { recipes, tsvector } from './recipes.js';
 
@@ -29,8 +29,13 @@ import { recipes, tsvector } from './recipes.js';
  * shipped food client's `FoodStatus` (UPPER_SNAKE, incl. terminal states). Set ONLY for
  * database-backed ingredients (food_id present); NULL for user-entered / freeform ingredients.
  *
- * Tied to recipe-core's authoritative {@link FoodResolutionStatus} with `satisfies` (S-R5); the type
- * below is RE-EXPORTED from recipe-core (not redeclared) to reconcile the same-named type.
+ * Tied to recipe-core's authoritative {@link CatalogFoodResolutionStatus} with `satisfies` (S-R5); the
+ * type below is RE-EXPORTED from recipe-core (not redeclared) to reconcile the same-named type.
+ *
+ * ⛔ `satisfies readonly CatalogFoodResolutionStatus[]`, NOT the six-member `FoodResolutionStatus`. This
+ * column is the SHARED, ownerless catalog's mirror of food-service's lifecycle, and `NEEDS_REVIEW` is a
+ * per-RECIPE-LINE verdict — migration 0023 forbids writing one here, blast radius first among its three
+ * reasons. Widening this list is what would make that forbidden write type-check.
  */
 export const FOOD_RESOLUTION_STATUSES = [
     'PENDING',
@@ -38,7 +43,7 @@ export const FOOD_RESOLUTION_STATUSES = [
     'RESOLVED',
     'NOT_FOUND',
     'FAILED',
-] as const satisfies readonly FoodResolutionStatus[];
+] as const satisfies readonly CatalogFoodResolutionStatus[];
 
 /** A food-resolution status value — the single authoritative type, re-exported from recipe-core. */
 export type { FoodResolutionStatus };
@@ -54,16 +59,53 @@ export const ingredients = pgTable(
         // fdcId; not a cross-DB FK. NULL for user-entered / freeform ingredients.
         foodId: text('food_id'),
         foodResolutionStatus: text('food_resolution_status'),
+        /**
+         * R20 (0040, plan U11): the AUTHOR's ULID when the referenced food is their PRIVATE authored one,
+         * captured at admission/refresh like `prior_fraction` (ADR-0006 forbids the cross-DB join). Every
+         * local retrieval surface filters on it; NULL for catalog/promoted foods. Erasure deletes
+         * unreferenced rows and retains referenced ones pseudonymously (the recipes/owner_id posture).
+         */
+        foodOwnerId: varchar('food_owner_id', { length: 255 }),
         isUserEntered: boolean('is_user_entered').notNull().default(false),
-        // Per-100g nutrition — populated from the food golden record once RESOLVED; NULL while pending.
-        caloriesPer100g: numeric('calories_per_100g', { precision: 8, scale: 2 }),
-        proteinGPer100g: numeric('protein_g_per_100g', { precision: 8, scale: 2 }),
-        carbsGPer100g: numeric('carbs_g_per_100g', { precision: 8, scale: 2 }),
-        fatGPer100g: numeric('fat_g_per_100g', { precision: 8, scale: 2 }),
-        // Household-measure portions (`[{ unit, gramsPerUnit }]`), normalized from the food golden record's
-        // portions once RESOLVED; used to convert a recipe line's volumetric/count unit to grams (#11).
-        portions: jsonb('portions').$type<IngredientPortion[]>(),
+        // ⛔ NO NUTRITION COLUMNS, and none may be added (KTD-3 / plan U10, migration 0019).
+        //
+        // `calories_per_100g`, `protein_g_per_100g`, `carbs_g_per_100g`, `fat_g_per_100g` and `portions`
+        // were DROPPED. They were copies of the food service's data taken at resolution time, with no
+        // invalidation — so a food corrected upstream left every recipe quoting the old number forever, and
+        // the same recipe could report different calories from different rows. The food service is the
+        // single writer for a food; this table holds the REFERENCE (`food_id`) and nothing derived from it.
+        // Nutrition is read live through `FoodNutritionGateway` (KTD-3b: stale, then absent, never wrong).
         searchVector: tsvector('search_vector'),
+        // ⛔ TWO STORED generated columns (0024 migration, plan U5/U6): the ranking terms the tier ladder
+        // sorts on — the SQL mirror of `foldForRanking(name)` and `rankingTokens(name)` in
+        // `@kitchensink/recipe-core/resolution/ranking-terms`. Unlike `search_vector` above, which this
+        // service's DAL maintains on every write, these are computed by POSTGRES: no writer can forget them,
+        // and `updateResolution`'s U3 rename recomputes them for free along with the name.
+        //
+        // They are MATERIALIZED because computing them per row measured 253ms and 357ms at 50,000 rows
+        // against SC-007's 200ms budget, where reading them costs +0.8ms and +5.2ms.
+        //
+        // ⚠️ **`0025_ingredient_rank_terms.sql` is authoritative**; these declarations exist so Drizzle knows
+        // the columns. The expressions are asserted against the TypeScript reference, value by value, by
+        // `__tests__/integration/ingredients/rankingTerms.integration.test.ts`.
+        rankFolded: text('rank_folded').generatedAlwaysAs(
+            sql`btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' ')`,
+        ),
+        rankTokens: text('rank_tokens')
+            .array()
+            .generatedAlwaysAs(
+                sql`array_remove(regexp_split_to_array(regexp_replace(regexp_replace(btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' '), '([[:alnum:]]{2}(s|x|z|ch|sh))es(?![[:alnum:]])', '\1', 'g'), '([[:alnum:]]{2}(?!s)[[:alnum:]])s(?![[:alnum:]])', '\1', 'g'), '[^[:alnum:]]+'), '')`,
+            ),
+        /**
+         * U1's head term — the SQL mirror of `describeRankingName(name).head` (migration 0034): the last
+         * token of a multi-word first comma segment, else the first token. Supersedes `rankTokens[1]` as
+         * the head; `rank_tokens_of()` is the immutable helper 0034 creates.
+         */
+        rankHead: text('rank_head').generatedAlwaysAs(
+            sql`CASE WHEN position(',' in name) > 0 AND cardinality(rank_tokens_of(split_part(name, ',', 1))) > 1 THEN (rank_tokens_of(split_part(name, ',', 1)))[cardinality(rank_tokens_of(split_part(name, ',', 1)))] ELSE (rank_tokens_of(name))[1] END`,
+        ),
+        /** U5 (0038): the FNDDS consumption-prior fraction captured from food-service. NULL = no prior. */
+        priorFraction: numeric('prior_fraction'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
@@ -104,9 +146,47 @@ export const recipeIngredients = pgTable(
         ingredientId: uuid('ingredient_id')
             .notNull()
             .references(() => ingredients.id),
-        quantity: numeric('quantity', { precision: 10, scale: 3 }).notNull(),
+        // U8/R41 — NULLABLE, and that is the point: `NULL` is the ONE representation of "the source stated
+        // no amount" ("butter the size of an egg"). It is never `0`, which the kept positive check below
+        // still refuses precisely so a zero cannot become a second spelling of absent.
+        quantity: numeric('quantity', { precision: 10, scale: 3 }),
+        /** The upper bound when the source stated a RANGE (`2 to 3 cups`); `NULL` for a single value (R36). */
+        quantityHigh: numeric('quantity_high', { precision: 10, scale: 3 }),
         unit: text('unit').notNull(),
         displayText: text('display_text'),
+        // U11/U14 — the raw line the cook's SOURCE stated, verbatim. ⛔ NOT `displayText`, which is a display
+        // OVERRIDE the author chose, and NOT `ingredientName`, which is OUR rendering: the verification gate
+        // checks our parse against this, and checking a parse against its own output agrees by construction.
+        // `NULL` means the line was AUTHORED rather than transcribed — see `0024_ingredient_source_line.sql`.
+        sourceLine: text('source_line'),
+        // The ingredient PHRASE the parse lifted out of `source_line` — `all-purpose flour` from
+        // `2 cups all-purpose flour, sifted` (migration 0041, owner ruling 2026-08-31). ⛔ The memo tier's
+        // KEY GRAIN: `ingredient_resolution_memos` is keyed on `normalizedIngredientKey` of THIS, because
+        // the cascade queries with the phrase a picker types, never with a whole line. `NULL` for an
+        // authored line and for every line created before 0041.
+        sourcePhrase: text('source_phrase'),
+        // U7/U11 — what the SOURCE printed, before the importer restated a historical measure into one the
+        // USDA household-portion table carries. `one gill of milk` persists as `quantity 0.5, unit 'cup'`
+        // with `stated_quantity 1, stated_unit 'gill'` beside it. ⛔ Without these the verification gate is
+        // shown a number the source never printed and correctly disagrees with a line we parsed RIGHT — see
+        // `0027_ingredient_stated_measure.sql`. All three are `NULL` together for an authored line, for a
+        // line stating a modern unit, and for every line imported before 0027 shipped.
+        statedQuantity: numeric('stated_quantity', { precision: 10, scale: 3 }),
+        /** The stated UPPER bound when the source stated a range; `NULL` for a single stated value. */
+        statedQuantityHigh: numeric('stated_quantity_high', { precision: 10, scale: 3 }),
+        /** The unit the source printed (`gill`, `wineglass`, `saltspoon`). `NULL`, never `''`. */
+        statedUnit: text('stated_unit'),
+        // U26 — how THIS recipe prepares the food (`finely chopped`, `at room temperature`). ⛔ NOT
+        // `displayText`, which is a display OVERRIDE whose one producer (the cookbook importer) fills it with
+        // the source's whole clause, and NOT part of `ingredientName`, which is what a `food_id` resolves to
+        // in the catalog. The vocabulary is `recipe-import-core`'s `modifierLexicon.ts` (KTD-11b: past
+        // participle = preparation, adjective = identity, temperature = preparation). See
+        // `0030_ingredient_preparation_and_group.sql` for why `notes` was NOT renamed into this.
+        preparation: text('preparation'),
+        // U27 — the section this line belongs to (`For the marinade`, `Dry`). FREE TEXT by owner ruling
+        // (2026-08-24), never an enum: a closed set could not express "For the crust". `NULL` means
+        // ungrouped, which is most lines, and an all-NULL recipe renders as a plain flat list.
+        groupLabel: text('group_label'),
         sortOrder: integer('sort_order').notNull().default(0),
 
         // Denormalized for display / search_vector assembly (no JOIN needed on write).
@@ -120,7 +200,47 @@ export const recipeIngredients = pgTable(
         userFatG: numeric('user_fat_g', { precision: 8, scale: 2 }),
     },
     (table) => [
+        // KEPT through U8 on purpose. A Postgres CHECK is satisfied when it evaluates to NULL, so this
+        // already admits an absent quantity while still refusing a zero — see `0020_quantity_range.sql`.
         check('recipe_ingredients_quantity_positive', sql`${table.quantity} > 0`),
+        // The pair's illegal states, unrepresentable in the database as well as in `IngredientQuantity`: an
+        // upper bound with no lower, and an upper bound at or below its lower (coincident bounds ARE an
+        // exact quantity). Declared `NOT VALID` in the migration; drizzle has no way to spell that, and the
+        // migration is authoritative — this entry exists so a reader of the schema sees the constraint.
+        check(
+            'recipe_ingredients_quantity_coherent',
+            sql`${table.quantityHigh} IS NULL OR (${table.quantity} IS NOT NULL AND ${table.quantityHigh} > ${table.quantity})`,
+        ),
+        // The stated pair's own illegal states, unrepresentable in the database as well as in the domain:
+        // half a restatement (a quantity that cannot name what it converted FROM, or a unit with no amount),
+        // a blank unit (a second spelling of "none" beside `NULL`), a non-positive amount, an upper bound at
+        // or below its lower, and a stated measure on a line whose restated quantity is ABSENT — which
+        // `convertHistoricalUnit` refuses to produce, since there is no number to restate.
+        //
+        // ⚠️ It deliberately does NOT require the two pairs to share their range-ness: two stated bounds a
+        // ten-thousandth apart round to one value at `numeric(10,3)`, and the right refusal for that is in
+        // the tool, not a CHECK that makes a legitimate save a 500. Declared `NOT VALID` in the migration;
+        // drizzle has no way to spell that, and the migration is authoritative — this entry exists so a
+        // reader of the schema sees the constraint.
+        check(
+            'recipe_ingredients_stated_measure_coherent',
+            sql`(${table.statedQuantity} IS NULL AND ${table.statedQuantityHigh} IS NULL AND ${table.statedUnit} IS NULL) OR (${table.statedQuantity} IS NOT NULL AND ${table.statedQuantity} > 0 AND ${table.statedUnit} IS NOT NULL AND ${table.statedUnit} <> '' AND ${table.quantity} IS NOT NULL AND (${table.statedQuantityHigh} IS NULL OR ${table.statedQuantityHigh} > ${table.statedQuantity}))`,
+        ),
+        // U26/U27 — `NULL` is the ONE spelling of absent for each. A blank `preparation` would reach the
+        // wire as `preparation: ''`, which `recipeIngredientViewSchema` (`min(1)`) rejects — the exact
+        // write-but-cannot-read break `notes` had. A blank or untrimmed `group_label` is worse than a second
+        // representation: sections are folded from the labels, so `'Dry '` renders a SECOND section under a
+        // heading visually identical to `'Dry'`. Declared `NOT VALID` in the migration; drizzle has no way to
+        // spell that, and the migration is authoritative — these entries exist so a reader of the schema sees
+        // the constraints.
+        check(
+            'recipe_ingredients_preparation_present',
+            sql`${table.preparation} IS NULL OR btrim(${table.preparation}) <> ''`,
+        ),
+        check(
+            'recipe_ingredients_group_label_present',
+            sql`${table.groupLabel} IS NULL OR btrim(${table.groupLabel}) <> ''`,
+        ),
         index('idx_recipe_ingredients_recipe_id').on(table.recipeId),
         index('idx_recipe_ingredients_ingredient_id').on(table.ingredientId),
     ],

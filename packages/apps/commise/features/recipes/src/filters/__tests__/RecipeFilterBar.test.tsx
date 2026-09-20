@@ -8,6 +8,7 @@
  * fails the test.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -32,15 +33,8 @@ function renderBar(overrides: Partial<RecipeFilterBarProps> = {}) {
     const props: RecipeFilterBarProps = {
         facets: {},
         filters: EMPTY_RECIPE_FILTERS,
-        onToggleFacet: noop,
-        onSetCuisine: noop,
-        onSetMaxPrepTime: noop,
-        onSetMaxCookTime: noop,
-        onSetMaxTotalTime: noop,
+        onFilterAction: noop,
         ingredientSearch: idleIngredientSearch,
-        onAddIngredientFilter: noop,
-        onRemoveIngredientFilter: noop,
-        onClearAll: noop,
         ...overrides,
     };
     render(<RecipeFilterBar {...props} />);
@@ -134,22 +128,22 @@ describe('RecipeFilterBar (web) — chips', () => {
 
     it('toggles a dietary chip with its dimension and value', async () => {
         const user = userEvent.setup();
-        const onToggleFacet = vi.fn();
-        renderBar({ facets, onToggleFacet });
+        const onFilterAction = vi.fn();
+        renderBar({ facets, onFilterAction });
 
         await user.click(screen.getByRole('button', { name: 'vegan, 4 recipes' }));
 
-        expect(onToggleFacet).toHaveBeenCalledWith('dietaryFlags', 'vegan');
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'toggleFacet', dimension: 'dietaryFlags', value: 'vegan' });
     });
 
     it('toggles a tag chip with its dimension and value', async () => {
         const user = userEvent.setup();
-        const onToggleFacet = vi.fn();
-        renderBar({ facets, onToggleFacet });
+        const onFilterAction = vi.fn();
+        renderBar({ facets, onFilterAction });
 
         await user.click(screen.getByRole('button', { name: 'quick, 3 recipes' }));
 
-        expect(onToggleFacet).toHaveBeenCalledWith('tags', 'quick');
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'toggleFacet', dimension: 'tags', value: 'quick' });
     });
 
     it('renders every chip as a real button, not a clickable div', () => {
@@ -175,24 +169,28 @@ describe('RecipeFilterBar (web) — time ladder', () => {
 
     it('sets the bound when an inactive bucket is pressed', async () => {
         const user = userEvent.setup();
-        const onSetMaxTotalTime = vi.fn();
-        renderBar({ onSetMaxTotalTime });
+        const onFilterAction = vi.fn();
+        renderBar({ onFilterAction });
 
         const total = within(screen.getByRole('group', { name: 'Total time' }));
         await user.click(total.getByRole('button', { name: 'Under 30 min' }));
 
-        expect(onSetMaxTotalTime).toHaveBeenCalledWith(30);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxTotalTime', minutes: 30 });
     });
 
     it('clears the bound when the active bucket is pressed again', async () => {
         const user = userEvent.setup();
-        const onSetMaxTotalTime = vi.fn();
-        renderBar({ filters: { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 }, onSetMaxTotalTime });
+        const onFilterAction = vi.fn();
+        renderBar({ filters: { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 }, onFilterAction });
 
         const total = within(screen.getByRole('group', { name: 'Total time' }));
         await user.click(total.getByRole('button', { name: 'Under 30 min' }));
 
-        expect(onSetMaxTotalTime).toHaveBeenCalledWith(undefined);
+        expect(onFilterAction).toHaveBeenCalledWith({
+            kind: 'setTimeBound',
+            field: 'maxTotalTime',
+            minutes: undefined,
+        });
     });
 });
 
@@ -217,12 +215,12 @@ describe('RecipeFilterBar (web) — clear all', () => {
 
     it('invokes clear-all when pressed', async () => {
         const user = userEvent.setup();
-        const onClearAll = vi.fn();
-        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] }, onClearAll });
+        const onFilterAction = vi.fn();
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] }, onFilterAction });
 
         await user.click(screen.getByRole('button', { name: 'Clear 1 filter' }));
 
-        expect(onClearAll).toHaveBeenCalledTimes(1);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'clearAll' });
     });
 });
 
@@ -236,13 +234,13 @@ describe('RecipeFilterBar (web) — cuisine + prep facets (S2)', () => {
 
     it('renders the Cuisine group as single-select chips and reports a selection', async () => {
         const user = userEvent.setup();
-        const onSetCuisine = vi.fn();
-        renderBar({ facets: s2Facets, onSetCuisine });
+        const onFilterAction = vi.fn();
+        renderBar({ facets: s2Facets, onFilterAction });
 
         const group = screen.getByRole('group', { name: 'Cuisine' });
         await user.click(within(group).getByRole('button', { name: /Thai/ }));
 
-        expect(onSetCuisine).toHaveBeenCalledWith('Thai');
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setCuisine', cuisine: 'Thai' });
     });
 
     it('marks only the active cuisine pressed (single-select)', () => {
@@ -265,25 +263,25 @@ describe('RecipeFilterBar (web) — cuisine + prep facets (S2)', () => {
 
     it('sets a prep-time bound from the Prep time ladder', async () => {
         const user = userEvent.setup();
-        const onSetMaxPrepTime = vi.fn();
-        renderBar({ onSetMaxPrepTime });
+        const onFilterAction = vi.fn();
+        renderBar({ onFilterAction });
 
         const group = screen.getByRole('group', { name: 'Prep time' });
         await user.click(within(group).getByRole('button', { name: 'Under 15 min' }));
 
-        expect(onSetMaxPrepTime).toHaveBeenCalledWith(15);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxPrepTime', minutes: 15 });
     });
 
     it('clears a prep bound by pressing the active bucket again', async () => {
         const user = userEvent.setup();
-        const onSetMaxPrepTime = vi.fn();
-        renderBar({ filters: { maxPrepTime: 15 }, onSetMaxPrepTime });
+        const onFilterAction = vi.fn();
+        renderBar({ filters: { maxPrepTime: 15 }, onFilterAction });
 
         const group = screen.getByRole('group', { name: 'Prep time' });
         expect(within(group).getByRole('button', { name: 'Under 15 min' }).getAttribute('aria-pressed')).toBe('true');
 
         await user.click(within(group).getByRole('button', { name: 'Under 15 min' }));
-        expect(onSetMaxPrepTime).toHaveBeenCalledWith(undefined);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxPrepTime', minutes: undefined });
     });
 });
 
@@ -299,13 +297,13 @@ describe('RecipeFilterBar (web) — cook-time bound (REQ-030f)', () => {
 
     it('sets a cook-time bound from the Cook time ladder', async () => {
         const user = userEvent.setup();
-        const onSetMaxCookTime = vi.fn();
-        renderBar({ onSetMaxCookTime });
+        const onFilterAction = vi.fn();
+        renderBar({ onFilterAction });
 
         const group = screen.getByRole('group', { name: 'Cook time' });
         await user.click(within(group).getByRole('button', { name: 'Under 30 min' }));
 
-        expect(onSetMaxCookTime).toHaveBeenCalledWith(30);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxCookTime', minutes: 30 });
     });
 
     it('presses only the active cook bound', () => {
@@ -318,13 +316,13 @@ describe('RecipeFilterBar (web) — cook-time bound (REQ-030f)', () => {
 
     it('clears a cook bound by pressing the active bucket again', async () => {
         const user = userEvent.setup();
-        const onSetMaxCookTime = vi.fn();
-        renderBar({ filters: { maxCookTime: 30 }, onSetMaxCookTime });
+        const onFilterAction = vi.fn();
+        renderBar({ filters: { maxCookTime: 30 }, onFilterAction });
 
         const group = screen.getByRole('group', { name: 'Cook time' });
         await user.click(within(group).getByRole('button', { name: 'Under 30 min' }));
 
-        expect(onSetMaxCookTime).toHaveBeenCalledWith(undefined);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxCookTime', minutes: undefined });
     });
 
     it('counts an active cook bound in the clear-all summary', () => {
@@ -375,6 +373,63 @@ describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)'
         expect(screen.getByText('No matching ingredients')).toBeTruthy();
     });
 
+    /**
+     * The FR-010a empty state (003-FR-010a, plan U37).
+     *
+     * ⛔ Asserted as VISIBLE TEXT, not as "the results list is absent". A below-minimum query rendered
+     * nothing before this unit; the requirement is that the cook is TOLD why, so a test that only checks
+     * for the absence of results would pass on the broken behaviour it exists to reject.
+     */
+    it('explains the three-character minimum, and does NOT say "no matching ingredients"', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'eg',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH },
+            },
+        });
+
+        expect(
+            screen.getByText('Keep typing — 3 characters or more. Anything shorter matches half the pantry.'),
+        ).toBeTruthy();
+        // ⛔ The two must not be confused: "no matching ingredients" asserts the catalog was searched and
+        // came back empty, which is exactly what did NOT happen.
+        expect(screen.queryByText('No matching ingredients')).toBeNull();
+        expect(screen.queryByRole('list')).toBeNull();
+    });
+
+    it('interpolates the minimum from the state rather than hard-coding it in the copy', () => {
+        // The dictionary carries `{minimum}`; the number comes from the shared constant the SERVER also
+        // reads. A literal in the dictionary would make the sentence lie the moment the floor moves.
+        renderBar({
+            ingredientSearch: {
+                query: 'e',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: 5 },
+            },
+        });
+
+        expect(screen.getByText(/5 characters or more/)).toBeTruthy();
+    });
+
+    it('says nothing at all while the box is untouched', () => {
+        renderBar();
+
+        expect(screen.queryByText(/characters or more/)).toBeNull();
+    });
+
+    it('shows no searching spinner below the minimum', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'eg',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH },
+            },
+        });
+
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+
     it('shows an error message when the search failed', () => {
         renderBar({
             ingredientSearch: {
@@ -389,7 +444,7 @@ describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)'
 
     it('lists matching ingredients as buttons and reports a pick', async () => {
         const user = userEvent.setup();
-        const onAddIngredientFilter = vi.fn();
+        const onFilterAction = vi.fn();
         renderBar({
             ingredientSearch: {
                 query: 'chi',
@@ -402,12 +457,15 @@ describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)'
                     isError: false,
                 },
             },
-            onAddIngredientFilter,
+            onFilterAction,
         });
 
         await user.click(screen.getByRole('button', { name: 'Filter by Chicken' }));
 
-        expect(onAddIngredientFilter).toHaveBeenCalledWith({ id: 'ing_1', name: 'Chicken' });
+        expect(onFilterAction).toHaveBeenCalledWith({
+            kind: 'addIngredient',
+            ingredient: { id: 'ing_1', name: 'Chicken' },
+        });
     });
 
     // Parity with the native leaf's same test: an option named by the bare ingredient name is
@@ -480,15 +538,15 @@ describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)'
 
     it('removes an ingredient chip by id when pressed', async () => {
         const user = userEvent.setup();
-        const onRemoveIngredientFilter = vi.fn();
+        const onFilterAction = vi.fn();
         renderBar({
             filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
-            onRemoveIngredientFilter,
+            onFilterAction,
         });
 
         await user.click(screen.getByRole('button', { name: 'Remove Chicken' }));
 
-        expect(onRemoveIngredientFilter).toHaveBeenCalledWith('ing_1');
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'removeIngredient', id: 'ing_1' });
     });
 
     it('counts each selected ingredient in the clear-all summary', () => {

@@ -1,0 +1,342 @@
+name: Deployed E2E
+
+# THE manual entrypoint for the e2e tiers that drive a REAL deployed stage — one button, and the one place a
+# human can point them at production (owner rulings 2026-09-04 / 2026-09-05).
+#
+#   > "Absent is fatal because a PR with no deployed target cannot be validated."
+#   > "All the end to end tests should be skipped if nothing sandbox is running and I should have a single
+#      e2e job that I can manually run that will run all end to end tests."
+#   > "End to end tests should always run against production."
+#
+# ## One suite, two doors
+#
+# Every deployed end-to-end tier is DEFINED ONCE, in `deployedE2eTiers.yml`: the Playwright shards, the identity,
+# food and recipe tiers, the recipe ↔ food linkage suite, the authorization boundary, Maestro and k6. `CI — PR`
+# (`_ci.yml`) calls it behind the preview deploy it just made; THIS file calls it behind a human dispatch and the
+# liveness probe below. Neither holds a copy of any tier (`deployedE2eTiers.test.ts`).
+#
+# THIS file is the manual door of the 2026-09-05 ruling ("There should also be a manual job that I can trigger
+# that will run the end to end tests"), and it opens ONLY by hand. It used to fire on `pull_request` too, behind a
+# `deployed-e2e` label; that path is gone. On PR #91 it rendered SKIPPED on every push and read as "the e2e tests
+# did not run" while `CI — PR` had run them (`deployedE2eEntrypoint.test.ts`, analyzers 1 and 4).
+#
+# ## What a dispatch runs, against what
+#
+# | tier | `pr-{N}` dispatch | `prod` dispatch |
+# |---|---|---|
+# | identity / food / recipe smokes, the identity API surface, the authorization boundary | runs | runs |
+# | web Playwright shards | runs, against `pr-{N}.sandbox.{apex}` | NOT RUN |
+# | recipe ↔ food linkage | runs | NOT RUN |
+# | mobile Maestro (switch, default ON) | runs, against that PR's origins | NOT RUN |
+# | k6 against deployed origins (switch, default ON) | runs, against that PR's origins | runs |
+#
+# ⛔ Production gets the NON-DESTRUCTIVE subset only. The web suite calls Clerk `createUser` from concurrent shards,
+# most of its specs write real data and `accountDangerZone.spec.ts` drives GDPR erasure; the linkage suite signs in
+# and seeds the catalog; Maestro writes a Clerk user into the tenant. Real users' data and the production Clerk
+# tenant are not a test fixture (ADR-0032 §5). Each of those tiers skips a prod target and refuses one in its own
+# first step.
+#
+# ## The TARGET and the TENANT are two facts
+#
+# A `pr-{N}` dispatch drives that PR's own origins; every tier that needs a Clerk tenant loads `sandbox`, because
+# there is no `pr-{N}` tenant. `_ci-heavy.yml` takes them as `target_stage` and `stage` (`heavyTierTarget.test.ts`).
+#
+# `concurrency` below is keyed on the TARGET STAGE, not on `github.ref`, so two dispatches against ONE stage queue
+# instead of overlapping. A dispatch that overlaps a `CI — PR` run of the same PR shares a target but not a Clerk
+# fixture: the run-scoped fixture key folds in `GITHUB_RUN_ID`, which differs between the two runs.
+
+on:
+    # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER. GitHub dispatches only a workflow it holds a RECORD for,
+    # and a dispatch-only file on a feature branch gets one only by running. The `pull_request` label path used
+    # to create it as a side effect; with that path gone, pushing THIS file creates a run whose every job is
+    # skipped — no runner time, nothing probed — and that run is the record. Do not widen `paths:` and do not
+    # drop a job's `workflow_dispatch` term: either turns a push into a deployed run.
+    # `workflowRegistration.test.ts` and `deployedE2eEntrypoint.test.ts` analyzer 4 assert both.
+    push:
+        paths:
+            - .github/workflows/deployedE2e.yml
+    # The manual door — the "manual job that I can trigger" of the ruling (see the header for what it does and
+    # does not reach). It is also the ONLY way to reach production: nothing automatic may point a suite at
+    # prod. Dispatch it from a branch with `gh workflow run deployedE2e.yml --ref <branch>`.
+    workflow_dispatch:
+        inputs:
+            target:
+                description: Which deployed environment to drive
+                type: choice
+                options:
+                    - sandbox
+                    - prod
+                default: sandbox
+            stage:
+                description: 'Sandbox stage to drive, e.g. pr-91 (ignored when target is prod)'
+                type: string
+                required: false
+            # The two expensive tiers. Both default to ON, because the ruling's button is "run the end to end
+            # tests", not "run some of them" — the toggles exist to iterate on one tier without paying for the
+            # other.
+            run_mobile_maestro:
+                description: Run the mobile Maestro tier (Android emulator + release APK). Sandbox only.
+                type: boolean
+                default: true
+            run_load_test:
+                description: Run the k6 tier against deployed origins.
+                type: boolean
+                default: true
+            # ⛔ THE ROLLBACK PATH FOR SHARDING, and the reason it is a form field rather than a constant. Two
+            # shards need two signer/co-author pairs to EXIST in Clerk (`POOL_ROSTER.maestro` + an owner run of
+            # `poolAdmin --apply`); until they do, the tier fails at its first pool lease with that exact
+            # instruction. Setting this to `1` runs the tier exactly as it ran before sharding, from this form,
+            # with no commit. `_ci-heavy.yml` owns the ceiling and clamps anything larger.
+            maestro_shards:
+                description: How many runners the Maestro tier shards its flows across (clamped to the Clerk pool).
+                type: string
+                default: '2'
+
+permissions:
+    contents: read
+
+concurrency:
+    # Keyed on the TARGET STAGE, never on `github.ref` — see the header. `cancel-in-progress: false` because a
+    # half-cancelled suite against a shared environment is worse than a queued one. A registration push has no
+    # inputs and resolves to `unset`, which queues nothing real behind it.
+    group: deployed-e2e-${{ github.event.inputs.target == 'prod' && 'prod' || github.event.inputs.stage || 'unset' }}
+    cancel-in-progress: false
+
+env:
+    NODE_VERSION: 24
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+    DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+
+jobs:
+    # ── Resolve the target, then ask whether there is anything deployed to talk to ─────────────────────
+    #
+    # Gated only on the EVENT — a human's dispatch — which is the one condition knowable before a job starts.
+    # Everything else — which stage, which origins, whether they are serving — needs the AWS API and the
+    # public internet, so it lives in steps.
+    resolve:
+        name: Resolve target and liveness
+        runs-on: ubuntu-latest
+        # ⛔ THE STAGE IS DECIDED HERE, AT JOB LEVEL, AND THE STEP BELOW ONLY VALIDATES IT. It used to be
+        # computed in the step and read back as a step output, which is invisible to static analysis:
+        # `stackProbeCoverage.test.ts` reads `env:` at file and job level only, so every stack this job
+        # probes came back "whose stage this guard cannot resolve, so nothing here can say whether the set
+        # is complete" — a probe set nothing could check. Deciding it once here keeps ONE representation of
+        # the precedence and makes the probe set legible to the guard.
+        env:
+            STAGE: >-
+                ${{ github.event.inputs.target == 'prod' && 'prod'
+                || github.event.inputs.stage
+                || '' }}
+        outputs:
+            stage: ${{ steps.target.outputs.stage }}
+            identity_origin: ${{ steps.target.outputs.identity_origin }}
+            recipe_origin: ${{ steps.target.outputs.recipe_origin }}
+            food_origin: ${{ steps.target.outputs.food_origin }}
+            web_origin: ${{ steps.target.outputs.web_origin }}
+            live: ${{ steps.live.outputs.live }}
+        if: github.event_name == 'workflow_dispatch'
+        steps:
+            - name: Checkout
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            # ⛔ THE prod guard, as a STEP that fails rather than as an `if:` that skips. A skip is
+            # indistinguishable from "there was nothing to do", and a mis-triggered prod run is a thing
+            # somebody must SEE. Only `workflow_dispatch` carries a human's intent; every other event
+            # resolves to this PR's sandbox and can never select prod, so this is defence in depth against a
+            # trigger added later (a `schedule:` or a `workflow_run:` would otherwise inherit the input).
+            - name: Refuse a prod target on anything but a manual dispatch
+              env:
+                  TARGET: ${{ github.event.inputs.target }}
+                  EVENT: ${{ github.event_name }}
+              run: |
+                  set -euo pipefail
+                  if [ "${TARGET:-sandbox}" = 'prod' ] && [ "$EVENT" != 'workflow_dispatch' ]; then
+                      echo "::error::a deployed run against PRODUCTION is a deliberate act — only a manual workflow_dispatch may select it (got event ${EVENT})"
+                      exit 1
+                  fi
+                  echo "target=${TARGET:-sandbox} on ${EVENT}"
+            - name: Setup Node.js
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - name: Install dependencies
+              run: npm ci
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # `printPublicOrigin.mjs` imports `@kitchensink/infra-alb`, which exports `./dist` (the compiled
+            # CDK apps run under plain `node`, whose type-stripping resolves a `.js` specifier inside a `.ts`
+            # file literally rather than through `extensionAlias`). `^...` asks turbo for the dependency
+            # CLOSURE rather than naming packages, so the next dist-exporting dependency needs no edit here —
+            # the lesson `sandbox-deploy.yml` paid for twice with `infra-security` and then `infra-alb`.
+            - name: Build the workspace packages the origin resolver imports
+              run: npx turbo run build --filter='@kitchensink/loadtest^...'
+            # ⛔ NO HOST LITERAL. Every origin comes from `publicServiceOriginForStage` (ADR-0003/0006: prod
+            # is the bare label `recipe.{apex}`, every other stage the DASH form `recipe-{stage}.{apex}`,
+            # because a 3-label `recipe.pr-7.{apex}` matches no wildcard on the shared ALB certificate and
+            # fails the TLS handshake before any listener rule is consulted). `food-loadtest.yml` shipped
+            # `https://food-pr-59.commise.app` as a dispatch DEFAULT for months after PR 59 closed, and a
+            # stale literal answers `000` — which reads as an outage rather than as a stale default.
+            - name: Resolve this target's stage and service origins
+              id: target
+              run: |
+                  set -euo pipefail
+                  # VALIDATES the job-level `STAGE`; it does not re-derive it. Two derivations of one fact
+                  # is how the probe set and the thing probed drift apart.
+                  stage="${STAGE:-}"
+                  if [ -z "${stage}" ]; then
+                      echo "::error::no stage to drive — dispatch with target=prod, or pass stage=pr-{N}"
+                      exit 1
+                  fi
+                  case "${stage}" in
+                      prod | pr-[0-9]*) ;;
+                      *)
+                          echo "::error::refusing an unrecognised stage '${stage}' — expected 'prod' or 'pr-{N}'"
+                          exit 1
+                          ;;
+                  esac
+
+                  recipe=$(node packages/tools/loadtest/printPublicOrigin.mjs recipe "${stage}" "${DOMAIN_NAME}")
+                  food=$(node packages/tools/loadtest/printPublicOrigin.mjs food "${stage}" "${DOMAIN_NAME}")
+
+                  # The BROWSER origin the recipe service must allow cross-origin. Prod is the apex; a
+                  # preview is the per-PR SUBDOMAIN (ADR-0001, cutover executed 2026-07-13 — the older
+                  # `sandbox.<domain>/pr-{N}` path form 404s BY DESIGN and must not be restored here).
+                  # `DOMAIN_NAME` is a repo variable, so no host is typed into this file.
+                  # Identity is NOT per-PR: every preview signs in against the ONE shared sandbox identity
+                  # service (ADR-0005's note on `identity.sandbox.<domain>`), the same rule `_ci.yml`'s
+                  # `resolve-sandbox` applies.
+                  if [ "${stage}" = 'prod' ]; then
+                      web="https://${DOMAIN_NAME}"
+                      identity="https://identity.${DOMAIN_NAME}"
+                  else
+                      web="https://${stage}.sandbox.${DOMAIN_NAME}"
+                      identity="https://identity.sandbox.${DOMAIN_NAME}"
+                  fi
+
+                  {
+                      echo "stage=${stage}"
+                      echo "identity_origin=${identity}"
+                      echo "recipe_origin=${recipe}"
+                      echo "food_origin=${food}"
+                      echo "web_origin=${web}"
+                  } >>"$GITHUB_OUTPUT"
+                  echo "stage=${stage} identity=${identity} recipe=${recipe} food=${food} web=${web}"
+            # ⛔ THE SKIP, and it consumes the answer the repo ALREADY publishes rather than re-deriving it.
+            #
+            # `deployGate.sh` has emitted `live` since 2026-09-02 — "is there a preview to talk to at all,
+            # by the end of this run" — and until now nothing outside `sandbox-deploy.yml`'s own steps read
+            # it. Re-implementing "is anything deployed" here as a `curl` loop would be a SECOND, drifting
+            # definition of a question one script already answers against both CloudFormation and the origin.
+            #
+            # ⚠️ `live` ALONE is not the condition, and the difference matters. The gate reports `live=true`
+            # for an environment it is ABOUT TO CREATE (an absent stack under intent) — true for the deploy
+            # job that follows it, false for this workflow, which deploys nothing. The state this tier can
+            # run in is the gate's own `deploy=false` arm: "unchanged and already deployed and serving (all
+            # stacks usable, origin 200)". So the condition is `live && !deploy`, per service.
+            #
+            # `intent=true` is passed unconditionally BECAUSE of that pairing: intent is the gate's
+            # on-demand-sandbox term (once a `sandbox-up` label, now passed directly), and passing `false` would collapse every
+            # answer to `live=false` and make this tier permanently silent. Passing `true` cannot cause a
+            # deploy — there is no deploy step in this workflow — and a torn-down sandbox still resolves to
+            # SKIP, because its absent stacks produce `deploy=true`. `changed`/`forced` are `false` for the
+            # same reason: this run has no diff to react to and is not a deploy button.
+            #
+            # ⛔ Absence SKIPS, it never fails. `deployGateStepGuards.test.ts` records why:
+            # "red-over-nothing is the mirror of green-over-nothing", and `Sandbox Deploy` was permanently
+            # red on PR #91 for exactly this. `GITHUB_OUTPUT=` is cleared per call so the two evaluations
+            # cannot overwrite each other's `deploy=`/`live=` keys; ONE combined `live=` is written at the
+            # end.
+            - name: Is anything deployed at this stage? (deploy-gate liveness)
+              id: live
+              env:
+                  STAGE: ${{ steps.target.outputs.stage }}
+                  RECIPE_ORIGIN: ${{ steps.target.outputs.recipe_origin }}
+                  FOOD_ORIGIN: ${{ steps.target.outputs.food_origin }}
+              run: |
+                  set -euo pipefail
+
+                  # Run the gate with its GITHUB_OUTPUT suppressed and capture the verdict, so both services
+                  # can be asked without the second answer clobbering the first.
+                  ask() {
+                      local service="$1" health="$2"
+                      shift 2
+                      GITHUB_OUTPUT='' bash .github/scripts/deployGate.sh evaluate \
+                          true "${service}" false false "${health}" "${DEFAULT_AWS_REGION}" "$@"
+                  }
+
+                  field() {
+                      printf '%s\n' "$1" | sed -n "s/^${2}=//p" | tail -1
+                  }
+
+                  recipe_verdict=$(ask recipe "${RECIPE_ORIGIN}/health" \
+                      "kitchensink-ingredient-parser-${STAGE}" \
+                      "kitchensink-recipe-schema-${STAGE}" \
+                      "kitchensink-recipe-workers-${STAGE}" \
+                      "kitchensink-recipe-service-${STAGE}")
+                  echo "${recipe_verdict}"
+
+                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" \
+                      "kitchensink-food-schema-${STAGE}" \
+                      "kitchensink-food-service-${STAGE}")
+                  echo "${food_verdict}"
+
+                  live='false'
+                  if [ "$(field "${recipe_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${recipe_verdict}" deploy)" = 'false' ] &&
+                      [ "$(field "${food_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${food_verdict}" deploy)" = 'false' ]; then
+                      live='true'
+                  fi
+
+                  echo "live=${live}" >>"$GITHUB_OUTPUT"
+                  if [ "${live}" = 'true' ]; then
+                      echo "::notice::${STAGE} is deployed and serving — running the deployed e2e tier"
+                  else
+                      echo "::notice::nothing is deployed and serving at ${STAGE} — SKIPPING the deployed e2e tier (this is not a failure; deploy the stage, or press Run workflow on Sandbox Deploy, and try again)"
+                  fi
+
+    # ── The tiers — CALLED, never copied ────────────────────────────────────────────────────────────────
+    #
+    # `if: needs.resolve.outputs.live == 'true'` is the whole of the owner's "skipped if nothing sandbox is
+    # running": GitHub renders the call as SKIPPED — visually distinct from green, still passing for branch
+    # protection, and zero runner minutes. ⛔ Do NOT make it skip-tolerant (`always()` / `!cancelled()`): that
+    # would run the suite against thin air and turn "there is nothing to do" back into a red check. The
+    # `workflow_dispatch` term is redundant with `resolve`'s own gate and is kept deliberately: a registration
+    # push must stay inert even if that gate is edited (`workflowRegistration.test.ts`).
+    #
+    # ⚠️ What the gate does NOT serialise: a human pressing this button while a `CI — PR` run of the same PR is in
+    # flight. Both drive one preview. Their Clerk fixtures are run-scoped and cannot collide, but both put load on
+    # the same single Spot task.
+    deployed-tiers:
+        # ⛔ A CONSTANT, and deliberately WITHOUT the word "E2E" — `workflowInvariants` invariant 8 (branch
+        # protection matches a rendered name) and invariant 7 (a name claiming the e2e tier must name a deployed
+        # target, which a `uses:` job cannot). The tiers inside carry their own `E2E (…)` names.
+        name: Deployed tiers
+        needs: resolve
+        if: github.event_name == 'workflow_dispatch' && needs.resolve.outputs.live == 'true'
+        uses: ./.github/workflows/deployedE2eTiers.yml
+        # ⛔ A called workflow can only DOWNGRADE its caller's grant, and the web shards exchange an OIDC token for
+        # their secretless Argos credential — so the grant is stated here, or the run fails to start.
+        permissions:
+            contents: read
+            id-token: write # the web tier's secretless Argos OIDC exchange — a callee can only downgrade
+        with:
+            target_stage: ${{ needs.resolve.outputs.stage }}
+            identity_origin: ${{ needs.resolve.outputs.identity_origin }}
+            recipe_origin: ${{ needs.resolve.outputs.recipe_origin }}
+            food_origin: ${{ needs.resolve.outputs.food_origin }}
+            web_origin: ${{ needs.resolve.outputs.web_origin }}
+            run_mobile_maestro: ${{ inputs.run_mobile_maestro }}
+            run_load_test: ${{ inputs.run_load_test }}
+            maestro_shards: ${{ inputs.maestro_shards }}
+        # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`).
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

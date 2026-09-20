@@ -3,7 +3,13 @@ import type { Locator, Page } from '@playwright/test';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, makeRecipeVersion, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import {
+    E2E_INGREDIENT_IDS,
+    makeRecipeDetail,
+    makeRecipeVersion,
+    mockRecipeApi,
+    readViewerAppId,
+} from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -80,8 +86,8 @@ const baseSnapshot: RecipeSnapshot = {
         {
             id: 'ri_1',
             recipeId: RECIPE_ID,
-            ingredientId: 'ing_olive_oil',
-            quantity: 2,
+            ingredientId: E2E_INGREDIENT_IDS.oliveOil,
+            quantity: { kind: 'exact', value: 2 },
             unit: 'tbsp',
             sortOrder: 1,
             ingredientName: 'Olive oil',
@@ -112,9 +118,9 @@ async function seed(page: Page): Promise<void> {
                 description: baseSnapshot.description,
                 ingredients: [
                     {
-                        ingredientId: 'ing_olive_oil',
+                        ingredientId: E2E_INGREDIENT_IDS.oliveOil,
                         name: 'Olive oil',
-                        quantity: 2,
+                        quantity: { kind: 'exact', value: 2 },
                         unit: 'tbsp',
                         isUserEntered: false,
                     },
@@ -129,6 +135,24 @@ async function seed(page: Page): Promise<void> {
                 makeRecipeVersion({ versionNumber: 3, snapshot: v3Snapshot }),
             ],
         },
+    });
+}
+
+/**
+ * Sign in and seed ONE recipe the viewer owns, under a caller-supplied title.
+ *
+ * ⚠️ Exists so a test can seed a PATHOLOGICAL title. A recipe title is user-authored and unbounded, and the
+ * interesting case is not a long sentence (which wraps at spaces on its own) but a long unbreakable TOKEN —
+ * a smashed-together title, a pasted URL, a compound noun. That is the shape a flex item's default
+ * `min-width: auto` refuses to shrink below, and it pushed the detail's title band off-screen.
+ */
+async function seedTitled(page: Page, title: string): Promise<void> {
+    await signInWithTicket(page);
+    const viewerId = await readViewerAppId(page);
+    await mockRecipeApi(page, {
+        viewerId,
+        tier: 'premium',
+        recipes: [makeRecipeDetail({ id: RECIPE_ID, ownerId: viewerId, title, currentVersion: 1 })],
     });
 }
 
@@ -169,6 +193,47 @@ async function compareColumnCount(page: Page): Promise<number> {
 
 test.describe('recipe/home responsive — 375px phone (U5)', () => {
     test.use({ viewport: { width: 375, height: 812 } });
+
+    /**
+     * ⛔ THE OWNER'S PRIMARY ACTION MUST NOT BE AT THE FOOT OF AN UNBOUNDED SCROLL. It used to be: Edit
+     * rendered below the hero, the badges, the stats, every ingredient, every step and the rating block, so
+     * on a long recipe the only route to one's own Edit button was to scroll past the whole recipe.
+     * `recipe-detail.md` puts `[Edit] [More]` in the header; this asserts they are reached BEFORE the body.
+     *
+     * ⚠️ Asserted as a PIXEL position, not DOM order, because this is the deployed-browser tier and the
+     * viewer's actual complaint is a distance in pixels. The unit suites assert the document-order half.
+     */
+    test('the owner reaches Edit above the recipe body, not past every step of it', async ({ page }) => {
+        await seedTitled(page, 'Weeknight Pasta with Garlic');
+        await page.goto(route(`/recipes/${RECIPE_ID}`));
+
+        const edit = page.getByRole('link', { name: 'Edit recipe' });
+        await expect(edit).toBeVisible();
+        const editBox = await edit.boundingBox();
+        const ingredientsBox = await page.getByRole('region', { name: 'Ingredients' }).boundingBox();
+
+        expect(editBox).not.toBeNull();
+        expect(ingredientsBox).not.toBeNull();
+        expect(editBox?.y ?? 0).toBeLessThan(ingredientsBox?.y ?? 0);
+        // And it is a real 44px target, not a link squeezed into the title row — asserted as a bounded RANGE
+        // via the house helper, per this file's own module doc: a bare `>= 44` is satisfied by every
+        // inflation, so it would not catch the opposite defect of a pill that grew.
+        expectTouchTarget(editBox?.height ?? 0, 'the Edit link in the detail title band');
+    });
+
+    /**
+     * ⛔ A LONG UNBREAKABLE TITLE MUST NOT PUSH THE PAGE SIDEWAYS. Measured in Chromium before the fix: a
+     * 47-character single word overflowed the document by 216px at 320 and 340px at 640 — the width the
+     * title band shares with the owner controls. The cure is `min-w-0 break-words` on the `h1`
+     * (`RecipeDetailBody.tsx`), and this is what proves it in a real browser rather than in a replica.
+     */
+    test('a long unbreakable recipe title wraps instead of scrolling the page sideways', async ({ page }) => {
+        await seedTitled(page, 'Supercalifragilisticexpialidociouslongsingleword');
+        await page.goto(route(`/recipes/${RECIPE_ID}`));
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+        await expectNoHorizontalOverflow(page);
+    });
 
     test('Home fits the viewport and the bottom tab bar is pinned at the foot with 44px controls', async ({ page }) => {
         await seed(page);
@@ -279,8 +344,14 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         expect(Math.round(box?.height ?? 0)).toBe(24);
 
         // Future-drift guard: the static detail article stays visually stable at desktop width.
+        // ⚠️ THIS BASELINE NOW COVERS THE OWNER CONTROLS. They used to be siblings of `RecipeDetailView`,
+        // OUTSIDE this `<article>` and therefore invisible to the snapshot; they now render inside the
+        // article's title band, and at this width in the `sm:flex-row sm:justify-between` branch. So any
+        // change to `RecipeDetailBody`'s article subtree owes a baseline refresh (`--update-snapshots`) —
+        // a diff that slips under `maxDiffPixelRatio` without one leaves this guard certifying a picture of
+        // a UI that no longer ships, which is strictly worse than it failing.
         await expect(page.getByRole('article', { name: 'Weeknight Pasta with Garlic' })).toHaveScreenshot(
-            'recipe-detail-desktop.png',
+            'recipeDetailDesktop.png',
             { maxDiffPixelRatio: 0.02 },
         );
     });
@@ -380,5 +451,94 @@ test.describe('recipe list touch targets — 390×844 phone with a touchscreen',
         // L5: "Community" browses public recipes on the discovery surface — the tap has to actually get there.
         await expect(page).toHaveURL(/\/discover(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
+    });
+});
+
+/**
+ * ⛔ 320 CSS px, THE NARROWEST SUPPORTED WIDTH, which no spec in this repository covered — and the four
+ * routes below were not covered at ANY width.
+ *
+ * That gap is why two defects shipped together on the wizard: its action bar was painted over by the app
+ * tab bar at every width under `lg`, and its three controls needed 388px against 288 available so the
+ * primary hung 84px off the right edge. Both are worst here and both are invisible at 375.
+ *
+ * ⚠️ A `fixed` element is EXCLUDED from scrollable overflow, so `expectNoHorizontalOverflow` alone cannot
+ * see a clipped pinned bar — that is why `recipeWizardActionBar.spec.ts` asserts the bar's box against the
+ * viewport directly. This describe covers the DOCUMENT, which is the other half.
+ */
+test.describe('recipe responsive — 320px, the narrowest supported width', () => {
+    test.use({ viewport: { width: 320, height: 640 } });
+
+    test('every recipe route fits the viewport with no horizontal scroll', async ({ page }) => {
+        await seed(page);
+
+        for (const path of [
+            '/',
+            '/recipes',
+            `/recipes/${RECIPE_ID}`,
+            `/recipes/${RECIPE_ID}/versions`,
+            // ⛔ The four the suite never visited, and the three defects all live here.
+            '/recipes/new',
+            `/recipes/${RECIPE_ID}/edit`,
+            '/recipes/parse',
+        ]) {
+            await page.goto(route(path));
+            await expectNoHorizontalOverflow(page);
+        }
+    });
+});
+
+/**
+ * ⚠️ 768 IS A REAL BAND, not an interpolation between 375 and 1280. `HomeTabBar` is `lg:hidden`, so it is
+ * present through 1023 and gone at 1024 — the whole tablet range behaved like a phone for chrome and like a
+ * desktop for content, and no spec exercised it.
+ */
+test.describe('recipe responsive — 768px tablet', () => {
+    test.use({ viewport: { width: 768, height: 1024 } });
+
+    test('every recipe route fits the viewport with no horizontal scroll', async ({ page }) => {
+        await seed(page);
+
+        for (const path of ['/', '/recipes', `/recipes/${RECIPE_ID}`, '/recipes/new', '/recipes/parse']) {
+            await page.goto(route(path));
+            await expectNoHorizontalOverflow(page);
+        }
+    });
+
+    /**
+     * ⛔ THIS IS THE CASE THAT BINDS `min-w-0`, AND THE WIDTH IS THE WHOLE POINT. The detail `h1` carries two
+     * utilities doing two different jobs at two different widths, and the phone-width sibling of this test
+     * (375px) can only ever prove ONE of them:
+     *
+     *   `break-words` → `overflow-wrap: break-word`, which lets an over-long token break. Per CSS Text 3 it
+     *       explicitly does NOT reduce the element's min-content intrinsic size.
+     *   `min-w-0` → defeats a flex item's automatic minimum size, which applies only on the MAIN axis.
+     *
+     * The title row is `flex flex-col gap-3 sm:flex-row`, so below 640 it is a COLUMN and `min-width: auto`
+     * never constrains the cross axis — delete `min-w-0` and the 375px test stays green. 768 is above `sm`,
+     * the row is a real flex row sharing width with the owner controls, and this is where the measurement
+     * that prompted the fix found 340px of overflow. One case per utility, each at the width it governs.
+     *
+     * ⚠️ MUTATION-CHECKED IN CHROMIUM, because the reasoning above is the kind that sounds right and is not.
+     * Removing one utility at a time, with this exact title and geometry:
+     *
+     *     variant              |  375   |  768
+     *     shipped              |  fits  |  fits
+     *     min-w-0 removed      |  FITS  |  +244px over   ← only THIS width catches it
+     *     break-words removed  | +161px |   +15px over   ← the 375 sibling catches it
+     *
+     * The `FITS` cell is the whole reason this test exists: the first draft placed the long-title case at
+     * 375 only, where deleting `min-w-0` changes nothing and the suite stays green.
+     */
+    test('⛔ a long unbreakable title still fits once the title row shares width with the owner controls', async ({
+        page,
+    }) => {
+        await seedTitled(page, 'Supercalifragilisticexpialidociouslongsingleword');
+        await page.goto(route(`/recipes/${RECIPE_ID}`));
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        // The row really is side-by-side here — otherwise this would silently re-test the 375px case.
+        await expect(page.getByRole('link', { name: 'Edit recipe' })).toBeVisible();
+
+        await expectNoHorizontalOverflow(page);
     });
 });

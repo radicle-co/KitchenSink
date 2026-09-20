@@ -3,7 +3,7 @@
  * Component tests for the web public-discovery result card (T076 / W4 S1), focused on its CLONE affordance.
  *
  * The card's list-level behaviour (select, per-row clone, per-row busy) is covered through
- * `RecipeDiscoveryList.test.tsx`, which renders it in situ. This file exists for the card's OWN contract at
+ * `RecipeDiscoveryResults.test.tsx` and `RecipeBrowseRailResults.test.tsx`, which render it in situ. This file exists for the card's OWN contract at
  * the leaf: that the clone control is the design-system `Button` on the same `secondary` tier as every other
  * clone affordance in the product, and that migrating it did not cost the row-unique accessible name the list
  * and Playwright both select by.
@@ -82,14 +82,17 @@ describe('RecipeDiscoveryCard (web) — clone contract', () => {
         expect(screen.getByRole('button', { name: cloneName('Ribollita') })).toBeTruthy();
     });
 
-    it('disables the clone control and announces busy while THIS row’s clone is in flight', async () => {
+    it('busies the clone control and announces it while THIS row’s clone is in flight', async () => {
         const user = userEvent.setup();
         const onClone = vi.fn();
         renderCard({ isCloning: true, onClone });
 
         // While busy the row is named by the in-flight template, not the idle one.
         const button = screen.getByRole<HTMLButtonElement>('button', { name: `Cloning ${RECIPE_TITLE}` });
-        expect(button.disabled).toBe(true);
+        // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus in a real browser —
+        // WCAG 2.2 SC 2.4.3); the no-refire guarantee below is unchanged.
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect((button as HTMLButtonElement).disabled).toBe(false);
         expect(button.getAttribute('aria-busy')).toBe('true');
         expect(screen.getByText('Cloning')).toBeTruthy();
 

@@ -1,0 +1,154 @@
+appId: io.commise.mobile
+---
+# U16 — the picker's CREATE-YOUR-OWN-FOOD door (plan U16, ADR-0029). Assumes an authenticated session (the
+# auth login flow runs first in CI ordering) and the app pointed at the runner's recipe-service, exactly like
+# `create.yaml`.
+#
+# ⛔ THIS FILE WAS COMMITTED EMPTY (zero bytes, by `4d186d1a`) AND STAYED THAT WAY. It was in `FLOW_PLAN` the
+# whole time, so every heavy run tried to execute it and every heavy run died on `Config Section Required` —
+# the inventory guard only ever asked whether the file EXISTED, which an empty file satisfies. That hole is
+# closed now (`maestroFlowSelection.test.ts` parses each planned flow's config section), and this is the flow
+# it was holding a place for.
+#
+# ⛔ WHAT THIS FLOW ASSERTS: THE HAPPY PATH, against a real food service.
+# `IngredientsService.createAuthoredFood` is a BFF composition. Its FIRST act is
+# `foodClients.standard(caller).createAuthoredFood(input)`: it authors the food IN THE FOOD SERVICE, then admits
+# the ingredient. This flow used to assert the REFUSAL sentence, because the Maestro job then booted
+# recipe-service + Postgres on the runner and nothing else, with nothing listening at `FOOD_SERVICE_URL`. That job
+# is gone. Under the 2026-09-05 owner ruling (ADR-0032, CLAUDE.md), every end-to-end tier drives the PR's
+# DEPLOYED sandbox. The APK is built with `EXPO_PUBLIC_RECIPE_API_URL` set to `recipe-pr-{N}`, whose food service is
+# the live `food-pr-{N}` (`_ci-heavy.yml`, the `resolve-mobile-target` outputs). Run 34863424203 proved it: the
+# create SUCCEEDED ("Added Maestro Nut Butter", line 1 `Resolved`) and the flow failed waiting for a failure that
+# could not happen. The refusal path is now the one no device can reach, and it stays covered by
+# `tests/components/IngredientPicker.native.test.tsx`.
+#
+# What this proves on a real device, every run: the door exists; the form renders its per-100g fields and its
+# privacy promise; validation refuses an incomplete draft WITHOUT a request; and a complete draft is authored,
+# admitted and ATTACHED to the line as a resolved ingredient. That last part is the falsifiable core. A create that
+# resolved but never reached the form, or a form that closed without attaching, fails here.
+#
+# ⚠️ The authored food is REAL data in the preview's food service, owned by the signer pool slot. It is private to
+# its author (ADR-0029), and `resetPool --tier maestro` deletes the slot's authored foods before and after every
+# run (its log line reads `-N authored foods`), so it does not build up.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Authored Food'
+
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+
+# A name deliberately absent from the seeded catalog (Flour/Sugar/Butter), so the picker falls through to its
+# no-good-match actions — which is where U16's door lives.
+- inputText: 'Maestro Nut Butter'
+
+# ⛔ THE DOOR ITSELF. `Create “{query}”` (the freeform row) and `Create your own food` sit side by side, and
+# they are NOT the same affordance: the first attaches an unbacked name, the second authors a real food with
+# macros. Tapping the wrong one is the regression this asserts against.
+- scrollUntilVisible:
+      element: 'Create your own food'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Create your own food'
+
+# ⛔ THE FORM OPENS BELOW THE FOLD, AND `assertVisible` DOES NOT SCROLL. This is not a selector-spelling
+# problem and no rewording of the assertions below could have fixed it — the nodes were not in the tree.
+#
+# Measured from the failing run's own hierarchy dump (33878552289, job 101042182336): the wizard's
+# `ScrollView` occupies `[0,288][1080,2084]` and tapping the door laid the form card out from y=1781. The
+# dump therefore held the card's heading and its name field, `Nutrition per 100 g` survived by a SEVEN-
+# pixel sliver at `[121,2077][961,2084]`, and every macro field, the privacy line and both buttons were
+# absent from the hierarchy entirely — clipped by the viewport, so Maestro could not see them at all.
+# (The a11y-hidden visual `Text` is a red herring: `Food name` is in that same dump with
+# `important-for-accessibility=false`, and the input beside it carries the label as its accessible NAME,
+# so either node satisfies the assertion. The macro labels are missing because of the fold, nothing else.)
+#
+# So bring the card's action row into view first. The card measures ~935px against a ~1796px viewport, so
+# once its bottom is on screen the WHOLE form is — heading through Cancel, which shares the action row
+# with `Create and add`. This also un-vacuums the two `assertNotVisible`s below: an element clipped off
+# the bottom of a scroll view is trivially "not visible", so they asserted nothing until now.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
+
+# The form. `draftFromQuery` carries the typed query into the name field, so the cook never retypes it.
+- assertVisible: 'Nutrition per 100 g'
+- assertVisible: 'Food name'
+- assertVisible: 'Calories (kcal)'
+- assertVisible: 'Protein (g)'
+- assertVisible: 'Carbs (g)'
+- assertVisible: 'Fat (g)'
+
+# D9a/U11 — the promise the backend keeps: an authored food is PRIVATE until a human promotes it. If this
+# line ever disappears, a cook is authoring public data without being told.
+- assertVisible: 'Only you can see foods you create.'
+
+# ⛔ VALIDATION FIRST, AND IT COSTS NO REQUEST. The macros start empty, so submitting now must refuse locally.
+# This is what proves the form is not a thin passthrough that discovers its own bounds from a 400.
+- tapOn: 'Create and add'
+- assertVisible: 'Required'
+- assertNotVisible: 'Creating your food…'
+
+# Now a complete, in-bounds draft (calories <= 900, each macro <= 100 — `authoredMacrosSchema`).
+- tapOn: 'Calories (kcal)'
+- inputText: '588'
+- tapOn: 'Protein (g)'
+- inputText: '21'
+- tapOn: 'Carbs (g)'
+- inputText: '20'
+- tapOn: 'Fat (g)'
+- inputText: '50'
+- assertNotVisible: 'Required'
+
+# ⛔ RE-ANCHOR, because the CARD CHANGED HEIGHT under us. The refused submit added a `Required` line beneath
+# each macro input and filling them took the lines away again, and a scroll view that was already at its
+# bottom does not follow content that grows below the offset — it just clips it. `scrollUntilVisible` is a
+# no-op when the element is already fully visible, so this costs a hierarchy read when nothing has moved.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Create and add'
+
+# ⛔ THE FALSIFIABLE CORE. The create goes to the deployed food service and must come back as a line: the form
+# closes, the picker announces the add, and line 1 carries the authored food's name with a `Resolved` status.
+# `extendedWaitUntil`, never a fixed sleep: two services are in the path and their latency is not a constant.
+# The announcement stays up: `useIngredientResolver` clears `lastAdded` only when the cook types a new query, so
+# a slow round trip cannot land and clear between polls. It is waited on before the line because the line's
+# name field cannot tell "attached" from "still in the form": the per-100g form's `Food name` field already
+# holds the same text, carried over from the query.
+- extendedWaitUntil:
+      visible: 'Added Maestro Nut Butter'
+      timeout: 40000
+- assertNotVisible: 'Nutrition per 100 g'
+- assertNotVisible: 'Could not create the food. Check your connection and try again.'
+
+# The line itself, addressed by its accessible names rather than by position on screen. Both are ANCHORED, since
+# the unanchored name would also match the "Added Maestro Nut Butter" announcement above. `Resolved` does NOT
+# tell an authored food apart from a freeform `Create “…”` line, which resolves too. What proves the AUTHORED
+# door ran is the order of events: the add came back from the per-100g form's own `Create and add`, and that form
+# closed.
+- scrollUntilVisible:
+      element: 'Ingredient 1 status'
+      direction: DOWN
+      timeout: 20000
+- assertVisible:
+      text: '^Maestro Nut Butter$'
+- assertVisible:
+      text: '^Resolved$'

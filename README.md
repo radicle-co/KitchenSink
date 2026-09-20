@@ -31,12 +31,12 @@ npm run format
 
 ## Monorepo Structure
 
-| Workspace                        | Package                                                              | Description                  |
-| -------------------------------- | -------------------------------------------------------------------- | ---------------------------- |
-| `packages/apps/commise/web`    | `@commise/web`                                                   | Next.js web app              |
-| `packages/apps/commise/mobile` | `@commise/mobile`                                                | Expo/React Native mobile app |
-| `packages/apps/commise/ui`                    | `@commise/ui`                                                    | Shared UI component library  |
-| `packages/tools/*`               | `@kitchensink/eslint`, `typescript`, `vitest`, `prettier`, `esbuild` | Shared tooling configs       |
+| Workspace                      | Package                                                              | Description                  |
+| ------------------------------ | -------------------------------------------------------------------- | ---------------------------- |
+| `packages/apps/commise/web`    | `@commise/web`                                                       | Next.js web app              |
+| `packages/apps/commise/mobile` | `@commise/mobile`                                                    | Expo/React Native mobile app |
+| `packages/apps/commise/ui`     | `@commise/ui`                                                        | Shared UI component library  |
+| `packages/tools/*`             | `@kitchensink/eslint`, `typescript`, `vitest`, `prettier`, `esbuild` | Shared tooling configs       |
 
 Root scripts delegate to [Turborepo](https://turbo.build/repo), which runs the matching script in each workspace.
 

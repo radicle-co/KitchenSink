@@ -24,7 +24,13 @@ import {
     varchar,
     type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import type {
+    RecipeDifficulty,
+    RecipeMealType,
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
 
 /**
  * Postgres `tsvector` column type (drizzle-orm has no native `tsvector`). Nullable and
@@ -57,13 +63,31 @@ export const RECIPE_SOURCE_TYPES = [
 ] as const satisfies readonly RecipeSourceType[];
 /** Author-stated difficulty (CR-001 / FR-001b). NULL ("not stated") is a first-class state, not in this set. */
 export const RECIPE_DIFFICULTIES = ['easy', 'medium', 'hard'] as const satisfies readonly RecipeDifficulty[];
-/** Publication status (W8-a.3) — backs {@link recipes_status_check} below. */
+/** Publication status (W8-a.3) — backs `recipes_status_check` below. */
 export const RECIPE_STATUSES = ['draft', 'published'] as const satisfies readonly RecipeStatus[];
+/**
+ * Author-stated meal type (plan U34) — backs `recipes_meal_type_check` below. NULL ("not stated") is a
+ * first-class state and is deliberately NOT in this set, exactly as for difficulty.
+ *
+ * The `satisfies` is the whole point: `tags` and `dietary_flags` beside it are unconstrained `text[]` on
+ * purpose, so this is the ONE classification column whose domain the database enforces, and a recipe-core
+ * addition this array does not mirror fails the build here rather than passing a CHECK that silently
+ * rejects the new value at run time.
+ */
+export const RECIPE_MEAL_TYPES_DB = [
+    'breakfast',
+    'brunch',
+    'lunch',
+    'dinner',
+    'snack',
+    'dessert',
+    'drink',
+] as const satisfies readonly RecipeMealType[];
 
 // Single authoritative types — re-exported from recipe-core rather than redeclared, so a schema
 // consumer importing `RecipeVisibility`/`RecipeSourceType`/`RecipeDifficulty`/`RecipeStatus` FROM THIS
 // FILE gets the exact same type as one importing it from `@kitchensink/recipe-core` directly.
-export type { RecipeVisibility, RecipeSourceType, RecipeDifficulty, RecipeStatus };
+export type { RecipeVisibility, RecipeSourceType, RecipeDifficulty, RecipeMealType, RecipeStatus };
 
 // ── recipes: the golden row ───────────────────────────────────────────────────────────────────────
 
@@ -84,6 +108,12 @@ export const recipes = pgTable(
         // real state, and there is no honest default. NULL renders as NO badge, never a guess. See the
         // 0010 migration comment for why this deliberately diverges from the servings/times NOT NULL.
         difficulty: text('difficulty'),
+
+        // Meal type (plan U34). NULLABLE, NO default, for exactly the reason difficulty is: "the author did
+        // not say" is a real state and there is no honest default. Its sibling classification columns
+        // (`tags`, `dietary_flags`) are unconstrained text[] BY DESIGN — see RECIPE_MEAL_TYPES_DB above for
+        // why this one axis is closed and those are not.
+        mealType: text('meal_type'),
 
         // Denormalized rating aggregate (CR-001 / FR-013a). Maintained ONLY by the
         // recipe_ratings_aggregate_refresh() trigger (0010 migration) — NEVER written by application
@@ -114,14 +144,13 @@ export const recipes = pgTable(
             .notNull()
             .default(sql`'{}'`),
 
-        hasPartialNutrition: boolean('has_partial_nutrition').notNull().default(false),
-
-        // Denormalized headline per-serving calories (W8-a.1, 0012 migration) — recomputed on every write
-        // from the ingredient lines (@kitchensink/recipe-core leadCaloriesPerServing) so the LIST /
-        // SEARCH / collection-embed base projections avoid an N+1. NULL exactly when the recipe has no
-        // accounted nutrition (the projection then omits the field — never a misleading 0, as with
-        // average_rating). numeric(8,1) matches the aggregator's one-decimal wire precision.
-        leadCaloriesPerServing: numeric('lead_calories_per_serving', { precision: 8, scale: 1 }),
+        // ⛔ NO `lead_calories_per_serving` COLUMN, and this comment is here so nobody adds one back. It
+        // existed (0012, W8-a.1) as denormalized per-serving calories recomputed on every write. Migration
+        // 0019 DROPPED it: it was a copy of the food service's data that froze at the recipe's last save,
+        // with no invalidation. `nutrition.integration.test.ts` asserts against the live `information_schema`
+        // that it is gone, because only that tier can. A card's calorie figure now comes from
+        // `POST /api/v1/recipes/nutrition-batch` (ADR-0021); the detail read's comes from the same live
+        // computation it already performs. Neither is stored, and there is no third source.
 
         // Denormalized author display-name (W8-a.2 / decision 6 / 0015 migration) — profiles.displayName
         // written at create/clone time so cards render "by @handle" without a cross-service call. NULLABLE:
@@ -149,6 +178,12 @@ export const recipes = pgTable(
         check('recipes_servings_positive', sql`${table.servings} > 0`),
         // Difficulty: NULL passes (NULL IN (...) is NULL, not false), so this enforces the enum on stated values.
         check('recipes_difficulty_check', sql`${table.difficulty} IN ('easy', 'medium', 'hard')`),
+        // Meal type: NULL passes (NULL IN (...) is NULL, not false), so this enforces the vocabulary on
+        // stated values only — same shape as the difficulty check above.
+        check(
+            'recipes_meal_type_check',
+            sql`${table.mealType} IN ('breakfast', 'brunch', 'lunch', 'dinner', 'snack', 'dessert', 'drink')`,
+        ),
         // Publication status (W8-a.3) — NOT NULL, so this enforces the full draft|published domain.
         check('recipes_status_check', sql`${table.status} IN ('draft', 'published')`),
         check('recipes_rating_count_nonneg', sql`${table.ratingCount} >= 0`),

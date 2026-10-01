@@ -350,6 +350,32 @@ describe('RecipePhotoUploaderContainer', () => {
         expect(await screen.findByRole('button', { name: 'Remove photo 1' })).toHaveAttribute('aria-busy', 'true');
     });
 
+    it('refuses a pick larger than the remaining slots WHOLE — no presign for any file, and says how many fit', async () => {
+        // `<input multiple>` cannot bound a pick, and the add control is hidden only AT the cap, so eight held
+        // photos plus a three-file pick is reachable. The queue used to upload two and drop the third silently.
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const photos = Array.from({ length: 8 }, (_unused, index) =>
+            makeRecipePhoto({ id: `photo_${index + 1}`, order: index + 1 }),
+        );
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(photos);
+        const presign = vi.spyOn(client, 'createPhotoUploadUrl').mockResolvedValue(makeUploadUrlResponse());
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        expect(await screen.findByRole('img', { name: 'Recipe photo 8' })).toBeInTheDocument();
+        await user.upload(await screen.findByLabelText('Add photo'), [
+            new File(['a'], 'a.png', { type: 'image/png' }),
+            new File(['b'], 'b.png', { type: 'image/png' }),
+            new File(['c'], 'c.png', { type: 'image/png' }),
+        ]);
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'That’s more photos than this recipe can hold — you can add 2 more.',
+        );
+        expect(presign).not.toHaveBeenCalled();
+    });
+
     it('hides the add control at the 10-photo cap', async () => {
         const client = createFakeRecipeServiceClient();
         const photos = Array.from({ length: 10 }, (_unused, index) =>

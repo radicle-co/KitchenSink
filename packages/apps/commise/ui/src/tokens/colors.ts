@@ -45,6 +45,12 @@ import { borderSubtle } from './scale.js';
  *    must READ — validation copy, an alert banner's message, the flat destructive button's label and the icon
  *    beside it — use **`error-dark`** (5.63:1 on white, 5.23:1 on `sand`, 4.95:1 on `error/10` over white).
  *    `error-dark` is `error` moved in OKLCH lightness only, so the two are the same red.
+ *  - **`warning` is the caution FILL and nothing else** — 6.74:1 under a charcoal label, but only 1.88:1 as
+ *    text on white, below even the 3:1 floor SC 1.4.11 sets for a meaningful graphic. Where the amber is the
+ *    colour of text a reader must READ — a disabled-reason note, a caution status label, a terminal notice —
+ *    use **`warning-dark`** (5.10:1 on white, 4.74:1 on `sand`, 4.68:1 on `pearl`). Unlike the reds there is
+ *    no tint pairing to measure: every warning-tinted surface in the product carries a `charcoal` label, so
+ *    the amber is never painted on its own tint.
  *  - On a DARK surface the pairing INVERTS: `seafoam` is 2.72:1 on `charcoal` and `slate` is 2.42:1, so
  *    cook-mode-style chrome over a charcoal fill takes `white` (12.68:1), `mist` (6.67:1) or `seafoam-light`
  *    (4.56:1) instead.
@@ -75,7 +81,12 @@ export const palette = {
     pearl: '#F5F5F5',
     white: '#FFFFFF',
     success: '#4CAF7C',
+    // The caution FILL, under a charcoal label (6.74:1). It is NOT a text colour — see `warning-dark`.
     warning: '#F5B041',
+    // The caution FOREGROUND, `warning` moved in OKLCH lightness only (0.804 → 0.543) at the same hue, so the
+    // two are the same amber. Text has the harder constraint of the two: it is measured against the near-white
+    // surface BENEATH it rather than a label on top. 5.10:1 on `white`, 4.74:1 on `sand`, 4.68:1 on `pearl`.
+    'warning-dark': '#966400',
     // The destructive FILL. Darkened from #E17055 in OKLCH lightness only (0.672 → 0.576) so a white label
     // clears 4.5:1 (3.16 → 4.66). This is as close to the mockups' brand red as AA allows for a filled
     // control; it is NOT a text colour — see `error-dark`.

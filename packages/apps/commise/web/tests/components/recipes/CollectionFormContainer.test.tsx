@@ -1,8 +1,9 @@
 /**
  * Component tests for CollectionFormContainer (T073 web collection create/rename wiring). Covers both modes
  * over the shared CollectionForm building block: create (via useCreateCollection) and rename (seeded from
- * useCollection, via useUpdateCollection), each submitting and navigating on success, the empty-name guard,
- * and a surfaced mutation error.
+ * a suspense read of the collection under a read boundary, via useUpdateCollection), each submitting and navigating
+ * on success, the empty-name guard, and a surfaced mutation error — plus the rename seed's own failure: an alert with
+ * a retry that refetches, a distinct not-found, and never an empty form standing in for a name that did not load.
  *
  * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
  * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL query/mutation hooks over
@@ -10,10 +11,14 @@
  * type-checked `vi.spyOn(client, '<method>')`. The Next router stays mocked — routing is not part of the
  * recipe-service hooks seam this migration targets.
  */
+import { LocaleProvider } from '@commise/i18n/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
@@ -66,11 +71,12 @@ describe('CollectionFormContainer', () => {
         });
 
         it('never shows the seed-loading status in create mode (it fetches nothing)', () => {
-            renderWithRecipeClient(
-                <CollectionFormContainer mode="create" locale="en" />,
-                createFakeRecipeServiceClient(),
-            );
+            const client = createFakeRecipeServiceClient();
+            const readSpy = vi.spyOn(client, 'getCollectionById');
 
+            renderWithRecipeClient(<CollectionFormContainer mode="create" locale="en" />, client);
+
+            expect(readSpy).not.toHaveBeenCalled();
             expect(screen.queryByRole('status')).not.toBeInTheDocument();
             expect(screen.getByRole('form', { name: 'New collection' })).toBeInTheDocument();
         });
@@ -156,6 +162,65 @@ describe('CollectionFormContainer', () => {
 
             expect(updateCollectionSpy).toHaveBeenCalledWith('col_1', { name: 'Cozy dinners' });
             await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections/col_1'));
+        });
+    });
+
+    describe('rename seed failure', () => {
+        it('⛔ shows the load error — never an empty rename form — when the seed fails', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockRejectedValue(new Error('network down'));
+            vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+            renderWithRecipeClient(<CollectionFormContainer mode="rename" collectionId="col_1" locale="en" />, client);
+
+            expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load this collection/i);
+            expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+            // A blank form here would let the cook "rename" a collection whose current name they never saw.
+            expect(screen.queryByRole('form')).not.toBeInTheDocument();
+        });
+
+        it('Try again REFETCHES and then seeds the name', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            const readSpy = vi
+                .spyOn(client, 'getCollectionById')
+                .mockRejectedValueOnce(new Error('network down'))
+                .mockResolvedValueOnce({ ...makeCollection({ id: 'col_1', name: 'Weeknight dinners' }), recipes: [] });
+            vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+            renderWithRecipeClient(<CollectionFormContainer mode="rename" collectionId="col_1" locale="en" />, client);
+            await user.click(await screen.findByRole('button', { name: 'Try again' }));
+
+            expect(await screen.findByDisplayValue('Weeknight dinners')).toBeInTheDocument();
+            expect(readSpy).toHaveBeenCalledTimes(2);
+        });
+
+        it('says the collection is not there, with no retry, for a 404', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockRejectedValue(new NotFoundError());
+            vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+            renderWithRecipeClient(<CollectionFormContainer mode="rename" collectionId="col_1" locale="en" />, client);
+
+            expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t find that collection/i);
+            expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+        });
+
+        it('⛔ issues NO request during the server render', () => {
+            const client = clientSeededWith(makeCollection({ id: 'col_1', name: 'Weeknight dinners' }));
+
+            const html = renderToString(
+                <LocaleProvider locale="en">
+                    <QueryClientProvider client={new QueryClient()}>
+                        <RecipeServiceProvider client={client}>
+                            <CollectionFormContainer mode="rename" collectionId="col_1" locale="en" />
+                        </RecipeServiceProvider>
+                    </QueryClientProvider>
+                </LocaleProvider>,
+            );
+
+            expect(html).toContain('Loading collection');
+            expect(client.getCollectionById).not.toHaveBeenCalled();
         });
     });
 });

@@ -5,10 +5,9 @@
         "module": "preserve",
         "moduleResolution": "Bundler",
         "outDir": "dist",
-        "rootDir": "src",
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true
     },
-    "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts", "tests/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

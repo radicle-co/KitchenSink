@@ -1,7 +1,7 @@
 /**
  * Native component tests for the public-discovery result card (T076 / W4 S1), rendered via react-native-web
  * under jsdom. Mirrors the web leaf and is focused on the card's CLONE affordance: the list-level behaviour is
- * covered through `RecipeDiscoveryList.native.test.tsx`, which renders this card in situ.
+ * covered through `RecipeDiscoveryResults.native.test.tsx` and `RecipeBrowseRailResults.native.test.tsx`, which render this card in situ.
  *
  * The clone control used to hand-roll a coral OUTLINE here while `CollectionActions.native.tsx` hand-rolled a
  * SOLID coral fill — the same action, two platforms, three visual answers across the product. See the web
@@ -14,7 +14,6 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { glass, palette } from '@commise/ui';
-import { nativeTokens } from '@commise/ui/native';
 
 import { cssColor } from '../../__tests__/cssColor.js';
 import { pillOf } from '../../__tests__/dsPill.js';
@@ -123,12 +122,14 @@ describe('RecipeDiscoveryCard (native) — the clone control is the DS secondary
         expect(window.getComputedStyle(screen.getByText('Clone')).color).not.toBe(cssColor(palette.coral));
     });
 
-    it('rounds from the radius scale, not a magic 999', () => {
+    // E2 I2 — rewritten from "the radius scale's full pill": the DS Button now rounds to half its minimum height,
+    // so a label that wraps at a large font scale stays inside the curve. Read off the pill's own style.
+    it("rounds to the DS Button's half-height radius, not a magic 999", () => {
         renderCard();
 
-        expect(
-            window.getComputedStyle(pillOf(screen.getByRole('button', { name: cloneName() }))).borderTopLeftRadius,
-        ).toBe(`${nativeTokens.radius.full}px`);
+        const pill = window.getComputedStyle(pillOf(screen.getByRole('button', { name: cloneName() })));
+
+        expect(Number.parseFloat(pill.borderTopLeftRadius)).toBe(Number.parseFloat(pill.minHeight) / 2);
     });
 
     it('keeps the row-unique accessible name as an explicit override of the generic visible label', () => {

@@ -11,7 +11,7 @@
  *
  * `RecipeCard` is rendered WITHOUT `onSelect` (a non-interactive `<article>`), and the select target and the
  * Remove control are composed as SIBLING buttons inside it — never nested — so activating Remove can never
- * also fire `onSelect` (the double-fire guard). This mirrors {@link import('../discovery/RecipeDiscoveryCard.js').RecipeDiscoveryCard},
+ * also fire `onSelect` (the double-fire guard). This mirrors `RecipeDiscoveryCard`,
  * the sibling surface that already established the "card without onSelect + custom sibling actions" pattern
  * for a card with more than one action.
  */
@@ -19,7 +19,7 @@ import { useMessages } from '@commise/i18n/react';
 import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
-import { RecipeCard } from '../card/index.js';
+import { RecipeCard } from '../card/RecipeCard.js';
 import { toRecipeCardModel } from '../card/model.js';
 import { fillTemplate } from '../list/model.js';
 import { collectionMessages } from './messages.js';
@@ -30,7 +30,7 @@ import type { CollectionMemberRowProps } from './model.js';
  *
  * @param props - The member recipe (with its `addedVia` provenance) and the select/remove callbacks.
  */
-export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSelect, onRemove }) => {
+export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSelect, onRemove, nutrition }) => {
     const { detail } = useMessages(collectionMessages);
     const cardModel = toRecipeCardModel(member);
     const sourceLabel =
@@ -40,7 +40,7 @@ export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSe
     const removeLabel = fillTemplate(detail.removeRecipe, { title: member.title });
 
     return (
-        <RecipeCard recipe={cardModel}>
+        <RecipeCard recipe={cardModel} nutrition={nutrition}>
             <div className="flex flex-col gap-2 p-4">
                 <div className="flex items-start justify-between gap-3">
                     <button
@@ -53,13 +53,14 @@ export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSe
                     </button>
                     <button
                         type="button"
+                        aria-label={removeLabel}
                         onClick={() => onRemove(member.id)}
                         // The tint is the ERROR token, not coral — see `CollectionHeader.tsx`'s Delete for the
                         // same web-only drift: `text-error-dark` (#B1442B) paired with a `bg-coral/10` (#E8917A)
                         // hover put a brand accent in the destructive register.
                         className="shrink-0 rounded-full px-3 py-1 text-body-sm font-medium text-error-dark transition hover:bg-error/10"
                     >
-                        {removeLabel}
+                        {detail.removeCta}
                     </button>
                 </div>
                 <span className="w-fit text-caption font-medium text-slate">{sourceLabel}</span>

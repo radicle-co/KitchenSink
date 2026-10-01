@@ -50,7 +50,18 @@ export const env = createEnv({
     emptyStringAsUndefined: true,
 
     onValidationError: (issues) => {
-        const names = [...new Set(issues.map((issue) => issue.path?.join('.')).filter(Boolean))].join(', ');
+        const names = [
+            ...new Set(
+                issues
+                    .map((issue) =>
+                        issue.path
+                            // A Standard Schema path segment is a key or a `{ key }` object; name the key either way.
+                            ?.map((segment) => String(typeof segment === 'object' ? segment.key : segment))
+                            .join('.'),
+                    )
+                    .filter(Boolean),
+            ),
+        ].join(', ');
 
         throw new Error(
             `Invalid environment variables: ${names}. ` +

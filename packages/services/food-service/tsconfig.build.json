@@ -8,5 +8,14 @@
     // must never be able to fail the production build (it already did once, via `undici`).
     //
     // `exclude` REPLACES the base list, so `infra` (its own CDK project) has to be repeated here.
-    "exclude": ["node_modules", "dist", "infra", "tests", "src/**/__tests__", "src/**/*.test.ts", "src/**/__fixtures__"]
+    "exclude": [
+        "node_modules",
+        "dist",
+        "infra",
+        "contract",
+        "tests",
+        "src/**/__tests__",
+        "src/**/*.test.ts",
+        "src/**/__fixtures__"
+    ]
 }

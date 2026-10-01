@@ -10,14 +10,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { UserId, UserProfile } from '@kitchensink/identity-service';
+import type { UserProfile } from '@kitchensink/schema-identity';
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
 
 import { AccountEditForm } from '../AccountEditForm';
 
-const userId = '01JVXXXXXXXXXXXXXXXXXXXXXXXXX' as UserId;
+// A PLAIN string, with no `as UserId`. The brand was only reachable because this file imported the service
+// package; on the published wire contract an id is an opaque string, so the cast that used to be here was
+// ceremony asserting a server-side invariant a client cannot establish. Removing the edge removed the cast.
+const userId = '01JVXXXXXXXXXXXXXXXXXXXXXXXXX';
 const mockProfile: UserProfile = {
     user: {
         id: userId,
@@ -125,7 +128,7 @@ describe('AccountEditForm (U3) — submit', () => {
 });
 
 describe('AccountEditForm (U3) — in-flight', () => {
-    it('shows the localized busy label and disables the control while the save is pending', async () => {
+    it('shows the localized busy label and busies the control while the save is pending', async () => {
         const user = userEvent.setup();
         let resolveFetch: ((value: Response) => void) | undefined;
         vi.stubGlobal(
@@ -141,7 +144,13 @@ describe('AccountEditForm (U3) — in-flight', () => {
         await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
         const busy = await screen.findByRole('button', { name: 'Saving…' });
-        expect(busy).toHaveProperty('disabled', true);
+        // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus — WCAG 2.2 SC 2.4.3).
+        expect(busy).toHaveAttribute('aria-disabled', 'true');
+        expect(busy).toHaveProperty('disabled', false);
+
+        // ⛔ Enter in a field clicks the busy default button — it must not send a second save.
+        await user.type(screen.getAllByRole('textbox')[0] as HTMLElement, '{Enter}');
+        expect(fetch).toHaveBeenCalledTimes(1);
 
         resolveFetch?.({
             ok: true,

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Text } from 'react-native';
+import { createRef } from 'react';
+import { Text, type View } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PressScale } from '../PressScale.native.js';
@@ -100,5 +101,40 @@ describe('PressScale (native) — busy is announced, not just accepted', () => {
         // Absent or "false" both read as not-busy; a literal "true" here would be a stuck spinner to a
         // screen-reader user long after the action completed.
         expect(screen.getByRole('button', { name: 'Save' }).getAttribute('aria-busy')).not.toBe('true');
+    });
+    it('forwards a ref to the Pressable — the handle a leaf needs to move screen-reader focus onto it', () => {
+        const ref = createRef<View>();
+
+        render(
+            <PressScale ref={ref} onPress={vi.fn()} accessibilityLabel="Create food">
+                <Text>Create food</Text>
+            </PressScale>,
+        );
+
+        expect(ref.current).toBe(screen.getByRole('button', { name: 'Create food' }));
+    });
+
+    it('projects `expanded` as disclosure state, and says NOTHING when the control is not a disclosure', () => {
+        const { rerender } = render(
+            <PressScale onPress={vi.fn()} expanded accessibilityLabel="Create food">
+                <Text>Create food</Text>
+            </PressScale>,
+        );
+        expect(screen.getByRole('button', { name: 'Create food' }).getAttribute('aria-expanded')).toBe('true');
+
+        rerender(
+            <PressScale onPress={vi.fn()} expanded={false} accessibilityLabel="Create food">
+                <Text>Create food</Text>
+            </PressScale>,
+        );
+        // `false` means COLLAPSED, which is a statement — not the same as absent.
+        expect(screen.getByRole('button', { name: 'Create food' }).getAttribute('aria-expanded')).toBe('false');
+
+        rerender(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Create food">
+                <Text>Create food</Text>
+            </PressScale>,
+        );
+        expect(screen.getByRole('button', { name: 'Create food' }).hasAttribute('aria-expanded')).toBe(false);
     });
 });

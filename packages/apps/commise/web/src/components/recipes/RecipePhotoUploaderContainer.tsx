@@ -24,9 +24,21 @@
  * **Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo
  * "Replace" control, and the original photo is deleted only from the replacement's `onUploaded` continuation
  * — never up-front. See the `handleReplacePhoto` comment for the full ordering + the at-cap refusal.
+ *
+ * **A pick past the cap is refused whole.** `<input multiple>` cannot bound how many files a cook chooses, so one
+ * pick can carry more than the recipe has room for. The queue admits the batch whole or refuses it whole
+ * (`admitPhotoBatch`); on a refusal this container revokes every preview URL it minted for the pick — those files
+ * never became queue items, so the ledger below would never see them — and says how many would fit.
+ *
+ * @pattern Orchestration container over the `useRecipePhotoUploadQueue` hook — it owns the DOM file-input Facade and
+ *     the Object-URL lifecycle ledger that the presentational `RecipePhotoManager` deliberately omits.
  */
-import { RecipePhotoManager, isAtPhotoCap, visibleQueueItems } from '@commise/features-recipes';
-import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
+import { RecipePhotoManager, fillTemplate } from '@commise/features-recipes';
+import {
+    useRecipePhotoUpload,
+    useRecipePhotoUploadQueue,
+    type RecipePhotoQueueFile,
+} from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import {
@@ -63,6 +75,10 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
         tooLarge: recipes.photos.tooLargeError,
         badType: recipes.photos.unsupportedTypeError,
     });
+
+    // ONE refusal slot for the two ways this container turns a cook away before anything happens — a pick past
+    // the cap, and Replace at the cap. The latest action wins; an accepted pick and any removal clear it.
+    const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
     // ALLOWED REF (§3 — wraps a genuinely external, non-declarative system): the DOM `<input type="file">`
     // element itself. Imperatively clearing `.value` after a pick (below) is the only way to let the SAME
@@ -109,21 +125,45 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
         };
     }, []);
 
+    // The ONE hand-off from a pick to the queue, shared by Add and Replace so the two cannot drift: mint each
+    // file's preview URL, offer the batch, and on a refusal release every URL just minted (none became a queue
+    // item, so the ledger above will never see them) and show `refusal(remaining)`. An accepted pick clears any
+    // earlier refusal. Returns whether the queue took the batch.
+    const enqueuePicked = (
+        files: readonly (Omit<RecipePhotoQueueFile, 'previewUri'> & { readonly blob: File })[],
+        refusal: (remaining: number) => string,
+    ): boolean => {
+        const picked = files.map((file) => ({ ...file, previewUri: URL.createObjectURL(file.blob) }));
+        const admission = queue.enqueue(picked);
+
+        if (admission.status === 'overCap') {
+            for (const file of picked) {
+                URL.revokeObjectURL(file.previewUri);
+            }
+
+            setErrorMessage(refusal(admission.remaining));
+
+            return false;
+        }
+
+        setErrorMessage(undefined);
+
+        return true;
+    };
+
     // Acquire every picked File and enqueue them all — the queue drives each one's presign → PUT → confirm
     // sequentially (one at a time, respecting the single-flight hook's own guarantee) while the grid shows
     // every file's own status. Reset the input immediately so re-selecting the same file (e.g. after
     // removing it from the queue) still fires a fresh `change` event.
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
-        const files = Array.from(event.target.files ?? []);
-
-        queue.enqueue(
-            files.map((file) => ({
+        enqueuePicked(
+            Array.from(event.target.files ?? []).map((file) => ({
                 blob: file,
                 fileName: file.name,
                 contentType: file.type,
                 fileSize: file.size,
-                previewUri: URL.createObjectURL(file),
             })),
+            (remaining) => fillTemplate(recipes.photos.overCapError, { count: remaining }),
         );
 
         if (inputRef.current !== null) {
@@ -133,10 +173,10 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
 
     const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
 
-    // Removing a photo is exactly the advice the at-cap replace refusal gives, so it must not linger once
-    // followed — the message would otherwise still claim there is no room after the user has made some.
+    // Removing a photo is exactly the advice both cap refusals give, so neither may linger once followed — the
+    // message would otherwise still claim there is no room after the user has made some.
     const handleRemovePhoto = (photoId: string): void => {
-        setReplaceErrorMessage(undefined);
+        setErrorMessage(undefined);
         deletePhoto.mutate({ id: recipeId, photoId });
     };
 
@@ -170,7 +210,6 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
     // delete first (data loss on cancel) or surface a bogus "upload failed", Replace refuses with an
     // actionable message and the user frees a slot deliberately.
     const [replacingPhotoId, setReplacingPhotoId] = useState<string | null>(null);
-    const [replaceErrorMessage, setReplaceErrorMessage] = useState<string | undefined>(undefined);
 
     // ALLOWED REF (§3 — same rationale as `inputRef`): the replacement picker is its OWN hidden
     // `<input type="file">` (single-select) so a replacement pick can never be confused with an additive
@@ -178,13 +217,13 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
     const replaceInputRef = useRef<HTMLInputElement>(null);
 
     const handleReplacePhoto = (photoId: string): void => {
-        if (isAtPhotoCap(photos.length + visibleQueueItems(queue.items).length)) {
-            setReplaceErrorMessage(recipes.photos.replaceAtCapError);
+        if (queue.remaining === 0) {
+            setErrorMessage(recipes.photos.replaceAtCapError);
 
             return;
         }
 
-        setReplaceErrorMessage(undefined);
+        setErrorMessage(undefined);
         setReplacingPhotoId(photoId);
         replaceInputRef.current?.click();
     };
@@ -205,17 +244,22 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
             return;
         }
 
-        queue.enqueue([
-            {
-                blob: file,
-                fileName: file.name,
-                contentType: file.type,
-                fileSize: file.size,
-                previewUri: URL.createObjectURL(file),
-                // The swap's commit step — runs exactly once, only after this file has been confirmed.
-                onUploaded: () => deletePhoto.mutate({ id: recipeId, photoId: replacedPhotoId }),
-            },
-        ]);
+        // The Replace press checked for a free slot, but this pick lands on a later render: a photos refetch can
+        // fill the last slot while the dialog is open, and the queue then refuses the replacement. The original is
+        // never at risk (its delete is the replacement's continuation), but the refusal must still be shown.
+        enqueuePicked(
+            [
+                {
+                    blob: file,
+                    fileName: file.name,
+                    contentType: file.type,
+                    fileSize: file.size,
+                    // The swap's commit step — runs exactly once, only after this file has been confirmed.
+                    onUploaded: () => deletePhoto.mutate({ id: recipeId, photoId: replacedPhotoId }),
+                },
+            ],
+            () => recipes.photos.replaceAtCapError,
+        );
     };
 
     const addControl = (
@@ -232,7 +276,7 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
                 onRemovePhoto={handleRemovePhoto}
                 removingPhotoId={removingPhotoId}
                 uploading={uploader.uploading}
-                errorMessage={replaceErrorMessage}
+                errorMessage={errorMessage}
                 queueItems={queue.items}
                 onRetryQueueItem={queue.retry}
                 onRemoveQueueItem={queue.remove}

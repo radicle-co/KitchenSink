@@ -18,9 +18,11 @@ afterEach(cleanup);
 const noop = () => undefined;
 
 function renderManager(overrides: Partial<RecipePhotoManagerProps> = {}) {
+    // A wired manager, as every container renders one. The unwired case is rendered directly where it is the subject.
     const props: RecipePhotoManagerProps = {
         photos: [],
         onRemovePhoto: noop,
+        onRemoveQueueItem: noop,
         ...overrides,
     };
     render(<RecipePhotoManager {...props} />);
@@ -85,11 +87,25 @@ describe('RecipePhotoManager (web) — populated', () => {
         expect(onRemovePhoto).toHaveBeenCalledWith('ph_2');
     });
 
-    it('busies and disables only the photo whose removal is in flight', () => {
-        renderManager({ photos: threePhotos, removingPhotoId: 'ph_2' });
+    /**
+     * REWRITTEN from native `disabled`: the control the cook just pressed goes busy, and a real browser drops focus
+     * to <body> the moment a focused control is natively disabled (WCAG 2.2 SC 2.4.3). It stays focusable and
+     * `aria-disabled` (`busyControlProps`), and the press is refused.
+     */
+    it('busies only the photo whose removal is in flight, keeping it focusable and refusing a second press', async () => {
+        const user = userEvent.setup();
+        const onRemovePhoto = vi.fn();
+        renderManager({ photos: threePhotos, removingPhotoId: 'ph_2', onRemovePhoto });
 
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Remove photo 2' }).disabled).toBe(true);
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Remove photo 1' }).disabled).toBe(false);
+        const removing = screen.getByRole<HTMLButtonElement>('button', { name: 'Remove photo 2' });
+        expect(removing.disabled).toBe(false);
+        expect(removing.getAttribute('aria-disabled')).toBe('true');
+        expect(
+            screen.getByRole<HTMLButtonElement>('button', { name: 'Remove photo 1' }).hasAttribute('aria-disabled'),
+        ).toBe(false);
+
+        await user.click(removing);
+        expect(onRemovePhoto).not.toHaveBeenCalled();
     });
 });
 
@@ -242,6 +258,21 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         const img = screen.getByRole<HTMLImageElement>('img', { name: 'Photo a.png' });
         expect(img.getAttribute('loading')).toBe('lazy');
         expect(img.getAttribute('decoding')).toBe('async');
+    });
+
+    it('offers no Remove on a queue cell when no remove handler is wired', () => {
+        // A container withholds removal (the create's in-flight save) by not wiring it. A Remove that rendered anyway
+        // would appear to work and do nothing.
+        render(
+            <RecipePhotoManager
+                photos={[]}
+                onRemovePhoto={noop}
+                queueItems={[makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })]}
+            />,
+        );
+
+        expect(screen.getByRole('status', { name: 'Queued' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Remove a.png' })).toBeNull();
     });
 
     it('renders a status badge for a queued file', () => {

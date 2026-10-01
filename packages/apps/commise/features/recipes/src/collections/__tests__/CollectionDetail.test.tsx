@@ -102,11 +102,11 @@ describe('CollectionDetail (web) — empty state', () => {
         expect(screen.queryByRole('list')).toBeNull();
     });
 
-    it('treats an absent recipes field as empty', () => {
-        renderDetail({ collection: makeCollectionWithRecipes({ recipes: undefined }) });
-
-        expect(screen.getByText('No recipes in this collection yet')).toBeTruthy();
-    });
+    // There is deliberately NO "treats an absent recipes field as empty" case any more. `CollectionWithRecipes`
+    // is now the published `CollectionWithRecipesResponse`, where `recipes` is REQUIRED — the server sets it
+    // unconditionally, so an absent key is not a state it can produce, and the empty case above is the real
+    // "nothing to show" state. The removed test only compiled by laundering `undefined` into a required field
+    // through a `Partial` spread, which is exactly the drift the convergence removed.
 });
 
 describe('CollectionDetail (web) — member-list windowing (W5/C7)', () => {

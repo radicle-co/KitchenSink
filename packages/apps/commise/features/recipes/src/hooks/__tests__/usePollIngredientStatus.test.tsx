@@ -2,7 +2,7 @@
  * Tests for {@link usePollIngredientStatus} — the shared headless-hook seam (CP-6/B4) extracted from the
  * two byte-for-byte-identical `IngredientStatusPoller` leaves (web + mobile). Pins the exact behavior those
  * leaves already had: it drives `useIngredientStatus(ingredientId)` and reports the observed
- * `foodResolutionStatus` up via `onStatus(ingredientId, status)` in a single effect, staying silent until a
+ * answer up via `onStatus(polledId, { id, status })` in a single effect, staying silent until a
  * status is known and not re-firing for an unchanged status across re-renders. `useIngredientStatus` is
  * mocked (it owns the self-limiting `refetchInterval` poll — out of scope here) so no QueryClient/backend is
  * needed.
@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { useIngredientStatusMock } = vi.hoisted(() => ({ useIngredientStatusMock: vi.fn() }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useIngredientStatus: useIngredientStatusMock,
 }));
 
@@ -42,7 +44,7 @@ describe('usePollIngredientStatus', () => {
         expect(onStatus).not.toHaveBeenCalled();
     });
 
-    it('reports the observed status (with the ingredient id) once the poll returns one', () => {
+    it('reports the observed status (with the polled id and the answered id) once the poll returns one', () => {
         const onStatus = vi.fn();
         useIngredientStatusMock.mockReturnValue({
             data: { id: 'ing_food', foodResolutionStatus: FoodResolutionStatus.RESOLVED },
@@ -50,7 +52,33 @@ describe('usePollIngredientStatus', () => {
 
         renderHook(() => usePollIngredientStatus('ing_food', onStatus));
 
-        expect(onStatus).toHaveBeenCalledWith('ing_food', FoodResolutionStatus.RESOLVED);
+        expect(onStatus).toHaveBeenCalledWith('ing_food', { id: 'ing_food', status: FoodResolutionStatus.RESOLVED });
+    });
+
+    it('⛔ reports the BOUND id a settled poll answers with, so the form can adopt it (plan 002)', () => {
+        const onStatus = vi.fn();
+        useIngredientStatusMock.mockReturnValue({
+            data: { id: 'bound_food', foodResolutionStatus: FoodResolutionStatus.RESOLVED },
+        });
+
+        renderHook(() => usePollIngredientStatus('ing_food', onStatus));
+
+        expect(onStatus).toHaveBeenCalledWith('ing_food', { id: 'bound_food', status: FoodResolutionStatus.RESOLVED });
+    });
+
+    it('reports the food the answered binding names, so a resolved line gets its nutrition (finding #5)', () => {
+        const onStatus = vi.fn();
+        useIngredientStatusMock.mockReturnValue({
+            data: { id: 'bound_food', foodResolutionStatus: FoodResolutionStatus.RESOLVED, foodId: 'food_rice' },
+        });
+
+        renderHook(() => usePollIngredientStatus('ing_food', onStatus));
+
+        expect(onStatus).toHaveBeenCalledWith('ing_food', {
+            id: 'bound_food',
+            status: FoodResolutionStatus.RESOLVED,
+            foodId: 'food_rice',
+        });
     });
 
     it('does not re-report an unchanged status across re-renders', () => {
@@ -83,7 +111,13 @@ describe('usePollIngredientStatus', () => {
         });
         rerender({ id: 'ing_food' });
 
-        expect(onStatus).toHaveBeenNthCalledWith(1, 'ing_food', FoodResolutionStatus.PENDING);
-        expect(onStatus).toHaveBeenNthCalledWith(2, 'ing_food', FoodResolutionStatus.RESOLVED);
+        expect(onStatus).toHaveBeenNthCalledWith(1, 'ing_food', {
+            id: 'ing_food',
+            status: FoodResolutionStatus.PENDING,
+        });
+        expect(onStatus).toHaveBeenNthCalledWith(2, 'ing_food', {
+            id: 'ing_food',
+            status: FoodResolutionStatus.RESOLVED,
+        });
     });
 });

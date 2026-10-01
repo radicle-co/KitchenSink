@@ -1,0 +1,69 @@
+{"key":"11-734","name":"Pasta and sauce mixes, dried, raw","basis":"per100g","values":{"CHOAVLM":"70.0","ENERC_KCAL":"358","ENERC_KJ":"1519","FAT":"4.9","FIBTG":"4.5","PROCNT":"12.8"}}
+{"key":"11-857","name":"Rice, white, basmati, raw","basis":"per100g","values":{"CHOAVLM":"83.7","ENERC_KCAL":"351","ENERC_KJ":"1495","FAT":"0.5","FIBTG":"1.1","PROCNT":"8.1"}}
+{"key":"11-866","name":"Rice, brown, basmati, raw","basis":"per100g","values":{"CHOAVLM":"77.6","ENERC_KCAL":"355","ENERC_KJ":"1508","FAT":"3.1","FIBTG":"3.3","PROCNT":"8.9"}}
+{"key":"11-870","name":"Rice, brown, easy cook, raw","basis":"per100g","values":{"CHOAVLM":"82.1","ENERC_KCAL":"366","ENERC_KJ":"1556","FAT":"3.1","FIBTG":"3.5","PROCNT":"7.5"}}
+{"key":"11-874","name":"Rice, Thai fragrant, raw","basis":"per100g","values":{"CHOAVLM":"84.5","ENERC_KCAL":"352","ENERC_KJ":"1502","FAT":"1.1","FIBTG":"0.8","PROCNT":"6.4"}}
+{"key":"11-878","name":"Rice, white, Italian Arborio risotto, raw","basis":"per100g","values":{"CHOAVLM":"85.2","ENERC_KCAL":"354","ENERC_KJ":"1509","FAT":"1.0","FIBTG":"1.4","PROCNT":"6.4"}}
+{"key":"11-884","name":"Rice, ready-cooked, \"plain\", re-heated","basis":"per100g","values":{"CHOAVLM":"33.9","ENERC_KCAL":"161","ENERC_KJ":"682","FAT":"1.9","FIBTG":"1.1","PROCNT":"4.1"}}
+{"key":"12-174","name":"Cheese, Quark","basis":"per100g","values":{"CHOAVLM":"4.0","ENERC_KCAL":"74","ENERC_KJ":"313","PROCNT":"14.6"},"traces":["FAT"]}
+{"key":"12-335","name":"Creme fraiche, full fat","basis":"per100g","values":{"CHOAVLM":"2.4","ENERC_KCAL":"378","ENERC_KJ":"1556","FAT":"40.0","FIBTG":"0.0","PROCNT":"2.2"}}
+{"key":"12-360","name":"Cheese, Mozzarella, fresh","basis":"per100g","values":{"ENERC_KCAL":"257","ENERC_KJ":"1067","FAT":"20.3","FIBTG":"0.0","PROCNT":"18.6"},"traces":["CHOAVLM"]}
+{"key":"12-393","name":"Sorbet, fruit","basis":"per100g","values":{"CHOAVLM":"24.8","ENERC_KCAL":"97","ENERC_KJ":"411","FAT":"0.3","FIBTG":"1.0","PROCNT":"0.2"}}
+{"key":"12-490","name":"Cheese, Mascarpone","basis":"per100g","values":{"CHOAVLM":"4.3","ENERC_KCAL":"435","ENERC_KJ":"1794","FAT":"44.5","FIBTG":"0.0","PROCNT":"4.6"}}
+{"key":"12-509","name":"Ice cream, non dairy, vanilla, soft scoop","basis":"per100g","values":{"CHOAVLM":"29.8","ENERC_KCAL":"192","ENERC_KJ":"807","FAT":"7.7","FIBTG":"0.2","PROCNT":"2.6"}}
+{"key":"12-513","name":"Milk drink, fermented, with probiotics","basis":"per100g","values":{"CHOAVLM":"12.7","ENERC_KCAL":"70","ENERC_KJ":"299","FAT":"1.2","FIBTG":"0.1","PROCNT":"3.0"}}
+{"key":"12-547","name":"Tzatziki","basis":"per100g","values":{"CHOAVLM":"3.4","ENERC_KCAL":"76","ENERC_KJ":"314","FAT":"5.5","FIBTG":"0.3","PROCNT":"3.4"}}
+{"key":"13-109","name":"Beans, red kidney, dried, raw","basis":"per100g","values":{"CHOAVLM":"44.1","ENERC_KCAL":"266","ENERC_KJ":"1133","FAT":"1.4","PROCNT":"22.1"}}
+{"key":"13-143","name":"Peas, sugar-snap, raw","basis":"per100g","values":{"CHOAVLM":"5.0","ENERC_KCAL":"34","ENERC_KJ":"145","FAT":"0.2","PROCNT":"3.4"}}
+{"key":"13-519","name":"Tomatoes, cherry, raw","basis":"per100g","values":{"CHOAVLM":"3.6","ENERC_KCAL":"22","ENERC_KJ":"94","FAT":"0.5","FIBTG":"1.3","PROCNT":"1.1"}}
+{"key":"13-523","name":"Cucumber, raw, flesh and skin","basis":"per100g","values":{"CHOAVLM":"1.2","ENERC_KCAL":"14","ENERC_KJ":"60","FAT":"0.6","FIBTG":"0.7","PROCNT":"1.0"}}
+{"key":"13-801","name":"Allspice, ground","basis":"per100g","values":{"FAT":"8.7","PROCNT":"6.1"}}
+{"key":"13-809","name":"Cardamom, ground","basis":"per100g","values":{"FAT":"6.7","PROCNT":"10.8"}}
+{"key":"13-813","name":"Chinese 5 spice","basis":"per100g","values":{"FAT":"8.7","PROCNT":"9.5"}}
+{"key":"13-816","name":"Cloves, dried","basis":"per100g","values":{"FAT":"20.1","PROCNT":"6.0"}}
+{"key":"13-829","name":"Garam masala","basis":"per100g","values":{"CHOAVLM":"45.2","ENERC_KCAL":"379","ENERC_KJ":"1592","FAT":"15.1","PROCNT":"15.6"}}
+{"key":"13-839","name":"Mustard seeds","basis":"per100g","values":{"FAT":"28.8","PROCNT":"24.9"}}
+{"key":"13-844","name":"Parsley, fresh","basis":"per100g","values":{"CHOAVLM":"2.7","ENERC_KCAL":"34","ENERC_KJ":"141","FAT":"1.3","PROCNT":"3.0"}}
+{"key":"13-853","name":"Sage, fresh","basis":"per100g","values":{"CHOAVLM":"15.6","ENERC_KCAL":"119","ENERC_KJ":"502","FAT":"4.6","PROCNT":"3.9"}}
+{"key":"13-857","name":"Tarragon, fresh","basis":"per100g","values":{"CHOAVLM":"6.3","ENERC_KCAL":"49","ENERC_KJ":"206","FAT":"1.1","PROCNT":"3.4"}}
+{"key":"13-874","name":"Cinnamon, ground","basis":"per100g","values":{"FAT":"1.2","FIBTG":"53.1","PROCNT":"4.0"}}
+{"key":"13-877","name":"Nutmeg, ground","basis":"per100g","values":{"FAT":"36.3","FIBTG":"20.8","PROCNT":"5.8"}}
+{"key":"13-880","name":"Pepper, black","basis":"per100g","values":{"FAT":"3.3","FIBTG":"25.3","PROCNT":"10.4"}}
+{"key":"13-881","name":"Pepper, white","basis":"per100g","values":{"FAT":"2.1","FIBTG":"26.2","PROCNT":"10.4"}}
+{"key":"13-884","name":"Mixed herbs, dried","basis":"per100g","values":{"CHOAVLM":"36.3","ENERC_KCAL":"261","ENERC_KJ":"1092","FAT":"8.5","PROCNT":"12.1"}}
+{"key":"13-889","name":"Cumin seeds","basis":"per100g","values":{"FAT":"22.3","FIBTG":"10.5","PROCNT":"17.8"}}
+{"key":"13-891","name":"Oregano, fresh","basis":"per100g","values":{"FAT":"0.9","FIBTG":"8.6","PROCNT":"1.8"}}
+{"key":"14-243","name":"Rambutan, flesh only","basis":"per100g","values":{"CHOAVLM":"16.3","ENERC_KCAL":"69","ENERC_KJ":"293","FAT":"0.4","PROCNT":"1.0"}}
+{"key":"14-340","name":"Olives, green, in brine, drained, flesh and skin","basis":"per100g","values":{"ENERC_KCAL":"103","ENERC_KJ":"422","FAT":"11.0","PROCNT":"0.9"},"traces":["CHOAVLM"]}
+{"key":"15-635","name":"Coleslaw, not low calorie, retail","basis":"per100g","values":{"CHOAVLM":"6.0","ENERC_KCAL":"173","ENERC_KJ":"714","FAT":"16.3","FIBTG":"1.2","PROCNT":"0.8"}}
+{"key":"16-040","name":"Flounder, raw","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"82","ENERC_KJ":"345","FAT":"1.8","PROCNT":"16.4"}}
+{"key":"16-154","name":"Tilapia, raw","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"85","ENERC_KJ":"358","FAT":"1.5","PROCNT":"17.8"}}
+{"key":"16-159","name":"Whiting, flesh only, raw","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"81","ENERC_KJ":"344","FAT":"0.7","PROCNT":"18.7"}}
+{"key":"16-248","name":"Shrimps, frozen","basis":"per100g","values":{"ENERC_KCAL":"73","ENERC_KJ":"310","FAT":"0.8","PROCNT":"16.5"},"traces":["CHOAVLM"]}
+{"key":"16-299","name":"Roe, cod, hard, raw","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"104","ENERC_KJ":"439","FAT":"1.9","PROCNT":"21.7"}}
+{"key":"16-382","name":"Pangasius, flesh only, raw","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"74","ENERC_KJ":"313","FAT":"1.6","FIBTG":"0.0","PROCNT":"14.9"}}
+{"key":"17-060","name":"Sugar, brown","basis":"per100g","values":{"CHOAVLM":"101.3","ENERC_KCAL":"380","ENERC_KJ":"1623","FAT":"0.0","FIBTG":"0.0","PROCNT":"0.1"}}
+{"key":"17-061","name":"Sugar, Demerara","basis":"per100g","values":{"CHOAVLM":"104.5","ENERC_KCAL":"394","ENERC_KJ":"1681","FAT":"0.0","FIBTG":"0.0","PROCNT":"0.5"}}
+{"key":"17-234","name":"Port","basis":"per100mL","values":{"CHOAVLM":"12.0","ENERC_KCAL":"157","ENERC_KJ":"655","FAT":"0.0","FIBTG":"0.0","PROCNT":"0.1"},"densityGramsPerMl":"1.03"}
+{"key":"17-236","name":"Sherry, medium","basis":"per100mL","values":{"CHOAVLM":"5.9","ENERC_KCAL":"116","ENERC_KJ":"482","FAT":"0.0","FIBTG":"0.0","PROCNT":"0.1"},"densityGramsPerMl":"1.00"}
+{"key":"17-239","name":"Vermouth, dry","basis":"per100mL","values":{"CHOAVLM":"3.0","ENERC_KCAL":"109","ENERC_KJ":"453","FAT":"0.0","FIBTG":"0.0","PROCNT":"0.1"},"densityGramsPerMl":"1.00"}
+{"key":"17-247","name":"Spirits, 40% volume","basis":"per100mL","values":{"ENERC_KCAL":"222","ENERC_KJ":"919","FAT":"0.0","FIBTG":"0.0"},"traces":["CHOAVLM","PROCNT"],"densityGramsPerMl":"0.95"}
+{"key":"17-299","name":"Dips, sour-cream based, assorted flavours","basis":"per100g","values":{"CHOAVLM":"4.0","ENERC_KCAL":"360","ENERC_KJ":"1482","FAT":"37.0","PROCNT":"2.9"}}
+{"key":"17-339","name":"Vinegar","basis":"per100g","values":{"CHOAVLM":"0.6","ENERC_KCAL":"22","ENERC_KJ":"89","FAT":"0.0","FIBTG":"0.0","PROCNT":"0.4"}}
+{"key":"17-343","name":"Chutney, mango, sweet","basis":"per100g","values":{"CHOAVLM":"48.3","ENERC_KCAL":"189","ENERC_KJ":"806","FAT":"0.1","PROCNT":"0.7"}}
+{"key":"17-367","name":"Salt","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"0","ENERC_KJ":"0","FAT":"0.0","FIBTG":"0.0","PROCNT":"0.0"}}
+{"key":"17-629","name":"Sauce, Chinese stir fry","basis":"per100g","values":{"CHOAVLM":"19.9","ENERC_KCAL":"92","ENERC_KJ":"390","FAT":"1.3","FIBTG":"0.9","PROCNT":"1.4"}}
+{"key":"17-651","name":"Maltesers and similar products","basis":"per100g","values":{"CHOAVLM":"63.0","ENERC_KCAL":"476","ENERC_KJ":"1998","FAT":"23.3","FIBTG":"1.7","PROCNT":"7.6"}}
+{"key":"17-653","name":"Soup, instant, dried, as purchased","basis":"per100g","values":{"CHOAVLM":"64.1","ENERC_KCAL":"384","ENERC_KJ":"1621","FAT":"13.4","FIBTG":"5.6","PROCNT":"5.9"}}
+{"key":"17-681","name":"Stock, chicken, ready made, retail","basis":"per100g","values":{"CHOAVLM":"0.2","ENERC_KCAL":"12","ENERC_KJ":"50","FAT":"0.2","FIBTG":"0.3","PROCNT":"2.3"}}
+{"key":"17-690","name":"Chocolate, fancy and filled","basis":"per100g","values":{"CHOAVLM":"62.9","ENERC_KCAL":"447","ENERC_KJ":"1878","FAT":"21.3","PROCNT":"4.9"}}
+{"key":"17-720","name":"Curry paste","basis":"per100g","values":{"CHOAVLM":"11.3","ENERC_KCAL":"253","ENERC_KJ":"1049","FAT":"21.3","FIBTG":"6.8","PROCNT":"4.7"}}
+{"key":"17-721","name":"Soy sauce, light and dark varieties","basis":"per100g","values":{"CHOAVLM":"17.9","ENERC_KCAL":"79","ENERC_KJ":"337","PROCNT":"3.0"},"traces":["FAT","FIBTG"]}
+{"key":"17-724","name":"Gravy instant granules","basis":"per100g","values":{"CHOAVLM":"65.2","ENERC_KCAL":"407","ENERC_KJ":"1714","FAT":"16.1","FIBTG":"1.6","PROCNT":"4.4"}}
+{"key":"17-757","name":"Wine, white, sparkling","basis":"per100mL","values":{"CHOAVLM":"5.1","ENERC_KCAL":"84","ENERC_KJ":"351","FAT":"0.0","FIBTG":"0.0","PROCNT":"0.3"},"densityGramsPerMl":"1.00"}
+{"key":"17-797","name":"Guacamole, homemade","basis":"per100g","values":{"CHOAVLM":"2.2","ENERC_KCAL":"128","ENERC_KJ":"529","FAT":"12.7","PROCNT":"1.4"}}
+{"key":"17-805","name":"Icing, Royal, homemade","basis":"per100g","values":{"CHOAVLM":"93.4","ENERC_KCAL":"354","ENERC_KJ":"1513","PROCNT":"1.1"},"traces":["FAT","FIBTG"]}
+{"key":"18-352","name":"Turkey, whole, raw","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"133","ENERC_KJ":"560","FAT":"5.2","PROCNT":"21.6"}}
+{"key":"18-371","name":"Duck, raw, meat, fat and skin","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"388","ENERC_KJ":"1603","FAT":"37.3","PROCNT":"13.1"}}
+{"key":"18-419","name":"Oxtail, raw","basis":"per100g","values":{"CHOAVLM":"0.0","ENERC_KCAL":"171","ENERC_KJ":"714","FAT":"10.1","PROCNT":"20.0"}}
+{"key":"19-517","name":"Salami","basis":"per100g","values":{"CHOAVLM":"0.5","ENERC_KCAL":"438","ENERC_KJ":"1814","FAT":"39.2","FIBTG":"0.4","PROCNT":"20.9"}}

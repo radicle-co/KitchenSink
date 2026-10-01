@@ -2,11 +2,14 @@
  * @module @commise/ui/press-scale — the native design-system {@link PressScale} press-feedback primitive.
  *
  * Owns the interaction: it renders the `Pressable` and drives a `transform: [{ scale }]` from that
- * `Pressable`'s `pressed` state, so a held control shrinks to {@link PRESS_SCALE} and springs back on
+ * `Pressable`'s `pressed` state, so a held control shrinks to `PRESS_SCALE` and springs back on
  * release. The scale is suppressed when the control is disabled and — crucially — when the OS "reduce
  * motion" setting is on (non-essential motion is gated), mirroring the web leaf's `motion-safe:` gate. The
  * branch itself lives in the pure {@link pressedScale} so it is provable without a renderer, and the
  * preference is read through the design system's single {@link useReduceMotion} reader.
+ *
+ * @pattern Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable
+ *     and drives the scale from its `pressed` state, which is why the web leaf decorates and this one adapts.
  */
 import type { FC } from 'react';
 import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
@@ -23,6 +26,8 @@ export const PressScale: FC<PressScaleProps> = ({
     busy = false,
     accessibilityLabel,
     accessibilityRole = 'button',
+    ref,
+    expanded,
 }) => {
     // A press gate has nothing to show before the first press, so the not-yet-known preference collapses to
     // "motion allowed" here — unlike an enter transition, which must hold its from-state until it knows.
@@ -30,11 +35,13 @@ export const PressScale: FC<PressScaleProps> = ({
 
     return (
         <Pressable
+            ref={ref}
             onPress={onPress}
             disabled={disabled}
             accessibilityRole={accessibilityRole}
             accessibilityLabel={accessibilityLabel}
-            accessibilityState={{ disabled, busy }}
+            // `expanded` only when stated: `false` is COLLAPSED, and absent means "not a disclosure".
+            accessibilityState={{ disabled, busy, ...(expanded === undefined ? {} : { expanded }) }}
             // `aria-busy` is React Native's own first-class ALIAS for `accessibilityState.busy` (declared in
             // `ViewAccessibility.d.ts`), NOT a web-only attribute — so it is device-correct on
             // VoiceOver/TalkBack. Both forms are emitted deliberately: react-native-web reads
@@ -44,6 +51,8 @@ export const PressScale: FC<PressScaleProps> = ({
             // DS control unobservable, and therefore untestable. Carrying the alias too makes `busy` both
             // announced and assertable. Do not "simplify" by dropping either one.
             aria-busy={busy || undefined}
+            // The same dual-channel reasoning as `aria-busy` above, for disclosure state.
+            aria-expanded={expanded}
             style={({ pressed }): StyleProp<ViewStyle> => ({
                 transform: [{ scale: pressedScale({ pressed, disabled, reduceMotion }) }],
             })}

@@ -1,0 +1,77 @@
+FoodOn OWL
+  sha256                    : b897bf64c1b265c422db9ee01e1235c10c0b809e7f02326ef810a52068347edf
+  matches the pinned digest : YES
+  classes / EDIBLE union    : 39707 / 27651
+
+Structural suffix vocabulary (DERIVED — labels at/above the three edible roots, and their heads)
+    at/above root : material entity        BFO_0000040
+    at/above root : food product           FOODON_00001002
+    at/above root : food material          FOODON_00002403
+    at/above root : organism material      FOODON_03420116
+    candidates    : 'food material', 'food product', 'material entity', 'organism material', 'entity', 'material', 'product'
+
+Edible LABELS carrying a structural suffix : 1376 of 27651 (5.0%)
+    food product       :  1119
+    material           :   151
+    product            :    81
+    food material      :    20
+    entity             :     4
+    organism material  :     1
+    (degenerate)       :     1   <- residue is structural vocabulary only; refused
+
+Lookup keys  exact layer                : 33936   (786 already map to >1 class — the BASELINE ambiguity)
+             normalised fallback layer  : 1295 residues
+    new unambiguous keys               : 601
+    ⛔ SHADOW (residue == an existing exact name of ANOTHER class) : 646
+       (+ 43 residues that land on the SAME class — a no-op, not a collision)
+    ⛔ NEW AMBIGUITY (residues colliding with each other, >1 class) : 5
+       2x  'clam'                       <- clam food product, clam material
+       2x  'fish'                       <- fish food product, fish material
+       2x  'invertebrate'               <- invertebrate food product, invertebrate material
+       2x  'poultry meat'               <- poultry meat food product, poultry meat product
+       2x  'vertebrate'                 <- vertebrate food product, vertebrate material
+    shadow examples (exact layer stays PRIMARY, so these do NOT displace a working match):
+       'abalone'                  exact='abalone'                          fallback='abalone food product'
+       'acacia'                   exact='gum arabic'                       fallback='acacia food product'
+       'acerola'                  exact='acerola'                          fallback='acerola food product'
+       'adzuki bean'              exact='adzuki bean'                      fallback='adzuki bean food product'
+       'agar'                     exact='agar'                             fallback='agar food product'
+       'agave'                    exact='agave'                            fallback='agave food product'
+
+SR Legacy foods                          : 7793
+  USDA supplies a FoodOn term            : 4126 (53%)
+  FoodOn names, SAFE forms, exact only   : 341   <- the 341 baseline
+  ⛔ exact-safe matches DISPLACED by it   : 0   (exact-only run: 341; must be 0)
+  ⛔ ADDITIONAL from suffix normalisation : 11
+       via food product       :   11
+
+  combined coverage BEFORE               : 4467/7793 = 57.3%
+  combined coverage AFTER                : 4478/7793 = 57.5%   (+0.14%)
+
+  ⛔ over-coarse residues among the RECOVERED matches (>=15 USDA foods) : 0
+  recovered examples:
+       Cheese, parmesan, low sodium                   -first-> 'parmesan cheese' = 'parmesan cheese food product'
+       Cheese, parmesan, hard                         -first-> 'parmesan cheese' = 'parmesan cheese food product'
+       Milk, filled, fluid, with blend of hydrogena   -first-> 'filled milk' = 'filled milk food product'
+       Milk, filled, fluid, with lauric acid oil      -first-> 'filled milk' = 'filled milk food product'
+       Cheese, parmesan, grated                       -first-> 'parmesan cheese' = 'parmesan cheese food product'
+       Cheese, blue                                   -all s-> 'blue cheese' = 'blue cheese food product'
+       Bread, rye                                     -all s-> 'rye bread' = 'rye bread food product'
+       Bread, rye, toasted                            -first-> 'rye bread' = 'rye bread food product'
+       Cheese, parmesan, shredded                     -first-> 'parmesan cheese' = 'parmesan cheese food product'
+       Cheese, parmesan, dry grated, reduced fat      -first-> 'parmesan cheese' = 'parmesan cheese food product'
+
+=== the staples: exact vs suffix-normalised ===
+  SUFFIX  soy sauce
+  no      hamburger roll
+  exact   bread
+  exact   cheddar cheese
+  exact   mayonnaise
+  exact   olive oil
+  exact   whole milk
+  exact   lamb shoulder
+  exact   octopus
+  exact   tomato sauce
+  exact   peanut butter
+  no      chondrichthyes
+  no      restaurant

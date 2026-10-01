@@ -4,7 +4,7 @@
  * @module @commise/features-recipes — cooking-progress React binding (W2 Task 2.4, D4/D5).
  *
  * Headless hook binding the recipe-detail orchestration layer to the session-scoped
- * {@link import('./cookingProgress.js') cooking-progress store} via `useSyncExternalStore`. It exposes the
+ * cooking-progress store (`./cookingProgress.ts`) via `useSyncExternalStore`. It exposes the
  * checked ingredient/step sets plus stable toggle callbacks; the presentational detail view stays a pure
  * `props → JSX` render, receiving the sets + callbacks as props (the interaction/state lives here, per the
  * container/presentational split). Shared by both platform containers — the store and this hook are pure

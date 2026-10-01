@@ -33,6 +33,8 @@ vi.mock('../../src/hooks/useUserProfile.js', () => ({
 // The live recipe widget slot reads the viewer's recent recipes; a resolved empty page renders the widget's
 // empty state with no query client, keeping this screen-level render self-contained.
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipes: () => ({ isLoading: false, data: { data: [], nextCursor: undefined } }),
 }));
 

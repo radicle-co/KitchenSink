@@ -10,7 +10,14 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { pseudonymizedAuthorHandle, type AccountErasureMessage } from '../accountErasure.js';
+import {
+    ERASURE_QUEUE_MESSAGE_KINDS,
+    erasureQueueMessageKind,
+    pseudonymizedAuthorHandle,
+    type AccountErasureMessage,
+    type ErasureQueueMessage,
+    type TestPrincipalResetMessage,
+} from '../accountErasure.js';
 
 const OWNER_A = '01JQ8N2X4RBV6WK3ZT5Y7A9C0P';
 const OWNER_B = '01JQ8N2X4RBV6WK3ZT5Y7A9C1Q';
@@ -32,6 +39,53 @@ describe('AccountErasureMessage', () => {
         const message: AccountErasureMessage = { ownerId: OWNER_A, requestedAt: '2026-07-10T00:00:00.000Z' };
 
         expect(message.publishRecipeIds).toBeUndefined();
+    });
+});
+
+describe('ErasureQueueMessage — the queue carries two kinds of work (ADR-0040)', () => {
+    it('names exactly the two kinds the worker dispatches on', () => {
+        expect([...ERASURE_QUEUE_MESSAGE_KINDS]).toEqual(['accountErasure', 'testPrincipalReset']);
+    });
+
+    it('reads an explicit `testPrincipalReset` as a reset', () => {
+        const message: TestPrincipalResetMessage = {
+            kind: 'testPrincipalReset',
+            ownerId: OWNER_A,
+            requestedAt: '2026-09-13T00:00:00.000Z',
+        };
+
+        expect(erasureQueueMessageKind(message)).toBe('testPrincipalReset');
+    });
+
+    it('reads an explicit `accountErasure` as an erasure', () => {
+        const message: ErasureQueueMessage = {
+            kind: 'accountErasure',
+            ownerId: OWNER_A,
+            requestedAt: '2026-09-13T00:00:00.000Z',
+        };
+
+        expect(erasureQueueMessageKind(message)).toBe('accountErasure');
+    });
+
+    it('⛔ reads a message with NO kind as an erasure — every message produced before ADR-0040 must be honoured', () => {
+        expect(erasureQueueMessageKind({ ownerId: OWNER_A, requestedAt: '2026-07-10T00:00:00.000Z' })).toBe(
+            'accountErasure',
+        );
+    });
+
+    it.each([['accountErasure '], ['TestPrincipalReset'], ['reset'], [42], [null], [true]])(
+        '⛔ REFUSES an unrecognised kind (%s) instead of defaulting it to an erasure',
+        (kind) => {
+            // A future kind an old consumer does not know must fail the delivery, never run the most destructive
+            // work in the system under a name it was not given.
+            expect(erasureQueueMessageKind({ kind, ownerId: OWNER_A })).toBeUndefined();
+        },
+    );
+
+    it('refuses a body that is not an object', () => {
+        expect(erasureQueueMessageKind('testPrincipalReset')).toBeUndefined();
+        expect(erasureQueueMessageKind(null)).toBeUndefined();
+        expect(erasureQueueMessageKind(['testPrincipalReset'])).toBeUndefined();
     });
 });
 

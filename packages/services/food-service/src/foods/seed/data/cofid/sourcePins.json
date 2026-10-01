@@ -1,0 +1,10 @@
+{
+    "upstreams": {
+        "table": {
+            "upstream": "McCance_Widdowsons_Composition_of_Foods_Integrated_Dataset_2021..xlsx",
+            "upstreamSha256": "436e9445ef2adb2a75f3d7edd51302de3adad25385f9795fc94ba58bd030e97d"
+        }
+    },
+    "extract": "cofidExtract2021.jsonl",
+    "extractSha256": "acc37b84fc61b4dc4cb813de0cd293880421aa52cf0acb78ebe61cc2ebb11351"
+}

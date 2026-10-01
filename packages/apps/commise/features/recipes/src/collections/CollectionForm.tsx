@@ -6,6 +6,7 @@
  * upward and fetches nothing. `mode` selects the title and submit label; while `submitting`, the field and
  * both actions are disabled to prevent duplicate submissions.
  */
+import { BUSY_CONTROL_CLASS, busyControlProps } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import type { FC, FormEvent } from 'react';
 
@@ -49,9 +50,10 @@ export const CollectionForm: FC<CollectionFormProps> = ({
                     type="text"
                     value={name}
                     placeholder={form.namePlaceholder}
-                    disabled={submitting}
+                    // Read-only, not disabled: a cook who pressed Enter here is holding focus in this field.
+                    readOnly={submitting}
                     onChange={(event) => onChange(event.target.value)}
-                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam disabled:opacity-60"
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam read-only:opacity-60"
                 />
             </label>
             {hasError && (
@@ -62,16 +64,17 @@ export const CollectionForm: FC<CollectionFormProps> = ({
             <div className="flex items-center gap-3">
                 <button
                     type="submit"
-                    disabled={submitting}
-                    className="rounded-full bg-seafoam px-6 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:opacity-60"
+                    // The control just pressed goes busy, so it keeps focus; cancelling its click is also what
+                    // stops an Enter in the field from submitting twice (see `busyControlProps`).
+                    {...busyControlProps({ busy: submitting })}
+                    className={`rounded-full bg-seafoam px-6 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark ${BUSY_CONTROL_CLASS}`}
                 >
                     {submitLabel}
                 </button>
                 <button
                     type="button"
-                    disabled={submitting}
-                    onClick={onCancel}
-                    className="rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl disabled:opacity-60"
+                    {...busyControlProps({ busy: submitting, onClick: onCancel })}
+                    className={`rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl ${BUSY_CONTROL_CLASS}`}
                 >
                     {form.cancel}
                 </button>

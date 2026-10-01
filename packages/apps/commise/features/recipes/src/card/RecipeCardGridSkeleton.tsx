@@ -3,7 +3,7 @@
  *
  * **Pattern: Null Object for the loading phase.** A single presentational unit (pure `props → JSX`) that
  * stands in for a grid of recipe cards while the first page is still in flight. Every web surface that paints
- * a recipe-card grid — `RecipeList` and `RecipeDiscoveryList` — composes THIS component, so "what a loading
+ * a recipe-card grid — `RecipeListLoading` and `RecipeDiscoveryLoading` — composes THIS component, so "what a loading
  * recipe grid looks like" has exactly one representation and the two surfaces cannot drift apart.
  *
  * Two invariants it exists to hold, both of which were live defects before it:
@@ -17,17 +17,18 @@
  *     the first page lands. The shimmer cards themselves are decorative (`aria-hidden`) — the caption alone
  *     announces the wait — and they honour `prefers-reduced-motion`.
  *
- * This is the WEB leaf only; it is deliberately NOT exported through the platform-neutral `card/` barrel,
- * because the native surfaces paint their own `StyleSheet` skeletons with RN primitives.
+ * This is the WEB leaf; `RecipeCardGridSkeleton.native.tsx` is its RN counterpart, and the two are imported
+ * by path rather than through the platform-neutral `card/` barrel (the barrel would resolve one leaf per
+ * bundle, which is right for the card but wrong here — the native list surfaces import the native leaf
+ * explicitly, exactly as they do the native card).
  */
 import type { FC } from 'react';
 
-/** How many card skeletons the grid paints — enough to fill the first rows across every breakpoint. */
-export const RECIPE_CARD_SKELETON_COUNT = 6;
+import { RECIPE_CARD_SKELETON_COUNT } from './model.js';
 
 /**
  * The column rhythm shared with every populated recipe-card grid. It MUST stay in step with the `<ul>` in
- * `RecipeList` / `RecipeDiscoveryList`: a skeleton on a different grid reflows the whole page on load.
+ * `RecipeListResults` / `RecipeDiscoveryResults`: a skeleton on a different grid reflows the whole page on load.
  */
 const GRID_COLUMNS = 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 

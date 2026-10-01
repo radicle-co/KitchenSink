@@ -11,7 +11,7 @@
  * assertions exercise the request pipeline (global `ValidationPipe`, routing) which short-circuits
  * before any DB/queue call, so no real Postgres or LocalStack is needed and the suite runs everywhere.
  * This is DB-isolation strategy 1 of the contract documented on {@link bootServiceApp} — see
- * `@kitchensink/service-test-harness`'s `boot-service-app.ts` module doc for the full contract.
+ * `@kitchensink/service-test-harness`'s `bootServiceApp.ts` module doc for the full contract.
  *
  * @module
  */

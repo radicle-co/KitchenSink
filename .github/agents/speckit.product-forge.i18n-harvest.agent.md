@@ -1,15 +1,15 @@
 ---
 name: speckit.product-forge.i18n-harvest
 description: 'Optional post-bridge step: extract every user-facing string from wireframes,
-  product-spec, and (if available) UI prototypes, generate locale key stubs namespaced
-  by the feature slug, and create TODO entries in every configured locale file. Wraps
-  the project''s `i18n-workflow` skill where available. Runs at Phase 4.5 — between
-  Phase 4 (Bridge) and Phase 5 (Plan). Use: "harvest i18n keys", "i18n stubs", "/speckit.product-forge.i18n-harvest"'
+    product-spec, and (if available) UI prototypes, generate locale key stubs namespaced
+    by the feature slug, and create TODO entries in every configured locale file. Wraps
+    the project''s `i18n-workflow` skill where available. Runs at Phase 4.5 — between
+    Phase 4 (Bridge) and Phase 5 (Plan). Use: "harvest i18n keys", "i18n stubs", "/speckit.product-forge.i18n-harvest"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — i18n Harvest
 
 You are the **Localization Harvester** for Product Forge.
@@ -27,6 +27,7 @@ $ARGUMENTS
 ```
 
 Parse for:
+
 - Feature slug (required).
 - `--locales=<list>` — comma-separated override. Default: read
   `supported_locales` from project config or from the existing i18n folder
@@ -40,9 +41,9 @@ Parse for:
 2. At least one of: `product-spec/wireframes/`, `product-spec/user-stories.md`,
    `product-spec/README.md` is populated with user-facing text.
 3. Project is multi-locale. Detect by one of:
-   - `supported_locales` in `.product-forge/config.yml`.
-   - Existing `i18n/` or `locales/` directory in the codebase.
-   - Framework signal (Nuxt i18n config, Vue-i18n, i18next).
+    - `supported_locales` in `.product-forge/config.yml`.
+    - Existing `i18n/` or `locales/` directory in the codebase.
+    - Framework signal (Nuxt i18n config, Vue-i18n, i18next).
 4. If project is English-only, exit with a note; do not create stub
    locale files.
 
@@ -62,13 +63,14 @@ Sources (in priority order):
 
 Build a candidate table:
 
-| Proposed key | English draft | Source | Context |
-|--------------|---------------|--------|---------|
-| `{feature-slug}.cta.send` | "Send" | wireframes/main.png | Primary CTA on main screen |
-| `{feature-slug}.error.quota_exceeded` | "You've hit today's limit." | spec.md AC-5 | Shown when quota reached |
-| `{feature-slug}.empty.no_items` | "Nothing here yet — start a chat." | wireframes/empty.png | Empty state on main list |
+| Proposed key                          | English draft                      | Source               | Context                    |
+| ------------------------------------- | ---------------------------------- | -------------------- | -------------------------- |
+| `{feature-slug}.cta.send`             | "Send"                             | wireframes/main.png  | Primary CTA on main screen |
+| `{feature-slug}.error.quota_exceeded` | "You've hit today's limit."        | spec.md AC-5         | Shown when quota reached   |
+| `{feature-slug}.empty.no_items`       | "Nothing here yet — start a chat." | wireframes/empty.png | Empty state on main list   |
 
 Rules:
+
 - Keys are dot-separated, lowercase, feature-namespaced.
 - No Markdown or HTML inside drafts; format via the i18n framework.
 - Duplicate strings across screens collapse to one key unless context
@@ -82,7 +84,7 @@ Read the project's i18n folder. For each proposed key:
 
 1. Check for exact match — if present, do not create a duplicate; reuse.
 2. Check for near matches (same English value, different key) — flag as
-   *possible consolidation candidate* in the report; do not auto-merge.
+   _possible consolidation candidate_ in the report; do not auto-merge.
 
 ---
 
@@ -123,23 +125,23 @@ Consolidated machine-readable record:
 
 ```yaml
 # {FEATURE_DIR}/i18n/keys.yml
-feature: "{slug}"
-generated_at: "{ISO}"
-primary_locale: "{en}"
-locales_covered: ["en", "es", "fr", "de"]
+feature: '{slug}'
+generated_at: '{ISO}'
+primary_locale: '{en}'
+locales_covered: ['en', 'es', 'fr', 'de']
 keys:
-  - key: "{feature-slug}.cta.send"
-    en: "Send"
-    source: "wireframes/main.png"
-    status:
-      en: drafted
-      es: todo
-      fr: todo
-      de: todo
-  - key: "{feature-slug}.error.quota_exceeded"
-    en: "You've hit today's limit."
-    source: "spec.md AC-5"
-    status: { en: drafted, es: todo, fr: todo, de: todo }
+    - key: '{feature-slug}.cta.send'
+      en: 'Send'
+      source: 'wireframes/main.png'
+      status:
+          en: drafted
+          es: todo
+          fr: todo
+          de: todo
+    - key: '{feature-slug}.error.quota_exceeded'
+      en: "You've hit today's limit."
+      source: 'spec.md AC-5'
+      status: { en: drafted, es: todo, fr: todo, de: todo }
 ```
 
 ---
@@ -162,18 +164,18 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  i18n_harvest:
-    status: "completed"
-    started_at: "{ISO}"
-    completed_at: "{ISO}"
-    digest_path: "i18n/digest.md"
+    i18n_harvest:
+        status: 'completed'
+        started_at: '{ISO}'
+        completed_at: '{ISO}'
+        digest_path: 'i18n/digest.md'
 i18n:
-  primary_locale: "en"
-  keys_created: {N}
-  keys_reused: {N}
-  todos_per_locale:
-    es: {N}
-    fr: {N}
+    primary_locale: 'en'
+    keys_created: { N }
+    keys_reused: { N }
+    todos_per_locale:
+        es: { N }
+        fr: { N }
 ```
 
 Write `i18n/digest.md` per the digest template.

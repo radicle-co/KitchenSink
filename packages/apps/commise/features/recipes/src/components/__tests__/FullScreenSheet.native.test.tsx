@@ -4,7 +4,7 @@
  * and `VersionCompareView` — each hand-rolled the SAME `Modal` + `{ flex: 1, padding: 20 }` container, and
  * all three shipped the same defect: an Android full-screen `Modal` window spans the whole display, so with
  * a flat 20dp pad the sheet's heading rendered UNDER the status bar (invisible, and absent from the
- * accessibility hierarchy — how Maestro `collections-pull` caught it) while the Cancel/confirm row rendered
+ * accessibility hierarchy — how Maestro `collectionsPull` caught it) while the Cancel/confirm row rendered
  * UNDER the navigation bar. Owning the inset math once is what stops a fourth leaf repeating it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';

@@ -1,3 +1,4 @@
+import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -9,6 +10,7 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'jsdom',
+        setupFiles: [jsdomPolyfillsSetup, './vitest.setup.ts'],
         include: ['**/__tests__/**/*.test.{ts,tsx}'],
         exclude: ['node_modules', 'dist', '**/*.native.test.tsx'],
     },

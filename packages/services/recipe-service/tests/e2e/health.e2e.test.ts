@@ -2,21 +2,25 @@
  * Foundation e2e smoke for `@kitchensink/recipe-service` (Phase-1 harness proof).
  *
  * Proves the harness SHAPE end to end — the reusable `bootRecipeApp` bootstrap boots the real Nest app
- * against the Docker Postgres + LocalStack S3 harness (migrated + seeded by `tests/global-setup.ts`) and
+ * against the Docker Postgres + LocalStack S3 harness (migrated + seeded by `tests/globalSetup.ts`) and
  * serves live HTTP. It intentionally covers only the public `/health` route: real feature endpoints are
  * the subject of Phase-3 e2e specs that build on this same harness.
  *
- * Skips cleanly when no test database is configured (`DATABASE_URL` / `TEST_DATABASE_URL` unset).
+ * Skips cleanly when no admin server is configured (`DATABASE_ADMIN_URL` unset).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
+import { CONTRACT_HASH } from '../../src/contract/contractHash.js';
+import { recipeE2eDb } from '../support/roleDb.js';
+
+const roleDb = recipeE2eDb();
 
 describe.skipIf(!hasDatabaseUrl)('recipe-service e2e harness (booted app + Docker Postgres)', () => {
     let booted: BootedRecipeApp;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp();
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl });
     });
 
     afterAll(async () => {
@@ -27,6 +31,10 @@ describe.skipIf(!hasDatabaseUrl)('recipe-service e2e harness (booted app + Docke
         const response = await fetch(`${booted.baseUrl}/health`);
 
         expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toEqual({ status: 'ok', service: 'recipe' });
+        await expect(response.json()).resolves.toEqual({
+            status: 'ok',
+            service: 'recipe',
+            contractHash: CONTRACT_HASH,
+        });
     });
 });

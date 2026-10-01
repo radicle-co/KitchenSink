@@ -6,17 +6,19 @@
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./offline": "./src/offline/messages.ts"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
-        "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@commise/i18n": "*",
         "ditox": "^3.3.0",
         "zod": "^4.4.3"
     },
@@ -27,7 +29,7 @@
         "@kitchensink/vitest": "*",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },
     "engines": {

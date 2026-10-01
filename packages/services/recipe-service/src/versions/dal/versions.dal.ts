@@ -3,7 +3,7 @@
  *
  * Owns every SQL touch of the immutable `recipe_versions` snapshot history (defined in
  * `database/schema/versions.ts`). It is authorization-agnostic: ownership (`NOT_OWNER`) and the
- * retention orchestration live in {@link VersionsService}. The DAL's three load-bearing responsibilities:
+ * retention orchestration live in `VersionsService`. The DAL's three load-bearing responsibilities:
  *   1. **Snapshot create** — insert one immutable `recipe_versions` row from a captured snapshot.
  *   2. **List by recipe** — every version for a recipe, newest-first (`version_number DESC`).
  *   3. **Retention query** — the versions BEYOND the newest 10 (FR-007b): `ORDER BY version_number DESC
@@ -17,6 +17,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
 import { recipeVersions, type RecipeVersionRow } from '../../database/schema/index.js';
 
 /**
@@ -37,8 +38,6 @@ export interface CreateSnapshotInput {
     /** The version this snapshot was based on (enables 3-way merge conflict detection). */
     baseVersion?: number;
     changeSummary?: string;
-    /** Device that authored this version (W8-a.6) — bounded free text from the write request; omitted → NULL. */
-    deviceLabel?: string;
     /** The editor's denormalized display name (W8-a.2) — from the claim/read-model; omitted → NULL. */
     editorHandle?: string;
     /** S3 archive key, when the snapshot is written with its archive already in place. */
@@ -49,13 +48,21 @@ export class VersionsDal {
     public constructor(private readonly db: RecipeDrizzle) {}
 
     /**
-     * Insert one immutable `recipe_versions` row.
+     * Insert one immutable `recipe_versions` row, in the caller's transaction.
      *
+     * ⛔ THE TRANSACTION IS REQUIRED, and not defaulted to the injected client. A recipe save and its
+     * version row commit together or not at all (owner ruling 2026-09-06), so a version written outside
+     * a transaction is the exact defect this parameter exists to prevent — and a default would be a
+     * POSITION, silently asserted for every caller that had not thought about it. Required makes it a
+     * compile error instead of a convention.
+     *
+     * @param input - The snapshot to record.
+     * @param tx - The open transaction that also carries the recipe write.
      * @returns The inserted row.
      * @sideEffect Inserts one `recipe_versions` row.
      */
-    public async createSnapshot(input: CreateSnapshotInput): Promise<RecipeVersionRow> {
-        const [row] = await this.db
+    public async createSnapshot(input: CreateSnapshotInput, tx: RecipeTx): Promise<RecipeVersionRow> {
+        const [row] = await tx
             .insert(recipeVersions)
             .values({
                 recipeId: input.recipeId,
@@ -65,7 +72,6 @@ export class VersionsDal {
                 s3Key: input.s3Key ?? null,
                 createdBy: input.createdBy,
                 changeSummary: input.changeSummary ?? null,
-                deviceLabel: input.deviceLabel ?? null,
                 editorHandle: input.editorHandle ?? null,
             })
             .returning();
@@ -123,9 +129,10 @@ export class VersionsDal {
      */
     public async findVersionsBeyondRetention(
         recipeId: string,
+        tx: RecipeTx,
         keep: number = VERSION_RETENTION_LIMIT,
     ): Promise<RecipeVersionRow[]> {
-        return this.db
+        return tx
             .select()
             .from(recipeVersions)
             .where(eq(recipeVersions.recipeId, recipeId))

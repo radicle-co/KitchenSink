@@ -20,12 +20,16 @@
  * the container reads `locale` off `useParams` and navigates "Back to Recipe" via `useRouter`, both of which
  * throw/return `null` outside an actual Next app-router tree.
  */
+import { LocaleProvider } from '@commise/i18n/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { VersionConflictError } from '@kitchensink/recipe-service-client';
+import { VersionConflictError, VersionLineUnrestorableError } from '@kitchensink/recipe-service-client';
+import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
+import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithRecipeClient, utilityContrast } from '@commise/test-utils';
@@ -106,22 +110,50 @@ describe('RecipeVersionsContainer', () => {
         );
     });
 
-    it('renders a generic error with retry that refetches both queries', async () => {
+    it('renders a generic error whose retry refetches the failed read and recovers', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        const versionsSpy = vi.spyOn(client, 'listRecipeVersions').mockRejectedValue(new Error('boom'));
-        const recipeSpy = vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail());
+        const versionsSpy = vi
+            .spyOn(client, 'listRecipeVersions')
+            .mockRejectedValueOnce(new Error('boom'))
+            .mockResolvedValueOnce([makeRecipeVersion({ versionNumber: 1 }), makeRecipeVersion({ versionNumber: 2 })]);
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 2 }));
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
-        expect(await screen.findByRole('alert')).toBeInTheDocument();
+        expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load the version history/i);
         expect(versionsSpy).toHaveBeenCalledTimes(1);
-        expect(recipeSpy).toHaveBeenCalledTimes(1);
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
-        await vi.waitFor(() => expect(versionsSpy).toHaveBeenCalledTimes(2));
-        expect(recipeSpy).toHaveBeenCalledTimes(2);
+        // A retry that re-rendered the cached failure would leave the alert up with one call; the boundary's query
+        // reset makes it a real second request, and the history renders.
+        expect(await screen.findByRole('heading', { name: 'Version history' })).toBeInTheDocument();
+        expect(versionsSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('⛔ issues NO request during the server render, which is the loading state with its way back', () => {
+        const client = createFakeRecipeServiceClient();
+        const versionsSpy = vi.spyOn(client, 'listRecipeVersions');
+        const recipeSpy = vi.spyOn(client, 'getRecipeById');
+
+        // The route's client component still renders on the Next server, where a suspense read would fetch and
+        // the browser client's retry policy would stall the response on the server's auth-not-ready error.
+        const html = renderToString(
+            <LocaleProvider locale="en">
+                <QueryClientProvider client={new QueryClient()}>
+                    <RecipeServiceProvider client={client}>
+                        <RecipeVersionsContainer recipeId="rec_1" />
+                    </RecipeServiceProvider>
+                </QueryClientProvider>
+            </LocaleProvider>,
+        );
+
+        expect(html).toContain('Loading version history');
+        expect(html).toContain('Back to Recipe');
+        expect(versionsSpy).not.toHaveBeenCalled();
+        expect(recipeSpy).not.toHaveBeenCalled();
     });
 
     describe('settled but absent (B21 — the state you cannot get out of)', () => {
@@ -203,6 +235,21 @@ describe('RecipeVersionsContainer', () => {
             );
         });
 
+        it('⛔ surfaces a REFUSED restore — nothing changed, and the preview shows which line (plan 002 R52)', async () => {
+            const user = userEvent.setup();
+            const client = readyTwoVersionsClient();
+            vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionLineUnrestorableError([0]));
+
+            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
+
+            await vi.waitFor(() =>
+                expect(screen.getByRole('alert').textContent).toBe(
+                    'This version can’t be restored: one of its ingredients no longer exists, and this version didn’t save its name. Nothing was changed. Preview the version to see which one.',
+                ),
+            );
+        });
+
         it('surfaces the generic banner for a non-conflict restore failure', async () => {
             const user = userEvent.setup();
             const client = readyTwoVersionsClient();
@@ -249,7 +296,7 @@ describe('RecipeVersionsContainer', () => {
         });
     });
 
-    it('shows a busy status on the restoring row and disables every restore action', async () => {
+    it('shows a busy status on the restoring row and busies every restore action', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipeVersions').mockResolvedValue([
@@ -264,9 +311,15 @@ describe('RecipeVersionsContainer', () => {
         await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
 
         expect(await screen.findByText('Restoring version 1…')).toBeInTheDocument();
-        // Every restorable row is disabled while a restore is in flight (prevents a concurrent restore).
-        expect(screen.getByRole('button', { name: 'Restore version 1' })).toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Restore version 2' })).toBeDisabled();
+        // Every restorable row is busy while a restore is in flight (prevents a concurrent restore). REWRITTEN from
+        // `toBeDisabled()`: the pressed row keeps focus (`busyControlProps`, SC 2.4.3), and a second press is
+        // refused — asserted on the restore call count.
+        const restoring = screen.getByRole('button', { name: 'Restore version 1' });
+        expect(restoring).toHaveAttribute('aria-disabled', 'true');
+        expect(restoring).not.toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Restore version 2' })).toHaveAttribute('aria-disabled', 'true');
+        await user.click(screen.getByRole('button', { name: 'Restore version 2' }));
+        expect(client.restoreRecipeVersion).toHaveBeenCalledTimes(1);
     });
 
     describe('back to recipe (V6 fold-in, W6 Task 5)', () => {
@@ -381,6 +434,61 @@ describe('RecipeVersionsContainer', () => {
             await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
         });
 
+        it('⛔ shows a refused restore INSIDE the preview, marks the refused line, and keeps the preview open', async () => {
+            const user = userEvent.setup();
+            const client = readyTwoVersionsClient();
+            const v1 = makeRecipeVersion({ versionNumber: 1 });
+            // Snapshot position 0 is the line with no binding and no saved name; position 1 restores fine.
+            vi.spyOn(client, 'listRecipeVersions').mockResolvedValue([
+                {
+                    ...v1,
+                    snapshot: {
+                        ...v1.snapshot,
+                        ingredients: [
+                            {
+                                id: 'ri_0',
+                                recipeId: 'rec_1',
+                                ingredientId: 'gone',
+                                quantity: { kind: 'exact', value: 2 },
+                                unit: 'tbsp',
+                                sortOrder: 0,
+                                isUserEntered: false,
+                            },
+                            {
+                                id: 'ri_1',
+                                recipeId: 'rec_1',
+                                ingredientId: 'salt',
+                                quantity: { kind: 'absent' },
+                                unit: 'pinch',
+                                sortOrder: 1,
+                                ingredientName: 'Salt',
+                                isUserEntered: false,
+                            },
+                        ],
+                    },
+                },
+                makeRecipeVersion({ versionNumber: 2 }),
+            ]);
+            vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionLineUnrestorableError([0]));
+
+            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
+            await user.click(screen.getByRole('button', { name: 'Restore this version' }));
+
+            const dialog = screen.getByRole('dialog');
+
+            await vi.waitFor(() =>
+                expect(within(dialog).getByRole('alert').textContent).toBe(
+                    'This version can’t be restored: one of its ingredients no longer exists, and this version didn’t save its name. It’s marked below. Nothing was changed.',
+                ),
+            );
+            expect(within(dialog).getAllByText('(can’t be restored)')).toHaveLength(1);
+            expect(within(dialog).getByText('(can’t be restored)').parentElement?.textContent).toContain(
+                'Name not saved',
+            );
+            expect(within(dialog).getByText('pinch Salt').textContent).not.toContain('(can’t be restored)');
+        });
+
         describe('previewed version absent from the refreshed history (B21)', () => {
             /** Seed a client whose history REFRESH drops the version currently being previewed — the real
              *  shape of this: a restore 409s, the container refetches the history (B17), and the retention
@@ -450,7 +558,12 @@ describe('RecipeVersionsContainer', () => {
             await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
             await user.click(screen.getByRole('button', { name: 'Restore this version' }));
 
-            expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Restoring…' }).disabled).toBe(true);
+            // REWRITTEN from `disabled`: the pressed control keeps focus while busy, and refuses a second restore.
+            const restoring = screen.getByRole<HTMLButtonElement>('button', { name: 'Restoring…' });
+            expect(restoring.disabled).toBe(false);
+            expect(restoring).toHaveAttribute('aria-disabled', 'true');
+            await user.click(restoring);
+            expect(client.restoreRecipeVersion).toHaveBeenCalledTimes(1);
         });
     });
 

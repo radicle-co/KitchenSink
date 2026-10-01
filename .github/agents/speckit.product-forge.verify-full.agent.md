@@ -1,16 +1,16 @@
 ---
 name: speckit.product-forge.verify-full
 description: 'Phase 7: Full traceability verification across the entire Product Forge
-  chain. Consumes the live traceability.yml matrix and checks: code ↔ tasks ↔ plan
-  ↔ spec.md ↔ product-spec ↔ research, plus journey↔E2E coverage, UI↔design-system,
-  FE↔BE contract drift, and doc↔code reconciliation. Produces a structured verify-report.md
-  with CRITICAL/WARNING/PASSED findings. Use with: "verify full", "check traceability",
-  "/speckit.product-forge.verify-full"'
+    chain. Consumes the live traceability.yml matrix and checks: code ↔ tasks ↔ plan
+    ↔ spec.md ↔ product-spec ↔ research, plus journey↔E2E coverage, UI↔design-system,
+    FE↔BE contract drift, and doc↔code reconciliation. Produces a structured verify-report.md
+    with CRITICAL/WARNING/PASSED findings. Use with: "verify full", "check traceability",
+    "/speckit.product-forge.verify-full"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Phase 7: Full Verification
 
 You are the **Full Traceability Verifier** for Product Forge Phase 7.
@@ -92,6 +92,7 @@ Also read the implementation: use codebase_path from config to find all files
 created/modified during implementation. Reference `tasks.md` for file paths if listed.
 
 **Also load (v1.6) the live traceability + UX/contract artifacts when present:**
+
 - `traceability.yml` — the **live matrix** (consume it; do not re-derive the chain
   from scratch). See [docs/templates/traceability-matrix.md](../docs/templates/traceability-matrix.md).
 - `product-spec/journeys/journeys.yml` — journeys (`JRN/STEP/EDGE`) for coverage.
@@ -128,6 +129,7 @@ source the report is computed from. For each row in `rows[]`, read the links by
 
 **Fall back to raw artifacts ONLY for null fields.** If a row leaves a field null,
 re-derive that single link from the source artifact:
+
 - null `story`/`frs`/`must_have` → re-read `spec.md` / `product-spec.md`
 - null `tasks` → re-read `tasks.md`
 - null `code`/`tests` → re-scan the implementation (`codebase_path`)
@@ -146,6 +148,7 @@ field that cannot be back-filled is itself a gap the report flags.
 ### Layer 1: Code ↔ Tasks
 
 For each row in `rows[]`, cross-check its `tasks` against its `code`:
+
 - Every `TASK-*` in `row.tasks` has ≥1 implementing `code` path in `row.code`.
 - Every `code` path is reachable from a task (no `code` entry with an empty
   `tasks` list on the same row).
@@ -156,6 +159,7 @@ For any row with a null `tasks` field, fall back to `tasks.md` to map the
 requirement to its task(s).
 
 Flags:
+
 - `TASK-*` with no implementing `code` path → ❌ CRITICAL
 - Task marked `[x]` with no corresponding code found → ❌ CRITICAL
 
@@ -167,6 +171,7 @@ Output: `CODE_TASKS_COVERAGE` — ratio of rows whose `tasks` all have `code`.
 
 For each row, treat `frs` + `components` + `contracts` as the planned units of
 behavior and assert each is realized in `code`:
+
 - Every `FR-*` in `row.frs` is covered by ≥1 `code` path on the row.
 - Every `CMP-*`/`API-*` the row references has a corresponding `code` entry
   (deeper conformance is Layers 8–9).
@@ -175,6 +180,7 @@ behavior and assert each is realized in `code`:
 For a row with null `frs`, fall back to `plan.md` for the planned component list.
 
 Flags:
+
 - `FR-*` (or planned component) with no implementing `code` → ❌ CRITICAL
 - `code` not traceable to any `frs`/`row` → ⚠️ WARNING (scope creep — see Layer 10)
 - Structure differs from plan significantly → ⚠️ WARNING
@@ -184,6 +190,7 @@ Flags:
 ### Layer 3: Code/Tasks ↔ Stories (Must-Have assertion)
 
 For each `must_have: true` row, assert the full chain is present **by field**:
+
 - ≥1 `TASK-*` in `row.tasks`
 - ≥1 implementing `code` path in `row.code`
 - ≥1 `TC-*` in `row.tests` (when testing has run)
@@ -194,6 +201,7 @@ For a row with a null `story`/`must_have`, fall back to `spec.md` to recover the
 story priority and acceptance criteria.
 
 Flags:
+
 - `must_have: true` row with no `tasks` → ❌ CRITICAL
 - `must_have: true` row with no `code` → ❌ CRITICAL
 - `must_have: true` row with no `tests` → ⚠️ WARNING
@@ -215,6 +223,7 @@ row's `story`/`frs`, classify it into exactly one bucket:
   "users will like it"). This is now a first-class **flag**, not a silent pass.
 
 Flags:
+
 - AC classified **executable** but its test/assertion is missing → ⚠️ WARNING
 - AC classified **unmeasurable** (no executable-or-judgeable criterion) →
   ❌ CRITICAL (the spec is untestable as written — record it as a suggested
@@ -229,7 +238,7 @@ config opts in:
 ```yaml
 # config.yml
 verify:
-  ac_judge: false        # default off; set true to enable the subjective-AC LLM judge
+    ac_judge: false # default off; set true to enable the subjective-AC LLM judge
 ```
 
 When `verify.ac_judge: true`, for each AC bucketed **judgeable** above (and for
@@ -243,6 +252,7 @@ the rendered/observed behavior against the AC wording and emit a verdict:
   the exact evidence string cited.
 
 Flags (judge tier):
+
 - `judge: fail` on a `must_have` AC → ⚠️ WARNING (advisory — a human gate, not a
   blocker; the LLM judge is non-deterministic by nature).
 - `judge: weak` → note only.
@@ -258,6 +268,7 @@ Flags (judge tier):
 
 Using the rows' `story`/`frs` plus the source specs, check the SpecKit spec
 against the approved product spec:
+
 - Every `must_have: true` row's `story` (`US-*`) appears in `spec.md`.
 - Every `FR-*` referenced by a row is present in `spec.md`.
 - Non-goals from product-spec are not implemented (no row/`code` for them).
@@ -267,6 +278,7 @@ Re-read `spec.md`/`product-spec.md` only to resolve rows where `story`/`frs` is
 null or to confirm a non-goal has no row.
 
 Flags:
+
 - `US-*` in product-spec missing from spec.md → ⚠️ WARNING (spec drift)
 - NFR from product-spec missing from spec.md → ⚠️ WARNING
 - Scope creep: code implements something explicitly in product-spec "out of scope" → ❌ CRITICAL
@@ -276,6 +288,7 @@ Flags:
 ### Layer 5: Implementation ↔ Research Recommendations
 
 Spot-check key research recommendations against implementation:
+
 - Did implementation follow the UX pattern recommendation from ux-patterns.md?
 - Did integration approach match codebase-analysis.md recommendations?
 - Were anti-patterns from research avoided?
@@ -287,12 +300,14 @@ This is advisory — ⚠️ WARNING only (user may have consciously deviated).
 ### Layer 6: Cross-link Integrity
 
 Check all document links are valid:
+
 - product-spec/README.md links all exist
 - feature README.md links all exist
 - spec.md references to product-spec/ are valid
 - No broken relative paths
 
 Flags:
+
 - Broken link → ⚠️ WARNING
 - Missing document referenced in README → ⚠️ WARNING
 
@@ -301,10 +316,12 @@ Flags:
 ### Layer 7: Journey ↔ E2E Coverage (v1.6, Theme H)
 
 Using `journeys.yml` + `traceability.yml`:
+
 - Every Must-Have `JRN` has ≥1 `TC-E2E`/`TC-SMK`.
 - Every P0/P1 `EDGE` has a test case.
 
 Flags:
+
 - Must-Have journey with no E2E test → ❌ CRITICAL
 - P0/P1 edge case with no test → ❌ CRITICAL; P2/P3 without test → ⚠️ WARNING
 
@@ -313,11 +330,13 @@ Flags:
 ### Layer 8: UI ↔ Design System (v1.6, Theme E)
 
 Using `component-map.yml` + `design-system/manifest.yml` + code:
+
 - Every mapped region's component (`CMP-*`) is actually used at its `target_path`.
 - The built UI uses real design-system components (not ad-hoc re-implementations of
   components that exist in the manifest).
 
 Flags:
+
 - Mapped component not found at its target path → ❌ CRITICAL
 - UI re-implements a component that exists in the manifest → ⚠️ WARNING
 
@@ -331,6 +350,7 @@ persistence is out of this contract's scope (CF-28).
 
 Using the API/event contracts (OpenAPI + AsyncAPI), and the `contracts` field on
 each row:
+
 - Every `API-*` contract referenced by a journey/row is implemented on the backend
   (route/handler exists) AND called by the frontend (client call exists).
 - FE client calls and BE handlers match the contract shape (path, method, payload).
@@ -366,6 +386,7 @@ rather than silently passing. **Fall back to the prose checks above ONLY when
 `contract_differ` is unset.**
 
 Flags:
+
 - Contract with no backend implementation, or FE call to an undefined contract →
   ❌ CRITICAL
 - Shape mismatch (param/payload differs from contract) → ❌ CRITICAL
@@ -378,6 +399,7 @@ Flags:
 ### Layer 10: Doc ↔ Code Reconciliation (v1.6, Theme G)
 
 Both directions, using the matrix + canonical `specs/` (if present):
+
 - Every documented requirement/endpoint/component maps to code (**unimplemented
   docs**).
 - Every significant code path maps to a documented requirement/task
@@ -385,7 +407,7 @@ Both directions, using the matrix + canonical `specs/` (if present):
 
 #### Out-of-band commit provenance on orphans (v1.6, W5-C1)
 
-An undocumented code path is most actionable with *who/when* attached. For each
+An undocumented code path is most actionable with _who/when_ attached. For each
 orphan path, attach commit provenance and reverse-index it against the task log:
 
 ```bash
@@ -405,6 +427,7 @@ git -C {FEATURE_DIR} log -1 --format=%h,%an -- <orphan/path>
   `spec-merge` can decide whether to adopt or revert it.
 
 Flags:
+
 - Documented behavior with no implementing code → ❌ CRITICAL
 - Significant undocumented code path (no matrix row, no task) → ⚠️ WARNING,
   enriched with `git log -1 --format=%h,%an` provenance + the `task_log`
@@ -463,12 +486,12 @@ Write `{FEATURE_DIR}/verify-report.md`:
 
 ## Summary
 
-| Status | Count |
-|--------|-------|
-| ❌ CRITICAL | {N} |
-| ⚠️ WARNING  | {N} |
-| ✅ PASSED   | {N} |
-| ⏭️ SKIPPED  | {N} |
+| Status      | Count |
+| ----------- | ----- |
+| ❌ CRITICAL | {N}   |
+| ⚠️ WARNING  | {N}   |
+| ✅ PASSED   | {N}   |
+| ⏭️ SKIPPED  | {N}   |
 
 **Overall verdict:** {PASS / PASS WITH WARNINGS / FAIL}
 
@@ -476,29 +499,29 @@ Write `{FEATURE_DIR}/verify-report.md`:
 
 ## Layer 1: Code ↔ Tasks
 
-| Check | Status | Finding |
-|-------|--------|---------|
-| All tasks have verifiable code | ✅/⚠️/❌ | {detail} |
-| No unchecked tasks | ✅/⚠️/❌ | {detail} |
+| Check                                   | Status   | Finding  |
+| --------------------------------------- | -------- | -------- |
+| All tasks have verifiable code          | ✅/⚠️/❌ | {detail} |
+| No unchecked tasks                      | ✅/⚠️/❌ | {detail} |
 | Task count matches implementation scope | ✅/⚠️/❌ | {detail} |
 
 ---
 
 ## Layer 2: Code ↔ Plan
 
-| Planned Component | Implemented | Notes |
-|------------------|-------------|-------|
-| {component} | ✅/❌ | {path or note} |
+| Planned Component | Implemented | Notes          |
+| ----------------- | ----------- | -------------- |
+| {component}       | ✅/❌       | {path or note} |
 
 ---
 
 ## Layer 3: User Stories ↔ Implementation
 
-| Story | Priority | Task Coverage | Test Coverage | AC Measurability | Judge (if on) | Status |
-|-------|----------|---------------|---------------|------------------|---------------|--------|
-| US-001: {title} | Must | ✅ | ✅/⚠️ | executable | — | ✅ PASS |
-| US-002: {title} | Must | ✅ | ❌ | judgeable | pass/weak/fail | ⚠️ WARN |
-| US-003: {title} | Must | ✅ | ✅ | unmeasurable | — | ❌ CRIT |
+| Story           | Priority | Task Coverage | Test Coverage | AC Measurability | Judge (if on)  | Status  |
+| --------------- | -------- | ------------- | ------------- | ---------------- | -------------- | ------- |
+| US-001: {title} | Must     | ✅            | ✅/⚠️         | executable       | —              | ✅ PASS |
+| US-002: {title} | Must     | ✅            | ❌            | judgeable        | pass/weak/fail | ⚠️ WARN |
+| US-003: {title} | Must     | ✅            | ✅            | unmeasurable     | —              | ❌ CRIT |
 
 > **AC Measurability** (W5-E2): `executable` (a test/assertion decides it),
 > `judgeable` (subjective — judged only when `verify.ac_judge: true`), or
@@ -508,61 +531,61 @@ Write `{FEATURE_DIR}/verify-report.md`:
 
 ## Layer 4: spec.md ↔ product-spec.md Drift
 
-| Item | In Product Spec | In spec.md | Status |
-|------|----------------|------------|--------|
-| US-001 | ✅ | ✅ | ✅ Aligned |
-| FR-003 | ✅ | ⚠️ Partial | ⚠️ Drift |
+| Item   | In Product Spec | In spec.md | Status     |
+| ------ | --------------- | ---------- | ---------- |
+| US-001 | ✅              | ✅         | ✅ Aligned |
+| FR-003 | ✅              | ⚠️ Partial | ⚠️ Drift   |
 
 ---
 
 ## Layer 5: Research Alignment
 
-| Recommendation | Followed | Notes |
-|---------------|----------|-------|
-| {UX pattern from ux-patterns.md} | ✅/⚠️ | {how it was applied or why deviated} |
-| {Integration approach from codebase-analysis.md} | ✅/⚠️ | |
+| Recommendation                                   | Followed | Notes                                |
+| ------------------------------------------------ | -------- | ------------------------------------ |
+| {UX pattern from ux-patterns.md}                 | ✅/⚠️    | {how it was applied or why deviated} |
+| {Integration approach from codebase-analysis.md} | ✅/⚠️    |                                      |
 
 ---
 
 ## Layer 6: Document Integrity
 
-| Check | Status |
-|-------|--------|
-| All README links valid | ✅/⚠️/❌ |
+| Check                           | Status   |
+| ------------------------------- | -------- |
+| All README links valid          | ✅/⚠️/❌ |
 | product-spec/README.md complete | ✅/⚠️/❌ |
-| research/README.md complete | ✅/⚠️/❌ |
+| research/README.md complete     | ✅/⚠️/❌ |
 
 ---
 
 ## Layer 7: Journey ↔ E2E Coverage
 
-| Journey / Edge | Test Case | Status |
-|----------------|-----------|--------|
-| JRN-001 (Must) | TC-E2E-001 | ✅ |
-| EDGE-001 (P1) | TC-E2E-002 | ✅/❌ |
+| Journey / Edge | Test Case  | Status |
+| -------------- | ---------- | ------ |
+| JRN-001 (Must) | TC-E2E-001 | ✅     |
+| EDGE-001 (P1)  | TC-E2E-002 | ✅/❌  |
 
 ## Layer 8: UI ↔ Design System
 
-| Region | Component (CMP-) | Target path | Used? |
-|--------|------------------|-------------|-------|
-| save bar | CMP-Button | frontend:…/SaveBar.tsx | ✅/❌ |
+| Region   | Component (CMP-) | Target path            | Used? |
+| -------- | ---------------- | ---------------------- | ----- |
+| save bar | CMP-Button       | frontend:…/SaveBar.tsx | ✅/❌ |
 
 ## Layer 9: FE ↔ BE Contract Drift
 
 | Contract (API-) | BE impl | FE call | Shape match | oasdiff (if on) | Status |
-|-----------------|---------|---------|-------------|-----------------|--------|
-| API-savePrefs | ✅ | ✅ | ✅ | no breaking | ✅ |
+| --------------- | ------- | ------- | ----------- | --------------- | ------ |
+| API-savePrefs   | ✅      | ✅      | ✅          | no breaking     | ✅     |
 
 > **oasdiff** column populated only when `contract_differ: oasdiff` (W5-B4):
 > `no breaking` / `BREAKING: {change}` / `non-breaking: {change}` / `SKIPPED (oasdiff not installed)`.
 
 ## Layer 10: Doc ↔ Code Reconciliation
 
-| Item | Documented | In code | Provenance (%h,%an) | Task match | Status |
-|------|-----------|---------|---------------------|------------|--------|
-| FR-003 | ✅ | ✅ | — | — | ✅ |
-| {orphan code path} | ❌ | ✅ | `a1b2c3d,Jane Dev` | T014 | ⚠️ doc-orphan |
-| {orphan code path} | ❌ | ✅ | `e4f5g6h,Sam Eng` | none | ⚠️ out-of-band → delta |
+| Item               | Documented | In code | Provenance (%h,%an) | Task match | Status                 |
+| ------------------ | ---------- | ------- | ------------------- | ---------- | ---------------------- |
+| FR-003             | ✅         | ✅      | —                   | —          | ✅                     |
+| {orphan code path} | ❌         | ✅      | `a1b2c3d,Jane Dev`  | T014       | ⚠️ doc-orphan          |
+| {orphan code path} | ❌         | ✅      | `e4f5g6h,Sam Eng`   | none       | ⚠️ out-of-band → delta |
 
 > **Provenance** from `git log -1 --format=%h,%an` (W5-C1); **Task match**
 > reverse-indexes the SHA against `task_log[].commit_sha`. Rows with `none` are
@@ -570,10 +593,10 @@ Write `{FEATURE_DIR}/verify-report.md`:
 
 ## Layer 11: Constitution ↔ Code
 
-| Mandated pattern (constitution §) | Probe | Status |
-|-----------------------------------|-------|--------|
+| Mandated pattern (constitution §)               | Probe                           | Status           |
+| ----------------------------------------------- | ------------------------------- | ---------------- |
 | {e.g. circuit-breaker on external calls (§3.2)} | grep wrapper symbol in new code | ✅ / ❌ CRITICAL |
-| {e.g. event naming convention (§4.1)} | grep emitted event names | ⚠️ WARNING |
+| {e.g. event naming convention (§4.1)}           | grep emitted event names        | ⚠️ WARNING       |
 
 > N/A when no `constitution_path` file exists. Reconcile with Layer 10 / security
 > so one violation isn't double-counted; cite the constitution section.
@@ -583,17 +606,19 @@ Write `{FEATURE_DIR}/verify-report.md`:
 > Drift between the canonical spec and observed code that `spec-merge` should
 > reconcile. One row per proposed delta; `spec-merge` consumes this section.
 
-| FR / domain | Current canonical text | Observed-from-code behavior | Proposed delta |
-|-------------|------------------------|-----------------------------|----------------|
-| FR-003 | {what the spec says} | {what the code actually does} | MODIFY FR-003: {proposed change} |
-| {domain} | {none — undocumented} | {observed behavior} | ADD FR-NNN: {proposed addition} |
+| FR / domain | Current canonical text | Observed-from-code behavior   | Proposed delta                   |
+| ----------- | ---------------------- | ----------------------------- | -------------------------------- |
+| FR-003      | {what the spec says}   | {what the code actually does} | MODIFY FR-003: {proposed change} |
+| {domain}    | {none — undocumented}  | {observed behavior}           | ADD FR-NNN: {proposed addition}  |
 
 ---
 
 ## Critical Issues (Must Fix Before Done)
 
 {if any ❌:}
+
 ### CRITICAL-001
+
 - **Layer:** {layer name}
 - **Finding:** {what's wrong}
 - **Impact:** {why it matters}
@@ -604,7 +629,9 @@ Write `{FEATURE_DIR}/verify-report.md`:
 ## Warnings (Should Review)
 
 {if any ⚠️:}
+
 ### WARNING-001
+
 - **Layer:** {layer name}
 - **Finding:** {what's different}
 - **Suggested action:** {optional fix or acknowledge}
@@ -615,10 +642,10 @@ Write `{FEATURE_DIR}/verify-report.md`:
 
 Rendered directly from `traceability.yml` rows (live-schema columns):
 
-| req | story | journeys | frs | tasks | code | tests | events | status |
-|-----|-------|----------|-----|-------|------|-------|--------|--------|
-| REQ-001 | US-001 | JRN-001 | FR-001, FR-002 | T012, T013 | ✅ | TC-E2E-003 | EVT-prefs_saved | verified |
-| — | US-002 | JRN-002 | FR-003 | T014 | ✅ | ⚠️ none | — | implemented |
+| req     | story  | journeys | frs            | tasks      | code | tests      | events          | status      |
+| ------- | ------ | -------- | -------------- | ---------- | ---- | ---------- | --------------- | ----------- |
+| REQ-001 | US-001 | JRN-001  | FR-001, FR-002 | T012, T013 | ✅   | TC-E2E-003 | EVT-prefs_saved | verified    |
+| —       | US-002 | JRN-002  | FR-003         | T014       | ✅   | ⚠️ none    | —               | implemented |
 
 > `req` is populated only for V-Model/backfill rows; the standard forward flow
 > keys on `frs` and leaves `req` null (`—`).
@@ -632,7 +659,6 @@ Rendered directly from `traceability.yml` rows (live-schema columns):
 {PASS WITH WARNINGS}: {N} warnings found. Review recommended but no blockers.
 {OR}
 {FAIL}: {N} critical issues must be resolved. Run `/speckit.product-forge.verify-full` again after fixes.
-
 ```
 
 ---
@@ -640,6 +666,7 @@ Rendered directly from `traceability.yml` rows (live-schema columns):
 ## Step 5: Present Report
 
 Show the user:
+
 ```
 📊 Verification Complete: {Feature Name}
 
@@ -655,15 +682,19 @@ Full report: {FEATURE_DIR}/verify-report.md
 ```
 
 ### If CRITICAL issues exist:
-Ask: *"There are {N} critical issues that need to be resolved. I recommend fixing them and re-running `/speckit.product-forge.verify-full`. Would you like me to help fix them, or do you want to address them manually?"*
+
+Ask: _"There are {N} critical issues that need to be resolved. I recommend fixing them and re-running `/speckit.product-forge.verify-full`. Would you like me to help fix them, or do you want to address them manually?"_
 
 ### If only WARNINGS:
-Ask: *"Verification passed with {N} warnings. These are advisory — you can review and address them or acknowledge and close. Ready to mark this feature as complete?"*
+
+Ask: _"Verification passed with {N} warnings. These are advisory — you can review and address them or acknowledge and close. Ready to mark this feature as complete?"_
 
 ### If all PASSED:
+
 Update `.forge-status.yml`: `verify: completed`
 
 Show completion summary:
+
 ```
 🎉 Feature Complete: {Feature Name}
 
@@ -684,6 +715,7 @@ Before returning, write `{FEATURE_DIR}/verify/digest.md` using the template at
 its path on `.forge-status.yml` under `phases.verify.digest_path`.
 
 The digest must include:
+
 - **Key decisions** — overall verdict (clean / blocked), which CRITICAL findings drove the verdict.
 - **Artifacts produced** — `verify-report.md`.
 - **Open risks** — WARNING-level findings that were acknowledged but not fixed, with reason.

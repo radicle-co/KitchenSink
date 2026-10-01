@@ -8,25 +8,54 @@
  * (even private). The ORIGINAL is never mutated. No database is involved — a fake DAL captures the
  * create input.
  */
+import { HttpException } from '@nestjs/common';
 import { describe, it, expect, vi } from 'vitest';
 
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import { RecipesService } from '../recipes.service.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
-import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
-import { fakeRatingsDal } from '../__fixtures__/ratings-dal.fixture.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
-import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
+import type { FoodLookupArm, FoodRef } from '../../database/schema/foodLookupArm.js';
+import type { FoodLookupsDal } from '../../ingredients/dal/foodLookups.dal.js';
+import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
+import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
+import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
 import { isRecipeDomainError } from '../recipe.error.js';
-import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../../__fixtures__/index.js';
-import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
+import { makeRecipeRow, makeRecipeStepRow, makeIngredientLineRow } from '../../__fixtures__/index.js';
 import type { Principal } from '../../auth/principal.js';
+import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
+import type { RecipeTx } from '../../database/unitOfWork.js';
+import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
+
+/**
+ * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
+ *
+ * It answers `absent` — the honest degrade shape — rather than fabricating numbers, so a suite that starts
+ * depending on nutrition fails loudly here instead of quietly asserting invented values.
+ */
+const nutritionGatewayDouble = {
+    lookup: async (_caller: unknown, ids: readonly string[]) => ({ byFoodId: new Map(), unansweredIds: new Set(ids) }),
+} as never;
 
 const SOURCE_OWNER = '01J0000000000000000000PRO0';
 const CLONER = '01J000000000000000000FREE0';
-const SOURCE_OWNER_PRINCIPAL: Principal = { userId: SOURCE_OWNER, sub: 'clerk_pro', scopes: [], permissions: [] };
-const CLONER_PRINCIPAL: Principal = { userId: CLONER, sub: 'clerk_free', scopes: [], permissions: [] };
+const SOURCE_OWNER_PRINCIPAL: Principal = {
+    userId: SOURCE_OWNER,
+    sub: 'clerk_pro',
+    scopes: [],
+    permissions: [],
+    principalKind: 'real',
+    containment: 'enforce',
+};
+const CLONER_PRINCIPAL: Principal = {
+    userId: CLONER,
+    sub: 'clerk_free',
+    scopes: [],
+    permissions: [],
+    principalKind: 'real',
+    containment: 'enforce',
+};
 const INGREDIENT_ID = '00000000-0000-4000-8000-0000000000ff';
 
 function sourceAggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
@@ -48,14 +77,13 @@ function sourceAggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]>
         recipe,
         steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Chop', timerSeconds: 30 })],
         ingredients: [
-            makeRecipeIngredientRow({
+            makeIngredientLineRow({
                 recipeId: recipe.id,
-                ingredientId: INGREDIENT_ID,
+                foodLookupId: INGREDIENT_ID,
                 quantity: '2',
                 unit: 'cup',
                 displayText: 'diced',
                 sortOrder: 0,
-                ingredientName: 'Onion',
             }),
         ],
     };
@@ -63,23 +91,25 @@ function sourceAggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]>
 
 function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create: ReturnType<typeof vi.fn> } {
     // The DAL echoes back a created aggregate built from the create input so the response maps cleanly.
-    const create = vi.fn().mockImplementation(
-        async (input: {
-            ownerId: string;
-            visibility: string;
-            clonedFromId?: string | null;
-        }): Promise<RecipeAggregate> => ({
-            recipe: makeRecipeRow({
-                id: 'clone-1',
-                ownerId: input.ownerId,
-                visibility: input.visibility,
-                clonedFromId: input.clonedFromId ?? null,
-                hasSubstantiveEdit: false,
+    const create = vi
+        .fn()
+        .mockImplementation(
+            async (input: {
+                ownerId: string;
+                visibility: string;
+                clonedFromId?: string | null;
+            }): Promise<RecipeAggregate> => ({
+                recipe: makeRecipeRow({
+                    id: 'clone-1',
+                    ownerId: input.ownerId,
+                    visibility: input.visibility,
+                    clonedFromId: input.clonedFromId ?? null,
+                    hasSubstantiveEdit: false,
+                }),
+                steps: [],
+                ingredients: [],
             }),
-            steps: [],
-            ingredients: [],
-        }),
-    );
+        );
     const dal = {
         create,
         findById: vi.fn().mockResolvedValue(source),
@@ -87,27 +117,17 @@ function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create
         update: vi.fn(),
         softDelete: vi.fn(),
         setVisibility: vi.fn(),
+        transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 
     return { dal, create };
 }
 
-function fakeIngredientsDal(): IngredientsDal {
-    return {
-        findById: vi.fn().mockResolvedValue(makeIngredient({ id: INGREDIENT_ID, name: 'Onion' })),
-        findByIds: vi.fn().mockResolvedValue([]),
-    } as unknown as IngredientsDal;
-}
-
 function service(dal: RecipesDal): RecipesService {
-    return new RecipesService(
-        dal,
-        fakeIngredientsDal(),
-        makeFakeVersionsService(),
-        fakePhotosDal(),
-        RECIPE_PHOTOS_CDN,
-        fakeRatingsDal(),
-    );
+    return makeRecipesService({
+        dal: dal,
+        foodNutrition: nutritionGatewayDouble,
+    });
 }
 
 async function catchError(promise: Promise<unknown>): Promise<unknown> {
@@ -120,17 +140,63 @@ async function catchError(promise: Promise<unknown>): Promise<unknown> {
     throw new Error('Expected the promise to reject, but it resolved.');
 }
 
+describe('RecipesService.clone — test-principal containment (ADR-0040)', () => {
+    it('⛔ refuses a contained test principal’s clone of ANOTHER user’s recipe, before any write', async () => {
+        const { dal, create } = fakeDal(sourceAggregate({ visibility: 'public', ownerId: SOURCE_OWNER }));
+
+        const error = await catchError(
+            service(dal).clone({ ...CLONER_PRINCIPAL, principalKind: 'test' }, 'src-1', undefined),
+        );
+
+        expect(error instanceof HttpException && error.getStatus()).toBe(403);
+        expect(error instanceof HttpException && (error.getResponse() as { code: string }).code).toBe(
+            'TEST_PRINCIPAL_CONTAINED',
+        );
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    it('⛔ still 404s a PRIVATE foreign source for a test principal — containment never reveals existence', async () => {
+        const { dal } = fakeDal(sourceAggregate({ visibility: 'private', ownerId: SOURCE_OWNER }));
+
+        const error = await catchError(
+            service(dal).clone({ ...CLONER_PRINCIPAL, principalKind: 'test' }, 'src-1', undefined),
+        );
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+    });
+
+    it('⛔ lets a contained test principal clone its OWN recipe, and the clone defaults to PRIVATE', async () => {
+        const { dal, create } = fakeDal(sourceAggregate({ visibility: 'public', ownerId: SOURCE_OWNER }));
+
+        await service(dal).clone({ ...SOURCE_OWNER_PRINCIPAL, principalKind: 'test' }, 'src-1', undefined);
+
+        expect(create.mock.calls[0]?.[0]).toMatchObject({ visibility: 'private' });
+    });
+
+    it('lets a test principal clone a foreign public recipe where containment is off', async () => {
+        const { dal, create } = fakeDal(sourceAggregate({ visibility: 'public', ownerId: SOURCE_OWNER }));
+
+        await service(dal).clone(
+            { ...CLONER_PRINCIPAL, principalKind: 'test', containment: 'off' },
+            'src-1',
+            undefined,
+        );
+
+        expect(create.mock.calls[0]?.[0]).toMatchObject({ visibility: 'public' });
+    });
+});
+
 describe('RecipesService.clone', () => {
     it('throws RECIPE_NOT_FOUND when the source does not exist', async () => {
         const { dal } = fakeDal(undefined);
-        const error = await catchError(service(dal).clone(CLONER_PRINCIPAL, 'src-1'));
+        const error = await catchError(service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws RECIPE_NOT_FOUND (404, not 403) when a non-owner clones a PRIVATE recipe (W8-a.4 IDOR)', async () => {
         const { dal } = fakeDal(sourceAggregate({ visibility: 'private', ownerId: SOURCE_OWNER }));
-        const error = await catchError(service(dal).clone(CLONER_PRINCIPAL, 'src-1'));
+        const error = await catchError(service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
@@ -138,7 +204,7 @@ describe('RecipesService.clone', () => {
     it('lets the OWNER clone their own private recipe', async () => {
         const { dal, create } = fakeDal(sourceAggregate({ visibility: 'private', ownerId: SOURCE_OWNER }));
 
-        await service(dal).clone(SOURCE_OWNER_PRINCIPAL, 'src-1');
+        await service(dal).clone(SOURCE_OWNER_PRINCIPAL, 'src-1', undefined);
 
         expect(create).toHaveBeenCalledTimes(1);
     });
@@ -146,7 +212,7 @@ describe('RecipesService.clone', () => {
     it('creates a new recipe owned by the caller, linked via clonedFromId, with hasSubstantiveEdit reset', async () => {
         const { dal, create } = fakeDal(sourceAggregate());
 
-        const response = await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+        const response = await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -155,11 +221,12 @@ describe('RecipesService.clone', () => {
                 hasSubstantiveEdit: false,
                 title: 'Original Dish',
             }),
+            FAKE_TX,
         );
         // Content is carried over: the source's single step + ingredient line.
-        const input = create.mock.calls[0]?.[0] as { steps: unknown[]; ingredients: { ingredientId: string }[] };
+        const input = create.mock.calls[0]?.[0] as { steps: unknown[]; ingredients: { foodLookupId: string }[] };
         expect(input.steps).toHaveLength(1);
-        expect(input.ingredients[0]?.ingredientId).toBe(INGREDIENT_ID);
+        expect(input.ingredients[0]?.foodLookupId).toBe(INGREDIENT_ID);
         expect(response.ownerId).toBe(CLONER);
     });
 
@@ -172,7 +239,7 @@ describe('RecipesService.clone', () => {
             }),
         );
 
-        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -180,13 +247,14 @@ describe('RecipesService.clone', () => {
                 sourceUrl: 'https://example.com/x',
                 sourceAttribution: 'Chef A',
             }),
+            FAKE_TX,
         );
     });
 
     it('records attribution to the original author when the source is a user_created original (no attribution)', async () => {
         const { dal, create } = fakeDal(sourceAggregate({ sourceType: 'user_created', sourceAttribution: null }));
 
-        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
 
         const input = create.mock.calls[0]?.[0] as { sourceAttribution?: string };
         expect(input.sourceAttribution).toContain(SOURCE_OWNER);
@@ -195,7 +263,7 @@ describe('RecipesService.clone', () => {
     it('defaults a user_created / imported_public clone to public visibility', async () => {
         const { dal, create } = fakeDal(sourceAggregate({ sourceType: 'imported_public' }));
 
-        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
 
         expect(create.mock.calls[0]?.[0]).toMatchObject({ visibility: 'public' });
     });
@@ -206,7 +274,7 @@ describe('RecipesService.clone', () => {
             sourceAggregate({ sourceType: 'imported_paid', visibility: 'private', ownerId: SOURCE_OWNER }),
         );
 
-        await service(dal).clone(SOURCE_OWNER_PRINCIPAL, 'src-1');
+        await service(dal).clone(SOURCE_OWNER_PRINCIPAL, 'src-1', undefined);
 
         expect(create.mock.calls[0]?.[0]).toMatchObject({ visibility: 'private' });
     });
@@ -214,18 +282,167 @@ describe('RecipesService.clone', () => {
     it("records the cloner's editor handle (deriveDisplayName) on the clone snapshot (W6 attribution)", async () => {
         const { dal } = fakeDal(sourceAggregate());
         const versions = makeFakeVersionsService();
-        const svc = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-        );
+        const svc = makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        });
 
         // The CLONER (not the source author) is the editor of the clone's first version.
-        await svc.clone({ ...CLONER_PRINCIPAL, firstName: 'Rose', lastName: 'Tyler' }, 'src-1');
+        await svc.clone({ ...CLONER_PRINCIPAL, firstName: 'Rose', lastName: 'Tyler' }, 'src-1', undefined);
 
-        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Rose Tyler' }));
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ editorHandle: 'Rose Tyler' }),
+            FAKE_TX,
+        );
+    });
+});
+
+describe('RecipesService.clone — the source line survives (U11)', () => {
+    it('⛔ carries the raw SOURCE LINE onto the clone', async () => {
+        // ⛔ THE DATA LOSS THIS PINS. The clone mapper once preserved `displayText` and all four per-line
+        // nutrition overrides and silently dropped `source_line`, which `0024_ingredient_source_line.sql`
+        // added later. A clone therefore lost the one fact the verification gate needs, permanently: the
+        // cloned recipe could never be verified, and U14's correction surface would have nothing to show the
+        // cook the source said.
+        //
+        // It is a fact about the SOURCE, not about the author — a clone of an imported recipe was transcribed
+        // from the same book — so it travels with the line exactly as `display_text` does.
+        const SOURCE_LINE = '2 heaping cups of well-sifted pastry flour';
+        const source = sourceAggregate();
+        const withSourceLine: typeof source = {
+            ...source,
+            ingredients: source.ingredients.map((row) => ({ ...row, sourceLine: SOURCE_LINE })),
+        };
+        const { dal, create } = fakeDal(withSourceLine);
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
+
+        const input = create.mock.calls[0]?.[0] as { ingredients: { sourceLine?: string }[] } | undefined;
+
+        expect(input?.ingredients[0]?.sourceLine).toBe(SOURCE_LINE);
+    });
+});
+
+describe('RecipesService.clone — the preparation and the section survive (U26/U27)', () => {
+    /**
+     * ⛔ THE SAME DATA LOSS THE SUITE ABOVE PINS, one migration later. The clone mapper is a POSITIVE
+     * field-by-field enumeration built from conditional spreads, so a column added to the line is invisible to
+     * it and NOTHING FAILS TO COMPILE. That is exactly how `source_line`
+     * was dropped from every clone for as long as it existed.
+     *
+     * Both are facts about THIS LINE that the cloner is copying wholesale — how the onion is chopped, and
+     * which section of the list it sits in — so they travel with the line exactly as `display_text` does.
+     */
+    it('⛔ carries the PREPARATION and the GROUP LABEL onto the clone', async () => {
+        const source = sourceAggregate();
+        const withBoth: typeof source = {
+            ...source,
+            ingredients: source.ingredients.map((row) => ({
+                ...row,
+                preparation: 'finely chopped',
+                groupLabel: 'For the marinade',
+            })),
+        };
+        const { dal, create } = fakeDal(withBoth);
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
+
+        const input = create.mock.calls[0]?.[0] as
+            { ingredients: { preparation?: string; groupLabel?: string }[] } | undefined;
+
+        expect(input?.ingredients[0]?.preparation).toBe('finely chopped');
+        expect(input?.ingredients[0]?.groupLabel).toBe('For the marinade');
+        // ⛔ And the line carries no name to fold them into: its name is derived from the binding.
+        expect(input?.ingredients[0]).not.toHaveProperty('ingredientName');
+    });
+
+    it('OMITS both on the clone when the source line carried neither, rather than sending `""`', async () => {
+        const { dal, create } = fakeDal(sourceAggregate());
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
+
+        const input = create.mock.calls[0]?.[0] as { ingredients: Record<string, unknown>[] } | undefined;
+
+        expect(input?.ingredients[0]).not.toHaveProperty('preparation');
+        expect(input?.ingredients[0]).not.toHaveProperty('groupLabel');
+    });
+});
+
+describe('RecipesService.clone — a line on another author’s PRIVATE food (plan 002 R9, AE10)', () => {
+    const PRIVATE_ARM: FoodLookupArm = {
+        kind: 'root',
+        lookupId: INGREDIENT_ID,
+        foodId: 'food-private',
+        foodOwnerId: SOURCE_OWNER,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    };
+    const CLONER_TOKEN = { kind: 'cloner-token' } as never;
+
+    /** Clone the source as `principal`, with food answering `answer` about the private food. */
+    async function cloneWith(principal: Principal, answer: FoodRefAnswer) {
+        const { dal } = fakeDal(sourceAggregate({ ingredientNamesText: 'grandma’s rub' }));
+        // The DAL persists the clone's lines, so the version snapshot has a line to freeze a name for.
+        vi.mocked(dal.create).mockImplementation((clone) =>
+            Promise.resolve({
+                recipe: makeRecipeRow({ id: 'clone-1', ownerId: clone.ownerId }),
+                steps: [],
+                ingredients: clone.ingredients.map((line) =>
+                    makeIngredientLineRow({ foodLookupId: line.foodLookupId }),
+                ),
+            }),
+        );
+        const versions = makeFakeVersionsService();
+        const resolve = vi.fn((_caller: unknown, refs: readonly FoodRef[]) =>
+            Promise.resolve({
+                answers: new Map(refs.map((ref) => [`${ref.kind}:${ref.id}`, answer])),
+                degraded: false,
+            }),
+        );
+        const lookups = {
+            findByIds: vi.fn((ids: readonly string[]) =>
+                Promise.resolve(new Map(ids.filter((id) => id === INGREDIENT_ID).map((id) => [id, PRIVATE_ARM]))),
+            ),
+        } as unknown as FoodLookupsDal;
+
+        const response = await makeRecipesService({
+            dal,
+            lookups,
+            refs: { resolve } as unknown as FoodRefsGateway,
+            versions,
+            foodNutrition: nutritionGatewayDouble,
+        }).clone(principal, 'src-1', CLONER_TOKEN);
+
+        return {
+            response,
+            input: vi.mocked(dal.create).mock.calls[0]?.[0],
+            snapshot: vi.mocked(versions.createSnapshot).mock.calls[0]?.[0].snapshot,
+            resolve,
+        };
+    }
+
+    it('⛔ keeps the binding, publishes NO name, and counts the line for the banner, when a stranger clones', async () => {
+        // Food shows a private food to its author only, so for the cloner its answer is `absent`.
+        const { response, input, snapshot, resolve } = await cloneWith(CLONER_PRINCIPAL, { outcome: 'absent' });
+
+        expect(input.ingredients[0]?.foodLookupId).toBe(INGREDIENT_ID);
+        expect(input.ingredientNamesText).toBe('');
+        expect(snapshot?.ingredients[0]).not.toHaveProperty('ingredientName');
+        expect(response.clonePrivateFoodLineCount).toBe(1);
+        // The names are read with the CLONER's credential — never the author's view.
+        expect(resolve.mock.calls[0]?.[0]).toBe(CLONER_TOKEN);
+    });
+
+    it('⛔ publishes no private name even when the AUTHOR clones their own recipe, and counts nothing', async () => {
+        const { response, input, snapshot } = await cloneWith(SOURCE_OWNER_PRINCIPAL, {
+            outcome: 'found',
+            name: canonicalIngredientName('grandma’s rub'),
+            status: 'RESOLVED',
+            isPrivate: true,
+        });
+
+        expect(input.ingredientNamesText).toBe('');
+        expect(snapshot?.ingredients[0]).not.toHaveProperty('ingredientName');
+        expect(response).not.toHaveProperty('clonePrivateFoodLineCount');
     });
 });

@@ -7,24 +7,26 @@
  * therefore cannot drift on behavior or accessibility.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+
+import { AccessibilityInfo } from 'react-native';
 
 import { computedContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { FILTER_SHEET_PADDING, RecipeFilterBar } from '../RecipeFilterBar.native.js';
+import { RecipeFilterBar } from '../RecipeFilterBar.native.js';
 import { EMPTY_RECIPE_FILTERS } from '../model.js';
 import type { RecipeFilterBarProps, RecipeIngredientSearchState } from '../model.js';
 
-// A DISTINCT value per edge, so an assertion cannot pass on a leaf that adds the wrong inset to the wrong
-// side. Restated inside the factory because `vi.mock` is hoisted above every module-level binding.
-vi.mock('react-native-safe-area-context', () => ({
-    useSafeAreaInsets: () => ({ top: 24, right: 8, bottom: 16, left: 4 }),
-}));
+// react-native-web does not implement `sendAccessibilityEvent`; the focus-return case reads the calls.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
 
-const INSETS = { top: 24, right: 8, bottom: 16, left: 4 } as const;
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+});
 
 afterEach(cleanup);
 
@@ -83,15 +85,8 @@ function renderBar(overrides: Partial<RecipeFilterBarProps> = {}, { open = true 
     const props: RecipeFilterBarProps = {
         facets: {},
         filters: EMPTY_RECIPE_FILTERS,
-        onToggleFacet: noop,
-        onSetCuisine: noop,
-        onSetMaxPrepTime: noop,
-        onSetMaxCookTime: noop,
-        onSetMaxTotalTime: noop,
+        onFilterAction: noop,
         ingredientSearch: idleIngredientSearch,
-        onAddIngredientFilter: noop,
-        onRemoveIngredientFilter: noop,
-        onClearAll: noop,
         ...overrides,
     };
     render(<RecipeFilterBar {...props} />);
@@ -143,6 +138,23 @@ describe('RecipeFilterBar (native) — bottom sheet (U7)', () => {
         expect(screen.getByText('3')).toBeTruthy();
     });
 
+    /**
+     * E2 I10 — the count badge grows with the font. A fixed `height: 22` around an 11 pt digit let the digit outgrow
+     * the circle at a large font scale, and outside it the white digit sat white on white. jsdom has no font scale,
+     * so this pins the contract: a 22 dp FLOOR, no fixed height, and vertical padding that gives a scaled digit room.
+     */
+    it('lets the count badge grow with the font: a 22dp floor, no fixed height', () => {
+        renderBar({ facets, filters: { dietaryFlags: ['vegan'] } }, { open: false });
+
+        const badge = screen.getByText('1').parentElement;
+
+        expect(badge).not.toBeNull();
+        expect(appliedStyle(badge as HTMLElement, 'min-height')).toBe('22px');
+        expect(appliedStyle(badge as HTMLElement, 'height')).toBeUndefined();
+        expect(Number.parseFloat(appliedStyle(badge as HTMLElement, 'padding-top') ?? '0')).toBeGreaterThan(0);
+        expect(Number.parseFloat(appliedStyle(badge as HTMLElement, 'padding-bottom') ?? '0')).toBeGreaterThan(0);
+    });
+
     it('shows no active-count badge when nothing is filtered', () => {
         renderBar({ facets }, { open: false });
 
@@ -161,10 +173,12 @@ describe('RecipeFilterBar (native) — bottom sheet (U7)', () => {
 });
 
 describe('RecipeFilterBar (native) — structure', () => {
-    it('exposes the bar and each dimension as a named group', () => {
+    it('names the sheet "Filter recipes", and each dimension as a named group', () => {
         renderBar({ facets });
 
-        expect(screen.getByRole('group', { name: 'Filter recipes' })).toBeTruthy();
+        // The dialog carries the name; a group with the same name inside it would be read twice (§S8.1a).
+        expect(screen.getByRole('dialog', { name: 'Filter recipes' })).toBeTruthy();
+        expect(screen.queryByRole('group', { name: 'Filter recipes' })).toBeNull();
         expect(screen.getByRole('group', { name: 'Dietary' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Tags' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Prep time' })).toBeTruthy();
@@ -220,12 +234,12 @@ describe('RecipeFilterBar (native) — chips', () => {
     });
 
     it('toggles a chip with its dimension and value', () => {
-        const onToggleFacet = vi.fn();
-        renderBar({ facets, onToggleFacet });
+        const onFilterAction = vi.fn();
+        renderBar({ facets, onFilterAction });
 
         fireEvent.click(screen.getByRole('button', { name: 'quick, 3 recipes' }));
 
-        expect(onToggleFacet).toHaveBeenCalledWith('tags', 'quick');
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'toggleFacet', dimension: 'tags', value: 'quick' });
     });
 
     it('renders chips as real buttons', () => {
@@ -249,43 +263,47 @@ describe('RecipeFilterBar (native) — time ladder', () => {
     });
 
     it('sets the bound when an inactive bucket is pressed', () => {
-        const onSetMaxTotalTime = vi.fn();
-        renderBar({ onSetMaxTotalTime });
+        const onFilterAction = vi.fn();
+        renderBar({ onFilterAction });
 
         const total = within(screen.getByRole('group', { name: 'Total time' }));
         fireEvent.click(total.getByRole('button', { name: 'Under 30 min' }));
 
-        expect(onSetMaxTotalTime).toHaveBeenCalledWith(30);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxTotalTime', minutes: 30 });
     });
 
     it('clears the bound when the active bucket is pressed again', () => {
-        const onSetMaxTotalTime = vi.fn();
-        renderBar({ filters: { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 }, onSetMaxTotalTime });
+        const onFilterAction = vi.fn();
+        renderBar({ filters: { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 }, onFilterAction });
 
         const total = within(screen.getByRole('group', { name: 'Total time' }));
         fireEvent.click(total.getByRole('button', { name: 'Under 30 min' }));
 
-        expect(onSetMaxTotalTime).toHaveBeenCalledWith(undefined);
+        expect(onFilterAction).toHaveBeenCalledWith({
+            kind: 'setTimeBound',
+            field: 'maxTotalTime',
+            minutes: undefined,
+        });
     });
 
     it('sets a prep bound from the Prep time ladder (S2)', () => {
-        const onSetMaxPrepTime = vi.fn();
-        renderBar({ onSetMaxPrepTime });
+        const onFilterAction = vi.fn();
+        renderBar({ onFilterAction });
 
         const prep = within(screen.getByRole('group', { name: 'Prep time' }));
         fireEvent.click(prep.getByRole('button', { name: 'Under 15 min' }));
 
-        expect(onSetMaxPrepTime).toHaveBeenCalledWith(15);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxPrepTime', minutes: 15 });
     });
 
     it('renders the single-select Cuisine group and reports a selection (S2)', () => {
-        const onSetCuisine = vi.fn();
-        renderBar({ facets: { cuisine: [{ value: 'Thai', count: 5 }] }, onSetCuisine });
+        const onFilterAction = vi.fn();
+        renderBar({ facets: { cuisine: [{ value: 'Thai', count: 5 }] }, onFilterAction });
 
         const cuisine = within(screen.getByRole('group', { name: 'Cuisine' }));
         fireEvent.click(cuisine.getByRole('button', { name: /Thai/ }));
 
-        expect(onSetCuisine).toHaveBeenCalledWith('Thai');
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setCuisine', cuisine: 'Thai' });
     });
 });
 
@@ -300,13 +318,13 @@ describe('RecipeFilterBar (native) — cook-time bound (REQ-030f)', () => {
     });
 
     it('sets a cook bound from the Cook time ladder', () => {
-        const onSetMaxCookTime = vi.fn();
-        renderBar({ onSetMaxCookTime });
+        const onFilterAction = vi.fn();
+        renderBar({ onFilterAction });
 
         const group = within(screen.getByRole('group', { name: 'Cook time' }));
         fireEvent.click(group.getByRole('button', { name: 'Under 30 min' }));
 
-        expect(onSetMaxCookTime).toHaveBeenCalledWith(30);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxCookTime', minutes: 30 });
     });
 
     it('presses only the active cook bound', () => {
@@ -318,13 +336,13 @@ describe('RecipeFilterBar (native) — cook-time bound (REQ-030f)', () => {
     });
 
     it('clears the cook bound when the active bucket is pressed again', () => {
-        const onSetMaxCookTime = vi.fn();
-        renderBar({ filters: { maxCookTime: 30 }, onSetMaxCookTime });
+        const onFilterAction = vi.fn();
+        renderBar({ filters: { maxCookTime: 30 }, onFilterAction });
 
         const group = within(screen.getByRole('group', { name: 'Cook time' }));
         fireEvent.click(group.getByRole('button', { name: 'Under 30 min' }));
 
-        expect(onSetMaxCookTime).toHaveBeenCalledWith(undefined);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'setTimeBound', field: 'maxCookTime', minutes: undefined });
     });
 });
 
@@ -336,13 +354,13 @@ describe('RecipeFilterBar (native) — clear all', () => {
     });
 
     it('shows clear-all with the active count and invokes it when pressed', () => {
-        const onClearAll = vi.fn();
-        renderBar({ facets, filters: { dietaryFlags: ['vegan'], tags: ['quick'], maxTotalTime: 30 }, onClearAll });
+        const onFilterAction = vi.fn();
+        renderBar({ facets, filters: { dietaryFlags: ['vegan'], tags: ['quick'], maxTotalTime: 30 }, onFilterAction });
 
         const clear = screen.getByRole('button', { name: 'Clear 3 filters' });
         fireEvent.click(clear);
 
-        expect(onClearAll).toHaveBeenCalledTimes(1);
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'clearAll' });
     });
 
     it('uses the singular clear-all label for exactly one active filter', () => {
@@ -391,6 +409,63 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
         expect(screen.getByText('No matching ingredients')).toBeTruthy();
     });
 
+    /**
+     * The FR-010a empty state (003-FR-010a, plan U37).
+     *
+     * ⛔ Asserted as VISIBLE TEXT, not as "the results list is absent". A below-minimum query rendered
+     * nothing before this unit; the requirement is that the cook is TOLD why, so a test that only checks
+     * for the absence of results would pass on the broken behaviour it exists to reject.
+     */
+    it('explains the three-character minimum, and does NOT say "no matching ingredients"', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'eg',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH },
+            },
+        });
+
+        expect(
+            screen.getByText('Keep typing — 3 characters or more. Anything shorter matches half the pantry.'),
+        ).toBeTruthy();
+        // ⛔ The two must not be confused: "no matching ingredients" asserts the catalog was searched and
+        // came back empty, which is exactly what did NOT happen.
+        expect(screen.queryByText('No matching ingredients')).toBeNull();
+        expect(screen.queryByRole('list')).toBeNull();
+    });
+
+    it('interpolates the minimum from the state rather than hard-coding it in the copy', () => {
+        // The dictionary carries `{minimum}`; the number comes from the shared constant the SERVER also
+        // reads. A literal in the dictionary would make the sentence lie the moment the floor moves.
+        renderBar({
+            ingredientSearch: {
+                query: 'e',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: 5 },
+            },
+        });
+
+        expect(screen.getByText(/5 characters or more/)).toBeTruthy();
+    });
+
+    it('says nothing at all while the box is untouched', () => {
+        renderBar();
+
+        expect(screen.queryByText(/characters or more/)).toBeNull();
+    });
+
+    it('shows no searching spinner below the minimum', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'eg',
+                onQueryChange: noop,
+                viewState: { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH },
+            },
+        });
+
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+
     it('shows an error message when the search failed', () => {
         renderBar({
             ingredientSearch: {
@@ -404,7 +479,7 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
     });
 
     it('lists matching ingredients as buttons and reports a pick', () => {
-        const onAddIngredientFilter = vi.fn();
+        const onFilterAction = vi.fn();
         renderBar({
             ingredientSearch: {
                 query: 'chi',
@@ -412,17 +487,26 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
                 viewState: {
                     kind: 'results',
                     results: [
-                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                        {
+                            id: 'lookup_1',
+                            foodId: 'ing_1',
+                            name: 'Chicken',
+                            isUserEntered: false,
+                            createdAt: '2026-01-01T00:00:00Z',
+                        },
                     ],
                     isError: false,
                 },
             },
-            onAddIngredientFilter,
+            onFilterAction,
         });
 
         fireEvent.click(screen.getByRole('button', { name: 'Filter by Chicken' }));
 
-        expect(onAddIngredientFilter).toHaveBeenCalledWith({ id: 'ing_1', name: 'Chicken' });
+        expect(onFilterAction).toHaveBeenCalledWith({
+            kind: 'addIngredient',
+            ingredient: { foodId: 'ing_1', name: 'Chicken' },
+        });
     });
 
     // The defect (round 5): the option's accessible name was the BARE ingredient name — the very string the
@@ -439,7 +523,13 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
                 viewState: {
                     kind: 'results',
                     results: [
-                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                        {
+                            id: 'lookup_1',
+                            foodId: 'ing_1',
+                            name: 'Chicken',
+                            isUserEntered: false,
+                            createdAt: '2026-01-01T00:00:00Z',
+                        },
                     ],
                     isError: false,
                 },
@@ -463,7 +553,13 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
                 viewState: {
                     kind: 'results',
                     results: [
-                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                        {
+                            id: 'lookup_1',
+                            foodId: 'ing_1',
+                            name: 'Chicken',
+                            isUserEntered: false,
+                            createdAt: '2026-01-01T00:00:00Z',
+                        },
                     ],
                     isError: false,
                 },
@@ -477,14 +573,20 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
 
     it('excludes an already-selected ingredient from the suggestion list', () => {
         renderBar({
-            filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
+            filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ foodId: 'ing_1', name: 'Chicken' }] },
             ingredientSearch: {
                 query: 'chi',
                 onQueryChange: noop,
                 viewState: {
                     kind: 'results',
                     results: [
-                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                        {
+                            id: 'lookup_1',
+                            foodId: 'ing_1',
+                            name: 'Chicken',
+                            isUserEntered: false,
+                            createdAt: '2026-01-01T00:00:00Z',
+                        },
                     ],
                     isError: false,
                 },
@@ -508,8 +610,8 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
             filters: {
                 ...EMPTY_RECIPE_FILTERS,
                 ingredients: [
-                    { id: 'ing_1', name: 'Chicken' },
-                    { id: 'ing_2', name: 'Garlic' },
+                    { foodId: 'ing_1', name: 'Chicken' },
+                    { foodId: 'ing_2', name: 'Garlic' },
                 ],
             },
         });
@@ -518,16 +620,16 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
         expect(screen.getByRole('button', { name: 'Remove Garlic' })).toBeTruthy();
     });
 
-    it('removes an ingredient chip by id when pressed', () => {
-        const onRemoveIngredientFilter = vi.fn();
+    it('removes an ingredient chip by food id when pressed', () => {
+        const onFilterAction = vi.fn();
         renderBar({
-            filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
-            onRemoveIngredientFilter,
+            filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ foodId: 'ing_1', name: 'Chicken' }] },
+            onFilterAction,
         });
 
         fireEvent.click(screen.getByRole('button', { name: 'Remove Chicken' }));
 
-        expect(onRemoveIngredientFilter).toHaveBeenCalledWith('ing_1');
+        expect(onFilterAction).toHaveBeenCalledWith({ kind: 'removeIngredient', foodId: 'ing_1' });
     });
 
     it('counts each selected ingredient in the clear-all summary', () => {
@@ -535,8 +637,8 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
             filters: {
                 ...EMPTY_RECIPE_FILTERS,
                 ingredients: [
-                    { id: 'ing_1', name: 'Chicken' },
-                    { id: 'ing_2', name: 'Garlic' },
+                    { foodId: 'ing_1', name: 'Chicken' },
+                    { foodId: 'ing_2', name: 'Garlic' },
                 ],
             },
         });
@@ -545,32 +647,51 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
     });
 });
 
-describe('RecipeFilterBar (native) — bottom sheet safe-area insets', () => {
-    /** The sheet's own padded surface — the labelled group the leaf renders inside the modal window. */
-    const sheet = (): HTMLElement => screen.getByLabelText('Filter recipes');
+// The inset rules moved into the `@commise/ui/sheet` primitive with the sheet itself, and so did their three tests
+// (`packages/apps/commise/ui/src/sheet/__tests__/Sheet.native.test.tsx`, "insets"). What stays here is what the bar
+// owns: Done is the Sheet's FOOTER, which the Sheet pads clear of the navigation bar.
+describe('RecipeFilterBar (native) — on the Sheet (§S8.1a)', () => {
+    it('puts Done in the sheet footer, the last slot, not in the scrolling facets', () => {
+        renderBar({ facets });
 
-    // The defect: an Android `Modal` window spans the WHOLE display (the app is edge-to-edge), and this
-    // sheet is bottom-anchored (`justifyContent: 'flex-end'`), so a flat pad puts its footer "Done" INSIDE
-    // the navigation bar's own tap region. On-device the button drew at y 2272–2329 on a 1080×2400 device
-    // whose navigation bar starts at y=2274: every tap on it was swallowed by the system bar, the sheet
-    // never closed, and the two Maestro discovery flows failed on the steps AFTER it (round 3).
-    it('adds the device bottom inset to the sheet padding, so Done clears the navigation bar', () => {
-        renderBar();
+        const dialog = screen.getByRole('dialog', { name: 'Filter recipes' });
+        const footer = screen.getByRole('button', { name: 'Done' }).parentElement;
 
-        expect(appliedStyle(sheet(), 'padding-bottom')).toBe(`${FILTER_SHEET_PADDING + INSETS.bottom}px`);
+        expect(dialog.lastElementChild).toBe(footer);
+        expect(footer?.contains(screen.getByRole('group', { name: 'Total time' }))).toBe(false);
     });
 
-    it('adds the device left/right insets so no facet sits under a landscape cutout', () => {
-        renderBar();
+    it('shows the title and a Close control that closes the sheet', () => {
+        renderBar({ facets });
 
-        expect(appliedStyle(sheet(), 'padding-left')).toBe(`${FILTER_SHEET_PADDING + INSETS.left}px`);
-        expect(appliedStyle(sheet(), 'padding-right')).toBe(`${FILTER_SHEET_PADDING + INSETS.right}px`);
+        expect(screen.getByRole('heading', { name: 'Filter recipes' })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Close filters' }));
+
+        expect(screen.queryByRole('group', { name: 'Dietary' })).toBeNull();
     });
 
-    it('leaves the top padding at the base value — the sheet is bottom-anchored, never under the status bar', () => {
-        renderBar();
+    it('closes on the platform back route (Escape under react-native-web)', () => {
+        renderBar({ facets });
 
-        expect(appliedStyle(sheet(), 'padding-top')).toBe(`${FILTER_SHEET_PADDING}px`);
+        fireEvent.keyUp(document, { key: 'Escape' });
+
+        expect(screen.queryByRole('group', { name: 'Dietary' })).toBeNull();
+    });
+
+    it.each([
+        ['Done', () => fireEvent.click(screen.getByRole('button', { name: 'Done' }))],
+        ['Close', () => fireEvent.click(screen.getByRole('button', { name: 'Close filters' }))],
+        ['back', () => fireEvent.keyUp(document, { key: 'Escape' })],
+    ])('returns screen-reader focus to the Filters trigger after closing through %s', (_route, close) => {
+        renderBar({ facets });
+        vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+
+        close();
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenLastCalledWith(
+            screen.getByRole('button', { name: 'Filters' }),
+            'focus',
+        );
     });
 });
 

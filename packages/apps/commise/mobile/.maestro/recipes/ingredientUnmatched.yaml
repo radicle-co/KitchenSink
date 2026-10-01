@@ -1,0 +1,71 @@
+appId: io.commise.mobile
+---
+# Plan 002 US1 on a device: an ingredient with no food explains itself in the editor row. Mobile mirror of the web
+# Playwright `ingredientUnmatched.spec.ts`, per the cross-platform mandate (the two form leaves share no compiler
+# edge).
+#
+# ⚠️ WHICH ROW, AND WHY. The web spec mocks the recipe API, so it seeds NOT_FOUND and FAILED lines directly. This job
+# runs against a real recipe service and NO food service (see `_ci-heavy.yml`'s `FOOD_SERVICE_URL`), so a NOT_FOUND
+# or FAILED verdict cannot be produced on demand here. The one no-food row a cook can make deterministically is a
+# DECLARED line (the freeform "Create …" affordance, `create.yaml`'s prelude), which is SPECIFY.1 row 1: status word
+# "Your own wording", an info glyph, and the explanation "No nutritional data available". The other reasons' copy is
+# covered by the web spec and both platforms' component tests.
+#
+# What only this tier proves: a TAP on the glyph opens the design-system bottom sheet on a real device (R32, §8e
+# "moved"), and its Close control dismisses it.
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Unmatched'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+- assertVisible: 'Step 2 of 4'
+- tapOn: 'Search ingredients'
+- inputText: 'Maestro Glorp'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Maestro Glorp.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Maestro Glorp.*'
+- extendedWaitUntil:
+      notVisible: 'Create .*Maestro Glorp.*'
+      timeout: 30000
+
+# The row's status word, from the row policy.
+- scrollUntilVisible:
+      element:
+          text: '^Your own wording$'
+      direction: DOWN
+      timeout: 30000
+
+# Slot 1: the glyph is a button named for the row's food, never a bare "Info".
+- tapOn: 'About Maestro Glorp'
+- extendedWaitUntil:
+      visible: '^No nutritional data available$'
+      timeout: 10000
+
+# Close dismisses the sheet; the row is still there under it.
+- tapOn: 'Close details for Maestro Glorp'
+- extendedWaitUntil:
+      notVisible: '^No nutritional data available$'
+      timeout: 10000
+- assertVisible: 'About Maestro Glorp'
+
+# Leave without saving: the explicit Discard, as `systemBackGuard.yaml` does.
+- pressKey: Back
+- assertVisible: 'Discard unsaved changes?'
+- tapOn: 'Discard changes'
+- assertVisible: 'Recipes'

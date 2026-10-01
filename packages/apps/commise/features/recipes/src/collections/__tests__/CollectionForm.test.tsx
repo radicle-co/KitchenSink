@@ -117,12 +117,39 @@ describe('CollectionForm (web) — error', () => {
 });
 
 describe('CollectionForm (web) — submitting state', () => {
-    it('disables the input, submit, and cancel while submitting', () => {
-        renderForm({ submitting: true });
+    /**
+     * REWRITTEN from native `disabled`: the control the cook just pressed goes busy, and a real browser drops focus
+     * to <body> the moment a focused control is natively disabled (WCAG 2.2 SC 2.4.3). It stays focusable and
+     * `aria-disabled` (`busyControlProps`), and the press is refused. The name field is `readOnly` rather than disabled for the same reason: a cook who pressed Enter in
+     * it is holding focus there.
+     */
+    it('makes the input read-only and busies submit and cancel while submitting, all still focusable', async () => {
+        const user = userEvent.setup();
+        const onCancel = vi.fn();
+        renderForm({ submitting: true, onCancel });
 
-        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Collection name' }).disabled).toBe(true);
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(true);
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Cancel' }).disabled).toBe(true);
+        const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Collection name' });
+        expect(input.disabled).toBe(false);
+        expect(input.readOnly).toBe(true);
+
+        for (const name of ['Create', 'Cancel']) {
+            const control = screen.getByRole<HTMLButtonElement>('button', { name });
+            expect(control.disabled).toBe(false);
+            expect(control.getAttribute('aria-disabled')).toBe('true');
+        }
+
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
+        expect(onCancel).not.toHaveBeenCalled();
+    });
+
+    it('⛔ refuses an Enter-key submit from the name field while submitting', async () => {
+        const user = userEvent.setup();
+        const onSubmit = vi.fn();
+        renderForm({ submitting: true, onSubmit });
+
+        await user.type(screen.getByRole('textbox', { name: 'Collection name' }), '{Enter}');
+
+        expect(onSubmit).not.toHaveBeenCalled();
     });
 
     it('does not fire submit while submitting', async () => {

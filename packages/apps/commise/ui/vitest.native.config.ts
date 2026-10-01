@@ -1,3 +1,4 @@
+import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,6 +50,8 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'jsdom',
+        // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
+        setupFiles: [jsdomPolyfillsSetup],
         passWithNoTests: true,
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
@@ -59,8 +62,13 @@ export default defineConfig({
             // The Expo native modules have no jsdom/react-native-web implementation; alias them to
             // lightweight stubs so the `.native` surface leaves render (and assert) under Vitest. The real
             // gradient/blur rendering is emulator-only (Maestro).
-            'expo-linear-gradient': path.join(stubDir, 'expo-linear-gradient.tsx'),
-            'expo-blur': path.join(stubDir, 'expo-blur.tsx'),
+            'expo-linear-gradient': path.join(stubDir, 'expoLinearGradientStub.tsx'),
+            'expo-blur': path.join(stubDir, 'expoBlurStub.tsx'),
+            // The sheet pads by the device's window insets, which a native module reports; the stub serves fixed
+            // non-zero insets so those assertions stay falsifiable.
+            'react-native-safe-area-context': fileURLToPath(
+                new URL('./src/testing/safeAreaContext.native.tsx', import.meta.url),
+            ),
         },
     },
 });

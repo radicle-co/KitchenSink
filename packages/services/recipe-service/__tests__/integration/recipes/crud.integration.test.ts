@@ -2,13 +2,19 @@
  * T098 — recipe CRUD lifecycle integration test (real Nest app + Docker Postgres + LocalStack).
  *
  * Drives the `/api/v1/recipes` HTTP surface end to end against the harness (booted by `bootRecipeApp`,
- * migrated + seeded by `tests/global-setup.ts`). The dev-auth bypass injects a fixed owner ULID so the
+ * migrated + seeded by `tests/globalSetup.ts`). The dev-auth bypass injects a fixed owner ULID so the
  * routes authenticate without a Clerk token. Runs only when the harness DB is configured — otherwise
  * skipped in lockstep with the global setup (`describe.skipIf(!hasDatabaseUrl)`).
+ *
+ * ⚠️ REWRITTEN (plan 002): the create line no longer carries `name` — a line's name is derived by following its
+ * binding, and the line schema is strict, so a `name` key is itself a 400. The four rejection cases below used to
+ * send one, which means they passed on the `name` rejection whatever their own field did. Each now asserts that
+ * its OWN field is the ONLY one rejected, so it can pass for no other reason.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
+import { recipeDb } from '../../../tests/support/roleDb.js';
 
 /** The dev-bypass owner ULID this suite creates and mutates recipes as. */
 const OWNER = '01JCRUD0OWNER00000000000AA';
@@ -20,6 +26,11 @@ interface RecipeBody {
     currentVersion: number;
     steps: { stepNumber: number; instruction: string; timerSeconds?: number }[];
     deletedAt?: string | null;
+}
+
+interface ValidationErrorBody {
+    code: string;
+    details?: { fields?: string[] };
 }
 
 interface PaginatedBody {
@@ -39,16 +50,40 @@ const CREATE_PAYLOAD = {
     totalTimeMinutes: 30,
     tags: ['integration'],
     dietaryFlags: [],
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 2, unit: 'cup' }],
+    ingredients: [
+        {
+            ingredientId: '00000000-0000-4000-8000-0000000000aa',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'cup',
+        },
+    ],
     steps: [{ instruction: 'Combine the dry ingredients.' }, { instruction: 'Bake.', timerSeconds: 1800 }],
 };
+
+const roleDb = recipeDb();
+
+/**
+ * Assert a create was refused for exactly one field, and that field alone.
+ *
+ * @param res - The create response.
+ * @param field - The body path the refusal must name, as `details.fields` spells it.
+ */
+async function expectOnlyFieldRejected(res: Response, field: string): Promise<void> {
+    expect(res.status).toBe(400);
+
+    const body = (await res.json()) as ValidationErrorBody;
+    const fields = body.details?.fields ?? [];
+
+    expect(fields).toHaveLength(1);
+    expect(fields[0]?.startsWith(`${field}: `)).toBe(true);
+}
 
 describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
     let booted: BootedRecipeApp;
     let baseUrl: string;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp({ devAuthUserId: OWNER });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: OWNER });
         baseUrl = booted.baseUrl;
     });
 
@@ -108,14 +143,13 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 ...CREATE_PAYLOAD,
-                ingredients: Array.from({ length: 101 }, (_, i) => ({
+                ingredients: Array.from({ length: 101 }, () => ({
                     ingredientId: '00000000-0000-4000-8000-0000000000aa',
-                    name: `Ingredient ${i}`,
-                    quantity: 1,
+                    quantity: { kind: 'exact', value: 1 },
                 })),
             }),
         });
-        expect(res.status).toBe(400);
+        await expectOnlyFieldRejected(res, 'ingredients');
     });
 
     it('rejects a create with 51 tags (REQ-007 — cap is 50)', async () => {
@@ -127,7 +161,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
                 tags: Array.from({ length: 51 }, (_, i) => `tag-${i}`),
             }),
         });
-        expect(res.status).toBe(400);
+        await expectOnlyFieldRejected(res, 'tags');
     });
 
     it('rejects a create with a negative prepTimeMinutes (REQ-005a)', async () => {
@@ -136,7 +170,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...CREATE_PAYLOAD, prepTimeMinutes: -1 }),
         });
-        expect(res.status).toBe(400);
+        await expectOnlyFieldRejected(res, 'prepTimeMinutes');
     });
 
     it('rejects a create with zero servings (REQ-006 — servings must be positive)', async () => {
@@ -145,7 +179,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...CREATE_PAYLOAD, servings: 0 }),
         });
-        expect(res.status).toBe(400);
+        await expectOnlyFieldRejected(res, 'servings');
     });
 
     it('allows PATCH to modify a recipe description, and the change persists (REQ-002b)', async () => {

@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>⛔ SUPERSEDED — Ingredient row rev 3 (design study, NOT production code)</title>
+        <!--
+            ⛔⛔ SUPERSEDED BY `ingredientRowRev4.html` (2026-09-21). DO NOT QUOTE ANY FIGURE BELOW.
+
+            `docs/plans/2026-09-20-002-…-plan.md` still links here for "the row layout"; read rev 4 instead.
+            Three things in this file are WRONG, all measured:
+
+            1. Block C4's headline — "98.8% of ingredient occurrences are one line at 390 px with ZERO
+               ambiguity (94.4% at 320 px)" — is reproducible ONLY with the uniqueness gate it claims
+               turned OFF (98.9% reproduced exactly). With the gate ON, the same method gives 78.1%
+               at 390 px. No uniqueness predicate exists in any surviving script for this revision.
+            2. Block C4 renders `Beef, chuck, shoulder clod` from a source string ending
+               `…, cooked, grilled`, and `Chicken, breast, cooked, roasted` from one ending `meat only,
+               cooked, roasted` — contradicting this file's own comment that raw/cooked and the cut are
+               "none of which a cook can lose". Direct raw<->cooked sibling pairs differ by a median
+               20.0% of kcal/100 g (n=90), up to 83.7%.
+            3. Every figure here assumes ONE icon slot. The owner has since ruled that `Change food` AND
+               `Create my own food` both live in the icon column; `Remove` is already a peer there. Under
+               that ruling with the 44 px target floor this design adopted, one line holds for 22.1%
+               at 320 px and 62.4% at 390 px.
+
+            Kept, unmodified, as the record of the rev-3 posture and of how the error was made.
+        -->
+        <!--
+            ⛔ DESIGN ARTEFACT. NOT PRODUCTION CODE. Not imported by anything, not bundled, not a component.
+            It exists to answer one question: can a recipe ingredient be ONE readable line at 320 CSS px?
+
+            Every food name below is a REAL string from the USDA SR Legacy corpus in
+            `.local-sandbox/fdc/FoodData_Central_sr_legacy_food_csv_2018-04/food.csv`, including the
+            longest in the file (134 chars). Nothing here says "Ingredient Name".
+
+            Colours are the real tokens from `packages/apps/commise/ui/src/tokens/colors.ts`.
+
+            ⛔ REV 2 — THE LABEL IS THE FOOD'S OWN CATALOG NAME. The owner rejected showing the cook's
+            typed term ("we don't need to include what the user wrote originally in the UI"), and
+            `source_phrase` is IMPORT-ONLY so the manual-create path has no typed phrase to fall back on.
+            Every label below is therefore derived from the USDA string ALONE, by the lexicon measured in
+            `/tmp`-side analysis and summarised in the report: drop a tail segment iff it describes how
+            USDA SAMPLED, DISSECTED, GRADED or ASSAYED the specimen.
+
+            ⛔ REV 3 — THOSE CATALOG-WEIGHTED FIGURES WERE THE WRONG POPULATION. The owner challenged them and
+            was right: 81.9% of the catalog is never eaten, and usage-weighting (WWEIA x input_food) moves
+            the derived fit rate at 390px from 47.7% to 76.8%. Block C4 is the resulting recommendation.
+            The old reasoning: that derivation raises the fit rate at 390px from
+            30.4% to 47.7% catalog-weighted, and cannot reach 100% — what remains is raw/cooked, the cut, boneless/bone-in,
+            canned/frozen/fresh, none of which a cook can lose. Blocks B and C are the two honest
+            candidates; B buys one line by dropping identity, C keeps identity and wraps.
+        -->
+        <style>
+            :root {
+                --charcoal: #2d3436;
+                --slate: #636e72;
+                --mist: #b2bec3;
+                --pearl: #f5f5f5;
+                --seafoam: #31807a;
+                --sand: #faf6f0;
+                --warning: #f5b041;
+                --border: rgba(178, 190, 195, 0.3);
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: var(--sand);
+                color: var(--charcoal);
+            }
+            .harness {
+                padding: 24px 12px;
+            }
+            .caption {
+                font-size: 12px;
+                color: var(--slate);
+                margin: 0 0 6px;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                text-transform: uppercase;
+            }
+            .note {
+                font-size: 12px;
+                color: var(--slate);
+                margin: 4px 0 16px;
+                line-height: 1.4;
+            }
+            /* The viewport under test. 320 CSS px page, minus the page's px-4 (32) and the card's p-6 (48)
+               leaves 240px of usable row width — the figure measured in ingredientStatusExplanation.md §3a. */
+            .viewport {
+                width: 320px;
+                margin: 0 0 28px;
+                outline: 1px dashed var(--mist);
+            }
+            .viewport.w390 {
+                width: 390px;
+            }
+            .viewport.w768 {
+                width: 768px;
+            }
+            .page {
+                padding: 0 16px;
+            }
+            .card {
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                padding: 24px;
+            }
+            h2.section {
+                font-size: 20px;
+                font-weight: 600;
+                margin: 0 0 12px;
+            }
+
+            /* ── THE RESTING LINE ─────────────────────────────────────────────────────────────────
+               One flex line. Three text spans + one fixed icon slot. No input chrome at all.
+               The ONLY element permitted to shrink is the label/prep group; the measure and the icon
+               never yield width, so neither can ever be clipped.                                     */
+            ul.lines {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+            }
+            li.line {
+                display: flex;
+                align-items: baseline;
+                gap: 8px;
+                padding: 10px 0;
+                border-bottom: 1px solid var(--border);
+                min-height: 44px; /* 2.5.8 / HIG: the whole line is the edit target */
+            }
+            li.line:last-child {
+                border-bottom: 0;
+            }
+
+            /* Measure: content-sized, never shrinks, tabular so a column of them aligns. */
+            .measure {
+                flex: 0 0 auto;
+                font-variant-numeric: tabular-nums;
+                font-size: 15px;
+                color: var(--charcoal);
+                font-weight: 600;
+                white-space: nowrap;
+            }
+
+            /* The reading target. `min-width:0` is what lets the ellipsis happen at all inside a flex row. */
+            .body {
+                flex: 1 1 auto;
+                min-width: 0;
+                display: flex;
+                align-items: baseline;
+                gap: 6px;
+                overflow: hidden;
+            }
+            .label {
+                font-size: 15px;
+                color: var(--charcoal);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                flex: 0 1 auto;
+                min-width: 0;
+            }
+            /* Prep gives way COMPLETELY before the label gives up a single character.
+               ⛔ `flex-shrink: 3` was WRONG and rendering caught it: flex distributes shrink in proportion
+               to basis, so "whole milk · at room temperature" shrank BOTH and published `whole …  · at room…`.
+               A huge shrink factor makes the prep absorb effectively all of the overflow first. */
+            .prep {
+                font-size: 14px;
+                color: var(--slate);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                flex: 0 99999 auto;
+                min-width: 0;
+            }
+            /* ⛔ And below the width where a prep note could survive at all, it is DROPPED, not truncated.
+               `· sif…` is not information — it is noise wearing the costume of information, and it costs the
+               label the characters that identify the food. The prep remains in the accessible name and in
+               the edit view (disposition: deferred). 272px ≈ the card's inner width inside a 320px page. */
+            @container line (max-width: 260px) {
+                .prep {
+                    display: none;
+                }
+            }
+            .card {
+                container-type: inline-size;
+                container-name: line;
+            }
+            /* Candidate 2: the label is allowed to wrap. The row grows; nothing is lost. */
+            li.line.wrapok {
+                align-items: flex-start; /* the icon stays at the row's top edge as rows vary in height */
+            }
+            li.line.wrapok .body {
+                overflow: visible;
+            }
+            .label.wrap {
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+                line-height: 1.35;
+            }
+            /* Candidate 3 — ONE TEXT FLOW. The measure and the label are a single wrapped paragraph and
+               the icon is FLOATED, so a wrap uses the row's FULL width instead of a ~150px column.
+               ⛔ This is NOT "the name gets its own row": most rows are still one line, and the wrap is a
+               property of the specific food's name, not a fixed two-row layout. */
+            li.flow {
+                display: block;
+                padding: 10px 0;
+                border-bottom: 1px solid var(--border);
+                min-height: 44px;
+            }
+            li.flow:last-child {
+                border-bottom: 0;
+            }
+            li.flow .icon {
+                float: right;
+                margin-left: 8px;
+            }
+            li.flow p {
+                margin: 0;
+                font-size: 15px;
+                line-height: 1.35;
+                color: var(--charcoal);
+            }
+            li.flow p b {
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            .icon {
+                flex: 0 0 auto;
+                width: 24px;
+                height: 24px;
+                border-radius: 999px;
+                border: 1px solid var(--border);
+                background: #fff;
+                color: var(--slate);
+                font-size: 13px;
+                line-height: 22px;
+                text-align: center;
+                cursor: pointer;
+                position: relative;
+                align-self: center;
+            }
+            /* 44×44 hit area without 44px of layout cost. */
+            .icon::after {
+                content: '';
+                position: absolute;
+                inset: -10px;
+            }
+            .icon.warn {
+                border-color: var(--warning);
+                background: rgba(245, 176, 65, 0.25);
+                color: var(--charcoal);
+                font-weight: 700;
+            }
+            .icon:focus-visible {
+                outline: 2px solid var(--seafoam);
+                outline-offset: 2px;
+            }
+
+            /* ── COMPARISON: what ships today ───────────────────────────────────────────────────── */
+            .today {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 0;
+            }
+            .inp {
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 15px;
+                background: #fff;
+                color: var(--charcoal);
+                min-width: 0;
+            }
+            .inp.name {
+                flex: 1 1 0;
+                background: rgba(245, 245, 245, 0.4);
+            }
+            .w24 {
+                width: 96px;
+            }
+            .w28 {
+                width: 112px;
+            }
+            .w48 {
+                width: 192px;
+            }
+            .w40 {
+                width: 160px;
+            }
+            .rm {
+                border: 0;
+                background: rgba(192, 82, 56, 0.1);
+                color: #8c2f1c;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 14px;
+                flex: 0 0 auto;
+            }
+
+            /* ── EDITING MODE ───────────────────────────────────────────────────────────────────── */
+            li.editing {
+                display: block;
+                background: var(--pearl);
+                margin: 4px -12px;
+                padding: 12px;
+                border-radius: 12px;
+                border-bottom: 0;
+                outline: 2px solid var(--seafoam);
+            }
+            .ed-row {
+                display: flex;
+                gap: 8px;
+                margin-bottom: 8px;
+            }
+            .ed-row > * {
+                min-width: 0;
+            }
+            .ed-label {
+                font-size: 11px;
+                color: var(--slate);
+                display: block;
+                margin-bottom: 2px;
+                font-weight: 600;
+            }
+            .grow {
+                flex: 1 1 auto;
+            }
+            .bind {
+                font-size: 12px;
+                color: var(--slate);
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 6px 8px;
+                margin-top: 4px;
+                line-height: 1.35;
+            }
+            .bind b {
+                color: var(--charcoal);
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="harness">
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">A — What ships today, at 320 px, with a real catalog name</p>
+            <p class="note">
+                Fixed input chrome: 96 + 112 + 192 + 160 px of boxes plus gaps and a Remove control, against 240 px of
+                usable width. The row cannot be one line even when the name is empty.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <h2 class="section">Ingredients</h2>
+                        <div class="today">
+                            <input class="inp name" readonly value="Flour, wheat, all-purpose, enriched, bleached" />
+                            <input class="inp w24" value="2" />
+                            <span style="color: var(--slate)">–</span>
+                            <input class="inp w24" value="" />
+                            <input class="inp w28" value="cups" />
+                            <input class="inp w48" value="sifted" />
+                            <input class="inp w40" value="" />
+                            <button class="rm">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">B — Candidate 1: ONE LINE ALWAYS, segment-truncated, 320 px</p>
+            <p class="note">
+                Whole qualifiers are dropped until the label fits — never a mid-word ellipsis. It is always one line. ⛔
+                The cost is on the right of each row: what a cook no longer knows.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <h2 class="section">Ingredients</h2>
+                        <ul class="lines">
+                            <li class="line">
+                                <span class="measure">2 cups</span
+                                ><span class="body"><span class="label">Flour, wheat</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">1 cup</span
+                                ><span class="body"><span class="label">Milk, whole</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">1 lb</span
+                                ><span class="body"><span class="label">Chicken, breast</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">2 lb</span
+                                ><span class="body"><span class="label">Beef, chuck</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">3 tbsp</span
+                                ><span class="body"><span class="label">Oil, olive</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">1 cup</span
+                                ><span class="body"><span class="label">Broccoli, raw</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <p class="note">
+                ⛔ Row 3 no longer says <em>cooked, roasted</em>. Row 4 no longer says which steak, or that it is
+                grilled. Row 5 no longer distinguishes olive oil from olive-oil spray. Measured over the whole corpus at
+                this budget, <strong>69.2% of labels collide with a different catalog food</strong> — two different
+                foods render as the same line.
+            </p>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">
+                C — ✅ Candidate 2 (recommended): one line when it fits, WRAPS when it does not, 320 px
+            </p>
+            <p class="note">
+                Identical component. Nothing is dropped and nothing is truncated — the label wraps, exactly as the owner
+                already accepted for 200% zoom. Most lines are still one line.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <h2 class="section">Ingredients</h2>
+                        <ul class="lines">
+                            <li class="line wrapok">
+                                <span class="measure">2 cups</span
+                                ><span class="body"><span class="label wrap">Flour, wheat, all-purpose</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line wrapok">
+                                <span class="measure">1 cup</span
+                                ><span class="body"
+                                    ><span class="label wrap">Milk, whole, 3.25% milkfat, +vitamin D</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line wrapok">
+                                <span class="measure">1 lb</span
+                                ><span class="body"
+                                    ><span class="label wrap">Chicken, breast, cooked, roasted</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line wrapok">
+                                <span class="measure">3 tbsp</span
+                                ><span class="body"><span class="label wrap">Oil, olive, salad or cooking</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line wrapok">
+                                <span class="measure">1 cup</span
+                                ><span class="body"><span class="label wrap">Broccoli, raw</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line wrapok">
+                                <span class="measure">2 lb</span
+                                ><span class="body"
+                                    ><span class="label wrap"
+                                        >Beef, chuck, shoulder clod, shoulder top and center steaks, cooked,
+                                        grilled</span
+                                    ></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">C2 — ✅ Candidate 3: one text flow, icon floated, 320 px</p>
+            <p class="note">
+                Same content as C. The wrap now uses the full 208 px instead of a 150 px column, so fewer rows wrap at
+                all and the ones that do take two tight lines rather than four ragged ones.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <h2 class="section">Ingredients</h2>
+                        <ul class="lines">
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>2 cups</b> Flour, wheat, all-purpose</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 cup</b> Milk, whole, 3.25% milkfat, +vitamin D</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 lb</b> Chicken, breast, cooked, roasted</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>3 tbsp</b> Oil, olive, salad or cooking</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 cup</b> Broccoli, raw</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p>
+                                    <b>2 lb</b> Beef, chuck, shoulder clod, shoulder top and center steaks, cooked,
+                                    grilled
+                                </p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">C3 — Candidate 3 at 390 px (real phone floor) and 768 px</p>
+            <div class="viewport w390">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>2 cups</b> Flour, wheat, all-purpose</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 cup</b> Milk, whole, 3.25% milkfat, +vitamin D</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 lb</b> Chicken, breast, cooked, roasted</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>3 tbsp</b> Oil, olive, salad or cooking</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 cup</b> Broccoli, raw</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p>
+                                    <b>2 lb</b> Beef, chuck, shoulder clod, shoulder top and center steaks, cooked,
+                                    grilled
+                                </p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="viewport w768">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>2 cups</b> Flour, wheat, all-purpose</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 cup</b> Milk, whole, 3.25% milkfat, +vitamin D</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 lb</b> Chicken, breast, cooked, roasted</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p>
+                                    <b>2 lb</b> Beef, chuck, shoulder clod, shoulder top and center steaks, cooked,
+                                    grilled
+                                </p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">C4 — ✅✅ RECOMMENDED: safe-shortening hybrid, 320 px then 390 px</p>
+            <p class="note">
+                Shorten by whole qualifiers, but ONLY while the result still uniquely identifies the food against the
+                whole catalog. Wrap only when it cannot. ⛔ Measured over real consumption:
+                <strong>98.8% of ingredient occurrences are one line at 390 px with ZERO ambiguity</strong>
+                (94.4% at the 320 px reflow floor). The two 130-character monsters below are on one line. ⚠️ These six
+                rows are DELIBERATELY the hard cases, not a representative sample — the real population is dominated by
+                short names (<code>Milk</code>, <code>Bread, white</code>, <code>Sugars, granulated</code>). Read the
+                render for the mechanism, the percentages for the rate.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <h2 class="section">Ingredients</h2>
+                        <ul class="lines">
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>2 cups</b> Flour, wheat, all-purpose</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 lb</b> Chicken, breast, cooked, roasted</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>2 lb</b> Beef, chuck, shoulder clod</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>3 tbsp</b> Oil, olive, salad or cooking</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 cup</b> Broccoli, raw</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>500 g</b> Lamb, Australian, imported, fresh</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="viewport w390">
+                <div class="page">
+                    <div class="card">
+                        <h2 class="section">Ingredients</h2>
+                        <ul class="lines">
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>2 cups</b> Flour, wheat, all-purpose</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 cup</b> Milk, whole, 3.25% milkfat, +vitamin D</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 lb</b> Chicken, breast, cooked, roasted</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>2 lb</b> Beef, chuck, shoulder clod</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>3 tbsp</b> Oil, olive, salad or cooking</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>500 g</b> Lamb, Australian, imported, fresh</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="About this food">i</button>
+                                <p><b>1 cup</b> Broccoli, raw</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">D — ⛔ Today: the raw catalog string, one line, 320 px</p>
+            <p class="note">The control. Mid-word ellipsis eats the qualifiers that say <em>which</em> food.</p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="line">
+                                <span class="measure">2 cups</span
+                                ><span class="body"
+                                    ><span class="label">Flour, wheat, all-purpose, enriched, bleached</span></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">1 lb</span
+                                ><span class="body"
+                                    ><span class="label"
+                                        >Chicken, broilers or fryers, breast, meat only, cooked, roasted</span
+                                    ></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">2 lb</span
+                                ><span class="body"
+                                    ><span class="label"
+                                        >Beef, chuck, shoulder clod, shoulder top and center steaks, separable lean and
+                                        fat, trimmed to 0&quot; fat, all grades, cooked, grilled</span
+                                    ></span
+                                ><button class="icon" aria-label="About this food">i</button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">E — Editing mode, 320 px (one row at a time; allowed to be tall)</p>
+            <p class="note">
+                The form appears only on the row being edited. The binding line states the catalog identity in full. ⚠️
+                <strong>KNOWN STALENESS:</strong> the two resting rows in this block still show cook-typed labels from
+                the rejected premise. The mode split they demonstrate is unaffected; the labels should read as in block
+                C2. Not re-rendered.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="line">
+                                <span class="measure">2 cups</span>
+                                <span class="body"
+                                    ><span class="label">all-purpose flour</span
+                                    ><span class="prep">· sifted</span></span
+                                >
+                                <button class="icon" aria-label="About all-purpose flour">i</button>
+                            </li>
+                            <li class="editing">
+                                <div class="ed-row">
+                                    <div class="grow">
+                                        <label class="ed-label">Ingredient 2</label>
+                                        <input class="inp" style="width: 100%" value="chicken breast" />
+                                    </div>
+                                </div>
+                                <div class="ed-row">
+                                    <div style="width: 68px">
+                                        <label class="ed-label">Amount</label>
+                                        <input class="inp" style="width: 100%" value="1" />
+                                    </div>
+                                    <div style="width: 68px">
+                                        <label class="ed-label">to</label>
+                                        <input class="inp" style="width: 100%" value="" />
+                                    </div>
+                                    <div class="grow">
+                                        <label class="ed-label">Unit</label>
+                                        <input class="inp" style="width: 100%" value="lb" />
+                                    </div>
+                                </div>
+                                <div class="ed-row">
+                                    <div class="grow">
+                                        <label class="ed-label">Preparation</label>
+                                        <input class="inp" style="width: 100%" value="diced" />
+                                    </div>
+                                </div>
+                                <div class="bind">
+                                    Matched to <b>Chicken, broilers or fryers, breast, meat only, raw</b>
+                                </div>
+                            </li>
+                            <li class="line">
+                                <span class="measure">3 tbsp</span>
+                                <span class="body"><span class="label">extra-virgin olive oil</span></span>
+                                <button class="icon" aria-label="About extra-virgin olive oil">i</button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">F — German, derived CATALOG label, +35% expansion, 320 px</p>
+            <p class="note">
+                ⛔ Rev 2: the earlier version of this block used cook-typed words (`Weizenmehl`) and was testing the
+                rejected premise. These are German renderings of the DERIVED catalog label, which is the string that
+                actually ships. Candidate 3's flow absorbs the expansion by wrapping.
+            </p>
+            <div class="viewport">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="flow">
+                                <button class="icon" aria-label="Über dieses Lebensmittel">i</button>
+                                <p><b>2 Tassen</b> Mehl, Weizen, Allzweckmehl</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="Über dieses Lebensmittel">i</button>
+                                <p><b>1 Tasse</b> Milch, Vollmilch, 3,25&nbsp;% Milchfett</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="Über dieses Lebensmittel">i</button>
+                                <p><b>450 g</b> Hähnchen, Brust, gekocht, geröstet</p>
+                            </li>
+                            <li class="flow">
+                                <button class="icon" aria-label="Über dieses Lebensmittel">i</button>
+                                <p><b>1 Tasse</b> Brokkoli, roh</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">F2 — 200% text (WCAG 1.4.4), 320 px viewport</p>
+            <p class="note">
+                Every font size doubled at an unchanged 320 px viewport. The line is allowed to WRAP here rather than
+                clip — at 200% the constraint is "no loss of content", not "one line".
+            </p>
+            <div class="viewport" style="font-size: 200%">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="line" style="align-items: baseline; flex-wrap: wrap">
+                                <span class="measure" style="font-size: 30px">2 cups</span>
+                                <span class="body">
+                                    <span class="label" style="font-size: 30px; white-space: normal"
+                                        >all-purpose flour</span
+                                    >
+                                </span>
+                                <button
+                                    class="icon"
+                                    style="width: 44px; height: 44px; line-height: 42px; font-size: 22px"
+                                    aria-label="About all-purpose flour"
+                                >
+                                    i
+                                </button>
+                            </li>
+                            <li class="line" style="align-items: baseline; flex-wrap: wrap">
+                                <span class="measure" style="font-size: 30px">1 lb</span>
+                                <span class="body">
+                                    <span class="label" style="font-size: 30px; white-space: normal"
+                                        >chicken breast</span
+                                    >
+                                </span>
+                                <button
+                                    class="icon"
+                                    style="width: 44px; height: 44px; line-height: 42px; font-size: 22px"
+                                    aria-label="About chicken breast"
+                                >
+                                    i
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════════════════════ -->
+            <p class="caption">G — 390 px phone and 768 px, same component</p>
+            <div class="viewport w390">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="line">
+                                <span class="measure">2 cups</span>
+                                <span class="body"
+                                    ><span class="label">all-purpose flour</span
+                                    ><span class="prep">· sifted</span></span
+                                >
+                                <button class="icon" aria-label="About all-purpose flour">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">2 lb</span>
+                                <span class="body"
+                                    ><span class="label">beef chuck shoulder clod steak</span
+                                    ><span class="prep">· trimmed and cubed</span></span
+                                >
+                                <button class="icon" aria-label="About beef">i</button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="viewport w768">
+                <div class="page">
+                    <div class="card">
+                        <ul class="lines">
+                            <li class="line">
+                                <span class="measure">2 cups</span>
+                                <span class="body"
+                                    ><span class="label">all-purpose flour</span
+                                    ><span class="prep">· sifted</span></span
+                                >
+                                <button class="icon" aria-label="About all-purpose flour">i</button>
+                            </li>
+                            <li class="line">
+                                <span class="measure">2 lb</span>
+                                <span class="body"
+                                    ><span class="label">beef chuck shoulder clod steak</span
+                                    ><span class="prep">· trimmed and cubed</span></span
+                                >
+                                <button class="icon" aria-label="About beef">i</button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

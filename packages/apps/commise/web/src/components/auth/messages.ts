@@ -27,7 +27,7 @@ export interface AccountPageMessages {
     readonly loadError: string;
 }
 
-/** Copy for the {@link import('./AccountEditForm.js').AccountEditForm} profile-edit control. */
+/** Copy for the `AccountEditForm` profile-edit control. */
 export interface AccountEditMessages {
     /** Accessible name of the form. */
     readonly formLabel: string;
@@ -75,7 +75,7 @@ export interface ProfilePageMessages {
     readonly subscriptionTierLabel: string;
 }
 
-/** Copy shared by the session control ({@link import('./LogoutButton.js').LogoutButton}). */
+/** Copy shared by the session control (`LogoutButton`). */
 export interface SessionMessages {
     /** Default label of the sign-out control. */
     readonly signOut: string;
@@ -92,7 +92,7 @@ export interface SessionMessages {
     readonly eraseSignOutFailed: string;
 }
 
-/** Copy for the {@link import('./AccountStateGate.js').AccountStateGate} load gap. */
+/** Copy for the `AccountStateGate` load gap. */
 export interface AccountStateMessages {
     /** Accessible status shown while the client resolves the account state. */
     readonly loading: string;

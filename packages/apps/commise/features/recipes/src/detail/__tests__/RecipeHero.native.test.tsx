@@ -1,6 +1,6 @@
 /**
  * Native component tests for {@link RecipeHero} — the recipe-detail lead cover treatment (mockup
- * `screen-recipe-detail`), rendered via react-native-web under jsdom.
+ * `screenRecipeDetail`), rendered via react-native-web under jsdom.
  *
  * BOTH states are covered, because the interesting one is the ABSENCE of a cover. A missing cover must look
  * DELIBERATE, and specifically must not be an `<Image>` with an empty `source` (which paints a broken-image

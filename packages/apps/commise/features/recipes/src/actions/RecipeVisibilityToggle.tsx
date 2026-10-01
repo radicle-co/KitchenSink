@@ -74,7 +74,7 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
                 </label>
             </div>
             {showReason && (
-                <p id={reasonId} className="text-body-sm text-warning">
+                <p id={reasonId} className="text-body-sm text-warning-dark">
                     {disabledReason}
                 </p>
             )}

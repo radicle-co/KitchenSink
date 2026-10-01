@@ -58,7 +58,8 @@ Values below are the SHIPPED `@commise/ui` tokens, and the archive is held to th
 | `--color-pearl`         | `#F5F5F5` | Muted backgrounds  | surface                                  |
 | `--color-ocean-dark`    | `#2A6B65` | Teal TEXT on light | `white` (6.20:1)                         |
 | `--color-success`       | `#4CAF7C` | Success            | `charcoal` (4.67:1)                      |
-| `--color-warning`       | `#F5B041` | Warning            | `charcoal` (6.74:1)                      |
+| `--color-warning`       | `#F5B041` | Warning FILL       | `charcoal` (6.74:1)                      |
+| `--color-warning-dark`  | `#966400` | Warning TEXT       | on `white` (5.10:1) — a foreground       |
 | `--color-error`         | `#C05238` | Error FILL         | `white` (4.66:1)                         |
 | `--color-error-dark`    | `#B1442B` | Error TEXT         | `white` (5.63:1)                         |
 | `--color-premium`       | `#D4A574` | Premium/gold       | `charcoal` (5.70:1)                      |

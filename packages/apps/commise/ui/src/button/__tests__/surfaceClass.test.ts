@@ -6,7 +6,7 @@
  * (`AlertDialog.Cancel`), or a trigger that must own its own `ref` — can still wear the DS surface WITHOUT
  * re-typing the palette, the radius, or the touch floor. These tests pin the properties consumers depend on:
  * the 44px touch floor with its desktop reset, a distinct visible surface per tier, and that the recipe the
- * {@link Button} itself renders is byte-identical to what this helper returns (so the two can never drift).
+ * `Button` itself renders is byte-identical to what this helper returns (so the two can never drift).
  *
  * ## The FOCUS RING is measured here, because this recipe is where the defect was systemic (#114)
  *
@@ -64,20 +64,44 @@ function ringColor(className: string): string {
 }
 
 describe('buttonSurfaceClass', () => {
-    it('carries the 44px touch floor at base and resets it for the mouse at md:', () => {
+    /**
+     * E2 I12 — the floor follows the POINTER, not the width. ⚠️ This REPLACES the test that pinned `md:min-h-0`: a
+     * width breakpoint stood in for a mouse, so a touch iPad at 768 px and wider got a 41 px target. The reset now
+     * needs BOTH conditions (`md:` AND `pointer: fine`), so a touch screen keeps 44 px at every width and a desktop
+     * keeps its mouse density. A device that reports no fine pointer keeps the larger target, which is the safe side.
+     */
+    it('keeps the 44px floor for touch at every width, and resets it only for a fine pointer at md:', () => {
         for (const variant of VARIANTS) {
-            const className = buttonSurfaceClass(variant);
+            const classes = buttonSurfaceClass(variant).split(/\s+/u);
 
-            expect(className).toContain('min-h-11');
-            expect(className).toContain('md:min-h-0');
+            expect(classes).toContain('min-h-11');
+            expect(classes).toContain('md:pointer-fine:min-h-0');
+            // No width-only reset is left to undo the floor on a touch screen.
+            expect(classes).not.toContain('md:min-h-0');
         }
     });
 
-    it('renders a pill with the DS radius and inline-flex icon+label layout for every tier', () => {
+    /**
+     * E2 I2 — the radius is HALF the minimum height (§S13), not a full pill. ⚠️ This REPLACES the `rounded-full`
+     * assertion: on a full pill a label that wraps to two lines runs past the curve (2.5 px at 320 px, 48 px under
+     * 200% text). Half the floor still draws a pill on one line, because the browser clamps a radius to half the box,
+     * and a two-line button becomes a rounded rectangle. Read against the floor's own step, so the two cannot drift.
+     */
+    it('rounds to half the touch floor, so a wrapped label stays inside the curve', () => {
+        for (const variant of VARIANTS) {
+            const className = buttonSurfaceClass(variant);
+            const floorStep = /(?:^|\s)min-h-(\d+)(?=\s|$)/u.exec(className)?.[1];
+
+            expect(floorStep).toBeDefined();
+            expect(className).toContain(`rounded-[calc(var(--spacing)*${Number(floorStep) / 2})]`);
+            expect(className).not.toContain('rounded-full');
+        }
+    });
+
+    it('lays out every tier as an inline-flex icon+label row', () => {
         for (const variant of VARIANTS) {
             const className = buttonSurfaceClass(variant);
 
-            expect(className).toContain('rounded-full');
             expect(className).toContain('inline-flex');
             expect(className).toContain('items-center');
         }
@@ -95,7 +119,7 @@ describe('buttonSurfaceClass', () => {
     it("paints secondary as the mockups' CORAL-outlined glass, not a grey-bordered white pill", () => {
         const className = buttonSurfaceClass('secondary');
 
-        // The mockups' secondary button (screen-grocery / screen-profile / screen-recipe-detail) is
+        // The mockups' secondary button (screenGrocery / screenProfile / screenRecipeDetail) is
         // `border-2 border-coral` over the translucent white glass — the accent edge IS the tier.
         expect(className).toContain('border-2');
         expect(className).toContain('border-coral');
@@ -161,5 +185,11 @@ describe('buttonSurfaceClass', () => {
 
     it('is pure — the same variant always yields the identical string', () => {
         expect(buttonSurfaceClass('secondary')).toBe(buttonSurfaceClass('secondary'));
+    });
+});
+
+describe('buttonSurfaceClass — the busy treatment', () => {
+    it('dims an aria-disabled (busy) control, since a busy button is no longer natively disabled', () => {
+        expect(buttonSurfaceClass('primary')).toContain('aria-disabled:opacity-60');
     });
 });

@@ -1,5 +1,7 @@
 # W6 — Version History: Preview, Compare & Changed-Only Diff Implementation Plan
 
+> ⛔ **SUPERSEDED IN PART (owner ruling, 2026-08-26): device attribution is DELETED.** Every instruction below about `deviceLabel` / `device_label` — the version row's ` (from {device})` suffix, the conflict banner's ` on {device}` clause, the per-side card's `Device:` row and their escaping tests — describes a feature that no longer ships. Nothing ever wrote the field, so none of it had ever rendered. The ruling and what it costs are recorded in [`CR-004`](../../../specs/001-commise-recipe-app/change-requests/CR-004-version-compare-and-conflict-diff.md); `editorHandle` attribution is UNAFFECTED and still ships.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Bring the recipe version-history surface up to its wireframe floor (FR-007b, V1–V6): per-row editor/device attribution + a changed-fields summary, a Preview modal of any past version, a Compare-two-versions flow with a Diff Summary and a changed-only A/B diff, and the web "Back to Recipe" link — on **both** web and mobile.

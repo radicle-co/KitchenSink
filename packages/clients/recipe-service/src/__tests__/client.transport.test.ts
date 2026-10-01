@@ -5,8 +5,9 @@
  * the shared `send`/`sendOnce`/`normalizeResponse`/`toError` path that every public method funnels
  * through. Transport is a mocked `fetch`; no real network is touched.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
+import { CONTRACT_HASH } from '@kitchensink/schema-recipe';
 
 import {
     DEFAULT_REQUEST_TIMEOUT_MS,
@@ -18,11 +19,26 @@ import {
     isRecipeServiceClientError,
 } from '../index.js';
 import type { FetchUnavailableError } from '../index.js';
-import { makePaginatedResponse, makeRecipeDetail } from '../__fixtures__/recipes.js';
-import { callsOf, hangingFetch, rejectingFetch, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
+import { makeCreateRecipeRequest, makePaginatedResponse, makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { resetContractSkewLatchForTests } from '../contractSkew.js';
+import {
+    callsOf,
+    hangingFetch,
+    rejectingFetch,
+    requestAt,
+    sequenceFetch,
+    skewProbeCallsOf,
+    stubFetch,
+} from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
 const SYNC_PENDING = { code: IDENTITY_SYNC_PENDING_CODE, message: 'identity not yet available' };
+
+// The drift-layer-3 skew probe latches once per ORIGIN per process (see `../contractSkew.ts`). Clearing it per
+// test keeps these cases order-independent — otherwise only whichever test ran first would exercise the probe.
+beforeEach(() => {
+    resetContractSkewLatchForTests();
+});
 
 /** A sleep double that records each requested backoff (ms) instead of waiting. */
 function recordingSleep(): { sleep: (ms: number) => Promise<void>; waits: number[] } {
@@ -94,15 +110,17 @@ describe('RecipeServiceClient — identity-sync retry backoff + replay', () => {
             { status: 201, body: makeRecipeDetail({ id: 'rec_new' }) },
         ]);
         const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep });
-        const input = {
+        // The replayed body must be one the service would accept, or this test proves nothing about a real
+        // retried create: `createRecipeRequestSchema` requires >= 1 ingredient and >= 1 step, and the client
+        // validates the outbound body once, up front — so an invalid draft never reaches the first attempt,
+        // let alone the replay.
+        const input = makeCreateRecipeRequest({
             title: 'Soup',
-            ingredients: [],
-            steps: [],
             servings: 2,
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
             totalTimeMinutes: 15,
-        };
+        });
 
         await client.createRecipe(input);
 
@@ -309,5 +327,161 @@ describe('RecipeServiceClient — empty result lists', () => {
         const client = new RecipeServiceClient({ baseUrl: BASE, token: 't', fetch: stubFetch(200, empty) });
 
         await expect(client.listRecipes()).resolves.toEqual(empty);
+    });
+});
+
+/**
+ * DRIFT LAYER 3 (Skew) WIRING — CODING_STANDARDS §15.2.5, owner ruling 2026-08-11: a mismatch WARNS.
+ *
+ * `contractSkew.test.ts` proves the comparison. These cases prove the CLIENT's half: that the check fires from
+ * the transport funnel rather than the constructor, reaches the configured sink, and — the only part that can
+ * hurt anyone — cannot influence the caller's call at all. This client ships in the released mobile binary, so
+ * "cannot influence the caller" is the property that keeps a contract change from needing an App Store release.
+ */
+describe('RecipeServiceClient — contract-skew reporting', () => {
+    const SERVED_HASH = 'c'.repeat(64);
+
+    /**
+     * A `fetch` double that answers the skew probe (a plain string URL ending `/health`) with `healthBody` and
+     * every ky request (a `Request`) with `apiBody`.
+     */
+    function routingFetch(apiBody: unknown, healthBody: unknown): typeof fetch {
+        return vi.fn(async (input: Request | string) =>
+            typeof input === 'string' && input.endsWith('/health')
+                ? new Response(JSON.stringify(healthBody), { status: 200 })
+                : new Response(JSON.stringify(apiBody), { status: 200 }),
+        ) as unknown as typeof fetch;
+    }
+
+    it('performs NO network call when a client is merely constructed', () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail());
+
+        new RecipeServiceClient({ baseUrl: BASE, fetch: fetchMock, onContractSkew: vi.fn() });
+
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('warns through the configured sink when the service serves a different fingerprint', async () => {
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: 't',
+            fetch: routingFetch(makeRecipeDetail(), { status: 'ok', service: 'recipe', contractHash: SERVED_HASH }),
+            onContractSkew,
+        });
+
+        await client.getRecipeById('rec_1');
+
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+        const message = onContractSkew.mock.calls[0]?.[0] as string;
+        expect(message).toContain(SERVED_HASH.slice(0, 12));
+        expect(message).toContain(CONTRACT_HASH.slice(0, 12));
+    });
+
+    // THE ruling at the boundary that matters: warn, do not refuse. The call still resolves with exactly the
+    // value it would have returned with no skew at all.
+    it('returns the caller a normal, unchanged result while skewed — it does not refuse', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1' });
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: 't',
+            fetch: routingFetch(recipe, { status: 'ok', service: 'recipe', contractHash: SERVED_HASH }),
+            onContractSkew,
+        });
+
+        await expect(client.getRecipeById('rec_1')).resolves.toEqual(recipe);
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    // Fire-and-forget, proven: a `/health` that never answers must not delay or hang the caller. If the probe
+    // were awaited this test would time out rather than fail.
+    it('does not wait for the probe: the caller resolves even when /health never answers', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1' });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: 't',
+            onContractSkew: vi.fn(),
+            fetch: vi.fn(async (input: Request | string) => {
+                if (typeof input === 'string' && input.endsWith('/health')) {
+                    return new Promise<Response>(() => undefined); // never settles
+                }
+
+                return new Response(JSON.stringify(recipe), { status: 200 });
+            }) as unknown as typeof fetch,
+        });
+
+        await expect(client.getRecipeById('rec_1')).resolves.toEqual(recipe);
+    });
+
+    // A deployed service that predates publication serves no fingerprint. Silence, not a warning — otherwise
+    // every pre-publication deployment is noisy and the signal gets muted.
+    it('stays silent when the deployed service publishes no fingerprint', async () => {
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: 't',
+            fetch: routingFetch(makeRecipeDetail(), { status: 'ok', service: 'recipe' }),
+            onContractSkew,
+        });
+
+        await client.getRecipeById('rec_1');
+        await new Promise((resolve) => setTimeout(resolve, 5));
+
+        expect(onContractSkew).not.toHaveBeenCalled();
+    });
+
+    it('probes once per origin across many requests and many client instances', async () => {
+        const onContractSkew = vi.fn();
+        const fetchMock = routingFetch(makeRecipeDetail(), {
+            status: 'ok',
+            service: 'recipe',
+            contractHash: SERVED_HASH,
+        });
+
+        await Promise.all(
+            Array.from({ length: 12 }, async () =>
+                new RecipeServiceClient({ baseUrl: BASE, token: 't', fetch: fetchMock, onContractSkew }).getRecipeById(
+                    'rec_1',
+                ),
+            ),
+        );
+
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+        expect(skewProbeCallsOf(fetchMock)).toHaveLength(1);
+    });
+
+    // The probe must not spend the viewer's credential: it bypasses ky (whose beforeRequest hook attaches the
+    // bearer token) precisely because `/health` is public so a consumer can ask about skew before it holds one.
+    it('sends the probe unauthenticated, bypassing the token-attaching transport', async () => {
+        const getToken = vi.fn(() => 'tok');
+        const fetchMock = routingFetch(makeRecipeDetail(), {
+            status: 'ok',
+            service: 'recipe',
+            contractHash: SERVED_HASH,
+        });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: getToken,
+            fetch: fetchMock,
+            onContractSkew: vi.fn(),
+        });
+
+        await client.getRecipeById('rec_1');
+        await vi.waitFor(() => {
+            expect(skewProbeCallsOf(fetchMock)).toHaveLength(1);
+        });
+
+        const [url, init] = skewProbeCallsOf(fetchMock)[0]! as [string, { headers?: Record<string, string> }];
+        expect(url).toBe(`${BASE}/health`);
+        expect(Object.keys(init.headers ?? {}).map((key) => key.toLowerCase())).not.toContain('authorization');
+        // One token mint, for the real request only — the probe did not trigger a second.
+        expect(getToken).toHaveBeenCalledTimes(1);
     });
 });

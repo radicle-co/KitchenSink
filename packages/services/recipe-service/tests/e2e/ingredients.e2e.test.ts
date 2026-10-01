@@ -15,24 +15,33 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
+import { deleteBindingsMatching } from '../support/bindingCleanup.js';
+import { recipeE2eDb } from '../support/roleDb.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const roleDb = recipeE2eDb();
 
 const CALLER = '01JINGE2E00000CALLER00000A';
 const FREEFORM_NAME = 'E2E disambiguation freeform spice';
 const MISSING_ID = '00000000-0000-4000-8000-0000000000ff';
+
+/**
+ * U+200B ZERO WIDTH SPACE and U+FEFF BOM — escapes rather than pasted characters, because a reviewer cannot
+ * check a case they cannot see.
+ */
+const ZWSP = '\u200B';
+const BOM = '\uFEFF';
 
 describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, assembled app)', () => {
     let booted: BootedRecipeApp;
     let pool: pg.Pool;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp({ devAuthUserId: CALLER });
-        pool = new pg.Pool({ connectionString: DATABASE_URL, max: 3 });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: CALLER });
+        pool = new pg.Pool({ connectionString: roleDb.appUrl, max: 3 });
     });
 
     afterAll(async () => {
-        await pool.query('DELETE FROM ingredients WHERE lower(name) = lower($1)', [FREEFORM_NAME]);
+        await deleteBindingsMatching(pool, FREEFORM_NAME);
         await pool.end();
         await booted?.close();
     });
@@ -110,6 +119,42 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
         expect(res.status).toBe(400);
     });
 
+    /**
+     * ⛔ U3 — an INVISIBLE-only name is the same rejection as a blank one, in the same envelope.
+     *
+     * Only this tier can prove it. A U+200B ZERO WIDTH SPACE survives `String#trim` (format characters are not ECMAScript
+     * whitespace), so it passes the published schema's `min(1)` and reaches the handler — where the canonical
+     * parse now rejects it. Before U3 it was persisted, giving the ownerless catalog a row named nothing at
+     * all. The two bodies are compared FIELD BY FIELD rather than only by status, because the point is that a
+     * caller cannot tell the two conditions apart from the response either.
+     */
+    it('POST /ingredients with an invisible-only name is the SAME 400 envelope as an empty one', async () => {
+        const post = async (name: string): Promise<{ status: number; body: unknown }> => {
+            const res = await fetch(`${booted.baseUrl}/api/v1/ingredients`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+
+            return { status: res.status, body: await res.json() };
+        };
+
+        const empty = await post('');
+        const invisible = await post(`${ZWSP}${BOM}`);
+
+        expect(invisible.status).toBe(400);
+        expect(invisible.status).toBe(empty.status);
+        expect((invisible.body as { code?: string }).code).toBe('VALIDATION_FAILED');
+        expect((invisible.body as { code?: string }).code).toBe((empty.body as { code?: string }).code);
+
+        // …and nothing was written under either spelling. A declared name lives on its failure record (plan 002).
+        const { rows } = await pool.query<{ n: string }>(
+            `SELECT count(*)::int AS n FROM unresolved_foods WHERE name = ANY($1)`,
+            [['', `${ZWSP}${BOM}`]],
+        );
+        expect(Number(rows[0]!.n)).toBe(0);
+    });
+
     // ── Search Stage 2 — the blended typeahead + the catalog pick ─────────────────────────────────────
     //
     // These exercise F2 through the real assembled app with a genuinely absent food service (`FOOD_SERVICE_URL`
@@ -122,23 +167,20 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     // contribute", which is the point. The transport-timeout half of F2 is proven where a real bearer and a
     // real (hung, then real) HTTP server are available: the ingredient integration specs.
 
-    it('GET /suggest still returns 200 with the LOCAL section when the food service is ABSENT (F2)', async () => {
-        await createFreeform();
-
+    it('GET /suggest still returns 200 when the food service is ABSENT, and a name can still be added (F2)', async () => {
+        // ⚠️ REWRITTEN (plan 002): this asserted a LOCAL section of stored names that rendered while food was down.
+        // The recipe database no longer stores food names, so there is no local section to render; what F2 still
+        // promises is that a down food service costs the cook the catalog section, never the typeahead's answer
+        // and never the ability to add the ingredient as their own.
         const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/suggest?q=${encodeURIComponent(FREEFORM_NAME)}`);
 
         expect(res.status).toBe(200);
-        const body = (await res.json()) as {
-            suggestions: { provenance: string; ingredient?: { id: string; name: string } }[];
-            catalogAvailability: string;
-        };
-        // The catalog could not contribute — reported honestly, NOT as a failure…
+        const body = (await res.json()) as { suggestions: unknown[]; catalogAvailability: string };
+        // The catalog could not contribute — reported honestly, NOT as a failure.
         expect(body.catalogAvailability).toBe('unavailable');
-        // …and the recipe-local section rendered in full anyway. This is the whole point of F2: a down food
-        // service costs the caller the catalog section, never the typeahead.
-        expect(body.suggestions.length).toBeGreaterThan(0);
-        expect(body.suggestions.every((suggestion) => suggestion.provenance === 'local')).toBe(true);
-        expect(body.suggestions.some((suggestion) => suggestion.ingredient?.name === FREEFORM_NAME)).toBe(true);
+        expect(body.suggestions).toStrictEqual([]);
+        // …and the cook can still add the name as their own while food is down.
+        await createFreeform();
     });
 
     it('GET /suggest degrades within a BOUNDED time (never the 8s default, whichever degradation applies)', async () => {

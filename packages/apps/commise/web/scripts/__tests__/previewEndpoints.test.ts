@@ -219,7 +219,7 @@ describe('resolveBuildEndpoints', () => {
 
     it('does NOT require the identity template to be per-PR', () => {
         // Identity is the deliberate asymmetry: one shared, persistent sandbox service (tagged
-        // Environment=global, never torn down) that every preview signs in against. Demanding `{pr}` here
+        // tagged with its persistent tier, never torn down) that every preview signs in against. Demanding `{pr}` here
         // would be demanding a per-PR identity service, which is exactly what must NOT exist.
         expect(resolveBuildEndpoints(PREVIEW)['NEXT_PUBLIC_IDENTITY_API_URL']).toBe(
             'https://identity.sandbox.commise.app',

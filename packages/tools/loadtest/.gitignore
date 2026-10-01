@@ -6,3 +6,10 @@ config.env
 k6-summary.json
 server-metrics.json
 report.md
+
+# The deployed-origin tier's per-run outputs (`deployedOrigin.load.js` writes one pair per service).
+k6-deployed-*-summary.json
+k6-deployed-*-report.md
+handles.json
+food-tokens.json
+identity-tokens.json

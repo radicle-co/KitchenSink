@@ -23,7 +23,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, waitFor } from '@testing-library/react';
 
-import { NotFoundError, UnauthorizedError } from '../errors.js';
+import { NotFoundError, SourceUnavailableError, UnauthorizedError } from '../errors.js';
 import {
     useAllOwnerRecipes,
     useCollection,
@@ -504,7 +504,10 @@ describe('useCollectionsInfinite', () => {
         expect(result.current.hasNextPage).toBe(false);
     });
 
-    it('caches under the SAME key as the flat useCollections list (one logical cache entry)', async () => {
+    // REWRITTEN (PR #91 review): this used to pin the infinite hook to the SAME key as the flat list. One key
+    // cannot hold both shapes — `queryKeyShapes.test.ts` reproduces the flat body being handed to an infinite
+    // reader — so the hook now caches under its own `'infinite'` segment, still inside the `collections` prefix.
+    it('caches under its OWN infinite key, inside the collections prefix the flat list shares', async () => {
         const client = makeGuardedClient();
         vi.spyOn(client, 'listCollections').mockResolvedValue(
             makePaginatedResponse([makeCollection()], { hasMore: false, page: 1 }),
@@ -513,7 +516,9 @@ describe('useCollectionsInfinite', () => {
         const { result, queryClient } = renderRecipeHook(() => useCollectionsInfinite({ pageSize: 10 }), { client });
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(cachedQueryKeys(queryClient)).toEqual([['recipe-service', 'collections', 'list', { pageSize: 10 }]]);
+        expect(cachedQueryKeys(queryClient)).toEqual([
+            ['recipe-service', 'collections', 'list', 'infinite', { pageSize: 10 }],
+        ]);
     });
 });
 
@@ -719,7 +724,7 @@ describe('useSuggestIngredients (search Stage 2 — the blended picker read)', (
         expect(suggestIngredients).toHaveBeenCalledWith('basil', 7);
     });
 
-    it('does NOT call the local-only searchIngredients (mutation guard: the picker must stay blended)', async () => {
+    it('does NOT call the bound-foods searchIngredients (mutation guard: the picker must stay blended)', async () => {
         const client = makeGuardedClient();
         vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
         const searchIngredients = vi.spyOn(client, 'searchIngredients');
@@ -868,15 +873,20 @@ describe('useSearchIngredients', () => {
         expect(result.current.data).toEqual([]);
     });
 
-    it('propagates a client rejection as an error', async () => {
+    /**
+     * Rewritten: this used an `UnauthorizedError`, which the search query now retries once (its own `retry`
+     * replaces the harness default). The property worth pinning is the outage: it propagates at once.
+     */
+    it('⛔ propagates a food outage as an error after ONE call — the typeahead does not retry it', async () => {
         const client = makeGuardedClient();
-        const error = new UnauthorizedError('Unauthorized');
-        vi.spyOn(client, 'searchIngredients').mockRejectedValue(error);
+        const error = new SourceUnavailableError();
+        const search = vi.spyOn(client, 'searchIngredients').mockRejectedValue(error);
 
         const { result } = renderRecipeHook(() => useSearchIngredients('tom'), { client });
 
         await waitFor(() => expect(result.current.isError).toBe(true));
         expect(result.current.error).toBe(error);
+        expect(search).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -912,9 +922,11 @@ describe('useAllOwnerRecipes', () => {
 
         // After the first page resolves there is still a page owed → not complete, still loading.
         await waitFor(() => expect(result.current.recipes.length).toBeGreaterThan(0));
+
         if (!result.current.isComplete) {
             expect(result.current.isLoading).toBe(true);
         }
+
         await waitFor(() => expect(result.current.isComplete).toBe(true));
         expect(result.current.recipes).toHaveLength(2);
     });

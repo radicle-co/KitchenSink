@@ -1,0 +1,131 @@
+appId: io.commise.mobile
+---
+# U29 — the ON-DEMAND USDA search from the ingredient picker, on device. Assumes an authenticated session
+# (the auth login flow runs first in CI ordering) and the app pointed at the runner's recipe-service
+# (EXPO_PUBLIC_RECIPE_API_URL), exactly like `create.yaml` and `ingredientCatalogBlend.yaml`.
+#
+# WHAT THIS FLOW ASSERTS: A REAL USDA ANSWER, and that the panel APPENDS to the local list rather than replacing it.
+#
+# It used to assert the FAILURE sentence ("USDA didn't answer"). That rested on a job that booted recipe-service +
+# Postgres on the runner and nothing else, so the live search could never answer. That job is gone: under the
+# 2026-09-05 owner ruling (ADR-0032) the Maestro tier drives the PR's DEPLOYED sandbox. The APK points at
+# `recipe-pr-{N}`, whose food service `food-pr-{N}` holds a live USDA key (`_ci-heavy.yml`,
+# `resolve-mobile-target`). Run 34863424203 shows the search ANSWERING ("From USDA", with hits listed) while the
+# flow waited for a failure that could not come. On a device, three things are provable that no component test
+# can prove:
+#
+#   1. The U6 seam is a REAL CONTROL. It shipped styled-but-inert, marked "Soon"; a regression that left it
+#      inert would fail at the tap below rather than at a rendering assertion.
+#   2. Pressing it reaches USDA through both deployed services and renders the RESULTS panel, not either of
+#      the two other settled sentences. "USDA has nothing" and "didn't answer" are different instructions to a
+#      cook, and a real answer must produce neither.
+#   3. ⛔ THE PANEL APPENDS, IT DOES NOT REPLACE. This is the deliberate deviation from the design mockup. On a
+#      real screen, with a real scroller, this flow is the only place we can prove the local list a cook
+#      already had is still there after the upstream section appears, and still pickable.
+#
+# ⚠️ An upstream that is really down, or rate-limiting this key, now fails this flow instead of passing it. That is
+# the honest result for a tier whose job is to prove the deployed system: a USDA outage is a real outage. The
+# failure and no-results sentences, and their distinction, stay covered by the 14 mobile component tests
+# (`tests/components/IngredientPickerLiveSearch.native.test.tsx`) and by `web/tests/e2e/ingredientLiveSearch.spec.ts`.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro USDA Search'
+
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients). The picker sits at the TOP of this step's body.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+
+# A PREFIX of a name that IS in the catalog: "Flour", which `e2e-seed provision` creates every run as
+# `E2E_PROBE_INGREDIENT`. The local section therefore has something real to render, and this flow can prove it
+# SURVIVES the USDA section appearing. Deliberately 'Flou', not 'Flour': the search field's own value is matchable
+# text, so a query equal to the row's name would make `tapOn: 'Flour'` ambiguous.
+- inputText: 'Flou'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Your ingredients'
+      timeout: 30000
+
+# ⛔ NOTHING has been searched yet. The USDA panel must not exist until the cook asks for it — this is the
+# on-device half of "it never fires on a keystroke", the property the entire quota argument rests on.
+- assertNotVisible: 'Searching the USDA database…'
+- assertNotVisible: 'From USDA'
+
+# The seam is a real, tappable control now (it was a plain View marked "Soon" until U29).
+- scrollUntilVisible:
+      element: 'Search USDA for .*'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible: 'Soon'
+- tapOn: 'Search USDA for .*'
+
+# The upstream ANSWERED: the results panel renders under its heading, and neither the failure sentence nor the
+# "nothing found" sentence does. `From USDA` is the `resultsTitle`, which renders ONLY in the results state
+# (`IngredientPicker.tsx`), so it cannot be met by a searching, failed or empty panel. Maestro's text match
+# ignores case, which is why the rendered `FROM USDA` satisfies it.
+- extendedWaitUntil:
+      visible:
+          text: 'From USDA'
+      timeout: 40000
+- assertNotVisible: '.*didn.t answer.*'
+- assertNotVisible: 'USDA has nothing for .*'
+
+# ⛔ THE deviation from the mockup, provable only here: the local section a cook already had is STILL on
+# screen after the USDA section appeared, and still pickable. A panel that replaced the results would have
+# destroyed it.
+- scrollUntilVisible:
+      element: 'Your ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Flour'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+
+# Finish the recipe, so the local line picked beside the USDA section is proven usable (Publish
+# validation rejects a line whose `ingredientId` does not resolve).
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      # DOWN, not UP: advancing a step returns the scroller to the TOP (`useScrollResetOnChange`), so
+      # `Add step` is always downward from here. See `ingredientCatalogBlend.yaml` for the full note.
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Whisk and rest.'
+- scrollUntilVisible:
+      element: 'Next: Review'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Review'
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro USDA Search.*'
+      timeout: 40000

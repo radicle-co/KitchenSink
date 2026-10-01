@@ -31,21 +31,50 @@ vi.mock('../../src/hooks/useUserProfile.js', () => ({
     // CR-002 / U4b: ProfileScreen now composes AccountDangerZone, which reads `useDeleteAccount` and imports
     // `@clerk/expo` directly (not only through `useUserProfile`) — stub both so the real ProfileScreen module
     // graph parses even though it never renders here.
+}));
+
+vi.mock('../../src/hooks/useDeleteAccount.js', () => ({
     useDeleteAccount: () => ({ mutate: () => undefined, isPending: false }),
 }));
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: () => undefined }) }));
 
-const { shouldThrowRef } = vi.hoisted(() => ({ shouldThrowRef: { current: true } }));
+const { shouldThrowRef, profileThrowsRef, resetQueryErrors } = vi.hoisted(() => ({
+    shouldThrowRef: { current: true },
+    profileThrowsRef: { current: false },
+    resetQueryErrors: vi.fn(),
+}));
+
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+    useQueryErrorResetBoundary: () => ({ reset: resetQueryErrors, clearReset: vi.fn(), isReset: () => false }),
+}));
 
 // Stub the default ('home') destination screen so a render throw is fully under this test's control — every
 // other screen (`RecipesScreen`, `ProfileScreen`) is imported for real but never rendered in these cases.
 vi.mock('../../src/screens/HomeScreen.js', () => ({
-    HomeScreen: () => {
+    HomeScreen: ({ onOpenProfile }: { readonly onOpenProfile: () => void }) => {
         if (shouldThrowRef.current) {
             throw new Error('boom');
         }
 
-        return <Text>Recovered home</Text>;
+        return (
+            <>
+                <Text>Recovered home</Text>
+                <Text accessibilityRole="button" onPress={onOpenProfile}>
+                    Open profile
+                </Text>
+            </>
+        );
+    },
+}));
+
+vi.mock('../../src/screens/profile.js', () => ({
+    ProfileScreen: () => {
+        if (profileThrowsRef.current) {
+            throw new Error('profile boom');
+        }
+
+        return <Text>Profile</Text>;
     },
 }));
 
@@ -55,6 +84,7 @@ const { captureException } = await import('@sentry/react-native');
 afterEach(() => {
     cleanup();
     shouldThrowRef.current = true;
+    profileThrowsRef.current = false;
     vi.clearAllMocks();
 });
 
@@ -79,5 +109,40 @@ describe('AppRoot root ErrorBoundary', () => {
 
         expect(screen.getByText('Recovered home')).toBeTruthy();
         expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    /**
+     * ⛔ A retry that re-renders a failed READ must refetch it: a query that threw into this boundary keeps
+     * `retryOnMount` off until TanStack's query-error reset boundary is reset, so Try again resets it too.
+     */
+    it('⛔ Try again also resets the query errors, so a failed read refetches', () => {
+        renderWithProviders(<AppRoot />);
+
+        shouldThrowRef.current = false;
+        fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+        expect(resetQueryErrors).toHaveBeenCalled();
+    });
+
+    it('offers Back to Home when a screen other than Home crashed, and it lands on Home', () => {
+        shouldThrowRef.current = false;
+        profileThrowsRef.current = true;
+        renderWithProviders(<AppRoot />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Open profile' }));
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByText('We hit a snag loading this screen. Try again, or go back to Home.')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to Home' }));
+
+        expect(screen.getByText('Recovered home')).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('offers no Back to Home when Home itself crashed — it would only repeat Try again', () => {
+        renderWithProviders(<AppRoot />);
+
+        expect(screen.queryByRole('button', { name: 'Back to Home' })).toBeNull();
+        expect(screen.getByText('We hit a snag loading Home. Please try again.')).toBeTruthy();
     });
 });

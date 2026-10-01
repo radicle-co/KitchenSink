@@ -110,6 +110,49 @@ describe('eas.json build profiles', () => {
         expect('https://recipe-pr-73.commise.app').not.toMatch(stageQualifiedServiceHost);
     });
 
+    /**
+     * ⛔ THE SENTRY ENVIRONMENT IS A BUILD INPUT TOO, and it was read from a variable nothing set.
+     *
+     * `initSentry` reads `process.env['EXPO_PUBLIC_STAGE'] ?? 'development'`. That variable appeared in
+     * exactly ONE place in the repository — the read itself — so every build ever shipped, including a
+     * production release on a real user's phone, reported `environment: development`. Plan U19 fixed
+     * mobile's `release` and its trace sample rate and left this; the plan's own rule is that
+     * "`environment` is the deploy stage (`prod`, `sandbox`, `pr-{N}`)".
+     *
+     * ⚠️ It fails the way every `EXPO_PUBLIC_*` mistake fails, which is why it survived: Babel inlines it at
+     * BUILD time, the fallback is a legitimate-looking string, and the events arrive — just filed under an
+     * environment nobody filters production by. Unlike a missing endpoint, nothing errors.
+     *
+     * ⚠️ `e2e` is deliberately absent: it is an emulator build against services on the CI runner, and the
+     * `development` fallback is the honest answer for it. Asserted below so the absence is a decision.
+     */
+    it('⛔ every distributed profile declares the Sentry environment it reports under', () => {
+        expect(profiles.production?.env?.['EXPO_PUBLIC_STAGE'], 'production must report as prod').toBe('prod');
+        expect(profiles.preview?.env?.['EXPO_PUBLIC_STAGE'], 'preview must report as sandbox').toBe('sandbox');
+    });
+
+    it('leaves the emulator profile on the development fallback, deliberately', () => {
+        expect(profiles.e2e?.env?.['EXPO_PUBLIC_STAGE']).toBeUndefined();
+    });
+
+    /**
+     * ⛔ THE STAGE NAMES MATCH THE REST OF THE SYSTEM. Every backend runtime and the web app report `prod`
+     * and `sandbox`; a mobile build reporting `production` would sit in its own environment bucket, and the
+     * one filter an operator uses across services would silently exclude it. This is exactly the defect U19
+     * fixed on web, where `NODE_ENV` put every preview into `production`.
+     */
+    it('⛔ uses the same stage vocabulary as every other runtime', () => {
+        const stages = Object.values(profiles)
+            .map((profile) => profile.env?.['EXPO_PUBLIC_STAGE'])
+            .filter((stage): stage is string => stage !== undefined);
+
+        expect(stages.length).toBeGreaterThan(0);
+
+        for (const stage of stages) {
+            expect(stage, `'${stage}' is not a stage this system reports under`).toMatch(/^(prod|sandbox|pr-\d+)$/u);
+        }
+    });
+
     it('keeps prod endpoints on hosts distinct from the shared sandbox identity service', () => {
         // A copy-paste that left `production` on sandbox identity would send real users' credentials to the
         // throwaway environment — silently, since it is a valid https URL that resolves.

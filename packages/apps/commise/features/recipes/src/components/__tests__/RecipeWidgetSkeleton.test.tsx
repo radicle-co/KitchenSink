@@ -15,6 +15,7 @@ afterEach(cleanup);
 const presentation = (container: HTMLElement): Element => {
     const node = container.querySelector('[role="presentation"]');
     expect(node).not.toBeNull();
+
     return node as Element;
 };
 

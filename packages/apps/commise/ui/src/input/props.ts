@@ -1,5 +1,5 @@
 /**
- * @module @commise/ui/input — prop contract for the design-system native {@link Input}.
+ * @module @commise/ui/input — prop contract for the design-system native `Input`.
  *
  * A tokenized, label-associated text field for the React Native surfaces (the auth/identity screens rebuild
  * on it). It is intentionally **native-only**: the web surfaces already own a field idiom, so there is no

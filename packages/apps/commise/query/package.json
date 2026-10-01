@@ -1,0 +1,58 @@
+{
+    "name": "@commise/query",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts",
+        "./boundary": "./src/QueryBoundary.tsx",
+        "./refresh-notice": "./src/useRefreshNotice.ts",
+        "./recovery-signal": "./src/useRecoverySignal.ts",
+        "./offline": "./src/offlineReadNotice.tsx",
+        "./sync": "./src/syncProvider.tsx",
+        "./sync-notice-state": "./src/syncNoticeState.ts",
+        "./sync-notice-host": "./src/SyncNoticeHost.tsx",
+        "./recipe-sender": "./src/recipeSender.ts"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "dependencies": {
+        "@commise/features-account": "*",
+        "@commise/ui": "*",
+        "@kitchensink/recipe-service-client": "*",
+        "@kitchensink/sync": "*"
+    },
+    "peerDependencies": {
+        "@tanstack/react-query": "^5.62.0",
+        "react": "^19.0.0",
+        "react-error-boundary": "^6.1.2"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@tanstack/react-query": "^5.62.0",
+        "@testing-library/react": "^16.3.0",
+        "@types/react": "^19.0.0",
+        "eslint": "^10.0.3",
+        "jsdom": "^30.0.1",
+        "prettier": "^3.0.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "react-error-boundary": "^6.1.2",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

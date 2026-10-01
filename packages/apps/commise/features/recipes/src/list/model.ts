@@ -6,15 +6,12 @@
  * view-model projection and the copy-formatting primitives.
  */
 import type { Locale } from '@commise/i18n';
+import type { ReactNode } from 'react';
 
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
 import type { RecipeListMessages } from '../messages.js';
-
-/**
- * The three top-level states the list view renders. `ready` further splits into empty vs populated on
- * `recipes.length` (a distinction the view derives — an empty successful load is not an error).
- */
-export type RecipeListStatus = 'loading' | 'error' | 'ready';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
+import type { RefreshNoticeControl } from '../refresh/model.js';
 
 /**
  * View-model for one recipe card in the list. This is the SHARED card view-model ({@link RecipeCardModel}):
@@ -26,7 +23,7 @@ export type RecipeListStatus = 'loading' | 'error' | 'ready';
 export type RecipeListItem = RecipeCardModel;
 
 /**
- * Project a {@link import('@kitchensink/recipe-core').Recipe} down to the {@link RecipeListItem} the list
+ * Project a `Recipe` (`@kitchensink/recipe-core`) down to the {@link RecipeListItem} the list
  * card renders — the single shared card projection, so the list and widget can never disagree on card fields.
  */
 export const toRecipeListItem = toRecipeCardModel;
@@ -86,8 +83,8 @@ export const formatDurationMinutes = (minutes: number, template: string): string
 // and cuisine chips match by literal string equality against real recipe data (the container derives
 // `available` from what is actually present). The "Quick (<30m)" chip is different in kind: it has no
 // backing data VALUE to match against — it is a fixed bucket over `totalTimeMinutes` — so it is modelled as
-// one reserved sentinel token, {@link QUICK_TIME_FACET}, that both `available`/`active` arrays can carry
-// alongside the real facet values, with {@link matchesListFacet} and {@link filterChipLabel} giving that one
+// one reserved sentinel token, `QUICK_TIME_FACET`, that both `available`/`active` arrays can carry
+// alongside the real facet values, with `matchesListFacet` and `filterChipLabel` giving that one
 // token special-cased matching/label behavior while every other facet stays a plain passthrough.
 
 /**
@@ -165,32 +162,126 @@ export const filterChipLabel = (facet: string, quickLabel: string): string =>
 export const isListNarrowed = (searchValue: string, activeFacets: readonly string[] = []): boolean =>
     searchValue.trim().length > 0 || activeFacets.length > 0;
 
+/**
+ * Whether the pinned create dial (U34's SpeedDial FAB) is mounted over SETTLED results.
+ *
+ * One gate, and the ONE authoritative representation of it: **not on a TRUE empty library.** The first-run empty
+ * body renders its own "Create your first recipe" CTA, and two competing create affordances on one screen is the
+ * defect. "True empty" means the SAME thing here as in the body branch, because both read {@link isListNarrowed}'s
+ * answer: a chip- or search-narrowed zero KEEPS the dial, since that body renders no CTA to replace it and
+ * suppressing would leave the viewer with no way to create at all.
+ *
+ * ⚠️ It is asked ONLY of settled results, and the two other states answer structurally rather than here:
+ *
+ *  - **Loading renders no dial at all** (`RecipeListLoading` has none). While the library has not answered,
+ *    `recipeCount: 0` is "unknown", not "empty", and a dial mounted through that window UNMOUNTED under a first-run
+ *    cook's finger the moment the empty library settled — Playwright saw `element was detached from the DOM` for
+ *    60s. This used to be a `status === 'loading'` clause; the suspense boundary now makes it unrepresentable.
+ *  - **A load error renders the dial unconditionally** (`RecipeListLoadError`). Its body has no create CTA, so
+ *    suppressing there would strand a cook whose library failed to load with no create affordance. ⚠️ An error can
+ *    still become a settled EMPTY library without a user action — TanStack refetches a stale errored query on
+ *    focus and reconnect — and that transition unmounts the dial the same way. It is accepted: it needs a failed
+ *    load AND a focus change AND an empty library, rather than happening on every first run.
+ *
+ * The Community source never reaches this policy: the community surface is discovery, which mounts no dial. Pure.
+ *
+ * @param visibility - How many rows the results show, and whether the viewer narrowed them.
+ * @returns `true` when the dial should be rendered.
+ */
+export const shouldShowCreateDial = ({ recipeCount, narrowed }: CreateDialVisibility): boolean =>
+    recipeCount > 0 || narrowed;
+
+/** What {@link shouldShowCreateDial} decides from. */
+export interface CreateDialVisibility {
+    /** How many rows the results are showing. */
+    readonly recipeCount: number;
+    /** Whether the viewer narrowed those rows themselves — see {@link isListNarrowed}. */
+    readonly narrowed: boolean;
+}
+
 /** Props for a single recipe row in the list. */
 export interface RecipeListCardProps {
     readonly recipe: RecipeListItem;
     /** Invoked with the recipe id when the row is activated. */
     readonly onSelect: (id: string) => void;
+    /**
+     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
+     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
+     */
+    readonly nutrition?: ReactNode;
 }
 
 /**
- * Props for the recipe-list view — a controlled, presentational component. It renders one of four states
- * (loading, error, empty, populated) from `status` + `recipes`, and delegates every interaction upward.
- * It performs NO data fetching: the composing app wires `useRecipes` (and search) to these props.
+ * The creation destinations the pinned dial discloses (U34), shared by the settled results and the load error —
+ * the two states that mount it.
  */
-export interface RecipeListViewProps {
-    readonly status: RecipeListStatus;
-    readonly recipes: readonly RecipeListItem[];
+export interface RecipeCreateDestinations {
+    readonly onCreateRecipe: () => void;
+    /**
+     * Open the ingredient-paste surface (plan U9) — the dial's SECOND destination.
+     *
+     * ⛔ OPTIONAL, and its absence removes the entry rather than disabling it. U34 chose a disclosing dial
+     * precisely so "adding Scan / Import / AI when 004 and 005 ship is a change to THIS LIST"; this is the
+     * first of those, and a host that has no paste route must not be forced to render a destination that goes
+     * nowhere.
+     */
+    readonly onPasteIngredients?: () => void;
+}
+
+/**
+ * Props for the recipe list's FRAME — the chrome (gradient title band, source switcher, search field) that renders
+ * OUTSIDE the list's suspense boundary, so a pending or failed read never unmounts the heading or the field the
+ * viewer is typing in. The boundary renders inside, as `children`.
+ */
+export interface RecipeListFrameProps {
     readonly searchValue: string;
     readonly onSearchChange: (value: string) => void;
-    readonly onSelectRecipe: (id: string) => void;
-    readonly onCreateRecipe: () => void;
-    readonly onRetry: () => void;
     /** Optional My/Community source tabs (L5). Absent → no tab control (e.g. mobile uses shell tabs). */
     readonly tab?: RecipeListTabControl;
+    /**
+     * A counter whose change moves focus to the heading: the owner advances it when a retry from the refresh notice
+     * succeeds, because that retry removed the button the viewer pressed. The frame never moves focus on mount.
+     */
+    readonly headingFocusSignal: number;
+    /** The read boundary: its loading or error fallback, or the settled results. */
+    readonly children: ReactNode;
+}
+
+/**
+ * Props for the recipe list's RESULTS — what renders inside the suspense boundary once the read has settled: the
+ * quick-filter chips, the refresh notice, then the empty, no-match or populated body, and the create dial. It
+ * performs NO data fetching: the composing app reads the library, filters it, and hands over the visible rows.
+ */
+export interface RecipeListResultsProps extends RecipeCreateDestinations {
+    /** The visible rows — the loaded page after the viewer's search and chips. */
+    readonly recipes: readonly RecipeListItem[];
+    /**
+     * Whether the viewer narrowed those rows themselves — the host's {@link isListNarrowed} answer. It selects the
+     * no-match body over the first-run empty one, and keeps the dial on a narrowed zero.
+     */
+    readonly narrowed: boolean;
+    readonly onSelectRecipe: (id: string) => void;
     /** Optional quick-filter chip row (L4). Absent → no chips. */
     readonly filters?: RecipeListFilterControl;
     /** Optional pull-to-refresh (L8) — mobile only; the web leaf ignores it (no web pull gesture). */
     readonly refresh?: RecipeListRefreshControl;
+    /** Optional notice for a failed refresh of the rows on screen — both platforms. Absent ⇒ no notice. */
+    readonly refreshNotice?: RefreshNoticeControl;
+    /**
+     * How to render one card's deferred calorie figure — called once per visible card with its recipe id
+     * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
+     * ONE read. Absent ⇒ no card shows a nutrition line, which is the card's absent-value rule, not a gap.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
+}
+
+/**
+ * Props for the recipe list's LOAD ERROR — what the error boundary renders when the read failed with nothing loaded:
+ * the alert with its retry, and the create dial (see {@link shouldShowCreateDial} for why an error keeps it).
+ */
+export interface RecipeListLoadErrorProps extends RecipeCreateDestinations {
+    /** The boundary's reset, which refetches. */
+    readonly onRetry: () => void;
 }
 
 /** Pull-to-refresh control (L8): whether a refresh is in flight, and the refetch to run on pull. */

@@ -1,13 +1,13 @@
 /**
  * `make*` fixture factories for the account-export tests — one per persisted row shape the
- * {@link AccountExportDal} returns, each accepting `Partial<T>` overrides over a complete, sensible
+ * `AccountExportDal` returns, each accepting `Partial<T>` overrides over a complete, sensible
  * default. Dates default to `Date` objects (as `node-postgres` yields for `timestamptz`), so the mapper
  * tests exercise the real `Date → ISO` normalization rather than a pre-stringified shortcut.
  */
 import type { CollectionRow, RecipeCollectionRow } from '../../database/schema/collections.js';
 import type { RecipeRatingRow } from '../../database/schema/ratings.js';
 import type { RecipePhotoRow } from '../../database/schema/photos.js';
-import type { AuthorHandleRow } from '../../database/schema/author-handles.js';
+import type { AuthorHandleRow } from '../../database/schema/authorHandles.js';
 import type { RecipeExportRow, VersionMetadataRow } from '../dal/export.dal.js';
 
 /** A stable owner ULID the fixtures default to. */
@@ -28,6 +28,7 @@ export function makeRecipeRow(overrides: Partial<RecipeExportRow> = {}): RecipeE
         totalTimeMinutes: 30,
         servings: 4,
         difficulty: 'easy',
+        mealType: 'dinner',
         averageRating: '4.50',
         ratingCount: 2,
         visibility: 'public',
@@ -40,8 +41,6 @@ export function makeRecipeRow(overrides: Partial<RecipeExportRow> = {}): RecipeE
         cuisine: 'Italian',
         dietaryFlags: ['vegetarian'],
         tags: ['dinner'],
-        hasPartialNutrition: false,
-        leadCaloriesPerServing: '540.0',
         authorHandle: 'chef-anna',
         currentVersion: 1,
         deletedAt: null,
@@ -119,7 +118,6 @@ export function makeVersionRow(overrides: Partial<VersionMetadataRow> = {}): Ver
         s3Key: null,
         createdBy: FIXTURE_OWNER,
         changeSummary: 'Initial version',
-        deviceLabel: null,
         editorHandle: 'chef-anna',
         createdAt: CREATED,
         ...overrides,

@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native version preview modal (W6 Task 3 / FR-007b).
  *
- * The React Native leaf of {@link import('./VersionPreviewModal.js').VersionPreviewModal}: a
+ * The React Native leaf of `VersionPreviewModal`: a
  * {@link FullScreenSheet} (the shared primitive that owns the modal window and its safe-area padding — this
  * leaf used to hand-roll both, and shipped `PullUpdatesDialog`'s system-bar occlusion bug along with them),
  * rendering the SAME controlled, presentational contract as the web leaf — same
@@ -16,6 +16,9 @@
  * `version` — the snapshot's title, description, servings, prep/cook/total time, and ingredient lines
  * (calorie chip only when the line carries a `userCalories` override), plus the "Changed from current"
  * summary when `diffFromCurrent` was supplied, and the Restore action.
+ *
+ * @pattern Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area
+ *     padding, rendering the same controlled contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
@@ -24,13 +27,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FullScreenSheet } from '../components/FullScreenSheet.native.js';
 import { formatDurationMinutes } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
-import {
-    fillTemplate,
-    formatChangedFromCurrent,
-    toVersionPreviewIngredientLines,
-    type VersionPreviewModalProps,
-} from './model.js';
+import { fillTemplate } from '../list/model.js';
+import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
+import { type VersionPreviewModalProps, formatChangedFromCurrent, toVersionPreviewIngredientLines } from './preview.js';
 
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
@@ -42,8 +43,10 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     onRestore,
     isRestoring = false,
     locale,
+    restoreError,
 }) => {
-    const { preview, conflict } = useMessages(recipeVersionMessages);
+    const { preview, conflict, versionList } = useMessages(recipeVersionMessages);
+    const { ingredientLineName } = useMessages(recipeMessages);
 
     if (!open) {
         return null;
@@ -57,6 +60,10 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     const showLoading = isLoading;
     const showError = !showLoading && (error === true || version === undefined);
     const showContent = !showLoading && !showError && version !== undefined;
+    const restoreErrorText =
+        version === undefined
+            ? undefined
+            : previewRestoreErrorMessage(restoreError, version.versionNumber, versionList, preview);
 
     const title =
         version !== undefined
@@ -79,6 +86,13 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                 {showError && (
                     <Text accessibilityRole="alert" style={styles.error}>
                         {preview.error}
+                    </Text>
+                )}
+
+                {/* A failed restore of THIS version, shown where the cook pressed Restore (the web leaf's §5 note). */}
+                {restoreErrorText !== undefined && (
+                    <Text accessibilityRole="alert" style={styles.error}>
+                        {restoreErrorText}
                     </Text>
                 )}
 
@@ -124,16 +138,26 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             {fillTemplate(preview.ingredientsHeading, { version: version.versionNumber })}
                         </Text>
                         <View style={styles.ingredients}>
-                            {toVersionPreviewIngredientLines(version.snapshot.ingredients, preview, locale).map(
-                                (line) => (
-                                    <View key={line.key} style={styles.ingredientRow}>
-                                        <Text style={[styles.body, styles.ingredientText]}>{line.text}</Text>
-                                        {line.calories !== undefined && (
-                                            <Text style={styles.calories}>{line.calories}</Text>
+                            {toVersionPreviewIngredientLines(
+                                version.snapshot.ingredients,
+                                preview,
+                                locale,
+                                ingredientLineName,
+                                unrestorablePositionsFor(restoreError, version.versionNumber),
+                            ).map((line) => (
+                                <View key={line.key} style={styles.ingredientRow}>
+                                    <Text style={[styles.body, styles.ingredientText]}>
+                                        {line.text}
+                                        {/* Words, never colour alone: the refused restore named this line. */}
+                                        {line.cannotRestore !== undefined && (
+                                            <Text style={styles.cannotRestore}> {line.cannotRestore}</Text>
                                         )}
-                                    </View>
-                                ),
-                            )}
+                                    </Text>
+                                    {line.calories !== undefined && (
+                                        <Text style={styles.calories}>{line.calories}</Text>
+                                    )}
+                                </View>
+                            ))}
                         </View>
 
                         {diffFromCurrent !== undefined && (
@@ -185,6 +209,7 @@ const styles = StyleSheet.create({
     title: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     body: { fontSize: 15, lineHeight: 22, color: palette.slate },
     error: { fontSize: 15, color: palette['error-dark'] },
+    cannotRestore: { fontWeight: '600', color: palette['error-dark'] },
     scroll: { flex: 1 },
     scrollContent: { gap: 16 },
     fields: { gap: 6 },

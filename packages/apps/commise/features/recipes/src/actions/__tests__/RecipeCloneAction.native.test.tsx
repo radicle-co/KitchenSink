@@ -1,14 +1,13 @@
 /**
  * Native component tests for the recipe clone action (T075), rendered via react-native-web under jsdom.
  * Mirrors the web leaf: clone interaction, both disabled gates (cloning in-flight and not-cloneable), the
- * busy indicator, and the attribution line shown only when a source attribution is present.
+ * and busy indicator. Provenance is NOT this control's job — see the deleted-tests note below.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { glass, palette } from '@commise/ui';
-import { nativeTokens } from '@commise/ui/native';
 
 import { cssColor } from '../../__tests__/cssColor.js';
 import { pillOf } from '../../__tests__/dsPill.js';
@@ -60,21 +59,16 @@ describe('RecipeCloneAction (native)', () => {
         expect(screen.getByRole('button', { name: 'Clone' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    it('renders the attribution line when a source attribution is present', () => {
-        renderClone({ sourceAttribution: 'Grandma’s cookbook' });
-
-        expect(screen.getByText('Cloned from Grandma’s cookbook')).toBeTruthy();
-    });
-
-    it('omits the attribution line when no source attribution is present', () => {
-        renderClone({ sourceAttribution: undefined });
-
-        expect(screen.queryByText(/Cloned from/)).toBeNull();
-    });
+    /*
+     * ⛔ TWO TESTS WERE DELETED HERE, NOT WEAKENED — the attribution present/absent pair. `RecipeCloneAction`
+     * no longer renders provenance; its coverage moved to `detail/__tests__/RecipeSourceLine.native.test.tsx`,
+     * which additionally covers `sourceUrl` (which never reached any screen) and the unsafe-scheme case. See
+     * the web twin's note for the reasoning.
+     */
 });
 
 /**
- * Clone IS the design-system {@link Button} on native too — it does not paint its own surface.
+ * Clone IS the design-system `Button` on native too — it does not paint its own surface.
  *
  * The leaf used to hand-roll a solid-coral pill and justify it with "the mockup paints the clone action CORAL,
  * and the DS variant set has no coral tier". That premise is false: NO mockup contains a clone action at all
@@ -117,12 +111,14 @@ describe('RecipeCloneAction (native) — design-system surface', () => {
         expect(window.getComputedStyle(screen.getByText('Clone')).color).not.toBe(cssColor(palette.white));
     });
 
-    it('rounds from the radius scale, not a magic 999', () => {
+    // E2 I2 — rewritten from "the radius scale's full pill": the DS Button now rounds to half its minimum height,
+    // so a label that wraps at a large font scale stays inside the curve. Read off the pill's own style.
+    it("rounds to the DS Button's half-height radius, not a magic 999", () => {
         renderClone();
 
-        expect(window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone' }))).borderTopLeftRadius).toBe(
-            `${nativeTokens.radius.full}px`,
-        );
+        const pill = window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone' })));
+
+        expect(Number.parseFloat(pill.borderTopLeftRadius)).toBe(Number.parseFloat(pill.minHeight) / 2);
     });
 
     it('announces the in-flight state through NATIVE busy semantics, not a web-only aria-busy prop', () => {

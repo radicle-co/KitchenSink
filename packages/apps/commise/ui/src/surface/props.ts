@@ -1,13 +1,13 @@
 /**
  * @module @commise/ui/surface — shared, platform-neutral prop contracts for the brand surface primitives
- * {@link import('./GradientSurface.js').GradientSurface} and {@link import('./GlassCard.js').GlassCard}
+ * `GradientSurface` and `GlassCard`
  * (the "surface-treatment adapter" pattern). The web (`*.tsx`, CSS `linear-gradient` / `backdrop-filter`)
  * and native (`*.native.tsx`, `expo-linear-gradient` / `expo-blur`) leaves both implement these exact
  * surfaces, so the two platform renders can never drift on the brand treatment.
  *
  * The layout passthrough is intentionally split by platform (each leaf consumes only its own): `className`
  * is the web hook (a plain string — no react-native type leaks into the shared contract), `style` is the
- * native hook. This mirrors the {@link import('../pressScale/props.js').PressScaleProps} idiom where a leaf
+ * native hook. This mirrors the `PressScaleProps` idiom where a leaf
  * honours the props its platform can, and ignores the rest.
  */
 import type { ReactNode } from 'react';

@@ -2,7 +2,7 @@
 
 /**
  * @module components/app/RouteErrorBoundary — the shared orchestration every web App Router `error.tsx`
- * boundary delegates to (B18). Composes the DA9 {@link ErrorReporter} seam (never a hard-coded Sentry
+ * boundary delegates to (B18). Composes the DA9 `ErrorReporter` seam (never a hard-coded Sentry
  * import at the call site) with the pure {@link RouteErrorState} presentational fallback: reporting is a
  * side effect a segment's `error.tsx` MUST perform (a route crash must never be silent), kept out of the
  * pure presentational component per the app's pure-render-component rule (`@sideEffect`).
@@ -11,8 +11,12 @@
  * (`homeContainer`, DA9) rather than introducing a second Sentry binding path — until the DA10 AppProviders
  * facade gives the whole app one composition root, `homeContainer` is the ONE bound `errorReporterToken` on
  * web, so every observability call site (widget or route) composes with it.
+ *
+ * @pattern Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from
+ *     the appShell container rather than imported, to the pure `RouteErrorState` render half.
  */
 import { resolveErrorReporter } from '@commise/features-core';
+import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { useEffect, type FC } from 'react';
 
 import { homeContainer } from '@/components/home/homeContainer';
@@ -27,21 +31,33 @@ const reportRouteError = resolveErrorReporter(homeContainer);
 export interface RouteErrorBoundaryProps {
     /** The error Next.js caught rendering this route segment. */
     readonly error: Error & { digest?: string };
-    /** Next's recovery affordance — re-renders the segment. */
-    readonly reset: () => void;
+    /** Next's recovery affordance that RE-FETCHES the segment and re-renders it (not `reset`, which does not fetch). */
+    readonly retry: () => void;
     /** The route segment name attached to the DA9 report (e.g. `'recipes'`), for triage. */
     readonly routeName: string;
 }
 
 /**
- * Reports the caught error via DA9 and renders the shared localized fallback with retry wired to `reset`.
+ * Reports the caught error via DA9 and renders the shared localized fallback with a retry that refetches.
  *
- * @sideEffect Reports `error` through the injected {@link ErrorReporter} seam on every render of a new error.
+ * ⛔ Try again resets TanStack's query errors BEFORE asking Next to re-fetch: a query that threw into this boundary
+ * keeps `retryOnMount` off until its reset boundary is reset, so without it the re-render shows the same failure.
+ *
+ * @sideEffect Reports `error` through the injected `ErrorReporter` seam on every render of a new error.
  */
-export const RouteErrorBoundary: FC<RouteErrorBoundaryProps> = ({ error, reset, routeName }) => {
+export const RouteErrorBoundary: FC<RouteErrorBoundaryProps> = ({ error, retry, routeName }) => {
+    const { reset: resetQueryErrors } = useQueryErrorResetBoundary();
+
     useEffect(() => {
         reportRouteError(error, { route: routeName });
     }, [error, routeName]);
 
-    return <RouteErrorState onRetry={reset} />;
+    return (
+        <RouteErrorState
+            onRetry={() => {
+                resetQueryErrors();
+                retry();
+            }}
+        />
+    );
 };

@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import type { Route } from 'next';
 import { redirect } from 'next/navigation';
 
-import { HomeWidgetSurface } from '@/components/home';
+import { HomeWidgetSurface } from '@/components/home/HomeWidgetSurface';
 
 export const dynamic = 'force-dynamic';
 

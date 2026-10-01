@@ -21,7 +21,7 @@ import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
 import { CloneIcon } from '../actions/icons.js';
-import { RecipeCard } from '../card/index.js';
+import { RecipeCard } from '../card/RecipeCard.js';
 import { fillTemplate } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
 import type { RecipeDiscoveryCardProps } from './model.js';
@@ -39,12 +39,13 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
     isCloning,
     onSelect,
     onClone,
+    nutrition,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const cloneLabel = fillTemplate(isCloning ? discovery.cloningLabel : discovery.cloneLabel, { title: recipe.title });
 
     return (
-        <RecipeCard recipe={recipe}>
+        <RecipeCard recipe={recipe} nutrition={nutrition}>
             {/* Cover + title navigate; a single button so the row is reached by its title (list contract). */}
             <button
                 type="button"
@@ -72,7 +73,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
                 <RecipeCard.Badges />
                 <RecipeCard.Rating />
                 <RecipeCard.Tags />
-                {/* `busy` supplies the in-place spinner, the disabled in-flight guard, and `aria-busy`. The
+                {/* `busy` supplies the in-place spinner, the in-flight guard (a refused press that keeps focus), and `aria-busy`. The
                     accessible name is the ROW-UNIQUE template (the visible label is the generic "Clone", which
                     would collide across sibling rows), so it is passed as an explicit override. */}
                 <div className="mt-1 flex flex-col items-start">

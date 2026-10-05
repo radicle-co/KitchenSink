@@ -93,6 +93,8 @@ export interface SearchServiceRemoteSearchDeps {
     readonly newRequestId?: () => string;
     /** Defaults to a Nest `Logger`. */
     readonly logger?: RemoteSearchLogger;
+    /** Waits before an admitted request is sent again after the CDN replays a "not admitted". Defaults to a timer. */
+    readonly pause?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -189,6 +191,7 @@ export class SearchServiceRemoteSearch implements RemoteSearchPort {
             upstream: this.upstream,
             now: this.now,
             admittedTimeoutMs: ADMITTED_SEARCH_TIMEOUT_MS,
+            ...(this.deps.pause === undefined ? {} : { pause: this.deps.pause }),
         });
 
         return transport.send({

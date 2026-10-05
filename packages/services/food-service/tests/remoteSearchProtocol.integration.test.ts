@@ -90,6 +90,10 @@ function remoteSearch(signingKey: string = SIGNING_KEY): SearchServiceRemoteSear
     const clock = { now: Date.now() };
 
     return new SearchServiceRemoteSearch({
+        // The stand-in's clock is frozen within a test, so a pause must move it past the kept second.
+        pause: async (ms) => {
+            edge.now += ms;
+        },
         origin: edge.origin,
         keyPairId: KEY_PAIR_ID,
         signingKey,

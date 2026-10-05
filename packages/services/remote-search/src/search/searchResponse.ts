@@ -1,12 +1,13 @@
 /**
  * The function URL responses: a contract body, its status, and the headers a cache and the caller read (ADR-0055
- * points 2 and 6). Only `found` and `empty` may be shared, for 7 days and 1 day; every other response is `no-store`.
- * Every response to a request whose `rid` parsed echoes it.
+ * points 2 and 6). `found` and `empty` are shared for 7 days and 1 day, "not admitted" for one second, and every other
+ * response is `no-store`. Every response to a request whose `rid` parsed echoes it.
  *
  * @module
  */
 import type { PassthroughHeaders, SourceSearchOutcome } from '../sources/remoteSourceAdapter.js';
 import {
+    REMOTE_SEARCH_NOT_ADMITTED_MAX_AGE_SECONDS,
     REMOTE_SEARCH_NOT_ADMITTED_STATUS,
     REMOTE_SEARCH_RID_HEADER,
     REMOTE_SEARCH_SOURCE_FAILURE_STATUS,
@@ -21,6 +22,13 @@ const FOUND_CACHE_CONTROL = 'public, s-maxage=604800';
 
 /** An empty answer is shared for 1 day. */
 const EMPTY_CACHE_CONTROL = 'public, s-maxage=86400';
+
+/**
+ * A "not admitted" is kept for one second, never refused storage: an uncacheable response for a key stops the CDN
+ * storing the next cacheable answer for that key for minutes, which is the admitted answer (see
+ * REMOTE_SEARCH_NOT_ADMITTED_MAX_AGE_SECONDS).
+ */
+const NOT_ADMITTED_CACHE_CONTROL = `public, s-maxage=${String(REMOTE_SEARCH_NOT_ADMITTED_MAX_AGE_SECONDS)}`;
 
 /** Every response is never stored except the two answers a cache may keep; the error statuses sit in CloudFront's
  * configurable error set, where the distribution already pins every error-caching TTL to 0 (ADR-0055 point 2). */
@@ -53,10 +61,9 @@ function dispositionOf(body: SearchBody): { readonly status: number; readonly ca
             case 'empty':
                 return { status: 200, cacheControl: EMPTY_CACHE_CONTROL };
             case 'notAdmitted':
-                // A 200 OUTCOME (see REMOTE_SEARCH_NOT_ADMITTED_STATUS): the answer rides the content path, where
-                // no-store is honored, instead of the error path a 4xx would take — the error path is what poisoned
-                // the cache slot on the deployed stage (2026-10-05).
-                return { status: REMOTE_SEARCH_NOT_ADMITTED_STATUS, cacheControl: NO_STORE };
+                // A 200 OUTCOME (see REMOTE_SEARCH_NOT_ADMITTED_STATUS), kept for a second rather than refused
+                // storage: a no-store here is what stopped the admitted answer being kept (2026-10-05).
+                return { status: REMOTE_SEARCH_NOT_ADMITTED_STATUS, cacheControl: NOT_ADMITTED_CACHE_CONTROL };
         }
     }
 

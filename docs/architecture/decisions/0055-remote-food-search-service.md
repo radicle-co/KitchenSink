@@ -79,6 +79,16 @@ updating food/IDs and handling selection lives."_
    reading or a block is applied only from a response that echoes it. A call that was admitted runs to completion.
    This is ADR-0053 §3 across a process boundary. A cached answer replays the quota headers it was stored with, and an
    old quota reading must never write a block.
+
+    "Not admitted" is a `200` outcome kept for ONE SECOND, and it must not be `no-store`. Measured on 2026-10-05, on the
+    deployed stage and on a scratch distribution with this cache policy: after any uncacheable response for a key
+    (`no-store`, `no-cache`, `private`, `max-age=0`, `s-maxage=0`, no `Cache-Control`, an error status, a redirect, or a
+    `HEAD` probe) the CDN would not keep the next cacheable answer for that key for about three minutes. Food-service
+    probes before every admission, so the admitted answer was never cached and every repeat of a search spent a source
+    call. A positive TTL does not do this. An admitted request that lands inside that second is served the probe's
+    answer, which costs the source nothing, and is sent once more after the second lapses. Food-service believes a
+    "not admitted" whichever request it echoes, because it carries no source signal.
+
 7. **Only food-service can use the CDN.** Every request is a CloudFront signed URL. The admission flag and the request
    id are signed, forwarded to the origin, and kept out of the cache key. The origin is a function URL that accepts
    only this distribution (origin access control). Each base stage (prod, and sandbox for every preview) holds the

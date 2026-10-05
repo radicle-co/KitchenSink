@@ -60,12 +60,32 @@ export const REMOTE_SEARCH_RID_HEADER = 'x-search-rid';
 
 /**
  * The status of a miss asked with `admit=0` ({@link remoteSearchNotAdmittedSchema}): a `200`, because the answer
- * is an OUTCOME like `found` and `empty`, never stored. It was a `428` until 2026-10-05, when the deployed stage
- * proved CloudFront error-caches a 4xx the distribution cannot pin (428 sits outside the configurable error set,
- * and neither `no-store` nor `max-age=0` governs the error cache): an admit=0 probe poisoned the `(path, q)` slot so
- * the admitted answer cached beside it never served (ADR-0055 points 2 and 6).
+ * is an OUTCOME like `found` and `empty`. It was a `428` until 2026-10-05, when the deployed stage proved CloudFront
+ * error-caches a 4xx the distribution cannot pin (428 sits outside the configurable error set), which is the first
+ * of two causes of one defect; {@link REMOTE_SEARCH_NOT_ADMITTED_MAX_AGE_SECONDS} is the second (ADR-0055 points 2
+ * and 6).
  */
 export const REMOTE_SEARCH_NOT_ADMITTED_STATUS = 200;
+
+/**
+ * How long, in seconds, the CDN keeps a "not admitted": the shortest time that is a real cache entry.
+ *
+ * ⛔ It cannot be `0`, and it cannot be any response the CDN refuses to store. Measured on 2026-10-05, on the deployed
+ * stage and on a scratch distribution with this stage's cache policy (key on `q`, min and default TTL 0): after an
+ * uncacheable response for a `(path, q)` — `no-store`, `no-cache`, `private`, `max-age=0`, `s-maxage=0`, no
+ * `Cache-Control` at all, an error status whose error TTL is 0, a redirect, or a `HEAD` probe — the CDN would not
+ * store the next cacheable answer for that key for about three minutes. Food probes before it admits, so the admitted
+ * answer was never kept and every repeat of a search spent a source call. A positive TTL does not do this. The
+ * price: an admitted request that lands inside the second is served the probe's "not admitted" and must ask again
+ * once it lapses ({@link REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS}).
+ */
+export const REMOTE_SEARCH_NOT_ADMITTED_MAX_AGE_SECONDS = 1;
+
+/**
+ * How long a caller waits before asking again, in milliseconds, when its admitted request was answered with a
+ * replayed "not admitted": the TTL, plus a margin for the clock difference between the CDN and the caller.
+ */
+export const REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS = REMOTE_SEARCH_NOT_ADMITTED_MAX_AGE_SECONDS * 1000 + 250;
 
 /**
  * The status of a source's failure: `SOURCE_ERROR`, which carries the source's own status, and

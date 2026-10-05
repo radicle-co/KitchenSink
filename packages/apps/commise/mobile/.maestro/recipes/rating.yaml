@@ -67,6 +67,14 @@ appId: io.commise.mobile
 # Rate 4 stars — the selection registers through the radio's CHECKED state (not colour alone).
 # Falsifiable: wiring the wrong value or dropping the checked semantics fails this assertion.
 - tapOn: 'Rate 4 stars'
+# The tap lands while the aggregate still says "Not yet rated"; the saved rating then replaces that one-liner with a
+# stars row, which pushes the radiogroup below the viewport (run 37311704980: tap completed, the rating landed, and the
+# bare assertion failed purely because the control had been pushed off-screen). This is the same layout shift the
+# `Remove my rating` warning below describes, one assertion earlier. Scroll back to the control before reading it.
+- scrollUntilVisible:
+      element: 'Rate 4 stars'
+      direction: DOWN
+      timeout: 20000
 - assertVisible:
       text: 'Rate 4 stars'
       checked: true

@@ -3,10 +3,14 @@
  * search costs a source call only when the CDN does not hold its answer:
  *
  * 1. The probe asks with admission off. A cached answer comes back from the CDN, and nothing is charged.
- * 2. A miss reaches the origin, which answers "not admitted" (a `200` outcome) without calling the source. Only a
- *    "not admitted" that echoes this request is believed; then admission is asked, and a refusal is a {@link SourceBusyError}.
+ * 2. A miss reaches the origin, which answers "not admitted" (a `200` outcome) without calling the source. Admission
+ *    is then asked, and a refusal is a {@link SourceBusyError}. The CDN keeps that answer for a second, so it may be
+ *    another probe's (it carries no source signal, so its echo does not matter; having none still does).
  * 3. The admitted request asks again with admission on. It runs to completion whatever the caller does: the CDN keeps
- *    an answer only when its viewer reads it to the end, and the window was spent the moment admission said yes.
+ *    an answer only when its viewer reads it to the end, and the window was spent the moment admission said yes. When
+ *    it lands inside that second it is answered with the kept "not admitted", costs the source nothing, and is sent
+ *    once more after the second lapses. (Never refuse the CDN's storage of "not admitted": an uncacheable response
+ *    stops the next answer for the key being kept for minutes, so the admitted answer would never be cached.)
  *
  * The source's signals (its status, `Retry-After` and quota headers, which the search service passes through) are
  * applied only from a response that echoes THIS request's id. A cached answer replays the quota headers it was stored
@@ -24,6 +28,7 @@
  * @module
  */
 import {
+    REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS,
     REMOTE_SEARCH_NOT_ADMITTED_STATUS,
     REMOTE_SEARCH_RID_HEADER,
     REMOTE_SEARCH_SOURCE_FAILURE_STATUS,
@@ -52,6 +57,8 @@ export interface CacheFirstAdmissionPorts {
     readonly now?: () => number;
     /** The longest an admitted request may take. Its own bound: the caller's signal never reaches it. */
     readonly admittedTimeoutMs: number;
+    /** Waits, in milliseconds, before the admitted request is sent again. Defaults to a timer. */
+    readonly pause?: (ms: number) => Promise<void>;
 }
 
 /** One search, as the transport sends it. */
@@ -168,12 +175,14 @@ function responseOf(read: ReadResponse): Response {
 /** Asks the search service's CDN cache-first, admitting a miss before it reaches the source. */
 export class CacheFirstAdmissionTransport {
     private readonly now: () => number;
+    private readonly pause: (ms: number) => Promise<void>;
 
     /**
      * @param ports - Admission, the block ledger, the quota sink, the real `fetch`, and the admitted request's bound.
      */
     public constructor(private readonly ports: CacheFirstAdmissionPorts) {
         this.now = ports.now ?? Date.now;
+        this.pause = ports.pause ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     }
 
     /**
@@ -202,12 +211,8 @@ export class CacheFirstAdmissionTransport {
             return { response: responseOf(this.trustedProbe(search, probe, echo)), block: undefined };
         }
 
-        if (echo !== search.rid) {
-            throw new RemoteSearchUnavailableError(
-                search.source,
-                echo === null ? 'noEcho' : 'foreignEcho',
-                probe.status,
-            );
+        if (echo === null) {
+            throw new RemoteSearchUnavailableError(search.source, 'noEcho', probe.status);
         }
 
         search.signal.throwIfAborted();
@@ -253,8 +258,21 @@ export class CacheFirstAdmissionTransport {
      * @sideEffect Calls the CDN; may write a block and report a quota reading.
      */
     private async completeAdmitted(search: CacheFirstSearch): Promise<CacheFirstAnswer> {
-        const answered = await this.read(search.admittedUrl(), AbortSignal.timeout(this.ports.admittedTimeoutMs));
+        let answered = await this.read(search.admittedUrl(), AbortSignal.timeout(this.ports.admittedTimeoutMs));
+
+        // The origin answers "not admitted" only to a request with admission off, so this request found the CDN
+        // still holding our probe's answer from a second ago. Wait that second out and ask again — whatever the echo
+        // says, because our probe and this request carry the same request id, so a replay echoes this request too.
+        if (isNotAdmitted(answered)) {
+            await this.pause(REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS);
+            answered = await this.read(search.admittedUrl(), AbortSignal.timeout(this.ports.admittedTimeoutMs));
+        }
+
         const echo = answered.headers.get(REMOTE_SEARCH_RID_HEADER);
+
+        if (isNotAdmitted(answered)) {
+            throw new RemoteSearchUnavailableError(search.source, 'unexpectedStatus', answered.status);
+        }
 
         if (echo !== search.rid) {
             // A 200 echoing another request is that request's answer, cached between the probe and now.
@@ -267,10 +285,6 @@ export class CacheFirstAdmissionTransport {
                 echo === null ? 'noEcho' : 'foreignEcho',
                 answered.status,
             );
-        }
-
-        if (isNotAdmitted(answered)) {
-            throw new RemoteSearchUnavailableError(search.source, 'unexpectedStatus', answered.status);
         }
 
         const sourceStatus = sourceStatusOf(answered);

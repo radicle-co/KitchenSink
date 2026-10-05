@@ -3,10 +3,10 @@
  * search the Decorator:
  *
  * 1. asks the CDN with admission off (the probe), which costs nothing: a cached answer comes back as it is;
- * 2. on "not admitted" (a `200` outcome) that echoes this request, asks admission, and refuses with `SourceBusyError` when it
- *    says no, without asking again;
+ * 2. on "not admitted" (a `200` outcome), whichever request it echoes (the CDN keeps it for a second, so it may be another
+ *    probe's), asks admission, and refuses with `SourceBusyError` when it says no, without asking again;
  * 3. otherwise asks again with admission on, and lets that request run to completion whatever the caller does, so the
- *    cache fills;
+ *    cache fills; an admitted request answered with a probe's kept "not admitted" waits that second out and asks once more;
  * 4. applies the quota reading and the block a response carries ONLY when the response echoes this request's id, so a
  *    cached answer's stale quota (up to 7 days old) can never block the source.
  *
@@ -14,7 +14,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { REMOTE_SEARCH_RID_HEADER } from '@kitchensink/schema-remote-search';
+import { REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS, REMOTE_SEARCH_RID_HEADER } from '@kitchensink/schema-remote-search';
 
 import { isSourceAccountingError, isSourceBusyError, type SourceBusyReason } from '../../foodSource.errors.js';
 import { isRemoteSearchUnavailableError } from '../../remote/remoteSearch.errors.js';
@@ -79,6 +79,7 @@ interface Harness {
     readonly admissions: string[];
     readonly blocks: SourceBlock[];
     readonly quotas: QuotaReading[];
+    readonly pauses: number[];
 }
 
 /**
@@ -96,6 +97,7 @@ function makeHarness(options: {
     const admissions: string[] = [];
     const blocks: SourceBlock[] = [];
     const quotas: QuotaReading[] = [];
+    const pauses: number[] = [];
 
     const upstream: FetchFn = async (input, init) => {
         const answer = options.answers[requests.length];
@@ -114,6 +116,7 @@ function makeHarness(options: {
         admissions,
         blocks,
         quotas,
+        pauses,
         transport: new CacheFirstAdmissionTransport({
             admission: {
                 admit: async (source, lane) => {
@@ -139,6 +142,9 @@ function makeHarness(options: {
             upstream,
             now: () => NOW,
             admittedTimeoutMs: 1_000,
+            pause: async (ms) => {
+                pauses.push(ms);
+            },
         }),
     };
 }
@@ -207,21 +213,59 @@ describe('CacheFirstAdmissionTransport — a miss is admitted, then asked again'
         expect(harness.admissions).toEqual(['usda:interactive']);
         expect(harness.requests.map((request) => request.url)).toEqual([PROBE_URL, ADMITTED_URL]);
         expect(await answer.response.text()).toBe(FOUND_BODY);
+        expect(harness.pauses).toEqual([]);
     });
 
-    it.each<[string, Answer]>([
-        ['carries no echo (the function URL’s own throttle)', { ...NOT_ADMITTED, echo: null }],
-        ['echoes another request', { ...NOT_ADMITTED, echo: FOREIGN_RID }],
-    ])(
-        'admits nothing when the "not admitted" %s, and reports the search service unavailable',
-        async (_label, answer) => {
-            const harness = makeHarness({ answers: [answer] });
+    it('admits a "not admitted" that echoes ANOTHER request (a probe’s, kept by the CDN for a second)', async () => {
+        const harness = makeHarness({
+            answers: [
+                { ...NOT_ADMITTED, echo: FOREIGN_RID },
+                { status: 200, echo: RID, body: FOUND_BODY },
+            ],
+        });
 
-            await expect(harness.transport.send(searchOf())).rejects.toSatisfy(isRemoteSearchUnavailableError);
-            expect(harness.admissions).toEqual([]);
-            expect(harness.requests).toHaveLength(1);
-        },
-    );
+        const answer = await harness.transport.send(searchOf());
+
+        expect(harness.admissions).toEqual(['usda:interactive']);
+        expect(harness.requests.map((request) => request.url)).toEqual([PROBE_URL, ADMITTED_URL]);
+        expect(await answer.response.text()).toBe(FOUND_BODY);
+    });
+
+    it('admits nothing when the "not admitted" carries no echo (the function URL’s own throttle), and reports the search service unavailable', async () => {
+        const harness = makeHarness({ answers: [{ ...NOT_ADMITTED, echo: null }] });
+
+        await expect(harness.transport.send(searchOf())).rejects.toSatisfy(isRemoteSearchUnavailableError);
+        expect(harness.admissions).toEqual([]);
+        expect(harness.requests).toHaveLength(1);
+    });
+
+    it('waits out the kept second and asks again when the admitted request is answered with a probe’s "not admitted"', async () => {
+        const harness = makeHarness({
+            answers: [
+                NOT_ADMITTED,
+                { ...NOT_ADMITTED, echo: FOREIGN_RID },
+                { status: 200, echo: RID, body: FOUND_BODY },
+            ],
+        });
+
+        const answer = await harness.transport.send(searchOf());
+
+        expect(await answer.response.text()).toBe(FOUND_BODY);
+        expect(harness.requests.map((request) => request.url)).toEqual([PROBE_URL, ADMITTED_URL, ADMITTED_URL]);
+        expect(harness.admissions).toEqual(['usda:interactive']);
+        expect(harness.pauses).toEqual([REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS]);
+        expect(REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS).toBeGreaterThan(1_000);
+    });
+
+    it('reports the search service unavailable when the second ask is again answered with a probe’s "not admitted"', async () => {
+        const harness = makeHarness({
+            answers: [NOT_ADMITTED, { ...NOT_ADMITTED, echo: FOREIGN_RID }, { ...NOT_ADMITTED, echo: FOREIGN_RID }],
+        });
+
+        await expect(harness.transport.send(searchOf())).rejects.toSatisfy(isRemoteSearchUnavailableError);
+        expect(harness.requests).toHaveLength(3);
+        expect(harness.pauses).toHaveLength(1);
+    });
 
     it.each<SourceBusyReason>(['ceiling', 'blocked', 'contended', 'requesterLimit'])(
         'refuses with SourceBusyError (%s) and never sends the admitted request',

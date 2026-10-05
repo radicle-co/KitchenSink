@@ -88,6 +88,7 @@ async function endingsOf(given: Case): Promise<{ readonly recorded: Recorded[]; 
     };
 
     const remote = new SearchServiceRemoteSearch({
+        pause: async () => undefined,
         origin: 'https://d111111abcdef8.cloudfront.net',
         keyPairId: 'K2JCJMDEHXQW5F',
         signingKey: SIGNING_KEY,
@@ -192,14 +193,14 @@ describe('SearchServiceRemoteSearch — the ending it records', () => {
             'unavailable',
         ],
         [
-            'a "not admitted" that echoes another request',
-            { answers: [{ ...NOT_ADMITTED, echo: OTHER_RID }] },
-            'foreignEcho',
+            'an admitted request answered twice with another request\'s "not admitted"',
+            { answers: [NOT_ADMITTED, { ...NOT_ADMITTED, echo: OTHER_RID }, { ...NOT_ADMITTED, echo: OTHER_RID }] },
+            'unexpectedStatus',
             'unavailable',
         ],
         [
             'an admitted request answered "not admitted"',
-            { answers: [NOT_ADMITTED, NOT_ADMITTED] },
+            { answers: [NOT_ADMITTED, NOT_ADMITTED, NOT_ADMITTED] },
             'unexpectedStatus',
             'unavailable',
         ],

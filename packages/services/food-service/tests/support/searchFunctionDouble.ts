@@ -1,6 +1,7 @@
 /**
  * A double of the remote search function (`packages/services/remote-search`) that keeps its published contract
- * (`@kitchensink/schema-remote-search`): a miss asked with `admit=0` is a `200` `notAdmitted` outcome and calls no source; `admit=1` calls
+ * (`@kitchensink/schema-remote-search`): a miss asked with `admit=0` is a `200` `notAdmitted` outcome (`s-maxage` 1 second)
+ * and calls no source; `admit=1` calls
  * the source once and answers found (`s-maxage` 7 days) or empty (1 day); a path that names no search it serves is
  * `404 NOT_FOUND`; every other answer is `no-store`; every response echoes the request's `rid`; the source's quota
  * headers and `Retry-After` pass through. It records each source call, so "the source was not called" is an assertion
@@ -12,6 +13,7 @@
  * @pattern Fake — a working implementation of the search function's contract
  */
 import {
+    REMOTE_SEARCH_NOT_ADMITTED_MAX_AGE_SECONDS,
     REMOTE_SEARCH_NOT_ADMITTED_STATUS,
     REMOTE_SEARCH_RID_HEADER,
     REMOTE_SEARCH_SOURCE_FAILURE_STATUS,
@@ -111,7 +113,14 @@ export function searchFunctionDouble(): SearchFunctionDouble {
         }
 
         if (params.get('admit') !== '1') {
-            return resultOf(REMOTE_SEARCH_NOT_ADMITTED_STATUS, rid.data, { outcome: 'notAdmitted' });
+            return resultOf(
+                REMOTE_SEARCH_NOT_ADMITTED_STATUS,
+                rid.data,
+                { outcome: 'notAdmitted' },
+                {
+                    'cache-control': `public, s-maxage=${String(REMOTE_SEARCH_NOT_ADMITTED_MAX_AGE_SECONDS)}`,
+                },
+            );
         }
 
         if (double.mode.kind === 'functionThrottled') {

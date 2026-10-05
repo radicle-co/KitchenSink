@@ -22,6 +22,7 @@ import { GetFunctionUrlConfigCommand, LambdaClient } from '@aws-sdk/client-lambd
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
+    REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS,
     REMOTE_SEARCH_RID_HEADER,
     remoteSearchAnswerSchema,
     remoteSearchNotAdmittedSchema,
@@ -173,11 +174,20 @@ describe.skipIf(IS_PRODUCTION)(`signed requests to the remote search distributio
         const probe = await get(signed(key, searchUrl(term, '0', probeRid)));
 
         expect(probe.response.status).toBe(200);
+        expect(probe.response.headers.get('cache-control')).toBe('public, s-maxage=1');
         expect(remoteSearchNotAdmittedSchema.parse(JSON.parse(probe.body))).toEqual({ outcome: 'notAdmitted' });
         expect(probe.response.headers.get(REMOTE_SEARCH_RID_HEADER)).toBe(probeRid);
 
+        // As food does: an admitted request that lands inside the second the CDN keeps the probe's answer is served that
+        // answer, never reaching the origin, so it asks again once the second has lapsed.
         const admittedRid = newRid();
-        const admitted = await get(signed(key, searchUrl(term, '1', admittedRid)));
+        let admitted = await get(signed(key, searchUrl(term, '1', admittedRid)));
+
+        if (remoteSearchNotAdmittedSchema.safeParse(JSON.parse(admitted.body)).success) {
+            expect(admitted.response.headers.get(REMOTE_SEARCH_RID_HEADER)).toBe(probeRid);
+            await new Promise((resolve) => setTimeout(resolve, REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS));
+            admitted = await get(signed(key, searchUrl(term, '1', admittedRid)));
+        }
 
         expect(admitted.response.status).toBe(200);
         expect(remoteSearchAnswerSchema.safeParse(JSON.parse(admitted.body)).success).toBe(true);

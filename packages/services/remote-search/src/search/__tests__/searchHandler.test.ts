@@ -191,7 +191,7 @@ describe('handleSearchRequest — what each source outcome answers', () => {
 });
 
 describe('handleSearchRequest — admission', () => {
-    it('answers admit=0 as not admitted, never stored, without building or calling an adapter', async () => {
+    it('answers admit=0 as not admitted, kept for a second, without building or calling an adapter', async () => {
         const { dependencies, built, searched } = harness(() =>
             Promise.resolve({ kind: 'answered', items: [ITEM], passthroughHeaders: QUOTA }),
         );
@@ -199,7 +199,7 @@ describe('handleSearchRequest — admission', () => {
         const response = await handleSearchRequest(makeSearchEvent({ query: { admit: '0' } }), dependencies);
 
         expect(response.statusCode).toBe(200);
-        expect(response.headers['cache-control']).toBe('no-store');
+        expect(response.headers['cache-control']).toBe('public, s-maxage=1');
         expect(response.headers[REMOTE_SEARCH_RID_HEADER]).toBe(VALID_RID);
         expect(contractBody(response)).toStrictEqual({ outcome: 'notAdmitted' });
         expect(built).toStrictEqual([]);

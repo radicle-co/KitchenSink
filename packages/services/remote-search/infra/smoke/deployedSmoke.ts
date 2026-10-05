@@ -117,7 +117,7 @@ export function classifySignedProbeAnswer(answer: ProbeAnswer, rid: string): Pro
     }
 
     if (/hit from cloudfront/iu.test(answer.headers['x-cache'] ?? '')) {
-        return { ok: false, reason: 'the CDN served a kept "not admitted", which it must never keep' };
+        return { ok: false, reason: 'the CDN answered a term nobody had asked from its cache' };
     }
 
     try {

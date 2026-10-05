@@ -46,9 +46,6 @@ CREATE TYPE "citation_match" AS ENUM ('exact', 'sameSubstance', 'close', 'generi
 -- ── The per-food tables and the live-only origin marker go; seed ownership replaces the marker ──────
 DROP VIEW "food_nutrient_view";
 DROP TABLE "food_nutrients", "food_category_assignment", "food_field_provenance", "food_portions", "food_sources";
--- The old catalog rows are deliberately disposable under KTD-9 / ADR-0050's greenfield exception. Remove them before
--- `food.item_id` becomes NOT NULL; the deploy-time seed rebuilds the catalog under the item/root/variant model.
-DELETE FROM "food";
 ALTER TABLE "food" DROP COLUMN "origin";
 DROP TYPE "food_origin";
 
@@ -75,10 +72,18 @@ CREATE TABLE "food_item" (
 
 -- ── food: the root. It owns exactly one item, retired or not (KTD-8) ───────────────────────────
 ALTER TABLE "food"
-    ADD COLUMN "item_id" text NOT NULL,
+    ADD COLUMN "item_id" text,
     ADD COLUMN "item_owner_kind" "food_item_owner_kind" DEFAULT 'root' NOT NULL,
     ADD COLUMN "seed_key" text,
-    ADD COLUMN "retired_at" timestamp with time zone,
+    ADD COLUMN "retired_at" timestamp with time zone;
+-- The old catalog rows are deliberately disposable under KTD-9 / ADR-0050's greenfield exception: one migration,
+-- no backfill, and the deploy-time seed rebuilds the catalog under the item/root/variant model. A row with no item
+-- — which is every row that predates this file, as `item_id` was added just above — cannot enter the item-keyed
+-- model, so exactly those rows leave before the column is pinned NOT NULL. The WHERE is the guard's own remedy
+-- (`migrationDestructiveDml`): it names the rows it removes and can never touch an item-bearing one.
+DELETE FROM "food" WHERE "item_id" IS NULL;
+ALTER TABLE "food"
+    ALTER COLUMN "item_id" SET NOT NULL,
     ADD CONSTRAINT "food_item_id_unique" UNIQUE ("item_id"),
     ADD CONSTRAINT "food_item_owner_kind_root" CHECK ("item_owner_kind" = 'root'),
     -- NO ACTION: an item cannot be deleted while it has an owner.

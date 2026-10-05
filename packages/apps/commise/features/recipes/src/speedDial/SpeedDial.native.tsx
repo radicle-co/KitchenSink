@@ -61,6 +61,9 @@ export const MENU_GAP = nativeTokens.spacing[3];
 
 export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, dismissLabel, actions }) => {
     const [open, setOpen] = useState(false);
+    // The pending destination. It is cleared on every path that opens or closes the menu WITHOUT a selection —
+    // the trigger, the backdrop and the modal's own back dismissal — rather than inside the effect below
+    // (react-hooks/set-state-in-effect), so a destination can never survive to fire on a later dismissal.
     const [pendingSelection, setPendingSelection] = useState<(() => void) | null>(null);
     const insets = useSafeAreaInsets();
 
@@ -74,10 +77,7 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
             return;
         }
 
-        const select = pendingSelection;
-
-        setPendingSelection(null);
-        select();
+        pendingSelection();
     }, [open, pendingSelection]);
 
     return (
@@ -91,7 +91,10 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
                 // everywhere.
                 accessibilityState={{ expanded: open }}
                 aria-expanded={open}
-                onPress={() => setOpen((previous) => !previous)}
+                onPress={() => {
+                    setPendingSelection(null);
+                    setOpen((previous) => !previous);
+                }}
                 style={styles.fab}
             >
                 {/* An icon, not a "+" character: flex centres the line box but ink is placed by the baseline,
@@ -103,11 +106,22 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
                 // Gating the whole `Modal` on `open` — not just its `visible` prop: react-native-web keeps a
                 // Modal's portal content mounted across a `visible` toggle, so a closed menu would stay
                 // findable, and tappable, in the tree.
-                <Modal visible transparent animationType="none" onRequestClose={() => setOpen(false)}>
+                <Modal
+                    visible
+                    transparent
+                    animationType="none"
+                    onRequestClose={() => {
+                        setPendingSelection(null);
+                        setOpen(false);
+                    }}
+                >
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={dismissLabel}
-                        onPress={() => setOpen(false)}
+                        onPress={() => {
+                            setPendingSelection(null);
+                            setOpen(false);
+                        }}
                         style={styles.backdrop}
                     />
                     <View

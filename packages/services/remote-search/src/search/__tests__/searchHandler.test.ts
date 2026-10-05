@@ -197,7 +197,7 @@ describe('handleSearchRequest — admission', () => {
         const response = await handleSearchRequest(makeSearchEvent({ query: { admit: '0' } }), dependencies);
 
         expect(response.statusCode).toBe(428);
-        expect(response.headers['cache-control']).toBe('no-store');
+        expect(response.headers['cache-control']).toBe('no-store, max-age=0');
         expect(response.headers[REMOTE_SEARCH_RID_HEADER]).toBe(VALID_RID);
         expect(contractBody(response)).toStrictEqual({ outcome: 'notAdmitted' });
         expect(built).toStrictEqual([]);

@@ -46,6 +46,9 @@ CREATE TYPE "citation_match" AS ENUM ('exact', 'sameSubstance', 'close', 'generi
 -- ── The per-food tables and the live-only origin marker go; seed ownership replaces the marker ──────
 DROP VIEW "food_nutrient_view";
 DROP TABLE "food_nutrients", "food_category_assignment", "food_field_provenance", "food_portions", "food_sources";
+-- The old catalog rows are deliberately disposable under KTD-9 / ADR-0050's greenfield exception. Remove them before
+-- `food.item_id` becomes NOT NULL; the deploy-time seed rebuilds the catalog under the item/root/variant model.
+DELETE FROM "food";
 ALTER TABLE "food" DROP COLUMN "origin";
 DROP TYPE "food_origin";
 

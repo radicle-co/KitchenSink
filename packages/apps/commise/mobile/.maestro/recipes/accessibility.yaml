@@ -56,18 +56,23 @@ appId: io.commise.mobile
       selected: false
 
 # --- 3. Icon/short-label controls carry a distinguishing accessible name ---------------------------------
-# Each discovery row's clone button VISIBLY reads just "Clone" — ambiguous to a screen-reader user paging
+# Each discovery result's clone button VISIBLY reads just "Clone" — ambiguous to a screen-reader user paging
 # through a feed of identical buttons — so its accessible name is "Clone {title}". That full string exists
 # ONLY as the accessibilityLabel, so this is the strongest falsifiable naming assertion on the surface:
 # remove the label and the node's text is "Clone", which cannot match. Guarded on the seeded public recipe.
-# ⛔ A HARD WAIT, not only the guard below. `when:` does not wait and does not fail: when the fixture was
-# missing it evaluated false, the whole body was SKIPPED, and the flow reported GREEN having asserted
-# nothing. That is exactly what happened in run 101351873536 — every reset had failed, the library was
-# empty, and this flow passed. The seeded world is now guaranteed by `e2e-seed`, so its absence is a
-# failure to report rather than a condition to tolerate. The guard is kept underneath it so the block's
-# structure is unchanged; by the time it runs it can only be true.
-- extendedWaitUntil:
-      visible: '${E2E_RECIPE_RISOTTO}'
+#
+# ⛔ REACH THE FIXTURE BY SEARCH, not by its place in a browse rail. Discover's default surface is the U7
+# rails (Trending/New/Quick), and a rail is one horizontally-scrolled page whose order depends on the whole
+# sandbox. `rating.yaml` already recorded the live failure: the co-author's Risotto can sit off the right edge
+# behind the signer's public rows. Typing the title's base switches to the deterministic result list, while
+# the run-scoped title keeps the selector unique to this run. This still proves the a11y label on a discovery
+# result — the behavior this block owns — without coupling it to rail placement.
+- tapOn: 'Search public recipes'
+- inputText: 'Risotto'
+- scrollUntilVisible:
+      element:
+          text: '^${E2E_RECIPE_RISOTTO}$'
+      direction: DOWN
       timeout: 30000
 - runFlow:
       when:

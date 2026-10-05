@@ -109,9 +109,14 @@ run_migrations_classify() {
     esac
 
     if [ -z "$payload" ]; then
-        # An invoke that wrote no payload at all did not run the function we asked for. `null` is a
-        # DIFFERENT thing — a handler that returns nothing — and is accepted below.
+        # An invoke that wrote no payload at all did not run the function we asked for.
         run_migrations_emit failed 'the invoke returned no payload at all, so the function proved nothing'
+
+        return 0
+    fi
+
+    if [ "$payload" = 'null' ]; then
+        run_migrations_emit failed 'the function returned JSON null, so no migration runner verdict was produced'
 
         return 0
     fi

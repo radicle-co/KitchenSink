@@ -13,7 +13,7 @@
  *
  * @implements ARCH-001
  */
-import { mkdtempSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -115,6 +115,31 @@ describe('migrate runner (integration)', () => {
         database: MIGRATE_IT_DATABASE,
     });
 
+    const buildLegacySchemaThrough = async (lastIncludedName: string): Promise<void> => {
+        await pool.query(`SET ROLE "${DATABASE_ROLES.food.owner}"`);
+
+        try {
+            await pool.query(
+                'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
+            );
+
+            for (const file of readdirSync(sourceMigrationsDir)
+                .filter((entry) => entry.endsWith('.sql'))
+                .sort()) {
+                const name = file.replace(/\.sql$/u, '');
+
+                if (name > lastIncludedName) {
+                    break;
+                }
+
+                await pool.query(readFileSync(join(sourceMigrationsDir, file), 'utf8'));
+                await pool.query('INSERT INTO schema_migrations (name) VALUES ($1)', [name]);
+            }
+        } finally {
+            await pool.query('RESET ROLE').catch(() => undefined);
+        }
+    };
+
     describe('discoverMigrations', () => {
         it('discovers every .sql migration in filename order (no hardcoded list)', () => {
             const names = discoverMigrations(sourceMigrationsDir).map((migration) => migration.name);
@@ -176,6 +201,24 @@ describe('migrate runner (integration)', () => {
             } finally {
                 await app.end();
             }
+        });
+
+        it('applies 0018 over a populated legacy food table by discarding old catalog rows', async () => {
+            await buildLegacySchemaThrough('0017_food_withdrawal');
+            await pool.query(
+                `INSERT INTO food (id, name, normalized_name, status)
+                 VALUES ('legacy_food', 'Legacy food', 'legacy food', 'RESOLVED')`,
+            );
+
+            const result = await runMigrations(migrateOptions(sourceMigrationsDir));
+
+            expect(result.applied[0]).toBe('0018_food_catalog_items_roots_variants');
+
+            const legacyRows = await pool.query<{ count: string }>(
+                `SELECT count(*) FROM food WHERE id = 'legacy_food'`,
+            );
+
+            expect(legacyRows.rows[0]?.count).toBe('0');
         });
     });
 

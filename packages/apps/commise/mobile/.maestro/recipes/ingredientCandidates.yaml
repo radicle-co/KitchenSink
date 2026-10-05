@@ -6,11 +6,13 @@ appId: io.commise.mobile
 # words, as row 7's is, with the source's foods flowing in, and one pick of a remote food puts it on THAT line.
 #
 # It runs against the PR's deployed sandbox (ADR-0032) on the create form. An `UNRESOLVED` line is made the way a cook
-# makes one: "Find nutrition for" admits the words by name, and a name food answers with several rows lands
-# `UNRESOLVED` and is committed as it is (`useLineCommit`). `halloumi` is such a name: USDA answers it with several
-# branded rows, and no root or synonym in the committed catalog seed (`food-service/src/foods/seed/data/
-# curatedCatalog.jsonl`, ADR-0051) contains it, so the seed cannot resolve it. ⛔ If the stage resolves it outright, the
-# flow stops at the labelled wait below and names that cause; it never passes without having opened the list.
+# makes one: "Find nutrition for" admits the words by name, food-service enqueues the source lookup, and a name food
+# answers with several rows lands `UNRESOLVED` and is committed as it is (`useLineCommit`). `halloumi` is such a name:
+# USDA answers it with several branded rows, and no root or synonym in the committed catalog seed
+# (`food-service/src/foods/seed/data/curatedCatalog.jsonl`, ADR-0051) contains it, so the seed cannot resolve it.
+# ⛔ The by-name door is asynchronous: a fresh stage may show `Resolving…` while the worker asks USDA, exactly as
+# `e2e-seed seed-catalog` allows up to 180 s for the same worker-backed add path. If the stage resolves it outright,
+# the flow stops at the labelled wait below and names that cause; it never passes without having opened the list.
 #
 # It spends one name lookup and one remote pick from the signer's source budget. Save Draft leaves one draft recipe,
 # which the next flow's reset deletes.
@@ -62,8 +64,8 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible:
           text: 'Not resolved'
-      timeout: 40000
-      label: 'the name "halloumi" lands UNRESOLVED on this stage, so row 6 has a line to show'
+      timeout: 180000
+      label: 'the name "halloumi" settles UNRESOLVED on this stage, so row 6 has a line to show'
 
 # The panel never opens by itself: nothing is listed until the cook presses the glyph.
 - assertNotVisible: 'None of these — search for a different food'

@@ -154,7 +154,7 @@ describe('the search function — each outcome, over the wire', () => {
             { [USDA_QUOTA_HEADERS.limitHeader]: '1000', [USDA_QUOTA_HEADERS.remainingHeader]: '996' },
             1,
         ],
-        ['not admitted', 'hits', { query: { admit: '0' } }, 428, 'no-store', {}, 0],
+        ['not admitted', 'hits', { query: { admit: '0' } }, 428, 'no-store, max-age=0', {}, 0],
         ['a term that is not canonical', 'hits', { query: { q: 'Chicken Breast' } }, 400, 'no-store', {}, 0],
         ['a retired adapter revision', 'hits', { rawPath: '/v1/usda/1/search' }, 404, 'no-store', {}, 0],
         [

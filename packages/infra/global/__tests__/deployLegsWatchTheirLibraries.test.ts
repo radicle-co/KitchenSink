@@ -42,6 +42,7 @@ import { deployedApps } from './cdkApps.js';
 import { repoRoot } from './serviceSources.js';
 
 const GLOBAL_APP = 'packages/infra/global';
+const SHARED_INFRA_GLOB = 'shared/infra/**';
 
 /** A workspace package, as the closure reads it. */
 interface WorkspacePackage {
@@ -481,5 +482,23 @@ describe('each service leg of a path-filtered deploy workflow watches the librar
         ]);
 
         expect([...new Set(gaps)]).toEqual([]);
+    });
+
+    it('sandbox preview gates watch the shared CDK constructs every preview CDK app consumes', () => {
+        const preview = workflows.find(({ file }) => file === 'sandboxPreview.yml');
+
+        expect(preview, 'sandboxPreview.yml must be discovered so this guard is not vacuous').toBeDefined();
+
+        const watchedLegs = ['food', 'recipe', 'search'] as const;
+        const missing = watchedLegs
+            .filter((leg) =>
+                preview?.groups[leg]?.some(
+                    (pattern) =>
+                        pattern === `packages/services/${leg === 'search' ? 'remote-search' : `${leg}-service`}/**`,
+                ),
+            )
+            .filter((leg) => preview?.groups[leg]?.includes(SHARED_INFRA_GLOB) !== true);
+
+        expect(missing).toEqual([]);
     });
 });

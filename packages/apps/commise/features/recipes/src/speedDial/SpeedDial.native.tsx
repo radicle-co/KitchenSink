@@ -44,7 +44,7 @@ import { palette, tint } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { Modal } from '@commise/ui/modal';
 import { Feather } from '@expo/vector-icons';
-import { useState, type FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -61,7 +61,24 @@ export const MENU_GAP = nativeTokens.spacing[3];
 
 export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, dismissLabel, actions }) => {
     const [open, setOpen] = useState(false);
+    const [pendingSelection, setPendingSelection] = useState<(() => void) | null>(null);
     const insets = useSafeAreaInsets();
+
+    // Run a selected destination only AFTER a render has committed the modal closed. On a device, React Native's
+    // `Modal` owns its own window and consumes hardware Back through `onRequestClose` before any `BackHandler`
+    // subscription sees the event. Navigating while the menu-close update is still batched with the destination press
+    // lets that modal window survive just long enough for the next Back press to close the stale menu instead of
+    // reaching the create wizard's discard guard.
+    useEffect(() => {
+        if (open || pendingSelection === null) {
+            return;
+        }
+
+        const select = pendingSelection;
+
+        setPendingSelection(null);
+        select();
+    }, [open, pendingSelection]);
 
     return (
         <>
@@ -112,8 +129,8 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
                                 accessibilityRole="menuitem"
                                 accessibilityLabel={action.label}
                                 onPress={() => {
+                                    setPendingSelection(() => action.onSelect);
                                     setOpen(false);
-                                    action.onSelect();
                                 }}
                                 style={styles.item}
                             >

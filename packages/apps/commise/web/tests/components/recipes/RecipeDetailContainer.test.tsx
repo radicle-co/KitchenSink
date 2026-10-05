@@ -85,6 +85,7 @@ function profileWithTier(subscriptionTier: 'free' | 'premium') {
 
 /** The app-user ULID that matches the default fixture's `ownerId` — the signed-in owner. */
 const OWNER_ID = 'usr_1';
+const EMPTY_ROUTE_RECIPE_ID = '';
 
 /**
  * Fields every `UseMutationResult` needs beyond the four this container reads (`mutate`/`isPending`/`error`/
@@ -482,7 +483,7 @@ describe('RecipeDetailContainer', () => {
                 const client = createFakeRecipeServiceClient();
                 const getRecipeSpy = vi.spyOn(client, 'getRecipeById');
 
-                renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="" />), client);
+                renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id={EMPTY_ROUTE_RECIPE_ID} />), client);
 
                 // The query never ran, so this is genuinely settled-with-nothing, not an in-flight fetch.
                 expect(getRecipeSpy).not.toHaveBeenCalled();
@@ -494,7 +495,7 @@ describe('RecipeDetailContainer', () => {
             it('offers a way OUT — a retry control, exactly as the generic error state does', () => {
                 const client = createFakeRecipeServiceClient();
 
-                renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="" />), client);
+                renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id={EMPTY_ROUTE_RECIPE_ID} />), client);
 
                 expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
             });
@@ -502,7 +503,7 @@ describe('RecipeDetailContainer', () => {
             it('does not misreport it as a 404 — there is no evidence the recipe is missing', () => {
                 const client = createFakeRecipeServiceClient();
 
-                renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="" />), client);
+                renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id={EMPTY_ROUTE_RECIPE_ID} />), client);
 
                 expect(screen.queryByText(/couldn.t find that recipe/i)).not.toBeInTheDocument();
             });

@@ -91,6 +91,7 @@ jobs:
               with:
                   filters: |
                       food:
+                          - 'shared/infra/**'
                           - 'packages/services/food-service/**'
                           - 'packages/clients/usda/**'
                           - 'packages/schemas/food/**'
@@ -106,6 +107,7 @@ jobs:
                           - 'packages/shared/recipe-core/**'
                           - 'packages/shared/service-logging/**'
                       recipe:
+                          - 'shared/infra/**'
                           - 'packages/services/recipe-service/**'
                           - 'packages/services/recipe-workers/**'
                           - 'packages/services/ingredient-parser/**'
@@ -125,6 +127,7 @@ jobs:
                           - 'packages/shared/recipe-import-core/**'
                           - 'packages/shared/service-logging/**'
                       search:
+                          - 'shared/infra/**'
                           - 'packages/services/remote-search/**'
                           - 'packages/clients/usda/**'
                           - 'packages/schemas/food/**'

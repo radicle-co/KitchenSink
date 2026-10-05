@@ -45,7 +45,7 @@ const DISMISS_LABEL = 'Close the create menu';
 const SCRATCH = 'Create from Scratch';
 
 /** The dial as it actually ships: exactly ONE destination. */
-function renderDial(onSelect = vi.fn(), extra: readonly SpeedDialAction[] = []) {
+function renderDial(onSelect: () => void = vi.fn(), extra: readonly SpeedDialAction[] = []) {
     const actions: readonly [SpeedDialAction, ...SpeedDialAction[]] = [
         { id: 'scratch', label: SCRATCH, onSelect },
         ...extra,
@@ -201,6 +201,22 @@ describe('SpeedDial (native) — dismissal', () => {
         expect(onSelect).toHaveBeenCalledTimes(1);
         expect(screen.queryByRole('menu')).toBeNull();
         expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('runs the destination only after the modal menu has committed closed', () => {
+        // React-native-web cannot model Android's separate Modal window consuming the next hardware Back press, so the
+        // falsifiable seam is the ordering: a destination must not run while the menu still exists. On a device, that
+        // pre-fix ordering left the menu window alive long enough for the first Back in the create wizard to dismiss
+        // it instead of reaching the wizard's discard guard.
+        const observedMenuState: boolean[] = [];
+        const { trigger } = renderDial(() => {
+            observedMenuState.push(screen.queryByRole('menu', { name: MENU_LABEL }) !== null);
+        });
+
+        fireEvent.click(trigger);
+        fireEvent.click(screen.getByRole('menuitem', { name: SCRATCH }));
+
+        expect(observedMenuState).toEqual([false]);
     });
 
     it('paints the backdrop from the palette token, never a hand-written rgba literal', () => {

@@ -123,10 +123,11 @@ describe('classify — `aws lambda invoke` exits 0 when the FUNCTION threw', () 
         expect(reason).toMatch(/no payload/i);
     });
 
-    it('treats a literal `null` payload as a clean run, not as an absent one', () => {
-        // A handler that returns nothing writes `null`. That is a runner design choice, not a fault, and
-        // conflating it with "the invoke produced nothing" would red every deploy of such a runner.
-        expect(classify('None', 'null').verdict).toBe('ok');
+    it('⛔ FAILS on a literal `null` payload — no migration runner verdict was produced', () => {
+        const { verdict, reason } = classify('None', 'null');
+
+        expect(verdict).toBe('failed');
+        expect(reason).toMatch(/JSON null/u);
     });
 
     it('rejects a missing argument as misuse rather than classifying it', () => {

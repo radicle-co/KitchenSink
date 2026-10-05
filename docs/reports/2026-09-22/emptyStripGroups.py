@@ -61,14 +61,16 @@ def strict(item, root):
 
 
 desc = {}
-for row in csv.DictReader(open(SR + "food.csv", encoding="utf-8", errors="replace")):
-    if (row.get("description") or "").strip():
-        desc[row["fdc_id"]] = row["description"].strip()
+with open(SR + "food.csv", encoding="utf-8", errors="replace") as f:
+    for row in csv.DictReader(f):
+        if (row.get("description") or "").strip():
+            desc[row["fdc_id"]] = row["description"].strip()
 foodon = {}
-for row in csv.DictReader(open(FULL + "food_attribute.csv", encoding="utf-8", errors="replace")):
-    name, value = (row.get("name") or "").strip(), (row.get("value") or "").strip()
-    if name in FOODON_ATTRS and value and (row["fdc_id"] not in foodon or name.endswith("#1 For FDC Item")):
-        foodon[row["fdc_id"]] = value
+with open(FULL + "food_attribute.csv", encoding="utf-8", errors="replace") as f:
+    for row in csv.DictReader(f):
+        name, value = (row.get("name") or "").strip(), (row.get("value") or "").strip()
+        if name in FOODON_ATTRS and value and (row["fdc_id"] not in foodon or name.endswith("#1 For FDC Item")):
+            foodon[row["fdc_id"]] = value
 
 roots = defaultdict(list)
 for fdc_id, label in foodon.items():

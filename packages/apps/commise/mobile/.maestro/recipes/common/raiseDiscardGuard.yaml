@@ -1,0 +1,29 @@
+appId: io.commise.mobile
+---
+# Reusable sub-flow: raise the discard guard with the SYSTEM back key, whether or not the soft keyboard is up. Called
+# with `runFlow: common/raiseDiscardGuard.yaml` from a flow standing on a surface that holds unsaved work.
+#
+# ⛔ WHY ONE PRESS IS NOT ENOUGH ON CI. The CI emulator runs `hw.keyboard=no` (see `_ci-heavy.yml`), so a focused
+# text field raises the SOFT keyboard, and Android hands the first BACK to the IME to hide it — the app never sees
+# that press. Measured on run 37268858758: every flow that typed into a field and then pressed Back once finished on
+# the SAME wizard with the keyboard gone and no dialog (screenshots in the `maestro-report-sandbox-*` artifacts), while
+# the flows that raise this dialog from the header arrow passed. The press this flow is about is the SECOND one; the
+# first only dismisses the keyboard. A real phone behaves the same way, which is correct and is not the app's to change.
+#
+# ⚠️ THE SECOND PRESS IS CONDITIONAL, AND THAT IS WHAT MAKES THIS SAFE EITHER WAY. When no keyboard was up (a local
+# emulator with a hardware keyboard), the first press already raised the dialog, and a second press would DISMISS it
+# (`ConfirmDialog.native.tsx` maps platform dismissal to Keep-editing). `waitForAnimationToEnd` lets the dialog or the
+# keyboard animation finish before the condition is read, because `when:` evaluates immediately and does not wait.
+#
+# It ENDS on the assertion, so a caller that previously wrote `pressKey: Back` + `assertVisible: 'Discard unsaved
+# changes?'` gets the same proof, minus the keyboard's interference. Do not add `hideKeyboard` before it: on Android
+# that is itself a BACK event, so with no keyboard up it would raise the dialog and the press below would dismiss it.
+- pressKey: Back
+- waitForAnimationToEnd:
+      timeout: 2000
+- runFlow:
+      when:
+          notVisible: 'Discard unsaved changes?'
+      commands:
+          - pressKey: Back
+- assertVisible: 'Discard unsaved changes?'

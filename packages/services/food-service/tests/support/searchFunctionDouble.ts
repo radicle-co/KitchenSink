@@ -1,6 +1,6 @@
 /**
  * A double of the remote search function (`packages/services/remote-search`) that keeps its published contract
- * (`@kitchensink/schema-remote-search`): a miss asked with `admit=0` is `428` and calls no source; `admit=1` calls
+ * (`@kitchensink/schema-remote-search`): a miss asked with `admit=0` is a `200` `notAdmitted` outcome and calls no source; `admit=1` calls
  * the source once and answers found (`s-maxage` 7 days) or empty (1 day); a path that names no search it serves is
  * `404 NOT_FOUND`; every other answer is `no-store`; every response echoes the request's `rid`; the source's quota
  * headers and `Retry-After` pass through. It records each source call, so "the source was not called" is an assertion

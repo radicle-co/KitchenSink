@@ -182,7 +182,7 @@ async function search(harness: Harness, term = 'kale'): Promise<RemoteSourceOutc
     });
 }
 
-const NOT_ADMITTED: Answer = { status: 428, body: { outcome: 'notAdmitted' } };
+const NOT_ADMITTED: Answer = { status: 200, body: { outcome: 'notAdmitted' } };
 
 describe('SearchServiceRemoteSearch — how long it waits on an admitted request', () => {
     // A request its viewer ends is not cached, so the CDN must be the one to end a slow request.
@@ -320,7 +320,7 @@ describe('SearchServiceRemoteSearch — what each ending reports', () => {
 
     it.each<[string, readonly (Answer | Error)[]]>([
         ['an answer with no echo', [{ status: 200, echo: null, body: { outcome: 'empty' } }]],
-        ['a 428 that echoes another request', [{ ...NOT_ADMITTED, echo: 'another-request-0000' }]],
+        ['a "not admitted" that echoes another request', [{ ...NOT_ADMITTED, echo: 'another-request-0000' }]],
         ['a source timeout', [NOT_ADMITTED, { status: 504, body: { code: 'SOURCE_TIMEOUT', message: 'Slow.' } }]],
         ['the search service failing', [NOT_ADMITTED, { status: 500, body: { code: 'INTERNAL', message: 'Down.' } }]],
         ['a 200 whose body breaks the contract', [{ status: 200, echo: 'another-1234567890', body: { outcome: 'x' } }]],

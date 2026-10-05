@@ -172,7 +172,7 @@ describe.skipIf(IS_PRODUCTION)(`signed requests to the remote search distributio
         const probeRid = newRid();
         const probe = await get(signed(key, searchUrl(term, '0', probeRid)));
 
-        expect(probe.response.status).toBe(428);
+        expect(probe.response.status).toBe(200);
         expect(remoteSearchNotAdmittedSchema.parse(JSON.parse(probe.body))).toEqual({ outcome: 'notAdmitted' });
         expect(probe.response.headers.get(REMOTE_SEARCH_RID_HEADER)).toBe(probeRid);
 

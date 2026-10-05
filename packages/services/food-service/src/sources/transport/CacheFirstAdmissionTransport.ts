@@ -3,8 +3,8 @@
  * search costs a source call only when the CDN does not hold its answer:
  *
  * 1. The probe asks with admission off. A cached answer comes back from the CDN, and nothing is charged.
- * 2. A miss reaches the origin, which answers "not admitted" (`428`) without calling the source. Only a `428` that
- *    echoes this request is believed; then admission is asked, and a refusal is a {@link SourceBusyError}.
+ * 2. A miss reaches the origin, which answers "not admitted" (a `200` outcome) without calling the source. Only a
+ *    "not admitted" that echoes this request is believed; then admission is asked, and a refusal is a {@link SourceBusyError}.
  * 3. The admitted request asks again with admission on. It runs to completion whatever the caller does: the CDN keeps
  *    an answer only when its viewer reads it to the end, and the window was spent the moment admission said yes.
  *
@@ -28,6 +28,7 @@ import {
     REMOTE_SEARCH_RID_HEADER,
     REMOTE_SEARCH_SOURCE_FAILURE_STATUS,
     remoteSearchErrorSchema,
+    remoteSearchNotAdmittedSchema,
 } from '@kitchensink/schema-remote-search';
 
 import { SourceBusyError } from '../foodSource.errors.js';
@@ -132,6 +133,26 @@ function jsonOf(
 }
 
 /**
+ * Whether a response is the search service's own "not admitted". Pure.
+ *
+ * It is a `200` OUTCOME, like a found or empty answer, so the status alone cannot tell it from an answer the cache
+ * kept: the body does. (It was a `428` until 2026-10-05, when a deployed stage proved CloudFront error-caches that
+ * status and the cached error poisons the slot an admitted answer needs.)
+ *
+ * @param read - The response.
+ * @returns Whether it is "not admitted".
+ */
+function isNotAdmitted(read: ReadResponse): boolean {
+    if (read.status !== REMOTE_SEARCH_NOT_ADMITTED_STATUS) {
+        return false;
+    }
+
+    const body = jsonOf(read.body);
+
+    return body.ok && remoteSearchNotAdmittedSchema.safeParse(body.value).success;
+}
+
+/**
  * A response as a fresh `Response` over its read body. Pure.
  *
  * @param read - The response.
@@ -177,7 +198,7 @@ export class CacheFirstAdmissionTransport {
         const probe = await this.read(search.probeUrl(), search.signal);
         const echo = probe.headers.get(REMOTE_SEARCH_RID_HEADER);
 
-        if (probe.status !== REMOTE_SEARCH_NOT_ADMITTED_STATUS) {
+        if (!isNotAdmitted(probe)) {
             return { response: responseOf(this.trustedProbe(search, probe, echo)), block: undefined };
         }
 
@@ -248,7 +269,7 @@ export class CacheFirstAdmissionTransport {
             );
         }
 
-        if (answered.status === REMOTE_SEARCH_NOT_ADMITTED_STATUS) {
+        if (isNotAdmitted(answered)) {
             throw new RemoteSearchUnavailableError(search.source, 'unexpectedStatus', answered.status);
         }
 

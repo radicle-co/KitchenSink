@@ -46,7 +46,14 @@ describe('classifyUnsignedCdnAnswer', () => {
             'an answer from the function: the signature is not enforced',
             answer({ status: 200, body: '{"outcome":"found"}' }),
         ],
-        ['a "not admitted" from the function', answer({ status: 428, headers: { 'x-search-rid': 'abc' } })],
+        [
+            'a "not admitted" from the function',
+            answer({
+                status: 200,
+                headers: { 'x-search-rid': 'abc' },
+                body: '{"outcome":"notAdmitted"}',
+            }),
+        ],
         ['a 403 the CDN did not produce', answer({ body: MISSING_KEY_BODY })],
         [
             'a CloudFront 403 for another reason',
@@ -72,7 +79,10 @@ describe('classifyDirectFunctionUrlAnswer', () => {
 
     it.each([
         ['an answer: the URL is open to anyone', answer({ status: 200, body: '{"outcome":"found"}' })],
-        ['a "not admitted": the function ran', answer({ status: 428, headers: { 'x-search-rid': 'abc' } })],
+        [
+            'a "not admitted": the function ran',
+            answer({ status: 200, headers: { 'x-search-rid': 'abc' }, body: '{"outcome":"notAdmitted"}' }),
+        ],
         [
             'a 403 the function itself sent',
             answer({ headers: { 'x-search-rid': 'abc', 'x-amzn-errortype': 'AccessDeniedException' } }),
@@ -89,7 +99,7 @@ const RID = 'deployedsmoke0123456789abcdef';
 
 /** The function's "not admitted", for this request, not kept by the CDN. */
 const NOT_ADMITTED = answer({
-    status: 428,
+    status: 200,
     headers: { 'x-search-rid': RID, 'x-cache': 'Miss from cloudfront' },
     body: '{"outcome":"notAdmitted"}',
 });
@@ -108,16 +118,20 @@ describe('classifySignedProbeAnswer', () => {
             }),
         ],
         [
-            'a 428 for another request',
+            'a "not admitted" for another request',
             answer({ ...NOT_ADMITTED, headers: { 'x-search-rid': 'deployedsmokeOTHER00000000' } }),
         ],
-        ['a 428 with no echo', answer({ ...NOT_ADMITTED, headers: { 'x-cache': 'Miss from cloudfront' } })],
+        ['a "not admitted" with no echo', answer({ ...NOT_ADMITTED, headers: { 'x-cache': 'Miss from cloudfront' } })],
         [
             'a "not admitted" the CDN kept',
             answer({ ...NOT_ADMITTED, headers: { 'x-search-rid': RID, 'x-cache': 'Hit from cloudfront' } }),
         ],
-        ['a 428 whose body is not "not admitted"', answer({ ...NOT_ADMITTED, body: '{"outcome":"found","items":[]}' })],
-        ['a 428 whose body is not JSON', answer({ ...NOT_ADMITTED, body: 'not admitted' })],
+        ['a 200 whose body is not "not admitted"', answer({ ...NOT_ADMITTED, body: '{"outcome":"found","items":[]}' })],
+        ['a 200 whose body is not JSON', answer({ ...NOT_ADMITTED, body: 'not admitted' })],
+        [
+            'a 428 from an older build: the status moved to 200 so a cached 4xx can no longer poison the slot',
+            answer({ ...NOT_ADMITTED, status: 428 }),
+        ],
         [
             'an answer: the term was not new, so this probe proves nothing about a miss',
             answer({ status: 200, headers: { 'x-search-rid': RID }, body: '{"outcome":"empty"}' }),

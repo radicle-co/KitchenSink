@@ -30,6 +30,7 @@ import { parseArgs } from 'node:util';
 import { getSignedUrl } from '@aws-sdk/cloudfront-signer';
 import { remoteSearchOriginParameter, remoteSearchSharedParameter } from '@radicle-co/infra-shared/remote-search';
 import {
+    REMOTE_SEARCH_NOT_ADMITTED_STATUS,
     REMOTE_SEARCH_RID_HEADER,
     remoteSearchNotAdmittedSchema,
     remoteSearchPath,
@@ -100,12 +101,19 @@ export function classifyDirectFunctionUrlAnswer(answer: ProbeAnswer): ProbeVerdi
  * @returns `ok` only for the function's "not admitted", echoing this request, and not kept by the CDN.
  */
 export function classifySignedProbeAnswer(answer: ProbeAnswer, rid: string): ProbeVerdict {
-    if (answer.status !== 428) {
-        return { ok: false, reason: `a signed probe answered ${String(answer.status)}, not the function's 428` };
+    // "Not admitted" is a 200 OUTCOME, so the status alone cannot tell it from a cached answer: the body and the echo do.
+    if (answer.status !== REMOTE_SEARCH_NOT_ADMITTED_STATUS) {
+        return {
+            ok: false,
+            reason: `a signed probe answered ${String(answer.status)}, not the function's ${String(REMOTE_SEARCH_NOT_ADMITTED_STATUS)}`,
+        };
     }
 
     if (answer.headers[REMOTE_SEARCH_RID_HEADER.toLowerCase()] !== rid) {
-        return { ok: false, reason: 'the 428 does not echo this request, so the function did not answer it' };
+        return {
+            ok: false,
+            reason: 'the "not admitted" does not echo this request, so the function did not answer it',
+        };
     }
 
     if (/hit from cloudfront/iu.test(answer.headers['x-cache'] ?? '')) {
@@ -120,7 +128,7 @@ export function classifySignedProbeAnswer(answer: ProbeAnswer, rid: string): Pro
         // A body that is not JSON is judged below, as a body that is not "not admitted".
     }
 
-    return { ok: false, reason: 'the 428 body is not the contract\'s "not admitted"' };
+    return { ok: false, reason: 'the body is not the contract\'s "not admitted"' };
 }
 
 /** The base stage's signing key, as `getSignedUrl` takes it. */

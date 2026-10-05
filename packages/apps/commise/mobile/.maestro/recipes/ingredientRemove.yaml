@@ -70,7 +70,6 @@ appId: io.commise.mobile
       text: '^Maestro Beta$'
 
 # Leave without saving: the explicit Discard, as `systemBackGuard.yaml` does.
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Discard changes'
 - assertVisible: 'Recipes'

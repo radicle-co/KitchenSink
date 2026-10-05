@@ -58,8 +58,14 @@ export function remoteSearchPath(source: RemoteSearchSource): string {
  */
 export const REMOTE_SEARCH_RID_HEADER = 'x-search-rid';
 
-/** The status of a miss asked with `admit=0` ({@link remoteSearchNotAdmittedSchema}). Never stored. */
-export const REMOTE_SEARCH_NOT_ADMITTED_STATUS = 428;
+/**
+ * The status of a miss asked with `admit=0` ({@link remoteSearchNotAdmittedSchema}): a `200`, because the answer
+ * is an OUTCOME like `found` and `empty`, never stored. It was a `428` until 2026-10-05, when the deployed stage
+ * proved CloudFront error-caches a 4xx the distribution cannot pin (428 sits outside the configurable error set,
+ * and neither `no-store` nor `max-age=0` governs the error cache): an admit=0 probe poisoned the `(path, q)` slot so
+ * the admitted answer cached beside it never served (ADR-0055 points 2 and 6).
+ */
+export const REMOTE_SEARCH_NOT_ADMITTED_STATUS = 200;
 
 /**
  * The status of a source's failure: `SOURCE_ERROR`, which carries the source's own status, and
@@ -118,7 +124,7 @@ export const remoteSearchAnswerSchema = z.discriminatedUnion('outcome', [
 
 export type RemoteSearchAnswer = z.infer<typeof remoteSearchAnswerSchema>;
 
-/** `428`, never stored: a miss asked with `admit=0`. The source was not called. */
+/** A `200`, never stored: a miss asked with `admit=0`. The source was not called. */
 export const remoteSearchNotAdmittedSchema = z.object({ outcome: z.literal('notAdmitted') });
 
 export type RemoteSearchNotAdmitted = z.infer<typeof remoteSearchNotAdmittedSchema>;

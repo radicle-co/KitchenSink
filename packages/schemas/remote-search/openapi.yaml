@@ -25,14 +25,14 @@ paths:
         - cloudFrontSignedUrl: []
       responses:
         "200":
-          description: "What the source said: `found` (`public, s-maxage=604800`) or `empty` (`public, s-maxage=86400`)."
+          description: A miss asked with `admit=0`. The source was not called.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RemoteSearchAnswer"
+                $ref: "#/components/schemas/RemoteSearchNotAdmitted"
           headers:
             Cache-Control:
-              description: "`public, s-maxage=604800 or public, s-maxage=86400`."
+              description: "`no-store`."
               schema:
                 type: string
             x-search-rid:
@@ -41,18 +41,6 @@ paths:
               schema:
                 type: string
                 pattern: ^[0-9A-Za-z-]{16,64}$
-            X-RateLimit-Limit:
-              description: USDA's quota size for the API key, verbatim, when USDA sent it.
-              schema:
-                type: string
-            X-RateLimit-Remaining:
-              description: USDA's calls left for the API key, verbatim, when USDA sent it.
-              schema:
-                type: string
-            Retry-After:
-              description: The source's own `Retry-After`, verbatim, when it sent one.
-              schema:
-                type: string
         "400":
           description: A parameter is missing, repeated or malformed.
           content:
@@ -93,23 +81,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RemoteSearchError"
-          headers:
-            Cache-Control:
-              description: "`no-store`."
-              schema:
-                type: string
-            x-search-rid:
-              description: The request's `rid`, on every response to a request whose `rid` parsed. A cached answer echoes the request
-                that stored it (ADR-0055 point 6).
-              schema:
-                type: string
-                pattern: ^[0-9A-Za-z-]{16,64}$
-        "428":
-          description: A miss asked with `admit=0`. The source was not called.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RemoteSearchNotAdmitted"
           headers:
             Cache-Control:
               description: "`no-store`."

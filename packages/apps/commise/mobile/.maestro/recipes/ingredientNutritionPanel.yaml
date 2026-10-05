@@ -56,7 +56,6 @@ appId: io.commise.mobile
 - assertVisible: 'About Flour'
 
 # Leave without saving: the explicit Discard, as `systemBackGuard.yaml` does.
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Discard changes'
 - assertVisible: 'Recipes'

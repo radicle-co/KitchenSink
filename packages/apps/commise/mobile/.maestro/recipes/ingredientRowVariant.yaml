@@ -92,7 +92,6 @@ appId: io.commise.mobile
 
 # Leave without saving: the explicit Discard, as `ingredientRemove.yaml` does — one Back, no `hideKeyboard` (why is
 # at `pinnedActionBar.yaml`'s bottom-of-list assertion).
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Discard changes'
 - assertVisible: 'Recipes'

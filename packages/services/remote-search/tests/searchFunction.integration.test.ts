@@ -117,9 +117,13 @@ async function invoke(event: LambdaFunctionURLEvent): Promise<{ response: Search
 
     switch (response.statusCode) {
         case 200:
-            return { response, body: remoteSearchAnswerSchema.parse(raw) };
-        case 428:
-            return { response, body: remoteSearchNotAdmittedSchema.parse(raw) };
+            // A 200 holds either an answer or the notAdmitted outcome (its own status since 2026-10-05).
+            return {
+                response,
+                body: remoteSearchAnswerSchema.safeParse(raw).success
+                    ? remoteSearchAnswerSchema.parse(raw)
+                    : remoteSearchNotAdmittedSchema.parse(raw),
+            };
         default:
             return { response, body: remoteSearchErrorSchema.parse(raw) };
     }
@@ -154,7 +158,7 @@ describe('the search function — each outcome, over the wire', () => {
             { [USDA_QUOTA_HEADERS.limitHeader]: '1000', [USDA_QUOTA_HEADERS.remainingHeader]: '996' },
             1,
         ],
-        ['not admitted', 'hits', { query: { admit: '0' } }, 428, 'no-store, max-age=0', {}, 0],
+        ['not admitted', 'hits', { query: { admit: '0' } }, 200, 'no-store', {}, 0],
         ['a term that is not canonical', 'hits', { query: { q: 'Chicken Breast' } }, 400, 'no-store', {}, 0],
         ['a retired adapter revision', 'hits', { rawPath: '/v1/usda/1/search' }, 404, 'no-store', {}, 0],
         [
@@ -273,7 +277,7 @@ describe('the search function — the key comes from its secret, once per contai
     });
 
     it.each<[string, Parameters<typeof makeSearchEvent>[0], number]>([
-        ['a probe it does not admit', { query: { admit: '0' } }, 428],
+        ['a probe it does not admit', { query: { admit: '0' } }, 200],
         ['a term that is not canonical', { query: { q: 'EGG' } }, 400],
         ['a path that is no search', { rawPath: '/v1/usda/1/search' }, 404],
     ])('never reads the secret for %s', async (_label, event, status) => {

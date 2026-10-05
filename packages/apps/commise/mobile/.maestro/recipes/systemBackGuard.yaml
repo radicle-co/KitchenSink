@@ -36,19 +36,18 @@ appId: io.commise.mobile
 
 - tapOn: 'Title'
 - inputText: 'System Back Guard Draft'
-# ⛔ NO `hideKeyboard` HERE, AND THAT IS THE WHOLE POINT. Android delivers it as a BACK EVENT, so on this
-# screen it is not a keyboard command at all — it is an extra press. Measured on a CI-matched emulator
-# against the fixed build: `hideKeyboard` + `pressKey: Back` RAISED the dialog and then DISMISSED it (every
-# dialog here maps platform dismissal to cancel via `ConfirmDialog.native.tsx`'s `onRequestClose`), and this
-# assertion went red on a working fix. An isolation probe with `pressKey: Back` ALONE passed.
-# ⚠️ An earlier version of this comment placed `hideKeyboard` here deliberately, reasoning the soft keyboard
-# would swallow its back event before the app saw it. It does not — after `inputText` the field is no longer
-# holding the IME open, so the event reaches the wizard. That is the same mechanism that let a `hideKeyboard`
-# dismiss the account-erase dialog mid-flow.
+# ⛔ NO `hideKeyboard` HERE: on Android it is itself a BACK event, so with no keyboard up it raises the dialog and the
+# press below then DISMISSES it (every dialog here maps platform dismissal to cancel via `ConfirmDialog.native.tsx`'s
+# `onRequestClose`).
+#
+# ⚠️ BUT ONE `pressKey: Back` IS NOT ENOUGH ON CI, and an earlier version of this comment claimed it was. The CI AVD runs
+# `hw.keyboard=no`, so the field just typed into still holds the SOFT keyboard, and Android hands the first BACK to the
+# IME to hide it (run 37268858758: this flow ended on the same wizard with the keyboard gone and no dialog).
+# `common/raiseDiscardGuard.yaml` presses once, lets the screen settle, and presses again only if the dialog is still
+# absent, which is right with or without a keyboard up.
 #
 # THE PRESS UNDER TEST. Against the defect this popped the wizard and the next assertion went red.
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 
 # "Keep editing" must keep BOTH the wizard and what was typed into it — asserting only that the dialog closed
 # would pass against a guard that discarded the draft behind it.
@@ -61,15 +60,14 @@ appId: io.commise.mobile
 # catches the key on the dialog window and fires `onRequestClose`, which `ConfirmDialog` maps to cancel, so the
 # press never reaches the back-interceptor chain at all. Leaving a dirty editor therefore takes two DELIBERATE
 # acts, which is the more protective direction. Do NOT "fix" this flow by expecting back-back to exit.
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 - pressKey: Back
 - assertNotVisible: 'Discard unsaved changes?'
 - assertVisible: 'Step 1 of 4'
 
 # Only an explicit Discard leaves, and it lands on the list — one pop, not two (two would have left the
 # recipes surface entirely and `Recipes` would not be visible).
-- pressKey: Back
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Discard changes'
 - assertVisible: 'Recipes'
 
@@ -100,8 +98,7 @@ appId: io.commise.mobile
 
 # ⛔ NO `hideKeyboard` — see the create leg above. It is a back EVENT, so it would raise the dialog and the
 # press below would dismiss it, reddening this assertion against a working fix.
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Discard changes'
 
 # Back on the DETAIL (one pop), carrying its original title — the edit really was discarded rather than saved.
@@ -125,8 +122,7 @@ appId: io.commise.mobile
 - inputText: 'System Back Guard Collection'
 
 # ⛔ NO `hideKeyboard` — see the create leg above.
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Keep editing'
 - assertNotVisible: 'Discard unsaved changes?'
 # The NAME, not just the form: a guard that closed the dialog and cleared the field would pass on the form
@@ -135,7 +131,7 @@ appId: io.commise.mobile
 
 # ⛔ LEAVING IS ASSERTED ON THE FIELD, NOT ON 'New collection'. That string is BOTH the list's create CTA and
 # this form's own title (see `collections.yaml`), so it is visible either way and proves nothing.
-- pressKey: Back
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Discard changes'
 - assertNotVisible: 'Collection name'
 
@@ -156,8 +152,7 @@ appId: io.commise.mobile
 - inputText: '2 cups flour'
 
 # ⛔ NO `hideKeyboard` — see the create leg above.
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Keep editing'
 - assertNotVisible: 'Discard unsaved changes?'
 - assertVisible: '2 cups flour'

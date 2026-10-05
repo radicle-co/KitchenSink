@@ -22,20 +22,9 @@ const FOUND_CACHE_CONTROL = 'public, s-maxage=604800';
 /** An empty answer is shared for 1 day. */
 const EMPTY_CACHE_CONTROL = 'public, s-maxage=86400';
 
-/** Every response except `notAdmitted` is never stored; those statuses sit in CloudFront's configurable error set,
- * where the distribution already pins every error-caching TTL to 0 (ADR-0055 point 2). */
+/** Every response is never stored except the two answers a cache may keep; the error statuses sit in CloudFront's
+ * configurable error set, where the distribution already pins every error-caching TTL to 0 (ADR-0055 point 2). */
 const NO_STORE = 'no-store';
-
-/**
- * `notAdmitted` is 428, a status CloudFront's configurable error set does not contain, so the distribution cannot pin
- * its error-caching TTL the way it does for every other status — and the origin's `no-store` alone does not stop the
- * edge's DEFAULT error caching either. Measured on the deployed pr-91 stage (2026-10-05): an admit=0 probe's 428
- * entered that default error cache and poisoned the `(path, q)` slot the admitted answer needed, so the next probe
- * replayed the 428 instead of hitting the cached 200 — the exact probe→admit→hit sequence ADR-0055 point 6 makes
- * food-service walk. `max-age=0` is the documented directive the edge honors as an origin error's caching TTL, which
- * restores the ADR's "every error-caching TTL is 0" for the one status the distribution cannot express it for.
- */
-const NOT_ADMITTED_CACHE_CONTROL = 'no-store, max-age=0';
 
 /** Any body the service answers with. */
 export type SearchBody = RemoteSearchAnswer | RemoteSearchNotAdmitted | RemoteSearchError;
@@ -64,7 +53,10 @@ function dispositionOf(body: SearchBody): { readonly status: number; readonly ca
             case 'empty':
                 return { status: 200, cacheControl: EMPTY_CACHE_CONTROL };
             case 'notAdmitted':
-                return { status: REMOTE_SEARCH_NOT_ADMITTED_STATUS, cacheControl: NOT_ADMITTED_CACHE_CONTROL };
+                // A 200 OUTCOME (see REMOTE_SEARCH_NOT_ADMITTED_STATUS): the answer rides the content path, where
+                // no-store is honored, instead of the error path a 4xx would take — the error path is what poisoned
+                // the cache slot on the deployed stage (2026-10-05).
+                return { status: REMOTE_SEARCH_NOT_ADMITTED_STATUS, cacheControl: NO_STORE };
         }
     }
 

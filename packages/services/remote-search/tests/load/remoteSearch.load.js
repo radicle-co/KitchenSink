@@ -8,7 +8,8 @@
  *
  *   • HITS ask terms the warm-up stored. CloudFront answers them from its cache, and the answer echoes the id of the
  *     request that stored it, never the hit's own. This is the path cooks take for every repeated search.
- *   • PROBES ask terms nobody stored, unadmitted. The function answers each one `428` without calling the source, so
+ *   • PROBES ask terms nobody stored, unadmitted. The function answers each one `200` with the `notAdmitted`
+ *     outcome, without calling the source, so
  *     this measures the function and its reserved concurrency, which is small (two at a preview). A `429` is the
  *     function refusing a request over that cap: food reads it as the source being unavailable.
  *
@@ -199,7 +200,7 @@ export function askStored(data) {
 
     // A cached answer replays the request that stored it, which may be an earlier run's; the function replays the
     // request it was sent.
-    if (response.status === 200 || response.status === 428) {
+    if (response.status === 200) {
         ridEchoMismatch.add(cached ? echoed === '' || echoed === request.rid : echoed !== request.rid);
     }
 
@@ -219,15 +220,19 @@ export function probeMiss() {
         return;
     }
 
-    probeAnsweredBySource.add(response.status === 200);
+    // `notAdmitted` is a 200 outcome (its own status since 2026-10-05), so the body tells it from an answer.
+    const notAdmitted = String(response.body).includes('"notAdmitted"');
 
-    if (response.status === 428) {
+    probeAnsweredBySource.add(!notAdmitted);
+
+    if (notAdmitted) {
         probeLatency.add(response.timings.duration);
         ridEchoMismatch.add((response.headers[headerName()] || '') !== request.rid);
     }
 
     check(response, {
-        'a probe is answered "not admitted" by the function': (r) => r.status === 428,
+        'a probe is answered "not admitted" by the function': (r) =>
+            r.status === 200 && String(r.body).includes('"notAdmitted"'),
     });
 }
 

@@ -95,7 +95,6 @@ appId: io.commise.mobile
 - assertNotVisible: 'Actions for boneless skinless chicken breasts, roasted'
 
 # Leave without saving: the explicit Discard, as `ingredientRemove.yaml` does.
-- pressKey: Back
-- assertVisible: 'Discard unsaved changes?'
+- runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Discard changes'
 - assertVisible: 'Recipes'

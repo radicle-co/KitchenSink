@@ -24,7 +24,7 @@ describe('handler', () => {
     it('flushes Sentry once per invocation, after the answer is built', async () => {
         const response = await handler(makeSearchEvent({ query: { admit: '0' } }));
 
-        expect(response.statusCode).toBe(428);
+        expect(response.statusCode).toBe(200);
         expect(observability.flushObservability).toHaveBeenCalledTimes(1);
     });
 

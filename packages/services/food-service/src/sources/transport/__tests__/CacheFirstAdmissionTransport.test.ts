@@ -3,7 +3,7 @@
  * search the Decorator:
  *
  * 1. asks the CDN with admission off (the probe), which costs nothing: a cached answer comes back as it is;
- * 2. on "not admitted" (`428`) that echoes this request, asks admission, and refuses with `SourceBusyError` when it
+ * 2. on "not admitted" (a `200` outcome) that echoes this request, asks admission, and refuses with `SourceBusyError` when it
  *    says no, without asking again;
  * 3. otherwise asks again with admission on, and lets that request run to completion whatever the caller does, so the
  *    cache fills;
@@ -70,7 +70,7 @@ function responseOf(answer: Answer): Response {
     return new Response(answer.body ?? '{}', { status: answer.status, headers });
 }
 
-const NOT_ADMITTED: Answer = { status: 428, echo: RID, body: '{"outcome":"notAdmitted"}' };
+const NOT_ADMITTED: Answer = { status: 200, echo: RID, body: '{"outcome":"notAdmitted"}' };
 
 /** What one case's ports saw. */
 interface Harness {
@@ -197,7 +197,7 @@ describe('CacheFirstAdmissionTransport — a cached answer costs nothing', () =>
 });
 
 describe('CacheFirstAdmissionTransport — a miss is admitted, then asked again', () => {
-    it('admits a 428 that echoes this request, then asks with admission on', async () => {
+    it('admits a "not admitted" that echoes this request, then asks with admission on', async () => {
         const harness = makeHarness({
             answers: [NOT_ADMITTED, { status: 200, echo: RID, body: FOUND_BODY }],
         });
@@ -210,15 +210,18 @@ describe('CacheFirstAdmissionTransport — a miss is admitted, then asked again'
     });
 
     it.each<[string, Answer]>([
-        ['carries no echo (the function URL’s own throttle)', { status: 428, echo: null }],
-        ['echoes another request', { status: 428, echo: FOREIGN_RID }],
-    ])('admits nothing when the 428 %s, and reports the search service unavailable', async (_label, answer) => {
-        const harness = makeHarness({ answers: [answer] });
+        ['carries no echo (the function URL’s own throttle)', { ...NOT_ADMITTED, echo: null }],
+        ['echoes another request', { ...NOT_ADMITTED, echo: FOREIGN_RID }],
+    ])(
+        'admits nothing when the "not admitted" %s, and reports the search service unavailable',
+        async (_label, answer) => {
+            const harness = makeHarness({ answers: [answer] });
 
-        await expect(harness.transport.send(searchOf())).rejects.toSatisfy(isRemoteSearchUnavailableError);
-        expect(harness.admissions).toEqual([]);
-        expect(harness.requests).toHaveLength(1);
-    });
+            await expect(harness.transport.send(searchOf())).rejects.toSatisfy(isRemoteSearchUnavailableError);
+            expect(harness.admissions).toEqual([]);
+            expect(harness.requests).toHaveLength(1);
+        },
+    );
 
     it.each<SourceBusyReason>(['ceiling', 'blocked', 'contended', 'requesterLimit'])(
         'refuses with SourceBusyError (%s) and never sends the admitted request',

@@ -109,9 +109,11 @@ function contractBody(response: SearchResponse): unknown {
 
     switch (response.statusCode) {
         case 200:
-            return remoteSearchAnswerSchema.parse(body);
-        case 428:
-            return remoteSearchNotAdmittedSchema.parse(body);
+            // A 200 holds either an answer or the notAdmitted outcome (its own status since 2026-10-05), so the body
+            // decides which schema parses it.
+            return remoteSearchAnswerSchema.safeParse(body).success
+                ? remoteSearchAnswerSchema.parse(body)
+                : remoteSearchNotAdmittedSchema.parse(body);
         default:
             return remoteSearchErrorSchema.parse(body);
     }
@@ -196,8 +198,8 @@ describe('handleSearchRequest — admission', () => {
 
         const response = await handleSearchRequest(makeSearchEvent({ query: { admit: '0' } }), dependencies);
 
-        expect(response.statusCode).toBe(428);
-        expect(response.headers['cache-control']).toBe('no-store, max-age=0');
+        expect(response.statusCode).toBe(200);
+        expect(response.headers['cache-control']).toBe('no-store');
         expect(response.headers[REMOTE_SEARCH_RID_HEADER]).toBe(VALID_RID);
         expect(contractBody(response)).toStrictEqual({ outcome: 'notAdmitted' });
         expect(built).toStrictEqual([]);
@@ -353,7 +355,7 @@ describe('handleSearchRequest — the log', () => {
             { query: { admit: '0' } },
             { kind: 'answered', items: [ITEM], passthroughHeaders: QUOTA },
             'info',
-            { rid: VALID_RID, source: 'usda', status: 428, outcome: 'notAdmitted' },
+            { rid: VALID_RID, source: 'usda', status: 200, outcome: 'notAdmitted' },
         ],
         [
             'a source failure',

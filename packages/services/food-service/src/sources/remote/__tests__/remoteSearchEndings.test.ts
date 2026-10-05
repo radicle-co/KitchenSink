@@ -52,7 +52,7 @@ interface Case {
     readonly callerLeft?: boolean;
 }
 
-const NOT_ADMITTED: Answer = { status: 428, body: { outcome: 'notAdmitted' } };
+const NOT_ADMITTED: Answer = { status: 200, body: { outcome: 'notAdmitted' } };
 
 /**
  * Search once through the real adapter over a stub CDN, and return what it recorded and what it answered.
@@ -192,7 +192,7 @@ describe('SearchServiceRemoteSearch — the ending it records', () => {
             'unavailable',
         ],
         [
-            'a 428 that echoes another request',
+            'a "not admitted" that echoes another request',
             { answers: [{ ...NOT_ADMITTED, echo: OTHER_RID }] },
             'foreignEcho',
             'unavailable',

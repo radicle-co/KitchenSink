@@ -44,7 +44,7 @@ import { palette, tint } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { Modal } from '@commise/ui/modal';
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useState, type FC } from 'react';
+import { useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -61,24 +61,7 @@ export const MENU_GAP = nativeTokens.spacing[3];
 
 export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, dismissLabel, actions }) => {
     const [open, setOpen] = useState(false);
-    // The pending destination. It is cleared on every path that opens or closes the menu WITHOUT a selection —
-    // the trigger, the backdrop and the modal's own back dismissal — rather than inside the effect below
-    // (react-hooks/set-state-in-effect), so a destination can never survive to fire on a later dismissal.
-    const [pendingSelection, setPendingSelection] = useState<(() => void) | null>(null);
     const insets = useSafeAreaInsets();
-
-    // Run a selected destination only AFTER a render has committed the modal closed. On a device, React Native's
-    // `Modal` owns its own window and consumes hardware Back through `onRequestClose` before any `BackHandler`
-    // subscription sees the event. Navigating while the menu-close update is still batched with the destination press
-    // lets that modal window survive just long enough for the next Back press to close the stale menu instead of
-    // reaching the create wizard's discard guard.
-    useEffect(() => {
-        if (open || pendingSelection === null) {
-            return;
-        }
-
-        pendingSelection();
-    }, [open, pendingSelection]);
 
     return (
         <>
@@ -91,10 +74,7 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
                 // everywhere.
                 accessibilityState={{ expanded: open }}
                 aria-expanded={open}
-                onPress={() => {
-                    setPendingSelection(null);
-                    setOpen((previous) => !previous);
-                }}
+                onPress={() => setOpen((previous) => !previous)}
                 style={styles.fab}
             >
                 {/* An icon, not a "+" character: flex centres the line box but ink is placed by the baseline,
@@ -106,22 +86,11 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
                 // Gating the whole `Modal` on `open` — not just its `visible` prop: react-native-web keeps a
                 // Modal's portal content mounted across a `visible` toggle, so a closed menu would stay
                 // findable, and tappable, in the tree.
-                <Modal
-                    visible
-                    transparent
-                    animationType="none"
-                    onRequestClose={() => {
-                        setPendingSelection(null);
-                        setOpen(false);
-                    }}
-                >
+                <Modal visible transparent animationType="none" onRequestClose={() => setOpen(false)}>
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={dismissLabel}
-                        onPress={() => {
-                            setPendingSelection(null);
-                            setOpen(false);
-                        }}
+                        onPress={() => setOpen(false)}
                         style={styles.backdrop}
                     />
                     <View
@@ -143,8 +112,8 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
                                 accessibilityRole="menuitem"
                                 accessibilityLabel={action.label}
                                 onPress={() => {
-                                    setPendingSelection(() => action.onSelect);
                                     setOpen(false);
+                                    action.onSelect();
                                 }}
                                 style={styles.item}
                             >

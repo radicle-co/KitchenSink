@@ -86,7 +86,7 @@ describe('the search function, with its USDA key in Secrets Manager', () => {
 
         const response = await handler(makeSearchEvent({ query: { admit: '0' } }));
 
-        expect(response.statusCode).toBe(428);
+        expect(response.statusCode).toBe(200);
         expect(upstream.requests).toHaveLength(0);
     });
 

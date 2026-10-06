@@ -98,7 +98,7 @@ beforeAll(async () => {
             },
         },
         remote: new SearchServiceRemoteSearch({
-            // The stand-in's clock is frozen within a test, so a pause must move it past the kept second.
+            // The stand-in's clock runs live until this port pins it; each pause then moves it past the kept second.
             pause: async (ms) => {
                 edge.now += ms;
             },

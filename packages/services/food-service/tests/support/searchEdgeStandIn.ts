@@ -48,7 +48,13 @@ export interface SearchEdgeStandIn {
     readonly origin: string;
     /** The cache keys of every request that reached the origin, in order. */
     readonly originRequests: string[];
-    /** The time the stand-in reads for expiry and TTLs, epoch milliseconds; a suite may move it. */
+    /** The time the stand-in reads for expiry, TTLs and signature checks, epoch milliseconds.
+     *
+     * Unassigned it follows the wall clock LIVE — a real-time tier (the e2e suite) relies on the kept
+     * "not admitted" second lapsing while the caller really waits out
+     * `REMOTE_SEARCH_NOT_ADMITTED_RETRY_DELAY_MS`. Assigned, it stands PINNED at the value until moved
+     * again — the integration suites pin it and advance it by hand through their pause port.
+     */
     now: number;
     /** Forget every kept object. */
     clear(): void;
@@ -101,7 +107,8 @@ async function sendTo(response: ServerResponse, result: OriginResult): Promise<b
  * @param options.origin - The function.
  * @param options.publicKey - The trusted public key.
  * @param options.keyPairId - Its id.
- * @param options.now - The starting time, epoch milliseconds. Defaults to the wall clock.
+ * @param options.now - Pins the stand-in's clock at this value, epoch milliseconds; defaults to the live
+ * wall clock, because the e2e tier's transport waits out the retry delay for real.
  * @returns The running stand-in.
  * @sideEffect Opens a listening socket.
  */
@@ -177,10 +184,17 @@ export async function startSearchEdgeStandIn(options: {
 
     base = `http://127.0.0.1:${String(port)}`;
 
+    let pinnedNow: number | undefined = options.now;
+
     const standIn: SearchEdgeStandIn = {
         origin: base,
         originRequests,
-        now: options.now ?? Date.now(),
+        get now(): number {
+            return pinnedNow ?? Date.now();
+        },
+        set now(value: number) {
+            pinnedNow = value;
+        },
         clear(): void {
             cache.clear();
         },

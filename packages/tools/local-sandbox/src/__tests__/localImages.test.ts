@@ -141,6 +141,19 @@ describe('pruneStepFor', () => {
 describe('localContainerEnv', () => {
     const base = { database: 'kitchensink_food_dev', port: 3002 };
 
+    it('supplies the local proxy topology for a trusted-proxy-hop count — zero, and digits', () => {
+        // ⛔ Regression, found by running `local:up`. `FOOD_TRUSTED_PROXY_HOPS` counts X-Forwarded-For
+        // entries from the right to find the client (food's auth shedder), and its env schema accepts
+        // digits ONLY. The generic fall-through placeholder put the food container into a crash loop at
+        // boot — `must be a whole number of proxies` — while identity and recipes started healthy. The
+        // local truth is not a placeholder at all: NOTHING fronts a compose container (no ALB, no
+        // CloudFront; the bridge connects directly), so the count is 0 — the deployed 1 names a chain
+        // that does not exist here.
+        const env = localContainerEnv(['FOOD_TRUSTED_PROXY_HOPS'], base);
+
+        expect(env['FOOD_TRUSTED_PROXY_HOPS']).toBe('0');
+    });
+
     it('points the database variables at the compose Postgres, not at RDS', () => {
         const env = localContainerEnv(['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD'], base);
 

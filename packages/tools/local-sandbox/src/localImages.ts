@@ -289,6 +289,18 @@ export function localContainerEnv(keys: readonly string[], context: LocalEnvCont
             continue;
         }
 
+        // A proxy-hop count names DEPLOYED network topology — how many trusted proxies append to X-Forwarded-For
+        // in front of the task (`FoodServiceStack` sets 1 behind the shared ALB; food's auth shedder reads it,
+        // and its env schema accepts digits only). NOTHING fronts a compose container — the bridge connects
+        // directly — so the local count is 0. ⛔ A TOPOLOGY RULE, not a placeholder: the generic
+        // `local-placeholder` crashed food at boot with `must be a whole number of proxies`, and the deployed
+        // 1 would name a chain that does not exist here. Ranks with the sibling-URL rule, ABOVE anything
+        // resolved from AWS, for the same reason: local infrastructure beats a deployed shape.
+        if (/_TRUSTED_PROXY_HOPS$/u.test(key)) {
+            env[key] = '0';
+            continue;
+        }
+
         // ⛔ BEFORE the omission list and before the placeholder. `CLERK_JWT_KEY` is OMITTED because nothing
         // local can invent a verification key — but a real one read from SSM is not an invention, and
         // omitting it is what made recipe-service refuse to boot.

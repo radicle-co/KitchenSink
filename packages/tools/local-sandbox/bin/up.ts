@@ -750,11 +750,20 @@ async function main(): Promise<void> {
     // to those numbers. A port map invented in this package would be a second, competing convention.
     //
     // ⛔ NOT started from inside this command. `turbo run dev` is a watch process that never returns, and an
-    // `up` that never returns cannot be composed or scripted. `npm run local:dev` chains the two.
+    // `up` that never returns cannot be composed or scripted.
+    //
+    // ⚠️ AND THE COMPOSE TIER THIS RUN STARTED HOLDS THOSE SAME PORTS. The dev watch processes bind the
+    // ports their own env schemas default to — the very ports the service containers above are publishing —
+    // so `npm run local:dev` (`up && turbo run dev`) collides with the stack its first half just started. The
+    // honest instruction is containers DOWN first, which takes postgres and LocalStack with it; an
+    // infra-only `up` mode (start postgres + LocalStack, skip the service containers) is what would make the
+    // chain coherent, and it does not exist yet.
     process.stdout.write(
-        '\n  Services run as PROCESSES locally, not images — the CDK references prebuilt ECR tags\n' +
-            '  (`ContainerImage.fromEcrRepository`), so it does not describe how to build them; CI does.\n' +
-            '\n  Start them:  npm run dev:local        (or `npm run local:dev` to do both in one step)\n' +
+        '\n  The services run as CONTAINERS from images this run built — the CDK references prebuilt ECR tags\n' +
+            '  (`ContainerImage.fromEcrRepository`), so it does not describe how to build them; CI does, and this\n' +
+            "  tool repeats CI's own steps. The containers hold the ports their own env schemas default to.\n" +
+            '\n  Hot-reload development instead: `npm run local:down`, then `npm run dev:local` — the watch\n' +
+            '  processes bind those SAME ports, so stop the containers first.\n' +
             '  Stop this:   npm run local:down\n',
     );
 }

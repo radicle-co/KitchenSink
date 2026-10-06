@@ -227,6 +227,35 @@ export const LOCAL_SUPPORT: Readonly<Record<string, LocalSupport>> = Object.free
         kind: 'unsupported',
         why: 'edge behaviour (the router, KVS, viewer headers) has no local equivalent — ADR-0001 turns on exactly that',
     },
+
+    // ── The remote-search signing surface (`RemoteSearchSharedStack`, ADR-0055). Every copy's distribution
+    // validates signed requests at the edge with these; the LOCAL e2e tier reaches the handler directly,
+    // so none of it has a local consumer. Stated rather than skipped for the same reason as the
+    // distribution above: a sandbox that silently omitted them would claim signing parity it cannot have.
+    'AWS::CloudFront::PublicKey': {
+        kind: 'unsupported',
+        why: 'the CloudFront-side half of the remote-search signing pair; no local CloudFront validates a signature',
+    },
+    'AWS::CloudFront::KeyGroup': {
+        kind: 'unsupported',
+        why: 'groups the public keys the deployed search distributions validate against; nothing local validates a signed request',
+    },
+    'Custom::CloudFrontSigningKey': {
+        kind: 'unsupported',
+        why: 'deploy-time provisioner that uploads the public half to CloudFront; there is no local CloudFront to upload to',
+    },
+    'AWS::CloudFront::CachePolicy': {
+        kind: 'unsupported',
+        why: 'caching shape of the deployed search distribution, which has no local equivalent',
+    },
+    'AWS::CloudFront::OriginRequestPolicy': {
+        kind: 'unsupported',
+        why: 'origin request shaping for the deployed search distribution; no local origin is fronted',
+    },
+    'AWS::CloudFront::OriginAccessControl': {
+        kind: 'unsupported',
+        why: 'signs the distribution-to-function-URL request at the edge; locally the handler is reached directly',
+    },
 });
 
 /**

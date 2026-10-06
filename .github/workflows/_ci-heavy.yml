@@ -542,6 +542,18 @@ jobs:
         # The target this job's e2e suite drives (`e2eTargetDeclaration.ts`, docs/CODING_STANDARDS.md §7.1a).
         env:
             E2E_TARGET: deployed
+            # ⛔ BOUND AT JOB LEVEL, NOT STEP LEVEL — the `liveness` re-probe below names its stacks
+            # `kitchensink-…-${STAGE}`, and two guards read that binding from THIS level:
+            # `stackProbeCoverage.test.ts` resolves the stage inside a probed stack name from `env:` at file
+            # and job level ONLY (the same reason `resolve-mobile-target`'s own `STAGE` is a job-level
+            # binding), and `deployGateSeedRef.test.ts` pins the seed-reference spelling
+            # `kitchensink-food-schema-${STAGE}:FoodSeedFunctionName` for EVERY caller — a private stage
+            # variable name here would red it. A STEP-level `STAGE: ${{ inputs.stage }}` is equally wrong:
+            # it would become a second candidate in `maestroStageGuard.test.ts`'s refusal discovery. It
+            # reads the resolver's recorded output rather than re-deriving it because on a re-run that
+            # output IS the premise this job is re-verifying (see the `liveness` step below for why the
+            # re-ask exists).
+            STAGE: ${{ needs.resolve-mobile-target.outputs.stage }}
         # ── SHARDED, and the shard count comes from `resolve-mobile-target` ───────────────────────────────
         #
         # Measured on run 35220684252: 47.35m, of which 15.0m is FIXED per-runner setup (10.68m Gradle release
@@ -738,9 +750,94 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
+            # ⛔ RE-ASK LIVENESS HERE, IN THIS JOB, BEFORE A STAGE SECRET IS LOADED (owner ruling
+            # 2026-10-06: "Maestro should not run if the sandbox is not up"). The job-level `if` above reads
+            # `needs.resolve-mobile-target.outputs.live`, and that answer is FROZEN: a GitHub re-run (`gh run
+            # rerun --failed`, or one failed job) re-runs only the failed jobs and reads the completed
+            # needs' RECORDED outputs — so a shard re-run after the Sandbox Down dispatch, the nightly
+            # reaper or a PR close still sees `live=true` for a sandbox that no longer exists, and would
+            # boot an emulator, lease pool slots and drive ~50 minutes of flows at an origin that no longer
+            # answers — reporting absence-shaped reds that read like app defects, the exact
+            # "red-over-nothing" `deployGateStepGuards.test.ts` pins as wrong.
+            #
+            # It is the SAME question the resolver already answered, through the SAME script and the SAME
+            # per-service stack lists and `live && !deploy` composition — asked AGAIN against the world as
+            # it is NOW, from the recorded stage and origins THIS run was built for, which on a re-run are
+            # precisely the premise being re-verified. The duplication is deliberate: the resolver's step
+            # is a working, load-bearing answer, and `maestroRerunLiveness.test.ts` pins the two copies to
+            # agreement so the stack lists cannot drift one side at a time.
+            #
+            # ⚠️ ABSENCE SKIPS, IT NEVER FAILS — the same ruling as the resolver's own probe: a torn-down
+            # sandbox, withheld AWS credentials (fork/Dependabot PRs) and a partial preview are all
+            # `live=false` plus a `::notice::`, never a red. Gating the SECRETS step is the single valve:
+            # every stateful step below already keys on `steps.secrets.outcome == 'success'`, which reads
+            # `skipped` when this gate closes, and the `always()` reset-after carries the same term so it
+            # skips too — a closed gate must not run a pool reset against a stage that no longer exists.
+            # The prep steps above (checkout, JDK, Gradle, cache, `npm ci`) sit deliberately outside the
+            # valve: they touch nothing remote, and re-running them on the rare skip path is harmless.
+            - name: Is the deployed sandbox still up? (deploy-gate liveness, re-probed for this shard)
+              id: liveness
+              env:
+                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${AWS_ACCESS_KEY_ID}" ]; then
+                      echo "::notice::this run holds no AWS credentials (they are withheld from fork and Dependabot PRs), so whether ${STAGE} is deployed cannot be established — SKIPPING the mobile tier rather than driving an unknown target"
+                      echo 'live=false' >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+
+                  # Run the gate with its GITHUB_OUTPUT suppressed and capture the verdict, so both services
+                  # can be asked without the second answer clobbering the first.
+                  ask() {
+                      local service="$1" health="$2" seed="$3"
+                      shift 3
+                      GITHUB_OUTPUT='' bash .github/scripts/deployGate.sh evaluate \
+                          true "${service}" false false "${health}" "${DEFAULT_AWS_REGION}" "${seed}" "$@"
+                  }
+
+                  field() {
+                      printf '%s\n' "$1" | sed -n "s/^${2}=//p" | tail -1
+                  }
+
+                  recipe_verdict=$(ask recipe "${RECIPE_ORIGIN}/health" none \
+                      "kitchensink-ingredient-parser-${STAGE}" \
+                      "kitchensink-recipe-schema-${STAGE}" \
+                      "kitchensink-recipe-workers-${STAGE}" \
+                      "kitchensink-recipe-service-${STAGE}")
+                  echo "${recipe_verdict}"
+
+                  food_verdict=$(ask food "${FOOD_ORIGIN}/health" \
+                      "kitchensink-food-schema-${STAGE}:FoodSeedFunctionName" \
+                      "kitchensink-food-schema-${STAGE}" \
+                      "kitchensink-food-service-${STAGE}")
+                  echo "${food_verdict}"
+
+                  live='false'
+                  if [ "$(field "${recipe_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${recipe_verdict}" deploy)" = 'false' ] &&
+                      [ "$(field "${food_verdict}" live)" = 'true' ] &&
+                      [ "$(field "${food_verdict}" deploy)" = 'false' ]; then
+                      live='true'
+                  fi
+
+                  echo "live=${live}" >>"$GITHUB_OUTPUT"
+                  if [ "${live}" = 'true' ]; then
+                      echo "::notice::${STAGE} is deployed and serving — running the mobile Maestro tier against it"
+                  else
+                      echo "::notice::${STAGE} is no longer up for the mobile Maestro tier — SKIPPING this shard (this is not a failure; the sandbox this run resolved has since been torn down or stopped answering, and re-running the flows against it would report absence as app defects). recipe: $(field "${recipe_verdict}" reason). food: $(field "${food_verdict}" reason)"
+                  fi
             # Clerk dev-instance keys (publishable for the APK, secret for provisioning the test user).
             - name: Load ${{ inputs.stage }} Clerk secrets
               id: secrets
+              # ⛔ THE VALVE — gated on the re-probe's own answer, not the resolver's frozen one. Every
+              # stateful step below keys on `steps.secrets.outcome == 'success'`, which reads `skipped` when
+              # this closes, so this one `if` shuts the whole tier (provision, JDK, Gradle, emulator, flows,
+              # artifacts and the reset-after) on a sandbox that is no longer up.
+              if: steps.liveness.outputs.live == 'true'
               continue-on-error: true
               uses: ./.github/actions/load-secrets
               with:

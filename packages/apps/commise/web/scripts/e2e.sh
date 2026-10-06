@@ -15,8 +15,8 @@
 #     therefore REUSES whatever answers on 3000, which is the RECIPES CONTAINER, and drives the browser
 #     at the recipe API: every auth spec then dies waiting for a Clerk widget the JSON never renders
 #     (measured 2026-10-06: signIn.spec.ts waiting for the email textbox until the run was torn down).
-#     `e2eLocal.sh` owns the local flow — a free port in 3010-3060, the `.env.local` guards, and
-#     exit-code hygiene — so this script hands over to it.
+#     `e2eLocal.sh` owns the local flow — a free port in 3010-3060, the `.env.local` guards, the
+#     production-build lane, and exit-code hygiene — so this script hands over to it.
 #
 # Usage is `npm run test:e2e [-- <playwright args>]`; nothing else changes about either tier.
 set -euo pipefail

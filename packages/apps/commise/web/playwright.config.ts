@@ -178,11 +178,14 @@ export default defineConfig({
     webServer: process.env.PLAYWRIGHT_BASE_URL
         ? undefined
         : {
-              // `next dev` locally, `next start` under CI — see tests/e2e/utils/webServerMode.ts.
+              // `start` in CI and through the local lane (scripts/e2eLocal.sh builds first and sets
+              // E2E_WEB_SERVER=start); `dev` only for a bare `npx playwright test` against the working
+              // tree — see tests/e2e/utils/webServerMode.ts.
               //
               // ⚠️ `start` SERVES A BUILD; it does not make one. CI's `build` job publishes `.next` as an
-              // artifact and the Playwright job downloads it. Locally, run `npm run build` first (with the
-              // three NEXT_PUBLIC_* values this app requires) or leave the mode at `dev`.
+              // artifact and the Playwright job downloads it. Locally, prefer scripts/e2eLocal.sh, which
+              // builds through turbo (with the three NEXT_PUBLIC_* values this app requires) and picks a
+              // free port; `E2E_WEB_SERVER=dev` is the opt-in for the no-build iteration loop.
               command: webServerCommand(WEB_SERVER_MODE),
               // Empty basePath (subdomain shape) unless E2E_BASE_PATH pins a legacy prefix; the locale
               // lives in the path. PREVIEW_BASE_PATH is only set when exercising the legacy path shape.

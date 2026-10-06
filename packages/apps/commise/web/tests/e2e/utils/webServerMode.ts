@@ -3,11 +3,14 @@
  *
  * ## Why this is a decision and not a constant
  *
- * Locally the suite must drive `next dev`: a developer runs it against the working tree, with no build,
- * and expects an edit to be picked up. In CI the opposite is true — a build has already happened (the
- * `build` job compiles `@commise/web` and publishes `.next` as an artifact), and the dev server is
- * actively harmful there, because Next compiles a route the FIRST time it is requested and that
- * compilation lands INSIDE the assertion that triggered it.
+ * Locally, the sanctioned entrypoint is `scripts/e2eLocal.sh`, which sets `E2E_WEB_SERVER=start` and
+ * builds through turbo first — the same mode and artifact CI drives, for the same reliability reasons as
+ * below. What stays `dev` locally is the BARE `npx playwright test` a developer runs against the
+ * working tree, with no build, expecting an edit to be picked up; `E2E_WEB_SERVER=dev` restores that
+ * loop from the lane too. In CI the opposite is true — a build has already happened (the `build` job
+ * compiles `@commise/web` and publishes `.next` as an artifact), and the dev server is actively
+ * harmful there, because Next compiles a route the FIRST time it is requested and that compilation lands
+ * INSIDE the assertion that triggered it.
  *
  * That is not a theory about slowness; it is the measured behaviour of this suite. From one shard's blob
  * report, on specs that do nothing but click a link and read a heading:

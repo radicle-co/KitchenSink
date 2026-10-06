@@ -2,7 +2,7 @@
 #
 # Run the Playwright suite locally with NO cloud infrastructure.
 #
-# ⛔ WHY THIS SCRIPT EXISTS. Three things about a local browser run are easy to get wrong, each costs real
+# ⛔ WHY THIS SCRIPT EXISTS. Four things about a local browser run are easy to get wrong, each costs real
 # time, and each has bitten us:
 #
 #   1. The sign-in identity is a FIXED Clerk test-pool slot (shard 1 when unsharded) that `poolAdmin` provisioned
@@ -14,6 +14,17 @@
 #      with EADDRINUSE before a single test runs. This picks a free port instead of assuming one.
 #   3. `playwright test` piped through `tail`/`head` reports the PIPE's exit status, so a FAILING run can
 #      look like a pass. Output goes to a file and the exit code is read from Playwright itself.
+#   4. The suite drives the PRODUCTION server (`next start`), not `next dev`. In dev mode two mechanisms
+#      put false reds in the report: Next compiles a route ON DEMAND inside the first assertion that
+#      requests it (measured history in tests/e2e/utils/webServerMode.ts: a link-click spec at 18.3s,
+#      three failed attempts on 6e40d66a), and React StrictMode double-invokes effects, which breaks the
+#      suite's "exactly once" network-contract assertions (recipeCalories' batch count, ssrPrefetch's
+#      library read) on the coin flip of whether the re-fire lands inside the batch window — the report
+#      then says "flaky", not "the server is in dev mode". CI drives the production build for the same
+#      reasons (webE2eProductionBuild.test.ts History 1: dev 56.4s with a retry-rescued failure, start
+#      27.0s clean). The lane therefore BUILDS first — through turbo, so the artifact is what CI's build
+#      task makes and an unchanged rerun is a cache hit — and `E2E_WEB_SERVER=dev` restores the no-build
+#      iteration loop for a developer editing app code between runs.
 #
 # ⚠️ WHAT A LOCAL RUN DOES NOT PROVE. Identity SYNC (the webhook → Lambda → identity-database chain) is not
 # exercised by a run that signs in as an already-provisioned slot. Never read a green local run as covering it.
@@ -57,9 +68,36 @@ find_free_port() {
 PORT="$(find_free_port)"
 export PORT
 
+# ── Which server the run drives ─────────────────────────────────────────────────────────────────────
+# `start` (a real production build) by default — the same mode CI drives, and for the same reliability
+# reasons (header bullet 4). An explicit `E2E_WEB_SERVER` from the caller wins, so the dev-server
+# iteration loop stays one env var away; an unrecognised value is passed through untouched and rejected
+# by the config itself (InvalidWebServerModeError names the fix), not re-spelled here.
+MODE="${E2E_WEB_SERVER:-start}"
+export E2E_WEB_SERVER="${MODE}"
+
+if [[ "${MODE}" == 'start' ]]; then
+    # `next start` SERVES a build; it does not make one (playwright.config.ts). Built through turbo — the
+    # same task, inputs and outputs CI's build job runs — so the artifact is the one CI makes and an
+    # unchanged rerun is a cache hit rather than a rebuild.
+    #
+    # The build ALSO needs the three backend origins inlined: `NEXT_PUBLIC_*` is frozen into the client
+    # bundle at build time (src/config/env.ts validates them while collecting page data and throws without
+    # them — a production build does not read `.env.development`). The defaults are the same ports the
+    # local compose sandbox publishes and the same ones `tests/e2e/utils/serviceUrls.ts` hands the
+    # server at runtime — recipe 3000, identity 3001, food 3002 — so the baked client and the server
+    # agree. A caller's explicit values win (the `:-` keeps any override), matching serviceUrls.ts
+    # precedence.
+    export NEXT_PUBLIC_RECIPE_API_URL="${NEXT_PUBLIC_RECIPE_API_URL:-http://localhost:3000}"
+    export NEXT_PUBLIC_IDENTITY_API_URL="${NEXT_PUBLIC_IDENTITY_API_URL:-http://localhost:3001}"
+    export NEXT_PUBLIC_FOOD_API_URL="${NEXT_PUBLIC_FOOD_API_URL:-http://localhost:3002}"
+    npx turbo run build --filter=@commise/web
+fi
+
 LOG="$(mktemp -t playwright-local-XXXXXX.log)"
 
 echo "▶ port           : ${PORT}"
+echo "▶ server         : ${MODE}"
 echo "▶ identity       : the test-pool slot for shard ${COMMISE_E2E_SHARD:-1}"
 echo "▶ output         : ${LOG}"
 echo

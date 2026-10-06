@@ -962,15 +962,30 @@ export interface MockRecipeApiOptions {
 /**
  * Install the recipe-service route mocks on `page`. Returns the live store so a spec can assert server state.
  *
+ * Installing the double DETACHES from whatever app page is currently live. The caller has usually just
+ * `signInWithTicket`'d onto Home, and that landing document is mid-lifecycle: its recent-recipes rail can
+ * still issue `GET /api/v1/recipes?pageSize=4` and `POST …/nutrition-batch` AFTER the double appears —
+ * served by the double (a Home spec's `?pageSize=4` read hitting the seeded store) and, worse, COUNTED by
+ * any request-counting the spec arms before its own navigation, so an "exactly once" assertion captures
+ * another page's legitimate traffic (this was a ~50% flake on recipeCalories and ssrPrefetch). Navigating to
+ * `about:blank` tears the landing document down and aborts its in-flight fetches, so the double owns exactly
+ * the navigations the spec performs next. The Clerk session lives in the context's cookies, so the next
+ * `page.goto` still carries it; a spec needing the viewer's id must `readViewerAppId` BEFORE installing
+ * (`about:blank` has no `window.Clerk`).
+ *
  * @param page - The Playwright page.
  * @param options - Seed data + viewer identity/tier.
  * @returns The in-memory recipe store (id → detail).
- * @sideEffect Registers a `page.route` handler.
+ * @sideEffect Navigates `page` to `about:blank`, then registers a `page.route` handler.
  */
 export async function mockRecipeApi(
     page: Page,
     options: MockRecipeApiOptions = {},
 ): Promise<Map<string, RecipeDetail>> {
+    // Detach BEFORE the double exists. A route handler that appears while the landing document is live will
+    // serve (and be counted by) that document's own in-flight rail reads; `about:blank` aborts them instead.
+    await page.goto('about:blank');
+
     const viewerId = options.viewerId ?? 'usr_e2e';
     const tier = options.tier ?? 'premium';
     const authorHandles = options.authorHandles ?? {};

@@ -232,6 +232,8 @@ export const LOCAL_SUPPORT: Readonly<Record<string, LocalSupport>> = Object.free
     // validates signed requests at the edge with these; the LOCAL e2e tier reaches the handler directly,
     // so none of it has a local consumer. Stated rather than skipped for the same reason as the
     // distribution above: a sandbox that silently omitted them would claim signing parity it cannot have.
+    // (The cache policy is also emitted by the router edge — `EdgeStack` declares its own — so its reason
+    // covers both emitters.)
     'AWS::CloudFront::PublicKey': {
         kind: 'unsupported',
         why: 'the CloudFront-side half of the remote-search signing pair; no local CloudFront validates a signature',
@@ -246,7 +248,7 @@ export const LOCAL_SUPPORT: Readonly<Record<string, LocalSupport>> = Object.free
     },
     'AWS::CloudFront::CachePolicy': {
         kind: 'unsupported',
-        why: 'caching shape of the deployed search distribution, which has no local equivalent',
+        why: 'caching shape of the deployed distributions (the router edge and the search copies), neither of which has a local equivalent',
     },
     'AWS::CloudFront::OriginRequestPolicy': {
         kind: 'unsupported',

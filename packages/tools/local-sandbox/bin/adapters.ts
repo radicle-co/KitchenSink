@@ -13,6 +13,7 @@ import { globSync } from 'glob';
 
 import { LOCAL_DB } from '../src/composePlan.js';
 import type { PackageManifest } from '../src/discoverApps.js';
+import { pruneStepFor } from '../src/localImages.js';
 import { readSeedBundleModule } from '../src/seedBundleModule.js';
 import { inferSynthEnv } from '../src/synthEnv.js';
 import type { SynthRequest, SynthResult } from '../src/synthesize.js';
@@ -183,18 +184,32 @@ export function localPortFor(packageDir: string): number | undefined {
  * that manifest. The context must be the root because they COPY `packages/shared/…/dist` paths that exist
  * only from there; using the service directory fails with "not found" against a path that plainly exists.
  *
+ * ⚠️ A Dockerfile that COPYs a `.docker-prune/<segment>/` tree (food's does; the siblings COPY the repo-root
+ * `node_modules` and need nothing of the sort) gets that tree materialised first — CI's own step
+ * (`npx turbo prune <name> --docker --out-dir=.docker-prune/<segment>`). Both the OUT-DIR (from the
+ * Dockerfile's own COPY line) and the TARGET (the owning package's npm name) are READ, never hand-kept per
+ * service.
+ *
  * @param build - What to build.
  * @returns Whether it succeeded, and the output when it did not.
- * @sideEffect Spawns npm and docker.
+ * @sideEffect Spawns npm, npx and docker.
  */
 export function buildServiceImage(build: {
     readonly packageName: string;
     readonly dockerfile: string;
     readonly localImage: string;
 }): { readonly ok: boolean; readonly output: string } {
+    const dockerfileText = readFileSync(path.join(REPO_ROOT, build.dockerfile), 'utf8');
+    const ownerDir = build.dockerfile.replace(/\/Dockerfile$/u, '');
+    const ownerManifest = JSON.parse(readFileSync(path.join(REPO_ROOT, ownerDir, 'package.json'), 'utf8')) as {
+        readonly name: string;
+    };
+    const pruneArgs = pruneStepFor(dockerfileText, ownerManifest.name);
+
     const steps: readonly (readonly [string, readonly string[]])[] = [
         ['npm', ['run', 'build', `--workspace=${build.packageName}`]],
         ['npm', ['run', 'docker:prepare', `--workspace=${build.packageName}`]],
+        ...(pruneArgs === undefined ? [] : ([['npx', pruneArgs]] as const)),
         ['docker', ['build', '-f', build.dockerfile, '-t', build.localImage, '.']],
     ];
 

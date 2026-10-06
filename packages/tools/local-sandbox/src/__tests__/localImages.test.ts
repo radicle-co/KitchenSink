@@ -8,7 +8,11 @@
  * says nothing about how to build it. That half is stated elsewhere in the repo, and is read rather than
  * invented:
  *
- * - WHICH package: the app that synthesised the stack the task definition lives in.
+ * - WHICH package: the app that synthesised the stack LOCATES it; the image belongs to the package that
+ *   OWNS the Dockerfile and the build scripts. When that app is a service's infra package —
+ *   `packages/services/<svc>/infra`, which is NOT an npm workspace, so `--workspace=@kitchensink/<svc>-infra`
+ *   can never resolve — the owner is the service beside it, passed as the PATH-form selector exactly as CI
+ *   invokes it. An app that is itself the service keeps its own name, as the fixtures here do.
  * - HOW to prepare: that package's own `docker:prepare` script, which CI runs immediately before
  *   `docker buildx` and which generates the `prod.package.json` the Dockerfile COPYs.
  * - WHERE from: `-f <package>/Dockerfile` with the REPO ROOT as context, exactly as CI invokes it — the
@@ -20,7 +24,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { discoverImageBuilds, localContainerEnv, portConflicts } from '../localImages.js';
+import { discoverImageBuilds, localContainerEnv, portConflicts, pruneStepFor } from '../localImages.js';
 
 const taskTemplate = (image: unknown): unknown => ({
     Resources: {
@@ -85,6 +89,52 @@ describe('discoverImageBuilds', () => {
 
     it('ignores a task definition with no resolvable repository rather than inventing one', () => {
         expect(discoverImageBuilds('S', taskTemplate({ Ref: 'SomethingElse' }), app)).toEqual([]);
+    });
+
+    /**
+     * ⛔ Regression, found by running `npm run local:up` on the real tree. The apps that synthesise the
+     * service stacks are the INFRA packages (`packages/services/<svc>/infra`), which are NOT npm workspaces —
+     * the root manifest's `packages/services/*` glob stops one level above them — so handing the infra
+     * package to `npm run build --workspace=…` made npm answer "No workspaces found" and the sandbox refuse
+     * to start. The image belongs to the SERVICE package beside the infra app, exactly as CI invokes it:
+     * `docker:prepare --workspace=packages/services/food-service` plus
+     * `docker buildx -f packages/services/food-service/Dockerfile`.
+     */
+    it("maps an infra-shaped app to the service package beside it — the image's real owner", () => {
+        const [build] = discoverImageBuilds(
+            'FoodService-local',
+            taskTemplate('1234.dkr.ecr.us-east-1.amazonaws.com/kitchensink-food:v1'),
+            {
+                packageName: '@kitchensink/food-service-infra',
+                packageDir: 'packages/services/food-service/infra',
+            },
+        );
+
+        expect(build?.packageName).toBe('packages/services/food-service');
+        expect(build?.dockerfile).toBe('packages/services/food-service/Dockerfile');
+    });
+});
+
+describe('pruneStepFor', () => {
+    /**
+     * Food's Dockerfile is the one that COPYs a `.docker-prune/<segment>/` tree — its deps stage installs
+     * from a pruned lock, which CI materialises with `npx turbo prune <name> --docker`. The OUT-DIR is read
+     * from the COPY line itself (both spellings name the same segment); the TARGET is the caller-supplied
+     * npm name. A Dockerfile that COPYs the repo-root `node_modules` instead demands no prune at all.
+     */
+    it('reads the prune out-dir out of the Dockerfile that demands one', () => {
+        expect(
+            pruneStepFor(
+                'FROM node:24-slim\nCOPY .docker-prune/food/json/ ./\nCOPY .docker-prune/food/package-lock.json ./package-lock.json\n',
+                '@kitchensink/food-service',
+            ),
+        ).toEqual(['turbo', 'prune', '@kitchensink/food-service', '--docker', '--out-dir=.docker-prune/food']);
+    });
+
+    it('returns undefined for a Dockerfile that COPYs the repo-root node_modules instead', () => {
+        expect(
+            pruneStepFor('FROM node:24-slim\nCOPY node_modules ./node_modules\n', '@kitchensink/identity'),
+        ).toBeUndefined();
     });
 });
 

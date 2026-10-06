@@ -5,7 +5,15 @@
  * they reference a prebuilt tag and every asset manifest carries `dockerImages: []`. The other half is
  * stated elsewhere in the repo and is READ, not invented:
  *
- *   WHICH package — the app that synthesised the stack the task definition belongs to.
+ *   WHICH package — the app that synthesised the stack LOCATES it; the image belongs to the package that
+ *                   OWNS the Dockerfile and the build scripts. Those differ here, on purpose: the synth
+ *                   apps are the infra packages (`packages/services/<svc>/infra`), which are NOT npm
+ *                   workspaces — the root manifest's `packages/services/*` glob stops one level above them,
+ *                   so `npm run build --workspace=@kitchensink/food-service-infra` can never resolve — while
+ *                   the Dockerfile, `build` and `docker:prepare` live in the service package beside them.
+ *                   The service package is derived from the app's own directory (drop the `/infra` suffix)
+ *                   and passed as the PATH-form workspace selector, exactly as CI invokes it
+ *                   (`--workspace=packages/services/food-service`), never hand-kept.
  *   HOW to prepare — that package's own `docker:prepare`, which CI runs immediately before `docker buildx`
  *                    and which writes the `prod.package.json` the Dockerfile COPYs.
  *   WHERE from     — `-f <package>/Dockerfile` with the REPO ROOT as context, exactly as CI invokes it.
@@ -24,6 +32,10 @@ export interface ImageBuild {
     readonly repository: string;
     /** The tag built and run locally. */
     readonly localImage: string;
+    /**
+     * npm workspace SELECTOR for the package that owns the image — the service's PATH form
+     * (`packages/services/<svc>`) when the synth app is its infra package, the app's own name otherwise.
+     */
     readonly packageName: string;
     readonly dockerfile: string;
     readonly containerPort: number | undefined;
@@ -59,6 +71,15 @@ export function discoverImageBuilds(
         (template as { Resources?: Record<string, { Type?: unknown; Properties?: unknown }> }).Resources ?? {};
     const seen = new Set<string>();
 
+    // ⚠️ The app that SYNTHESISES is the infra package; the image belongs to the SERVICE beside it. The infra
+    // packages are not npm workspaces — the root manifest's `packages/services/*` glob stops one level above
+    // `<svc>/infra` — so the npm selector must be the service's PATH, exactly as CI spells it
+    // (`--workspace=packages/services/food-service`, `-f packages/services/food-service/Dockerfile`). An app
+    // that already IS the service (as in the unit fixtures) is left untouched, name form and all.
+    const serviceDir = app.packageDir.endsWith('/infra') ? app.packageDir.slice(0, -'/infra'.length) : undefined;
+    const ownerDir = serviceDir ?? app.packageDir;
+    const ownerSelector = serviceDir ?? app.packageName;
+
     return Object.entries(resources).flatMap(([logicalId, resource]) => {
         if (resource.Type !== 'AWS::ECS::TaskDefinition') {
             return [];
@@ -86,12 +107,36 @@ export function discoverImageBuilds(
                 logicalId,
                 repository,
                 localImage: `local-sandbox/${repository}:local`,
-                packageName: app.packageName,
-                dockerfile: `${app.packageDir}/Dockerfile`,
+                packageName: ownerSelector,
+                dockerfile: `${ownerDir}/Dockerfile`,
                 containerPort: typeof port === 'number' ? port : undefined,
             },
         ];
     });
+}
+
+/**
+ * The `turbo prune` a Dockerfile demands before `docker build`, or `undefined` when it demands none.
+ *
+ * READ from the Dockerfile itself, never hand-kept per service: only some Dockerfiles COPY a
+ * `.docker-prune/<segment>/` tree (food's does — its deps stage installs from a pruned lock; identity's and
+ * recipe's COPY the repo-root `node_modules` instead), and CI materialises exactly that tree with
+ * `npx turbo prune <name> --docker --out-dir=.docker-prune/<segment>`. The OUT-DIR comes from the
+ * Dockerfile's own COPY line; the prune TARGET is the owning package's npm name, read from its manifest by
+ * the caller.
+ *
+ * @param dockerfileText - The Dockerfile's full text.
+ * @param ownerPackageName - The npm name of the package that owns the image, e.g. `@kitchensink/food-service`.
+ * @returns The arguments for `npx turbo …`, or `undefined` when the Dockerfile COPYs no prune tree.
+ */
+export function pruneStepFor(dockerfileText: string, ownerPackageName: string): readonly string[] | undefined {
+    const outDir = /^COPY \.docker-prune\/([^/\s]+)\//mu.exec(dockerfileText)?.[1];
+
+    if (outDir === undefined) {
+        return undefined;
+    }
+
+    return ['turbo', 'prune', ownerPackageName, '--docker', `--out-dir=.docker-prune/${outDir}`];
 }
 
 /** What a container needs to reach its local siblings. */

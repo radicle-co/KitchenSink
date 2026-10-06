@@ -82,6 +82,21 @@ describe('NestRoutedLogger', () => {
         expect(emitLogRecord.mock.calls.map(([level]) => level)).toEqual(['info', 'warn', 'error', 'debug', 'debug']);
     });
 
+    it('⛔ renders an Error passed AS the message — Nest reports init failures that way, and JSON.stringify loses them', () => {
+        // Measured on the local sandbox: a provider factory that throws (food's remote-search env group,
+        // partially present) reaches Nest's instance loader, which reports it by calling
+        // `logger.error(theErrorItself)`. `JSON.stringify` answered the literal `{}` — `message` and
+        // `stack` are non-enumerable — so the crash loop's ONLY log line was `{"level":"error","message":"{}"}`
+        // and the boot failure had to be diagnosed by hand inside the container. `renderThrowable` is this
+        // package's own renderer for exactly this, cause chain included.
+        new NestRoutedLogger().error(new Error('remote search is partially configured'), 'InstanceLoader');
+
+        const message = String(emitLogRecord.mock.calls[0]?.[1] ?? '');
+
+        expect(message).toContain('remote search is partially configured');
+        expect(message).not.toBe('{}');
+    });
+
     it('⚠️ stringifies a non-string message — Nest logs objects, and `[object Object]` groups them as one', () => {
         new NestRoutedLogger().log({ route: '/health', status: 200 }, 'RouterExplorer');
 

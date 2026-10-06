@@ -16,6 +16,7 @@
  */
 import type { LoggerService } from '@nestjs/common';
 
+import { renderThrowable } from './logAttributes.js';
 import { emitLogRecord } from './logSink.js';
 import type { LogLevel } from './logRouting.js';
 
@@ -28,10 +29,21 @@ const FRAMEWORK_CONTEXT = 'nest';
  * ⚠️ Nest logs objects (`RouterExplorer` route maps, validation payloads). Left to `String`, every one of
  * them becomes `[object Object]` — and Sentry groups issues by title, so they would all become one.
  *
+ * ⛔ AN ERROR IS NOT THAT CASE, AND `JSON.stringify` IS THE ONE THAT LOSES IT: `message` and `stack` are
+ * non-enumerable, so an Error stringifies to the literal `{}`. Nest's own instance loader reports a
+ * provider-factory throw by calling `logger.error(theErrorItself)` — measured on the local sandbox, where
+ * a food boot crash loop printed `{"level":"error","message":"{}"}` and nothing else — so the message
+ * path must render a throwable through this package's own `renderThrowable`, cause chain included, not
+ * stringify it. The sink bounds and scrubs the result like any other free text.
+ *
  * @param value - The message argument.
  * @returns Its text. Pure.
  */
 function messageText(value: unknown): string {
+    if (value instanceof Error) {
+        return renderThrowable(value);
+    }
+
     return typeof value === 'string' ? value : JSON.stringify(value);
 }
 

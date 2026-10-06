@@ -518,6 +518,51 @@ describe('localContainerEnv — the azp ORIGIN policy is local, never the deploy
     });
 });
 
+describe('localContainerEnv — the remote-search group is absent, never partial', () => {
+    /**
+     * ⛔ Regression, found by running `local:up`. Food's remote-search settings are an ALL-OR-NOTHING group
+     * (`remoteSearchSettingsFromEnv` in recipe-core): any subset present alongside any subset absent is a
+     * BOOT CRASH — "set REMOTE_SEARCH_SIGNING_KEY, FOOD_REMOTE_REFERENCE_KEY, or unset all four" — and
+     * locally the set is UNAVOIDABLY partial: `REMOTE_SEARCH_KEY_PAIR_ID` resolves from the dev account's
+     * SSM, `REMOTE_SEARCH_ORIGIN` has no dev parameter at all, and the signing/reference SECRETS are
+     * cross-stack `Fn::ImportValue` refs no template read can flatten. Two of four present, the food
+     * container crash-looped with `{"level":"error","message":"{}"}` — the error object itself invisible in
+     * our own log format.
+     *
+     * The designed local state is `kind: 'absent'` (ADR-0055): the CloudFront signing surface is unsupported
+     * locally (`localSupport.ts`) and the remote-search stack refuses the local stage, so food serves search
+     * from its own local index. Absent is what this must produce even though one of the four IS resolvable —
+     * the NEVER_FROM_AWS rule, not OMITTED, because OMITTED only beats a placeholder and never a resolved
+     * value.
+     */
+    it('drops the whole group even when part of it resolved from AWS', () => {
+        const env = localContainerEnv(['REMOTE_SEARCH_ORIGIN', 'REMOTE_SEARCH_KEY_PAIR_ID'], {
+            database: 'kitchensink_food_dev',
+            port: 3000,
+            resolved: { REMOTE_SEARCH_KEY_PAIR_ID: 'KD14NRLZSQWTM' },
+        });
+
+        expect(env['REMOTE_SEARCH_ORIGIN']).toBeUndefined();
+        expect(env['REMOTE_SEARCH_KEY_PAIR_ID']).toBeUndefined();
+    });
+
+    it('drops the two secret-backed members too, so the group can never re-form partially', () => {
+        // If a future change ever makes the cross-stack refs resolvable, the group must STILL not re-form:
+        // the signing surface those values name does not exist locally, and partial presence is the crash.
+        const env = localContainerEnv([], {
+            database: 'kitchensink_food_dev',
+            port: 3000,
+            resolved: {
+                REMOTE_SEARCH_SIGNING_KEY: '-----BEGIN PRIVATE KEY-----',
+                FOOD_REMOTE_REFERENCE_KEY: 'an-arn',
+            },
+        });
+
+        expect(env['REMOTE_SEARCH_SIGNING_KEY']).toBeUndefined();
+        expect(env['FOOD_REMOTE_REFERENCE_KEY']).toBeUndefined();
+    });
+});
+
 describe('localContainerEnv — a sibling URL uses the CONTAINER port', () => {
     /**
      * ⛔ THE HOST PORT IS NOT THE CONTAINER PORT, and using it makes every cross-service call fail in a way

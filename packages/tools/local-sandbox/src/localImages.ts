@@ -207,14 +207,25 @@ const LOCAL_INFRA: Readonly<Record<string, string>> = Object.freeze({
  * Values that must NEVER be taken from AWS, however resolvable they are.
  *
  * ⛔ NOT THE SAME AS "cannot be resolved". `CLERK_JWT_KEY` is verification MATERIAL — the same key
- * everywhere — and reading it from SSM is right. These are stage ORIGIN POLICY: `CLERK_AZP_PATTERN` arrives
+ * everywhere — and reading it from SSM is right. `CLERK_AZP_PATTERN` is stage ORIGIN POLICY: it arrives
  * as `sandbox.commise.app`, and the patterns built from it are anchored to `https://`
  * (`^https://(?:pr-\d+\.)?…$`). A local origin is `http://localhost:<port>` and can never match, so pattern
  * mode is structurally unusable locally — a real, correctly-signed token was rejected 401 by all three
  * services with it in place. The services require EXACTLY ONE of the list or the pattern, so supplying the
  * list means the pattern must be SUPPRESSED, not merely overridden.
+ *
+ * The remote-search four are an ALL-OR-NOTHING GROUP: food's `remoteSearchSettingsFromEnv` accepts all four
+ * present or none, and a PARTIAL set is a boot crash. Locally the set is unavoidably partial — one member
+ * resolves from the dev SSM, the origin has no dev parameter, the two secret-backed members are cross-stack
+ * `Fn::ImportValue` refs nothing can flatten — so the whole group is dropped however resolvable it is,
+ * landing food in its designed `kind: 'absent'` state (ADR-0055; the signing surface is `unsupported` in
+ * `localSupport.ts` and the remote-search stack refuses the local stage). This list, not OMITTED, because
+ * OMITTED only beats a placeholder and never a resolved value.
  */
-const NEVER_FROM_AWS: readonly RegExp[] = [/^CLERK_AZP_PATTERN$|^CLERK_AZP_PREVIEW_MODE$/u];
+const NEVER_FROM_AWS: readonly RegExp[] = [
+    /^CLERK_AZP_PATTERN$|^CLERK_AZP_PREVIEW_MODE$/u,
+    /^REMOTE_SEARCH_ORIGIN$|^REMOTE_SEARCH_KEY_PAIR_ID$|^REMOTE_SEARCH_SIGNING_KEY$|^FOOD_REMOTE_REFERENCE_KEY$/u,
+];
 
 const OMITTED: readonly RegExp[] = [
     /_DSN$/u, // Sentry — a DSN has a specific form and is `.url().optional()` in every service here.

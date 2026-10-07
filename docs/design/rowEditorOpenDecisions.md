@@ -902,6 +902,11 @@ The implementer changes:
    text. The combobox gains `listRequested?: boolean`. It is a level, and the same `onFocusRequestHandled` acknowledges
    it. Web opens the list through downshift's `openMenu`. Native sets its `open`. The cook's own press asked for this.
    A list that opens is a change of content, not of context (judgement).
+    - Native, refocus (2026-10-07, found by the Maestro `pinnedActionBar` run): the list a blur closes reopens on the
+      field's next focus, when the field still holds text (`Combobox.native.tsx`'s `closedByBlur`). Mid-search the
+      input method, the reveal's scroll and an injected drag can blur a focused field — the field comes back focused
+      with its answerable list gone, stranded shut with standing text. A close the field chose (a pick) and a focus no
+      list ever followed (the Remove path's hand-back) stay shut, as this item and item 4 chose.
 4. **Native opens the keyboard.** `focusRequested` calls `.focus()` (`Combobox.native.tsx:66-70`). Accepted: the next act
    is in this field. The field must stay above the keyboard.
 

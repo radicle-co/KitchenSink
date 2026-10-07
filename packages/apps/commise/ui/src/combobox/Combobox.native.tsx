@@ -6,6 +6,10 @@
  * - ⛔ Typing never selects (3.2.2); a tap on an option is the only choice.
  * - The list is in the page flow below the field (`docs/design/rowEditorOpenDecisions.md` item 7): on Android a child
  *   drawn outside its parent's bounds takes no touches. It reflows the content below the field.
+ * - The list a blur closes is reopened by the field's next focus, when the field still holds text: on native the input
+ *   method, the reveal's scroll and an injected drag can blur a focused field mid-search, and the field comes back
+ *   focused with its answerable list gone. A close the field chose — a pick — and a focus no list ever followed stay
+ *   shut.
  * - Each time the list goes from hidden to shown, the leaf asks the scroller's host to show the field and three option
  *   rows below it (`FieldRevealContext`, E1). The leaf holds no geometry, and the host decides. Closing the list or
  *   unmounting releases the request.
@@ -95,6 +99,12 @@ export const Combobox: FC<ComboboxProps> = ({
     alertOccurrence,
 }) => {
     const [open, setOpen] = useState(false);
+    // Whether the field's last blur closed an open list: the list a blur closes is reopened by the field's next focus
+    // (below), while a close the field chose — a pick — and a focus no list ever followed stay shut. A refocus on
+    // standing text must not strand the panel closed: on native the input method, the reveal's scroll and an
+    // injected drag can blur a focused field mid-search, and the field comes back focused with its answerable list
+    // gone — invisible to a cook and to the tests both.
+    const closedByBlur = useRef(false);
     const field = useRef<NativeTextInput>(null);
     // Reads the text and the host's callback as they are when the request is taken; neither re-runs a request.
     const takeFocusRequest = useEffectEvent(() => {
@@ -189,8 +199,17 @@ export const Combobox: FC<ComboboxProps> = ({
                         onValueChange(text);
                         setOpen(true);
                     }}
-                    onFocus={onFocus}
+                    onFocus={() => {
+                        onFocus?.();
+
+                        if (closedByBlur.current && value !== '') {
+                            setOpen(true);
+                        }
+
+                        closedByBlur.current = false;
+                    }}
                     onBlur={() => {
+                        closedByBlur.current = open;
                         setOpen(false);
                     }}
                     style={styles.field}

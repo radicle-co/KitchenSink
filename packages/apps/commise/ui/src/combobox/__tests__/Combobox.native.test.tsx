@@ -3,7 +3,8 @@
  * §8e): typing shows suggestions and never selects; a tap chooses; a busy option refuses; the loading and note lines;
  * the order inside the entry (`docs/design/rowEditorOpenDecisions.md` R1); the polite count, spoken only while the list
  * shows, and the alert, never held back (R3), on Android's live region and on iOS's announcement; the hint; and a
- * host's focus request.
+ * host's focus request; and a refocus that reopens a list a blur closed (2026-10-07, the Maestro `pinnedActionBar`
+ * failure: a field focused again with standing text must not strand its panel shut).
  *
  * ⚠️ The list is laid out BELOW the field rather than floated over the content: on Android a child drawn outside its
  * parent's bounds takes no touches, so an overlay would show options a cook cannot press. That departs from §8e's
@@ -129,6 +130,41 @@ describe('Combobox (native) — typing and choosing', () => {
 
         fireEvent.blur(field());
 
+        expect(screen.queryByRole('button', { name: 'Flaxseed' })).toBeNull();
+    });
+
+    it('a refocus on the same text reopens the list a blur closed (no stranded panel)', () => {
+        render(<Host />);
+        type('fl');
+        fireEvent.blur(field());
+        expect(field().getAttribute('aria-expanded')).toBe('false');
+
+        fireEvent.focus(field());
+
+        expect(field().getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Flaxseed' })).toBeTruthy();
+    });
+
+    it('a close the field chose stays closed on the field’s next focus', () => {
+        const onSelect = vi.fn();
+        render(<Host onSelect={onSelect} />);
+        type('fl');
+        fireEvent.click(screen.getByRole('button', { name: 'Flaxseed' }));
+        expect(field().getAttribute('aria-expanded')).toBe('false');
+
+        fireEvent.blur(field());
+        fireEvent.focus(field());
+
+        expect(field().getAttribute('aria-expanded')).toBe('false');
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('flax');
+    });
+
+    it('a first focus with standing text opens nothing (the Remove path hands focus back)', () => {
+        render(<Host initial="fl" />);
+
+        fireEvent.focus(field());
+
+        expect(field().getAttribute('aria-expanded')).toBe('false');
         expect(screen.queryByRole('button', { name: 'Flaxseed' })).toBeNull();
     });
 

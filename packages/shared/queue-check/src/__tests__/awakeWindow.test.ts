@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { isAwake, nightlyLocalHour, NIGHTLY_TIMEZONE } from '../awakeWindow.js';
+import { awakeLocalHours, isAwake, nightlyLocalHour, NIGHTLY_TIMEZONE } from '../awakeWindow.js';
 
 /** An instant at a given UTC hour, on a date in the given half of the year. */
 const utc = (iso: string): Date => new Date(iso);
@@ -68,5 +68,15 @@ describe('nightlyLocalHour', () => {
 
     it('names the zone the scheduler itself uses', () => {
         expect(NIGHTLY_TIMEZONE).toBe('America/New_York');
+    });
+});
+
+describe('awakeLocalHours', () => {
+    it('is every hour for prod', () => {
+        expect(awakeLocalHours('prod')).toHaveLength(24);
+    });
+
+    it('⛔ is 09:00 through 23:00 for sandbox — the hours isAwake answers true for', () => {
+        expect(awakeLocalHours('sandbox')).toEqual([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]);
     });
 });

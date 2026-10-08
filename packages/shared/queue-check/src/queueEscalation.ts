@@ -19,10 +19,12 @@
  */
 import {
     checksIn,
+    monitorSchedule,
     monitorSlug,
     MONITOR_FAILURES_BEFORE_ISSUE,
     MONITOR_MARGIN_MINUTES,
     MONITOR_RECOVERY_THRESHOLD,
+    type MonitorSchedule,
 } from './cronMonitor.js';
 import { escalationFingerprint } from './escalationFingerprint.js';
 import { escalationLevel, escalationTitle, type EscalationPayload } from './escalationPayload.js';
@@ -36,12 +38,11 @@ export interface EscalationScope {
 }
 
 /** The monitor configuration a check-in upserts. Structural, matching the SDK's `MonitorConfig`. */
-export interface UpsertMonitorConfig {
-    readonly schedule: { readonly type: 'interval'; readonly value: number; readonly unit: 'minute' };
+export type UpsertMonitorConfig = MonitorSchedule & {
     readonly checkinMargin: number;
     readonly failureIssueThreshold: number;
     readonly recoveryThreshold: number;
-}
+};
 
 /**
  * The three Sentry functions a backstop needs.
@@ -135,7 +136,7 @@ export function createQueueEscalation(sentry: SentryPort, identity: BackstopIden
             sentry.captureCheckIn(
                 { monitorSlug: monitorSlug(identity.service, stage), status: 'ok' },
                 {
-                    schedule: { type: 'interval', value: identity.intervalMinutes, unit: 'minute' },
+                    ...monitorSchedule(stage, identity.intervalMinutes),
                     checkinMargin: MONITOR_MARGIN_MINUTES,
                     failureIssueThreshold: MONITOR_FAILURES_BEFORE_ISSUE,
                     recoveryThreshold: MONITOR_RECOVERY_THRESHOLD,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checksIn, monitorSlug } from '../cronMonitor.js';
+import { checksIn, hourField, monitorSchedule, monitorSlug } from '../cronMonitor.js';
 import type { EscalationPayload } from '../escalationPayload.js';
 import { escalationLevel, escalationTitle } from '../escalationPayload.js';
 
@@ -60,6 +60,65 @@ describe('the monitor slug', () => {
     it('is a stable lowercase slug', () => {
         expect(monitorSlug('recipe-workers', 'prod')).toBe('recipe-workers-queue-check-prod');
         expect(monitorSlug('food-service', 'sandbox')).toBe('food-service-queue-check-sandbox');
+    });
+});
+
+/**
+ * ⛔ THE MONITOR EXPECTS A CHECK-IN ONLY WHEN THE CHECK IS ALLOWED TO GIVE ONE.
+ *
+ * A sandbox check returns before its check-in for the whole ADR-0007 window, by design (R35), and it could not
+ * send one anyway: the window stops the NAT instance, and a VPC-attached Lambda then has no route to Sentry. An
+ * interval monitor ("every five minutes, always") therefore reported the check dead every night.
+ */
+describe('the schedule a monitor is upserted with', () => {
+    it('⛔ PROD keeps an every-N-minutes interval — it is never stopped, so it has no hours off', () => {
+        expect(monitorSchedule('prod', 5)).toEqual({ schedule: { type: 'interval', value: 5, unit: 'minute' } });
+    });
+
+    /**
+     * The hour field is DERIVED from the same predicate `isAwake` answers with, so it cannot drift from the
+     * hours the check actually runs in. Written out here as the literal it must equal, because a test that
+     * rebuilt it from the same constants would agree with any bug in the derivation.
+     */
+    it("⛔ a stage with a nightly window expects check-ins only in its awake hours, in the window's own zone", () => {
+        expect(monitorSchedule('sandbox', 5)).toEqual({
+            schedule: { type: 'crontab', value: '*/5 9-23 * * *' },
+            timezone: 'America/New_York',
+        });
+    });
+
+    it('carries the cadence into the minute field', () => {
+        expect(monitorSchedule('sandbox', 15)).toEqual({
+            schedule: { type: 'crontab', value: '*/15 9-23 * * *' },
+            timezone: 'America/New_York',
+        });
+    });
+
+    /**
+     * ⛔ A minute step that does not divide the hour restarts at :00, so the last gap of every hour is SHORTER
+     * than the cadence — the monitor would expect a check-in the check never sends, once an hour. Refused
+     * rather than rounded: a cadence that cannot be stated as a crontab is a configuration error to fix.
+     */
+    it('⛔ refuses a cadence a crontab cannot state evenly', () => {
+        expect(() => monitorSchedule('sandbox', 7)).toThrow(/7/u);
+        expect(() => monitorSchedule('sandbox', 0)).toThrow();
+        expect(() => monitorSchedule('sandbox', 90)).toThrow();
+    });
+
+    it('accepts the same uneven cadence on prod, whose interval schedule has no hour boundary to cross', () => {
+        expect(monitorSchedule('prod', 7)).toEqual({ schedule: { type: 'interval', value: 7, unit: 'minute' } });
+    });
+});
+
+describe('the crontab hour field', () => {
+    it('states a contiguous run as a range and a lone hour as itself', () => {
+        expect(hourField([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])).toBe('9-23');
+        expect(hourField([7])).toBe('7');
+    });
+
+    /** A window that does not touch midnight leaves two awake runs, one either side of it. */
+    it('joins separate runs with commas', () => {
+        expect(hourField([0, 1, 2, 3, 4, 5, 22, 23])).toBe('0-5,22-23');
     });
 });
 

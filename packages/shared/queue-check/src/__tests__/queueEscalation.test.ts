@@ -159,15 +159,30 @@ describe('the cron check-in', () => {
      * never set up" is indistinguishable, from the outside, from "the check is running fine".
      */
     it('⛔ upserts the monitor schedule, so nobody has to create it by hand', () => {
+        checkInQueueCheck('prod');
+
+        expect(captureCheckIn.mock.calls[0]?.[1]).toEqual({
+            schedule: { type: 'interval', value: QUEUE_CHECK_INTERVAL_MINUTES, unit: 'minute' },
+            checkinMargin: 5,
+            failureIssueThreshold: 2,
+            recoveryThreshold: 1,
+        });
+    });
+
+    /**
+     * ⛔ Rewritten to prove the new behaviour: this case used to pin sandbox to prod's interval, which reported
+     * the check dead for every hour of the nightly window it deliberately skips.
+     */
+    it('⛔ upserts a sandbox monitor that expects nothing during the nightly window', () => {
         checkInQueueCheck('sandbox');
 
-        expect(captureCheckIn.mock.calls[0]?.[1]).toEqual(
-            expect.objectContaining({
-                schedule: { type: 'interval', value: QUEUE_CHECK_INTERVAL_MINUTES, unit: 'minute' },
-                failureIssueThreshold: 2,
-                recoveryThreshold: 1,
-            }),
-        );
+        expect(captureCheckIn.mock.calls[0]?.[1]).toEqual({
+            schedule: { type: 'crontab', value: `*/${String(QUEUE_CHECK_INTERVAL_MINUTES)} 9-23 * * *` },
+            timezone: 'America/New_York',
+            checkinMargin: 5,
+            failureIssueThreshold: 2,
+            recoveryThreshold: 1,
+        });
     });
 
     it('⛔ does not check in from a preview, whose monitor would outlive its stack', () => {

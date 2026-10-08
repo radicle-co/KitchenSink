@@ -12,6 +12,8 @@
  * therefore escalates what it finds and promises nothing.
  */
 
+import { awakeLocalHours, NIGHTLY_TIMEZONE } from './awakeWindow.js';
+
 /** The stages whose continued silence is worth alarming on. */
 const CHECKING_IN_STAGES: ReadonlySet<string> = new Set(['prod', 'sandbox']);
 
@@ -65,3 +67,76 @@ export const MONITOR_FAILURES_BEFORE_ISSUE = 2;
 
 /** Consecutive successful check-ins before the monitor resolves. One: the job ran, it is back. */
 export const MONITOR_RECOVERY_THRESHOLD = 1;
+
+/** When a monitor expects check-ins. Structural, matching the SDK's `MonitorConfig` schedule and timezone. */
+export type MonitorSchedule =
+    | { readonly schedule: { readonly type: 'interval'; readonly value: number; readonly unit: 'minute' } }
+    | { readonly schedule: { readonly type: 'crontab'; readonly value: string }; readonly timezone: string };
+
+/**
+ * When a stage's monitor expects a check-in.
+ *
+ * ⛔ ONLY WHEN THE CHECK IS ALLOWED TO GIVE ONE. During the nightly window a non-prod check returns before
+ * its check-in (R35), and it could not deliver one anyway: the window also stops the NAT instance, so a
+ * VPC-attached Lambda has no route to Sentry. An every-N-minutes interval therefore reported the check dead
+ * every night. A stage with a window gets a crontab over its awake hours, in the window's own zone, so the
+ * daylight-saving shift moves the monitor and the window together. A stage that never sleeps keeps the
+ * interval.
+ *
+ * ⚠️ The first expected check-in of the day is the one the database is still starting for, and it may miss.
+ * One miss raises nothing — {@link MONITOR_FAILURES_BEFORE_ISSUE} needs two in a row.
+ *
+ * @param stage - The deploy stage.
+ * @param intervalMinutes - How often the check runs.
+ * @returns The schedule, plus its timezone when it is a crontab. Pure.
+ * @throws {RangeError} When a crontab is needed and the cadence does not divide the hour evenly.
+ */
+export function monitorSchedule(stage: string, intervalMinutes: number): MonitorSchedule {
+    const hours = awakeLocalHours(stage);
+
+    if (hours.length === 24) {
+        return { schedule: { type: 'interval', value: intervalMinutes, unit: 'minute' } };
+    }
+
+    // A minute step restarts at :00, so one that does not divide 60 leaves a short last gap every hour, and
+    // the monitor would expect a check-in the check never sends.
+    if (
+        !Number.isInteger(intervalMinutes) ||
+        intervalMinutes < 1 ||
+        intervalMinutes > 60 ||
+        60 % intervalMinutes !== 0
+    ) {
+        throw new RangeError(
+            `A ${String(intervalMinutes)}-minute cadence cannot be stated as a crontab; it must divide 60.`,
+        );
+    }
+
+    return {
+        schedule: { type: 'crontab', value: `*/${String(intervalMinutes)} ${hourField(hours)} * * *` },
+        timezone: NIGHTLY_TIMEZONE,
+    };
+}
+
+/**
+ * A crontab hour field for a set of hours: contiguous runs as ranges, joined by commas.
+ *
+ * @param hours - Ascending hours, 0–23, at least one.
+ * @returns For example `9-23`, or `0-5,22-23` for a window that does not touch midnight. Pure.
+ */
+export function hourField(hours: readonly number[]): string {
+    const runs: { first: number; last: number }[] = [];
+
+    for (const hour of hours) {
+        const current = runs.at(-1);
+
+        if (current !== undefined && hour === current.last + 1) {
+            current.last = hour;
+        } else {
+            runs.push({ first: hour, last: hour });
+        }
+    }
+
+    return runs
+        .map(({ first, last }) => (first === last ? String(first) : `${String(first)}-${String(last)}`))
+        .join(',');
+}

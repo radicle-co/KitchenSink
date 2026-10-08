@@ -34,11 +34,15 @@ describe('food is wired to its own identity and its own cadence', () => {
      * ⛔ THE REAPER'S TICK, derived rather than written down twice. Food's check has no schedule of its own —
      * it rides the drainer's timer, which is what makes its silence the DRAINER's dead-man signal — so a
      * monitor expecting a different cadence would report a miss every interval for a healthy drainer.
+     *
+     * Read on prod, whose interval schedule states the cadence directly. This case used to check in as
+     * `sandbox`, a stage food does not deploy to; a stage with a nightly window now upserts a crontab over
+     * its awake hours instead (`@kitchensink/queue-check`'s `monitorSchedule`).
      */
     it('⛔ expects a check-in on the reaper’s cadence, read from the reaper’s own constant', () => {
         expect(QUEUE_CHECK_INTERVAL_MINUTES).toBe(Math.max(1, Math.round(DEFAULT_REAP_INTERVAL_MS / 60_000)));
 
-        checkInQueueCheck('sandbox');
+        checkInQueueCheck('prod');
 
         expect(captureCheckIn.mock.calls[0]?.[1]).toEqual(
             expect.objectContaining({

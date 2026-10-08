@@ -53,11 +53,31 @@ export function nightlyLocalHour(at: Date): number {
  * @returns `true` when the stage is awake. Pure.
  */
 export function isAwake(stage: string, at: Date): boolean {
+    return isAwakeLocalHour(stage, nightlyLocalHour(at));
+}
+
+/**
+ * Whether a stage is awake during a given local hour of {@link NIGHTLY_TIMEZONE}. The one statement of the
+ * window: {@link isAwake} and {@link awakeLocalHours} both read it.
+ *
+ * @param stage - The deploy stage.
+ * @param hour - The local hour, 0–23.
+ * @returns `true` when the stage is awake in that hour. Pure.
+ */
+function isAwakeLocalHour(stage: string, hour: number): boolean {
     if (stage === 'prod') {
         return true;
     }
 
-    const hour = nightlyLocalHour(at);
-
     return hour < NIGHTLY_STOP_HOUR || hour >= NIGHTLY_START_HOUR;
+}
+
+/**
+ * Every local hour of {@link NIGHTLY_TIMEZONE} in which a stage is awake, ascending.
+ *
+ * @param stage - The deploy stage.
+ * @returns All 24 hours for a stage that never sleeps; otherwise the hours outside the nightly window. Pure.
+ */
+export function awakeLocalHours(stage: string): readonly number[] {
+    return Array.from({ length: 24 }, (_, hour) => hour).filter((hour) => isAwakeLocalHour(stage, hour));
 }

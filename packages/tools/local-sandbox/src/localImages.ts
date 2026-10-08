@@ -189,6 +189,9 @@ const LOCAL_INFRA: Readonly<Record<string, string>> = Object.freeze({
     // `503 NOT_READY: Database not reachable` on every one of them — while `/health`, the container
     // healthcheck and `docker ps` all still reported healthy, because liveness never touches the database.
     STAGE: 'local',
+    // Test-principal containment (ADR-0040) protects real users' data, and a local database holds none — the
+    // sandbox ruling (2026-09-13). The stacks set it only at sandbox and `pr-{N}`, and a local synth is `dev`.
+    TEST_PRINCIPAL_CONTAINMENT: 'off',
 });
 
 /**

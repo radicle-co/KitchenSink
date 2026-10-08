@@ -13,18 +13,24 @@
  * @sideEffect Spawns CDK and docker, writes generated files under `.local-sandbox/`, and starts containers.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { discoverApps, partitionForLocalSynth, type SkippedApp } from '../src/discoverApps.js';
+import { bundleBuildFor, discoverApps, partitionForLocalSynth, type SkippedApp } from '../src/discoverApps.js';
+import {
+    consumerEnvironment,
+    discoverQueueConsumers,
+    planQueueConsumers,
+    type PersistedConsumer,
+} from '../src/queueConsumers.js';
 import {
     discoverResources,
     summarizeRequirements,
     type DiscoveredResource,
     type SynthesizedTemplate,
 } from '../src/discoverResources.js';
-import { planCompose } from '../src/composePlan.js';
+import { LOCAL_DB, planCompose } from '../src/composePlan.js';
 import {
     discoverDatabases,
     discoverMigrations,
@@ -32,6 +38,8 @@ import {
     discoverServiceTasks,
     migrationCoverageGaps,
     resolveExports,
+    resolveSsmParameters,
+    sharedLiteralEnv,
 } from '../src/runPlan.js';
 import { discoverImageBuilds, localContainerEnv, portConflicts } from '../src/localImages.js';
 import { secretRefsOf, ssmRefsOf } from '../src/secretRefs.js';
@@ -49,6 +57,7 @@ import {
 import type { ServiceContainer } from '../src/composePlan.js';
 import { synthesizeAll } from '../src/synthesize.js';
 import {
+    CONSUMER_PLAN,
     REPO_ROOT,
     buildServiceImage,
     fetchSecret,
@@ -59,6 +68,7 @@ import {
     countLiveFoods,
     runCdkSynth,
     seedLocalCatalog,
+    synthEnvFor,
 } from './adapters.js';
 
 const GENERATED_DIR = path.join(REPO_ROOT, '.local-sandbox');
@@ -196,7 +206,11 @@ async function main(): Promise<void> {
     // literal. A per-stack view cannot see it, which is how identity's migrations were silently skipped.
     const parsedTemplates = stacks.map((entry) => entry.template);
     const exportMap = resolveExports(parsedTemplates);
-    const databases = discoverDatabases(parsedTemplates, exportMap);
+    // ⛔ The same move one intrinsic over: `RecipeService` reads its database name with `valueForStringParameter`, and
+    // only the recipe SCHEMA stack declares that parameter. Without this map the recipe container ran against the
+    // maintenance database `postgres` — healthy, and with no recipe tables.
+    const ssmParameterMap = resolveSsmParameters(parsedTemplates);
+    const databases = discoverDatabases(parsedTemplates, exportMap, ssmParameterMap);
     // Env NAMES each stack's containers declare, so a locally-run image gets the same variables set.
     const tasksByStack = new Map<string, string[]>();
 
@@ -356,7 +370,8 @@ async function main(): Promise<void> {
         const hostPort = localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, '')) ?? build.containerPort ?? 3000;
         // The stack's own database — the same resolution the migrations use.
         const stackEntry = stacks.find((entry) => entry.stack.startsWith(build.stack));
-        const stackDbs = stackEntry === undefined ? [] : discoverDatabases([stackEntry.template], exportMap);
+        const stackDbs =
+            stackEntry === undefined ? [] : discoverDatabases([stackEntry.template], exportMap, ssmParameterMap);
         const envKeys = tasksByStack.get(build.stack) ?? [];
 
         if (process.env['LOCAL_SANDBOX_SKIP_BUILD'] !== '1') {
@@ -392,9 +407,146 @@ async function main(): Promise<void> {
                 database: stackDbs[0] ?? 'postgres',
                 port: build.containerPort ?? 3000,
                 siblings,
-                resolved: { ...importsByStack.get(build.stack), ...secretsByStack.get(build.stack) },
+                // A literal the stack's tasks all state (`CLERK_ADMIT_NATIVE_CLIENT: 'true'`) ranks with what AWS resolved;
+                // without it every such value became a placeholder and the native app's tokens 401'd.
+                resolved: {
+                    ...(stackEntry === undefined
+                        ? {}
+                        : sharedLiteralEnv(stackEntry.template, new Set(Object.values(synthEnvFor(stackEntry.app))))),
+                    ...importsByStack.get(build.stack),
+                    ...secretsByStack.get(build.stack),
+                },
             }),
         });
+    }
+
+    // ── Queue consumers (SQS-triggered Lambdas) ─────────────────────────────────────────────────────
+    //
+    // ⛔ A queue whose consumer is a Lambda fills locally and nothing drains it: the test-principal purge the e2e
+    // tiers reset through stayed `queued` until `resetPool` gave up. Each consumer the CDK declares gets a stated
+    // decision (`LOCAL_QUEUE_CONSUMERS`); the ones a local run drives are persisted, with their bundle and their
+    // resolved environment, for `bin/queueConsumer.ts`. An undecided consumer refuses the run, as an undecided
+    // resource type does.
+    const consumerPlan = planQueueConsumers(
+        stacks.flatMap((entry) => [...discoverQueueConsumers(entry.stack, entry.template)]),
+    );
+
+    if (consumerPlan.undecided.length > 0) {
+        process.stderr.write('\nRefusing to start: queue consumers with no local decision.\n');
+
+        for (const consumer of consumerPlan.undecided) {
+            process.stderr.write(`  ${consumer.stack} ${consumer.handler}\n`);
+        }
+
+        process.stderr.write('Add each to LOCAL_QUEUE_CONSUMERS in src/queueConsumers.ts, with a reason.\n');
+        process.exitCode = 1;
+
+        return;
+    }
+
+    const persistedConsumers: PersistedConsumer[] = [];
+    const rebuiltOutDirs = new Map<string, string>();
+
+    for (const consumer of consumerPlan.run) {
+        const entry = stacks.find((candidate) => candidate.stack === consumer.stack);
+
+        if (entry === undefined || consumer.queueName === undefined) {
+            process.stderr.write(
+                `  queue consumer FAILED ${consumer.handler}: its queue is not one this stack declares\n`,
+            );
+            process.exitCode = 1;
+
+            return;
+        }
+
+        // ⛔ The asset is whatever the service last BUILT when its synth does not build first — so build it, and
+        // synthesise that one app again, before the asset is trusted to run.
+        let outDir = rebuiltOutDirs.get(entry.app.packageName) ?? entry.outDir;
+        const buildDir = bundleBuildFor(entry.app, readManifests());
+
+        if (buildDir !== undefined && !rebuiltOutDirs.has(entry.app.packageName)) {
+            process.stdout.write(`\nBuilding ${buildDir} so its queue consumers run this tree's code…\n`);
+            const built = spawnSync('npm', ['run', 'build', `--workspace=${buildDir}`], {
+                cwd: REPO_ROOT,
+                encoding: 'utf8',
+            });
+
+            if (built.status !== 0) {
+                process.stderr.write(
+                    `  build FAILED for ${buildDir}\n${`${built.stderr}${built.stdout}`.slice(-2000)}\n`,
+                );
+                process.exitCode = 1;
+
+                return;
+            }
+
+            outDir = mkdtempSync(path.join(tmpdir(), 'local-sandbox-consumers-'));
+            const resynth = await runCdkSynth({ app: entry.app, cwd: entry.app.packageDir, outDir });
+
+            if (resynth.templates.length === 0) {
+                process.stderr.write(
+                    `  re-synth FAILED for ${entry.app.packageName}\n${resynth.stderr.slice(-2000)}\n`,
+                );
+                process.exitCode = 1;
+
+                return;
+            }
+
+            rebuiltOutDirs.set(entry.app.packageName, outDir);
+        }
+
+        const fresh = discoverQueueConsumers(
+            consumer.stack,
+            JSON.parse(readFileSync(path.join(outDir, `${consumer.stack}.template.json`), 'utf8')),
+        ).find((candidate) => candidate.handler === consumer.handler);
+        const assetHash = fresh?.assetHash;
+
+        if (assetHash === undefined || !existsSync(path.join(outDir, `asset.${assetHash}`))) {
+            process.stderr.write(`  queue consumer FAILED ${consumer.handler}: the synth carries no asset for it\n`);
+            process.exitCode = 1;
+
+            return;
+        }
+
+        // Copied INTO the repo's gitignored `.local-sandbox/`, so the bundle's external `@aws-sdk/*` (the Lambda
+        // runtime's, in the deployed world) resolves from the workspace `node_modules`.
+        const bundleDir = path.join(GENERATED_DIR, 'consumers', assetHash);
+
+        if (!existsSync(bundleDir)) {
+            cpSync(path.join(outDir, `asset.${assetHash}`), bundleDir, { recursive: true });
+        }
+
+        try {
+            persistedConsumers.push({
+                name: path.basename(consumer.module, '.js'),
+                handler: consumer.handler,
+                bundleDir,
+                module: consumer.module,
+                exportName: consumer.exportName,
+                queueUrl: `http://localhost:4566/000000000000/${consumer.queueName}`,
+                batchSize: consumer.batchSize,
+                reportsBatchItemFailures: consumer.reportsBatchItemFailures,
+                timeoutSeconds: consumer.timeoutSeconds,
+                environment: consumerEnvironment(consumer, {
+                    ssmParameters: ssmParameterMap,
+                    exports: exportsLocally,
+                    inventedValues: new Set(Object.values(synthEnvFor(entry.app))),
+                    database: {
+                        host: 'localhost',
+                        port: LOCAL_DB.hostPort,
+                        user: LOCAL_DB.user,
+                        password: LOCAL_DB.password,
+                    },
+                }),
+            });
+        } catch (error) {
+            process.stderr.write(
+                `  queue consumer FAILED ${consumer.handler}: ${error instanceof Error ? error.message : String(error)}\n`,
+            );
+            process.exitCode = 1;
+
+            return;
+        }
     }
 
     const plan = planCompose(requirements, { databases, serviceContainers });
@@ -402,6 +554,7 @@ async function main(): Promise<void> {
     mkdirSync(GENERATED_DIR, { recursive: true });
     writeFileSync(path.join(GENERATED_DIR, 'compose.yml'), toYaml(plan));
     writeFileSync(path.join(GENERATED_DIR, 'init.sql'), plan.initSql);
+    writeFileSync(CONSUMER_PLAN, `${JSON.stringify(persistedConsumers, null, 4)}\n`);
 
     process.stdout.write(`\n  resources        : ${resources.length} across ${stacks.length} template(s)\n`);
     process.stdout.write(`  LocalStack       : ${requirements.localstackServices.join(',')}\n`);
@@ -412,6 +565,15 @@ async function main(): Promise<void> {
         `  secrets resolved : ${String([...secretCache.values()].filter((v) => v !== undefined).length)} from Secrets Manager` +
             `${unresolved.length > 0 ? ` — UNRESOLVED: ${[...new Set(unresolved)].join(', ')}` : ''}\n`,
     );
+    process.stdout.write(
+        `  queue consumers  : ${persistedConsumers.map((consumer) => consumer.name).join(', ') || '(none run locally)'}` +
+            ' — started by `local:maestro`, or `npm run consumer --workspace=@kitchensink/local-sandbox -- <name>`\n',
+    );
+
+    for (const { consumer, why } of consumerPlan.notRun) {
+        process.stdout.write(`  · not consumed   : ${consumer.handler} — ${why}\n`);
+    }
+
     process.stdout.write(`  generated        : .local-sandbox/compose.yml\n\n`);
 
     // Pre-flight, before docker gets a chance to fail obscurely several minutes into the run.
@@ -448,6 +610,31 @@ async function main(): Promise<void> {
 
     process.stdout.write('Starting containers…\n');
     const composeArgs = ['compose', '-f', path.join(GENERATED_DIR, 'compose.yml'), '-p', 'local-sandbox'];
+
+    // ⛔ THE DATABASES FIRST, AND ON EVERY RUN. Postgres runs `docker-entrypoint-initdb.d` only against an EMPTY data
+    // directory, and `local:down` keeps the volume — so a database a later CDK change added was never created, and
+    // its migrations and its service had nothing to connect to (`kitchensink_recipes_dev`, measured). `init.sql` is
+    // idempotent (`CREATE DATABASE … WHERE NOT EXISTS`), so it is applied again here, before any service starts.
+    const database = spawnSync('docker', [...composeArgs, 'up', '-d', '--wait', 'postgres'], {
+        cwd: GENERATED_DIR,
+        stdio: 'inherit',
+    });
+    const created =
+        database.status === 0
+            ? spawnSync(
+                  'docker',
+                  ['exec', '-i', 'local-sandbox-postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-U', LOCAL_DB.user],
+                  { input: plan.initSql, encoding: 'utf8' },
+              )
+            : database;
+
+    if (created.status !== 0) {
+        process.stderr.write(`\ncould not create the declared databases.\n${String(created.stderr ?? '')}\n`);
+        process.exitCode = created.status ?? 1;
+
+        return;
+    }
+
     const up = spawnSync('docker', [...composeArgs, 'up', '-d', '--wait'], { cwd: GENERATED_DIR, stdio: 'inherit' });
 
     if (up.status !== 0) {
@@ -513,7 +700,7 @@ async function main(): Promise<void> {
         // Which database? The stack's own templates name it concretely at STAGE=dev. Ambiguity is
         // reported rather than guessed — applying one service's schema to another's database is a worse
         // outcome than an unmigrated database, because it looks like it worked.
-        const stackDatabases = discoverDatabases([parsed], exportMap);
+        const stackDatabases = discoverDatabases([parsed], exportMap, ssmParameterMap);
 
         if (stackDatabases.length !== 1) {
             // ⚠️ Reported, but not alarming by default. Two shapes land here and only one is a gap:
@@ -664,7 +851,7 @@ async function main(): Promise<void> {
             }
 
             // The same resolution the migrations use. A seed aimed at a guessed database is worse than none.
-            const stackDatabases = discoverDatabases([parsed], exportMap);
+            const stackDatabases = discoverDatabases([parsed], exportMap, ssmParameterMap);
             const database = stackDatabases.length === 1 ? stackDatabases[0] : undefined;
 
             if (database === undefined) {

@@ -237,6 +237,41 @@ export function resolveExports(templates: readonly unknown[]): ExportMap {
     return map;
 }
 
+/** SSM parameter name → its literal value, for every `AWS::SSM::Parameter` the templates DECLARE. */
+export type SsmParameterMap = Readonly<Record<string, string>>;
+
+/**
+ * Every SSM parameter the synthesised CDK declares, by name.
+ *
+ * The SSM counterpart of {@link resolveExports}: a stack that reads a value with `valueForStringParameter` carries
+ * only the parameter's NAME (a template `Parameter` of type `AWS::SSM::Parameter::Value<String>`), and the stack that
+ * declares the parameter carries the value.
+ *
+ * @param templates - Every parsed template.
+ * @returns Parameter name → value, for parameters whose name and value are both plain strings. Pure.
+ */
+export function resolveSsmParameters(templates: readonly unknown[]): SsmParameterMap {
+    const map: Record<string, string> = Object.create(null) as Record<string, string>;
+
+    for (const template of templates) {
+        const resources = (template as { Resources?: Record<string, unknown> }).Resources ?? {};
+
+        for (const resource of Object.values(resources)) {
+            const { Type: type, Properties: properties } = resource as { Type?: unknown; Properties?: unknown };
+            const { Name: name, Value: value } = (properties ?? {}) as { Name?: unknown; Value?: unknown };
+
+            if (type === 'AWS::SSM::Parameter' && typeof name === 'string' && typeof value === 'string') {
+                map[name] = value;
+            }
+        }
+    }
+
+    return map;
+}
+
+/** The template parameter type CDK's `valueForStringParameter` synthesises. */
+const SSM_STRING_PARAMETER = 'AWS::SSM::Parameter::Value<String>';
+
 /** Keys whose VALUE names a database. */
 const DATABASE_KEY = /(^|_)(DB_NAME|DATABASE_NAME|POSTGRES_DB)$/u;
 
@@ -254,24 +289,46 @@ const DATABASE_NAME = /^[a-z_][a-z0-9_]*$/iu;
  *
  * @param templates - Every parsed template.
  * @param exports_ - The export map from {@link resolveExports}.
+ * @param ssmParameters - The declared SSM parameters from {@link resolveSsmParameters}, for a database a stack reads
+ *   with `valueForStringParameter` (recipe-service: `/kitchensink/{stage}/recipe/database-name`).
  * @returns Sorted, de-duplicated database names. Pure.
  */
-export function discoverDatabases(templates: readonly unknown[], exports_: ExportMap): readonly string[] {
+export function discoverDatabases(
+    templates: readonly unknown[],
+    exports_: ExportMap,
+    ssmParameters: SsmParameterMap,
+): readonly string[] {
     const names = new Set<string>();
 
-    const literal = (value: unknown): string | undefined => {
+    const literal = (value: unknown, parameters: Readonly<Record<string, unknown>>): string | undefined => {
         if (typeof value === 'string') {
             return value;
         }
 
         const imported = (value as { 'Fn::ImportValue'?: unknown } | null)?.['Fn::ImportValue'];
 
-        return typeof imported === 'string' ? exports_[imported] : undefined;
+        if (typeof imported === 'string') {
+            return exports_[imported];
+        }
+
+        // ⚠️ A `Ref` resolves against the template that HOLDS it — a logical id means nothing in another template —
+        // and only through an SSM parameter type, whose `Default` is a parameter NAME rather than a value.
+        const ref = (value as { Ref?: unknown } | null)?.Ref;
+        const parameter = typeof ref === 'string' && Object.hasOwn(parameters, ref) ? parameters[ref] : undefined;
+        const { Type: type, Default: path } = (parameter ?? {}) as { Type?: unknown; Default?: unknown };
+
+        return type === SSM_STRING_PARAMETER && typeof path === 'string' ? ssmParameters[path] : undefined;
     };
 
-    const walk = (node: unknown): void => {
+    const walkTemplate = (template: unknown): void => {
+        const parameters = (template as { Parameters?: Record<string, unknown> } | null)?.Parameters ?? {};
+
+        walk(template, parameters);
+    };
+
+    const walk = (node: unknown, parameters: Readonly<Record<string, unknown>>): void => {
         if (Array.isArray(node)) {
-            node.forEach(walk);
+            node.forEach((child) => walk(child, parameters));
 
             return;
         }
@@ -282,7 +339,7 @@ export function discoverDatabases(templates: readonly unknown[], exports_: Expor
 
         for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
             if (key === 'DBName') {
-                const name = literal(value);
+                const name = literal(value, parameters);
 
                 if (name !== undefined && DATABASE_NAME.test(name)) {
                     names.add(name);
@@ -291,7 +348,7 @@ export function discoverDatabases(templates: readonly unknown[], exports_: Expor
 
             // A task definition's `Environment: [{ Name, Value }]`.
             if (key === 'Name' && typeof value === 'string' && DATABASE_KEY.test(value)) {
-                const name = literal((node as { Value?: unknown }).Value);
+                const name = literal((node as { Value?: unknown }).Value, parameters);
 
                 if (name !== undefined && DATABASE_NAME.test(name)) {
                     names.add(name);
@@ -302,7 +359,7 @@ export function discoverDatabases(templates: readonly unknown[], exports_: Expor
             // database (ADR-0035).
             if (key === 'Variables' && value !== null && typeof value === 'object' && !Array.isArray(value)) {
                 for (const [variable, raw] of Object.entries(value as Record<string, unknown>)) {
-                    const name = DATABASE_KEY.test(variable) ? literal(raw) : undefined;
+                    const name = DATABASE_KEY.test(variable) ? literal(raw, parameters) : undefined;
 
                     if (name !== undefined && DATABASE_NAME.test(name)) {
                         names.add(name);
@@ -310,11 +367,63 @@ export function discoverDatabases(templates: readonly unknown[], exports_: Expor
                 }
             }
 
-            walk(value);
+            walk(value, parameters);
         }
     };
 
-    templates.forEach(walk);
+    templates.forEach(walkTemplate);
 
     return [...names].sort();
+}
+
+/**
+ * The environment values a stack's task definitions state as LITERALS — and agree on.
+ *
+ * ⛔ Only a value every task definition of the stack states identically: one image serves several tasks (food's api,
+ * worker and change-refresh), and the one local container takes the union of their variable names, so a value only
+ * the worker states (`FOOD_WORKER=1`) would turn the API container into a worker. A value the local synth invented
+ * (`synthEnvFor`'s placeholders) is not configuration and is dropped.
+ *
+ * @param template - The synthesised template.
+ * @param inventedValues - Every placeholder value the local synth supplied.
+ * @returns Name → value. Pure.
+ */
+export function sharedLiteralEnv(
+    template: unknown,
+    inventedValues: ReadonlySet<string>,
+): Readonly<Record<string, string>> {
+    const resources = Object.values(
+        (template as { Resources?: Record<string, { Type?: unknown; Properties?: unknown }> } | null)?.Resources ?? {},
+    );
+    const perTask = resources
+        .filter((resource) => resource.Type === 'AWS::ECS::TaskDefinition')
+        .map((resource) => {
+            const containers =
+                (resource.Properties as { ContainerDefinitions?: readonly Record<string, unknown>[] } | undefined)
+                    ?.ContainerDefinitions ?? [];
+            const literals = new Map<string, string>();
+
+            for (const container of containers) {
+                for (const entry of (container['Environment'] ?? []) as readonly {
+                    Name?: unknown;
+                    Value?: unknown;
+                }[]) {
+                    if (typeof entry.Name === 'string' && typeof entry.Value === 'string') {
+                        literals.set(entry.Name, entry.Value);
+                    }
+                }
+            }
+
+            return literals;
+        });
+    const [first, ...rest] = perTask;
+    const shared: Record<string, string> = Object.create(null) as Record<string, string>;
+
+    for (const [name, value] of first ?? new Map<string, string>()) {
+        if (!inventedValues.has(value) && rest.every((literals) => literals.get(name) === value)) {
+            shared[name] = value;
+        }
+    }
+
+    return { ...shared };
 }

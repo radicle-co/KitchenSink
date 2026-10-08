@@ -32,6 +32,8 @@ import {
     discoverServiceTasks,
     migrationCoverageGaps,
     resolveExports,
+    resolveSsmParameters,
+    sharedLiteralEnv,
 } from '../runPlan.js';
 
 const template = (resources: Record<string, unknown>): unknown => ({ Resources: resources });
@@ -314,6 +316,7 @@ describe('resolveExports + discoverDatabases', () => {
                     },
                 ],
                 exports_,
+                {},
             ),
         ).toEqual(['kitchensink_identity']);
     });
@@ -343,6 +346,7 @@ describe('resolveExports + discoverDatabases', () => {
                     },
                 ],
                 exports_,
+                {},
             ),
         ).toEqual(found);
     });
@@ -351,6 +355,7 @@ describe('resolveExports + discoverDatabases', () => {
         expect(
             discoverDatabases(
                 [{ Resources: { D: { Type: 'AWS::RDS::DBInstance', Properties: { DBName: 'kitchensink_food' } } } }],
+                {},
                 {},
             ),
         ).toEqual(['kitchensink_food']);
@@ -378,6 +383,7 @@ describe('resolveExports + discoverDatabases', () => {
                     },
                 ],
                 {},
+                {},
             ),
         ).toEqual([]);
     });
@@ -403,7 +409,156 @@ describe('resolveExports + discoverDatabases', () => {
                     { Resources: { C: { Type: 'AWS::RDS::DBInstance', Properties: { DBName: 'b' } } } },
                 ],
                 {},
+                {},
             ),
         ).toEqual(['a', 'b']);
+    });
+});
+
+/**
+ * ⛔ The reason this exists. `RecipeService-dev` names its database as `{ Ref: <SSM parameter> }` — a CDK
+ * `valueForStringParameter` read of `/kitchensink/dev/recipe/database-name` — and only the recipe SCHEMA stack
+ * declares that parameter, with the literal `kitchensink_recipes_dev`. Read without the parameter, the service
+ * stack named no database, `local:up` fell back to the server's maintenance database `postgres`, and the recipe
+ * container came up healthy against a database with no recipe tables: `/health` answered 200 and every real query
+ * failed. The worker (`recipe-workers/.env.development`) meanwhile read `kitchensink_recipes_dev`, so the two halves
+ * of one service disagreed about where its data lived.
+ */
+describe('resolveSsmParameters + discoverDatabases', () => {
+    const declaring = {
+        Resources: {
+            P: {
+                Type: 'AWS::SSM::Parameter',
+                Properties: {
+                    Name: '/kitchensink/dev/recipe/database-name',
+                    Type: 'String',
+                    Value: 'kitchensink_recipes_dev',
+                },
+            },
+        },
+    };
+    const reading = (parameter: Record<string, unknown>): unknown => ({
+        Parameters: { DbNameParam: parameter },
+        Resources: {
+            T: {
+                Type: 'AWS::ECS::TaskDefinition',
+                Properties: {
+                    ContainerDefinitions: [{ Environment: [{ Name: 'DB_NAME', Value: { Ref: 'DbNameParam' } }] }],
+                },
+            },
+        },
+    });
+    const ssmParameter = {
+        Type: 'AWS::SSM::Parameter::Value<String>',
+        Default: '/kitchensink/dev/recipe/database-name',
+    };
+
+    it('maps each declared parameter name to its literal value', () => {
+        expect(resolveSsmParameters([declaring])).toEqual({
+            '/kitchensink/dev/recipe/database-name': 'kitchensink_recipes_dev',
+        });
+    });
+
+    it('takes only a literal value — an intrinsic is not a name it can know', () => {
+        expect(
+            resolveSsmParameters([
+                {
+                    Resources: {
+                        P: {
+                            Type: 'AWS::SSM::Parameter',
+                            Properties: { Name: '/x', Value: { 'Fn::GetAtt': ['D', 'Endpoint.Address'] } },
+                        },
+                    },
+                },
+            ]),
+        ).toEqual({});
+    });
+
+    it('resolves a database a service reads through an SSM parameter another stack declares', () => {
+        const ssm = resolveSsmParameters([declaring]);
+
+        expect(discoverDatabases([reading(ssmParameter)], {}, ssm)).toEqual(['kitchensink_recipes_dev']);
+    });
+
+    it('ignores a parameter nothing declares, rather than inventing a database', () => {
+        expect(discoverDatabases([reading(ssmParameter)], {}, {})).toEqual([]);
+    });
+
+    it('resolves a Ref only through an SSM parameter type — a plain String parameter Default is not a value it was given', () => {
+        const ssm = resolveSsmParameters([declaring]);
+
+        expect(
+            discoverDatabases([reading({ Type: 'String', Default: '/kitchensink/dev/recipe/database-name' })], {}, ssm),
+        ).toEqual([]);
+    });
+
+    it('resolves a Ref against the template that holds it, never a parameter another template declares', () => {
+        const ssm = resolveSsmParameters([declaring]);
+        const elsewhere = { Parameters: { DbNameParam: ssmParameter }, Resources: {} };
+        const orphan = {
+            Resources: {
+                T: {
+                    Type: 'AWS::ECS::TaskDefinition',
+                    Properties: {
+                        ContainerDefinitions: [{ Environment: [{ Name: 'DB_NAME', Value: { Ref: 'DbNameParam' } }] }],
+                    },
+                },
+            },
+        };
+
+        expect(discoverDatabases([elsewhere, orphan], {}, ssm)).toEqual([]);
+    });
+});
+
+/**
+ * ⛔ A container's environment was built from the task definition's variable NAMES only, so a value the CDK states
+ * outright never reached it: every one became a placeholder. `CLERK_ADMIT_NATIVE_CLIENT: 'true'` (set on every stage
+ * by the shared Clerk environment) arrived as `local-placeholder`, `clerk-verify` admitted no azp-less native token,
+ * and every request the mobile app made answered `401` — measured on the first device run of `local:maestro`.
+ *
+ * ⚠️ Only a value EVERY task of the stack states identically. One image serves several tasks (food's api, worker and
+ * change-refresh), and the one local container takes the union of their names — so a value only the worker states
+ * (`FOOD_WORKER=1`) would turn the API container into a worker.
+ */
+describe('sharedLiteralEnv', () => {
+    const task = (environment: Record<string, unknown>) => ({
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: {
+            ContainerDefinitions: [
+                { Environment: Object.entries(environment).map(([Name, Value]) => ({ Name, Value })) },
+            ],
+        },
+    });
+    const invented = new Set(['local-placeholder', 'http://localhost:1']);
+
+    it('takes a literal the stack states', () => {
+        expect(sharedLiteralEnv(template({ A: task({ CLERK_ADMIT_NATIVE_CLIENT: 'true' }) }), invented)).toEqual({
+            CLERK_ADMIT_NATIVE_CLIENT: 'true',
+        });
+    });
+
+    it('takes only what every task states identically', () => {
+        const env = sharedLiteralEnv(
+            template({
+                Api: task({ CLERK_ADMIT_NATIVE_CLIENT: 'true', MODE: 'api' }),
+                Worker: task({ CLERK_ADMIT_NATIVE_CLIENT: 'true', MODE: 'worker', FOOD_WORKER: '1' }),
+            }),
+            invented,
+        );
+
+        expect(env).toEqual({ CLERK_ADMIT_NATIVE_CLIENT: 'true' });
+    });
+
+    it('drops a value the synth invented, and anything that is not a literal', () => {
+        expect(
+            sharedLiteralEnv(
+                template({ A: task({ FOOD_SERVICE_URL: 'http://localhost:1', DB_NAME: { Ref: 'P' } }) }),
+                invented,
+            ),
+        ).toEqual({});
+    });
+
+    it('finds nothing in a template with no task definition', () => {
+        expect(sharedLiteralEnv(template({}), invented)).toEqual({});
     });
 });

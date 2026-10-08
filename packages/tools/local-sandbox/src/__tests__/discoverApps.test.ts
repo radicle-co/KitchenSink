@@ -27,7 +27,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { readManifests as realManifests } from '../../bin/adapters.js';
-import { discoverApps, partitionForLocalSynth, type PackageManifest } from '../discoverApps.js';
+import { bundleBuildFor, discoverApps, partitionForLocalSynth, type PackageManifest } from '../discoverApps.js';
 
 const manifest = (dir: string, name: string, scripts: Record<string, string>): PackageManifest => ({
     dir,
@@ -203,5 +203,50 @@ describe('partitionForLocalSynth', () => {
         // Each name here carries its reason in its own manifest: the parser needs a Python toolchain to synthesise, and
         // the remote-search app refuses every stage but `prod` and a pull request's (ADR-0055).
         expect(declared).toEqual(['@kitchensink/ingredient-parser-infra', '@kitchensink/remote-search-infra']);
+    });
+});
+
+/**
+ * ⛔ A queue consumer runs the synthesised Lambda asset, and for `recipe-workers` that asset is whatever the package
+ * last BUILT: its `infra:synth` is a bare `cdk synth` over `Code.fromAsset(dist)`, unlike the services whose synth
+ * runs `bundle:lambda` first. Run unbuilt, the local consumer would execute an old handler with nothing saying so.
+ */
+describe('bundleBuildFor', () => {
+    const app = (script: string, dir = 'packages/services/recipe-workers/infra') => ({
+        app: {
+            packageName: '@kitchensink/recipe-workers-infra',
+            packageDir: dir,
+            script: 'synth',
+            appCommand: 'x',
+            localSynthSkip: undefined,
+        },
+        manifests: [
+            { dir, json: { name: '@kitchensink/recipe-workers-infra', scripts: { synth: script } } },
+            {
+                dir: 'packages/services/recipe-workers',
+                json: {
+                    name: '@kitchensink/recipe-workers',
+                    scripts: { build: 'tsc -p tsconfig.build.json && npm run package' },
+                },
+            },
+        ] satisfies PackageManifest[],
+    });
+
+    it('builds the owning service when the synth does not build its own bundle', () => {
+        const { app: a, manifests } = app("cdk synth --app 'npx tsx bin/app.ts'");
+
+        expect(bundleBuildFor(a, manifests)).toBe('packages/services/recipe-workers');
+    });
+
+    it('builds nothing when the synth already bundles first', () => {
+        const { app: a, manifests } = app("npm run bundle:lambda --prefix .. && cdk synth --app 'npx tsx bin/app.ts'");
+
+        expect(bundleBuildFor(a, manifests)).toBeUndefined();
+    });
+
+    it('builds nothing for an app that is not the infra of a service with a build', () => {
+        const { app: a, manifests } = app("cdk synth --app 'npx tsx bin/app.ts'", 'packages/infra/global');
+
+        expect(bundleBuildFor(a, manifests)).toBeUndefined();
     });
 });

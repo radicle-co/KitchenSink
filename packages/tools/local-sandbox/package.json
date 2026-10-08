@@ -8,19 +8,23 @@
     },
     "scripts": {
         "audit": "tsx bin/audit.ts",
+        "consumer": "tsx bin/queueConsumer.ts",
         "test": "vitest run",
         "lint": "eslint .",
+        "maestro": "bash bin/localMaestro.sh",
         "typecheck": "tsc --noEmit",
         "up": "tsx bin/up.ts"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
         "@kitchensink/vitest": "*",
+        "@types/aws-lambda": "^8.10.0",
         "@types/node": "^24.13.3",
         "vitest": "^4.0.0",
         "yaml": "^2.8.1"
     },
     "dependencies": {
+        "@aws-sdk/client-sqs": "^3.935.0",
         "glob": "^13.0.6"
     }
 }

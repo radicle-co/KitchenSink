@@ -21,6 +21,9 @@ import type { SynthRequest, SynthResult } from '../src/synthesize.js';
 /** Repo root, resolved from this file rather than the caller's cwd. */
 export const REPO_ROOT = path.resolve(import.meta.dirname, '../../../..');
 
+/** Where `local:up` persists the queue consumers it planned, for `bin/queueConsumer.ts` (gitignored). */
+export const CONSUMER_PLAN = path.join(REPO_ROOT, '.local-sandbox', 'queueConsumers.json');
+
 /**
  * Every workspace manifest.
  *

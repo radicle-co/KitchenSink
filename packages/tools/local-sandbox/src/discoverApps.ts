@@ -173,3 +173,31 @@ export function partitionForLocalSynth(apps: readonly CdkApp[], options: LocalSy
         ),
     };
 }
+
+/**
+ * The service package to BUILD before an app's Lambda assets can be trusted, or `undefined`.
+ *
+ * ⛔ A synth that is a bare `cdk synth` over `Code.fromAsset(<build output>)` packages whatever the service last
+ * built (`recipe-workers`); the services whose synth runs `bundle:lambda` first build their own. A local run that
+ * EXECUTES an asset — the queue consumers — must build the first kind, or it runs an old handler unannounced.
+ *
+ * @param app - The app.
+ * @param manifests - Every workspace manifest.
+ * @returns The owning service's directory, when the app is `<service>/infra`, its synth builds nothing first, and the
+ *   service has a `build` script. Pure.
+ */
+export function bundleBuildFor(app: CdkApp, manifests: readonly PackageManifest[]): string | undefined {
+    if (!app.packageDir.endsWith('/infra')) {
+        return undefined;
+    }
+
+    const serviceDir = app.packageDir.slice(0, -'/infra'.length);
+    const synth = manifests.find((manifest) => manifest.dir === app.packageDir)?.json.scripts?.[app.script];
+    const service = manifests.find((manifest) => manifest.dir === serviceDir);
+
+    if (typeof synth !== 'string' || /bundle:lambda|run build/u.test(synth)) {
+        return undefined;
+    }
+
+    return typeof service?.json.scripts?.['build'] === 'string' ? serviceDir : undefined;
+}

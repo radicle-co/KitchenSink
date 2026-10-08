@@ -164,6 +164,15 @@ describe('localContainerEnv', () => {
         expect(env['DB_PASSWORD']).toBe('postgres');
     });
 
+    it('switches test-principal containment OFF, as sandbox does — a local database holds no real user', () => {
+        // ⛔ Regression, found by running `local:maestro`. The stacks set `TEST_PRINCIPAL_CONTAINMENT: 'off'` only at
+        // sandbox and `pr-{N}` (owner ruling 2026-09-13), and a local synth is STAGE=dev, so the variable was absent
+        // and the services' config parsed it to `enforce`. The seeder then failed on its first public recipe:
+        // `403 TEST_PRINCIPAL_CONTAINED`. Containment protects real users' data (ADR-0040), and there is none here.
+        // Stated for every container, because the stack declares no key at this stage for the loop to find.
+        expect(localContainerEnv([], base)['TEST_PRINCIPAL_CONTAINMENT']).toBe('off');
+    });
+
     it('points every AWS SDK call at LocalStack', () => {
         const env = localContainerEnv(['FOOD_EVENT_BUS_NAME'], base);
 

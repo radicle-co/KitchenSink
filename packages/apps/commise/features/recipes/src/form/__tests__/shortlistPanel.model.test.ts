@@ -30,7 +30,7 @@ import {
     shortlistSettledAt,
     type ShortlistPanelCopy,
     type ShortlistPanelInput,
-} from '../shortlistPanel.js';
+} from '../shortlistPanel.model.js';
 
 const form = recipeFormMessages.en;
 const remote = recipeMessages.en.ingredientRemoteSearch;

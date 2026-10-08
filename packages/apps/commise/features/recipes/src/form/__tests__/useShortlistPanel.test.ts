@@ -18,7 +18,7 @@ import type { CandidatesPanelBody } from '../candidatesPanel.js';
 import type { IngredientPick, LineCommitOutcome } from '../../hooks/lineCommit.js';
 import { seedLineKey } from '../lineKey.js';
 import { recipeFormMessages } from '../messages.js';
-import type { ShortlistPanelProps } from '../shortlistPanel.js';
+import type { ShortlistPanelProps } from '../shortlistPanel.model.js';
 
 const mocks = vi.hoisted(() => ({ useIngredientSuggestionSource: vi.fn() }));
 

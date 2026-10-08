@@ -68,7 +68,7 @@ export interface RowDetailsTarget {
 export type RowCommitOrigin =
     | { readonly kind: 'entry' }
     | { readonly kind: 'authoredFood'; readonly outcome: AuthoredFoodOutcome }
-    /** Row 6's or row 7's panel: one pick on one line the search's shortlist offers (`../form/shortlistPanel.ts`). */
+    /** Row 6's or row 7's panel: one pick on one line the search's shortlist offers (`../form/shortlistPanel.model.ts`). */
     | { readonly kind: 'shortlist' }
     | { readonly kind: 'details'; readonly mode: DetailsDialogEntry['mode'] };
 

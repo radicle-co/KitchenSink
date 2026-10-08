@@ -24,7 +24,7 @@ import { entrySearchViewOf, type EntrySearchView } from '../../hooks/foodSuggest
 import { recipeMessages } from '../../messages.js';
 import { CandidatesPanelBody } from '../CandidatesPanelBody.native.js';
 import { recipeFormMessages } from '../messages.js';
-import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.js';
+import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.model.js';
 
 // Every `View`'s props, recorded: React Native 0.86 flattens a View that only lays out its children out of Android's
 // native tree, label and all (`ViewShadowNode.cpp`), and react-native-web, which renders every View, cannot show that.

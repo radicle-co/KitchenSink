@@ -10,7 +10,7 @@
  * ⛔ A candidate pick for an `UNRESOLVED` row is NOT a member of this union. It is a server write on the binding, the
  * same on both forms, owned by that row's own panel mutation (blueprint §F); routing it here as `draft` would make the
  * draft adapter decide the route a second time (staff-architect REVIEW F2). An `AMBIGUOUS` row's shortlist pick IS one:
- * it binds that line alone (owner ruling 2026-10-02), so it is an ordinary pick on the line (`../form/shortlistPanel.ts`).
+ * it binds that line alone (owner ruling 2026-10-02), so it is an ordinary pick on the line (`../form/shortlistPanel.model.ts`).
  *
  * ⛔ {@link commitRouteFor} is the only place the choice is made. A second `if (persisted)` elsewhere is how a
  * persisted line ends up re-pointed by a plain save and teaches nothing.

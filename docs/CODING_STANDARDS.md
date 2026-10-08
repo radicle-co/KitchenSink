@@ -82,6 +82,11 @@ defines immutable principles; this document translates them into enforceable rul
 > (see `packages/tools/eslint`). A non-conforming name FAILS lint. ESLint sees only JS/TS and checks only the
 > first segment of a name, so `packages/infra/global/__tests__/fileNameConvention.test.ts` holds EVERY tracked
 > file — scripts, workflows, Maestro flows, JSON, docs — and every segment of its name to the same rule.
+>
+> **Two names in one directory must differ by more than case** once the extension and any platform suffix are
+> removed. On macOS and Windows `foo.ts` and `Foo.tsx` are ONE module, and an import binds whichever the resolver
+> tries first, so a pure module beside a component takes a role suffix (`shortlistPanel.model.ts` beside
+> `ShortlistPanel.tsx`). Linux CI cannot see this collision; `caseInsensitivePathCollisions.test.ts` holds it.
 
 ## ⛔ ONE regime, every package. NO HYPHENS IN FILE NAMES.
 

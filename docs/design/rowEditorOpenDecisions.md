@@ -1514,7 +1514,7 @@ Then the line commits as any catalog pick does.
 ### P12. `AmbiguityReview`, and row 7's shortlist
 
 Both surfaces re-derive a shortlist from the same food search (`FR/detail/AmbiguityReview.tsx`,
-`FR/form/shortlistPanel.ts`). The owner ruled on 2026-10-02 that every place a cook picks a food shows remote foods:
+`FR/form/shortlistPanel.model.ts`). The owner ruled on 2026-10-02 that every place a cook picks a food shows remote foods:
 adding a food while creating a recipe, changing a food inline while editing one, and answering which food a line
 means. So both surfaces, and row 6's candidates, read the progressive answer as the editor's list does.
 

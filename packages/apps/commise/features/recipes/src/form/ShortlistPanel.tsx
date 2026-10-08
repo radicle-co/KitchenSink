@@ -11,7 +11,7 @@
 import type { FC } from 'react';
 
 import { CandidatesPanelBody } from './CandidatesPanelBody.js';
-import type { ShortlistPanelProps } from './shortlistPanel.js';
+import type { ShortlistPanelProps } from './shortlistPanel.model.js';
 import { useShortlistPanel } from './useShortlistPanel.js';
 
 /** Rows 6 and 7's panel: the line's re-derived shortlist, one pick for this line. */

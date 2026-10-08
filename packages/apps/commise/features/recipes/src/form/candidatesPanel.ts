@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/form — the contract of rows 6 and 7's panel body (`docs/design/
  * ingredientStatusExplanation.md` SPECIFY.1 rows 6 and 7): the view the presentational `CandidatesPanelBody` leaves
- * draw, and what each control does. `shortlistPanel.ts` derives the view for both rows.
+ * draw, and what each control does. `shortlistPanel.model.ts` derives the view for both rows.
  *
  * The body lists what the progressive food search finds for the line's words (`docs/design/rowEditorOpenDecisions.md`,
  * S7 list contract P12): our database's foods first, then each remote source's under `From {source}`, added at the end,

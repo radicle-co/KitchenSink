@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/form — the create-my-own-food form on the design-system `Sheet`, native: a bottom
  * sheet (`docs/design/rowEditorOpenDecisions.md` item 1, "moved"; `docs/design/rowEditorBlueprint.md` decision 2).
  *
- * A presentational leaf with the web leaf's contract (`./authoredFoodSheet.ts`): it renders `useAuthoredFoodCreate`'s
+ * A presentational leaf with the web leaf's contract (`./authoredFoodSheet.model.ts`): it renders `useAuthoredFoodCreate`'s
  * state and reports every action. Native has no DOM focus: the Sheet puts the reading cursor on its title when it
  * shows, and the duplicate notice takes the cursor as it replaces the form, because the control that was pressed is
  * gone. One ref, for that move: `sendAccessibilityEvent` has no declarative form.
@@ -32,7 +32,7 @@ import {
     authoredMacroFields,
     type AuthoredFoodSheetProps,
     type OpenAuthoredFoodState,
-} from './authoredFoodSheet.js';
+} from './authoredFoodSheet.model.js';
 import { styles as formStyles } from './formSectionStyles.native.js';
 import { recipeFormMessages } from './messages.js';
 

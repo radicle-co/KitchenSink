@@ -36,7 +36,7 @@ import {
     authoredMacroFields,
     type AuthoredFoodSheetProps,
     type OpenAuthoredFoodState,
-} from './authoredFoodSheet.js';
+} from './authoredFoodSheet.model.js';
 import { CheckIcon, XIcon } from './icons.js';
 import { recipeFormMessages } from './messages.js';
 

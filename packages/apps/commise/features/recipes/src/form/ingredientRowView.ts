@@ -49,7 +49,7 @@ import { removalFocusTarget } from './removalFocusTarget.js';
 import { rowBusyText, rowPendingSentence, type RowCommitCopy } from './rowCommitMessage.js';
 import type { RowEntryFieldInput } from './rowEntryField.js';
 import { leaveEntryFocus } from './rowFocus.js';
-import { shortlistSettledAt, type ShortlistPanelProps } from './shortlistPanel.js';
+import { shortlistSettledAt, type ShortlistPanelProps } from './shortlistPanel.model.js';
 import type { ControlFocus, GlyphFocus, RowFocus } from './useRowFocus.js';
 import type { RecipeFormErrors } from './validate.js';
 import type { RecipeFormIngredient, RecipeFormValues } from './values.js';

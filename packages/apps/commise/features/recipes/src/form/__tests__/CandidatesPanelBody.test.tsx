@@ -23,7 +23,7 @@ import { entrySearchViewOf, type EntrySearchView } from '../../hooks/foodSuggest
 import { recipeMessages } from '../../messages.js';
 import { CandidatesPanelBody } from '../CandidatesPanelBody.js';
 import { recipeFormMessages } from '../messages.js';
-import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.js';
+import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.model.js';
 
 afterEach(cleanup);
 

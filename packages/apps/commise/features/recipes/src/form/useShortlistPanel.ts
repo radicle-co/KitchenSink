@@ -19,7 +19,7 @@ import { useIngredientSuggestionSource } from '../hooks/ingredientSuggestionSour
 import { recipeMessages } from '../messages.js';
 import type { CandidatesPanelView } from './candidatesPanel.js';
 import { recipeFormMessages } from './messages.js';
-import { shortlistPanelOf, type ShortlistPanelProps } from './shortlistPanel.js';
+import { shortlistPanelOf, type ShortlistPanelProps } from './shortlistPanel.model.js';
 
 /** What a `ShortlistPanel` leaf draws and wires. */
 export interface ShortlistPanelModel {

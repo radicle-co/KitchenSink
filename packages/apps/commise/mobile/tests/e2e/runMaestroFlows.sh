@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs the Maestro mobile flows on the booted emulator with PER-FLOW DB isolation. Invoked as a single line
-# from the reactivecircus/android-emulator-runner `script:` (that runner executes each script LINE as its own
-# `sh -c`, so multi-line constructs like this loop must live in a file, not inline).
+# Runs the Maestro mobile flows on the booted emulator (Android) or Simulator (iOS) with PER-FLOW DB isolation.
+# On Android it is invoked as a single line from the reactivecircus/android-emulator-runner `script:` (that
+# runner executes each script LINE as its own `sh -c`, so multi-line constructs like this loop must live in a
+# file, not inline); on iOS it is an ordinary `run:` step on the macOS runner.
 #
 # For each flow: reset the recipe DB to the clean seed fixture (so a flow never inherits an earlier flow's
 # mutated state), then run just that flow. Every flow runs even if one fails; the job fails if any did.
@@ -51,14 +52,31 @@
 #   3. **A flow runs on exactly ONE shard.** Asserted over the UNION of the shards, because "a flow that runs
 #      on no shard" is the same green-over-nothing sin as an under-selecting selector.
 #
+# ## PLATFORMS — one plan, one runner, two devices (`maestroPlatformExclusions.test.ts`)
+#
+# `MAESTRO_PLATFORM` is `android` or `ios`; UNSET means `android`, because every caller that predates iOS —
+# the Android CI step until it named itself, and `local-sandbox/bin/localMaestro.sh`, which SOURCES this file —
+# relies on that. Any other value is REFUSED (exit 2 in the pure doors, a red run in run mode): a platform this
+# script does not know is a broken caller, and guessing one would drive the wrong device's commands.
+#
+# The plan is the same on both. What differs is (a) the device adapter — install, driver reset, log scoping,
+# diagnostics — chosen by platform in the `maestro_*` functions below, and (b) the flows a platform CANNOT run,
+# which are EXCLUDED by `MAESTRO_PLATFORM_EXCLUSIONS` after selection and before sharding, and printed as
+# `excluded=` lines exactly as a narrowed run prints `skipped=`. The guard derives the Android-only set from
+# the flows' own YAML and holds this table to it in both directions, so a flow cannot be dropped silently and
+# cannot be dropped for nothing.
+#
 # Usage:
 #     runMaestroFlows.sh                              # run mode (what the emulator job invokes)
 #     runMaestroFlows.sh select      <name>=true|false …
 #     runMaestroFlows.sh select-plan <plan> <name>=true|false …   # test seam; CI never uses it
 #     runMaestroFlows.sh shard       <index> <count> <flow> …
 #     runMaestroFlows.sh shard-plan  <plan> <index> <count> <flow> …   # test seam; CI never uses it
-#     runMaestroFlows.sh shard-matrix <requested> [<name>=true|false …]
-#     runMaestroFlows.sh plan | verticals | max-shards | weights | default-weight
+#     runMaestroFlows.sh shard-matrix <requested> [<name>=true|false …]       # reads MAESTRO_PLATFORM
+#     runMaestroFlows.sh shard-selection <index> <count> [<name>=true|false …] # reads MAESTRO_PLATFORM
+#     runMaestroFlows.sh platform-flows <platform> <flow> …
+#     runMaestroFlows.sh exclusions <platform>
+#     runMaestroFlows.sh plan | verticals | platforms | max-shards | weights | default-weight
 set -uo pipefail
 
 APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk
@@ -224,6 +242,41 @@ auth:accountErasure"
 # `heavy-e2e.yml` composes exactly these names (plus `full`), and the guard suite asserts the two agree —
 # which is what turns a typo'd vertical name from "silently never fires" into a red test.
 MAESTRO_VERTICALS='auth home collections discovery recipes'
+
+# ── PLATFORMS, and the flows a platform cannot run ─────────────────────────────────────────────────────────
+#
+# The device kinds this script can drive. Space-padded membership tests below match whole tokens only.
+MAESTRO_PLATFORMS='android ios'
+
+# `<platform>|<flow>|<class>|<reason>`, one per line. The plan is the ANDROID plan, so Android excludes nothing.
+#
+# The iOS entries are every planned flow that reaches Maestro's SYSTEM back key — `back` or `pressKey: Back`,
+# directly or through a `runFlow` sub-flow — which Maestro implements on Android only. The guard derives that
+# set from the YAML; this table must equal it. The CLASS is the honest part:
+#
+#   - `android-behaviour` — the flow's SUBJECT is Android system-back behaviour; iOS has nothing to test.
+#   - `coverage-gap` — the subject is cross-platform and the back key is INCIDENTAL. These are real iOS gaps,
+#     and six of them share one cause: `recipes/common/raiseDiscardGuard.yaml` raises the discard dialog with
+#     the system back key. Raising it from the header control on iOS (a platform-conditional `runFlow` in that
+#     sub-flow) would recover all six; that change needs a watched iOS run and is NOT made here.
+#
+# ⛔ Never add an entry to get an iOS run green. A flow that fails on iOS for any other reason is a finding
+# about the app or the flow, and this table is not where it goes; the guard refuses an entry with no
+# Android-only command behind it.
+MAESTRO_PLATFORM_EXCLUSIONS="ios|recipes/discoverBrowse|coverage-gap|closes the filter sheet with Maestro's 'back', which is Android only; Discover browse is untested on iOS until the flow closes the sheet through a control both platforms render
+ios|recipes/speedDial|coverage-gap|uses Maestro's 'back' (Android only): its section 3 is Android hardware BACK dismissing the dial, and section 4 leaves the wizard with it; opening, dismissing and taking the dial are untested on iOS
+ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test
+ios|recipes/ingredientUnmatched|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the unmatched-line story is untested on iOS
+ios|recipes/ingredientNutritionPanel|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the nutrition panel story is untested on iOS
+ios|recipes/ingredientRemove|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the remove-line story is untested on iOS
+ios|recipes/ingredientAddDetails|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the add-details story is untested on iOS
+ios|recipes/ingredientVariantSearch|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the variant-search story is untested on iOS
+ios|recipes/ingredientRowVariant|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the row-variant story is untested on iOS"
+
+# Maestro's iOS XCUITest runner, as Maestro names it (`LocalXCTestInstaller.UI_TEST_RUNNER_APP_BUNDLE_ID`, read
+# at the pinned tag `cli-2.6.1`). Maestro reinstalls it at the start of every session, so removing it between
+# flows costs nothing.
+MAESTRO_IOS_DRIVER_BUNDLE='dev.mobile.maestro-driver-iosUITests.xctrunner'
 
 # ── SHARDING: how many runners the plan may be split across, and what each flow costs ────────────────────
 #
@@ -455,6 +508,129 @@ maestro_select_flows() {
     done
 }
 
+# maestro_known_platform <platform>
+#
+# True when the value is one of MAESTRO_PLATFORMS. Pure; says nothing on failure (callers word the refusal).
+maestro_known_platform() {
+    case " ${MAESTRO_PLATFORMS} " in
+        *" ${1-} "*) [ -n "${1-}" ] ;;
+        *) return 1 ;;
+    esac
+}
+
+# maestro_platform
+#
+# The platform this process drives: `MAESTRO_PLATFORM`, or `android` when it is unset or empty. Prints it, or
+# refuses an unknown value with exit 2 — never a default for a value that was SET to something else.
+maestro_platform() {
+    local platform="${MAESTRO_PLATFORM:-android}"
+
+    if ! maestro_known_platform "$platform"; then
+        echo "runMaestroFlows.sh: unknown MAESTRO_PLATFORM '${platform}' (expected one of: ${MAESTRO_PLATFORMS}) — refusing to guess which device to drive" >&2
+
+        return 2
+    fi
+
+    printf '%s\n' "$platform"
+}
+
+# maestro_platform_exclusions <platform>
+#
+# The platform's rows of MAESTRO_PLATFORM_EXCLUSIONS as `<flow>|<class>|<reason>` lines. Pure.
+maestro_platform_exclusions() {
+    if ! maestro_known_platform "${1-}"; then
+        echo "runMaestroFlows.sh: unknown platform '${1-}' (expected one of: ${MAESTRO_PLATFORMS})" >&2
+
+        return 2
+    fi
+
+    local platform rest
+    while IFS='|' read -r platform rest; do
+        [ "$platform" = "$1" ] || continue
+        printf '%s\n' "$rest"
+    done <<<"$MAESTRO_PLATFORM_EXCLUSIONS"
+}
+
+# maestro_platform_flows <platform> <flow> …
+#
+# THE PLATFORM FILTER, as a PURE function. Prints one `flow=` line per flow the platform runs and one
+# `excluded=` line per flow it cannot, both in the order given (plan order). Nothing else goes to stdout.
+#
+# The only hard failures (exit 2) are an unknown platform and an empty flow list — both a broken caller, and
+# answering "run nothing" to either is the green-over-no-work outcome this script refuses everywhere else.
+maestro_platform_flows() {
+    if [ "$#" -lt 1 ] || ! maestro_known_platform "$1"; then
+        echo "runMaestroFlows.sh: unknown platform '${1-}' (expected one of: ${MAESTRO_PLATFORMS})" >&2
+
+        return 2
+    fi
+
+    local platform="$1"
+    shift
+
+    if [ "$#" -eq 0 ]; then
+        echo 'runMaestroFlows.sh: no flows to filter for the platform — refusing to report a run over no flows' >&2
+
+        return 2
+    fi
+
+    # Space-padded so membership is a whole-name match: `recipes/edit` must not match `recipes/editX`.
+    local excluded=' ' row flow
+    while IFS= read -r row; do
+        [ -n "$row" ] || continue
+        excluded="${excluded}${row%%|*} "
+    done < <(maestro_platform_exclusions "$platform")
+
+    for flow in "$@"; do
+        case "$excluded" in
+            *" ${flow} "*) printf 'excluded=%s\n' "$flow" ;;
+            *) printf 'flow=%s\n' "$flow" ;;
+        esac
+    done
+}
+
+# maestro_shard_selection <platform> <index> <count> [<name>=true|false …]
+#
+# The whole "which flows run on THIS runner" decision, as a PURE composition: select (the selector) → filter
+# (the platform) → partition (the shard). Prints `selection-reason=` and `shard-reason=` lines, then `flow=`
+# for this shard's flows, `skipped=` for flows the selector did not choose, `excluded=` for flows the platform
+# cannot run, and `deferred=` for flows another shard runs. Run mode consumes exactly this, and the guards
+# execute it, so the composition CI runs is the composition that is tested.
+#
+# Exit 2 on any stage's refusal, with that stage's reason on stderr and NOTHING on stdout — a partial verdict
+# must not be readable as a whole one.
+maestro_shard_selection() {
+    if [ "$#" -lt 3 ]; then
+        echo 'usage: runMaestroFlows.sh shard-selection <index> <count> [<name>=true|false …]' >&2
+
+        return 2
+    fi
+
+    local platform="$1" index="$2" count="$3"
+    shift 3
+
+    local verdict filtered sharded kept
+    verdict=$(maestro_select_flows "$FLOW_PLAN" "$@") || return 2
+    # shellcheck disable=SC2046 # one flow name per word, and flow names carry no whitespace
+    filtered=$(maestro_platform_flows "$platform" $(printf '%s\n' "$verdict" | sed -n 's/^flow=//p')) || return 2
+    kept=$(printf '%s\n' "$filtered" | sed -n 's/^flow=//p' | tr '\n' ' ')
+
+    if [ -z "${kept//[[:space:]]/}" ]; then
+        echo "runMaestroFlows.sh: ${platform} can run NONE of the selected flows — refusing to report a run over no flows" >&2
+
+        return 2
+    fi
+
+    # shellcheck disable=SC2086 # `kept` is a space-separated list of flow names
+    sharded=$(maestro_shard_flows "$FLOW_PLAN" "$index" "$count" $kept) || return 2
+
+    printf 'selection-reason=%s\n' "$(printf '%s\n' "$verdict" | sed -n 's/^reason=//p')"
+    printf 'shard-reason=%s\n' "$(printf '%s\n' "$sharded" | sed -n 's/^reason=//p')"
+    printf '%s\n' "$sharded" | grep -E '^(flow|deferred)=' || true
+    printf '%s\n' "$verdict" | grep '^skipped=' || true
+    printf '%s\n' "$filtered" | grep '^excluded=' || true
+}
+
 # maestro_positive_integer <value>
 #
 # True when the value is a decimal positive integer. Pure. Written out rather than reaching for `[ "$x" -gt 0 ]`,
@@ -599,9 +775,15 @@ maestro_shard_flows() {
 # ⛔ AN UNREADABLE REQUEST CLAMPS TO ONE SHARD — the opposite direction from the SELECTOR's fail-safe, and
 # deliberately so. Selection widens because running MORE flows is safe; shard count does NOT, because a shard
 # count the pool cannot identify is a shard signing in as another shard's user. One shard is always safe.
+#
+# ⛔ PER PLATFORM (`MAESTRO_PLATFORM`): the packable count is taken AFTER the platform filter, because a matrix
+# sized for Android's flows would hand an iOS shard nothing but the spine whenever iOS excludes enough of a
+# narrowed selection. An unknown platform is refused (exit 2, nothing on stdout) — there is no matrix for it.
 maestro_shard_matrix() {
-    local requested="${1-}" count=1
+    local requested="${1-}" count=1 platform
     shift || true
+
+    platform=$(maestro_platform) || return 2
 
     if maestro_positive_integer "$requested"; then
         count="$requested"
@@ -622,7 +804,10 @@ maestro_shard_matrix() {
     if verdict=$(maestro_select_flows "$FLOW_PLAN" "$@"); then
         # shellcheck disable=SC2086
         spine_count=$(printf '%s\n' $FLOW_PLAN | grep -c '^spine:' || true)
-        selected_count=$(printf '%s\n' "$verdict" | sed -n 's/^flow=//p' | grep -c . || true)
+        # Counted over what THIS platform runs, never over the raw selection (see the note above).
+        # shellcheck disable=SC2046 # one flow name per word, and flow names carry no whitespace
+        selected_count=$(maestro_platform_flows "$platform" $(printf '%s\n' "$verdict" | sed -n 's/^flow=//p') |
+            grep -c '^flow=' || true)
         packable=$((selected_count - spine_count))
 
         # PACKABLE = 0 CLAMPS TO ONE SHARD. `maestro_positive_integer` is false for 0, so a selection of
@@ -656,12 +841,70 @@ maestro_shard_matrix() {
     printf '%s\n' "$out"
 }
 
-# maestro_run_flows
+# ── THE DEVICE ADAPTERS — one per platform, chosen by `maestro_platform` ───────────────────────────────────
 #
-# Install the APK, prepare the device and the shared test user, resolve the selection, then run each selected
-# flow against a freshly reset database. Returns non-zero if any flow (or any reseed) failed.
+# Every function below that touches a device dispatches on the platform and keeps the two bodies apart. The
+# Android bodies are the ones this tier has always run, unchanged, and they still call bare `adb`/`maestro` —
+# `local-sandbox/bin/localMaestro.sh` sources this file and SHADOWS both to pin its emulator serial, which only
+# works while nothing here names a path to either binary. The iOS bodies name their Simulator by UDID
+# (`MAESTRO_IOS_UDID`, set by the workflow step that created and booted it), so they never act on "whatever
+# is booted".
+
+# maestro_require_device <platform>
 #
-# @sideEffect Drives adb/the emulator, mutates the recipe database, calls Clerk, and runs Maestro.
+# Refuse to drive a device this process was not told about. Android needs nothing (adb's one device, or the
+# caller's shadow); iOS needs the Simulator's UDID, and the app bundle when installing.
+#
+# @sideEffect Prints an `::error::` annotation on refusal.
+maestro_require_device() {
+    if [ "$1" = 'ios' ] && [ -z "${MAESTRO_IOS_UDID:-}" ]; then
+        echo '::error::MAESTRO_PLATFORM=ios needs MAESTRO_IOS_UDID — the Simulator to drive is never guessed'
+
+        return 1
+    fi
+}
+
+# maestro_prepare_device <platform>
+#
+# Install the app and settle the device's input settings, once per run.
+#
+# @sideEffect Installs the app on the device and writes device settings.
+maestro_prepare_device() {
+    case "$1" in
+        android)
+            adb install -r "$APK"
+            adb reverse tcp:3000 tcp:3000 || true
+            # The soft-keyboard spell checker/suggestions mangle Maestro inputText (duplicated chars, e.g. "collectionn").
+            adb shell settings put secure spell_checker_enabled 0 || true
+            # ⚠️ INERT TODAY, and stated as such rather than left reading as protection. This Android setting means
+            # "show the on-screen keyboard EVEN THOUGH a hardware keyboard is attached", so it does nothing at all
+            # while the AVD carries `hw.keyboard=no` — which it always has: `_ci-heavy.yml` passed the emulator action
+            # an input name the action does not declare (`enable-hardware-keyboard` vs `enable-hw-keyboard`), GitHub
+            # warned and dropped it, and the comment that used to stand here claimed the soft keyboard could never
+            # appear. It appears. Every green run on record was produced with it appearing. The spurious-BACK hazard the old
+            # comment described is live in either case: `hideKeyboard` is a BACK event, and with the keyboard down it reaches
+            # the app (`recipes/pinnedActionBar.yaml` records where it opened the wizard's discard dialog).
+            #
+            # It is KEPT rather than deleted because it is one half of a pair: the day the hardware keyboard is
+            # deliberately enabled — a separate change, watched on a real emulator, see the note on the missing input
+            # in `_ci-heavy.yml` — this line is what suppresses the IME, and having it already here means that change
+            # is one line in one file. `|| true` so a device that refuses the write costs nothing.
+            adb shell settings put secure show_ime_with_hard_keyboard 0 || true
+            ;;
+        ios)
+            # The keyboard's own settings (autocorrect, prediction, capitalisation) are written by the workflow
+            # BEFORE the Simulator boots, because the keyboard reads them at boot; this runs after it. What is
+            # left here is the install, which is the iOS half of `adb install -r`.
+            if [ -z "${MAESTRO_IOS_APP:-}" ] || [ ! -d "$MAESTRO_IOS_APP" ]; then
+                echo "::error::MAESTRO_IOS_APP ('${MAESTRO_IOS_APP:-}') is not a built .app bundle — the iOS build must run first"
+
+                return 1
+            fi
+            xcrun simctl install "$MAESTRO_IOS_UDID" "$MAESTRO_IOS_APP"
+            ;;
+    esac
+}
+
 # Remove any driver left over from a previous flow, so the pinned port is free.
 #
 # ⛔ This is the half that makes a STATIC port an improvement rather than a hazard. Maestro closes its driver
@@ -670,14 +913,85 @@ maestro_shard_matrix() {
 # flow, a fixed port hands it straight to the next one — a deterministic red instead of a 1-in-188 flake,
 # which would be strictly worse than the random draw this replaces. So the runner does not trust the hook.
 #
+# ⚠️ ON iOS THE HAZARD HAS A DIFFERENT SHAPE, and the reset is the same answer to it. The Simulator shares the
+# HOST's network, so the pinned port is a host port, and Maestro's iOS `start()` (read at `cli-2.6.1`,
+# `LocalXCTestInstaller.startXCTestRunner`) returns early when a runner ALREADY answers on it — a runner that
+# survived a crashed flow is INHERITED by the next flow rather than colliding with it. Terminating and
+# uninstalling it first means every flow starts the runner Maestro just installed.
+#
 # Runs BEFORE each flow, never only after: a run that dies mid-flow is exactly the case that leaks a driver,
 # and cleanup that only happens on the way out never executes then.
 #
-# @sideEffect Uninstalls the driver packages and force-stops any surviving process on the device.
+# @sideEffect Uninstalls the driver packages and stops any surviving driver process on the device.
 maestro_reset_driver() {
-    adb shell pm uninstall "$MAESTRO_DRIVER_PACKAGE" >/dev/null 2>&1 || true
-    adb shell pm uninstall "${MAESTRO_DRIVER_PACKAGE}.test" >/dev/null 2>&1 || true
-    adb shell am force-stop "$MAESTRO_DRIVER_PACKAGE" >/dev/null 2>&1 || true
+    case "$(maestro_platform 2>/dev/null)" in
+        ios)
+            xcrun simctl terminate "$MAESTRO_IOS_UDID" "$MAESTRO_IOS_DRIVER_BUNDLE" >/dev/null 2>&1 || true
+            xcrun simctl uninstall "$MAESTRO_IOS_UDID" "$MAESTRO_IOS_DRIVER_BUNDLE" >/dev/null 2>&1 || true
+            ;;
+        *)
+            adb shell pm uninstall "$MAESTRO_DRIVER_PACKAGE" >/dev/null 2>&1 || true
+            adb shell pm uninstall "${MAESTRO_DRIVER_PACKAGE}.test" >/dev/null 2>&1 || true
+            adb shell am force-stop "$MAESTRO_DRIVER_PACKAGE" >/dev/null 2>&1 || true
+            ;;
+    esac
+}
+
+# Scope the device log to the flow about to run.
+#
+# Android clears logcat's ring buffer. iOS's unified log has no ring to clear, so the flow's START TIME is
+# recorded instead and the failure dump reads from it.
+#
+# @sideEffect Clears logcat (Android) or assigns the global MAESTRO_IOS_LOG_START (iOS).
+maestro_scope_device_log() {
+    case "$(maestro_platform 2>/dev/null)" in
+        ios) MAESTRO_IOS_LOG_START="$(date '+%Y-%m-%d %H:%M:%S')" ;;
+        *) adb logcat -c || true ;;
+    esac
+}
+
+# Print the device's crash-carrying log lines for a failed flow. Best-effort: a diagnostic that fails the job
+# it is diagnosing is worse than no diagnostic.
+#
+# @sideEffect Reads the device log (and, on iOS, the host's crash reports).
+maestro_dump_device_log() {
+    local f="$1"
+
+    case "$(maestro_platform 2>/dev/null)" in
+        ios)
+            # The app's process name is its bundle EXECUTABLE, read out of the built bundle rather than typed here:
+            # it is derived from the Expo app name by `expo prebuild`, and a literal would rot silently on a rename.
+            local executable
+            executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${MAESTRO_IOS_APP:-}/Info.plist" 2>/dev/null || true)"
+            echo "--- simulator log (process '${executable:-unknown}') for ${f} ---"
+            if [ -n "$executable" ]; then
+                xcrun simctl spawn "$MAESTRO_IOS_UDID" log show --style compact \
+                    --start "${MAESTRO_IOS_LOG_START:-}" --predicate "process == \"${executable}\"" 2>&1 | tail -160 || true
+                echo "--- crash reports for ${executable} ---"
+                local reports
+                reports="$(find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -name "${executable}*" 2>/dev/null | head -5)"
+                printf '%s\n' "${reports:-(none)}"
+            fi
+            # Maestro's XCTest runner log is printed HERE, to the masked console, because the workflow keeps it out
+            # of the uploaded report: the runner inherits this step's environment, which holds the Clerk secret.
+            local runner_log
+            runner_log="$(find "$HOME/.maestro/tests" -name 'xctest_runner_*.log' -type f 2>/dev/null | sort | tail -1)"
+            if [ -n "$runner_log" ]; then
+                echo "--- tail of ${runner_log##*/} ---"
+                tail -80 "$runner_log" 2>/dev/null || echo '(unreadable)'
+            fi
+            echo "--- end simulator log for ${f} ---"
+            ;;
+        *)
+            # Native/Hermes crashes (app -> launcher) leave NO Java/AndroidRuntime trace and release builds strip
+            # the JS console, so a narrow filter shows nothing. Dump the full tail and grep every crash-carrying
+            # tag (native SIGSEGV/abort via libc/DEBUG, Hermes, Java via AndroidRuntime/FATAL, and our own app tag)
+            # so the CI log shows the ACTUAL fault rather than only the downstream "element not visible".
+            echo "--- logcat (crash tags) for ${f} ---"
+            adb logcat -d -t 4000 2>&1 | grep -aiE "FATAL|AndroidRuntime|hermes|SIGSEGV|SIGABRT|\blibc\b|DEBUG   |abort message|Exception|io\.commise|ReactNativeJS|ReactNative:|unhandled" | tail -160 || true
+            echo "--- end logcat for ${f} ---"
+            ;;
+    esac
 }
 
 # Name whatever is holding the driver port, and any driver that survived a previous flow.
@@ -687,10 +1001,24 @@ maestro_reset_driver() {
 # dumps the device socket table: `LISTEN` vs `TIME_WAIT` is the exact distinction that separates "a leftover
 # server" from "ordinary traffic residue", and not having it is what left the last investigation unresolved.
 #
+# On iOS the port is a HOST port (the Simulator shares the host's network), so the host's own socket table is
+# the one to read.
+#
 # Every probe is best-effort — a diagnostic that fails the job it is diagnosing is worse than no diagnostic.
 #
-# @sideEffect Reads socket and process tables from the device.
+# @sideEffect Reads socket and process tables from the device (Android) or the host (iOS).
 maestro_dump_port_owner() {
+    if [ "$(maestro_platform 2>/dev/null)" = 'ios' ]; then
+        echo "--- who holds host port ${MAESTRO_DRIVER_PORT} (the iOS Simulator shares the host's network) ---"
+        lsof -nP -iTCP:"${MAESTRO_DRIVER_PORT}" 2>/dev/null || echo "(nothing holds ${MAESTRO_DRIVER_PORT} now)"
+        echo "--- surviving maestro processes/apps ---"
+        pgrep -fl maestro 2>/dev/null || echo "(none)"
+        xcrun simctl listapps "$MAESTRO_IOS_UDID" 2>/dev/null | grep -i maestro || echo "(none installed)"
+        echo "--- end port diagnostics ---"
+
+        return 0
+    fi
+
     echo "--- who holds device port ${MAESTRO_DRIVER_PORT} ---"
     # ⛔ "the tool is missing" and "the port is not held" are DIFFERENT answers and must not share a branch.
     # A `cmd | grep port || fallback` chain conflates them: a free port makes grep exit non-zero and silently
@@ -723,25 +1051,22 @@ maestro_dump_port_owner() {
     echo "--- end port diagnostics ---"
 }
 
+# maestro_run_flows
+#
+# Install the app, prepare the device, resolve which flows THIS runner runs (selection → platform → shard),
+# then run each against a freshly reset database. Returns non-zero if any flow (or any reseed) failed.
+#
+# @sideEffect Drives the device, mutates the recipe database, calls Clerk, and runs Maestro.
 maestro_run_flows() {
-    adb install -r "$APK"
-    adb reverse tcp:3000 tcp:3000 || true
-    # The soft-keyboard spell checker/suggestions mangle Maestro inputText (duplicated chars, e.g. "collectionn").
-    adb shell settings put secure spell_checker_enabled 0 || true
-    # ⚠️ INERT TODAY, and stated as such rather than left reading as protection. This Android setting means
-    # "show the on-screen keyboard EVEN THOUGH a hardware keyboard is attached", so it does nothing at all
-    # while the AVD carries `hw.keyboard=no` — which it always has: `_ci-heavy.yml` passed the emulator action
-    # an input name the action does not declare (`enable-hardware-keyboard` vs `enable-hw-keyboard`), GitHub
-    # warned and dropped it, and the comment that used to stand here claimed the soft keyboard could never
-    # appear. It appears. Every green run on record was produced with it appearing. The spurious-BACK hazard the old
-    # comment described is live in either case: `hideKeyboard` is a BACK event, and with the keyboard down it reaches
-    # the app (`recipes/pinnedActionBar.yaml` records where it opened the wizard's discard dialog).
-    #
-    # It is KEPT rather than deleted because it is one half of a pair: the day the hardware keyboard is
-    # deliberately enabled — a separate change, watched on a real emulator, see the note on the missing input
-    # in `_ci-heavy.yml` — this line is what suppresses the IME, and having it already here means that change
-    # is one line in one file. `|| true` so a device that refuses the write costs nothing.
-    adb shell settings put secure show_ime_with_hard_keyboard 0 || true
+    local platform
+    if ! platform=$(maestro_platform); then
+        echo "::error::unknown MAESTRO_PLATFORM '${MAESTRO_PLATFORM:-}' — refusing to guess which device to drive"
+
+        return 1
+    fi
+
+    maestro_require_device "$platform" || return 1
+    maestro_prepare_device "$platform" || return 1
 
     # ⛔ THE FIXTURE MANIFEST MUST ALREADY EXIST. `e2e-seed provision` runs as its OWN job step, before the
     # emulator — it only talks to Clerk and the recipe service over HTTP, so it needs no device, and failing
@@ -764,60 +1089,52 @@ maestro_run_flows() {
     local pairs=()
     read -r -a pairs <<<"${MAESTRO_FLOW_SELECTOR:-}"
 
+    # ── THIS RUNNER'S part of the suite: select → filter for the platform → partition for the shard ────────
+    #
+    # `MAESTRO_SHARD_INDEX`/`MAESTRO_SHARD_COUNT` default to 1/1, so an unsharded invocation runs the
+    # selection unchanged. ANY refusal is a HARD failure, never a narrowed run: `_ci-heavy.yml` computes the
+    # matrix from the same `shard-matrix` subcommand (for the same platform), so a coordinate this rejects
+    # means the two disagree — and a job that then ran "some flows" would report a green shard over an unknown
+    # subset. `maestro_shard_selection`'s stderr names the stage that refused.
     local verdict
-    if ! verdict=$(maestro_select_flows "$FLOW_PLAN" ${pairs[@]+"${pairs[@]}"}); then
-        echo "::error::maestro flow selection failed — refusing to run an unknown subset of the suite"
+    if ! verdict=$(maestro_shard_selection "$platform" "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" \
+        ${pairs[@]+"${pairs[@]}"}); then
+        echo "::error::maestro could not decide which flows ${platform} shard ${MAESTRO_SHARD_INDEX:-1}/${MAESTRO_SHARD_COUNT:-1} runs — refusing to run an unknown subset of the suite"
 
         return 1
     fi
 
-    echo "::notice::maestro flows — $(printf '%s\n' "$verdict" | sed -n 's/^reason=//p')"
+    echo "::notice::maestro flows — $(printf '%s\n' "$verdict" | sed -n 's/^selection-reason=//p')"
+    echo "::notice::maestro shard — $(printf '%s\n' "$verdict" | sed -n 's/^shard-reason=//p')"
 
-    local flows skipped
+    local flows skipped deferred excluded row
     flows=$(printf '%s\n' "$verdict" | sed -n 's/^flow=//p' | tr '\n' ' ')
     skipped=$(printf '%s\n' "$verdict" | sed -n 's/^skipped=//p' | tr '\n' ' ')
+    deferred=$(printf '%s\n' "$verdict" | sed -n 's/^deferred=//p' | tr '\n' ' ')
+    excluded=$(printf '%s\n' "$verdict" | sed -n 's/^excluded=//p' | tr '\n' ' ')
 
-    # A selection that ran nothing must be a RED job, not a green one. Unreachable through the pure function
-    # (every fallback widens), so this is the post-condition that keeps it that way if that ever changes.
+    # A runner that runs nothing must be a RED job, not a green one. Unreachable through the pure functions
+    # (every fallback widens, and the composition refuses an empty filter), so this is the post-condition
+    # that keeps it that way if that ever changes.
     if [ -z "${flows//[[:space:]]/}" ]; then
-        echo '::error::maestro selected NO flows — that is a broken selector, not a passing test run'
+        echo '::error::this maestro shard holds NO flows — that is a broken selector or matrix, not a passing test run'
 
         return 1
     fi
 
-    # Say out loud what did NOT run. A narrowed run must never read like a complete one.
+    # Say out loud what did NOT run here, and why. A narrowed run, a shard and a platform's subset must never
+    # read like a complete suite.
     if [ -n "${skipped//[[:space:]]/}" ]; then
         echo "skipped by selection: ${skipped% }"
     fi
-
-    # ── THIS SHARD'S part of the selection ────────────────────────────────────────────────────────────────
-    #
-    # `MAESTRO_SHARD_INDEX`/`MAESTRO_SHARD_COUNT` default to 1/1, so an unsharded invocation runs the
-    # selection unchanged. A shard index the partition refuses is a HARD failure, never a narrowed run:
-    # `_ci-heavy.yml` computes the matrix from the same `shard-matrix` subcommand, so a coordinate this
-    # function rejects means the two disagree — and a job that then ran "some flows" would report a green
-    # shard over an unknown subset.
-    local shard_verdict
-    if ! shard_verdict=$(maestro_shard_flows "$FLOW_PLAN" \
-        "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" $flows); then
-        echo "::error::maestro shard ${MAESTRO_SHARD_INDEX:-1}/${MAESTRO_SHARD_COUNT:-1} was refused — refusing to run an unknown subset of the suite"
-
-        return 1
+    if [ -n "${excluded//[[:space:]]/}" ]; then
+        while IFS= read -r row; do
+            [ -n "$row" ] || continue
+            case " ${excluded} " in
+                *" ${row%%|*} "*) echo "::notice::excluded on ${platform}: ${row%%|*} [$(printf '%s' "${row#*|}" | cut -d'|' -f1)] — ${row#*|*|}" ;;
+            esac
+        done < <(maestro_platform_exclusions "$platform")
     fi
-
-    echo "::notice::maestro shard — $(printf '%s\n' "$shard_verdict" | sed -n 's/^reason=//p')"
-
-    local deferred
-    flows=$(printf '%s\n' "$shard_verdict" | sed -n 's/^flow=//p' | tr '\n' ' ')
-    deferred=$(printf '%s\n' "$shard_verdict" | sed -n 's/^deferred=//p' | tr '\n' ' ')
-
-    if [ -z "${flows//[[:space:]]/}" ]; then
-        echo '::error::this maestro shard holds NO flows — that is a broken matrix, not a passing shard'
-
-        return 1
-    fi
-
-    # Say out loud what this shard did NOT run. A shard must never read like a whole suite.
     if [ -n "${deferred//[[:space:]]/}" ]; then
         echo "deferred to other shards: ${deferred% }"
     fi
@@ -835,13 +1152,28 @@ maestro_run_flows() {
 #
 # @sideEffect Resets the driver, reseeds the database, runs Maestro, and dumps diagnostics on failure.
 maestro_run_flow_list() {
-    local rc=0 f reseed_mode flows="$*"
+    local rc=0 f reseed_mode flows="$*" platform
+
+    if ! platform=$(maestro_platform); then
+        echo "::error::unknown MAESTRO_PLATFORM '${MAESTRO_PLATFORM:-}' — refusing to guess which device to drive"
+
+        return 1
+    fi
+
+    maestro_require_device "$platform" || return 1
+
+    # Which device `maestro` drives. EMPTY on Android, so its argv is byte-identical to what it has always been
+    # (and a caller's `maestro` shadow still decides the serial); the iOS Simulator is named, never inferred.
+    local device_args=()
+    if [ "$platform" = 'ios' ]; then
+        device_args=(--device "$MAESTRO_IOS_UDID")
+    fi
 
     for f in $flows; do
         echo "::group::maestro flow ${f}"
         echo "driver port ${MAESTRO_DRIVER_PORT} (pinned below the ephemeral range) for flow ${f}"
         maestro_reset_driver
-        adb logcat -c || true # clear the ring buffer so a failing flow's dump is scoped to just this flow
+        maestro_scope_device_log # so a failing flow's dump is scoped to just this flow
         case "$EMPTY_LIBRARY_FLOWS" in
             *" ${f} "*) reseed_mode=empty ;;
             *) reseed_mode=seeded ;;
@@ -860,15 +1192,9 @@ maestro_run_flow_list() {
         # `${a[@]+"${a[@]}"}` rather than a bare `"${a[@]}"`: under `set -u` an EMPTY array is an unbound
         # variable on bash 3.2 (still the system bash on macOS), and the `run-one` seam runs with no
         # manifest. Every element stays individually quoted, so titles keep their spaces.
-        if ! maestro test ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+        if ! maestro ${device_args[@]+"${device_args[@]}"} test ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
             echo "FLOW FAILED: ${f}"
-            # Native/Hermes crashes (app -> launcher) leave NO Java/AndroidRuntime trace and release builds strip
-            # the JS console, so a narrow filter shows nothing. Dump the full tail and grep every crash-carrying
-            # tag (native SIGSEGV/abort via libc/DEBUG, Hermes, Java via AndroidRuntime/FATAL, and our own app tag)
-            # so the CI log shows the ACTUAL fault rather than only the downstream "element not visible".
-            echo "--- logcat (crash tags) for ${f} ---"
-            adb logcat -d -t 4000 2>&1 | grep -aiE "FATAL|AndroidRuntime|hermes|SIGSEGV|SIGABRT|\blibc\b|DEBUG   |abort message|Exception|io\.commise|ReactNativeJS|ReactNative:|unhandled" | tail -160 || true
-            echo "--- end logcat for ${f} ---"
+            maestro_dump_device_log "$f"
             maestro_dump_port_owner
             rc=1
         fi
@@ -905,6 +1231,25 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             maestro_shard_matrix "$@"
             ;;
+        shard-selection)
+            # The run-mode composition, for the platform in MAESTRO_PLATFORM. Test seam AND the exact path CI
+            # runs: `maestro_run_flows` consumes the same function.
+            shift
+            platform=$(maestro_platform) || exit 2
+            maestro_shard_selection "$platform" "$@"
+            ;;
+        platform-flows)
+            shift
+            maestro_platform_flows "$@"
+            ;;
+        exclusions)
+            shift
+            maestro_platform_exclusions "$@"
+            ;;
+        platforms)
+            # shellcheck disable=SC2086
+            printf '%s\n' $MAESTRO_PLATFORMS
+            ;;
         max-shards)
             printf '%s\n' "$MAESTRO_MAX_SHARDS"
             ;;
@@ -933,7 +1278,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|plan|verticals|max-shards|weights|default-weight] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|weights|default-weight|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

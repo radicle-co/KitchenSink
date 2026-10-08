@@ -601,6 +601,8 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // Clerk/AWS secrets are withheld from Dependabot and fork PRs by design; the soft failure lets the
     // dependent steps skip on `steps.secrets.outcome`, instead of reporting a red check nobody can fix.
     'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Load ${{ inputs.stage }} Clerk secrets ×1',
+    // The iOS Simulator job's copy of the same valve, for the same reason.
+    'continue-on-error _ci-heavy.yml::e2e-mobile-maestro-ios::Load ${{ inputs.stage }} Clerk secrets ×1',
     // Same reason one job over: without the stage's Clerk keys the k6 SCENARIOS cannot mint a pool, so the
     // dependent steps skip on `steps.k6secrets.outcome`. The generic origin probes are unauthenticated and
     // still run, so a fork PR measures the deployed origins and reports the scenarios as skipped — which is
@@ -644,6 +646,8 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // slot it could not reset — and what it misses cannot be measured over, because the next run's reset-before is
     // FATAL. It deletes no Clerk user: the slots are fixed, and an erasure subject the flow really erased is gone.
     'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Reset the leased Maestro pool slots after the run (shard ${{ matrix.shard }}, e2e-seed resetPool) ×1',
+    // The iOS Simulator job's reset-after: the same slots (it shares the Android lane), the same reasoning.
+    'continue-on-error _ci-heavy.yml::e2e-mobile-maestro-ios::Reset the leased Maestro pool slots after the run (shard ${{ matrix.shard }}, e2e-seed resetPool) ×1',
     // Source maps are an observability nicety: a Sentry upload outage must not block a production deploy.
     // Best-effort disk reclamation before the Android system image — the paths may not exist on every runner
     // image, and their absence is not a failure.

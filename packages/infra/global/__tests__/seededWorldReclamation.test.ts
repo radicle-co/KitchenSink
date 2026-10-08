@@ -208,9 +208,12 @@ function reclaimRuns(job: SeedingJob, reclaimer: WorkflowStep, world: World): Tr
 describe('a job that seeds a deployed world reclaims it whenever anything may have been seeded', () => {
     const jobs = seedingJobs();
 
-    it('finds the seeding jobs (the Maestro tier)', () => {
+    it('finds the seeding jobs (the Maestro tier, both platforms)', () => {
         // Non-vacuity: every assertion below iterates this list.
-        expect(jobs.map((job) => job.label).sort()).toEqual(['_ci-heavy.yml:e2e-mobile-maestro']);
+        expect(jobs.map((job) => job.label).sort()).toEqual([
+            '_ci-heavy.yml:e2e-mobile-maestro',
+            '_ci-heavy.yml:e2e-mobile-maestro-ios',
+        ]);
     });
 
     for (const job of jobs) {

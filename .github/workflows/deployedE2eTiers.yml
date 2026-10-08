@@ -66,8 +66,10 @@ on:
                 type: string
             run_mobile_maestro:
                 description: >-
-                    Run the Maestro tier (Android emulator, ~50 min). The pull-request pipeline passes its
-                    `mobile-e2e` label; the manual door passes its own switch, which defaults ON. Never on prod.
+                    Run the Maestro tier — Android emulator (~50 min) AND iOS Simulator (standard macOS runner),
+                    which share the Clerk pool lanes and so run one after the other per shard. The pull-request
+                    pipeline passes its `mobile-e2e` label; the manual door passes its own switch, which defaults
+                    ON. Never on prod.
                 required: false
                 type: boolean
                 default: false

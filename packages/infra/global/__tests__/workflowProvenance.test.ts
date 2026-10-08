@@ -462,7 +462,28 @@ describe('workflow provenance — the Maestro CLI is pinned and checksum-verifie
     it('and there IS a Maestro install to have checked (the assertion above is not vacuous)', () => {
         expect(allSteps(realWorkflows()).filter(isMaestroInstall).map(label)).toEqual([
             '_ci-heavy.yml::e2e-mobile-maestro::Install Maestro CLI (pinned)',
+            '_ci-heavy.yml::e2e-mobile-maestro-ios::Install Maestro CLI (pinned)',
         ]);
+    });
+
+    /**
+     * ⛔ ONE PIN, however many installs. The Android emulator job and the iOS Simulator job each install the CLI
+     * (different runners, different `sha256` tools), and the committed screenshot baselines are coupled to ONE
+     * CLI version — so two installs that resolved different versions or digests would make one platform's run
+     * prove nothing about the version the other records with. Asserted over what each step can SEE, so it holds
+     * wherever the pin is declared.
+     */
+    it('every Maestro install sees the SAME version and the SAME digest', () => {
+        const pins = allSteps(realWorkflows())
+            .filter(isMaestroInstall)
+            .map((located) => {
+                const env = visibleEnv(located);
+
+                return `${env['MAESTRO_VERSION'] ?? '(none)'} ${env['MAESTRO_SHA256'] ?? '(none)'}`;
+            });
+
+        expect(pins.length).toBeGreaterThan(1);
+        expect(new Set(pins).size, `the installs disagree: ${pins.join(' | ')}`).toBe(1);
     });
 
     it('rejects every way a Maestro pin can be absent or decorative', () => {

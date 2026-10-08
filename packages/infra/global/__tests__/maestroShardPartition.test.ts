@@ -373,11 +373,24 @@ describe('maestro_shard_matrix — how many shards the workflow actually runs', 
     });
 });
 
-describe('_ci-heavy.yml wires the shards without loosening a single gate', () => {
-    const job = workflow.jobs?.[MAESTRO_JOB];
+/**
+ * The sharded Maestro jobs — one per platform — and the resolver outputs each one's matrix and count come from.
+ *
+ * ⚠️ BOTH JOBS HOLD THE SAME CONCURRENCY GROUP, AND THAT IS THE POINT. The iOS job signs in as the SAME fixed pool
+ * slots as the Android job (the roster has one lane per shard, not per platform), so "iOS shard 2" and "Android
+ * shard 2" are one Clerk signer and must exclude each other exactly as two runs' shard 2 do. A separate iOS group
+ * would let the two reset each other's world mid-flow.
+ */
+const SHARDED_JOBS = [
+    { job: MAESTRO_JOB, platform: 'android', shards: 'maestro_shards', count: 'maestro_shard_count' },
+    { job: 'e2e-mobile-maestro-ios', platform: 'ios', shards: 'maestro_ios_shards', count: 'maestro_ios_shard_count' },
+] as const;
+
+describe.each(SHARDED_JOBS)('_ci-heavy.yml::$job wires the shards without loosening a single gate', (wiring) => {
+    const job = workflow.jobs?.[wiring.job];
 
     it('runs the emulator tier as a matrix that never cancels its sibling shard', () => {
-        expect(job, `_ci-heavy.yml has no ${MAESTRO_JOB} job`).toBeDefined();
+        expect(job, `_ci-heavy.yml has no ${wiring.job} job`).toBeDefined();
         expect(scalarText(job?.strategy?.matrix?.['shard'])).toMatch(/fromJSON/u);
         expect(job?.strategy?.['fail-fast'], 'a failing shard must not cancel the other shards').toBe(false);
     });
@@ -408,17 +421,33 @@ describe('_ci-heavy.yml wires the shards without loosening a single gate', () =>
         expect(emulator, 'no step runs runMaestroFlows.sh').toBeDefined();
         expect(scalarText(emulator?.env?.['MAESTRO_SHARD_INDEX'])).toMatch(/matrix\.shard/u);
         expect(count, 'MAESTRO_SHARD_COUNT must not come from strategy.job-total').not.toMatch(/strategy\./u);
-        expect(count).toMatch(/needs\.resolve-mobile-target\.outputs\.maestro_shard_count/u);
+        expect(count).toBe(`\${{ needs.resolve-mobile-target.outputs.${wiring.count} }}`);
         // …and the matrix must read the SIBLING output of that same step, so one `shard-matrix` answer feeds both.
-        expect(matrix).toMatch(/needs\.resolve-mobile-target\.outputs\.maestro_shards/u);
+        expect(matrix).toMatch(new RegExp(`needs\\.resolve-mobile-target\\.outputs\\.${wiring.shards}\\b`, 'u'));
 
         const resolve = workflow.jobs?.['resolve-mobile-target'] as
-            { readonly outputs?: Record<string, unknown> } | undefined;
-        const shardsOutput = scalarText(resolve?.outputs?.['maestro_shards']);
-        const countOutput = scalarText(resolve?.outputs?.['maestro_shard_count']);
+            | {
+                  readonly outputs?: Record<string, unknown>;
+                  readonly steps?: readonly { id?: string; run?: unknown; env?: Record<string, unknown> }[];
+              }
+            | undefined;
+        const shardsOutput = scalarText(resolve?.outputs?.[wiring.shards]);
+        const countOutput = scalarText(resolve?.outputs?.[wiring.count]);
 
         expect(shardsOutput, 'the matrix output must come from a step').toMatch(/^\$\{\{ steps\.(\w+)\./u);
         expect(countOutput.replace('.count', '.shards')).toBe(shardsOutput);
+
+        // ⛔ …and that step must size the matrix for THIS job's platform. An iOS matrix sized from Android's flow
+        // count hands an iOS shard nothing but the spine whenever iOS excludes enough of a narrowed selection.
+        const stepId = /^\$\{\{ steps\.(\w+)\./u.exec(shardsOutput)?.[1];
+        const producer = resolve?.steps?.find((step) => step.id === stepId);
+
+        expect(scalarText(producer?.run)).toMatch(/runMaestroFlows\.sh[\s\\]*shard-matrix/u);
+        expect(scalarText(producer?.env?.['MAESTRO_PLATFORM']), `${stepId} must state its platform`).toBe(
+            wiring.platform,
+        );
+        // The step that RUNS the flows states the same platform, so the matrix and the partition agree.
+        expect(scalarText(emulator?.env?.['MAESTRO_PLATFORM'])).toBe(wiring.platform);
     });
 
     it('⛔ tells every seed, reset and emulator step WHICH shard it is — a step that guesses leases the wrong slot', () => {
@@ -437,7 +466,9 @@ describe('_ci-heavy.yml wires the shards without loosening a single gate', () =>
             ).toMatch(/matrix\.shard/u);
         }
     });
+});
 
+describe('_ci-heavy.yml declares and relays the shard count', () => {
     it('declares the shard count as an input whose default the pool can actually identify', () => {
         const input = workflow.on?.workflow_call?.inputs?.['maestro_shards'];
 

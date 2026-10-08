@@ -21,8 +21,8 @@
  *
  * ## How it is asserted
  *
- * The provisioning job is DISCOVERED (the job whose steps run `e2e-seed`'s provision). The refusal is the step
- * that binds `STAGE: ${{ inputs.stage }}` — the only spelling through which a step can read the reusable
+ * EVERY provisioning job is DISCOVERED (each job whose steps run `e2e-seed`'s provision — the Android emulator
+ * job and the iOS Simulator job), and each is held to the same rule. The refusal is the step that binds `STAGE: ${{ inputs.stage }}` — the only spelling through which a step can read the reusable
  * workflow's input — and its decision is proved by BEHAVIOUR: that step's `run:` body, and only that body,
  * is executed under real `bash` with `STAGE=prod` (must exit non-zero, with a `::error::` annotation) and
  * with `STAGE=sandbox` (must exit 0). Its position is then checked against the first step that loads a
@@ -97,19 +97,23 @@ const LOADS_STAGE_SECRETS = /load-secrets/u;
 /** The stage input, as a step must spell it to read the reusable workflow's input. */
 const STAGE_INPUT = '${{ inputs.stage }}';
 
-/** The job that provisions a Clerk test user, discovered rather than named. */
-function provisioningJob(): { readonly id: string; readonly steps: readonly WorkflowStep[] } {
+/**
+ * The Maestro jobs that provision a Clerk test user — EVERY one of them, discovered rather than named.
+ *
+ * ⛔ ALL of them, not the first. This used to be a `.find`, which was exact while the tier had one job and
+ * became a hole the day it had two: a second provisioning job (the iOS Simulator tier) would have been
+ * invisible to every assertion below, refusal and position included.
+ */
+function provisioningJobs(): readonly { readonly id: string; readonly steps: readonly WorkflowStep[] }[] {
     const doc = parse(readFileSync(WORKFLOW, 'utf8')) as WorkflowDocument;
-    const found = Object.entries(doc.jobs ?? {}).find(([, job]) =>
-        (job.steps ?? []).some((step) => PROVISIONS_TEST_USER.test(step.run ?? '')),
-    );
 
-    if (found === undefined) {
-        throw new Error('no job in _ci-heavy.yml provisions the Clerk sign-in test user — the guard has no subject');
-    }
-
-    return { id: found[0], steps: found[1].steps ?? [] };
+    return Object.entries(doc.jobs ?? {})
+        .filter(([, job]) => (job.steps ?? []).some((step) => PROVISIONS_TEST_USER.test(step.run ?? '')))
+        .map(([id, job]) => ({ id, steps: job.steps ?? [] }));
 }
+
+/** The provisioning jobs this guard expects to find — one per device platform the Maestro tier drives. */
+const EXPECTED_PROVISIONING_JOBS = ['e2e-mobile-maestro', 'e2e-mobile-maestro-ios'];
 
 /**
  * Execute a step's `run:` body the way the runner does (`bash -e -o pipefail`), with `STAGE` bound.
@@ -134,53 +138,61 @@ function runStep(
     return { status: result.status ?? -1, stderr: result.stderr, stdout: result.stdout };
 }
 
-describe('_ci-heavy.yml — the Maestro tier is sandbox-only, and says so before loading a stage secret', () => {
-    const { id, steps } = provisioningJob();
-    const secretLoad = steps.findIndex((step) => LOADS_STAGE_SECRETS.test(step.uses ?? ''));
-    const provisioning = steps.findIndex((step) => PROVISIONS_TEST_USER.test(step.run ?? ''));
-    // The only steps whose body is ever executed here: those that read the stage input into `STAGE`.
-    const candidates = steps
-        .map((step, index) => ({ step, index }))
-        .filter(({ step }) => step.run !== undefined && step.env?.['STAGE'] === STAGE_INPUT);
-
-    it('finds its subject: the provisioning job loads stage secrets before it provisions', () => {
-        expect(secretLoad, `${id} has no load-secrets step`).toBeGreaterThan(-1);
-        expect(provisioning, `${id} has no provisioning step`).toBeGreaterThan(secretLoad);
-    });
-
-    it('has a step that reads inputs.stage and refuses prod with a GitHub error annotation', () => {
-        expect(
-            candidates.map(({ step }) => step.name),
-            `${id} has no step binding STAGE to inputs.stage — a dispatch of ci-full.yml with stage=prod ` +
-                'and run_mobile_maestro=true provisions a Clerk test user into the PRODUCTION tenant',
-        ).not.toEqual([]);
-
-        const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
-
-        expect(
-            refusing.map(({ step }) => step.name),
-            'a step reads inputs.stage but exits 0 under STAGE=prod — nothing refuses the production tenant',
-        ).toHaveLength(1);
-
-        const outcome = runStep(refusing[0]?.step.run ?? '', 'prod');
-
-        expect(outcome.stdout + outcome.stderr, 'the refusal must say why, as an annotation').toMatch(/::error::/u);
-    });
-
-    it('lets stage=sandbox through the same step', () => {
-        const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
-
-        expect(refusing).toHaveLength(1);
-
-        const outcome = runStep(refusing[0]?.step.run ?? '', 'sandbox');
-
-        expect(outcome.status, `sandbox refused: ${outcome.stderr}${outcome.stdout}`).toBe(0);
-    });
-
-    it('refuses BEFORE any stage secret is loaded, so a refused run never holds a production credential', () => {
-        const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
-
-        expect(refusing).toHaveLength(1);
-        expect(refusing[0]?.index, 'the refusal sits after the load-secrets step').toBeLessThan(secretLoad);
+describe('_ci-heavy.yml — the Maestro jobs this guard covers', () => {
+    it('finds every provisioning job, one per platform (non-vacuity: a job it cannot see is a job it cannot guard)', () => {
+        expect(provisioningJobs().map((job) => job.id)).toEqual(EXPECTED_PROVISIONING_JOBS);
     });
 });
+
+describe.each(provisioningJobs().map((job) => [job.id, job] as const))(
+    '_ci-heavy.yml::%s — the Maestro tier is sandbox-only, and says so before loading a stage secret',
+    (_, { id, steps }) => {
+        const secretLoad = steps.findIndex((step) => LOADS_STAGE_SECRETS.test(step.uses ?? ''));
+        const provisioning = steps.findIndex((step) => PROVISIONS_TEST_USER.test(step.run ?? ''));
+        // The only steps whose body is ever executed here: those that read the stage input into `STAGE`.
+        const candidates = steps
+            .map((step, index) => ({ step, index }))
+            .filter(({ step }) => step.run !== undefined && step.env?.['STAGE'] === STAGE_INPUT);
+
+        it('finds its subject: the provisioning job loads stage secrets before it provisions', () => {
+            expect(secretLoad, `${id} has no load-secrets step`).toBeGreaterThan(-1);
+            expect(provisioning, `${id} has no provisioning step`).toBeGreaterThan(secretLoad);
+        });
+
+        it('has a step that reads inputs.stage and refuses prod with a GitHub error annotation', () => {
+            expect(
+                candidates.map(({ step }) => step.name),
+                `${id} has no step binding STAGE to inputs.stage — a dispatch of ci-full.yml with stage=prod ` +
+                    'and run_mobile_maestro=true provisions a Clerk test user into the PRODUCTION tenant',
+            ).not.toEqual([]);
+
+            const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
+
+            expect(
+                refusing.map(({ step }) => step.name),
+                'a step reads inputs.stage but exits 0 under STAGE=prod — nothing refuses the production tenant',
+            ).toHaveLength(1);
+
+            const outcome = runStep(refusing[0]?.step.run ?? '', 'prod');
+
+            expect(outcome.stdout + outcome.stderr, 'the refusal must say why, as an annotation').toMatch(/::error::/u);
+        });
+
+        it('lets stage=sandbox through the same step', () => {
+            const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
+
+            expect(refusing).toHaveLength(1);
+
+            const outcome = runStep(refusing[0]?.step.run ?? '', 'sandbox');
+
+            expect(outcome.status, `sandbox refused: ${outcome.stderr}${outcome.stdout}`).toBe(0);
+        });
+
+        it('refuses BEFORE any stage secret is loaded, so a refused run never holds a production credential', () => {
+            const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
+
+            expect(refusing).toHaveLength(1);
+            expect(refusing[0]?.index, 'the refusal sits after the load-secrets step').toBeLessThan(secretLoad);
+        });
+    },
+);

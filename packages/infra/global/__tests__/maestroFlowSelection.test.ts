@@ -74,6 +74,9 @@ const CALLEE_FILE = '_ci-heavy.yml';
 /** The emulator job id, as `_ci-heavy.yml` names it. */
 const MAESTRO_JOB = 'e2e-mobile-maestro';
 
+/** The iOS Simulator job id — the same plan, through the same script, on the other platform. */
+const IOS_MAESTRO_JOB = 'e2e-mobile-maestro-ios';
+
 /** The env var the job hands the script, and the workflow input behind it. */
 const SELECTOR_ENV = 'MAESTRO_FLOW_SELECTOR';
 const SELECTOR_INPUT = 'maestro_flow_selector';
@@ -283,6 +286,7 @@ interface WorkflowStep {
     readonly if?: string;
     readonly env?: Readonly<Record<string, string>>;
     readonly with?: Readonly<Record<string, unknown>>;
+    readonly run?: unknown;
 }
 
 interface WorkflowJob {
@@ -636,6 +640,11 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         expect(script).not.toMatch(/pm\s+clear\b/u);
         expect(script).not.toMatch(/pm\s+uninstall\s+["']?io\.commise/u);
         expect(script).toMatch(/adb install -r/u);
+        // The iOS half: an app uninstall, a Simulator erase or a privacy reset would each sign every later flow
+        // out (or re-prompt), exactly like `pm clear`. Only the driver bundle may be uninstalled.
+        expect(script).not.toMatch(/simctl\s+(?:erase|privacy)\b/u);
+        expect(script).not.toMatch(/simctl\s+uninstall\s+\S+\s+["']?io\.commise/u);
+        expect(script).toMatch(/simctl install "\$MAESTRO_IOS_UDID" "\$MAESTRO_IOS_APP"/u);
     });
 });
 
@@ -896,6 +905,18 @@ describe('the workflow thread — caller → reusable workflow → job env → s
         expect(step?.env?.[SELECTOR_ENV]).toBe(`\${{ inputs.${SELECTOR_INPUT} }}`);
         expect(scalarText(step?.with?.['script'])).not.toContain('${{');
         expect(readFileSync(SCRIPT, 'utf8')).toContain(SELECTOR_ENV);
+    });
+
+    it('hands the SAME selector to the iOS Simulator job, through step env, never into its `run:` body', () => {
+        // The iOS job runs the script from an ordinary `run:` step — the same injection class, the same answer.
+        // A selector the iOS job did not receive would make it run the FULL suite on a narrowed PR, which is
+        // safe but is not the tier the caller asked for; one it received through the body would be injectable.
+        const steps = callee.jobs?.[IOS_MAESTRO_JOB]?.steps ?? [];
+        const step = steps.find((candidate) => /runMaestroFlows\.sh/u.test(scalarText(candidate.run)));
+
+        expect(step, `${CALLEE_FILE}::${IOS_MAESTRO_JOB} has no step that runs the flows`).toBeDefined();
+        expect(step?.env?.[SELECTOR_ENV]).toBe(`\${{ inputs.${SELECTOR_INPUT} }}`);
+        expect(scalarText(step?.run)).not.toContain('${{');
     });
 });
 

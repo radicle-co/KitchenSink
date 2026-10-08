@@ -168,6 +168,7 @@ describe('every job that writes as the fixed test pool holds its lease and reset
         expect(found.map((subject) => subject.label)).toEqual(
             expect.arrayContaining([
                 '_ci-heavy.yml::e2e-mobile-maestro',
+                '_ci-heavy.yml::e2e-mobile-maestro-ios',
                 '_ci-heavy.yml::load-test-deployed',
                 'deployedE2eTiers.yml::e2e-web',
                 'deployedE2eTiers.yml::e2e-cross-service-linkage',

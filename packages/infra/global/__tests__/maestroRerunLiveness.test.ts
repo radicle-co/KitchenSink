@@ -22,8 +22,9 @@
  *
  * ## How it is asserted
  *
- * Both jobs are DISCOVERED — the Maestro job by content (its steps run `e2e-seed` provision, the same
- * signature `maestroStageGuard.test.ts` uses), the resolver as the one job that publishes a `live` output.
+ * The jobs are DISCOVERED — every Maestro job (Android and iOS) by content (its steps run `e2e-seed`
+ * provision, the same signature `maestroStageGuard.test.ts` uses), the resolver as the one job that publishes
+ * a `live` output.
  * Nothing here re-implements the liveness decision; it proves the WIRING and the DUPLICATION:
  *
  *   1. POSITION — the `liveness` step sits BEFORE the `load-secrets` step, so a closed gate never holds a
@@ -80,9 +81,13 @@ const WORKFLOW_PATH = fileURLToPath(new URL('../../../../.github/workflows/_ci-h
 /** The parsed reusable heavy workflow — the file both the resolver and the Maestro tier live in. */
 const workflow = parse(readFileSync(WORKFLOW_PATH, 'utf8')) as Workflow;
 
-/** The Maestro job, discovered by content: it is the one that provisions `e2e-seed`'s test users. */
-function maestroJob(): WorkflowJob | undefined {
-    return Object.values(workflow.jobs).find((job) =>
+/**
+ * The Maestro jobs, discovered by content: each provisions `e2e-seed`'s test users — the Android emulator job
+ * and the iOS Simulator job. ⛔ EVERY one, not the first: a `.find` here would leave a second Maestro job
+ * free to drive a torn-down sandbox, which is the whole defect this file pins.
+ */
+function maestroJobs(): readonly (readonly [string, WorkflowJob])[] {
+    return Object.entries(workflow.jobs).filter(([, job]) =>
         (job.steps ?? []).some((step) => /e2e-seed\/src\/provision/u.test(step.run ?? '')),
     );
 }
@@ -115,7 +120,15 @@ function questionOf(run: string): string {
     return normalised.slice(start, end);
 }
 
-describe('the mobile Maestro tier re-proves liveness inside its own job', () => {
+describe('the Maestro jobs this guard covers', () => {
+    it('finds one per platform the tier drives (a job it cannot see is a job it cannot guard)', () => {
+        expect(maestroJobs().map(([id]) => id)).toEqual(['e2e-mobile-maestro', 'e2e-mobile-maestro-ios']);
+    });
+});
+
+describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job) => {
+    const maestroJob = (): WorkflowJob | undefined => job;
+
     it('is not vacuous: the Maestro job, its re-probe and the secrets step all exist', () => {
         const maestro = maestroJob();
 

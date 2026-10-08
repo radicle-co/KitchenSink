@@ -369,12 +369,30 @@
                             "notes": [
                                 "handler is not a literal: schedulerHandler"
                             ]
+                        },
+                        {
+                            "kind": "topic",
+                            "logicalId": "SandboxSchedulerAlarmTopic",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": "props.alarmsEnabled",
+                            "notes": []
+                        },
+                        {
+                            "kind": "alarm",
+                            "logicalId": "SandboxSchedulerRunFailedAlarm",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": "props.alarmsEnabled",
+                            "notes": []
                         }
                     ],
                     "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
+                        "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
                         "aws-cdk-lib/aws-iam.PolicyStatement",
+                        "aws-cdk-lib/aws-iam.ServicePrincipal",
                         "aws-cdk-lib/aws-logs-destinations.LambdaDestination",
                         "aws-cdk-lib/aws-logs.LogGroup",
                         "aws-cdk-lib/aws-logs.SubscriptionFilter",

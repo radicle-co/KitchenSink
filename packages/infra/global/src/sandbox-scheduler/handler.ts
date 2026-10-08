@@ -30,6 +30,7 @@ import { DescribeInstancesCommand, EC2Client, StartInstancesCommand, StopInstanc
 import { GetParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 
 import {
+    assertRunSucceeded,
     runSchedulerAction,
     type EcsClusterSummary,
     type EcsServiceSummary,
@@ -189,6 +190,7 @@ const clients: SchedulerClients = {
  *
  * @param event - `{ action: 'stop' | 'start' }` supplied by the EventBridge Scheduler target input.
  * @returns The structured run summary (also logged).
+ * @throws {SchedulerRunFailedError} When any resource failed its transition, after every step has run.
  */
 export const handler = async (event: { action?: SchedulerAction }): Promise<SchedulerSummary> => {
     // Require an EXPLICIT valid action — never default an unknown/typo'd input to 'stop', which would
@@ -200,6 +202,7 @@ export const handler = async (event: { action?: SchedulerAction }): Promise<Sche
     const summary = await runSchedulerAction(event.action, clients);
 
     console.log(JSON.stringify({ message: 'sandbox-scheduler run complete', ...summary }));
+    assertRunSucceeded(summary);
 
     return summary;
 };

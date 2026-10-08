@@ -151,6 +151,8 @@ export class GlobalStack extends Stack {
                 stackName: `kitchensink-sandbox-scheduler-${stage}`,
                 logForwarderArn: props.logForwarderArn,
                 stage,
+                alarmsEnabled: props.alarmsEnabled,
+                alertEmail: props.alertEmail,
             });
         }
     }

@@ -405,6 +405,7 @@ describe('sandbox DB wake wiring — the gate guards the boundary the scheduler 
             new SandboxSchedulerStack(testApp(), 'SandboxScheduler-sandbox', {
                 env: { account: '123456789012', region: 'us-east-1' },
                 stage: 'sandbox',
+                alarmsEnabled: false,
             }),
         );
         const schedules = Object.values(template.findResources('AWS::Scheduler::Schedule')) as {

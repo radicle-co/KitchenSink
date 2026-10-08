@@ -6,6 +6,8 @@
 import { describe, it, expect } from 'vitest';
 
 import {
+    assertRunSucceeded,
+    isSchedulerRunFailedError,
     isSandboxClusterArn,
     isScheduledCluster,
     isSandboxRdsInstance,
@@ -294,5 +296,37 @@ describe('runSchedulerAction — start', () => {
         expect(summary.rds.acted).toEqual([]);
         expect(summary.rds.skipped).toEqual(['kitchensink-data-sandbox']);
         expect(summary.errors[0]).toContain('cannot start while modifying');
+    });
+});
+
+describe('assertRunSucceeded — a run with a failed step fails the invocation', () => {
+    const summary = (errors: string[]) => ({
+        action: 'start' as const,
+        rds: { acted: [], skipped: [] },
+        ecs: { acted: [], skipped: [] },
+        nat: { acted: [], skipped: [] },
+        errors,
+    });
+
+    it('passes a run with no errors', () => {
+        expect(() => {
+            assertRunSucceeded(summary([]));
+        }).not.toThrow();
+    });
+
+    it('⛔ fails a run whose database start was refused, naming the step, so Lambda counts it as an error', () => {
+        let thrown: unknown;
+
+        try {
+            assertRunSucceeded(
+                summary(['rds start kitchensink-data-sandbox-db: InsufficientDBInstanceCapacity in us-east-1a']),
+            );
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(isSchedulerRunFailedError(thrown)).toBe(true);
+        expect((thrown as Error).message).toContain('start');
+        expect((thrown as Error).message).toContain('InsufficientDBInstanceCapacity');
     });
 });

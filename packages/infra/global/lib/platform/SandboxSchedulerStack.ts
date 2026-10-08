@@ -3,10 +3,13 @@ import {
     Duration,
     Stack,
     TimeZone,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatchActions,
     aws_iam as iam,
     aws_lambda as lambda,
     aws_scheduler as scheduler,
     aws_scheduler_targets as schedulerTargets,
+    aws_sns as sns,
     type StackProps,
     aws_logs as logs,
     aws_logs_destinations as logsDestinations,
@@ -17,7 +20,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { NODE_LAMBDA_RUNTIME } from '@radicle-co/infra-shared/security';
+import { NODE_LAMBDA_RUNTIME, subscribeAlarmEmail } from '@radicle-co/infra-shared/security';
 import { NIGHTLY_START_HOUR, NIGHTLY_STOP_HOUR } from '@kitchensink/queue-check';
 
 /** Props for {@link SandboxSchedulerStack}. */
@@ -30,6 +33,12 @@ export interface SandboxSchedulerStackProps extends StackProps {
 
     /** The stage this scheduler controls — only ever `sandbox` (guarded by `GlobalStack`). */
     readonly stage: string;
+
+    /** Whether this stage creates CloudWatch alarms (`alarmFeatureFlag.test.ts`). */
+    readonly alarmsEnabled: boolean;
+
+    /** Who receives the failed-run alarm; absent, the topic has no subscriber. */
+    readonly alertEmail?: string;
 }
 
 /**
@@ -259,10 +268,16 @@ export class SandboxSchedulerStack extends Stack {
         // every non-prod stage escalates nightly, for nine hours, for a reason nobody can act on, and the
         // signal its reader mutes is the one that matters the night they do not look. Two copies of the same
         // two hours is precisely how that drift happens.
+        // A failed run now fails its invocation (`assertRunSucceeded`). Two retries within the hour give a brief AWS
+        // refusal a second chance, and the hour keeps a retried start from landing inside the next stop window.
+        // Repeating either action is safe: a service already at zero keeps its recorded count.
+        const RUN_RETRY = { retryAttempts: 2, maxEventAge: Duration.hours(1) } as const;
+
         new scheduler.Schedule(this, 'SandboxStopSchedule', {
             schedule: dailyAt(String(NIGHTLY_STOP_HOUR)),
             target: new schedulerTargets.LambdaInvoke(schedulerFn, {
                 input: scheduler.ScheduleTargetInput.fromObject({ action: 'stop' }),
+                ...RUN_RETRY,
             }),
             description: 'Stop the sandbox tier nightly at 00:00 America/New_York (ADR-0007, ADR-0028)',
         });
@@ -275,8 +290,42 @@ export class SandboxSchedulerStack extends Stack {
             schedule: dailyAt(String(NIGHTLY_START_HOUR)),
             target: new schedulerTargets.LambdaInvoke(schedulerFn, {
                 input: scheduler.ScheduleTargetInput.fromObject({ action: 'start' }),
+                ...RUN_RETRY,
             }),
             description: 'Start the sandbox tier daily at 09:00 America/New_York (ADR-0007, ADR-0028)',
         });
+
+        // A refused start leaves the sandbox down all day with nothing to say so (Oct 6–7 2026,
+        // `InsufficientDBInstanceCapacity`). The run fails its invocation, and this alarm reports it.
+        if (props.alarmsEnabled) {
+            const alarmTopic = new sns.Topic(this, 'SandboxSchedulerAlarmTopic', {
+                enforceSSL: true,
+                displayName: `Sandbox scheduler alarms (${props.stage})`,
+            });
+
+            subscribeAlarmEmail(alarmTopic, props.alertEmail);
+            // `enforceSSL` replaces the topic's default policy, so CloudWatch needs this grant to publish at all
+            // (`alarmTopicPublishGrant.test.ts`).
+            alarmTopic.addToResourcePolicy(
+                new iam.PolicyStatement({
+                    sid: 'AllowCloudWatchAlarmPublish',
+                    effect: iam.Effect.ALLOW,
+                    principals: [new iam.ServicePrincipal('cloudwatch.amazonaws.com')],
+                    actions: ['sns:Publish'],
+                    resources: [alarmTopic.topicArn],
+                    conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
+                }),
+            );
+
+            new cloudwatch.Alarm(this, 'SandboxSchedulerRunFailedAlarm', {
+                alarmDescription:
+                    'A sandbox stop or start failed: a resource did not transition (for example the database start was refused for capacity). See the scheduler log.',
+                metric: schedulerFn.metricErrors({ period: Duration.minutes(5), statistic: 'Sum' }),
+                threshold: 1,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+                evaluationPeriods: 1,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            }).addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+        }
     }
 }

@@ -36,7 +36,13 @@ import { testApp } from './testApp.js';
 const env = { account: '123456789012', region: 'us-east-1' };
 
 const schedulerTemplate = (): Template =>
-    Template.fromStack(new SandboxSchedulerStack(testApp(), 'SandboxScheduler-sandbox', { env, stage: 'sandbox' }));
+    Template.fromStack(
+        new SandboxSchedulerStack(testApp(), 'SandboxScheduler-sandbox', {
+            env,
+            stage: 'sandbox',
+            alarmsEnabled: false,
+        }),
+    );
 
 describe('SandboxSchedulerStack (ADR-0007)', () => {
     describe('⛔ the UpdateService blast radius', () => {
@@ -292,5 +298,81 @@ describe('the scheduler function is discoverable by the workflows (ADR-0028)', (
 
         expect(exported).toBeDefined();
         expect(JSON.stringify(exported?.Value)).toContain('SandboxSchedulerFunction');
+    });
+});
+
+/**
+ * Oct 6–7 2026: the 09:00 start failed with `InsufficientDBInstanceCapacity` on two mornings, the run still
+ * returned success, and nothing told anyone that the sandbox stayed down. A failed run now fails the
+ * invocation (`assertRunSucceeded`), and this alarm turns that into a notification.
+ */
+describe('a failed scheduler run raises an alarm', () => {
+    const withAlarms = (alarmsEnabled: boolean): Template =>
+        Template.fromStack(
+            new SandboxSchedulerStack(testApp(), 'SandboxScheduler-sandbox', {
+                env,
+                stage: 'sandbox',
+                alarmsEnabled,
+                alertEmail: 'alerts@example.com',
+            }),
+        );
+
+    it('alarms on any error of the scheduler function, and publishes to a topic the alert email receives', () => {
+        const template = withAlarms(true);
+        const [functionId] = Object.keys(
+            template.findResources('AWS::Lambda::Function', {
+                Properties: { Handler: Match.stringLikeRegexp('sandbox-scheduler|index') },
+            }),
+        );
+        const [topicId] = Object.keys(template.findResources('AWS::SNS::Topic'));
+
+        template.hasResourceProperties('AWS::CloudWatch::Alarm', {
+            Namespace: 'AWS/Lambda',
+            MetricName: 'Errors',
+            Dimensions: [{ Name: 'FunctionName', Value: { Ref: functionId } }],
+            Threshold: 1,
+            ComparisonOperator: 'GreaterThanOrEqualToThreshold',
+            EvaluationPeriods: 1,
+            TreatMissingData: 'notBreaching',
+            AlarmActions: [{ Ref: topicId }],
+        });
+        template.hasResourceProperties('AWS::SNS::Subscription', {
+            Protocol: 'email',
+            Endpoint: 'alerts@example.com',
+            TopicArn: { Ref: topicId },
+        });
+    });
+
+    it('creates no alarm while the stage has alarms switched off (alarmFeatureFlag)', () => {
+        withAlarms(false).resourceCountIs('AWS::CloudWatch::Alarm', 0);
+    });
+
+    it('retries a failed run briefly and never into the next window', () => {
+        const schedules = Object.values(withAlarms(true).findResources('AWS::Scheduler::Schedule')) as {
+            Properties: {
+                Target: { RetryPolicy?: { MaximumRetryAttempts: number; MaximumEventAgeInSeconds: number } };
+            };
+        }[];
+
+        expect(schedules.map(({ Properties }) => Properties.Target.RetryPolicy)).toEqual([
+            { MaximumRetryAttempts: 2, MaximumEventAgeInSeconds: 3600 },
+            { MaximumRetryAttempts: 2, MaximumEventAgeInSeconds: 3600 },
+        ]);
+    });
+});
+
+describe('GlobalStack hands the scheduler the stage alarm settings', () => {
+    it('passes alarmsEnabled and the alert email through to the scheduler', () => {
+        const global = new GlobalStack(testApp(), 'Global-sandbox', {
+            env,
+            stackName: 'kitchensink-global-sandbox',
+            stage: 'sandbox',
+            alarmsEnabled: true,
+            alertEmail: 'alerts@example.com',
+            domainName: 'example.com',
+        });
+        const template = Template.fromStack(global.sandboxScheduler!);
+
+        template.resourceCountIs('AWS::CloudWatch::Alarm', 1);
     });
 });

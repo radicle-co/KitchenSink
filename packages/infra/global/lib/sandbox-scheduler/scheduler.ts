@@ -453,3 +453,31 @@ export async function runSchedulerAction(
 
     return runStart(clients);
 }
+
+/** A scheduler run in which at least one resource failed its transition. */
+export class SchedulerRunFailedError extends Error {
+    public constructor(public readonly summary: SchedulerSummary) {
+        super(`sandbox-scheduler ${summary.action} failed: ${summary.errors.join('; ')}`);
+        this.name = 'SchedulerRunFailedError';
+        Object.setPrototypeOf(this, SchedulerRunFailedError.prototype);
+    }
+}
+
+/** Whether `error` is a {@link SchedulerRunFailedError}. Pure. */
+export function isSchedulerRunFailedError(error: unknown): error is SchedulerRunFailedError {
+    return error instanceof SchedulerRunFailedError;
+}
+
+/**
+ * Fail a run in which any resource could not transition. Each step still runs, and its failure is recorded rather than
+ * aborting the others; this makes the invocation itself report the failure, so Lambda's `Errors` metric, and the
+ * alarm on it, see a refused start (Oct 6–7 2026: `InsufficientDBInstanceCapacity`, reported as success). Pure.
+ *
+ * @param summary - The run's summary.
+ * @throws {SchedulerRunFailedError} When the run recorded any error.
+ */
+export function assertRunSucceeded(summary: SchedulerSummary): void {
+    if (summary.errors.length > 0) {
+        throw new SchedulerRunFailedError(summary);
+    }
+}

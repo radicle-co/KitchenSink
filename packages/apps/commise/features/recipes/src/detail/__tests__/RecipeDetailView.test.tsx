@@ -173,7 +173,28 @@ describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA l
             />,
         );
 
-        expect(utilityContrast(screen.getByText('120s timer').className), 'step timer').toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(screen.getByText('2 min').className), 'step timer').toBeGreaterThanOrEqual(4.5);
+    });
+
+    /**
+     * F1 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): a timer read "16200s timer" and the cook had to divide
+     * by 3600. It is said in hours and minutes now, and the glyph that marks it as a timer carries that meaning for a
+     * screen reader too, since the duration alone does not say what it is.
+     */
+    it('says a step timer in hours and minutes, marked as a timer', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    steps: [makeStepView({ stepNumber: 1, instruction: 'Roast low.', timerSeconds: 16200 })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('4 h 30 min')).toBeTruthy();
+        expect(screen.getByRole('img', { name: 'Timer' })).toBeTruthy();
+        expect(screen.queryByText(/16200/)).toBeNull();
     });
 
     it('makes the footer visibility badge legible over its seafoam tint', () => {
@@ -584,24 +605,32 @@ describe('RecipeDetailView (web) — photos', () => {
         );
 
         // The GALLERY is absent — asserted on the carousel's own region and its slide controls, not on "no
-        // image anywhere on the screen": the detail now also leads with the cover hero, which is a different
-        // element driven by `coverPhotoUrl` rather than by `photos`.
+        // image anywhere on the screen": with no photos the lead surface is the labelled no-photo placeholder.
         expect(screen.queryByRole('region', { name: 'Recipe photos' })).toBeNull();
         expect(screen.queryByRole('button', { name: /full screen$/ })).toBeNull();
     });
 
-    it('renders no photo gallery even when a cover hero IS present (they are independent)', () => {
-        render(
+    /**
+     * F2 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): the cover showed twice — once as the hero, and again as
+     * slide 1 of a second carousel lower down. This test REPLACES "they are independent", which pinned that defect. The
+     * service makes the cover `photos[0]` (`recipeDetail.assembler.ts`), so the lead surface is the carousel itself,
+     * built from `photos` alone, and nothing else on the screen paints a photo.
+     */
+    it('shows the cover photo once: the lead surface IS the carousel, slide 1 the cover', () => {
+        const photos = [0, 1, 2].map((index) =>
+            makePhoto({ id: `pho_${String(index)}`, url: `https://cdn/p${String(index)}.jpg` }),
+        );
+        const { container } = render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({ photos: [], coverPhotoUrl: 'https://cdn/hero.jpg' })}
+                recipe={makeRecipeDetail({ title: 'Lamb', photos, coverPhotoUrl: 'https://cdn/p0.thumb.jpg' })}
             />,
         );
 
-        expect(screen.queryByRole('region', { name: 'Recipe photos' })).toBeNull();
-        // …while the hero still paints the cover (alt text = the recipe title).
-        expect(screen.getByRole('img', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(container.querySelectorAll('img[src="https://cdn/p0.jpg"]')).toHaveLength(1);
+        expect(container.querySelectorAll('img')).toHaveLength(3);
+        expect(screen.getAllByRole('region', { name: 'Recipe photos' })).toHaveLength(1);
     });
 });
 
@@ -845,10 +874,10 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: 'https://cdn/hero.jpg' })}
+                recipe={makeRecipeDetail({ title: 'Lamb', photos: [makePhoto({ url: 'https://cdn/hero.jpg' })] })}
             />,
         );
-        const hero = screen.getByRole('img', { name: 'Lamb' });
+        const hero = screen.getByRole('img', { name: 'Lamb photo 1' });
         const heading = screen.getByRole('heading', { level: 1, name: 'Lamb' });
 
         expect(container.contains(hero)).toBe(true);
@@ -1233,8 +1262,8 @@ describe('RecipeDetailView (web) — serving scale', () => {
     it('does NOT scale a step timer', () => {
         renderAt(8);
 
-        expect(screen.getByText('600s timer')).toBeTruthy();
-        expect(screen.queryByText('1200s timer')).toBeNull();
+        expect(screen.getByText('10 min')).toBeTruthy();
+        expect(screen.queryByText('20 min')).toBeNull();
     });
 
     it('leaves PER-SERVING nutrition untouched, because it is invariant under scaling', () => {

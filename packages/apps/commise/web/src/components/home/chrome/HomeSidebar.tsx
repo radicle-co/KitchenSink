@@ -46,7 +46,7 @@ export interface HomeSidebarProps {
     /** Capabilities whose backing service is live — the single fact that decides reachability. */
     readonly liveCapabilities: readonly string[];
     /** The currently active destination (Home, for this surface) — marked `aria-current`. */
-    readonly activeId: HomeNavItemId;
+    readonly activeId: HomeNavItemId | null;
     /** Whether the rail is collapsed to icons only. */
     readonly collapsed: boolean;
     /** Toggle the collapsed state. */

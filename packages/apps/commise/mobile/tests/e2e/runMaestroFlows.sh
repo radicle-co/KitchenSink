@@ -193,6 +193,7 @@ FLOW_PLAN="spine:auth/loginFlow
 home:home
 recipes:recipes/rating
 recipes:recipes/listDetail
+recipes:appTabBar
 recipes:recipes/landscape
 recipes:recipes/servingScale
 recipes:recipes/deferredCalories

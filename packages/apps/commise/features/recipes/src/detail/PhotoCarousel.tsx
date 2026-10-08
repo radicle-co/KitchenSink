@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @module @commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2).
+ * @module @commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2). It is the recipe
+ * detail's hero (`RecipeHero`), so it is the screen's one photo surface (F2).
  *
  * Replaces the static photo grid with a swipeable, scroll-snap strip of slides, a dot-navigation strip
  * (shown only when there is more than one photo), and a full-screen lightbox opened by activating a slide.
@@ -63,7 +64,10 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                                 alt={altFor(index)}
                                 loading={index === 0 ? 'eager' : 'lazy'}
                                 decoding="async"
-                                className="aspect-[4/3] w-full object-cover"
+                                // The hero box (`specRecipeAndWizard.md` S2.1): 4:3 on a phone, never taller than 40% of the
+                                // window, so the title stays on a sideways phone's first screen; 16:9 up to 480 px from
+                                // `md`. The photo crops (`object-cover`) rather than squeezing.
+                                className="aspect-[4/3] max-h-[40vh] w-full object-cover md:aspect-video md:max-h-[480px]"
                             />
                         </button>
                     </li>

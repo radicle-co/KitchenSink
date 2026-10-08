@@ -71,17 +71,17 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                     {header.backToCollections}
                 </button>
             )}
-            <div className="flex items-center justify-between gap-4">
-                {/* `min-w-0 break-words` + the actions' `shrink-0`: a flex item's default `min-width: auto`
-                    lets a long, unbroken collection name overflow the row and crowd the actions out. The
-                    native leaf carries the same contract via `flexShrink` (where RN's 0 default made this a
-                    hard on-device failure — Rename clipped, Delete off-screen entirely). */}
+            {/* E3: the name has a real 16 rem basis in a row that WRAPS, so on a narrow screen Rename and Delete drop
+                below it as a group instead of squeezing it into a column broken mid-word (`specSharedSystem.md` §1,
+                §6). Nothing on the flex item lets its width fall below that basis. An unbroken name (a pasted URL)
+                still breaks, inside the inner block, which is not a flex item. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <h1
                     ref={nameRef}
                     tabIndex={-1}
-                    className="min-w-0 break-words font-display text-display-md font-bold text-charcoal"
+                    className="min-w-0 grow basis-64 font-display text-display-md font-bold text-charcoal"
                 >
-                    {name}
+                    <span className="block break-words">{name}</span>
                 </h1>
                 <div className="flex shrink-0 items-center gap-3">
                     <button

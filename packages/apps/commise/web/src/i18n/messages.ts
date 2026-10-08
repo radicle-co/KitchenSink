@@ -332,6 +332,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                     account: 'Account',
                     settings: 'Settings',
                     dataSources: 'Data sources',
+                    notFound: 'Page not found',
                 },
                 openNav: 'Open navigation',
                 closeNav: 'Close navigation',

@@ -1,11 +1,10 @@
 /**
- * @module @commise/features-recipes — native recipe-detail HERO cover (the RN leaf of RecipeHero).
+ * @module @commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero).
  *
- * Same contract and same two designed states as `RecipeHero`: the mockup
- * (`screenRecipeDetail`) opens the recipe with the cover photo under a bottom-up scrim, and a recipe with no
- * cover gets a DELIBERATE branded placeholder rather than nothing. Both legs derive from the shared tokens —
- * the scrim from `gradient.scrim`, the placeholder surface from `gradient.hero`, the geometry from
- * `nativeTokens.mediaHeight` — so the two platforms cannot drift on the treatment.
+ * Same contract and same two designed states as `RecipeHero`: the hero IS the photo carousel (slide 1 the cover, the
+ * service's rule), so the cover is shown once (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`); a recipe with no
+ * photo gets a DELIBERATE branded placeholder rather than nothing. The placeholder derives from the shared tokens —
+ * its surface from `gradient.hero`, its geometry from `nativeTokens.mediaHeight` — so the platforms cannot drift.
  *
  * ## The no-cover state is a designed state, not an error path
  *
@@ -30,18 +29,17 @@
  *     merge into one continuous beach-glow slab with the label floating in it, which reads as a rendering
  *     fault rather than a design.
  *
- * The cover-PRESENT leg keeps the full `hero` height, so a recipe with a photo is pixel-comparable to web.
+ * The photos-PRESENT leg is the carousel, which sizes itself from the same window cap (`carouselBox`).
  * Only the empty state shrinks — the state where there is, by definition, nothing to show. Deliberately NOT
  * omitting the hero entirely: the labelled placeholder is the only thing that tells a non-sighted reader the
  * recipe has no photo, and dropping the element would remove that signal along with the space.
  *
  * ## The window caps the box (`docs/design/compactHeightLayout.md` §8)
  *
- * Both boxes are `mediaBoxHeight(token, window height)`: at most 40% of the window's height. Upright nothing changes
- * (0.4 × 851 is more than 256); on a phone held sideways the cover is 157 dp instead of about 70% of the window, so the
- * recipe's title is on the first screen. The cover keeps its width and crops (`contentFit="cover"`), a banner.
+ * The placeholder is `mediaBoxHeight(token, window height)`: at most 40% of the window's height, so on a phone held
+ * sideways the recipe's title stays on the first screen.
  *
- * Presentational: no fetching, no state, no navigation; it reads only the window's height. The mockup's overlaid back/share/save controls are
+ * The leaf holds no state, fetches nothing and navigates nowhere; it reads only the window's height. The mockup's overlaid back/share/save controls are
  * NOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.
  *
  * @pattern Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the
@@ -53,25 +51,24 @@ import { nativeTokens } from '@commise/ui/native';
 import { mediaBoxHeight } from '@commise/ui/layout';
 import { GradientSurface } from '@commise/ui/surface';
 import { Feather } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import type { FC } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import type { RecipeHeroProps } from './model.js';
+import { PhotoCarousel } from './PhotoCarousel.native.js';
 
 export type { RecipeHeroProps };
 
 /** The placeholder glyph's size — large enough to read as an intentional icon, not a stray mark. */
 const PLACEHOLDER_GLYPH_SIZE = 40;
 
-/** The recipe-detail hero cover (native), with its deliberate compact no-cover fallback. */
-export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
+/** The recipe-detail hero (native): the photo carousel, or its deliberate compact no-photo fallback. */
+export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos }) => {
     const { card } = useMessages(recipeMessages);
     const { height: windowHeight } = useWindowDimensions();
-    const coverHeight = { height: mediaBoxHeight(nativeTokens.mediaHeight.hero, windowHeight) };
 
-    if (coverPhotoUrl === undefined) {
+    if (photos.length === 0) {
         return (
             <GradientSurface gradient="hero" style={styles.placeholderSurface}>
                 {/* ONE perceivable thing, announced once: the role + localized label sit on the same node, so
@@ -91,46 +88,10 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
         );
     }
 
-    return (
-        <View style={[styles.coverFrame, coverHeight]}>
-            {/* FOLLOW-UP-CR-001-A applies here too: this is the full-size original, painted at hero size.
-                `accessibilityLabel` only (no `accessible`) — RNW copies it to the underlying <img alt>, giving
-                ONE named node.
-
-                This NO LONGER matches the card's cover, which #140 made decorative (it duplicated the name of
-                the pressable containing it). The hero is the same duplication class — the detail screen's <h1>
-                already carries the title — and is deliberately left as-is here because `recipeDetailHero.spec.ts`
-                identifies the hero BY this name to prove the image decoded (`naturalWidth > 0`). Making it
-                decorative is a follow-up that has to move that spec in the same change. */}
-            <Image
-                accessibilityLabel={title}
-                source={{ uri: coverPhotoUrl }}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                style={[styles.coverImage, coverHeight]}
-            />
-            {/* Decorative scrim, absolutely positioned over the cover exactly as the mockup draws it. It is
-                excluded from assistive tech by CONSTRUCTION rather than by an ARIA attribute: React Native only
-                surfaces a view as an accessibility element when it is `accessible`, carries a role/label, or has
-                text children. This one has none of those, so it is already invisible to a screen reader — which
-                is why no `aria-hidden` is passed (`GradientSurface` would drop it anyway, and a prop that does
-                nothing is worse than none: it reads as a guarantee that isn't there). Pinned by the test that
-                asserts the hero exposes exactly ONE accessible node. */}
-            <GradientSurface gradient="scrim" style={styles.scrim} />
-        </View>
-    );
+    return <PhotoCarousel photos={photos} title={title} />;
 };
 
 const styles = StyleSheet.create({
-    // `overflow: 'hidden'` rounds the cover photo's corners; nothing here casts a shadow, so clipping is safe.
-    coverFrame: {
-        position: 'relative',
-        width: '100%',
-        borderRadius: nativeTokens.radius.lg,
-        overflow: 'hidden',
-    },
-    coverImage: { width: '100%' },
-    scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 },
     // The COMPACT band (see the module doc's PLATFORM-FORK note) — not the full `hero` box.
     placeholderSurface: {
         width: '100%',

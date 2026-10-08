@@ -36,6 +36,7 @@ export const SHELL_SURFACE_IDS = [
     'account',
     'settings',
     'dataSources',
+    'notFound',
 ] as const;
 
 /** One shell-hosted surface. */

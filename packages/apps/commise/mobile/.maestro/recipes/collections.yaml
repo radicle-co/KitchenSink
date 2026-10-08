@@ -77,7 +77,9 @@ appId: io.commise.mobile
 - assertVisible: 'Rename collection'
 - tapOn: 'Collection name'
 - eraseText
-- inputText: 'Maestro renamed collection'
+# Deliberately LONG: E3 (`docs/design/uiOverhaul/evaluateShellAndLists.md`) is a long name squeezed into a column
+# broken mid-word beside Rename and Delete. The step after the wait proves it is not.
+- inputText: 'Maestro renamed collection for the whole family on weeknights'
 - tapOn: 'Save'
 
 # Back on the detail, showing the NEW name — proves the update persisted and `useUpdateCollection`
@@ -88,6 +90,13 @@ appId: io.commise.mobile
       visible:
           text: 'Maestro renamed collection.*'
       timeout: 40000
+
+# E3 — the long name keeps the row and the actions sit BELOW it. Beside it, Rename's top is above the name's foot
+# and `below:` fails. Anchored on the name, which only the app draws.
+- assertVisible:
+      text: 'Rename'
+      below:
+          text: 'Maestro renamed collection.*'
 
 # DELETE (also this flow's cleanup). Deleting returns to the collections list; the row must be GONE, which is
 # the assertion that proves the delete actually happened rather than merely navigating away.

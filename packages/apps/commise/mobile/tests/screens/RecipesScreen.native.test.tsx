@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
+import { Text } from 'react-native';
 
 import { compositeOver, computedContrast, contrastRatio } from '@commise/test-utils';
 import { palette } from '@commise/ui';
@@ -453,7 +454,49 @@ describe('RecipesScreen — navigation', () => {
  * translucent over content: without the side insets the create button and the detail's owner actions sit under it,
  * where a tap fires the system control instead (staff-ux-engineer landscape EVALUATE, finding 2).
  */
+/**
+ * M1 (`docs/design/uiOverhaul/evaluateShellAndLists.md`): Recipes had no bottom tab bar and no way back at its root,
+ * and iOS has no system Back, so a cook who opened Recipes was stuck there. The app root now hands this screen the app
+ * tab bar as a footer; the screen shows it on its three top-level tabs and hides it on a pushed screen, which has its
+ * own Back (`specShellAndLists.md` §S.3). Only this screen knows which surface is on top, so it decides — the root
+ * does not have to be told.
+ */
+describe('RecipesScreen — the app tab bar (M1)', () => {
+    it('shows the footer it is handed on every top-level tab', () => {
+        renderScreen(<RecipesScreen footer={<Text>App tabs</Text>} />);
+
+        expect(screen.getByText('App tabs')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Discover' }));
+        expect(screen.getByText('App tabs')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Collections' }));
+        expect(screen.getByText('App tabs')).toBeTruthy();
+    });
+
+    it('hides it on a pushed screen, which has its own Back, and shows it again on the way back', () => {
+        renderScreen(<RecipesScreen footer={<Text>App tabs</Text>} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Fish Tacos' }));
+        expect(screen.queryByText('App tabs')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        expect(screen.getByText('App tabs')).toBeTruthy();
+    });
+
+    it('hides it while the frames collapse, with the source tabs', async () => {
+        layout.compact = true;
+        layout.collapsed = true;
+        renderScreen(<RecipesScreen footer={<Text>App tabs</Text>} />);
+
+        expect(await screen.findByLabelText('Search recipes')).toBeTruthy();
+        expect(screen.queryByText('App tabs')).toBeNull();
+    });
+});
+
 describe('RecipesScreen — landscape safe area', () => {
+    // M1: the bottom inset moved from the screen's own box to the frame around it (`BottomChromeFrame`), because
+    // whatever is bottom-most owns it — the frame with no app tab bar below, the tab bar when there is one.
     it('pads the screen under the tab bar by all four insets', () => {
         safeArea.insets = { top: 0, right: 48, bottom: 21, left: 59 };
         renderScreen(<RecipesScreen />);
@@ -462,7 +505,14 @@ describe('RecipesScreen — landscape safe area', () => {
 
         expect(container?.style.paddingLeft).toBe('59px');
         expect(container?.style.paddingRight).toBe('48px');
-        expect(container?.style.paddingBottom).toBe('21px');
+        expect(container?.parentElement?.style.paddingBottom).toBe('21px');
+    });
+
+    it('leaves the bottom inset to the app tab bar when one is below', () => {
+        safeArea.insets = { top: 0, right: 0, bottom: 21, left: 0 };
+        renderScreen(<RecipesScreen footer={<Text>App tabs</Text>} />);
+
+        expect(screen.getByRole('tablist').parentElement?.parentElement?.style.paddingBottom).toBe('0px');
     });
 
     it('adds no side padding in portrait, where the side insets are 0', () => {

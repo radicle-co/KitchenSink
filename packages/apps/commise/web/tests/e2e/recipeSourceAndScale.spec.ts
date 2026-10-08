@@ -143,7 +143,7 @@ test.describe('recipe detail — configurable serving size', () => {
         await expect(page.getByText('25 min')).toBeVisible();
         await expect(page.getByText('50 min')).toHaveCount(0);
         // The step timer is likewise untouched.
-        await expect(page.getByText('600s timer')).toBeVisible();
+        await expect(page.getByText('10 min', { exact: true })).toBeVisible();
         await expect(page.getByText(/Cook times and step timers are shown unchanged/)).toBeVisible();
     });
 

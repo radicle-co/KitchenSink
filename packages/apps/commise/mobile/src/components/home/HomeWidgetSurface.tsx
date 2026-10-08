@@ -13,20 +13,20 @@
  *    `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with
  *    no bespoke renderer is **skipped** (graceful version skew).
  *
- * The host also renders the chrome (top bar + bottom tab bar) and the time-of-day greeting, and threads the
- * navigation intents (`onSeeAllRecipes`, `onSelectRecipe`, `onOpenAccount`) down to the recipe slot and the tab
- * bar. `container` and `renderers` are injectable seams for tests.
+ * The host also renders the top bar and the time-of-day greeting, and threads the navigation intents
+ * (`onSeeAllRecipes`, `onSelectRecipe`, `onOpenAccount`) down to the recipe slot and the top bar. The bottom tab bar
+ * is NOT here: the app root owns it, so it shows on every top-level screen and not only on Home (M1,
+ * `docs/design/uiOverhaul/specShellAndLists.md` §S.3). `container` and `renderers` are injectable seams for tests.
  */
 import {
     curateHomeWidgets,
     isPlaceholderHomeWidget,
     resolveErrorReporter,
     resolveHomeWidgets,
-    type HomeNavItemId,
     type HomeWidgetCurationContext,
     type HomeWidgetId,
 } from '@commise/features-core';
-import { RECIPE_HOME_WIDGET_CAPABILITY, RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
+import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { GradientSurface } from '@commise/ui/surface';
@@ -35,29 +35,19 @@ import type { Container } from 'ditox';
 import { useMemo, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { mobileMessages } from '../../i18n/messages.js';
 import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
-import { HomeTabBar } from './chrome/HomeTabBar.js';
 import { HomeTopBar } from './chrome/HomeTopBar.js';
 import { homeContainer } from './homeContainer.js';
+import { LIVE_CAPABILITIES } from './liveCapabilities.js';
 import { RecipeWidgetSlot } from './RecipeWidgetSlot.js';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot.js';
 import { HomeNudgeContext } from './homeNudgeContext.js';
 import { useOncePerSessionNudge } from './useOncePerSessionNudge.js';
 import { SubscriptionNudge } from './SubscriptionNudge.js';
-
-/**
- * Capabilities whose backing service is live in Home v1. Only the recipe service ships now; each feature
- * (005–009) adds its capability here when it deploys, and `curateHomeWidgets` then reveals its widget.
- */
-const LIVE_CAPABILITIES: readonly string[] = [RECIPE_HOME_WIDGET_CAPABILITY];
-
-/** The active destination this surface represents in the Home navigation. */
-const HOME_NAV_ACTIVE_ID: HomeNavItemId = 'home';
 
 /**
  * Map the shared {@link Tier} authority (`@kitchensink/recipe-core`, P4 — `free` | `premium`) onto the
@@ -102,7 +92,6 @@ export function HomeWidgetSurface({
     const { home } = useMessages(mobileMessages);
     const profile = useUserProfile();
     const nudge = useOncePerSessionNudge();
-    const insets = useSafeAreaInsets();
 
     // P4: the shared Tier authority — an absent/unrecognized subscription tier fails closed to `'free'`.
     const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
@@ -143,15 +132,6 @@ export function HomeWidgetSurface({
 
         return curateHomeWidgets(resolveHomeWidgets(container), ctx);
     }, [container, tier]);
-
-    const onSelectNav = (id: HomeNavItemId): void => {
-        if (id === 'recipes') {
-            onSeeAllRecipes();
-        } else if (id === 'profile') {
-            onOpenAccount();
-        }
-        // 'home' is the active destination (already here) → no-op; gated ids never reach a select handler.
-    };
 
     return (
         <View style={styles.screen}>
@@ -217,14 +197,6 @@ export function HomeWidgetSurface({
                     })}
                 </ScrollView>
             </HomeNudgeContext.Provider>
-
-            <HomeTabBar
-                chrome={home.chrome}
-                liveCapabilities={LIVE_CAPABILITIES}
-                activeId={HOME_NAV_ACTIVE_ID}
-                onSelect={onSelectNav}
-                bottomInset={insets.bottom}
-            />
 
             <SubscriptionNudge open={nudge.visible} onDismiss={nudge.dismiss} />
         </View>

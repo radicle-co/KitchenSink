@@ -38,7 +38,7 @@ export interface HomeChromeProps {
     /** Capabilities whose backing service is live — the single fact that drives nav reachability. */
     readonly liveCapabilities: readonly string[];
     /** The active destination for this surface. */
-    readonly activeId: HomeNavItemId;
+    readonly activeId: HomeNavItemId | null;
     /** The viewer's display name, if known — the source of the avatar initials. */
     readonly displayName: string | undefined;
     /** The surface content rendered inside the `<main>` landmark. */

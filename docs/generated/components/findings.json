@@ -1,14 +1,14 @@
 {
     "schemaVersion": 1,
     "counts": {
-        "ambiguous-layer-signal": 10,
+        "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 2,
         "cross-platform-props-diverge": 11,
-        "missing-component-doc": 126,
+        "missing-component-doc": 127,
         "missing-module-doc": 30,
-        "platform-singleton": 31,
+        "platform-singleton": 33,
         "ref-api": 9,
-        "unclassified-layer": 126,
+        "unclassified-layer": 125,
         "undocumented-prop": 101
     },
     "findings": [
@@ -129,6 +129,22 @@
             ]
         },
         {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/durationField/DurationField",
+            "sourcePath": "packages/apps/commise/ui/src/durationField/DurationField.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/durationField/DurationField",
+            "sourcePath": "packages/apps/commise/ui/src/durationField/DurationField.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
             "rule": "platform-singleton",
             "severity": "review",
             "component": "designSystem/fieldReveal/RevealSpacer",
@@ -166,6 +182,16 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "style"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/layout/BottomChromeFrame",
+            "sourcePath": "packages/apps/commise/ui/src/layout/BottomChromeFrame.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -1086,14 +1112,6 @@
             ]
         },
         {
-            "rule": "ambiguous-layer-signal",
-            "severity": "review",
-            "component": "featuresRecipes/detail/RecipeHero",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeHero.native.tsx",
-            "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
-            "evidence": []
-        },
-        {
             "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresRecipes/detail/RecipeSourceLine",
@@ -1223,6 +1241,16 @@
                 "onKeyDown",
                 "onPick",
                 "parts"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/RailTrack",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailTrack.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {
@@ -2907,22 +2935,6 @@
             "severity": "gap",
             "component": "web/app/[locale]/recipes/[id]/RecipeDetailLoading",
             "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/loading.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "web/app/[locale]/recipes/[id]/RecipeDetailNotFound",
-            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/not-found.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/app/[locale]/recipes/[id]/RecipeDetailNotFound",
-            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/not-found.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },

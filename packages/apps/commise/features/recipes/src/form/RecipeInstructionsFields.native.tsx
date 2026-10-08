@@ -6,6 +6,7 @@
  * (`wizard/Wizard.native.tsx`).
  */
 import { Button } from '@commise/ui/button';
+import { DurationField } from '@commise/ui/duration-field';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { TextInput } from '@commise/ui/text-input';
@@ -17,7 +18,7 @@ import { fillTemplate } from '../list/model.js';
 import { recipeFormMessages } from './messages.js';
 import { stepsErrorId } from './fieldErrorIds.js';
 import { styles } from './formSectionStyles.native.js';
-import { applyDraftAction, parseNumericInput, type RecipeFormSectionProps } from './props.js';
+import { applyDraftAction, type RecipeFormSectionProps } from './props.js';
 
 /** Step 3: the dynamic instruction-step list. */
 export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
@@ -45,21 +46,17 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                     }
                     style={[styles.input, styles.rowGrow]}
                 />
-                <TextInput
-                    accessibilityLabel={fillTemplate(m.stepTimerLabel, { number })}
-                    keyboardType="numeric"
-                    value={step.timerSeconds === undefined ? '' : String(step.timerSeconds)}
-                    onChangeText={(text) => {
-                        const raw = text.trim();
-                        onChange(
-                            applyDraftAction(values, {
-                                kind: 'updateStepAt',
-                                index,
-                                patch: { timerSeconds: raw === '' ? undefined : parseNumericInput(raw) },
-                            }),
-                        );
-                    }}
-                    style={[styles.input, styles.rowNarrow]}
+                {/* F1: entered in hours and minutes, stored in seconds as before. */}
+                <DurationField
+                    label={m.timerLabel}
+                    hoursLabel={fillTemplate(m.stepTimerHoursLabel, { number })}
+                    minutesLabel={fillTemplate(m.stepTimerMinutesLabel, { number })}
+                    hoursUnit={m.timerHoursUnit}
+                    minutesUnit={m.timerMinutesUnit}
+                    value={step.timerSeconds}
+                    onChange={(timerSeconds) =>
+                        onChange(applyDraftAction(values, { kind: 'updateStepAt', index, patch: { timerSeconds } }))
+                    }
                 />
                 <View style={styles.rowAction}>
                     <Button

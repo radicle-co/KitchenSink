@@ -930,7 +930,21 @@ describe('the recipe field groups (native) — instructions', () => {
         renderForm();
 
         expect(inputValue('Step 1 instruction')).toBe('Toast the rice.');
-        expect(inputValue('Step 1 timer (seconds)')).toBe('120');
+        // F1: 120 seconds is shown as 2 minutes, with the hours box left empty rather than "0".
+        expect(inputValue('Step 1 timer, hours')).toBe('');
+        expect(inputValue('Step 1 timer, minutes')).toBe('2');
+    });
+
+    /** F1/I3 — mirrors the web leaf: hours and minutes in, seconds stored. */
+    it('takes a step timer in hours and minutes and stores it in seconds', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ steps: [{ instruction: 'Roast', timerSeconds: 1800 }] }), onChange });
+
+        fireEvent.change(screen.getByLabelText('Step 1 timer, hours'), { target: { value: '4' } });
+
+        expect(onChange).toHaveBeenLastCalledWith(
+            expect.objectContaining({ steps: [{ instruction: 'Roast', timerSeconds: 16200 }] }),
+        );
     });
 
     it('appends a blank step on add', () => {
@@ -958,7 +972,7 @@ describe('the recipe field groups (native) — instructions', () => {
         const onChange = vi.fn();
         renderForm({ values: filledValues({ steps: [{ instruction: 'Toast', timerSeconds: 60 }] }), onChange });
 
-        fireEvent.change(screen.getByLabelText('Step 1 timer (seconds)'), { target: { value: '' } });
+        fireEvent.change(screen.getByLabelText('Step 1 timer, minutes'), { target: { value: '' } });
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({ steps: [{ instruction: 'Toast', timerSeconds: undefined }] }),

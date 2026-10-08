@@ -26,9 +26,10 @@
  *
  * ⚠️ The FAB and the menu are laid out in DIFFERENT coordinate spaces, and the two offsets are reconciled
  * deliberately. The FAB is an absolute child of the recipe list, which sits inside a screen already padded by
- * the device's bottom inset; the menu escapes into a modal WINDOW, which spans the whole display and inherits
- * none of that. So the menu re-adds `insets.bottom` and then composes the FAB's own offsets from the SAME
- * exported constants, which is what stops the pair drifting when one of them is tuned.
+ * the device's bottom inset or sits above the bottom tab bar; the menu escapes into a modal WINDOW, which spans the
+ * whole display and inherits none of that. So the menu re-adds the screen's bottom edge (`useBottomEdge`: the bar's
+ * measured height, or the inset) and then composes the FAB's own offsets from the SAME exported constants, which is
+ * what stops the pair drifting when one of them is tuned.
  *
  * ⚠️ **Unverified on a device, and stated rather than assumed:** the horizontal reconciliation assumes CSS /
  * Yoga-3 semantics, under which an absolutely positioned child is offset from its parent's PADDING BOX — so
@@ -41,6 +42,7 @@
  *     with the platform primitive.
  */
 import { palette, tint } from '@commise/ui';
+import { useBottomEdge } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { Modal } from '@commise/ui/modal';
 import { Feather } from '@expo/vector-icons';
@@ -62,6 +64,9 @@ export const MENU_GAP = nativeTokens.spacing[3];
 export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, dismissLabel, actions }) => {
     const [open, setOpen] = useState(false);
     const insets = useSafeAreaInsets();
+    // The distance from the window's foot to the foot of the screen this FAB sits in: the bottom tab bar's height when
+    // the screen has one (M1), otherwise the safe-area inset.
+    const bottomEdge = useBottomEdge();
 
     return (
         <>
@@ -100,7 +105,7 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
                         style={[
                             styles.menu,
                             {
-                                bottom: insets.bottom + FAB_BOTTOM + FAB_SIZE + MENU_GAP,
+                                bottom: bottomEdge + FAB_BOTTOM + FAB_SIZE + MENU_GAP,
                                 // The screen pads the FAB by the side inset too (landscape); this window does not.
                                 right: insets.right + nativeTokens.spacing[4],
                             },

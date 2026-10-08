@@ -285,3 +285,15 @@ describe('CollectionHeader (native) — N1: the collection’s name is said once
         expect(screen.queryAllByLabelText('Keto Week')).toEqual([]);
     });
 });
+
+/** E3 — mirrors the web leaf: the name keeps a real basis in a row that wraps, so Rename and Delete drop below it. */
+describe('CollectionHeader (native) — the name is never squeezed beside the actions (E3)', () => {
+    it('lays the name and the actions out in a wrapping row, the name with a real basis', () => {
+        renderHeader({ name: 'Weeknight Dinners the Whole Family Will Actually Eat' });
+        const name = screen.getByRole('heading', { name: 'Weeknight Dinners the Whole Family Will Actually Eat' });
+        const row = name.parentElement;
+
+        expect(row === null ? '' : window.getComputedStyle(row).flexWrap).toBe('wrap');
+        expect(window.getComputedStyle(name).flexBasis).toBe('256px');
+    });
+});

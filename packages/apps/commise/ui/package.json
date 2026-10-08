@@ -36,6 +36,8 @@
         "./confirm-dialog": "./src/confirmDialog/index.ts",
         "./dialog-frame": "./src/dialogFrame/index.ts",
         "./dialog-focus": "./src/dialogFocus/index.ts",
+        "./duration": "./src/durationField/duration.ts",
+        "./duration-field": "./src/durationField/index.ts",
         "./field-reveal": "./src/fieldReveal/index.ts",
         "./motion": "./src/motion/index.ts",
         "./press-scale": "./src/pressScale/index.ts",

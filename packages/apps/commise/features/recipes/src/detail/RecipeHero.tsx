@@ -1,10 +1,10 @@
 /**
- * @module @commise/features-recipes — web recipe-detail HERO cover (mockup `screenRecipeDetail`).
+ * @module @commise/features-recipes — web recipe-detail HERO (mockup `screenRecipeDetail`).
  *
- * The mockup opens the recipe detail with the cover photo: a full-width image (`h-64 md:h-96 object-cover`)
- * under a bottom-up scrim (`bg-gradient-to-t from-charcoal/60 to-transparent`) that keeps overlaid chrome
- * legible on a light photo. The web detail previously had no lead treatment at all and started at the title
- * band, so this is the missing first impression.
+ * The recipe detail opens with its photos. The hero IS the photo carousel: slide 1 is the cover, because the service
+ * makes the cover `photos[0]` on every read path. It used to paint the cover as a separate image and then a second
+ * carousel below repeated it as slide 1 (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`), so there is now one
+ * photo surface, built from `photos` alone (`specRecipeAndWizard.md` S2.1).
  *
  * ## The no-cover state is a designed state, not an error path
  *
@@ -19,8 +19,9 @@
  * and the localized `card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so "no photo yet"
  * is stated once in the dictionary and read identically on both surfaces.
  *
- * Pure `props → JSX`: no fetching, no state, no navigation. The mockup's overlaid back/share/save controls are
- * NOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.
+ * The leaf itself holds no state, fetches nothing and navigates nowhere; the carousel's open slide is the carousel's
+ * own view state. The mockup's overlaid back/share/save controls are NOT part of this leaf — those are navigation and
+ * mutations, so they belong to the orchestration layer.
  *
  * @pattern Null Object for the no-cover state — a designed, branded placeholder stands in for the missing photo,
  *     rather than an empty `src`, a zero-height box or an unlabelled rectangle.
@@ -31,17 +32,18 @@ import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
 import type { RecipeHeroProps } from './model.js';
+import { PhotoCarousel } from './PhotoCarousel.js';
 
 export type { RecipeHeroProps };
 
 /** Shared hero geometry — the mockup's `h-64` on phones, `md:h-96` from tablet up. */
 const HERO_BOX = 'h-64 w-full md:h-96';
 
-/** The recipe-detail hero cover, with its deliberate no-cover fallback. */
-export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
+/** The recipe-detail hero: the photo carousel, or its deliberate no-photo fallback. */
+export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos }) => {
     const { card } = useMessages(recipeMessages);
 
-    if (coverPhotoUrl === undefined) {
+    if (photos.length === 0) {
         return (
             <GradientSurface
                 gradient="hero"
@@ -70,19 +72,5 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
         );
     }
 
-    return (
-        <div className="relative overflow-hidden rounded-2xl">
-            {/* FOLLOW-UP-CR-001-A applies here too: this is the full-size original, painted at hero size. It is
-                the screen's lead image, so it loads eagerly — a lazy hero is a guaranteed layout flash. */}
-            <img
-                src={coverPhotoUrl}
-                alt={title}
-                loading="eager"
-                decoding="async"
-                className={`object-cover ${HERO_BOX}`}
-            />
-            {/* Decorative scrim — it carries no information, so it is hidden from assistive tech. */}
-            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-charcoal/60 to-transparent" />
-        </div>
-    );
+    return <PhotoCarousel photos={photos} title={title} />;
 };

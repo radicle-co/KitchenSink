@@ -187,7 +187,10 @@ describe('CollectionHeader (web) — Edit/Delete affordances (C4)', () => {
  * Pinning both here keeps the two leaves' overflow behaviour from drifting again.
  */
 describe('CollectionHeader (web) — title row cannot squeeze its actions off-screen', () => {
-    it('lets a long name shrink and wrap rather than overflow the row', () => {
+    // Rewritten for E3: it used to pin `break-words` on the `h1` itself, which is the flex-item rule that let the name
+    // collapse to a one-character column. An unbroken token still breaks rather than overflow the row — inside the
+    // name's inner block, which is not a flex item.
+    it('lets a long name wrap rather than overflow the row, breaking an unbroken token inside the name', () => {
         renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
 
         const heading = screen.getByRole('heading', {
@@ -195,7 +198,9 @@ describe('CollectionHeader (web) — title row cannot squeeze its actions off-sc
         });
 
         expect(heading.className).toContain('min-w-0');
-        expect(heading.className).toContain('break-words');
+        expect(screen.getByText('Maestro renamed collection with a deliberately very long name').className).toContain(
+            'break-words',
+        );
     });
 
     it('never shrinks the action group itself, so neither control is clipped', () => {
@@ -254,5 +259,23 @@ describe('CollectionHeader (web) — a failed refresh of what is on screen', () 
         rerender(viewWith(notice({ recoveries: 1 })));
 
         expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Keto Week' }));
+    });
+});
+
+/**
+ * E3 (`docs/design/uiOverhaul/evaluateShellAndLists.md`): at 320 the name broke mid-word into a three-letter column
+ * beside Rename and Delete. The cause was `break-words` on a flex item whose sibling would not shrink, which lets the
+ * name's min-content width fall to one character (`specSharedSystem.md` §1 forbids it). The name now has a real
+ * 16 rem basis in a row that wraps, so the actions drop below it instead of squeezing it. jsdom has no layout, so this
+ * pins the contract; `tests/e2e/collectionHeaderReflow.spec.ts` measures it in a browser.
+ */
+describe('CollectionHeader (web) — the name is never squeezed beside the actions (E3)', () => {
+    it('gives the name a real basis in a wrapping row, and never `break-words` on it', () => {
+        renderHeader({ name: 'Weeknight Dinners the Whole Family Will Actually Eat' });
+        const name = screen.getByRole('heading', { name: 'Weeknight Dinners the Whole Family Will Actually Eat' });
+
+        expect(name.className.split(/\s+/)).not.toContain('break-words');
+        expect(name.className).toContain('basis-64');
+        expect(name.parentElement?.className.split(/\s+/)).toContain('flex-wrap');
     });
 });

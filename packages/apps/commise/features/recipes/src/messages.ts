@@ -240,8 +240,10 @@ export interface RecipeDetailMessages {
     readonly clonePrivateFoodsDismiss: string;
     /** Heading for the instructions section. */
     readonly instructionsHeading: string;
-    /** Timer template for a step (contains `{seconds}`). */
+    /** A step's timer (contains `{duration}`, already said in hours and minutes), shown after the timer glyph. */
     readonly stepTimer: string;
+    /** Accessible name of the timer glyph, which is all that tells a step's duration is a timer. */
+    readonly stepTimerIcon: string;
     /** Accessible name for a step's completion checkbox (contains `{step}`). */
     readonly stepToggleLabel: string;
     /** Accessible name for a tappable tag chip that filters search (contains `{tag}`). */
@@ -640,6 +642,19 @@ export interface IngredientDetailsMessages {
 }
 
 /** The shape of the recipe feature's shared copy. */
+/**
+ * How a duration stored in seconds is said (F1): in hours and minutes, never in seconds. Each template takes the
+ * named number(s) it shows.
+ */
+export interface RecipeDurationMessages {
+    /** Under an hour (contains `{minutes}`), e.g. "20 min". */
+    readonly minutes: string;
+    /** Whole hours (contains `{hours}`), e.g. "4 h". */
+    readonly hours: string;
+    /** Hours and minutes (contains `{hours}` and `{minutes}`), e.g. "4 h 30 min". */
+    readonly hoursMinutes: string;
+}
+
 export interface RecipeMessages {
     /** Title of the recent-recipes Home widget card. */
     readonly widgetTitle: string;
@@ -649,6 +664,8 @@ export interface RecipeMessages {
     readonly list: RecipeListMessages;
     /** Copy for the recipe-detail screen. */
     readonly detail: RecipeDetailMessages;
+    /** How a duration is said, shared by every surface that shows one. */
+    readonly duration: RecipeDurationMessages;
     /** Copy for the shared recipe card (Home widget + list). */
     readonly card: RecipeCardMessages;
     /** Copy for the ingredient-search minimum (003-FR-010a), shared by all four search surfaces. */
@@ -671,6 +688,11 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
     en: {
         widgetTitle: 'Recent recipes',
         emptyState: 'No recipes yet. Create your first recipe to see it here.',
+        duration: {
+            minutes: '{minutes} min',
+            hours: '{hours} h',
+            hoursMinutes: '{hours} h {minutes} min',
+        },
         ingredientSearch: {
             tooShort: 'Keep typing — {minimum} characters or more. Anything shorter matches half the pantry.',
         },
@@ -840,7 +862,8 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
                 '{count} ingredients use the original cook’s private foods, so you can’t see their names or nutrition. Their amounts are kept.',
             clonePrivateFoodsDismiss: 'Dismiss',
             instructionsHeading: 'Instructions',
-            stepTimer: '{seconds}s timer',
+            stepTimer: '{duration}',
+            stepTimerIcon: 'Timer',
             stepToggleLabel: 'Mark step {step} complete',
             tagFilterLabel: 'Find recipes tagged {tag}',
             nutritionHeading: 'Nutrition (per serving)',

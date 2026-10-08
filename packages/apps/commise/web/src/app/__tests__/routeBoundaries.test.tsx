@@ -18,6 +18,8 @@ import { renderWithProviders } from '@commise/test-utils';
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 vi.mock('next/navigation', () => ({ useParams: () => ({ locale: 'en', id: 'rec_1' }) }));
+// The not-found boundary frames its page by session (`NotFoundSurface`); signed out it has no shell to stub.
+vi.mock('@clerk/nextjs', () => ({ useAuth: () => ({ isLoaded: true, isSignedIn: false }) }));
 
 const { default: LocaleError } = await import('../[locale]/error');
 const { default: RecipesError } = await import('../[locale]/recipes/error');
@@ -32,7 +34,6 @@ const { default: DiscoverLoading } = await import('../[locale]/discover/loading'
 const { default: CollectionsLoading } = await import('../[locale]/collections/loading');
 
 const { default: LocaleNotFound } = await import('../[locale]/not-found');
-const { default: RecipeDetailNotFound } = await import('../[locale]/recipes/[id]/not-found');
 
 const { captureException } = await import('@sentry/nextjs');
 
@@ -123,16 +124,17 @@ describe.each(CARD_GRID_LOADING_BOUNDARIES)('%s/loading.tsx — the card-grid sk
     });
 });
 
-const NOT_FOUND_BOUNDARIES = [
-    ['[locale]', LocaleNotFound] as const,
-    ['[locale]/recipes/[id]', RecipeDetailNotFound] as const,
-];
+/**
+ * ONE not-found boundary, under `[locale]`. `recipes/[id]/not-found.tsx` was deleted with E2: a segment's boundary
+ * renders only for a `notFound()` thrown beneath it, and nothing under that segment threw one, so the file never ran —
+ * its unmatched sub-paths (`/en/recipes/abc/typo`) went to Next's bare page. They now reach this boundary through the
+ * `[...rest]` catch-all, which `tests/e2e/notFound.spec.ts` drives in a browser.
+ */
+describe('[locale]/not-found.tsx', () => {
+    it('renders the app’s not-found page with its heading and a way back', () => {
+        renderWithProviders(<LocaleNotFound />);
 
-describe.each(NOT_FOUND_BOUNDARIES)('%s/not-found.tsx', (_segment, NotFound) => {
-    it('renders the shared not-found state with a way back', () => {
-        renderWithProviders(<NotFound />);
-
-        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
         expect(screen.getByRole('link')).toHaveAttribute('href', '/en');
     });
 });

@@ -337,8 +337,11 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  *
  * ⚠️ It went 129 → 126 with plan 002 S5.3 and B8: both `IngredientPicker` leaves and both `IngredientRowsSkeleton`
  * leaves were deleted with the picker, and the `SearchIcon` glyph arrived, which §11.2 also puts out of scope.
+ *
+ * ⚠️ It went 126 → 125 with UI-overhaul slice 0 (E2): the `recipes/[id]/not-found.tsx` route segment was deleted, since
+ * a segment boundary never caught an unmatched URL and nothing beneath it threw `notFound()`.
  */
-const LAYER_UNSTATED_CENSUS = 126;
+const LAYER_UNSTATED_CENSUS = 125;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

@@ -13,6 +13,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { servingsRange } from '@kitchensink/recipe-core/scaling';
 import type {
     IngredientQuantity,
+    RecipePhoto,
     RecipeDetail,
     RecipeIngredient,
     RecipeDetailNutrition,
@@ -37,8 +38,12 @@ import {
     type RemotePart,
 } from '../hooks/foodSuggestions.model.js';
 import type { RemoteFoodPick } from '../hooks/lineCommit.js';
-import { fillTemplate } from '../list/model.js';
-import type { IngredientLineNameMessages, IngredientRemoteSearchMessages } from '../messages.js';
+import { fillTemplate, formatDuration } from '../list/model.js';
+import type {
+    IngredientLineNameMessages,
+    IngredientRemoteSearchMessages,
+    RecipeDurationMessages,
+} from '../messages.js';
 import type { RefreshNoticeControl, RetryControl } from '../refresh/model.js';
 import { lineDisplayName, snapshotLineName, variantPartTexts, type NameableLine } from './lineName.js';
 
@@ -806,15 +811,16 @@ export const clonePrivateFoodsBannerText = (
  * (`RecipeHero.native.tsx`) leaves so the two cannot drift on the contract (§14.4).
  */
 export interface RecipeHeroProps {
-    /** The recipe title — the cover image's alt text / accessible name. */
+    /** The recipe title — the photos' alt text and the carousel's names are built from it. */
     readonly title: string;
     /**
-     * Absolute CDN URL of the cover photo. ABSENT → the deliberate no-photo fallback (never an empty source).
+     * The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the
+     * hero is the carousel itself and shows the cover once (F2). EMPTY → the deliberate no-photo placeholder.
      *
-     * This is the recipe's canonical cover (the same field the card tile paints), NOT `photos[0]`, so the hero
-     * and the card can never disagree about which image represents the recipe.
+     * Deliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here
+     * as well is how the cover came to be painted twice.
      */
-    readonly coverPhotoUrl?: string;
+    readonly photos: readonly RecipePhoto[];
 }
 
 /**
@@ -1003,4 +1009,23 @@ export interface ServingScaleControlProps {
     readonly baseServings: number;
     /** Report a newly chosen serving count. Absent → the control renders inert rather than disappearing. */
     readonly onServingsChange?: (servings: number) => void;
+}
+
+/**
+ * A step timer's visible words, said in hours and minutes ("4 h 30 min") rather than the seconds it is stored in (F1,
+ * `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`). One derivation for both detail leaves. Pure.
+ *
+ * @param seconds - The step's stored timer, if any.
+ * @param template - The localized step-timer template (contains `{duration}`).
+ * @param durations - The localized duration templates.
+ * @returns The words to show, or `undefined` when the step has no timer.
+ */
+export function stepTimerLabel(
+    seconds: number | undefined,
+    template: string,
+    durations: RecipeDurationMessages,
+): string | undefined {
+    const said = formatDuration(seconds, durations);
+
+    return said === undefined ? undefined : fillTemplate(template, { duration: said });
 }

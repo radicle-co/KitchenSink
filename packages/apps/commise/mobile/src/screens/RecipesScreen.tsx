@@ -11,7 +11,7 @@
  * tab bar; selecting a tab resets the stack to that root. Everything else (detail, create, edit, version
  * history, collection detail/create/rename) is a full-screen push with its own back/cancel affordance.
  */
-import type { JSX } from 'react';
+import type { JSX, ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RecipeSourceTab } from '@commise/features-recipes/source-tab/mobile';
 import { useMessages } from '@commise/i18n/react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
-import { useFrameCollapsed } from '@commise/ui/layout';
+import { BottomChromeFrame, useFrameCollapsed } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 
 import { mobileMessages } from '../i18n/messages.js';
@@ -110,6 +110,12 @@ export interface RecipesScreenProps {
      * showing Home; `AppRoot` additionally keys this screen by the id so a different recipe always remounts.
      */
     readonly initialRecipeId?: string;
+    /**
+     * The app's bottom tab bar, handed in by the app root (M1, `docs/design/uiOverhaul/specShellAndLists.md` §S.3).
+     * Shown on the three top-level tabs and hidden on a pushed screen, which carries its own Back. This screen
+     * decides, because only it knows which surface is on top; the root never has to be told.
+     */
+    readonly footer?: ReactElement;
 }
 
 /**
@@ -118,7 +124,7 @@ export interface RecipesScreenProps {
  * @param props - Optional `initialRecipeId` to open straight into a recipe's detail.
  * @returns The current screen, under the tab bar when it is a top-level destination.
  */
-export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX.Element {
+export function RecipesScreen({ initialRecipeId, footer }: RecipesScreenProps = {}): JSX.Element {
     const insets = useSafeAreaInsets();
     const collapsed = useFrameCollapsed();
     const [stack, setStack] = useState<readonly Surface[]>(
@@ -140,36 +146,34 @@ export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX
     const current = stack[stack.length - 1] ?? { id: 'list' };
     const screen = renderSurface(current, nav);
 
-    // Apply the top safe-area inset so the tab bar + screen headings clear the status bar (without it the
-    // top row renders UNDER the status bar — a visual defect, and the occluded nodes drop out of the
-    // accessibility hierarchy, which also makes them invisible to screen readers and to Maestro E2E).
-    // Apply BOTH safe-area insets. The top clears the status bar; the bottom clears the gesture/navigation
-    // bar. Without the bottom inset, the foot of a scroll (e.g. the recipe detail's owner actions) renders
-    // under the 3-button nav bar — the left-aligned "Delete recipe" action overlaps the nav bar's back
-    // button, so a tap there fires BACK (popping the detail) instead of opening the confirm.
+    // The top inset clears the status bar (without it the top row renders UNDER it, and the occluded nodes drop out of
+    // the accessibility hierarchy — invisible to screen readers and to Maestro). The SIDE insets clear a camera cutout
+    // or a 3-button navigation bar in landscape, which is drawn translucent over content, so the dial's FAB and the
+    // wizard's Next would otherwise sit under it.
     //
-    // ⚠️ `paddingBottom` is now load-bearing for a control in ANOTHER package. The recipe list's create dial
-    // (`@commise/features-recipes`'s `SpeedDial.native.tsx`) pins its FAB inside this padded box while
-    // opening its menu in a modal WINDOW, which spans the whole display and inherits none of this — so the
-    // menu re-adds `insets.bottom` itself to line up. Drop or change this padding when a real navigator
-    // lands and the FAB slides under the gesture bar while its menu stays put, opening a visible gap.
-    //
-    // The SIDE insets too: in landscape a camera cutout or the 3-button navigation bar sits on a side edge, and the
-    // bar is drawn translucent over content, so the dial's FAB and the wizard's Next would sit under it.
+    // The BOTTOM inset belongs to the frame around this box (`BottomChromeFrame`), because whatever is bottom-most owns
+    // it: the frame when nothing is below (without it the foot of a scroll, such as the detail's "Delete recipe", sits
+    // under the nav bar's Back), the app tab bar when it is. The frame also tells the create dial how far up the
+    // screen's foot is (`useBottomEdge`), which keeps its menu — opened in a modal window that inherits none of this —
+    // lined up with the FAB.
     const containerStyle = [
         styles.container,
-        { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right },
+        { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right },
     ];
+    // The app tab bar shows where the source tabs do: on a top-level tab, and not while the frames collapse.
+    const atTopLevel = isTab(current) && !collapsed;
 
     // ONE tree for tab and pushed surfaces, so hiding the tab bar shifts no sibling: `screen` keeps its index, and a
     // focused search field in it keeps its node and its keyboard. The tab bar steps aside while the frames collapse —
     // a window compact in height with a keyboard open (`docs/design/compactHeightLayout.md` §5) — so the results keep
     // their room, iOS's own convention for a search in progress.
     const body = (
-        <View style={containerStyle}>
-            {isTab(current) && !collapsed ? <TabBar current={current.id} onSelect={nav.selectTab} /> : null}
-            {screen}
-        </View>
+        <BottomChromeFrame footer={atTopLevel ? footer : undefined}>
+            <View style={containerStyle}>
+                {atTopLevel ? <TabBar current={current.id} onSelect={nav.selectTab} /> : null}
+                {screen}
+            </View>
+        </BottomChromeFrame>
     );
 
     // ⛔ HARDWARE BACK IS THE SURFACE'S TO REFUSE, NOT THIS SCREEN'S TO ANSWER UNCONDITIONALLY.
@@ -183,7 +187,8 @@ export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX
     // `BackInterceptProvider` owns the one subscription now and offers each press to the mounted surfaces
     // first (`@commise/ui/back-intercept`); this callback is the TERMINAL link, reached only when nothing
     // claimed it. Its rule is unchanged and still exactly right: consume the event while there is a surface to
-    // pop, and decline at the root so the OS default (leave the app) still applies from a top-level tab.
+    // pop, and decline at the root. Declining is not leaving the app any more: this provider sits inside the app
+    // root's, so the press then reaches the root, which goes Home (M1).
     //
     // A fresh closure over the CURRENT `stack` every render is safe — the provider reads it through an effect
     // event, so the subscription itself never re-registers. Do NOT "optimise" this into a `setStack` updater

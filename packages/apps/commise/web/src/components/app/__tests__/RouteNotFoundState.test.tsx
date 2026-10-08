@@ -17,10 +17,13 @@ afterEach(() => {
 });
 
 describe('RouteNotFoundState', () => {
+    // Rewritten for E2 (`specShellAndLists.md` §N): this asserted `role="alert"`. A 404 is a page, not an interruption,
+    // so its title is the page's `h1` and nothing is announced as an alert.
     it('renders localized not-found copy with a way back to the current locale home', () => {
         renderWithProviders(<RouteNotFoundState />);
 
-        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1, name: 'We couldn’t find that page.' })).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).toBeNull();
         const backLink = screen.getByRole('link');
         expect(backLink).toHaveAttribute('href', '/en');
     });

@@ -171,3 +171,14 @@ appId: io.commise.mobile
 - pressKey: Back
 - assertNotVisible: 'Discard unsaved changes?'
 - assertVisible: 'Recipes'
+
+# ── LEG 9: Back at the Recipes ROOT goes Home; it no longer leaves the app (M1). ──
+# `docs/design/uiOverhaul/evaluateShellAndLists.md` M1: Recipes declined a back press at its root, so the OS took
+# it and left the app. The app root now answers it. The paste box above was left empty, so this is the list root.
+- assertVisible: 'My recipes'
+- pressKey: Back
+- assertNotVisible: 'My recipes'
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+      timeout: 20000

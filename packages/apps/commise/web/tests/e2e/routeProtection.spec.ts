@@ -56,6 +56,30 @@ test.describe('route protection (signed out)', () => {
         expect(page.url()).not.toContain('accounts.dev');
     });
 
+    // E2 (`docs/design/uiOverhaul/evaluateShellAndLists.md`): an unknown URL got Next's bare built-in 404 — no app
+    // styles, no way home. Signed out, it is now the app's own not-found page on the plain canvas: no app navigation,
+    // a link home (which, signed out, lands on sign-in), and a `noindex` robots tag (the status is not asserted; see
+    // `notFound.spec.ts`).
+    test('an unknown URL shows the app’s own 404 page, with a way home', async ({ page }) => {
+        await page.goto(route('/this-page-does-not-exist'));
+
+        await expect(page.getByRole('heading', { level: 1, name: 'We couldn’t find that page.' })).toBeVisible();
+        await expect(page.locator('meta[name="robots"][content="noindex"]')).toHaveCount(1);
+        await expect(page.getByRole('navigation')).toHaveCount(0);
+
+        await page.getByRole('link', { name: 'Back to Home' }).click();
+        await expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true);
+    });
+
+    // The catch-all that serves the 404 (`[locale]/[...rest]`) must lose to the sign-in route's own optional catch-all,
+    // or a Clerk step URL would be swallowed. The form is awaited first, so the absence below is not read before render.
+    test('a sign-in sub-path is still the sign-in page, not the 404', async ({ page }) => {
+        await page.goto(route('/sign-in/factor-one'));
+
+        await expect(page.getByRole('heading', { name: 'Sign in to Commise' })).toBeVisible();
+        await expect(page.getByRole('heading', { level: 1, name: 'We couldn’t find that page.' })).toHaveCount(0);
+    });
+
     test('the sign-in and sign-up pages are reachable without auth', async ({ page }) => {
         await page.goto(route('/sign-in'));
         await expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true);

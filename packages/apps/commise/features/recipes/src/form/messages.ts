@@ -476,8 +476,16 @@ export interface RecipeFormMessages {
     readonly stepsHeading: string;
     /** Step-instruction field label template (contains `{number}`). */
     readonly stepInstructionLabel: string;
-    /** Step-timer field label template (contains `{number}`). */
-    readonly stepTimerLabel: string;
+    /** Visible label above a step's timer boxes; it names their group. */
+    readonly timerLabel: string;
+    /** Accessible name of a step timer's hours box (contains `{number}`). */
+    readonly stepTimerHoursLabel: string;
+    /** Accessible name of a step timer's minutes box (contains `{number}`). */
+    readonly stepTimerMinutesLabel: string;
+    /** Short unit shown after a timer's hours box. */
+    readonly timerHoursUnit: string;
+    /** Short unit shown after a timer's minutes box. */
+    readonly timerMinutesUnit: string;
     /** Add-step action label. */
     readonly addStep: string;
     /** Remove-step action label template (contains `{number}`). */
@@ -683,7 +691,11 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
 
         stepsHeading: 'Instructions',
         stepInstructionLabel: 'Step {number} instruction',
-        stepTimerLabel: 'Step {number} timer (seconds)',
+        timerLabel: 'Timer (optional)',
+        stepTimerHoursLabel: 'Step {number} timer, hours',
+        stepTimerMinutesLabel: 'Step {number} timer, minutes',
+        timerHoursUnit: 'h',
+        timerMinutesUnit: 'min',
         addStep: 'Add step',
         removeStep: 'Remove step {number}',
         noSteps: 'No steps yet. Add your first step.',

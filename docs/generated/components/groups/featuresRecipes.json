@@ -4,14 +4,14 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 108,
-        "implementations": 197,
-        "props": 776,
-        "documentedComponents": 108,
-        "implementationsWithModuleDoc": 197,
-        "implementationsWithComponentDoc": 114,
-        "documentedProps": 671,
-        "classifiedComponents": 73,
+        "components": 109,
+        "implementations": 198,
+        "props": 778,
+        "documentedComponents": 109,
+        "implementationsWithModuleDoc": 198,
+        "implementationsWithComponentDoc": 115,
+        "documentedProps": 673,
+        "classifiedComponents": 74,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 89
     },
@@ -4903,11 +4903,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoCarousel.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2).\n\nReplaces the static photo grid with a swipeable, scroll-snap strip of slides, a dot-navigation strip\n(shown only when there is more than one photo), and a full-screen lightbox opened by activating a slide.\n\nPattern: the lightbox is the house **Radix `Dialog`** (per B6) — Radix owns the focus trap, Escape-to-\ndismiss, background inert, and focus-return to the activating slide, so this component hand-rolls none of\nthat (`aria-modal` div). The open slide is ephemeral, self-contained view state (`activeIndex`), not data\nor a behavior-switching prop, so it stays local to this interactive widget rather than lifting to the\norchestration container (nothing else consumes it — YAGNI).\n\nB7: offscreen slides are `loading=\"lazy\"` so a 10-photo recipe does not eagerly paint ~50 MB of\nfull-size originals; the lightbox image is eager (the user asked to see it). A service-side gallery\nthumbnail rendition remains the fuller fix (tracked with the gallery projection) — out of scope here.",
+                    "moduleDoc": "@commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2). It is the recipe\ndetail's hero (`RecipeHero`), so it is the screen's one photo surface (F2).\n\nReplaces the static photo grid with a swipeable, scroll-snap strip of slides, a dot-navigation strip\n(shown only when there is more than one photo), and a full-screen lightbox opened by activating a slide.\n\nPattern: the lightbox is the house **Radix `Dialog`** (per B6) — Radix owns the focus trap, Escape-to-\ndismiss, background inert, and focus-return to the activating slide, so this component hand-rolls none of\nthat (`aria-modal` div). The open slide is ephemeral, self-contained view state (`activeIndex`), not data\nor a behavior-switching prop, so it stays local to this interactive widget rather than lifting to the\norchestration container (nothing else consumes it — YAGNI).\n\nB7: offscreen slides are `loading=\"lazy\"` so a 10-photo recipe does not eagerly paint ~50 MB of\nfull-size originals; the lightbox image is eager (the user asked to see it). A service-side gallery\nthumbnail rendition remains the fuller fix (tracked with the gallery projection) — out of scope here.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2)."
+                            "text": "@commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2). It is the recipe"
                         },
                         {
                             "name": "pattern",
@@ -5665,29 +5665,29 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeHero.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-detail HERO cover (mockup `screenRecipeDetail`).\n\nThe mockup opens the recipe detail with the cover photo: a full-width image (`h-64 md:h-96 object-cover`)\nunder a bottom-up scrim (`bg-gradient-to-t from-charcoal/60 to-transparent`) that keeps overlaid chrome\nlegible on a light photo. The web detail previously had no lead treatment at all and started at the title\nband, so this is the missing first impression.\n\n## The no-cover state is a designed state, not an error path\n\nMost recipes will have no photo for a while (a draft, an import, a quick capture). A missing cover must\ntherefore look DELIBERATE, and specifically must not be any of the three easy failures:\n - an `<img>` with an empty/undefined `src` → the browser paints a broken-image glyph;\n - a zero-height box → the title jumps up and the screen looks truncated;\n - an unlabelled grey rectangle → a screen-reader user perceives nothing where sighted users see a panel.\n\nSo the fallback is a branded surface at the SAME hero height, painted with the shared beach-glow\n{@link GradientSurface} (the brand's own background ramp, not an off-palette grey), carrying a photo glyph\nand the localized `card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so \"no photo yet\"\nis stated once in the dictionary and read identically on both surfaces.\n\nPure `props → JSX`: no fetching, no state, no navigation. The mockup's overlaid back/share/save controls are\nNOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.",
+                    "moduleDoc": "@commise/features-recipes — web recipe-detail HERO (mockup `screenRecipeDetail`).\n\nThe recipe detail opens with its photos. The hero IS the photo carousel: slide 1 is the cover, because the service\nmakes the cover `photos[0]` on every read path. It used to paint the cover as a separate image and then a second\ncarousel below repeated it as slide 1 (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`), so there is now one\nphoto surface, built from `photos` alone (`specRecipeAndWizard.md` S2.1).\n\n## The no-cover state is a designed state, not an error path\n\nMost recipes will have no photo for a while (a draft, an import, a quick capture). A missing cover must\ntherefore look DELIBERATE, and specifically must not be any of the three easy failures:\n - an `<img>` with an empty/undefined `src` → the browser paints a broken-image glyph;\n - a zero-height box → the title jumps up and the screen looks truncated;\n - an unlabelled grey rectangle → a screen-reader user perceives nothing where sighted users see a panel.\n\nSo the fallback is a branded surface at the SAME hero height, painted with the shared beach-glow\n{@link GradientSurface} (the brand's own background ramp, not an off-palette grey), carrying a photo glyph\nand the localized `card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so \"no photo yet\"\nis stated once in the dictionary and read identically on both surfaces.\n\nThe leaf itself holds no state, fetches nothing and navigates nowhere; the carousel's open slide is the carousel's\nown view state. The mockup's overlaid back/share/save controls are NOT part of this leaf — those are navigation and\nmutations, so they belong to the orchestration layer.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — web recipe-detail HERO cover (mockup `screenRecipeDetail`)."
+                            "text": "@commise/features-recipes — web recipe-detail HERO (mockup `screenRecipeDetail`)."
                         },
                         {
                             "name": "pattern",
                             "text": "Null Object for the no-cover state — a designed, branded placeholder stands in for the missing photo,\n    rather than an empty `src`, a zero-height box or an unlabelled rectangle."
                         }
                     ],
-                    "description": "The recipe-detail hero cover, with its deliberate no-cover fallback.",
+                    "description": "The recipe-detail hero: the photo carousel, or its deliberate no-photo fallback.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "coverPhotoUrl",
-                            "type": "string",
+                            "name": "photos",
+                            "type": "readonly RecipePhoto[]",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Absolute CDN URL of the cover photo. ABSENT → the deliberate no-photo fallback (never an empty source).\n\nThis is the recipe's canonical cover (the same field the card tile paints), NOT `photos[0]`, so the hero\nand the card can never disagree about which image represents the recipe.",
+                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the deliberate no-photo placeholder.\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -5696,7 +5696,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe title — the cover image's alt text / accessible name.",
+                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -5712,29 +5712,29 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeHero.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — native recipe-detail HERO cover (the RN leaf of RecipeHero).\n\nSame contract and same two designed states as `RecipeHero`: the mockup\n(`screenRecipeDetail`) opens the recipe with the cover photo under a bottom-up scrim, and a recipe with no\ncover gets a DELIBERATE branded placeholder rather than nothing. Both legs derive from the shared tokens —\nthe scrim from `gradient.scrim`, the placeholder surface from `gradient.hero`, the geometry from\n`nativeTokens.mediaHeight` — so the two platforms cannot drift on the treatment.\n\n## The no-cover state is a designed state, not an error path\n\nMost recipes will have no photo for a while (a draft, an import, a quick capture), so the fallback must not\nbe any of the three easy failures — an `<Image>` with an empty `source` (which paints a broken-image glyph\non device exactly as a browser does), a zero-height box that makes the screen look truncated, or an\nunlabelled grey rectangle that a screen-reader user perceives as nothing at all. So it renders NO image\ncomponent, keeps a real height, and carries `accessibilityRole=\"image\"` plus the localized\n`card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so \"no photo yet\" is stated once in\nthe dictionary and read identically on both surfaces.\n\n## PLATFORM-FORK: the no-cover placeholder is COMPACT on native, full-height on web\n\nThe web fallback fills the whole hero box (`h-64`, `md:h-96` — up to 384px). That is right on a desktop\nviewport and wrong on a phone, for two compounding reasons:\n\n 1. **It costs the first screen.** A ~384dp empty gradient on a ~700dp phone viewport is over half of\n    everything the reader can see, spent on a panel that says only \"no photo yet\" — and it pushes the recipe\n    TITLE, the one thing they opened the screen for, below the fold.\n 2. **It stacks two identical gradients.** The native detail view already opens with a `GradientSurface`\n    `hero` title band immediately below this hero. At full height the no-cover placeholder and that band\n    merge into one continuous beach-glow slab with the label floating in it, which reads as a rendering\n    fault rather than a design.\n\nThe cover-PRESENT leg keeps the full `hero` height, so a recipe with a photo is pixel-comparable to web.\nOnly the empty state shrinks — the state where there is, by definition, nothing to show. Deliberately NOT\nomitting the hero entirely: the labelled placeholder is the only thing that tells a non-sighted reader the\nrecipe has no photo, and dropping the element would remove that signal along with the space.\n\n## The window caps the box (`docs/design/compactHeightLayout.md` §8)\n\nBoth boxes are `mediaBoxHeight(token, window height)`: at most 40% of the window's height. Upright nothing changes\n(0.4 × 851 is more than 256); on a phone held sideways the cover is 157 dp instead of about 70% of the window, so the\nrecipe's title is on the first screen. The cover keeps its width and crops (`contentFit=\"cover\"`), a banner.\n\nPresentational: no fetching, no state, no navigation; it reads only the window's height. The mockup's overlaid back/share/save controls are\nNOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.",
+                    "moduleDoc": "@commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero).\n\nSame contract and same two designed states as `RecipeHero`: the hero IS the photo carousel (slide 1 the cover, the\nservice's rule), so the cover is shown once (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`); a recipe with no\nphoto gets a DELIBERATE branded placeholder rather than nothing. The placeholder derives from the shared tokens —\nits surface from `gradient.hero`, its geometry from `nativeTokens.mediaHeight` — so the platforms cannot drift.\n\n## The no-cover state is a designed state, not an error path\n\nMost recipes will have no photo for a while (a draft, an import, a quick capture), so the fallback must not\nbe any of the three easy failures — an `<Image>` with an empty `source` (which paints a broken-image glyph\non device exactly as a browser does), a zero-height box that makes the screen look truncated, or an\nunlabelled grey rectangle that a screen-reader user perceives as nothing at all. So it renders NO image\ncomponent, keeps a real height, and carries `accessibilityRole=\"image\"` plus the localized\n`card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so \"no photo yet\" is stated once in\nthe dictionary and read identically on both surfaces.\n\n## PLATFORM-FORK: the no-cover placeholder is COMPACT on native, full-height on web\n\nThe web fallback fills the whole hero box (`h-64`, `md:h-96` — up to 384px). That is right on a desktop\nviewport and wrong on a phone, for two compounding reasons:\n\n 1. **It costs the first screen.** A ~384dp empty gradient on a ~700dp phone viewport is over half of\n    everything the reader can see, spent on a panel that says only \"no photo yet\" — and it pushes the recipe\n    TITLE, the one thing they opened the screen for, below the fold.\n 2. **It stacks two identical gradients.** The native detail view already opens with a `GradientSurface`\n    `hero` title band immediately below this hero. At full height the no-cover placeholder and that band\n    merge into one continuous beach-glow slab with the label floating in it, which reads as a rendering\n    fault rather than a design.\n\nThe photos-PRESENT leg is the carousel, which sizes itself from the same window cap (`carouselBox`).\nOnly the empty state shrinks — the state where there is, by definition, nothing to show. Deliberately NOT\nomitting the hero entirely: the labelled placeholder is the only thing that tells a non-sighted reader the\nrecipe has no photo, and dropping the element would remove that signal along with the space.\n\n## The window caps the box (`docs/design/compactHeightLayout.md` §8)\n\nThe placeholder is `mediaBoxHeight(token, window height)`: at most 40% of the window's height, so on a phone held\nsideways the recipe's title stays on the first screen.\n\nThe leaf holds no state, fetches nothing and navigates nowhere; it reads only the window's height. The mockup's overlaid back/share/save controls are\nNOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — native recipe-detail HERO cover (the RN leaf of RecipeHero)."
+                            "text": "@commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero)."
                         },
                         {
                             "name": "pattern",
                             "text": "Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the\n    shared gradient and geometry tokens so the two cannot drift."
                         }
                     ],
-                    "description": "The recipe-detail hero cover (native), with its deliberate compact no-cover fallback.",
+                    "description": "The recipe-detail hero (native): the photo carousel, or its deliberate compact no-photo fallback.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "coverPhotoUrl",
-                            "type": "string",
+                            "name": "photos",
+                            "type": "readonly RecipePhoto[]",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Absolute CDN URL of the cover photo. ABSENT → the deliberate no-photo fallback (never an empty source).\n\nThis is the recipe's canonical cover (the same field the card tile paints), NOT `photos[0]`, so the hero\nand the card can never disagree about which image represents the recipe.",
+                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the deliberate no-photo placeholder.\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -5743,14 +5743,14 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe title — the cover image's alt text / accessible name.",
+                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": true
                     }
                 }
@@ -6408,6 +6408,67 @@
             ]
         },
         {
+            "id": "featuresRecipes/discovery/RailTrack",
+            "name": "RailTrack",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/discovery",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RailTrack",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailTrack.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/discovery",
+                    "moduleDoc": "@commise/features-recipes — web browse-rail TRACK: the one horizontal scroll container a rail's cards sit\nin, whether they are loaded cards or loading placeholders.\n\nBoth rail bodies render through this element so the pending strip and the loaded strip cannot drift apart. They\ndid once (E1, `docs/design/uiOverhaul/evaluateShellAndLists.md`): the skeleton strip had no overflow rule, so its\ntiles widened the whole page at 320 px while only the loaded strip scrolled inside itself. The overflow belongs to\nthe track, and every tile inside it is a `shrink-0` item.\n\nA placeholder track is `aria-hidden`: its tiles carry no content, and its rail's live region speaks for it.\nPresentational: pure props to markup.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — web browse-rail TRACK: the one horizontal scroll container a rail's cards sit"
+                        }
+                    ],
+                    "description": "The horizontal, snap-scrolling list every browse rail lays its tiles out in.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The track's items, each an `<li>` sized with `w-64 shrink-0`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/RailTrack.tsx"
+                        },
+                        {
+                            "name": "decorative",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Hide the track from assistive technology — set for the loading placeholders, whose region speaks for them.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/RailTrack.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/discovery/RecipeBrowseRailLoadError",
             "name": "RecipeBrowseRailLoadError",
             "group": "featuresRecipes",
@@ -6516,7 +6577,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RecipeBrowseRailLoading.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/discovery",
-                    "moduleDoc": "@commise/features-recipes — web browse-rail LOADING body (presentational, U7).\n\nWhat one rail's read boundary renders while that rail is pending: three decorative shimmer cards the size of a rail\ncard, under the localized label. The label is the region's CONTENT, not only its `aria-label`: the cards are all\n`aria-hidden`, and a live region announces its content.",
+                    "moduleDoc": "@commise/features-recipes — web browse-rail LOADING body (presentational, U7).\n\nWhat one rail's read boundary renders while that rail is pending: three decorative shimmer cards the size of a rail\ncard, under the localized label. The label is the region's CONTENT, not only its `aria-label`: the cards are all\n`aria-hidden`, and a live region announces its content. The cards sit in the loaded rail's own {@link RailTrack}, so\nthe pending strip scrolls inside itself exactly as the loaded one does.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -12802,7 +12863,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/speedDial/SpeedDial.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/speedDial",
-                    "moduleDoc": "@commise/features-recipes — the native SpeedDial FAB (U34, owner ruling 2026-08-25).\n\nThe React Native leaf of `SpeedDial`: the same pinned create control, which now DISCLOSES the creation\ndestinations instead of running the only one. Exactly one is wired today; Scan / Import / AI belong to\nfeatures 004 and 005 and are **not rendered at all** — not disabled, not \"coming soon\".\n\nPATTERN — Menu Button (disclosure) implemented as an **Adapter** over the React Native `Modal`, the web\nleaf's counterpart to its `@radix-ui/react-dialog` adapter. The two exist for the same reason: the\ncontainment a menu owes its user is owned by platform machinery, not hand-rolled here.\n\nThree platform differences are deliberate, not drift:\n\n - **The focus trap is the modal WINDOW.** iOS presents a separate window and Android a Dialog, so\n   VoiceOver/TalkBack are already scoped to it; `aria-modal` (React Native's own first-class alias for\n   `accessibilityViewIsModal`) states it, and is also the ONE form react-native-web surfaces in the DOM,\n   so it is both device-correct and assertable. The sibling `MoreActionsMenu.native` renders an INLINE\n   panel and deliberately gets none of this — that is why this leaf is not modelled on it.\n - **The backdrop is a real, labelled control.** A tap on it dismisses, so it is announced as one. Its web\n   counterpart cannot be: everything outside the dialog content is `aria-hidden` while the dial is open,\n   so on that platform the scrim is decorative and dismissal is owned by the dismissable layer.\n - **Motion-free by construction**, so no reduce-motion gate is needed here (the same reasoning the recipe\n   list's loading skeletons carry). The web leaf animates because CSS makes the `motion-safe:` gate\n   declarative and free; React Native would need an async preference read to suppress a gesture worth two\n   frames on a one-item dial.\n\n⚠️ The FAB and the menu are laid out in DIFFERENT coordinate spaces, and the two offsets are reconciled\ndeliberately. The FAB is an absolute child of the recipe list, which sits inside a screen already padded by\nthe device's bottom inset; the menu escapes into a modal WINDOW, which spans the whole display and inherits\nnone of that. So the menu re-adds `insets.bottom` and then composes the FAB's own offsets from the SAME\nexported constants, which is what stops the pair drifting when one of them is tuned.\n\n⚠️ **Unverified on a device, and stated rather than assumed:** the horizontal reconciliation assumes CSS /\nYoga-3 semantics, under which an absolutely positioned child is offset from its parent's PADDING BOX — so\nthe FAB's `right` is measured from the screen edge and NOT from inside the list's own horizontal padding.\nReact Native 0.86's Yoga and react-native-web both behave that way, which is why the menu uses the same\n`right` value verbatim. If a device shows the menu overhanging the FAB by exactly the list's gutter, that\nassumption is what is wrong — add the gutter here rather than nudging either value by eye.",
+                    "moduleDoc": "@commise/features-recipes — the native SpeedDial FAB (U34, owner ruling 2026-08-25).\n\nThe React Native leaf of `SpeedDial`: the same pinned create control, which now DISCLOSES the creation\ndestinations instead of running the only one. Exactly one is wired today; Scan / Import / AI belong to\nfeatures 004 and 005 and are **not rendered at all** — not disabled, not \"coming soon\".\n\nPATTERN — Menu Button (disclosure) implemented as an **Adapter** over the React Native `Modal`, the web\nleaf's counterpart to its `@radix-ui/react-dialog` adapter. The two exist for the same reason: the\ncontainment a menu owes its user is owned by platform machinery, not hand-rolled here.\n\nThree platform differences are deliberate, not drift:\n\n - **The focus trap is the modal WINDOW.** iOS presents a separate window and Android a Dialog, so\n   VoiceOver/TalkBack are already scoped to it; `aria-modal` (React Native's own first-class alias for\n   `accessibilityViewIsModal`) states it, and is also the ONE form react-native-web surfaces in the DOM,\n   so it is both device-correct and assertable. The sibling `MoreActionsMenu.native` renders an INLINE\n   panel and deliberately gets none of this — that is why this leaf is not modelled on it.\n - **The backdrop is a real, labelled control.** A tap on it dismisses, so it is announced as one. Its web\n   counterpart cannot be: everything outside the dialog content is `aria-hidden` while the dial is open,\n   so on that platform the scrim is decorative and dismissal is owned by the dismissable layer.\n - **Motion-free by construction**, so no reduce-motion gate is needed here (the same reasoning the recipe\n   list's loading skeletons carry). The web leaf animates because CSS makes the `motion-safe:` gate\n   declarative and free; React Native would need an async preference read to suppress a gesture worth two\n   frames on a one-item dial.\n\n⚠️ The FAB and the menu are laid out in DIFFERENT coordinate spaces, and the two offsets are reconciled\ndeliberately. The FAB is an absolute child of the recipe list, which sits inside a screen already padded by\nthe device's bottom inset or sits above the bottom tab bar; the menu escapes into a modal WINDOW, which spans the\nwhole display and inherits none of that. So the menu re-adds the screen's bottom edge (`useBottomEdge`: the bar's\nmeasured height, or the inset) and then composes the FAB's own offsets from the SAME exported constants, which is\nwhat stops the pair drifting when one of them is tuned.\n\n⚠️ **Unverified on a device, and stated rather than assumed:** the horizontal reconciliation assumes CSS /\nYoga-3 semantics, under which an absolutely positioned child is offset from its parent's PADDING BOX — so\nthe FAB's `right` is measured from the screen edge and NOT from inside the list's own horizontal padding.\nReact Native 0.86's Yoga and react-native-web both behave that way, which is why the menu uses the same\n`right` value verbatim. If a device shows the menu overhanging the FAB by exactly the list's gutter, that\nassumption is what is wrong — add the gutter here rather than nudging either value by eye.",
                     "moduleTags": [
                         {
                             "name": "module",

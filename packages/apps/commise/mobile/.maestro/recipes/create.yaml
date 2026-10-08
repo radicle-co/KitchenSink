@@ -105,6 +105,14 @@ appId: io.commise.mobile
 - tapOn: 'Add step'
 - tapOn: 'Step 1 instruction'
 - inputText: 'Combine everything and simmer.'
+# F1 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): the timer is entered in hours and minutes, no longer
+# in seconds. Read back on the detail below.
+- scrollUntilVisible:
+      element: 'Step 1 timer, hours'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Step 1 timer, hours'
+- inputText: '3'
 - scrollUntilVisible:
       element: 'Next: Review'
       direction: DOWN
@@ -137,6 +145,16 @@ appId: io.commise.mobile
       visible:
           text: 'Maestro Weeknight Soup.*'
       timeout: 40000
+
+# F1 — the step timer reads in hours, never as raw seconds ("10800s timer"). `3+` absorbs inputText's intermittent
+# repeat of the last typed character; no stat on this screen is ever said in hours, so the match is the timer's.
+- scrollUntilVisible:
+      element:
+          text: '3+ h'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible:
+      text: '.*s timer'
 
 # REQ-034 — this recipe's Tomato line was declared as written (not the food database), so the custom note must
 # render (§S15; `listDetail.yaml` asserts the same copy).

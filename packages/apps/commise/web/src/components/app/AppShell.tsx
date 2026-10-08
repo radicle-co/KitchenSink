@@ -47,8 +47,11 @@ export const LIVE_CAPABILITIES: readonly string[] = [RECIPE_HOME_WIDGET_CAPABILI
 
 /** Props for {@link AppShell}. */
 export interface AppShellProps {
-    /** The active nav destination for this surface (e.g. `'home'`, `'recipes'`). */
-    readonly activeId: HomeNavItemId;
+    /**
+     * The active nav destination for this surface (e.g. `'home'`, `'recipes'`), or `null` for a surface that is none
+     * of them (the 404 page). Required, so a surface states it rather than inheriting one.
+     */
+    readonly activeId: HomeNavItemId | null;
     /**
      * Which surface the top bar names. Defaults to `'home'` — the value the bar hard-coded before it became
      * per-surface — so an un-migrated caller renders exactly what it did before.

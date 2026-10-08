@@ -61,7 +61,7 @@ export interface HomeMobileNavProps {
     /** Capabilities whose backing service is live — decides reachability. */
     readonly liveCapabilities: readonly string[];
     /** The currently active destination — marked `aria-current`. */
-    readonly activeId: HomeNavItemId;
+    readonly activeId: HomeNavItemId | null;
 }
 
 /**

@@ -95,7 +95,10 @@ const renderSurface = (props: Partial<Parameters<typeof HomeWidgetSurface>[0]> =
 const FakeRecipeWidget: FC = () => <Text>fake-recipe-widget</Text>;
 
 describe('HomeWidgetSurface (mobile) — host composition', () => {
-    it('renders the time-of-day greeting header and the navigation chrome', () => {
+    // Rewritten for M1: this also asserted the bottom tab bar ("Main"). The bar moved up to the app root so it shows
+    // on every top-level screen, not only Home; `tests/screens/AppRoot.shell.native.test.tsx` covers it there. Home's
+    // own chrome is the top bar, asserted here instead.
+    it('renders the time-of-day greeting header and the top-bar chrome, and no tab bar of its own', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
@@ -105,9 +108,8 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         });
 
         expect(screen.getByText('Good afternoon, Chef!')).toBeTruthy();
-        // The chrome rendered: the bottom tab-bar landmark ("Main") is unambiguous (unlike the region/tab
-        // "Home" labels, which intentionally repeat the destination name).
-        expect(screen.getByLabelText('Main')).toBeTruthy();
+        expect(screen.getByLabelText('Search, coming soon')).toBeTruthy();
+        expect(screen.queryByLabelText('Main')).toBeNull();
     });
 
     it('sits the greeting on the brand beach-glow gradient hero (U8), not a plain header', () => {

@@ -31,7 +31,7 @@ export interface HomeTabBarProps {
     /** Capabilities whose backing service is live — decides which tabs are reachable. */
     readonly liveCapabilities: readonly string[];
     /** The currently active destination (Home, for this surface) — marked `aria-current`. */
-    readonly activeId: HomeNavItemId;
+    readonly activeId: HomeNavItemId | null;
 }
 
 /**

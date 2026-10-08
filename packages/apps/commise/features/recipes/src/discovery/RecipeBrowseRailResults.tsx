@@ -13,6 +13,7 @@ import { toRecipeCardModel } from '../card/model.js';
 import { discoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
 import type { RecipeBrowseRailResultsProps } from './model.js';
+import { RailTrack } from './RailTrack.js';
 
 export const RecipeBrowseRailResults: FC<RecipeBrowseRailResultsProps> = ({
     results,
@@ -28,7 +29,7 @@ export const RecipeBrowseRailResults: FC<RecipeBrowseRailResultsProps> = ({
     }
 
     return (
-        <ul className="flex snap-x gap-4 overflow-x-auto pb-2" role="list">
+        <RailTrack>
             {results.map((entry) => (
                 <li key={entry.recipe.id} className="w-64 shrink-0 snap-start">
                     <RecipeDiscoveryCard
@@ -42,6 +43,6 @@ export const RecipeBrowseRailResults: FC<RecipeBrowseRailResultsProps> = ({
                     />
                 </li>
             ))}
-        </ul>
+        </RailTrack>
     );
 };

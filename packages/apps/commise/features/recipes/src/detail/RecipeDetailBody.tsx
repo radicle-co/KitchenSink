@@ -34,7 +34,6 @@ import { recipeMessages } from '../messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';
 import { isStandInName, lineDisplayName, variantPartTexts } from './lineName.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
-import { PhotoCarousel } from './PhotoCarousel.js';
 import { RecipeHero } from './RecipeHero.js';
 import { RecipeSourceLine } from './RecipeSourceLine.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
@@ -50,6 +49,7 @@ import {
     needsReviewNotice,
     rangeDerivedNotice,
     staleNutritionNotice,
+    stepTimerLabel,
     type RecipeDetailBodyProps,
 } from './model.js';
 
@@ -81,7 +81,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     dataSourcesHref,
     viewerIsOwner,
 }) => {
-    const { list, detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
+    const { list, detail, duration, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so focus goes to the title.
     const titleRef = useFocusOnSignal<HTMLHeadingElement>(refreshNotice?.recoveries ?? 0);
     // Plan 002 R2 — ONE notice per recipe for the lines food could not be asked about, and which notice speaks
@@ -121,9 +121,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
 
     return (
         <article aria-label={recipe.title} className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
-            {/* The mockup LEADS the detail with the cover hero, before any type. A recipe with no cover gets the
-                hero's deliberate branded placeholder rather than nothing — see `RecipeHero`. */}
-            <RecipeHero title={recipe.title} coverPhotoUrl={recipe.coverPhotoUrl} />
+            {/* The mockup LEADS the detail with its photos, before any type. The hero IS the carousel, so the cover
+                shows once (F2); a recipe with no photo gets its deliberate branded placeholder — see `RecipeHero`. */}
+            <RecipeHero title={recipe.title} photos={recipe.photos} />
 
             {/* U8: the header rides a beach-glow gradient title band (mockup recipe-detail), mirroring the
                 native leaf so both platforms present the same branded hero. */}
@@ -257,8 +257,6 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     <p className="text-body-sm font-medium text-charcoal">{detail.scaledTimingCaveat}</p>
                 </div>
             )}
-
-            <PhotoCarousel photos={recipe.photos} title={recipe.title} />
 
             <section aria-label={detail.ingredientsHeading} className="flex flex-col gap-3">
                 <h2
@@ -482,6 +480,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 <ol className="flex flex-col gap-4">
                     {recipe.steps.map((step) => {
                         const done = checkedSteps?.has(step.stepNumber) ?? false;
+                        const timer = stepTimerLabel(step.timerSeconds, detail.stepTimer, duration);
 
                         return (
                             <li key={step.stepNumber} className="flex items-start gap-4">
@@ -518,9 +517,14 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                     >
                                         {step.instruction}
                                     </span>
-                                    {step.timerSeconds !== undefined && (
-                                        <span className="text-body-sm font-medium text-ocean-dark">
-                                            {fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}
+                                    {timer !== undefined && (
+                                        <span className="flex items-center gap-1">
+                                            {/* The duration alone does not say it is a timer; the glyph does, so it
+                                                carries that as its accessible name. */}
+                                            <span role="img" aria-label={detail.stepTimerIcon}>
+                                                ⏱
+                                            </span>
+                                            <span className="text-body-sm font-medium text-ocean-dark">{timer}</span>
                                         </span>
                                     )}
                                 </div>

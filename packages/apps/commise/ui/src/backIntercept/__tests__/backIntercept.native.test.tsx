@@ -221,3 +221,100 @@ describe('useBackIntercept — one link in the chain', () => {
         expect(asked).toEqual(['inner']);
     });
 });
+
+/**
+ * A host inside another host — the app root inside which the recipes surface keeps its own stack (M1,
+ * `docs/design/uiOverhaul/specShellAndLists.md` §S.3). The inner provider joins the outer one's chain as ONE link
+ * instead of opening a second platform subscription, so the order is the tree's order, not the order the two
+ * subscriptions happened to be made in. That matters when both mount in the same commit: effects run child-first, so
+ * the inner provider would subscribe FIRST, and RN's last-registered-first order would then ask the OUTER host before
+ * the inner one — sending the viewer home from a pushed screen.
+ */
+describe('BackInterceptProvider — nested inside another provider', () => {
+    /** One link that claims the press through `useBackIntercept`. */
+    const Surface: FC<{ readonly handler: () => boolean }> = ({ handler }) => {
+        useBackIntercept(handler);
+
+        return null;
+    };
+
+    it('opens no platform subscription of its own', () => {
+        back = installHardwareBackHandler();
+
+        render(
+            <Host onUnhandled={() => false}>
+                <Host onUnhandled={() => false} />
+            </Host>,
+        );
+
+        expect(back.subscriberCount()).toBe(1);
+    });
+
+    it('asks the inner chain and the inner host first, even when both mounted in the same commit', () => {
+        back = installHardwareBackHandler();
+        const outer = vi.fn(() => true);
+        const inner = vi.fn(() => true);
+
+        render(
+            <Host onUnhandled={outer}>
+                <Host onUnhandled={inner} />
+            </Host>,
+        );
+
+        expect(back.press()).toBe(true);
+        expect(inner).toHaveBeenCalledTimes(1);
+        expect(outer).not.toHaveBeenCalled();
+    });
+
+    it('falls through to the outer host only when the inner host declines', () => {
+        back = installHardwareBackHandler();
+        const outer = vi.fn(() => true);
+
+        render(
+            <Host onUnhandled={outer}>
+                <Host onUnhandled={() => false} />
+            </Host>,
+        );
+
+        expect(back.press()).toBe(true);
+        expect(outer).toHaveBeenCalledTimes(1);
+    });
+
+    it('still offers the press to a surface inside the inner host before either host', () => {
+        back = installHardwareBackHandler();
+        const outer = vi.fn(() => true);
+        const inner = vi.fn(() => true);
+        const surface = vi.fn(() => true);
+
+        render(
+            <Host onUnhandled={outer}>
+                <Host onUnhandled={inner}>
+                    <Surface handler={surface} />
+                </Host>
+            </Host>,
+        );
+
+        back.press();
+
+        expect(surface).toHaveBeenCalledTimes(1);
+        expect(inner).not.toHaveBeenCalled();
+        expect(outer).not.toHaveBeenCalled();
+    });
+
+    it('leaves the outer chain when it unmounts', () => {
+        back = installHardwareBackHandler();
+        const outer = vi.fn(() => true);
+        const inner = vi.fn(() => true);
+        const { rerender } = render(
+            <Host onUnhandled={outer}>
+                <Host onUnhandled={inner} />
+            </Host>,
+        );
+
+        rerender(<Host onUnhandled={outer} />);
+        back.press();
+
+        expect(inner).not.toHaveBeenCalled();
+        expect(outer).toHaveBeenCalledTimes(1);
+    });
+});

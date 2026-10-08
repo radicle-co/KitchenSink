@@ -117,13 +117,19 @@ const styles = StyleSheet.create({
     // `ocean-dark`, not `seafoam`, on every foreground a reader READS in this header (Back, Rename, the badge
     // label): seafoam is 4.02:1 on white and 3.57:1 on the badge's own tint, under the 4.5:1 body-text floor.
     backLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
-    titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-    // `flexShrink: 1` is load-bearing, not cosmetic. RN defaults `flexShrink` to 0, so without it a long
-    // collection name claims its full intrinsic width in this row and pushes `actions` past the screen edge:
-    // on-device (Maestro `collections`, `collectionsPagination`) "Rename" was clipped to a 33px slither and
-    // "Delete" fell out of the view hierarchy entirely — deleting a collection was unreachable on mobile.
-    // Shrinking lets the name wrap instead, which is what the web leaf's `min-w-0` + `break-words` already do.
-    heading: { flexShrink: 1, fontSize: 28, fontWeight: '700', color: palette.charcoal },
+    // E3: the row WRAPS and the name has a real 256 dp basis, so on a phone Rename and Delete drop below a long name
+    // as a group instead of squeezing it into a column broken mid-word (`specSharedSystem.md` §1, §6) — the web
+    // leaf's rule. `flexShrink: 1` stays: RN defaults it to 0, and a name that claims its full intrinsic width once
+    // pushed "Delete" out of the view hierarchy entirely (Maestro `collections`).
+    titleRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        columnGap: 12,
+        rowGap: 8,
+    },
+    heading: { flexGrow: 1, flexShrink: 1, flexBasis: 256, fontSize: 28, fontWeight: '700', color: palette.charcoal },
     actions: { flexDirection: 'row', flexShrink: 0, gap: 8 },
     editLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
     deleteLabel: { color: palette['error-dark'], fontWeight: '500', fontSize: 14 },

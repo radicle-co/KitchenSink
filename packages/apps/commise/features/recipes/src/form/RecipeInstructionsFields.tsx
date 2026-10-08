@@ -5,15 +5,16 @@
  * One of the four field GROUPS (T067, w3), each a step body of the 4-step edit wizard (`wizard/Wizard.tsx`).
  */
 import { Button } from '@commise/ui/button';
+import { DurationField } from '@commise/ui/duration-field';
 import { useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 
-import { errorText, rowField, sectionCard, sectionHeading, sizedField } from './formSectionStyles.js';
+import { errorText, field, sectionCard, sectionHeading } from './formSectionStyles.js';
 import { fillTemplate } from '../list/model.js';
 import { PlusIcon, TrashIcon } from './icons.js';
 import { recipeFormMessages } from './messages.js';
 import { stepsErrorId } from './fieldErrorIds.js';
-import { applyDraftAction, parseNumericInput, type RecipeFormSectionProps } from './props.js';
+import { applyDraftAction, type RecipeFormSectionProps } from './props.js';
 
 /** Step 3: the dynamic instruction-step list. */
 export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
@@ -27,7 +28,9 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
         const instructionInvalid = stepsInvalid && step.instruction.trim() === '';
 
         return (
-            <li key={index} className="flex items-start gap-3">
+            // I1: the row WRAPS and the instruction field takes a whole line, so at 320 px it is never squeezed beside
+            // the timer and Remove (it was about 12 px wide). The same row shape as the native leaf's.
+            <li key={index} className="flex flex-wrap items-end gap-3">
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-seafoam text-body-sm font-semibold text-white">
                     {number}
                 </span>
@@ -46,23 +49,19 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                             }),
                         )
                     }
-                    className={rowField}
+                    className={`${field} min-w-0 basis-full`}
                 />
-                <input
-                    type="number"
-                    aria-label={fillTemplate(m.stepTimerLabel, { number })}
-                    value={step.timerSeconds === undefined ? '' : String(step.timerSeconds)}
-                    onChange={(event) => {
-                        const raw = event.target.value.trim();
-                        onChange(
-                            applyDraftAction(values, {
-                                kind: 'updateStepAt',
-                                index,
-                                patch: { timerSeconds: raw === '' ? undefined : parseNumericInput(raw) },
-                            }),
-                        );
-                    }}
-                    className={`${sizedField} w-28`}
+                {/* F1: entered in hours and minutes, stored in seconds as before. */}
+                <DurationField
+                    label={m.timerLabel}
+                    hoursLabel={fillTemplate(m.stepTimerHoursLabel, { number })}
+                    minutesLabel={fillTemplate(m.stepTimerMinutesLabel, { number })}
+                    hoursUnit={m.timerHoursUnit}
+                    minutesUnit={m.timerMinutesUnit}
+                    value={step.timerSeconds}
+                    onChange={(timerSeconds) =>
+                        onChange(applyDraftAction(values, { kind: 'updateStepAt', index, patch: { timerSeconds } }))
+                    }
                 />
                 <Button
                     variant="destructive"

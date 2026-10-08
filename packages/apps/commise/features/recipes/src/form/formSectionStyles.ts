@@ -20,5 +20,4 @@ export const fieldChrome =
 export const field = `w-full ${fieldChrome} text-charcoal`;
 /** A field whose caller states its width, in charcoal. */
 export const sizedField = `${fieldChrome} text-charcoal`;
-export const rowField = `${field} min-w-0 flex-1`;
 export const errorText = 'text-body-sm text-error-dark';

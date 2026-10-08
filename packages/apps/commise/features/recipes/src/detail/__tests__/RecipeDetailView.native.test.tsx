@@ -672,7 +672,23 @@ describe('RecipeDetailView (native) — contrast (U4 / WCAG AA)', () => {
             />,
         );
 
-        expect(computedContrast(screen.getByText('120s timer')), 'step timer label').toBeGreaterThanOrEqual(4.5);
+        expect(computedContrast(screen.getByText('2 min')), 'step timer label').toBeGreaterThanOrEqual(4.5);
+    });
+
+    /** F1 — mirrors the web leaf: hours and minutes, and a glyph a screen reader names "Timer". */
+    it('says a step timer in hours and minutes, marked as a timer', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    steps: [makeStepView({ stepNumber: 1, instruction: 'Roast low.', timerSeconds: 16200 })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('4 h 30 min')).toBeTruthy();
+        expect(screen.getByRole('img', { name: 'Timer' })).toBeTruthy();
+        expect(screen.queryByText(/16200/)).toBeNull();
     });
 });
 
@@ -790,45 +806,44 @@ describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
 });
 
 describe('RecipeDetailView (native) — hero cover (mockup screenRecipeDetail)', () => {
-    /**
-     * The hero cover, addressed by the `<img alt>` react-native-web renders for it. Deliberately NOT
-     * `getByLabelText(title)`: the detail's own root View is labelled with the recipe title too, so a
-     * label query would match the container and PASS even with no hero rendered at all.
-     */
-    const heroCover = (container: HTMLElement, title: string): HTMLImageElement | null =>
-        container.querySelector<HTMLImageElement>(`img[alt="${title}"]`);
-
     it('LEADS the screen with the cover hero — it precedes the title heading in document order', () => {
         const { container } = render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: 'https://cdn/hero.jpg' })}
+                recipe={makeRecipeDetail({ title: 'Lamb', photos: [makePhoto({ url: 'https://cdn/hero.jpg' })] })}
             />,
         );
-        const hero = heroCover(container, 'Lamb');
+        // The lead surface is the carousel, whose slides render after layout; its region is there from the start.
+        const hero: Element | null = screen.getByLabelText('Recipe photos');
         const heading = screen.getByRole('heading', { name: 'Lamb' });
 
-        expect(hero).not.toBeNull();
+        expect(container.contains(hero)).toBe(true);
         // DOCUMENT_POSITION_FOLLOWING (4) — the heading comes AFTER the hero, i.e. the hero leads the screen.
         const relation = hero === null ? 0 : hero.compareDocumentPosition(heading);
         expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('sources the hero from coverPhotoUrl, NOT from photos[0]', () => {
+    /**
+     * F2 — mirrors the web leaf, and REPLACES "sources the hero from coverPhotoUrl, NOT from photos[0]". That test's
+     * premise was that the two could differ; the service makes the cover `photos[0]` on every read path
+     * (`recipeDetail.assembler.ts`), and `coverPhotoUrl` is its small thumbnail. Reading `photos` alone shows the cover
+     * once, at full size, and no second carousel repeats it.
+     */
+    it('shows the cover photo once: the lead surface IS the carousel, slide 1 the cover', () => {
+        const photos = [0, 1, 2].map((index) =>
+            makePhoto({ id: `pho_${String(index)}`, url: `https://cdn/p${String(index)}.jpg` }),
+        );
         const { container } = render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({
-                    title: 'Lamb',
-                    coverPhotoUrl: 'https://cdn/cover.jpg',
-                    photos: [makePhoto({ url: 'https://cdn/gallery-first.jpg' })],
-                })}
+                recipe={makeRecipeDetail({ title: 'Lamb', photos, coverPhotoUrl: 'https://cdn/p0.thumb.jpg' })}
             />,
         );
 
-        // The hero and the card must never disagree about which image represents the recipe, so the hero reads
-        // the canonical cover. A `photos[0]` hero would silently diverge the moment a gallery is reordered.
-        expect(container.innerHTML).toContain('https://cdn/cover.jpg');
+        // The slides themselves render after layout (see `PhotoCarousel.native.test.tsx`); what exists before it is
+        // enough here: one photo surface, and no thumbnail-sized cover painted beside it.
+        expect(container.innerHTML).not.toContain('p0.thumb.jpg');
+        expect(screen.getAllByLabelText('Recipe photos')).toHaveLength(1);
     });
 
     it('renders the deliberate no-photo hero fallback for a recipe with no cover', () => {
@@ -1297,7 +1312,7 @@ describe('RecipeDetailView (native) — serving scale', () => {
         expect(screen.getByText('30 min')).toBeTruthy(); // prep 15 -> 30
         expect(screen.getByText('60 min')).toBeTruthy(); // total 45 + the prep delta
         expect(screen.getByText('25 min')).toBeTruthy(); // cook: UNCHANGED
-        expect(screen.getByText('600s timer')).toBeTruthy(); // step timer: UNCHANGED
+        expect(screen.getByText('10 min')).toBeTruthy(); // step timer: UNCHANGED
     });
 
     it('leaves PER-SERVING nutrition untouched, because it is invariant under scaling', () => {

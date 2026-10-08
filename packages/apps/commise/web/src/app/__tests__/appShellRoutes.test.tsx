@@ -266,6 +266,8 @@ describe('every authenticated route names ITSELF in the top bar', () => {
             'account',
             'settings',
             'dataSources',
+            // The 404 page: no route renders it, a boundary does (`NotFoundSurface.test.tsx`).
+            'notFound',
         ]);
 
         expect([...SHELL_SURFACE_IDS].filter((id) => !covered.has(id))).toEqual([]);

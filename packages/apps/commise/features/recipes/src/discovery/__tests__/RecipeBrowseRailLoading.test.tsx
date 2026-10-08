@@ -6,9 +6,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
+import { makeRecipe } from '../../__fixtures__/index.js';
 import { RecipeBrowseRailLoading } from '../RecipeBrowseRailLoading.js';
+import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.js';
 
 afterEach(cleanup);
+
+const noop = () => undefined;
 
 describe('RecipeBrowseRailLoading (web)', () => {
     it('shows a busy status', () => {
@@ -23,6 +27,23 @@ describe('RecipeBrowseRailLoading (web)', () => {
         // The shimmer cards are all `aria-hidden`, so without a visible caption the live region has NO content — and a
         // live region announces its content, not its label.
         expect(screen.getByRole('status').textContent).toContain('Loading recipes');
+    });
+
+    /**
+     * E1 (`docs/design/uiOverhaul/evaluateShellAndLists.md`): the skeleton strip had `flex gap-4` and no overflow rule,
+     * so three 256 px tiles widened the whole page to 832 px at 320. The fix is that the pending strip IS the loaded
+     * strip's scroll container, so they cannot drift again. jsdom has no layout, so this proves the shared container;
+     * `tests/e2e/discoverReflow.spec.ts` proves the page width in a browser.
+     */
+    it('lays its shimmer cards out in the SAME scroll track as the loaded rail', () => {
+        render(<RecipeBrowseRailLoading />);
+        const pendingTrack = screen.getByRole('status').querySelector('[aria-hidden="true"]');
+        cleanup();
+        render(<RecipeBrowseRailResults results={[{ recipe: makeRecipe() }]} onSelectRecipe={noop} onClone={noop} />);
+        const loadedTrack = screen.getByRole('list');
+
+        expect(pendingTrack?.tagName).toBe(loadedTrack.tagName);
+        expect(pendingTrack?.className).toBe(loadedTrack.className);
     });
 
     it('renders decorative shimmer cards that stop under reduce-motion', () => {

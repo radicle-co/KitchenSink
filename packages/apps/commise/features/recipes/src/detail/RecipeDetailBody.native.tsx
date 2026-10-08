@@ -37,7 +37,6 @@ import { recipeMessages } from '../messages.js';
 import { AmbiguityReview } from './AmbiguityReview.native.js';
 import { isStandInName, lineDisplayName, variantPartTexts } from './lineName.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
-import { PhotoCarousel } from './PhotoCarousel.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
 import { SERVING_STEPPER_MIN_WIDTH, ServingScaleControl } from './ServingScaleControl.native.js';
@@ -53,6 +52,7 @@ import {
     needsReviewNotice,
     rangeDerivedNotice,
     staleNutritionNotice,
+    stepTimerLabel,
     type RecipeDetailBodyNativeProps,
 } from './model.js';
 
@@ -89,7 +89,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     dataSourcesReturnFocusSignal,
     viewerIsOwner,
 }) => {
-    const { list, detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
+    const { list, detail, duration, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so the screen-reader cursor
     // goes to the title.
     const titleRef = useScreenReaderFocusOnSignal<Text>(refreshNotice?.recoveries ?? 0);
@@ -123,10 +123,10 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
 
     return (
         <View style={styles.container}>
-            {/* The mockup LEADS the detail with the cover hero, before any type. A recipe with no cover gets the
-                hero's deliberate branded placeholder rather than nothing — see `RecipeHero.native`, which paints
-                that placeholder COMPACT on a phone (its module doc carries the PLATFORM-FORK rationale). */}
-            <RecipeHero title={recipe.title} coverPhotoUrl={recipe.coverPhotoUrl} />
+            {/* The mockup LEADS the detail with its photos, before any type. The hero IS the carousel, so the cover
+                shows once (F2); a recipe with no photo gets its deliberate placeholder — see `RecipeHero.native`,
+                which paints it COMPACT on a phone (its module doc carries the PLATFORM-FORK rationale). */}
+            <RecipeHero title={recipe.title} photos={recipe.photos} />
 
             {/* U8: the header rides a beach-glow gradient title band (mockup recipe-detail). */}
             <GradientSurface gradient="hero" style={styles.titleBand}>
@@ -222,8 +222,6 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                     <Text style={[styles.scaleNoticeText, styles.scaleNoticeCaveat]}>{detail.scaledTimingCaveat}</Text>
                 </View>
             )}
-
-            <PhotoCarousel photos={recipe.photos} title={recipe.title} />
 
             {/* The recovery is the heading's HINT, read when the cursor lands there — not a live region, which would
                 speak again on a background refetch the cook did not ask for. */}
@@ -382,6 +380,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
             <View style={styles.stepList}>
                 {recipe.steps.map((step) => {
                     const done = checkedSteps?.has(step.stepNumber) ?? false;
+                    const timer = stepTimerLabel(step.timerSeconds, detail.stepTimer, duration);
 
                     return (
                         <View key={step.stepNumber} style={styles.stepRow}>
@@ -405,10 +404,15 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                             </Pressable>
                             <View style={styles.stepBody}>
                                 <Text style={[styles.stepText, done && styles.stepTextDone]}>{step.instruction}</Text>
-                                {step.timerSeconds !== undefined && (
-                                    <Text style={styles.stepTimer}>
-                                        {fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}
-                                    </Text>
+                                {timer !== undefined && (
+                                    <View style={styles.stepTimerRow}>
+                                        {/* The duration alone does not say it is a timer; the glyph does, so it
+                                            carries that as its accessible name. */}
+                                        <Text role="img" accessibilityLabel={detail.stepTimerIcon}>
+                                            ⏱
+                                        </Text>
+                                        <Text style={styles.stepTimer}>{timer}</Text>
+                                    </View>
                                 )}
                             </View>
                         </View>
@@ -722,5 +726,6 @@ const styles = StyleSheet.create({
     stepTextDone: { textDecorationLine: 'line-through', opacity: 0.6 },
     // Contrast (WCAG 2.1 AA): a label a reader READS takes `ocean-dark` (6.20:1) rather than seafoam (4.02:1).
     // Mirrors the web leaf's `text-ocean-dark`; the seafoam step-marker FILL above is a non-text accent.
+    stepTimerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     stepTimer: { fontSize: 13, fontWeight: '500', color: palette['ocean-dark'] },
 });

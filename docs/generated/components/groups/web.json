@@ -9,10 +9,10 @@
         "props": 112,
         "documentedComponents": 81,
         "implementationsWithModuleDoc": 62,
-        "implementationsWithComponentDoc": 62,
+        "implementationsWithComponentDoc": 63,
         "documentedProps": 72,
-        "classifiedComponents": 32,
-        "componentsWithPatternTag": 18,
+        "classifiedComponents": 33,
+        "componentsWithPatternTag": 19,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -858,7 +858,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/not-found.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]",
-                    "moduleDoc": "Segment-level default not-found boundary for `/[locale]` (B18) — catches any unmatched path under a\nvalid locale (e.g. `/en/does-not-exist`), which previously fell through to Next's unstyled default 404.\nDelegates to the shared {@link RouteNotFoundState}.",
+                    "moduleDoc": "The not-found boundary for `/[locale]`. It renders for every `notFound()` thrown beneath the locale layout: a\npage's own (a missing recipe route), and every unknown URL, which `[...rest]/page.tsx` turns into one. Delegates to\n{@link NotFoundSurface}, which puts the page in the app shell for a signed-in viewer.\n\n⛔ Kept synchronous, with no `auth()`. Next builds this element for EVERY request under `[locale]`, not only on a\nmiss — including `/favicon.ico`, which arrives here as a locale with no `clerkMiddleware()` run, where `auth()`\nthrows (the error `[locale]/page.tsx` records). Who is signed in is read on the client instead.",
                     "moduleTags": [],
                     "description": "",
                     "tags": [],
@@ -1092,43 +1092,6 @@
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/loading.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]",
                     "moduleDoc": "Loading boundary for the recipe-detail route segment (`/[locale]/recipes/[id]`, B18). Delegates to the\nshared {@link RouteLoadingState}.",
-                    "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "compiler-fallback",
-                    "exportKind": "default",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/app/[locale]/recipes/[id]/RecipeDetailNotFound",
-            "name": "RecipeDetailNotFound",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeDetailNotFound",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/not-found.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]",
-                    "moduleDoc": "Not-found boundary for the recipe-detail route segment (`/[locale]/recipes/[id]`, B18) — catches an\nunmatched sub-path under a recipe id (e.g. `/en/recipes/abc/typo`, neither `edit` nor `versions`), which\npreviously fell through to Next's unstyled default 404. (A missing/inaccessible RECIPE — the query 404 —\nis a distinct, already-handled state owned by `RecipeDetailContainer`'s own localized not-found render;\nthis boundary is the framework-level fallback for a route that plain doesn't exist, not that case.)\nDelegates to the shared {@link RouteNotFoundState}.",
                     "moduleTags": [],
                     "description": "",
                     "tags": [],
@@ -1803,18 +1766,11 @@
                     "props": [
                         {
                             "name": "activeId",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"home\"",
-                                "\"recipes\"",
-                                "\"meal-plan\"",
-                                "\"grocery\"",
-                                "\"nutrition\"",
-                                "\"profile\""
-                            ],
+                            "type": "HomeNavItemId | null",
+                            "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The active nav destination for this surface (e.g. `'home'`, `'recipes'`).",
+                            "description": "The active nav destination for this surface (e.g. `'home'`, `'recipes'`), or `null` for a surface that is none\nof them (the 404 page). Required, so a surface states it rather than inheriting one.",
                             "declaredIn": "packages/apps/commise/web/src/components/app/AppShell.tsx"
                         },
                         {
@@ -1856,7 +1812,8 @@
                                 "\"collectionRename\"",
                                 "\"account\"",
                                 "\"settings\"",
-                                "\"dataSources\""
+                                "\"dataSources\"",
+                                "\"notFound\""
                             ],
                             "required": false,
                             "defaultValue": "home",
@@ -1972,6 +1929,54 @@
                             "declaredIn": "packages/apps/commise/query/src/QueryBoundary.tsx"
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/app/NotFoundSurface",
+            "name": "NotFoundSurface",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/app",
+            "kind": "orchestration",
+            "patterns": [
+                "Strategy — the session selects which frame (app shell or plain canvas) hosts the one not-found body."
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "NotFoundSurface",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/app/NotFoundSurface.tsx",
+                    "dir": "packages/apps/commise/web/src/components/app",
+                    "moduleDoc": "components/app/NotFoundSurface — the frame the app's 404 page is shown in (E2; `specShellAndLists.md` §N).\n\nA signed-in viewer gets the page inside the app shell, so the navigation is right there and they are never\nstranded. A signed-out viewer gets it on the plain canvas the sign-in page uses, with no app navigation they could\nnot use. The page body is {@link RouteNotFoundState} either way.\n\nIt is ORCHESTRATION: it reads the session and chooses the frame. The session is read here, on the client, because\n`not-found.tsx` must not call `auth()` (see that file). Until Clerk has loaded, the plain canvas is shown; on the web\n`@clerk/nextjs` hands the server's auth state to the first render, so a signed-in viewer does not see it flash.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/app/NotFoundSurface — the frame the app's 404 page is shown in (E2; `specShellAndLists.md` §N)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy — the session selects which frame (app shell or plain canvas) hosts the one not-found body."
+                        }
+                    ],
+                    "description": "The app's 404 page, framed for whoever is looking at it.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -2232,14 +2237,14 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/app/RouteNotFoundState.tsx",
                     "dir": "packages/apps/commise/web/src/components/app",
-                    "moduleDoc": "components/app/RouteNotFoundState — the shared, localized presentational fallback rendered by\nevery web App Router `not-found.tsx` boundary (B18). Reads the matched `locale` route param (always\npresent — `not-found.tsx` only renders nested under a matched `[locale]` segment) via `useParams` — Next\ndoes not pass params as props to `not-found.tsx` — to link back to that locale's Home.",
+                    "moduleDoc": "components/app/RouteNotFoundState — the localized, presentational body of the app's 404 page, framed by\n`NotFoundSurface` (B18, E2). Reads the matched `locale` route param (always\npresent — `not-found.tsx` only renders nested under a matched `[locale]` segment) via `useParams` — Next\ndoes not pass params as props to `not-found.tsx` — to link back to that locale's Home.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "components/app/RouteNotFoundState — the shared, localized presentational fallback rendered by"
+                            "text": "components/app/RouteNotFoundState — the localized, presentational body of the app's 404 page, framed by"
                         }
                     ],
-                    "description": "Localized \"page not found\" state with a way back, shared by every route's `not-found.tsx`.",
+                    "description": "The 404 page's body: localized \"page not found\" copy with a way back home.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -2832,15 +2837,8 @@
                     "props": [
                         {
                             "name": "activeId",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"home\"",
-                                "\"recipes\"",
-                                "\"meal-plan\"",
-                                "\"grocery\"",
-                                "\"nutrition\"",
-                                "\"profile\""
-                            ],
+                            "type": "HomeNavItemId | null",
+                            "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The active destination for this surface.",
@@ -2848,7 +2846,7 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 13 more ... | \"dataSources\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3032,15 +3030,8 @@
                     "props": [
                         {
                             "name": "activeId",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"home\"",
-                                "\"recipes\"",
-                                "\"meal-plan\"",
-                                "\"grocery\"",
-                                "\"nutrition\"",
-                                "\"profile\""
-                            ],
+                            "type": "HomeNavItemId | null",
+                            "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The currently active destination — marked `aria-current`.",
@@ -3048,7 +3039,7 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 13 more ... | \"dataSources\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3145,15 +3136,8 @@
                     "props": [
                         {
                             "name": "activeId",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"home\"",
-                                "\"recipes\"",
-                                "\"meal-plan\"",
-                                "\"grocery\"",
-                                "\"nutrition\"",
-                                "\"profile\""
-                            ],
+                            "type": "HomeNavItemId | null",
+                            "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The currently active destination (Home, for this surface) — marked `aria-current`.",
@@ -3161,7 +3145,7 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 13 more ... | \"dataSources\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3258,15 +3242,8 @@
                     "props": [
                         {
                             "name": "activeId",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"home\"",
-                                "\"recipes\"",
-                                "\"meal-plan\"",
-                                "\"grocery\"",
-                                "\"nutrition\"",
-                                "\"profile\""
-                            ],
+                            "type": "HomeNavItemId | null",
+                            "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The currently active destination (Home, for this surface) — marked `aria-current`.",
@@ -3274,7 +3251,7 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 13 more ... | \"dataSources\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3353,7 +3330,7 @@
                     "props": [
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 13 more ... | \"dataSources\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

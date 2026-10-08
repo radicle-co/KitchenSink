@@ -11,7 +11,7 @@
  * it. The wizard's own chrome is covered by `wizard/__tests__/Wizard.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type FC } from 'react';
 
@@ -1315,7 +1315,25 @@ describe('the recipe field groups (web) — instructions', () => {
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Step 1 instruction' }).value).toBe(
             'Toast the rice.',
         );
-        expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Step 1 timer (seconds)' }).value).toBe('120');
+        // F1: 120 seconds is shown as 2 minutes, with the hours box left empty rather than "0".
+        expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Step 1 timer, hours' }).value).toBe('');
+        expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Step 1 timer, minutes' }).value).toBe('2');
+        expect(screen.getAllByRole('group', { name: 'Timer (optional)' })).toHaveLength(1);
+    });
+
+    /**
+     * F1/I3 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): the timer box took SECONDS, so four and a half hours
+     * was typed as "16200". It is entered in hours and minutes now, and still stored in seconds.
+     */
+    it('takes a step timer in hours and minutes and stores it in seconds', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ steps: [{ instruction: 'Roast', timerSeconds: 1800 }] }), onChange });
+
+        fireEvent.change(screen.getByRole('spinbutton', { name: 'Step 1 timer, hours' }), { target: { value: '4' } });
+
+        expect(onChange).toHaveBeenLastCalledWith(
+            expect.objectContaining({ steps: [{ instruction: 'Roast', timerSeconds: 16200 }] }),
+        );
     });
 
     it('appends a blank step on add', async () => {
@@ -1346,7 +1364,7 @@ describe('the recipe field groups (web) — instructions', () => {
         const onChange = vi.fn();
         renderForm({ values: filledValues({ steps: [{ instruction: 'Toast', timerSeconds: 60 }] }), onChange });
 
-        await user.clear(screen.getByRole('spinbutton', { name: 'Step 1 timer (seconds)' }));
+        await user.clear(screen.getByRole('spinbutton', { name: 'Step 1 timer, minutes' }));
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({ steps: [{ instruction: 'Toast', timerSeconds: undefined }] }),
@@ -1476,14 +1494,24 @@ describe('the recipe field groups (web) — every action button carries an icon 
  * step marker is `shrink-0`, and the remove label collapses to icon-only below `sm` — three mitigations the
  * native leaf had none of. Pinning them here keeps the two leaves' overflow behaviour from drifting again.
  */
-/** V1 sign-off W-1: the step timer is a sized field, so it must not also carry `w-full` (CSS order would pick it). */
-describe('the recipe field groups (web) — the step timer carries ONE width (W-1)', () => {
-    it('is w-28 and never w-full', () => {
+/**
+ * I1 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): at 320 px the instruction field shared one line with the
+ * step number, a 112 px timer box and Remove, and was squeezed to about 12 px. The row now WRAPS and the field takes
+ * a whole line (`basis-full`), so the timer and Remove go to the next line. This replaces the W-1 test on the old timer
+ * box ("w-28, never w-full"): that box is gone, and `DurationField` owns its own boxes' width
+ * (`@commise/ui/duration-field`). `tests/e2e/recipeStepTimer.spec.ts` measures the width in a browser.
+ */
+describe('the recipe field groups (web) — the instruction field has its line to itself (I1)', () => {
+    it('wraps the step row and gives the instruction field the whole line', () => {
         renderForm();
-        const classes = screen.getByRole('spinbutton', { name: 'Step 1 timer (seconds)' }).className.split(/\s+/);
+        const field = screen.getByLabelText('Step 1 instruction');
+        const classes = field.className.split(/\s+/);
 
-        expect(classes).toContain('w-28');
-        expect(classes).not.toContain('w-full');
+        expect(classes).toContain('basis-full');
+        // `flex-1` sets `flex-basis: 0` through the shorthand, and the stylesheet's emission order would decide
+        // between the two — the same trap `formSectionStyles.ts` records for widths.
+        expect(classes).not.toContain('flex-1');
+        expect(field.parentElement?.className.split(/\s+/)).toContain('flex-wrap');
     });
 });
 
@@ -1491,10 +1519,7 @@ describe('the recipe field groups (web) — an instruction row cannot push its r
     it('lets the instruction field yield width rather than claim its full intrinsic size', () => {
         renderForm();
 
-        const field = screen.getByLabelText('Step 1 instruction');
-
-        expect(field.className).toContain('min-w-0');
-        expect(field.className).toContain('flex-1');
+        expect(screen.getByLabelText('Step 1 instruction').className).toContain('min-w-0');
     });
 
     it('never shrinks the step marker', () => {

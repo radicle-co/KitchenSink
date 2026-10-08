@@ -37,7 +37,30 @@ vi.mock('react-native-safe-area-context', async () => {
     return { ...stub, useSafeAreaInsets: () => ({ ...stub.STUB_INSETS, right: RIGHT_INSET }) };
 });
 
-afterEach(cleanup);
+/**
+ * The bottom edge the screen's frame reports (`@commise/ui/layout`'s `useBottomEdge`). `null` serves the real answer
+ * with no frame above — the bare inset — and a number serves a frame whose tab bar measured that tall. The frame's own
+ * measurement is `BottomChromeFrame.native.test.tsx`'s; this file proves the menu reads it.
+ */
+const frameEdge = vi.hoisted(() => ({ value: null as number | null }));
+
+vi.mock('@commise/ui/layout', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/ui/layout')>();
+
+    return {
+        ...actual,
+        useBottomEdge: () => {
+            const real = actual.useBottomEdge();
+
+            return frameEdge.value ?? real;
+        },
+    };
+});
+
+afterEach(() => {
+    cleanup();
+    frameEdge.value = null;
+});
 
 const TRIGGER_LABEL = 'New recipe';
 const MENU_LABEL = 'Create a recipe';
@@ -176,6 +199,21 @@ describe('SpeedDial (native) — open', () => {
         const expected = STUB_INSETS.bottom + FAB_BOTTOM + FAB_SIZE + MENU_GAP;
         expect(appliedStyle(screen.getByRole('menu', { name: MENU_LABEL }), 'bottom')).toBe(`${expected}px`);
         expect(expected).toBeGreaterThan(FAB_BOTTOM + FAB_SIZE + MENU_GAP);
+    });
+
+    /**
+     * M1 (`docs/design/uiOverhaul/specShellAndLists.md` §S.3): the bottom tab bar now sits under the recipe list, so
+     * the FAB sits above the BAR, not above the inset. The menu, in its own window, must clear what the frame reports
+     * or it opens on top of the bar and covers the FAB that opened it.
+     */
+    it('opens above the bottom chrome the screen frame reports, such as the tab bar', () => {
+        frameEdge.value = 72;
+        const { trigger } = renderDial();
+
+        fireEvent.click(trigger);
+
+        const expected = 72 + FAB_BOTTOM + FAB_SIZE + MENU_GAP;
+        expect(appliedStyle(screen.getByRole('menu', { name: MENU_LABEL }), 'bottom')).toBe(`${expected}px`);
     });
 
     it('lines up with the FAB in landscape by RE-ADDING the right inset the modal window does not inherit', () => {

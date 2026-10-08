@@ -19,13 +19,17 @@
  * machinery — there is nothing to suspend. It also means a guarded surface takes TWO presses to leave: one to
  * raise the confirmation, one that the dialog itself answers.
  *
+ * **Nested providers compose.** A provider mounted inside another registers its whole chain as one link in the
+ * parent's registry, so there is still exactly one platform subscription and the press walks the tree inside-out.
+ *
  * It is an ORCHESTRATION component, not a presentational one: it renders no UI of its own and exists to decide
  * one thing — whether a back press is answered by a mounted surface or falls through to the host.
  *
  * @pattern Adapter over React Native's `BackHandler` — one subscription for the whole surface, translating a
  *     single platform event into a registry dispatch with the host's own navigation as the chain's terminal link.
+ * @pattern Composite — a nested provider is one link in its parent's chain, so chains nest like the tree they guard.
  */
-import { useEffect, useEffectEvent, useState, type FC, type ReactNode } from 'react';
+import { useContext, useEffect, useEffectEvent, useState, type FC, type ReactNode } from 'react';
 import { BackHandler } from 'react-native';
 
 import { BackInterceptContext } from './backInterceptContext.native.js';
@@ -60,16 +64,28 @@ export const BackInterceptProvider: FC<BackInterceptProviderProps> = ({ onUnhand
     // needs a ref for freshness.
     const fallback = useEffectEvent(() => onUnhandled());
 
-    // ⛔ EMPTY DEPS, AND THAT IS THE POINT. One subscription per mount, registered once and never re-ordered.
-    // The previous shape (in `RecipesScreen`) re-registered on every push and pop; that alone is what put the
-    // host's handler ahead of its own children's in RN's LIFO list.
+    // A provider inside another one (the recipes surface inside the app root) joins the outer chain as ONE link rather
+    // than opening a second platform subscription. Two subscriptions would be ordered by when they were made, and when
+    // both mount in one commit the inner one subscribes FIRST (effects run child-first), so RN's last-registered-first
+    // order would ask the OUTER host before the inner one. As a link, the inner chain and host are asked first, and
+    // the outer host only when they decline: the tree's order, whatever the mount order.
+    const parent = useContext(BackInterceptContext);
+
+    // ⛔ ONE registration per mount, never re-ordered. The previous shape (in `RecipesScreen`) re-registered on every
+    // push and pop; that alone is what put the host's handler ahead of its own children's in RN's LIFO list.
     //
-    // @sideEffect Subscribes to the platform's hardware-back event for the provider's lifetime.
+    // @sideEffect Subscribes to the platform's hardware-back event (or joins the parent chain) for its lifetime.
     useEffect(() => {
-        const subscription = BackHandler.addEventListener('hardwareBackPress', () => registry.dispatch() || fallback());
+        const answer = (): boolean => registry.dispatch() || fallback();
+
+        if (parent !== null) {
+            return parent.register(answer);
+        }
+
+        const subscription = BackHandler.addEventListener('hardwareBackPress', answer);
 
         return () => subscription.remove();
-    }, [registry]);
+    }, [parent, registry]);
 
     return <BackInterceptContext.Provider value={registry}>{children}</BackInterceptContext.Provider>;
 };

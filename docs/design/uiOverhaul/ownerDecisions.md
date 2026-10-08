@@ -24,6 +24,10 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 - **D7, web editor draft.** On web, the editor draft (ids and form values only) is kept in `sessionStorage`. It
   survives a reload in the same tab. Closing the tab ends it. This is a narrow exception to the owner's ruling
   of 2026-09-17 that the browser keeps no durable app data. It covers the editor draft and nothing else.
+- **D9, draft versions.** Saves of a never-published draft overwrite it in place and create no version. Versions
+  start at the first publish. This needs a new ADR that amends ADR-0034, written with slice 7.
+- **D10, paste.** A cook can paste an ingredient list only while creating a recipe. After the recipe is first saved
+  to the server, the editor offers no paste control, and ingredients are added one line at a time.
 - **D8, Home cards.** Home uses compact cards below a 960 px content width and full recipe cards from 960 px. Phones
   get a compact 2 × 2 grid. Tablets (600 to 959 px) get one row of 4 compact cards. From 960 px, Home shows one row
   of exactly 4 full cards. The decision follows `homeCardsA.md` and `homeCardsB.md`, which agree.

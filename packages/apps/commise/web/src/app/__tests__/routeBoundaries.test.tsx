@@ -127,8 +127,9 @@ describe.each(CARD_GRID_LOADING_BOUNDARIES)('%s/loading.tsx — the card-grid sk
 /**
  * ONE not-found boundary, under `[locale]`. `recipes/[id]/not-found.tsx` was deleted with E2: a segment's boundary
  * renders only for a `notFound()` thrown beneath it, and nothing under that segment threw one, so the file never ran —
- * its unmatched sub-paths (`/en/recipes/abc/typo`) went to Next's bare page. They now reach this boundary through the
- * `[...rest]` catch-all, which `tests/e2e/notFound.spec.ts` drives in a browser.
+ * its unmatched sub-paths (`/en/recipes/abc/typo`) went to Next's bare page. Those are now answered by
+ * `global-not-found.tsx`, which `tests/e2e/notFound.spec.ts` drives in a browser; this boundary keeps every `notFound()`
+ * a page throws.
  */
 describe('[locale]/not-found.tsx', () => {
     it('renders the app’s not-found page with its heading and a way back', () => {

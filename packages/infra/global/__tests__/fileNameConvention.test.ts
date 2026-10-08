@@ -101,7 +101,8 @@ export const MANDATED: readonly Mandate[] = [
             'ledger by FILENAME with no checksum, so a renamed migration is re-applied against every live database',
     },
     {
-        pattern: /(^|\/)(next-env\.d\.ts|not-found\.tsx|global-error\.tsx|instrumentation-client\.ts)$/u,
+        pattern:
+            /(^|\/)(next-env\.d\.ts|not-found\.tsx|global-not-found\.tsx|global-error\.tsx|instrumentation-client\.ts)$/u,
         mandatedBy: 'Next.js — App Router special files resolved by name, and the `next-env.d.ts` it generates',
     },
 ];

@@ -105,7 +105,11 @@ const nextConfig: NextConfig = {
     // Standalone server output so the app can run off Vercel (ECS) later; traces the monorepo root.
     output: 'standalone',
     outputFileTracingRoot: repoRoot,
-    ...(previewAllowedOrigins ? { experimental: { serverActions: { allowedOrigins: previewAllowedOrigins } } } : {}),
+    experimental: {
+        // Serves `src/app/global-not-found.tsx` for every unknown URL — see that file for why it is not a catch-all.
+        globalNotFound: true,
+        ...(previewAllowedOrigins ? { serverActions: { allowedOrigins: previewAllowedOrigins } } : {}),
+    },
     ...(previewBasePath ? { basePath: previewBasePath } : {}),
     // Surface the prefix to runtime code (Clerk middleware, base-path helper) — `basePath` is not
     // readable at runtime. Empty string in production.

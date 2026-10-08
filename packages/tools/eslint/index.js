@@ -97,7 +97,7 @@ function filenameConventionConfig(regime) {
                 '**/db/migrations/**',
                 // Next.js framework-mandated file names — allowed, not renameable.
                 '**/next-env.d.ts',
-                '**/{page,layout,route,not-found,global-error,template,loading,error,default,middleware,instrumentation,instrumentation-client,sitemap,robots,manifest,opengraph-image,twitter-image,icon,apple-icon}.{ts,tsx,js,jsx}',
+                '**/{page,layout,route,not-found,global-not-found,global-error,template,loading,error,default,middleware,instrumentation,instrumentation-client,sitemap,robots,manifest,opengraph-image,twitter-image,icon,apple-icon}.{ts,tsx,js,jsx}',
                 // Expo Router route files — special prefixes/dynamic segments the router requires.
                 '**/_layout.{ts,tsx,js,jsx}',
                 '**/+*.{ts,tsx,js,jsx}',

@@ -58,8 +58,8 @@ test.describe('route protection (signed out)', () => {
 
     // E2 (`docs/design/uiOverhaul/evaluateShellAndLists.md`): an unknown URL got Next's bare built-in 404 — no app
     // styles, no way home. Signed out, it is now the app's own not-found page on the plain canvas: no app navigation,
-    // a link home (which, signed out, lands on sign-in), and a `noindex` robots tag (the status is not asserted; see
-    // `notFound.spec.ts`).
+    // a link home (which, signed out, lands on sign-in), and a `noindex` robots tag. The status and the server-rendered
+    // HTML are asserted in the describe below.
     test('an unknown URL shows the app’s own 404 page, with a way home', async ({ page }) => {
         await page.goto(route('/this-page-does-not-exist'));
 
@@ -71,8 +71,26 @@ test.describe('route protection (signed out)', () => {
         await expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true);
     });
 
-    // The catch-all that serves the 404 (`[locale]/[...rest]`) must lose to the sign-in route's own optional catch-all,
-    // or a Clerk step URL would be swallowed. The form is awaited first, so the absence below is not read before render.
+    // The same page as the SERVER sends it. JavaScript is off, so what is asserted is the first HTML, not what hydration
+    // later paints, and the status is the response's own. A production server once answered an unknown URL with 200
+    // and the locale's loading skeleton (see `src/app/global-not-found.tsx`).
+    test.describe('as the server sends it', () => {
+        test.use({ javaScriptEnabled: false });
+
+        for (const path of ['/this-page-does-not-exist', '/recipes/rec_seed/typo']) {
+            test(`${path} answers 404 with the app’s own page in the first HTML`, async ({ page }) => {
+                const response = await page.goto(route(path));
+
+                expect(response?.status()).toBe(404);
+                await expect(
+                    page.getByRole('heading', { level: 1, name: 'We couldn’t find that page.' }),
+                ).toBeVisible();
+                await expect(page.getByRole('status', { name: /loading/i })).toHaveCount(0);
+            });
+        }
+    });
+
+    // The 404 must never take a Clerk step URL from the sign-in route's own optional catch-all. The form is awaited first, so the absence below is not read before render.
     test('a sign-in sub-path is still the sign-in page, not the 404', async ({ page }) => {
         await page.goto(route('/sign-in/factor-one'));
 

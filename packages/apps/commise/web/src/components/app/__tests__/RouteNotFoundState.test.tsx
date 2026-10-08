@@ -8,7 +8,9 @@ import { cleanup, screen } from '@testing-library/react';
 
 import { renderWithProviders } from '@commise/test-utils';
 
-vi.mock('next/navigation', () => ({ useParams: () => ({ locale: 'en' }) }));
+// No route params, as on the global 404 page (`global-not-found.tsx`), which Next renders outside every route — so the
+// way home must come from the locale the document was rendered with, never from `useParams`.
+vi.mock('next/navigation', () => ({ useParams: () => ({}) }));
 
 const { RouteNotFoundState } = await import('../RouteNotFoundState');
 

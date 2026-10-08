@@ -8,14 +8,13 @@
  *
  * @implements FR-001
  */
-import { Global, Module } from '@nestjs/common';
+import { Global, Inject, Logger, Module, type OnModuleDestroy } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import pg from 'pg';
+import type pg from 'pg';
 
+import { FOOD_API_POOL_MIN, createFoodApiPool, prewarmPool } from './apiPool.js';
 import { foodPoolConfigFromEnv } from './poolConfig.js';
 import * as schema from '../db/schema/index.js';
-
-const { Pool } = pg;
 
 /** DI token for the Drizzle client (mirrors identity's `DRIZZLE_CONNECTION`). */
 export const DrizzleProvider = 'FOOD_DRIZZLE_CONNECTION';
@@ -29,7 +28,7 @@ export type FoodDrizzle = ReturnType<typeof drizzle<typeof schema>>;
 /**
  * Global module providing the shared `pg.Pool` and Drizzle client to the food service.
  *
- * @sideEffect Opens a Postgres connection pool at module init.
+ * @sideEffect Opens a Postgres connection pool at module init, and its floor of connections in the background.
  */
 @Global()
 @Module({
@@ -37,11 +36,13 @@ export type FoodDrizzle = ReturnType<typeof drizzle<typeof schema>>;
         {
             provide: PgPoolProvider,
             useFactory(): pg.Pool {
-                return new Pool({
-                    ...foodPoolConfigFromEnv(),
-                    max: 20,
-                    idleTimeoutMillis: 30_000,
-                });
+                const logger = new Logger('FoodPgPool');
+                const pool = createFoodApiPool(foodPoolConfigFromEnv(), logger);
+
+                // Not awaited: boot does not wait on the database, and the prewarm never rejects.
+                void prewarmPool(pool, FOOD_API_POOL_MIN, logger);
+
+                return pool;
             },
         },
         {
@@ -54,4 +55,16 @@ export type FoodDrizzle = ReturnType<typeof drizzle<typeof schema>>;
     ],
     exports: [DrizzleProvider, PgPoolProvider],
 })
-export class DatabaseModule {}
+export class DatabaseModule implements OnModuleDestroy {
+    public constructor(@Inject(PgPoolProvider) private readonly pool: pg.Pool) {}
+
+    /**
+     * Close the pool with the app. The floor keeps connections open however long they are idle, so without this an
+     * app closed inside a live process (a LOCAL e2e suite) would leave them open until the process exits.
+     *
+     * @sideEffect Closes every pooled connection.
+     */
+    public async onModuleDestroy(): Promise<void> {
+        await this.pool.end();
+    }
+}

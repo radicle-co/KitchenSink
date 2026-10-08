@@ -21,6 +21,12 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
   opens a chooser. The chooser leads with one paste box and never shows more than three choices.
 - **D5, navigation breakpoint.** The sidebar replaces the tab bar at 840 px and wider.
 - **D6, iPad.** The iPad keeps the bottom tab bar in both orientations (owner directive of 2026-07-18).
+- **D7, web editor draft.** On web, the editor draft (ids and form values only) is kept in `sessionStorage`. It
+  survives a reload in the same tab. Closing the tab ends it. This is a narrow exception to the owner's ruling
+  of 2026-09-17 that the browser keeps no durable app data. It covers the editor draft and nothing else.
+- **D8, Home cards.** Home uses compact cards below a 960 px content width and full recipe cards from 960 px. Phones
+  get a compact 2 × 2 grid. Tablets (600 to 959 px) get one row of 4 compact cards. From 960 px, Home shows one row
+  of exactly 4 full cards. The decision follows `homeCardsA.md` and `homeCardsB.md`, which agree.
 
 ## Adopted from the joint recommendations
 

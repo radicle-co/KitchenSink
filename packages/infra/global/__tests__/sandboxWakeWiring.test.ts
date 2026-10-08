@@ -37,6 +37,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { Stack, aws_sns as sns } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
@@ -402,11 +403,17 @@ describe('sandbox DB wake wiring — the gate guards the boundary the scheduler 
     /** The stop schedule, read out of the synthesized stack rather than out of the source text. */
     const stopSchedule = (): { readonly expression: string; readonly timezone: string } => {
         const template = Template.fromStack(
-            new SandboxSchedulerStack(testApp(), 'SandboxScheduler-sandbox', {
-                env: { account: '123456789012', region: 'us-east-1' },
-                stage: 'sandbox',
-                alarmsEnabled: false,
-            }),
+            ((app) =>
+                new SandboxSchedulerStack(app, 'SandboxScheduler-sandbox', {
+                    env: { account: '123456789012', region: 'us-east-1' },
+                    stage: 'sandbox',
+                    alarmsEnabled: false,
+                    alarmTopic: sns.Topic.fromTopicArn(
+                        new Stack(app, 'AlarmTopicHost'),
+                        'AlarmTopic',
+                        'arn:aws:sns:us-east-1:123456789012:kitchensink-alarms-sandbox',
+                    ),
+                }))(testApp()),
         );
         const schedules = Object.values(template.findResources('AWS::Scheduler::Schedule')) as {
             Properties: { ScheduleExpression: string; ScheduleExpressionTimezone: string; Target: { Input: string } };

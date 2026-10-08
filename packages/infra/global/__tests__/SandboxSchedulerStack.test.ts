@@ -25,6 +25,7 @@
  * records each service's prior desired count in SSM and `runStart` refuses to guess when it is missing.
  * Scheduling one without the other is what leaves that bookkeeping half-applied.
  */
+import { Stack, aws_sns as sns, type App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { NODE_LAMBDA_RUNTIME } from '@radicle-co/infra-shared/security';
 import { describe, it, expect } from 'vitest';
@@ -35,13 +36,20 @@ import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
 
+/** The stage alarm topic the scheduler is handed, imported by ARN from a host stack in the same app. */
+const ALARM_TOPIC_ARN = 'arn:aws:sns:us-east-1:123456789012:kitchensink-alarms-sandbox';
+const alarmTopicIn = (app: App): sns.ITopic =>
+    sns.Topic.fromTopicArn(new Stack(app, 'AlarmTopicHost', { env }), 'AlarmTopic', ALARM_TOPIC_ARN);
+
 const schedulerTemplate = (): Template =>
     Template.fromStack(
-        new SandboxSchedulerStack(testApp(), 'SandboxScheduler-sandbox', {
-            env,
-            stage: 'sandbox',
-            alarmsEnabled: false,
-        }),
+        ((app) =>
+            new SandboxSchedulerStack(app, 'SandboxScheduler-sandbox', {
+                env,
+                stage: 'sandbox',
+                alarmsEnabled: false,
+                alarmTopic: alarmTopicIn(app),
+            }))(testApp()),
     );
 
 describe('SandboxSchedulerStack (ADR-0007)', () => {
@@ -309,22 +317,22 @@ describe('the scheduler function is discoverable by the workflows (ADR-0028)', (
 describe('a failed scheduler run raises an alarm', () => {
     const withAlarms = (alarmsEnabled: boolean): Template =>
         Template.fromStack(
-            new SandboxSchedulerStack(testApp(), 'SandboxScheduler-sandbox', {
-                env,
-                stage: 'sandbox',
-                alarmsEnabled,
-                alertEmail: 'alerts@example.com',
-            }),
+            ((app) =>
+                new SandboxSchedulerStack(app, 'SandboxScheduler-sandbox', {
+                    env,
+                    stage: 'sandbox',
+                    alarmsEnabled,
+                    alarmTopic: alarmTopicIn(app),
+                }))(testApp()),
         );
 
-    it('alarms on any error of the scheduler function, and publishes to a topic the alert email receives', () => {
+    it('alarms on any error of the scheduler function, and publishes to the stage alarm topic', () => {
         const template = withAlarms(true);
         const [functionId] = Object.keys(
             template.findResources('AWS::Lambda::Function', {
                 Properties: { Handler: Match.stringLikeRegexp('sandbox-scheduler|index') },
             }),
         );
-        const [topicId] = Object.keys(template.findResources('AWS::SNS::Topic'));
 
         template.hasResourceProperties('AWS::CloudWatch::Alarm', {
             Namespace: 'AWS/Lambda',
@@ -334,13 +342,11 @@ describe('a failed scheduler run raises an alarm', () => {
             ComparisonOperator: 'GreaterThanOrEqualToThreshold',
             EvaluationPeriods: 1,
             TreatMissingData: 'notBreaching',
-            AlarmActions: [{ Ref: topicId }],
+            AlarmActions: [ALARM_TOPIC_ARN],
         });
-        template.hasResourceProperties('AWS::SNS::Subscription', {
-            Protocol: 'email',
-            Endpoint: 'alerts@example.com',
-            TopicArn: { Ref: topicId },
-        });
+        // The stage topic already exists (MessageSubstrateStack); a second, sandbox-only topic would escape the
+        // prod-stage cdk-nag census (`nagRulesAtZero.integration.test.ts`).
+        template.resourceCountIs('AWS::SNS::Topic', 0);
     });
 
     it('creates no alarm while the stage has alarms switched off (alarmFeatureFlag)', () => {
@@ -368,11 +374,14 @@ describe('GlobalStack hands the scheduler the stage alarm settings', () => {
             stackName: 'kitchensink-global-sandbox',
             stage: 'sandbox',
             alarmsEnabled: true,
-            alertEmail: 'alerts@example.com',
             domainName: 'example.com',
         });
         const template = Template.fromStack(global.sandboxScheduler!);
+        const [alarm] = Object.values(template.findResources('AWS::CloudWatch::Alarm')) as {
+            Properties: { AlarmActions: unknown[] };
+        }[];
 
-        template.resourceCountIs('AWS::CloudWatch::Alarm', 1);
+        // The action is the messaging stack's alarm topic, imported across stacks.
+        expect(JSON.stringify(alarm?.Properties.AlarmActions)).toContain('MessageSubstrateAlarmTopic');
     });
 });

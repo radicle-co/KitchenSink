@@ -152,7 +152,7 @@ export class GlobalStack extends Stack {
                 logForwarderArn: props.logForwarderArn,
                 stage,
                 alarmsEnabled: props.alarmsEnabled,
-                alertEmail: props.alertEmail,
+                alarmTopic: this.messaging.alarmTopic,
             });
         }
     }

@@ -20,7 +20,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { NODE_LAMBDA_RUNTIME, subscribeAlarmEmail } from '@radicle-co/infra-shared/security';
+import { NODE_LAMBDA_RUNTIME } from '@radicle-co/infra-shared/security';
 import { NIGHTLY_START_HOUR, NIGHTLY_STOP_HOUR } from '@kitchensink/queue-check';
 
 /** Props for {@link SandboxSchedulerStack}. */
@@ -37,8 +37,8 @@ export interface SandboxSchedulerStackProps extends StackProps {
     /** Whether this stage creates CloudWatch alarms (`alarmFeatureFlag.test.ts`). */
     readonly alarmsEnabled: boolean;
 
-    /** Who receives the failed-run alarm; absent, the topic has no subscriber. */
-    readonly alertEmail?: string;
+    /** The stage's alarm topic (`MessageSubstrateStack.alarmTopic`), which the failed-run alarm publishes to. */
+    readonly alarmTopic: sns.ITopic;
 }
 
 /**
@@ -296,27 +296,9 @@ export class SandboxSchedulerStack extends Stack {
         });
 
         // A refused start leaves the sandbox down all day with nothing to say so (Oct 6–7 2026,
-        // `InsufficientDBInstanceCapacity`). The run fails its invocation, and this alarm reports it.
+        // `InsufficientDBInstanceCapacity`). The run fails its invocation, and this alarm reports it on the stage's
+        // existing alarm topic, which already carries the alert email and the CloudWatch publish grant.
         if (props.alarmsEnabled) {
-            const alarmTopic = new sns.Topic(this, 'SandboxSchedulerAlarmTopic', {
-                enforceSSL: true,
-                displayName: `Sandbox scheduler alarms (${props.stage})`,
-            });
-
-            subscribeAlarmEmail(alarmTopic, props.alertEmail);
-            // `enforceSSL` replaces the topic's default policy, so CloudWatch needs this grant to publish at all
-            // (`alarmTopicPublishGrant.test.ts`).
-            alarmTopic.addToResourcePolicy(
-                new iam.PolicyStatement({
-                    sid: 'AllowCloudWatchAlarmPublish',
-                    effect: iam.Effect.ALLOW,
-                    principals: [new iam.ServicePrincipal('cloudwatch.amazonaws.com')],
-                    actions: ['sns:Publish'],
-                    resources: [alarmTopic.topicArn],
-                    conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
-                }),
-            );
-
             new cloudwatch.Alarm(this, 'SandboxSchedulerRunFailedAlarm', {
                 alarmDescription:
                     'A sandbox stop or start failed: a resource did not transition (for example the database start was refused for capacity). See the scheduler log.',
@@ -325,7 +307,7 @@ export class SandboxSchedulerStack extends Stack {
                 comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
                 evaluationPeriods: 1,
                 treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-            }).addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+            }).addAlarmAction(new cloudwatchActions.SnsAction(props.alarmTopic));
         }
     }
 }

@@ -46,6 +46,7 @@ import type { FoodSearchDao } from '../../src/foods/dao/foodSearch.dao.js';
 import type { FoodSourcesDao } from '../../src/foods/dao/foodSources.dao.js';
 import type { FoodVariantDao } from '../../src/foods/dao/foodVariant.dao.js';
 import type { EnqueueEmitter } from '../../src/foods/enqueue.emitter.js';
+import type { MergeAndPersistService } from '../../src/foods/merge/mergeAndPersist.service.js';
 import { FoodsController } from '../../src/foods/foods.controller.js';
 import { FoodsService } from '../../src/foods/foods.service.js';
 import { ProgressiveFoodSearch } from '../../src/foods/progressive/ProgressiveFoodSearch.js';
@@ -124,6 +125,8 @@ export interface MockedFoodsApiDoubles {
     readonly sourceBudget?: Pick<RequesterSourceBudgetDao, 'charge' | 'refund'>;
     /** The queue writes behind add, batch and refetch. */
     readonly enqueue?: Partial<Record<keyof EnqueueEmitter, unknown>>;
+    /** The merge seam behind PATCH resolve: a pick forwarded to a catalog holder writes through it (FOOD-SERVICE-6). */
+    readonly merge?: Partial<Record<keyof MergeAndPersistService, unknown>>;
     /** The remote pick command behind `POST /api/v1/foods/remote/adopt` (ADR-0055 point 10). */
     readonly remoteAdopt?: Pick<AdoptRemoteFood, 'execute'>;
     /** The progressive search behind `GET /api/v1/foods/search/progressive` (ADR-0055 point 5). */
@@ -186,7 +189,7 @@ export async function bootMockedFoodsApi(doubles: MockedFoodsApiDoubles): Promis
         (doubles.candidates ?? unstaged('CandidateStore')) as unknown as CandidateStore,
         (doubles.sources ?? unstaged('FoodSourcesDao')) as unknown as FoodSourcesDao,
         (doubles.searchDao ?? unstaged('FoodSearchDao')) as unknown as FoodSearchDao,
-        unstaged('MergeAndPersistService'),
+        (doubles.merge ?? unstaged('MergeAndPersistService')) as unknown as MergeAndPersistService,
         (doubles.enqueue ?? unstaged('EnqueueEmitter')) as unknown as EnqueueEmitter,
         unstaged('SourceAdapterRegistry'),
         new FoodMetrics(() => undefined),

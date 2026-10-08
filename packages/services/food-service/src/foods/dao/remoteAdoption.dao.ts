@@ -119,11 +119,11 @@ async function completePlaceholder(
     }
 
     if (
-        !(await new FoodSourcesDao(tx).claimSource({
+        (await new FoodSourcesDao(tx).claimSource({
             foodId: root.id,
             source: input.source,
             externalKey: input.externalKey,
-        }))
+        })) === undefined
     ) {
         throw new TransactionRollbackError();
     }
@@ -252,7 +252,7 @@ export class RemoteAdoptionDao {
                         externalKey: input.externalKey,
                     });
 
-                    if (!claimed) {
+                    if (claimed === undefined) {
                         // Another writer claimed the item after the read above: undo the root.
                         throw new TransactionRollbackError();
                     }

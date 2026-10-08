@@ -36,6 +36,8 @@ import { createSourceRegistry } from '../../src/sources/sourceRegistry.js';
 import type { SourceCallChannel } from '../../src/sources/transport/transportPorts.js';
 import { sourceCeiling, workerCeiling } from '../../src/sources/transport/sourceCeiling.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
 import { foodDb } from '../support/roleDb.js';
 import { startUsdaStubServer, type UsdaStubServer } from '../support/usdaStubServer.js';
@@ -99,6 +101,7 @@ function workerOn(task: Task): FoodConsumerService {
     return new FoodConsumerService({
         foodDao: new FoodDao(task.db),
         sources: new FoodSourcesDao(task.db),
+        catalog: workerCatalogOf(task.db, new FoodMetrics(() => undefined)),
         queue: new FetchQueueDao(task.db),
         registry,
         merge: new MergeAndPersistService(task.db, new GoldenRecordMergeEngine(registry)),

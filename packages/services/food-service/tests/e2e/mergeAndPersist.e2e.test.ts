@@ -68,7 +68,7 @@ describe('MergeAndPersistService (integration)', () => {
     it('RESOLVED: every scalar/nutrient/portion carries a resolvable source_id (FR-028/SC-013)', async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli, raw' });
 
-        const result = await service.resolveAndPersist({ foodId, candidates: [richCandidate()] });
+        const result = await service.resolveAndPersist({ holders: [], foodId, candidates: [richCandidate()] });
         expect(result.outcome).toBe('RESOLVED');
         expect(result.status).toBe('RESOLVED');
 
@@ -101,7 +101,7 @@ describe('MergeAndPersistService (integration)', () => {
 
     it('RESOLVED: "which fields came from source X" returns every grain in one query (FR-029/R7)', async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli, raw' });
-        await service.resolveAndPersist({ foodId, candidates: [richCandidate()] });
+        await service.resolveAndPersist({ holders: [], foodId, candidates: [richCandidate()] });
 
         const fields = (await provenance.fieldsFromSource(foodId, 'usda')).map((field) => field.field);
 
@@ -123,7 +123,11 @@ describe('MergeAndPersistService (integration)', () => {
 
     it("cross-food provenance FK holds: another food's citation is rejected (D-PROVENANCE-FK, KTD-19)", async () => {
         const { id: foodA } = await foods.createByName({ normalizedName: 'food a' });
-        await service.resolveAndPersist({ foodId: foodA, candidates: [richCandidate({ externalKey: 'A' })] });
+        await service.resolveAndPersist({
+            holders: [],
+            foodId: foodA,
+            candidates: [richCandidate({ externalKey: 'A' })],
+        });
         const nutrition = new FoodNutritionDao(db);
         const headerA = await nutrition.headerForFood(foodA);
         const foreignCitation = await nutrition.citeSourceItem(headerA, {
@@ -149,6 +153,7 @@ describe('MergeAndPersistService (integration)', () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli, raw' });
 
         await service.resolveAndPersist({
+            holders: [],
             foodId,
             candidates: [richCandidate({ externalKey: 'A', dataset: 'usdaFndds' })],
         });
@@ -166,6 +171,7 @@ describe('MergeAndPersistService (integration)', () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli' });
 
         const result = await service.resolveAndPersist({
+            holders: [],
             foodId,
             candidates: [
                 richCandidate({ externalKey: '171688', name: 'Broccoli, raw' }),
@@ -188,7 +194,7 @@ describe('MergeAndPersistService (integration)', () => {
     it('NOT_FOUND: zero candidates tombstones the food', async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'unobtainium' });
 
-        const result = await service.resolveAndPersist({ foodId, candidates: [] });
+        const result = await service.resolveAndPersist({ holders: [], foodId, candidates: [] });
 
         expect(result.outcome).toBe('NOT_FOUND');
         const record = await foods.readGoldenRecord(foodId);
@@ -199,6 +205,7 @@ describe('MergeAndPersistService (integration)', () => {
     it('manual resolution: a user pick merges → RESOLVED, stored as ordinary provenance, candidate set cleared (T-163)', async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli' });
         await service.resolveAndPersist({
+            holders: [],
             foodId,
             candidates: [
                 richCandidate({ externalKey: '171688', name: 'Broccoli, raw' }),
@@ -232,6 +239,7 @@ describe('MergeAndPersistService (integration)', () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'acme protein crackers' });
 
         const result = await service.resolveAndPersist({
+            holders: [],
             foodId,
             candidates: [
                 richCandidate({
@@ -263,6 +271,7 @@ describe('MergeAndPersistService (integration)', () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli, raw' });
 
         const result = await service.resolveAndPersist({
+            holders: [],
             foodId,
             candidates: [
                 richCandidate({

@@ -34,6 +34,7 @@ import { FoodConsumerService } from './foodConsumer.service.js';
 import { RoutedWorkerLogger } from './RoutedWorkerLogger.js';
 import { checkInQueueCheck, escalate } from '../observability/queueEscalation.js';
 import { readOnlyCounts, runQueueCheck as runFoodQueueCheck } from './queueCheck.js';
+import { workerCatalogOf } from './workerCatalog.js';
 import { WorkerRuntime } from './WorkerRuntime.js';
 
 /**
@@ -88,6 +89,7 @@ async function bootstrap(): Promise<void> {
         queue,
         registry,
         merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),
+        catalog: workerCatalogOf(db, metrics),
         events: new FoodEventEmitter(resolvePublisher(), undefined, (error, kind) =>
             // ⛔ The ONLY signal a fire-and-forget publish ever produces. The producer does not await a
             // consumer and never sees a failure, so a swallowed error here is a message that silently

@@ -1,6 +1,7 @@
 /**
- * `FoodSourcesDao` (T-106, MOD-016) — the cross-source crosswalk. Upserts a `food_sources` row keyed
- * on `UNIQUE(source, external_key)` (recording/updating `item_version` + `fetch_state`), and resolves
+ * `FoodSourcesDao` (T-106, MOD-016) — the cross-source crosswalk. Records a food's `food_sources` row keyed
+ * on `UNIQUE(source, external_key)` (claiming a free key, or updating the food's own row's `item_version` +
+ * `fetch_state`, never another food's row), and resolves
  * a source item key or a product barcode back to the internal food `id`. The inserted row satisfies
  * `UNIQUE(food_id, id)`, the composite target the per-value same-food provenance FKs reference
  * (D-PROVENANCE-FK). No raw source payload is stored.
@@ -72,34 +73,40 @@ function listedCatalogFood(): SQL[] {
     return [isNull(food.userId), isNull(food.retiredAt), eq(food.status, 'RESOLVED')];
 }
 
-/** Input for {@link FoodSourcesDao.upsertSource}. */
-export interface UpsertSourceInput {
-    /** Internal food id this crosswalk row belongs to. */
-    foodId: string;
+/** Input for {@link FoodSourcesDao.claimSource} and {@link FoodSourcesDao.recordSource}. */
+export interface RecordSourceInput {
+    /** Internal food id the crosswalk row belongs to. */
+    readonly foodId: string;
     /** The source identifier (e.g. `usda`). */
-    source: FoodSource;
+    readonly source: FoodSource;
     /** That source's primary key for the item (USDA: mapped from `fdcId` in the adapter). */
-    externalKey: string;
+    readonly externalKey: string;
     /** Per-item version/etag (optional). */
-    itemVersion?: string | null;
+    readonly itemVersion?: string | null;
     /** Operational fetch state (`fetched` | `error`); defaults to `fetched`. */
-    fetchState?: 'fetched' | 'error';
+    readonly fetchState?: 'fetched' | 'error';
 }
+
+/** How a food's record of one source item ended. */
+export type SourceRecord =
+    /** The food's own crosswalk row for the item: just claimed, or already its own and brought up to date. */
+    | { readonly kind: 'recorded'; readonly row: FoodSourceRow }
+    /** Another food's item holds the key; nothing was written. */
+    | { readonly kind: 'held' };
 
 export class FoodSourcesDao {
     public constructor(private readonly db: FoodWriter) {}
 
     /**
-     * Upsert a crosswalk row keyed on `UNIQUE(source, external_key)`. A fresh item gets a new ULID
-     * `id`; an existing item keeps its `id` and updates `item_version`/`fetch_state`/`fetched_at`. The
-     * returned row's `(food_id, id)` is the composite target for per-value provenance FKs.
+     * Claim a source item for a food: insert its crosswalk row only while no row holds the key, `ON CONFLICT ON
+     * CONSTRAINT food_sources_source_key_unique DO NOTHING`. It never touches a row another food already holds, so a
+     * writer that lost a race learns it instead of writing over the winner (ADR-0055 point 10).
      *
-     * @param input - Crosswalk attributes.
-     * @returns The upserted crosswalk row.
-     * @sideEffect Inserts or updates `food_sources`.
+     * @param input - The food, the source, the item's key, and the version and fetch state to record.
+     * @returns The claimed row, or `undefined` when a row already holds the key.
+     * @sideEffect May insert into `food_sources`.
      */
-    public async upsertSource(input: UpsertSourceInput): Promise<FoodSourceRow> {
-        const fetchState = input.fetchState ?? 'fetched';
+    public async claimSource(input: RecordSourceInput): Promise<FoodSourceRow | undefined> {
         const rows = await this.db
             .insert(foodSources)
             .values({
@@ -109,45 +116,53 @@ export class FoodSourcesDao {
                 source: input.source,
                 externalKey: input.externalKey,
                 itemVersion: input.itemVersion ?? null,
-                fetchState,
+                fetchState: input.fetchState ?? 'fetched',
             })
-            .onConflictDoUpdate({
-                target: [foodSources.source, foodSources.externalKey],
-                set: { itemVersion: input.itemVersion ?? null, fetchState, fetchedAt: new Date() },
-            })
+            .onConflictDoNothing({ target: [foodSources.source, foodSources.externalKey] })
             .returning();
 
-        const row = rows[0];
-
-        if (!row) {
-            throw new Error('upsertSource produced no row');
-        }
-
-        return row;
+        return rows[0];
     }
 
     /**
-     * Claim a source item for a food: insert its crosswalk row only while no row holds the key, `ON CONFLICT ON
-     * CONSTRAINT food_sources_source_key_unique DO NOTHING`. Unlike {@link upsertSource}, it never touches a row another
-     * food already holds, so a writer that lost a race learns it instead of writing over the winner (ADR-0055 point 10).
+     * Record a source item a food's merge drew on (FOOD-SERVICE-6): claim it ({@link claimSource}); else, when the row
+     * holding the key is the food's OWN, bring its `item_version`, `fetch_state` and `fetched_at` up to date, which a
+     * change-refresh re-pull and the remote pick (which claimed the row first) both rely on; else another food holds
+     * it, and nothing is written.
      *
-     * @param input - The food, the source and the item's key.
-     * @returns `true` when this call claimed the item; `false` when another food holds it.
-     * @sideEffect May insert into `food_sources`.
+     * ⛔ It replaced an upsert whose `ON CONFLICT DO UPDATE` wrote to whichever row held the key: a merge naming an item
+     * a seeded root held wrote to the seed's row, which the ownership trigger refuses (0018), and a merge naming a live
+     * food's item would have made this food's values cite that food's row. The update here is scoped to the food's own
+     * item, so neither can happen.
+     *
+     * @param input - The food, the source, the item's key, and the version and fetch state to record.
+     * @returns The food's row for the item, or `held`.
+     * @sideEffect May insert into or update `food_sources`.
      */
-    public async claimSource(input: Pick<UpsertSourceInput, 'foodId' | 'source' | 'externalKey'>): Promise<boolean> {
-        const rows = await this.db
-            .insert(foodSources)
-            .values({
-                id: newFoodId(),
-                itemId: itemIdOfFood(input.foodId),
-                source: input.source,
-                externalKey: input.externalKey,
-            })
-            .onConflictDoNothing({ target: [foodSources.source, foodSources.externalKey] })
-            .returning({ id: foodSources.id });
+    public async recordSource(input: RecordSourceInput): Promise<SourceRecord> {
+        const claimed = await this.claimSource(input);
 
-        return rows.length === 1;
+        if (claimed !== undefined) {
+            return { kind: 'recorded', row: claimed };
+        }
+
+        const [own] = await this.db
+            .update(foodSources)
+            .set({
+                itemVersion: input.itemVersion ?? null,
+                fetchState: input.fetchState ?? 'fetched',
+                fetchedAt: new Date(),
+            })
+            .where(
+                and(
+                    eq(foodSources.source, input.source),
+                    eq(foodSources.externalKey, input.externalKey),
+                    eq(foodSources.itemId, itemIdOfFood(input.foodId)),
+                ),
+            )
+            .returning();
+
+        return own === undefined ? { kind: 'held' } : { kind: 'recorded', row: own };
     }
 
     /**

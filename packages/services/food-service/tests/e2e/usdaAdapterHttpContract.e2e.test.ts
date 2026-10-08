@@ -92,6 +92,8 @@ import { MergeAndPersistService } from '../../src/foods/merge/mergeAndPersist.se
 import { SourceAdapterRegistry } from '../../src/sources/SourceAdapterRegistry.js';
 import { isSourceApiError } from '../../src/sources/foodSource.errors.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import type { WorkerLogger } from '../../src/worker/workerLogger.js';
 import { foodDb } from '../support/roleDb.js';
 import { generateClerkKeypair, mintToken } from '../support/jwt.js';
@@ -328,6 +330,10 @@ describe('real UsdaApiClient + UsdaSourceAdapter over undici MockAgent (e2e)', (
         consumer = new FoodConsumerService({
             foodDao: app.get(FoodDao, { strict: false }),
             sources: app.get(FoodSourcesDao, { strict: false }),
+            catalog: workerCatalogOf(
+                app.get<FoodDrizzle>(DrizzleProvider, { strict: false }),
+                new FoodMetrics(() => undefined),
+            ),
             queue: new FetchQueueDao(app.get<FoodDrizzle>(DrizzleProvider, { strict: false })),
             registry,
             merge: app.get(MergeAndPersistService, { strict: false }),

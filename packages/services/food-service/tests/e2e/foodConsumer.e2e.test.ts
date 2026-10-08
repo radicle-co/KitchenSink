@@ -30,6 +30,8 @@ import { RollingWindowLimiter } from '../../src/sources/RollingWindowLimiter.js'
 import type { SourceLimitOverrides } from '../../src/sources/transport/limitOverride.js';
 import { admittingAdapter } from '../support/admittingAdapter.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
 import { acquireWorkerLock } from '../../src/worker/workerLock.js';
 import { makeDb, makePool, type TestDb } from '../support/db.js';
@@ -92,6 +94,7 @@ describe('FoodConsumerService (integration)', () => {
         const consumer = new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
+            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
             queue,
             registry,
             merge,
@@ -568,6 +571,7 @@ describe('FoodConsumerService (integration)', () => {
         const consumer = new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
+            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
             queue,
             registry,
             merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),

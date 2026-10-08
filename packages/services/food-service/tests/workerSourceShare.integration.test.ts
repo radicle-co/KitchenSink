@@ -119,6 +119,14 @@ function workerOver(calls: LedgerCall[], clock: TestClock) {
         queue,
         registry,
         merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),
+        // The catalog holds nothing here, so every case reaches the source window it is about.
+        catalog: {
+            names: { identicalEntryFor: async () => undefined },
+            owners: {
+                standingOfKeys: async () => ({ owners: new Map(), retired: new Set() }),
+                standingOfItems: async () => new Map(),
+            },
+        },
         events: { publishFoodFetchCompleted: async () => undefined, publishFetchFailed: async () => undefined },
         logger: new SilentWorkerLogger(),
     });

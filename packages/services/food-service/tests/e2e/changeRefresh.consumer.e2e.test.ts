@@ -115,6 +115,7 @@ describe('ChangeRefreshConsumer (integration)', () => {
         const { id } = await foodDao.createByName({ normalizedName, displayName: normalizedName });
         const merge = new MergeAndPersistService(db, new GoldenRecordMergeEngine(new SourceAdapterRegistry()));
         await merge.resolveAndPersist({
+            holders: [],
             foodId: id,
             candidates: [makeMergeCandidate('usda', { externalKey, name: normalizedName, itemVersion })],
         });

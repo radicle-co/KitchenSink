@@ -41,6 +41,8 @@ import { SourceApiError } from '../../src/sources/foodSource.errors.js';
 import { type FoodSourceAdapter, type SourceCandidate } from '../../src/sources/foodSourceAdapter.js';
 import { SVC_ADMIN_REQUEUE } from '../../src/worker/change-refresh/changeRefresh.consumer.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
 import { WorkerRuntime } from '../../src/worker/WorkerRuntime.js';
 import { makeDb, makePool, type TestDb } from '../support/db.js';
@@ -120,6 +122,7 @@ describe('U9 operator requeue — the recovery loop (integration, FR-028a × FR-
         const consumer = new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
+            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
             queue,
             registry,
             merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),

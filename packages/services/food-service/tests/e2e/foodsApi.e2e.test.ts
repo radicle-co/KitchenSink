@@ -43,6 +43,8 @@ import { foodErrorSchema } from '../../src/foods/foods.schema.js';
 import { MergeAndPersistService } from '../../src/foods/merge/mergeAndPersist.service.js';
 import { SourceAdapterRegistry } from '../../src/sources/SourceAdapterRegistry.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import type { WorkerLogger } from '../../src/worker/workerLogger.js';
 import { makeCatalogFood, makeSeededRoot } from '../__fixtures__/catalogFood.js';
 import { foodDb } from '../support/roleDb.js';
@@ -202,6 +204,10 @@ describe('/api/v1/foods/* full-stack e2e (booted Nest + real Postgres + worker d
         consumer = new FoodConsumerService({
             foodDao: app.get(FoodDao, { strict: false }),
             sources: app.get(FoodSourcesDao, { strict: false }),
+            catalog: workerCatalogOf(
+                app.get<FoodDrizzle>(DrizzleProvider, { strict: false }),
+                new FoodMetrics(() => undefined),
+            ),
             queue: new FetchQueueDao(app.get<FoodDrizzle>(DrizzleProvider, { strict: false })),
             registry: app.get(SourceAdapterRegistry, { strict: false }),
             merge: app.get(MergeAndPersistService, { strict: false }),

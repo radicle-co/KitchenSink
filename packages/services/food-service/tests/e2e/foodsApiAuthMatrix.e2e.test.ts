@@ -212,15 +212,18 @@ describe('/api/v1/foods/* HTTP API (booted Nest + real Postgres)', () => {
     }
 
     /** Seed an UNRESOLVED food with a candidate set; returns the food id + candidate ids. */
-    async function seedUnresolved(name: string): Promise<{ id: string; candidateIds: string[] }> {
+    async function seedUnresolved(
+        name: string,
+        keys: readonly [string, string] = ['171688', '170379'],
+    ): Promise<{ id: string; candidateIds: string[] }> {
         const id = await seedFood('UNRESOLVED', name);
         const c1 = ulid();
         const c2 = ulid();
         await pool.query(
             `INSERT INTO food_candidates (id, food_id, source, external_key, name, summary) VALUES
-             ($1, $2, 'usda', '171688', 'Broccoli, raw', '34 kcal/100g'),
-             ($3, $2, 'usda', '170379', 'Broccoli, cooked, boiled', '35 kcal/100g')`,
-            [c1, id, c2],
+             ($1, $2, 'usda', $4, 'Broccoli, raw', '34 kcal/100g'),
+             ($3, $2, 'usda', $5, 'Broccoli, cooked, boiled', '35 kcal/100g')`,
+            [c1, id, c2, keys[0], keys[1]],
         );
 
         return { id, candidateIds: [c1, c2] };
@@ -894,8 +897,10 @@ describe('/api/v1/foods/* HTTP API (booted Nest + real Postgres)', () => {
             expect(admitted.status).toBe(200);
             expect((admitted.body as { status: string }).status).toBe('RESOLVED');
 
-            // That resolve's own re-fetch took the last slot, so the window now sits AT the ceiling.
-            const atCeiling = await seedUnresolved('cauliflower');
+            // That resolve's own re-fetch took the last slot, so the window now sits AT the ceiling. The second food
+            // offers items of its OWN: the first resolve now holds 171688, and a pick of a held item resolves to its
+            // holder with no source call (FOOD-SERVICE-6), so it would never reach the ceiling this case pins.
+            const atCeiling = await seedUnresolved('cauliflower', ['169986', '169987']);
             const refused = await call('PATCH', `/api/v1/foods/${atCeiling.id}`, {
                 token: 'user',
                 body: { candidateIds: [atCeiling.candidateIds[0]] },

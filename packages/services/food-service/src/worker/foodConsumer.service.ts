@@ -4,9 +4,12 @@
  * `WorkerRuntime`); it is the testable core driven once per leased `fetch_queue` row:
  *
  *   lease (highest-demand, demotion-aware — `FetchQueueDao.leaseNext`)
+ *     → catalog first (FOOD-SERVICE-6; ADR-0055 point 4): a name that IS a live catalog root or variant
+ *       (`CatalogNameMatcher`) forwards the food to it, with no source call
  *     → fan out by `normalized_name` across every wired adapter (`SourceAdapterRegistry.adapters()`),
  *       every request admitted by the registry's rate-limited transport (ADR-0053 §3): a refusal → defer
- *     → `searchByName` then a ≤20-key BATCH `fetchByKeys` (T-155) — falling back to per-key `fetchByKey` —
+ *     → `searchByName`, hiding every hit the catalog holds (`partitionHeldHits`; its holders join the merge as
+ *       survivors), then a ≤20-key BATCH `fetchByKeys` (T-155) of the rest — falling back to per-key `fetchByKey` —
  *       collecting `CanonicalCandidate[]`, with EVERY one of those requests separately admitted (PR #91
  *       review; a refusal mid-fan-out defers the row like any other back-pressure)
  *     → merge + persist (`MergeAndPersistService.resolveAndPersist`) under the survivor-count boundary
@@ -31,10 +34,15 @@
  */
 import type { FoodSourceRow } from '../db/schema/index.js';
 import type { FoodEventPublisher } from '../events/FoodEventEmitter.js';
+import type { CatalogNameMatcher } from '../foods/catalogNameMatcher.service.js';
+import type { CatalogOwnerReader } from '../foods/catalogOwnerReader.service.js';
 import { FetchQueueDao, type ClaimedFetchQueueRow } from '../foods/dao/fetchQueue.dao.js';
 import { FoodDao } from '../foods/dao/food.dao.js';
 import { FoodSourcesDao } from '../foods/dao/foodSources.dao.js';
-import { MergeAndPersistService } from '../foods/merge/mergeAndPersist.service.js';
+import { holdersOfItems, partitionHeldHits } from '../foods/domain/heldCandidatePolicy.js';
+import type { FoodRef } from '../foods/foods.schema.js';
+import { isSourceHeldError } from '../foods/merge/merge.errors.js';
+import { MergeAndPersistService, type PersistResult } from '../foods/merge/mergeAndPersist.service.js';
 import { SourceAdapterRegistry } from '../sources/SourceAdapterRegistry.js';
 import { isAdapterValidationError, isSourceApiError } from '../sources/foodSource.errors.js';
 import {
@@ -57,6 +65,7 @@ const FETCH_BATCH_MAX = 20;
 /** Dispositions that resolved a row to a terminal state — the ones that count toward resolution latency. */
 const TERMINAL_DISPOSITIONS: ReadonlySet<ProcessDisposition> = new Set([
     'resolved',
+    'forwarded',
     'unresolved',
     'not_found',
     'failed',
@@ -76,12 +85,20 @@ const DEFER_TIMEOUT_SECONDS = 30;
 /** The outcome of a per-source fan-out pass over the wired adapters. */
 type FanOutResult =
     | { readonly kind: 'deferred' }
-    | { readonly kind: 'collected'; readonly candidates: CanonicalCandidate[]; readonly failedSources: number };
+    | {
+          readonly kind: 'collected';
+          /** The fetched candidates the catalog does not hold. */
+          readonly candidates: CanonicalCandidate[];
+          /** The live catalog entries holding the hits the catalog does hold. */
+          readonly holders: FoodRef[];
+          readonly failedSources: number;
+      };
 
 /** The disposition applied to a leased row this pass (the worker's decision, MOD-004 §3). */
 export type ProcessDisposition =
     | 'idle' // nothing eligible to lease
     | 'resolved' // confident merge → RESOLVED, row cleared
+    | 'forwarded' // the food IS a catalog entry → forwarded to it, reported RESOLVED, row cleared (FOOD-SERVICE-6)
     | 'unresolved' // multi-candidate → UNRESOLVED, candidate set persisted, row cleared
     | 'not_found' // no source has it → NOT_FOUND tombstone
     | 'failed' // all sources errored after the retry budget → FAILED tombstone
@@ -103,6 +120,8 @@ export interface FoodConsumerDeps {
     readonly registry: SourceAdapterRegistry;
     /** Merge + persist seam (survivor-count boundary). */
     readonly merge: MergeAndPersistService;
+    /** What the catalog already holds, asked before and during the fan-out (FOOD-SERVICE-6). */
+    readonly catalog: WorkerCatalog;
     /** Completion/failure event publisher. */
     readonly events: FoodEventPublisher;
     /** Optional structured logger (defaults to a JSON console logger). */
@@ -124,12 +143,24 @@ export interface FoodConsumerDeps {
     readonly concurrency?: number;
 }
 
+/**
+ * The catalog questions the worker asks (FOOD-SERVICE-6; ADR-0055 point 4). Required, not optional: a composition root
+ * that left it out would fan out over the catalog's own foods and offer the items it holds, which is the defect.
+ */
+export interface WorkerCatalog {
+    /** Which catalog entry a food's name IS. */
+    readonly names: Pick<CatalogNameMatcher, 'identicalEntryFor'>;
+    /** Which source items the catalog holds, and by whom. */
+    readonly owners: Pick<CatalogOwnerReader, 'standingOfKeys' | 'standingOfItems'>;
+}
+
 export class FoodConsumerService {
     private readonly foodDao: FoodDao;
     private readonly sources: FoodSourcesDao;
     private readonly queue: FetchQueueDao;
     private readonly registry: SourceAdapterRegistry;
     private readonly merge: MergeAndPersistService;
+    private readonly catalog: WorkerCatalog;
     private readonly events: FoodEventPublisher;
     private readonly logger: WorkerLogger;
     private readonly metrics: FoodMetrics | undefined;
@@ -146,6 +177,7 @@ export class FoodConsumerService {
         this.queue = deps.queue;
         this.registry = deps.registry;
         this.merge = deps.merge;
+        this.catalog = deps.catalog;
         this.events = deps.events;
         this.logger = deps.logger ?? new RoutedWorkerLogger();
         this.metrics = deps.metrics;
@@ -349,6 +381,18 @@ export class FoodConsumerService {
             return this.refreshResolvedFood(foodId, fence);
         }
 
+        // Catalog first (FOOD-SERVICE-6; ADR-0055 point 4): a name that IS a catalog entry is answered by it, and no
+        // source is asked. Asked on the same stable name the fan-out uses.
+        const entry = await this.catalog.names.identicalEntryFor(food.normalizedName);
+
+        if (entry !== undefined) {
+            return this.settleResolved(
+                foodId,
+                fence,
+                await this.merge.resolveToHolder({ foodId, to: entry, from: [food.status] }),
+            );
+        }
+
         // Fan out on the STABLE normalized_name (DB-11) — never the golden `name` a merge may rewrite.
         const result = await this.fanOut(foodId, food.normalizedName, fence);
 
@@ -356,11 +400,12 @@ export class FoodConsumerService {
             return 'deferred';
         }
 
-        const { candidates, failedSources } = result;
+        const { candidates, holders, failedSources } = result;
+        const answered = candidates.length > 0 || holders.length > 0;
 
         // No source has it (0 hits, 0 errors) → NOT_FOUND tombstone immediately, no retry. A NORMAL
         // outcome: completion event only, NO FetchFailed / no alarm (FR-025/DSN-9).
-        if (candidates.length === 0 && failedSources === 0) {
+        if (!answered && failedSources === 0) {
             await this.foodDao.setStatus({ id: foodId, status: 'NOT_FOUND' });
             await this.queue.tombstone(foodId, 'no_source_has_item', fence);
             await this.events.publishFoodFetchCompleted({ id: foodId, status: 'NOT_FOUND' });
@@ -371,7 +416,7 @@ export class FoodConsumerService {
 
         // Every source that had a chance errored this pass → record the REAL failure (attempts++ + backoff,
         // FR-016/DSN-5) and tombstone FAILED once the budget is exhausted.
-        if (candidates.length === 0 && failedSources > 0) {
+        if (!answered && failedSources > 0) {
             const failed = await this.queue.recordFailure(foodId, 'all_sources_errored', fence);
 
             if (isRetryBudgetExhausted(failed.attempts)) {
@@ -384,19 +429,80 @@ export class FoodConsumerService {
             return 'record_failure';
         }
 
-        // Candidates collected → merge + persist under the survivor-count boundary (FR-MRG-5).
-        const persisted = await this.merge.resolveAndPersist({ foodId, candidates });
+        // Candidates collected → merge + persist under the survivor-count boundary (FR-MRG-5), each holder a survivor.
+        const persisted = await this.persistFanOut(foodId, candidates, holders);
 
         if (persisted.status === 'NOT_FOUND') {
-            // Defensive: a non-empty candidate set normally yields RESOLVED/UNRESOLVED, never NOT_FOUND.
+            // Every survivor was held and no single holder answers, or nothing could be offered.
             await this.queue.tombstone(foodId, 'no_source_has_item', fence);
             await this.events.publishFoodFetchCompleted({ id: foodId, status: 'NOT_FOUND' });
 
             return 'not_found';
         }
 
+        return this.settleResolved(foodId, fence, persisted);
+    }
+
+    /**
+     * Merge and persist a fan-out's answer. A merge refused because a contributor became held after the fan-out read
+     * the catalog (`SourceHeldError`) is re-decided with that item's holder as the only survivor: the food is forwarded
+     * to the one live holder, or tombstoned when there is none or several. Never a failed row: the source answered.
+     *
+     * @param foodId - The food.
+     * @param candidates - The fetched candidates the catalog does not hold.
+     * @param holders - The live catalog entries holding the rest.
+     * @returns The persisted result.
+     * @sideEffect Writes through the merge seam; reads the catalog's standing on a refusal.
+     */
+    private async persistFanOut(
+        foodId: string,
+        candidates: readonly CanonicalCandidate[],
+        holders: readonly FoodRef[],
+    ): Promise<PersistResult> {
+        try {
+            return await this.merge.resolveAndPersist({ foodId, candidates, holders });
+        } catch (error) {
+            if (!isSourceHeldError(error)) {
+                throw error;
+            }
+
+            const standings = await this.catalog.owners.standingOfItems(error.held);
+
+            this.logger.warn('merge-source-held', { foodId, held: error.held.length });
+
+            return this.merge.resolveAndPersist({
+                foodId,
+                candidates: [],
+                holders: holdersOfItems(error.held, standings, foodId),
+            });
+        }
+    }
+
+    /**
+     * Settle a row whose food reached `RESOLVED` (merged or forwarded) or `UNRESOLVED`: clear the queue row and emit
+     * the completion event.
+     *
+     * @param foodId - The food.
+     * @param fence - The claim's lease fence.
+     * @param persisted - What the merge seam persisted.
+     * @returns The disposition.
+     * @throws {LeaseLostError} when the claim was reaped or reclaimed.
+     * @sideEffect Deletes the queue row and its requesters; emits an event.
+     */
+    private async settleResolved(
+        foodId: string,
+        fence: LeaseFence,
+        persisted: PersistResult,
+    ): Promise<ProcessDisposition> {
         await this.queue.resolve(foodId, fence);
         await this.events.publishFoodFetchCompleted({ id: foodId, status: persisted.status });
+
+        if (persisted.forwardedTo !== undefined) {
+            this.logger.info('forwarded', { foodId, kind: persisted.forwardedTo.kind, to: persisted.forwardedTo.id });
+
+            return 'forwarded';
+        }
+
         this.logger.info('resolved', { foodId, status: persisted.status });
 
         return persisted.status === 'RESOLVED' ? 'resolved' : 'unresolved';
@@ -531,6 +637,7 @@ export class FoodConsumerService {
      */
     private async fanOut(foodId: string, name: string, fence: LeaseFence): Promise<FanOutResult> {
         const candidates: CanonicalCandidate[] = [];
+        const holders = new Map<string, FoodRef>();
         let failedSources = 0;
 
         for (const adapter of this.registry.adapters()) {
@@ -543,10 +650,29 @@ export class FoodConsumerService {
                     continue;
                 }
 
+                // Hide what the catalog holds before any fetch (FOOD-SERVICE-6): a held item is never fetched, never
+                // offered, and never merged over its holder's row.
+                const partition = partitionHeldHits(
+                    hits,
+                    await this.catalog.owners.standingOfKeys(
+                        source,
+                        hits.map((hit) => ({ externalKey: hit.externalKey, lineageKey: hit.lineageKey })),
+                    ),
+                    foodId,
+                );
+
+                for (const holder of partition.holders) {
+                    holders.set(`${holder.kind}:${holder.id}`, holder);
+                }
+
+                if (partition.offered.length === 0) {
+                    continue;
+                }
+
                 candidates.push(
                     ...(await this.fetchCandidates(
                         adapter,
-                        hits.map((hit) => hit.externalKey),
+                        partition.offered.map((hit) => hit.externalKey),
                     )),
                 );
             } catch (error) {
@@ -605,7 +731,7 @@ export class FoodConsumerService {
             }
         }
 
-        return { kind: 'collected', candidates, failedSources };
+        return { kind: 'collected', candidates, holders: [...holders.values()], failedSources };
     }
 
     /**

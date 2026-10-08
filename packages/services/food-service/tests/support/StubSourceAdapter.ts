@@ -98,12 +98,15 @@ class StubController {
     private canonicalByKey = new Map<string, CanonicalCandidate>();
     /** Per-method invocation counters (the search-never-calls-a-source invariant reads these). */
     public calls = { searchByName: 0, fetchByKey: 0, fetchByKeys: 0 };
+    /** Every key a fetch asked for, in order (a held item must never be fetched, ADR-0055 point 4). */
+    public keysFetched: string[] = [];
 
     /** Reset all programmed behaviour and counters (called in `beforeEach`). */
     public reset(): void {
         this.scenarios = new Map();
         this.canonicalByKey = new Map();
         this.calls = { searchByName: 0, fetchByKey: 0, fetchByKeys: 0 };
+        this.keysFetched = [];
     }
 
     /**
@@ -248,6 +251,7 @@ export class StubSourceAdapter implements FoodSourceAdapter {
      */
     public async fetchByKey(externalKey: string): Promise<CanonicalCandidate> {
         stub.calls.fetchByKey += 1;
+        stub.keysFetched.push(externalKey);
         const canonical = stub.canonicalFor(externalKey);
 
         if (!canonical) {
@@ -266,6 +270,7 @@ export class StubSourceAdapter implements FoodSourceAdapter {
      */
     public async fetchByKeys(externalKeys: readonly string[]): Promise<CanonicalCandidate[]> {
         stub.calls.fetchByKeys += 1;
+        stub.keysFetched.push(...externalKeys);
 
         return externalKeys
             .map((key) => stub.canonicalFor(key))

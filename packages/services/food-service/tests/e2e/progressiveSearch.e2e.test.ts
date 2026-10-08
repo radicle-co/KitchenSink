@@ -41,6 +41,8 @@ import { progressiveSearchFrameSchema, type ProgressiveSearchFrame } from '../..
 import { RollingWindowLimiter } from '../../src/sources/RollingWindowLimiter.js';
 import { createSourceRegistry } from '../../src/sources/sourceRegistry.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
 import { generateClerkKeypair, mintToken } from '../support/jwt.js';
@@ -337,6 +339,7 @@ describe('the progressive search and the remote pick (booted app, real Postgres)
             consumer = new FoodConsumerService({
                 foodDao: new FoodDao(db),
                 sources: new FoodSourcesDao(db),
+                catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
                 queue: new FetchQueueDao(db),
                 registry,
                 merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),

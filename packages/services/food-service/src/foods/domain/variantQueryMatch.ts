@@ -60,6 +60,18 @@ function scoreName(queryTokens: ReadonlySet<string>, name: string): NameMatch {
  * @returns The leftovers in query order, without repeats; every query token when `names` is empty.
  */
 export function leftoverTokens(query: string, names: readonly string[]): string[] {
+    return leftoversOf(query, names).leftovers;
+}
+
+/**
+ * The best-matching name or synonym (the rule {@link leftoverTokens} states) and the query's tokens it does not hold.
+ * Pure.
+ *
+ * @param query - The search query.
+ * @param names - The root's name, then its synonyms.
+ * @returns The best name's match, or `undefined` when `names` is empty, and the leftovers in query order.
+ */
+function leftoversOf(query: string, names: readonly string[]): { best: NameMatch | undefined; leftovers: string[] } {
     const queryTokens = [...new Set(describeRankingQuery(query).tokens)];
     const querySet = new Set(queryTokens);
     let best: NameMatch | undefined;
@@ -78,7 +90,45 @@ export function leftoverTokens(query: string, names: readonly string[]): string[
 
     const subtracted = best?.tokens ?? new Set<string>();
 
-    return queryTokens.filter((token) => !subtracted.has(token));
+    return { best, leftovers: queryTokens.filter((token) => !subtracted.has(token)) };
+}
+
+/** A variant's part tokens, as {@link matchVariant} compares them. Pure. */
+function partTokensOf(variant: VariantCandidate): Set<string> {
+    return new Set(variant.parts.flatMap((part) => describeRankingQuery(part.text).tokens));
+}
+
+/**
+ * The one variant a name IS, under its root: {@link matchVariant}'s rule tightened from "contains" to "equals", for a
+ * caller that acts on the answer with no cook involved (a by-name food forwarded before any source is asked). Pure.
+ *
+ * 1. The best name or synonym must lie wholly inside the name: a name missing a word of the root is not that root.
+ * 2. The leftovers must be exactly one live variant's part tokens, no more and no fewer.
+ *
+ * @param query - The name.
+ * @param names - The root's name, then its synonyms.
+ * @param variants - The root's live variants.
+ * @returns The variant, or `undefined` when the name is the root alone, or no variant or several are exactly it.
+ */
+export function identicalVariant<V extends VariantCandidate>(
+    query: string,
+    names: readonly string[],
+    variants: readonly V[],
+): V | undefined {
+    const { best, leftovers } = leftoversOf(query, names);
+
+    if (best === undefined || best.unmatched > 0 || best.matched === 0 || leftovers.length === 0) {
+        return undefined;
+    }
+
+    const wanted = new Set(leftovers);
+    const survivors = variants.filter((variant) => {
+        const tokens = partTokensOf(variant);
+
+        return tokens.size === wanted.size && [...wanted].every((token) => tokens.has(token));
+    });
+
+    return survivors.length === 1 ? survivors[0] : undefined;
 }
 
 /**
@@ -101,7 +151,7 @@ export function matchVariant<V extends VariantCandidate>(
     }
 
     const survivors = variants.filter((variant) => {
-        const tokens = new Set(variant.parts.flatMap((part) => describeRankingQuery(part.text).tokens));
+        const tokens = partTokensOf(variant);
 
         return leftovers.every((token) => tokens.has(token));
     });

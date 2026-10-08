@@ -4,13 +4,21 @@
  * boundary (T-164), drives the pure {@link GoldenRecordMergeEngine}, and persists the outcome across the
  * DAO layer in ONE transaction:
  *
- * - **RESOLVED**: upsert a `food_sources` crosswalk row per contributing item and cite each item on the food's
+ * - **RESOLVED**: record a `food_sources` crosswalk row per contributing item and cite each item on the food's
  *   nutrition header, resolve the nutrient dictionary, write each `food_nutrition_value` citing its item and
  *   each `food_portions` row naming its crosswalk row, record scalar-field provenance in
  *   `food_field_provenance`, write the golden scalars, and set `RESOLVED`. No raw payload is stored
  *   (SC-013).
  * - **UNRESOLVED**: persist the surviving candidate set to `food_candidates` and set `UNRESOLVED`.
  * - **NOT_FOUND**: tombstone the food.
+ * - **Forwarded** (FOOD-SERVICE-6): the food IS a catalog entry, so it is retired and forwarded to that entry, its
+ *   candidate set cleared, and it reports `RESOLVED`; every reader of a ref follows the forward. Reached when the
+ *   fan-out's only survivor is a catalog holder (`heldCandidatePolicy.ts`), and through
+ *   {@link MergeAndPersistService.resolveToHolder} when the worker's catalog-first check or a cook's pick names one.
+ *
+ * ⛔ A contributor is recorded by CLAIMING its key, or updating the food's OWN row for it, and never by writing over
+ * another food's row (`FoodSourcesDao.recordSource`). A contributor another food holds aborts the merge with
+ * {@link SourceHeldError} before any value is written, so every value's citation names this food's own row.
  *
  * The manual-resolution path ({@link MergeAndPersistService.resolveFromPicks}, T-163) blends the user's
  * re-fetched picks directly to `RESOLVED`, stores the pick as **ordinary provenance** (indistinguishable
@@ -23,6 +31,7 @@ import type { CanonicalCandidate } from '../../sources/foodSourceAdapter.js';
 import { CandidateStore } from '../dao/foodCandidates.dao.js';
 import { FoodDao, type FoodStatus } from '../dao/food.dao.js';
 import { FoodFieldProvenanceDao, type FoodField } from '../dao/foodFieldProvenance.dao.js';
+import { FoodForwardDao } from '../dao/foodForward.dao.js';
 import { FoodNutritionDao } from '../dao/foodNutrition.dao.js';
 import { FoodPortionsDao } from '../dao/foodPortions.dao.js';
 import { FoodSourcesDao } from '../dao/foodSources.dao.js';
@@ -33,15 +42,30 @@ import {
     type MergeCandidate,
     type MergeOutcome,
 } from './mergeEngine.js';
+import { fanOutDecisionOf, type SourceItemRef } from '../domain/heldCandidatePolicy.js';
 import { joinAliases } from '../foodAliases.js';
+import type { FoodRef } from '../foods.schema.js';
+import { SourceHeldError } from './merge.errors.js';
 import { sanitizeCandidates } from './mergeSanitize.js';
 
 /** Input for {@link MergeAndPersistService.resolveAndPersist} (the worker fan-out path). */
 export interface ResolveAndPersistInput {
     /** The internal food id (already `PENDING`). */
     foodId: string;
-    /** The fan-out candidates (pre-merge; sanitized here). */
+    /** The fan-out candidates the catalog does not hold (pre-merge; sanitized here). */
     candidates: readonly CanonicalCandidate[];
+    /** The live catalog entries holding the hits the fan-out hid (`partitionHeldHits`); each is a survivor. */
+    holders: readonly FoodRef[];
+}
+
+/** Input for {@link MergeAndPersistService.resolveToHolder}. */
+export interface ResolveToHolderInput {
+    /** The live by-name root. */
+    readonly foodId: string;
+    /** The live catalog root or variant it is. */
+    readonly to: FoodRef;
+    /** The statuses the caller observed it in: the move to `RESOLVED` is a compare-and-set on them. */
+    readonly from: readonly FoodStatus[];
 }
 
 /** Input for {@link MergeAndPersistService.resolveFromPicks} (the manual `PATCH`-resolve path). */
@@ -66,6 +90,8 @@ export interface PersistResult {
     outcome: MergeOutcome;
     /** The persisted `food.status`. */
     status: FoodStatus;
+    /** The catalog entry the food was forwarded to; present only when it was. */
+    forwardedTo?: FoodRef;
 }
 
 /** Maps a {@link GoldenRecordDraft} scalar slot to its `food_field` provenance enum value. */
@@ -95,15 +121,19 @@ interface ContributorIndex {
 const handleOf = (source: string, externalKey: string): string => `${source}::${externalKey}`;
 
 /**
- * Record each contributing item: upsert its crosswalk row on the food's item and cite it on the food's nutrition
- * header with the dataset its source stated (plan U4: every stored live value cites its item and dataset).
+ * Record each contributing item: claim its crosswalk row on the food's item, or bring the food's own row up to date,
+ * then cite it on the food's nutrition header with the dataset its source stated (plan U4: every stored live value
+ * cites its item and dataset).
+ *
+ * Every contributor is recorded before any is cited, so a held one is found before anything is cited to it.
  *
  * @param db - The transaction-scoped handle.
  * @param foodId - The food.
  * @param nutritionId - The food's nutrition header.
  * @param golden - The draft whose contributors are recorded.
  * @returns The index the golden write resolves each value's item through.
- * @sideEffect Upserts `food_sources` rows and inserts `food_nutrition_citation` rows.
+ * @throws {SourceHeldError} when another food holds a contributor; the caller's transaction then rolls back.
+ * @sideEffect Inserts or updates the food's own `food_sources` rows and inserts `food_nutrition_citation` rows.
  */
 async function indexContributors(
     db: FoodWriter,
@@ -115,17 +145,30 @@ async function indexContributors(
     const nutrition = new FoodNutritionDao(db);
     const sourceIdByHandle = new Map<string, string>();
     const citationIdByHandle = new Map<string, string>();
+    const held: SourceItemRef[] = [];
 
     for (const contributor of golden.contributingSources) {
-        const handle = handleOf(contributor.source, contributor.externalKey);
-        const row = await sources.upsertSource({
+        const record = await sources.recordSource({
             foodId,
             source: contributor.source,
             externalKey: contributor.externalKey,
             itemVersion: contributor.itemVersion,
         });
 
-        sourceIdByHandle.set(handle, row.id);
+        if (record.kind === 'held') {
+            held.push({ source: contributor.source, externalKey: contributor.externalKey });
+        } else {
+            sourceIdByHandle.set(handleOf(contributor.source, contributor.externalKey), record.row.id);
+        }
+    }
+
+    if (held.length > 0) {
+        throw new SourceHeldError(held);
+    }
+
+    for (const contributor of golden.contributingSources) {
+        const handle = handleOf(contributor.source, contributor.externalKey);
+
         citationIdByHandle.set(
             handle,
             await nutrition.citeSourceItem(nutritionId, {
@@ -240,17 +283,32 @@ export class MergeAndPersistService {
     ) {}
 
     /**
-     * Merge fan-out candidates and persist the outcome atomically under the survivor-count boundary.
+     * Merge fan-out candidates and persist the outcome atomically under the survivor-count boundary, counting each
+     * catalog holder of a hidden hit as a survivor (`fanOutDecisionOf`).
      *
-     * @param input - The food id + fan-out candidates.
-     * @returns The merge outcome and the persisted status.
-     * @sideEffect Writes the golden record / candidate set / tombstone in one transaction.
+     * @param input - The food id, the candidates the catalog does not hold, and the holders of the ones it does.
+     * @returns The merge outcome and the persisted status; `forwardedTo` when the food was forwarded to a holder.
+     * @throws {SourceHeldError} when a contributor became held after the fan-out read the catalog; nothing is written.
+     * @sideEffect Writes the golden record / candidate set / tombstone / forward in one transaction.
      */
     public async resolveAndPersist(input: ResolveAndPersistInput): Promise<PersistResult> {
-        const result = this.engine.merge(sanitizeCandidates(input.candidates));
+        const offered = sanitizeCandidates(input.candidates);
+        const result = this.engine.merge(offered);
+        const decision = fanOutDecisionOf(offered, result, input.holders);
 
         return this.db.transaction(async (tx) => {
             const db = tx;
+
+            switch (decision.kind) {
+                case 'forward':
+                    return this.forward(db, { foodId: input.foodId, to: decision.to, from: undefined });
+                case 'unresolved':
+                    return this.persistUnresolved(db, input.foodId, decision.candidateSet);
+                case 'notFound':
+                    return this.persistNotFound(db, input.foodId);
+                case 'merge':
+                    break;
+            }
 
             if (result.outcome === 'RESOLVED' && result.goldenRecord) {
                 return this.persistResolved(db, input.foodId, result.goldenRecord);
@@ -260,10 +318,22 @@ export class MergeAndPersistService {
                 return this.persistUnresolved(db, input.foodId, result.candidateSet);
             }
 
-            await new FoodDao(db).setStatus({ id: input.foodId, status: 'NOT_FOUND' });
-
-            return { outcome: 'NOT_FOUND', status: 'NOT_FOUND' };
+            return this.persistNotFound(db, input.foodId);
         });
+    }
+
+    /**
+     * Resolve a by-name food to the catalog entry it is: retire it, forward it there, clear its candidate set, and
+     * report it `RESOLVED` — all atomically. The worker calls it when the catalog-first check names the entry; a cook's
+     * pick calls it when the pick names an item the entry holds (FOOD-SERVICE-6).
+     *
+     * @param input - The food, the entry, and the statuses the caller observed the food in.
+     * @returns `RESOLVED`, forwarded to the entry.
+     * @throws {IllegalStatusTransitionError} when the food left the observed statuses; nothing is written.
+     * @sideEffect Updates `food`, inserts `food_forward`, deletes `food_candidates`, in one transaction.
+     */
+    public async resolveToHolder(input: ResolveToHolderInput): Promise<PersistResult> {
+        return this.db.transaction(async (tx) => this.forward(tx, input));
     }
 
     /**
@@ -273,6 +343,7 @@ export class MergeAndPersistService {
      *
      * @param input - The food id + re-fetched picks.
      * @returns The merge outcome and the persisted status.
+     * @throws {SourceHeldError} when another food holds a pick; nothing is written.
      * @sideEffect Writes the golden record + clears the candidate set in one transaction.
      */
     public async resolveFromPicks(input: ResolveFromPicksInput): Promise<PersistResult> {
@@ -290,7 +361,7 @@ export class MergeAndPersistService {
     /**
      * Selectively re-pull the CHANGED backing source items of a `RESOLVED` food in place (T-171,
      * FR-031/FR-032, DSN-4). The caller (the worker's refresh branch) passes only items whose upstream
-     * `item_version` changed; this re-blends them, upserts each changed crosswalk (advancing
+     * `item_version` changed; this re-blends them, records each changed crosswalk on the food's own row (advancing
      * `item_version`), and rewrites just the golden values those items supply (nutrients by
      * `(nutrition_id, nutrient_id)`, the changed sources' portions, scalar winners + provenance). The food
      * STAYS `RESOLVED` — `food.updated_at` is bumped but the lifecycle is never transitioned and
@@ -307,7 +378,7 @@ export class MergeAndPersistService {
 
         return this.db.transaction(async (tx) => {
             const nutritionId = await new FoodNutritionDao(tx).headerForFood(input.foodId);
-            // Each changed crosswalk is upserted so its item_version advances.
+            // Each changed crosswalk is the food's own row, so recording it advances its item_version.
             const contributors = await indexContributors(tx, input.foodId, nutritionId, golden);
             const portions = new FoodPortionsDao(tx);
 
@@ -322,6 +393,43 @@ export class MergeAndPersistService {
 
             return { outcome: 'RESOLVED', status: 'RESOLVED' };
         });
+    }
+
+    /**
+     * Forward a by-name food to a catalog entry within the given transaction (see {@link resolveToHolder}).
+     *
+     * @param db - The transaction-scoped handle.
+     * @param input - The food, the entry, and the observed statuses (`undefined`: every legal prior).
+     * @returns `RESOLVED`, forwarded to the entry.
+     * @sideEffect Updates `food`, inserts `food_forward`, deletes `food_candidates`.
+     */
+    private async forward(
+        db: FoodWriter,
+        input: Omit<ResolveToHolderInput, 'from'> & { readonly from: readonly FoodStatus[] | undefined },
+    ): Promise<PersistResult> {
+        await new FoodDao(db).setStatus({
+            id: input.foodId,
+            status: 'RESOLVED',
+            ...(input.from === undefined ? {} : { from: input.from }),
+        });
+        await new FoodForwardDao(db).forwardLiveRoot(input.foodId, input.to);
+        await new CandidateStore(db).clear(input.foodId);
+
+        return { outcome: 'RESOLVED', status: 'RESOLVED', forwardedTo: input.to };
+    }
+
+    /**
+     * Tombstone a food no source has an offerable answer for, within the given transaction.
+     *
+     * @param db - The transaction-scoped handle.
+     * @param foodId - The food.
+     * @returns `NOT_FOUND`.
+     * @sideEffect Updates `food.status`.
+     */
+    private async persistNotFound(db: FoodWriter, foodId: string): Promise<PersistResult> {
+        await new FoodDao(db).setStatus({ id: foodId, status: 'NOT_FOUND' });
+
+        return { outcome: 'NOT_FOUND', status: 'NOT_FOUND' };
     }
 
     /**

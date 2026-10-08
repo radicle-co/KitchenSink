@@ -7,7 +7,8 @@
  *
  * - The seed-only tables (variants, their parts, forwards and the seed ledger) are written only under
  *   `foods/seed/catalog/` and by a writer registered for that table. The live path never creates a variant, and only
- *   U8's live retirement will write a forward; that writer is registered when it lands.
+ *   the live retirement writes a forward: a by-name food that IS a catalog entry is forwarded to it (FOOD-SERVICE-6),
+ *   the one source 0018's `food_forward_guard` admits `food_app` for.
  * - Every other writer of `food_item`, the per-item tables and the nutrition tables is registered here, file by file,
  *   with the reason it writes.
  * - A `DELETE FROM food` is written only by the erasure pair and the seed: a root owns its item, and every deleter must
@@ -125,6 +126,10 @@ const REGISTERED_WRITERS: Readonly<Record<string, Readonly<Record<string, string
     },
     food_variant_part: {
         [PERF_FIXTURE]: PERF_FIXTURE_REASON,
+    },
+    food_forward: {
+        [`${FOOD_SRC}/foods/dao/foodForward.dao.ts`]:
+            'a by-name food that IS a catalog entry is retired and forwarded to it (FOOD-SERVICE-6)',
     },
     food_item: {
         [`${FOOD_SRC}/foods/dao/foodItem.dao.ts`]: 'the item gateway creates every live root with its item',

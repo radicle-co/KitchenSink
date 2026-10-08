@@ -39,6 +39,8 @@ import { createSourceRegistry } from '../../src/sources/sourceRegistry.js';
 import type { SourceCallChannel } from '../../src/sources/transport/transportPorts.js';
 import { ChangeRefreshConsumer } from '../../src/worker/change-refresh/changeRefresh.consumer.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
 import { foodDb } from '../support/roleDb.js';
 import { startUsdaStubServer, type UsdaStubServer } from '../support/usdaStubServer.js';
@@ -125,6 +127,7 @@ describe('every caller through the rate-limited transport (real Postgres, loopba
             const consumer = new FoodConsumerService({
                 foodDao,
                 sources: new FoodSourcesDao(db),
+                catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
                 queue,
                 registry,
                 merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),
@@ -144,6 +147,7 @@ describe('every caller through the rate-limited transport (real Postgres, loopba
                 db,
                 new GoldenRecordMergeEngine(new SourceAdapterRegistry()),
             ).resolveAndPersist({
+                holders: [],
                 foodId: id,
                 candidates: [
                     makeMergeCandidate('usda', { externalKey: '171688', name: 'broccoli', itemVersion: 'v1' }),

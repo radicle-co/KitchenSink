@@ -12,9 +12,10 @@
  *
  * Lifecycle status codes (mapped by `FoodsController`): a read returns the golden record only when
  * `RESOLVED` (else `FoodPendingError` → 202 for `PENDING`/`UNRESOLVED`, `FoodNotFoundError` → 404 for
- * `NOT_FOUND`/`FAILED`/no row). Add-by-name dedups + enqueues (202 + `id`); `PATCH`-resolve is
- * `UNRESOLVED`-only, idempotent, candidate-in-set validated, re-fetches the pick through the limiter, and
- * merges to `RESOLVED`.
+ * `NOT_FOUND`/`FAILED`/no row). Add-by-name answers a catalog root the name IS (catalog first, FOOD-SERVICE-6),
+ * else dedups + enqueues (202 + `id`); `PATCH`-resolve is `UNRESOLVED`-only, idempotent, candidate-in-set
+ * validated, resolves a pick of an item the catalog holds to its holder, else re-fetches the pick through the
+ * limiter and merges to `RESOLVED`.
  *
  * @implements FR-002 FR-003 FR-004 FR-005 FR-007 FR-008 FR-012 FR-013 FR-028a FR-045 FR-RES-1 FR-RES-2
  */
@@ -50,7 +51,10 @@ import { projectStoredNutrition } from './nutrition/nutrientSelection.js';
 import { FoodVariantDao, type LiveVariant } from './dao/foodVariant.dao.js';
 import { leftoverTokens, matchVariant, namesOf } from './domain/variantQueryMatch.js';
 import { ownerVariantView, variantViewOf } from './domain/variantView.js';
+import { CatalogNameMatcher } from './catalogNameMatcher.service.js';
 import { CatalogOwnerReader } from './catalogOwnerReader.service.js';
+import { pickDecisionOf, type PickDecision, type SourceItemRef } from './domain/heldCandidatePolicy.js';
+import { isSourceHeldError } from './merge/merge.errors.js';
 import type {
     VariantView,
     AddResponse,
@@ -74,7 +78,7 @@ import type {
 import { SourceAdapterRegistry } from '../sources/SourceAdapterRegistry.js';
 import { isSourceAdmissionError, isSourceApiError } from '../sources/foodSource.errors.js';
 import { retryOnceWhenSoon } from '../sources/transport/busyRetry.js';
-import { type CanonicalCandidate, type FoodSourceId } from '../sources/foodSourceAdapter.js';
+import { isWiredSourceId, type CanonicalCandidate, type FoodSourceId } from '../sources/foodSourceAdapter.js';
 import { FoodMetrics } from '../observability/emfMetrics.js';
 
 /**
@@ -157,6 +161,9 @@ function requireReadable(id: string, food: AuthorshipFoodFacts, callerId: string
 
 @Injectable()
 export class FoodsService {
+    /** Which catalog entry a name IS, over this service's own catalog search and variant read (FOOD-SERVICE-6). */
+    private readonly catalogNames: CatalogNameMatcher;
+
     public constructor(
         private readonly foodDao: FoodDao,
         private readonly candidates: CandidateStore,
@@ -178,7 +185,9 @@ export class FoodsService {
          * half-completes without it (a completed food still in the scan would re-sync and clobber).
          */
         @Optional() private readonly fetchQueue?: FetchQueueDao,
-    ) {}
+    ) {
+        this.catalogNames = new CatalogNameMatcher(searchDao, variants);
+    }
 
     /**
      * `POST /api/v1/foods/{id}/corroborated` (plan U19, R10's second clause) — a PENDING catalog food
@@ -642,6 +651,10 @@ export class FoodsService {
      * return `202` + `id` (FR-005/FR-013/FR-028a). An add for an existing non-terminal food returns its
      * current status WITHOUT enqueuing (no scarce source budget burned).
      *
+     * Catalog first (FOOD-SERVICE-6; ADR-0055 point 4): a name that IS a live catalog root's name or synonym answers
+     * that root, `RESOLVED`, with no row made and nothing queued. A name that is a root and one of its variants is
+     * created and queued as before, because this answer names a root id; the worker forwards it to the variant.
+     *
      * @param name - The display name (already validated non-empty by the controller).
      * @param requesterId - The requester key (CR-002/U1: app-user ULID or `svc_*`).
      * @returns The id + resulting status. Never shed: FR-043b puts no intake cap on add-by-name.
@@ -651,6 +664,12 @@ export class FoodsService {
         // never disagree about which characters count. Idempotent — the controller has already canonicalized a
         // request-borne name, but a future in-process caller has not, and the write point is what must hold.
         const displayName = sanitizeFoodName(name);
+        const root = await this.catalogRootNamed(displayName);
+
+        if (root !== undefined) {
+            return { id: root.id, status: 'RESOLVED' };
+        }
+
         const result = await this.foodDao.createByName({ normalizedName: normalizeName(displayName), displayName });
 
         if (result.created || result.reactivated) {
@@ -720,6 +739,19 @@ export class FoodsService {
         const items: BatchItemView[] = [];
 
         for (const [key, displayName] of unique) {
+            const root = await this.catalogRootNamed(displayName);
+
+            if (root !== undefined) {
+                // The catalog's own root, answered inline exactly as a RESOLVED dedup hit is below.
+                items.push({
+                    id: root.id,
+                    status: 'RESOLVED',
+                    name: (await this.foodDao.getById(root.id))?.name ?? null,
+                });
+
+                continue;
+            }
+
             const result = await this.foodDao.createByName({ normalizedName: key, displayName });
 
             if (result.created || result.reactivated) {
@@ -760,6 +792,11 @@ export class FoodsService {
      * rolling-window limiter; merge → `RESOLVED` and clear the candidate set. A re-fetch failure leaves
      * the food `UNRESOLVED` with its candidate set intact (TST-2).
      *
+     * A pick of an item our catalog holds (FOOD-SERVICE-6) — a set persisted before the catalog took the item — is the
+     * catalog's food: the food is forwarded to that holder with no source call, as it is when the item became held
+     * during the re-fetch and the merge refused it. The response is the same `RESOLVED` either way; a reader of the
+     * food's ref follows the forward.
+     *
      * TAKES NO REQUESTER KEY, unlike every enqueue path. A resolve draws from the source's shared window
      * rather than a requester's budget and writes no `fetch_requesters` row, so there is nothing a
      * requester key would key. It formerly accepted one as `_requesterId` — never read, not even logged — so a
@@ -770,7 +807,8 @@ export class FoodsService {
      * @returns The id + `RESOLVED` status.
      * @throws {FoodNotFoundError} (→ 404) when no row exists.
      * @throws {NotResolvableError} (→ 409) when the food is not `UNRESOLVED` (and not an idempotent `RESOLVED`).
-     * @throws {CandidateMismatchError} (→ 409) when a pick is not in the food's candidate set.
+     * @throws {CandidateMismatchError} (→ 409) when a pick is not in the food's candidate set, or the picks name an
+     *   item the catalog retired with no forward, or two catalog holders (FOOD-SERVICE-6).
      * @throws {FetchUnavailableError} (→ 503) when the source stays busy past one short wait, our own admission
      *   accounting fails, or the source re-fetch fails.
      */
@@ -801,6 +839,16 @@ export class FoodsService {
 
             return row;
         });
+
+        // A pick of an item the catalog holds resolves to its holder, with no source call (FOOD-SERVICE-6).
+        const picked: SourceItemRef[] = picks.flatMap((pick) =>
+            isWiredSourceId(pick.source) ? [{ source: pick.source, externalKey: pick.externalKey }] : [],
+        );
+        const held = await this.heldPickDecision(id, picked);
+
+        if (held.kind === 'forward') {
+            return this.resolveToHolder(id, held.to);
+        }
 
         // Re-fetch each picked candidate. The registry's client admits every request on the INTERACTIVE lane
         // (ADR-0053 §3), so resolve never makes an unrecorded source call. A refusal that clears within two
@@ -833,9 +881,75 @@ export class FoodsService {
             }
         }
 
-        await this.merge.resolveFromPicks({ foodId: id, picks: refetched });
+        try {
+            await this.merge.resolveFromPicks({ foodId: id, picks: refetched });
+        } catch (error) {
+            if (!isSourceHeldError(error)) {
+                throw error;
+            }
+
+            // The catalog took a picked item during the re-fetch: the merge wrote nothing, and the pick names the holder.
+            const raced = await this.heldPickDecision(id, error.held);
+
+            if (raced.kind !== 'forward') {
+                throw new CandidateMismatchError(id);
+            }
+
+            return this.resolveToHolder(id, raced.to);
+        }
 
         return { id, status: 'RESOLVED' };
+    }
+
+    /**
+     * What a pick does given what the catalog holds (`pickDecisionOf`), with a refusal thrown.
+     *
+     * @param id - The food being resolved.
+     * @param items - The picked items.
+     * @returns `merge` or `forward`.
+     * @throws {CandidateMismatchError} (→ 409) when the picks name two holders, or an item the catalog retired with no
+     *   forward: the set is stale, and the pick is not taken.
+     * @sideEffect Reads the catalog's standing for the items.
+     */
+    private async heldPickDecision(
+        id: string,
+        items: readonly SourceItemRef[],
+    ): Promise<Exclude<PickDecision, { kind: 'refuse' }>> {
+        const decision = pickDecisionOf(items, await this.owners.standingOfItems(items), id);
+
+        if (decision.kind === 'refuse') {
+            throw new CandidateMismatchError(id);
+        }
+
+        return decision;
+    }
+
+    /**
+     * Resolve an `UNRESOLVED` food to the catalog entry a pick names: forwarded there, its candidate set cleared.
+     *
+     * @param id - The food.
+     * @param to - The entry.
+     * @returns The id + `RESOLVED`.
+     * @sideEffect Retires and forwards the food, in one transaction.
+     */
+    private async resolveToHolder(id: string, to: FoodRef): Promise<ResolveResponse> {
+        await this.merge.resolveToHolder({ foodId: id, to, from: ['UNRESOLVED'] });
+
+        return { id, status: 'RESOLVED' };
+    }
+
+    /**
+     * The live catalog root a name IS (its name or a synonym), when the catalog-first rule answers a root. A variant
+     * answer is left to the worker, because an add answers a root id.
+     *
+     * @param displayName - The sanitized name.
+     * @returns The root, or `undefined`.
+     * @sideEffect Reads the catalog search and, when a hit leaves words, the live variants.
+     */
+    private async catalogRootNamed(displayName: string): Promise<FoodRef | undefined> {
+        const entry = await this.catalogNames.identicalEntryFor(displayName);
+
+        return entry?.kind === 'root' ? entry : undefined;
     }
 
     /**

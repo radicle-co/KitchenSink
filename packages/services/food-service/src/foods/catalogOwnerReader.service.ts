@@ -29,6 +29,7 @@ import { FoodForwardDao, type ForwardOutcome } from './dao/foodForward.dao.js';
 import { FoodSourcesDao } from './dao/foodSources.dao.js';
 import { FoodVariantDao, type VariantFacts, type VariantPartFact } from './dao/foodVariant.dao.js';
 import { refIdsToRead, refTargetOf, type RefFacts } from './domain/foodRefResolution.js';
+import type { SourceItemRef } from './domain/heldCandidatePolicy.js';
 import type { FoodRef } from './foods.schema.js';
 
 /** The live catalog entry that stands for a source item. */
@@ -91,6 +92,34 @@ export class CatalogOwnerReader {
      */
     public async ownersOfKeys(source: FoodSourceId, keys: readonly SourceKeyRef[]): Promise<Map<string, CatalogOwner>> {
         return new Map((await this.standingOfKeys(source, keys)).owners);
+    }
+
+    /**
+     * {@link standingOfKeys} for items that may come from several sources, answered per source, because a key is
+     * unique within its source only. A stored item (a candidate row, a merge's contributor) carries no lineage key, so
+     * none is read: the crosswalk, the exact citations and the forwards decide.
+     *
+     * @param items - The items.
+     * @returns Each named source's standing; a source no item names is absent.
+     * @sideEffect As {@link standingOfKeys}, once per source.
+     */
+    public async standingOfItems(items: readonly SourceItemRef[]): Promise<Map<FoodSourceId, KeyStanding>> {
+        const keysBySource = new Map<FoodSourceId, SourceKeyRef[]>();
+
+        for (const item of items) {
+            const keys = keysBySource.get(item.source) ?? [];
+
+            keys.push({ externalKey: item.externalKey, lineageKey: null });
+            keysBySource.set(item.source, keys);
+        }
+
+        const standings = new Map<FoodSourceId, KeyStanding>();
+
+        for (const [source, keys] of keysBySource) {
+            standings.set(source, await this.standingOfKeys(source, keys));
+        }
+
+        return standings;
     }
 
     /**

@@ -346,6 +346,33 @@ describe('CatalogOwnerReader.standingOfKeys', () => {
     });
 });
 
+// FOOD-SERVICE-6: a pick, or a merge's refused contributors, name items across sources; a key is unique within its
+// source only, so their standing is read, and answered, per source.
+describe('CatalogOwnerReader.standingOfItems', () => {
+    it("answers each source's standing for its own items, reading no lineage (a stored item carries none)", async () => {
+        const { reader, ownersOfLineage } = makeReader({
+            owners: [{ externalKey: 'held', kind: 'root', id: 'R-brisket', seedOwned: true }],
+            roots: [BRISKET],
+        });
+
+        const standings = await reader.standingOfItems([
+            { source: 'usda', externalKey: 'held' },
+            { source: 'usda', externalKey: 'unknown' },
+        ]);
+
+        expect([...standings.keys()]).toStrictEqual(['usda']);
+        expect(standings.get('usda')?.owners.get('held')?.rootId).toBe('R-brisket');
+        expect(ownersOfLineage).not.toHaveBeenCalled();
+    });
+
+    it('answers no source, and reads nothing, for no items', async () => {
+        const { reader, readRefFacts } = makeReader({});
+
+        expect(await reader.standingOfItems([])).toStrictEqual(new Map());
+        expect(readRefFacts).not.toHaveBeenCalled();
+    });
+});
+
 // Curated plan R19: USDA gives an updated Foundation food a new FDC id and keeps its NDB number, which the adapter
 // hands over as the hit's lineage key. A hit on a key the seed does not hold yet still answers as the seed's entry.
 describe('CatalogOwnerReader.ownersOfKeys — lineage', () => {

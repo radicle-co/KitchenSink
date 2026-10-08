@@ -149,6 +149,7 @@ describe('food.aliases — USDA curated aliases (U2, integration)', () => {
             const id = await createPending('Cheese, Cheddar');
 
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: id,
                 candidates: [makeCandidate({ aliases: ['sharp cheese', 'Tillamook', 'Longhorn'] })],
             });
@@ -163,7 +164,7 @@ describe('food.aliases — USDA curated aliases (U2, integration)', () => {
         it('persists NULL — not an empty string — for a food with no aliases (GR-019)', async () => {
             const id = await createPending('Cheese, cheddar (Foundation)');
 
-            await persist.resolveAndPersist({ foodId: id, candidates: [makeCandidate({ aliases: [] })] });
+            await persist.resolveAndPersist({ holders: [], foodId: id, candidates: [makeCandidate({ aliases: [] })] });
 
             const { rows } = await pool.query<{ aliases: string | null }>('SELECT aliases FROM food WHERE id = $1', [
                 id,
@@ -176,6 +177,7 @@ describe('food.aliases — USDA curated aliases (U2, integration)', () => {
             const id = await createPending('Cheese, Cheddar (provenance)');
 
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: id,
                 candidates: [makeCandidate({ aliases: ['Tillamook'] })],
             });
@@ -196,6 +198,7 @@ describe('food.aliases — USDA curated aliases (U2, integration)', () => {
             const id = await createPending('Cheese, Cheddar (vector)');
 
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: id,
                 candidates: [makeCandidate({ aliases: ['Tillamook'] })],
             });
@@ -216,10 +219,12 @@ describe('food.aliases — USDA curated aliases (U2, integration)', () => {
             const swiss = await createPending('Cheese, Swiss');
 
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: cheddar,
                 candidates: [makeCandidate({ aliases: ['sharp cheese', 'Tillamook', 'Longhorn'] })],
             });
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: swiss,
                 candidates: [
                     makeCandidate({ externalKey: '2705800', name: 'Cheese, Swiss', description: 'Cheese, Swiss' }),
@@ -236,6 +241,7 @@ describe('food.aliases — USDA curated aliases (U2, integration)', () => {
             const id = await createPending('Cheese, Cheddar');
 
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: id,
                 candidates: [makeCandidate({ aliases: ['Tillamook'] })],
             });
@@ -253,10 +259,12 @@ describe('food.aliases — USDA curated aliases (U2, integration)', () => {
             const aliased = await createPending('Processed cheese product');
 
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: named,
                 candidates: [makeCandidate({ externalKey: '1', name: 'Cheddar cheese', description: null })],
             });
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: aliased,
                 candidates: [
                     makeCandidate({
@@ -279,6 +287,7 @@ describe('food.aliases — USDA curated aliases (U2, integration)', () => {
             const id = await createPending('Cheese, Cheddar');
 
             await persist.resolveAndPersist({
+                holders: [],
                 foodId: id,
                 candidates: [makeCandidate({ aliases: ['Tillamook'] })],
             });

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 
 import { FoodDao } from '../../src/foods/dao/food.dao.js';
+import type { FoodSourceRow } from '../../src/db/schema/index.js';
 import { FoodSourcesDao } from '../../src/foods/dao/foodSources.dao.js';
 import { NutrientDao } from '../../src/foods/dao/nutrient.dao.js';
 import { FoodNutritionDao } from '../../src/foods/dao/foodNutrition.dao.js';
@@ -16,6 +17,28 @@ import { FoodFieldProvenanceDao } from '../../src/foods/dao/foodFieldProvenance.
 import { FoodCategoryDao } from '../../src/foods/dao/foodCategory.dao.js';
 import { makeDb, makePool, type TestDb } from '../support/db.js';
 import { foodDb } from '../support/roleDb.js';
+
+/**
+ * Claim a free item for a food and answer its crosswalk row: each case's food is new, so the claim always takes it.
+ *
+ * @param sources - The crosswalk DAO.
+ * @param input - The food and the item.
+ * @returns The claimed row.
+ * @throws {Error} when another food already holds the item.
+ * @sideEffect Inserts into `food_sources`.
+ */
+async function claimedRow(
+    sources: FoodSourcesDao,
+    input: Parameters<FoodSourcesDao['claimSource']>[0],
+): Promise<FoodSourceRow> {
+    const row = await sources.claimSource(input);
+
+    if (row === undefined) {
+        throw new Error(`another food already holds ${input.externalKey}`);
+    }
+
+    return row;
+}
 
 describe('FoodPortions / FieldProvenance / Category DAOs (integration)', () => {
     let pool: pg.Pool;
@@ -50,7 +73,7 @@ describe('FoodPortions / FieldProvenance / Category DAOs (integration)', () => {
 
     it('insertPortion records gram_weight and REJECTS a non-positive gram_weight (CHECK, DB-6)', async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'butter' });
-        const src = await sources.upsertSource({ foodId, source: 'usda', externalKey: 'B' });
+        const src = await claimedRow(sources, { foodId, source: 'usda', externalKey: 'B' });
 
         const portion = await portions.insertPortion({ foodId, label: '1 tbsp', gramWeight: '14.2', sourceId: src.id });
         expect(portion.gramWeight).toBe('14.2');
@@ -63,7 +86,7 @@ describe('FoodPortions / FieldProvenance / Category DAOs (integration)', () => {
 
     it("FoodFieldProvenanceDao.record upserts one row per (food's item, field)", async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'yogurt' });
-        const srcA = await sources.upsertSource({ foodId, source: 'usda', externalKey: 'A' });
+        const srcA = await claimedRow(sources, { foodId, source: 'usda', externalKey: 'A' });
 
         await provenance.record({ foodId, field: 'name', sourceId: srcA.id });
         await provenance.record({ foodId, field: 'name', sourceId: srcA.id });
@@ -83,7 +106,7 @@ describe('FoodPortions / FieldProvenance / Category DAOs (integration)', () => {
 
     it('fieldsFromSource returns the provenance set in ONE UNION query (FR-029/SC-013)', async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'oatmeal' });
-        const src = await sources.upsertSource({ foodId, source: 'usda', externalKey: 'O' });
+        const src = await claimedRow(sources, { foodId, source: 'usda', externalKey: 'O' });
         const protein = await nutrients.resolveOrCreate({ name: 'Protein', unit: 'g' });
 
         await provenance.record({ foodId, field: 'name', sourceId: src.id });

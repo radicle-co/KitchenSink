@@ -30,6 +30,8 @@ import {
     type SourceCandidate,
 } from '../../src/sources/foodSourceAdapter.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
 import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
 import { makeDb, makePool, type TestDb } from '../support/db.js';
 import { foodDb } from '../support/roleDb.js';
@@ -86,6 +88,7 @@ describe('FoodConsumerService — change-refresh branch (integration)', () => {
             queue,
             registry,
             merge,
+            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
             events: new FoodEventEmitter(publisher),
             logger: new SilentWorkerLogger(),
         });
@@ -109,6 +112,7 @@ describe('FoodConsumerService — change-refresh branch (integration)', () => {
         // so a bare registry is enough to seed the RESOLVED record deterministically.
         const merge = new MergeAndPersistService(db, new GoldenRecordMergeEngine(new SourceAdapterRegistry()));
         await merge.resolveAndPersist({
+            holders: [],
             foodId: id,
             candidates: [
                 makeMergeCandidate('usda', {

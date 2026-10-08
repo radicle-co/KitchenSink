@@ -39,6 +39,8 @@ import { FoodSourcesDao } from '../../src/foods/dao/foodSources.dao.js';
 import { MergeAndPersistService } from '../../src/foods/merge/mergeAndPersist.service.js';
 import { SourceAdapterRegistry } from '../../src/sources/SourceAdapterRegistry.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import type { WorkerLogger } from '../../src/worker/workerLogger.js';
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
 import { foodDb } from '../support/roleDb.js';
@@ -110,6 +112,10 @@ describe('@kitchensink/food-service-client against the booted food service (e2e)
         consumer = new FoodConsumerService({
             foodDao: app.get(FoodDao, { strict: false }),
             sources: app.get(FoodSourcesDao, { strict: false }),
+            catalog: workerCatalogOf(
+                app.get<FoodDrizzle>(DrizzleProvider, { strict: false }),
+                new FoodMetrics(() => undefined),
+            ),
             queue: new FetchQueueDao(app.get<FoodDrizzle>(DrizzleProvider, { strict: false })),
             registry: app.get(SourceAdapterRegistry, { strict: false }),
             merge: app.get(MergeAndPersistService, { strict: false }),

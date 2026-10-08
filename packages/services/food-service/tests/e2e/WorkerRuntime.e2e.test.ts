@@ -21,6 +21,8 @@ import {
     type SourceCandidate,
 } from '../../src/sources/foodSourceAdapter.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
 import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
 import { WorkerRuntime } from '../../src/worker/WorkerRuntime.js';
 import { makeDb, makePool, type TestDb } from '../support/db.js';
@@ -72,6 +74,7 @@ describe('WorkerRuntime (integration)', () => {
         return new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
+            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
             queue,
             registry,
             merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),

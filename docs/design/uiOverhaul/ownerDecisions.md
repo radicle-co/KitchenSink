@@ -32,6 +32,22 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
   get a compact 2 × 2 grid. Tablets (600 to 959 px) get one row of 4 compact cards. From 960 px, Home shows one row
   of exactly 4 full cards. The decision follows `homeCardsA.md` and `homeCardsB.md`, which agree.
 
+- **D11, greys.** The greys become warm, from `modernizeB.md`: slate `#6B645C`, pewter `#8A847C`, and pearl becomes
+  linen. Every contrast pair must still pass.
+- **D12, glass.** Liquid Glass goes on the navigation and control layer only: the tab bar, the condensed title bar,
+  the editor's action bar, the recipe page's jump bar, the photo's back and ⋯ buttons, menus and sheets. It never goes
+  on cards, forms, ingredient rows, steps, nutrition, the snackbar or dialogs. iOS 26 uses real glass through
+  `expo-glass-effect`. Android uses solid Material surfaces. Web blurs only small fixed bars, and each one stays
+  readable with the blur off.
+- **D13, New recipe button.** On iOS 26 it is seafoam-tinted real Liquid Glass with a semibold label. Apple says to
+  tint only the primary action, and the system keeps the label legible. Android, web and older iOS use a solid seafoam
+  button.
+- **D14, iOS tab bar.** The app keeps its own tab bar, with a real glass view behind it on iOS 26. Native system tabs
+  wait until React Navigation marks them stable.
+- **D15, dark mode.** Dark mode is built inside the overhaul. Every slice builds and tests both themes. Every
+  component reads colour from roles only, and a guard enforces it. The designers specify the dark values first.
+- **D16, sandbox alarms.** Sandbox alarms stay off. A failed morning start is reported by the Sentry cron monitor.
+
 ## Adopted from the joint recommendations
 
 The owner told the two designers to resolve their proposals. Where `resolutionA.md` §3 and `resolutionB.md` §3

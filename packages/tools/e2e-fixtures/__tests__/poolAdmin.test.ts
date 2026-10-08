@@ -10,14 +10,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     clerkPoolAdminPort,
+    describeReport,
     metadataSatisfies,
+    parsePoolAdminArgs,
     planPool,
+    poolScopeOptions,
     poolUserCreateInput,
     reconcilePool,
     type ObservedPoolUser,
     type PoolAdminPort,
+    type PoolUserCreate,
 } from '../src/poolAdmin.js';
-import { POOL_PASSWORD, poolSlotMetadata, rosterSlots, slotFor } from '../src/testPool.js';
+import {
+    consumableSlots,
+    MAESTRO_ERASURE_SHARD,
+    POOL_PASSWORD,
+    poolSlotMetadata,
+    rosterSlots,
+    slotFor,
+    type PoolSlotMetadata,
+} from '../src/testPool.js';
 
 const clerk = vi.hoisted(() => ({ getUserList: vi.fn(), createUser: vi.fn(), updateUserMetadata: vi.fn() }));
 
@@ -142,16 +154,44 @@ describe('poolUserCreateInput', () => {
 });
 
 describe('reconcilePool', () => {
-    const fakePort = (existing: readonly ObservedPoolUser[]) => {
+    /**
+     * A STATEFUL port: a create makes the user exist (marked, and — standing in for the identity webhook — with an
+     * `external_id`), and a metadata merge changes what the next lookup sees. REWRITTEN 2026-10-08 from a static
+     * fake, because `reconcilePool` now RE-OBSERVES every slot after it writes and a static fake answered that
+     * re-observation with the pre-write world.
+     */
+    const fakePort = (
+        existing: readonly ObservedPoolUser[],
+        behaviour: { readonly backfills?: boolean; readonly createSticks?: boolean } = {},
+    ) => {
+        const users: ObservedPoolUser[] = [...existing];
+        const holding = (email: string): readonly ObservedPoolUser[] =>
+            users.filter((candidate) => candidate.emails.some((e) => e.toLowerCase() === email));
         const port = {
-            findUsers: vi.fn(async (email: string) =>
-                existing.filter((candidate) => candidate.emails.some((e) => e.toLowerCase() === email)),
-            ),
-            listUsers: vi.fn(async () => existing),
-            createUser: vi.fn(async (input: { emailAddress: readonly string[] }) => ({
-                id: `created_${input.emailAddress[0] ?? ''}`,
-            })),
-            mergeMetadata: vi.fn(async () => undefined),
+            findUsers: vi.fn(async (email: string) => holding(email)),
+            listUsers: vi.fn(async () => [...users]),
+            createUser: vi.fn(async (input: PoolUserCreate) => {
+                const id = `created_${input.emailAddress[0] ?? ''}`;
+
+                if (behaviour.createSticks !== false) {
+                    users.push({
+                        id,
+                        emails: [...input.emailAddress],
+                        publicMetadata: { ...input.publicMetadata },
+                        externalId: behaviour.backfills === false ? null : 'ext_new',
+                    });
+                }
+
+                return { id };
+            }),
+            mergeMetadata: vi.fn(async (userId: string, metadata: PoolSlotMetadata) => {
+                const index = users.findIndex((candidate) => candidate.id === userId);
+                const found = users[index];
+
+                if (found !== undefined) {
+                    users[index] = { ...found, publicMetadata: { ...found.publicMetadata, ...metadata } };
+                }
+            }),
             readExternalId: vi.fn(async () => 'ext_new'),
         } satisfies PoolAdminPort;
 
@@ -167,7 +207,7 @@ describe('reconcilePool', () => {
     it('⛔ a DRY RUN writes nothing — no create, no metadata write — and still reports the plan', async () => {
         const port = fakePort([user(alfa.email)]);
 
-        const report = await reconcilePool(port, { ...options, slots: [alfa, signer], apply: false });
+        const report = await reconcilePool(port, { ...options, slots: [alfa, signer], drift: 'audit', apply: false });
 
         expect(port.createUser).not.toHaveBeenCalled();
         expect(port.mergeMetadata).not.toHaveBeenCalled();
@@ -178,19 +218,20 @@ describe('reconcilePool', () => {
     it('with --apply, creates the absent, merge-marks the stale, and waits for the new users’ external_id', async () => {
         const port = fakePort([user(alfa.email)]);
 
-        const report = await reconcilePool(port, { ...options, slots: [alfa, signer], apply: true });
+        const report = await reconcilePool(port, { ...options, slots: [alfa, signer], drift: 'audit', apply: true });
 
         expect(port.mergeMetadata).toHaveBeenCalledWith('user_test-alfa+clerk_test', poolSlotMetadata(alfa));
         expect(port.createUser).toHaveBeenCalledTimes(1);
         expect(port.createUser).toHaveBeenCalledWith(poolUserCreateInput(signer, 'random'));
         expect(port.readExternalId).toHaveBeenCalledWith(`created_${signer.email}`);
+        expect(report.unleasable).toEqual([]);
         expect(report.healthy).toBe(true);
     });
 
     it('is healthy and silent when every slot is already provisioned', async () => {
         const port = fakePort([marked(alfa)]);
 
-        const report = await reconcilePool(port, { ...options, slots: [alfa], apply: true });
+        const report = await reconcilePool(port, { ...options, slots: [alfa], drift: 'audit', apply: true });
 
         expect(port.createUser).not.toHaveBeenCalled();
         expect(port.mergeMetadata).not.toHaveBeenCalled();
@@ -201,7 +242,7 @@ describe('reconcilePool', () => {
         const stray = user('stray+clerk_test@example.com', { publicMetadata: { testPrincipal: true } });
         const port = fakePort([marked(alfa), stray]);
 
-        const report = await reconcilePool(port, { ...options, slots: [alfa], apply: true });
+        const report = await reconcilePool(port, { ...options, slots: [alfa], drift: 'audit', apply: true });
 
         expect(report.healthy).toBe(false);
         expect(port.mergeMetadata).not.toHaveBeenCalled();
@@ -210,7 +251,7 @@ describe('reconcilePool', () => {
     it('is UNHEALTHY on an ambiguous slot and does not write to it', async () => {
         const port = fakePort([user(alfa.email), user(alfa.email, { id: 'dup' })]);
 
-        const report = await reconcilePool(port, { ...options, slots: [alfa], apply: true });
+        const report = await reconcilePool(port, { ...options, slots: [alfa], drift: 'audit', apply: true });
 
         expect(report.healthy).toBe(false);
         expect(port.mergeMetadata).not.toHaveBeenCalled();
@@ -220,9 +261,188 @@ describe('reconcilePool', () => {
     it('covers the whole roster by default', async () => {
         const port = fakePort([]);
 
-        const report = await reconcilePool(port, { ...options, apply: false });
+        const report = await reconcilePool(port, { ...options, drift: 'audit', apply: false });
 
         expect(report.plan.actions).toHaveLength(rosterSlots().length);
+    });
+
+    /**
+     * ⛔ HEALTHY MEANS LEASABLE. `planPool` judges a marked, single-holder slot `ok` whatever its `external_id` — and
+     * `reconcilePool` used to wait for an `external_id` only on the users it had just created. So a slot created by
+     * an earlier, cancelled run whose webhook never backfilled stayed `ok` for ever while every lease of it answered
+     * "no external_id". The refill exists so the next lease succeeds, so it is judged by the lease's own rule.
+     */
+    describe('healthy means every reconciled slot is LEASABLE, judged by re-reading it after the writes', () => {
+        it('is UNHEALTHY when a pre-existing marked slot has no external_id — a dry run', async () => {
+            const port = fakePort([marked(alfa, { externalId: null })]);
+
+            const report = await reconcilePool(port, { ...options, slots: [alfa], drift: 'audit', apply: false });
+
+            expect(report.plan.actions.map((action) => action.kind)).toEqual(['ok']);
+            expect(report.unleasable).toEqual([expect.stringMatching(/external_id/u)]);
+            expect(report.healthy).toBe(false);
+        });
+
+        it('is UNHEALTHY when a pre-existing marked slot has no external_id — after --apply too', async () => {
+            const port = fakePort([marked(alfa, { externalId: null })]);
+
+            const report = await reconcilePool(port, { ...options, slots: [alfa], drift: 'audit', apply: true });
+
+            expect(report.unleasable).toEqual([expect.stringMatching(/external_id/u)]);
+            expect(report.healthy).toBe(false);
+        });
+
+        it('is UNHEALTHY when a create reported success but the slot is still absent on re-read', async () => {
+            const port = fakePort([], { createSticks: false });
+
+            const report = await reconcilePool(port, { ...options, slots: [signer], drift: 'audit', apply: true });
+
+            expect(port.createUser).toHaveBeenCalledTimes(1);
+            expect(report.unleasable).toEqual([expect.stringMatching(/no Clerk user holds/u)]);
+            expect(report.healthy).toBe(false);
+        });
+
+        it('re-reads the slots AFTER writing, not the snapshot it planned from', async () => {
+            const port = fakePort([user(alfa.email)]);
+
+            await reconcilePool(port, { ...options, slots: [alfa], drift: 'audit', apply: true });
+
+            // Once to plan, once to verify.
+            expect(port.findUsers).toHaveBeenCalledTimes(2);
+        });
+
+        it('names every unleasable slot in the report', () => {
+            const lines = describeReport({
+                plan: { actions: [{ kind: 'ok', slot: alfa, userId: 'u' }], drift: [] },
+                applied: true,
+                unleasable: ['test-alfa+clerk_test@radcile.com has no external_id'],
+                healthy: false,
+            });
+
+            expect(lines).toContain('UNLEASABLE test-alfa+clerk_test@radcile.com has no external_id');
+            expect(lines.at(-1)).toMatch(/NOT healthy/u);
+        });
+    });
+
+    /**
+     * The 2026-10-08 refill: the Maestro job tops the erasure subjects up before it provisions. Its scope is the
+     * whole contract of that door, so these pin it against the real roster rather than hand-picked slots.
+     */
+    describe('the Maestro erasure refill scope', () => {
+        it('⛔ creates ONLY erasure subjects, even when every other slot on the roster is absent', async () => {
+            const port = fakePort([]);
+
+            const report = await reconcilePool(port, {
+                ...options,
+                ...poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD }),
+                apply: true,
+            });
+            const created = port.createUser.mock.calls.map(([input]) => input.emailAddress[0]);
+
+            expect([...created].sort()).toEqual(
+                consumableSlots('maestro')
+                    .map((slot) => slot.email)
+                    .sort(),
+            );
+            expect(port.mergeMetadata).not.toHaveBeenCalled();
+            expect(report.healthy).toBe(true);
+        });
+
+        it('⛔ re-marks ONLY erasure subjects — a stale signer is left for the owner’s full run', async () => {
+            const stale = { publicMetadata: { testPrincipal: true } };
+            const port = fakePort([
+                user(signer.email, stale),
+                ...consumableSlots('maestro').map((slot) => user(slot.email, stale)),
+            ]);
+
+            await reconcilePool(port, {
+                ...options,
+                ...poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD }),
+                apply: true,
+            });
+
+            expect(port.mergeMetadata).toHaveBeenCalledTimes(consumableSlots('maestro').length);
+            expect(port.mergeMetadata).not.toHaveBeenCalledWith(`user_test-signer+clerk_test`, expect.anything());
+        });
+
+        it('does not read the whole instance for drift, and is not failed by an unrelated stray', async () => {
+            const stray = user('stray+clerk_test@example.com', { publicMetadata: { testPrincipal: true } });
+            const port = fakePort([stray, ...consumableSlots('maestro').map((slot) => marked(slot))]);
+
+            const report = await reconcilePool(port, {
+                ...options,
+                ...poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD }),
+                apply: true,
+            });
+
+            expect(port.listUsers).not.toHaveBeenCalled();
+            expect(report.plan.drift).toEqual([]);
+            expect(report.healthy).toBe(true);
+        });
+
+        it('touches nothing at all for a shard that leases no erasure subject', async () => {
+            const port = fakePort([]);
+
+            const report = await reconcilePool(port, {
+                ...options,
+                ...poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD + 1 }),
+                apply: true,
+            });
+
+            expect(port.findUsers).not.toHaveBeenCalled();
+            expect(port.createUser).not.toHaveBeenCalled();
+            expect(report.plan.actions).toEqual([]);
+            expect(report.healthy).toBe(true);
+        });
+    });
+});
+
+describe('poolScopeOptions', () => {
+    it('reconciles the whole roster and audits drift for the owner’s run', () => {
+        expect(poolScopeOptions({ kind: 'roster' })).toEqual({ slots: rosterSlots(), drift: 'audit' });
+    });
+
+    it('reconciles exactly the erasure shard’s subjects, and skips the instance-wide drift audit', () => {
+        expect(poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD })).toEqual({
+            slots: consumableSlots('maestro'),
+            drift: 'skip',
+        });
+    });
+});
+
+describe('parsePoolAdminArgs', () => {
+    it('is a dry run over the whole roster with no arguments', () => {
+        expect(parsePoolAdminArgs([])).toEqual({ apply: false, scope: { kind: 'roster' } });
+    });
+
+    it('writes the whole roster with --apply alone (the owner’s run)', () => {
+        expect(parsePoolAdminArgs(['--apply'])).toEqual({ apply: true, scope: { kind: 'roster' } });
+    });
+
+    it('scopes to one shard’s erasure subjects with --maestro-erasure --shard N', () => {
+        expect(parsePoolAdminArgs(['--apply', '--maestro-erasure', '--shard', '2'])).toEqual({
+            apply: true,
+            scope: { kind: 'maestroErasure', shard: 2 },
+        });
+        expect(parsePoolAdminArgs(['--shard', '1', '--maestro-erasure'])).toEqual({
+            apply: false,
+            scope: { kind: 'maestroErasure', shard: 1 },
+        });
+    });
+
+    it.each([
+        [['--maestro-erasure'], /--shard/u],
+        [['--shard', '1'], /--maestro-erasure/u],
+        [['--maestro-erasure', '--shard'], /--shard/u],
+        [['--maestro-erasure', '--shard', '0'], /positive integer/u],
+        [['--maestro-erasure', '--shard', ' 1'], /positive integer/u],
+        [['--maestro-erasure', '--shard', '1.5'], /positive integer/u],
+        [['--maestro-erasure', '--shard', '1', '--shard', '2'], /once/u],
+        [['--force'], /^poolAdmin: Unknown option '--force'/u],
+        [['apply'], /^poolAdmin: Unexpected argument 'apply'/u],
+        [['--maestro-erasure', '--shard', '--apply'], /--shard/u],
+    ] as const)('⛔ refuses %j rather than guessing a scope', (argv, message) => {
+        expect(() => parsePoolAdminArgs(argv)).toThrow(message);
     });
 });
 

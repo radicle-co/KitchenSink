@@ -40,6 +40,12 @@
  *
  * Concurrent stub runs share only Clerk's per-user sign-in rate, which is a flake risk rather than a correctness one.
  * A change to that tier that breaks either invariant needs a lease and resets like every subject below.
+ *
+ * ## The Maestro erasure refill (owner ruling 2026-10-08, recorded in `poolAdmin.ts`)
+ *
+ * The Maestro jobs top the erasure subjects up through `poolAdmin` right before they provision. The last suite pins
+ * where that step sits and what it may not be: inside the lease, after the secret load, immediately before
+ * provisioning, fatal on failure. `runtimeUserCreation.test.ts` pins its command line.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -54,6 +60,7 @@ import { scalarText } from './workflowScalar.js';
 interface Step {
     readonly name?: string;
     readonly id?: string;
+    readonly uses?: string;
     readonly if?: unknown;
     readonly run?: unknown;
     readonly env?: Readonly<Record<string, unknown>>;
@@ -281,4 +288,62 @@ describe('every job that writes as the fixed test pool holds its lease and reset
         expect(GROUP.test('food-loadtest-sandbox')).toBe(false);
         expect(GROUP.test('recipe-loadtest')).toBe(false);
     });
+});
+
+describe('the Maestro jobs refill the erasure subjects through poolAdmin right before they provision', () => {
+    /** The provisioning step and the refill step, by what they run. */
+    const PROVISION = /e2e-seed\/src\/provision\.ts/u;
+    const REFILL = /e2e-fixtures\/src\/poolAdmin\.ts/u;
+
+    const maestro = found.filter((subject) => subject.steps.some((step) => PROVISION.test(commandsOf(step))));
+
+    it('finds both Maestro jobs (non-vacuity)', () => {
+        expect(maestro.map((subject) => subject.label)).toStrictEqual([
+            '_ci-heavy.yml::e2e-mobile-maestro',
+            '_ci-heavy.yml::e2e-mobile-maestro-ios',
+        ]);
+    });
+
+    it.each(maestro.map((subject) => [subject.label, subject] as const))(
+        '⛔ %s refills once, after the secret load and IMMEDIATELY before provisioning, and a failed refill stops it',
+        (_, subject) => {
+            const steps = subject.steps;
+            const refills = steps.flatMap((step, index) => (REFILL.test(commandsOf(step)) ? [index] : []));
+            const provision = steps.findIndex((step) => PROVISION.test(commandsOf(step)));
+            const secrets = steps.findIndex((step) => /load-secrets/u.test(step.uses ?? ''));
+            const refill = steps[refills[0] ?? -1];
+
+            expect(refills, 'exactly one refill step').toHaveLength(1);
+            expect(secrets, 'no load-secrets step').toBeGreaterThan(-1);
+            expect(refills[0], 'the refill runs before the Clerk key is loaded').toBeGreaterThan(secrets);
+            // Immediately before: any step between them is a window in which another holder could consume a subject
+            // — none can (the lane), but a later edit should have to argue its way in.
+            expect(refills[0], 'the refill is not the step right before provisioning').toBe(provision - 1);
+            // Gated exactly like provisioning: if the lane provisions, it refilled first; if it did not, it wrote nothing.
+            expect(scalarText(refill?.if)).toBe(scalarText(steps[provision]?.if));
+            expect(
+                scalarText(refill?.if),
+                'an always() refill would write after a failure it should stop at',
+            ).not.toMatch(/always\(\)/u);
+            expect(
+                refill?.['continue-on-error'],
+                'a refill that may fail silently provisions over an empty pool',
+            ).not.toBe(true);
+        },
+    );
+
+    it.each(maestro.map((subject) => [subject.label, subject] as const))(
+        '⛔ %s keeps the Clerk key off the refill’s command line and out of its step env',
+        (_, subject) => {
+            const refill = subject.steps.find((step) => REFILL.test(commandsOf(step)));
+            const run = scalarText(refill?.run);
+
+            // The key reaches the step only through the job environment `load-secrets` wrote (and masked). An
+            // expression on the command line would put a value on argv, and naming a secret in the step env would be a
+            // second, unmasked path to it.
+            expect(run).not.toMatch(/\$\{\{/u);
+            expect(run).not.toMatch(/CLERK_SECRET_KEY|sk_(test|live)_/u);
+            expect(Object.keys(refill?.env ?? {})).toStrictEqual(['SHARD_INDEX']);
+        },
+    );
 });

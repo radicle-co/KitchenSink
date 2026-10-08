@@ -200,3 +200,77 @@ describe('maestro driver lifecycle', () => {
         expect(stdout).toMatch(/driver port/i);
     });
 });
+
+/**
+ * ⛔ THE LOOP REFUSES AN ERASING FLOW WHEN THE MANIFEST NAMES NO SUBJECT — before the reset, and before Maestro.
+ *
+ * Only the erasure shard leases a subject (`maestroErasureSlots`, testPool.ts), so every other shard's manifest is
+ * written with `manifestToEnvLines(manifest, null)` and omits `E2E_ERASURE_EMAIL`. `maestroShardPartition.test.ts`
+ * executes the decision; this proves the REAL loop applies it: no `npx` (the per-flow reset) and no `maestro` call is
+ * recorded, the loop exits non-zero, and it says why.
+ */
+describe('maestro flow loop — an erasing flow with no leased subject is never driven', () => {
+    let refusedCalls: string[] = [];
+    let refusedOutput = '';
+    let refusedStatus = -1;
+    let refusedDir: string | undefined;
+
+    afterAll(() => {
+        if (refusedDir !== undefined) {
+            rmSync(refusedDir, { recursive: true, force: true });
+        }
+    });
+
+    beforeAll(() => {
+        const dir = mkdtempSync(join(tmpdir(), 'maestro-erasure-refusal-'));
+
+        refusedDir = dir;
+        const log = join(dir, 'calls.log');
+
+        writeFileSync(log, '', 'utf8');
+
+        for (const name of ['adb', 'maestro', 'node', 'npx']) {
+            stub(dir, name, log);
+        }
+
+        // Shard 2's manifest, from the REAL producer: it leased no erasure subject.
+        const manifestFile = join(dir, 'fixture.env');
+
+        writeFileSync(
+            manifestFile,
+            `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, 2), null).join('\n')}\n`,
+            'utf8',
+        );
+
+        const result = spawnSync('bash', [SCRIPT, 'run-one', 'accountErasure'], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+                MAESTRO_FIXTURE_ENV_FILE: manifestFile,
+            },
+        });
+
+        refusedOutput = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+        refusedStatus = result.status ?? -1;
+        refusedCalls = readFileSync(log, 'utf8')
+            .split('\n')
+            .filter((line) => line.trim().length > 0);
+    }, 60_000);
+
+    it('reached the loop at all (non-vacuity: the device check ran)', () => {
+        expect(
+            refusedCalls.some((call) => call.startsWith('adb')),
+            refusedOutput,
+        ).toBe(true);
+    });
+
+    it('⛔ never resets for it and never hands it to maestro', () => {
+        expect(refusedCalls.filter((call) => /^(npx|maestro)\t/u.test(call))).toStrictEqual([]);
+    });
+
+    it('fails the run, and says why', () => {
+        expect(refusedStatus).not.toBe(0);
+        expect(refusedOutput).toMatch(/::error::accountErasure ERASES a pool slot/u);
+    });
+});

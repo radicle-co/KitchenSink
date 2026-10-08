@@ -37,7 +37,10 @@
 #
 # ⚠️ The Clerk users are the Maestro tier's FIXED pool slots for shard 1, the same users CI's
 # `test-pool-sandbox-maestro-1` group signs in. Their DATA here lives in the local database, so a local run cannot
-# disturb a CI run's world, but both sign the same users in.
+# disturb a CI run's world, but both sign the same users in. ⚠️ They also lease the same ERASURE subjects, and this
+# run holds no lane: run concurrently with a CI shard-1 job and both may take the same subject, so one erasure fails
+# (`maestroErasureSlots` in testPool.ts records it). This run does not refill the subjects — CI's job does, through
+# `poolAdmin`.
 
 set -uo pipefail
 

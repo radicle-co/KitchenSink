@@ -45,8 +45,9 @@
 #
 #   1. **Disjoint identities.** Every flow signs in as the tier's FIXED Clerk pool slots and the per-flow reset
 #      RECONCILES that signer's library to the run manifest, so two shards on one signer delete each other's
-#      fixtures mid-flow. `maestroSlotForShard`/`maestroConsumableSlots` (testPool.ts) partition the roster and
-#      `MAESTRO_MAX_SHARDS` below is the shell-side copy of what that roster can reach.
+#      fixtures mid-flow. `maestroSlotForShard` (testPool.ts) partitions the roster and `MAESTRO_MAX_SHARDS` below
+#      is the shell-side copy of what that roster can reach. The erasure subjects are NOT partitioned: they all
+#      belong to `MAESTRO_ERASURE_SHARD`, and every flow in `MAESTRO_ERASING_FLOWS` is pinned there (see below).
 #   2. **The SPINE runs on every shard.** Each shard installs the APK on its own emulator and nothing wipes the
 #      app between flows, so a shard that skipped `auth/loginFlow` would start every flow signed out.
 #   3. **A flow runs on exactly ONE shard.** Asserted over the UNION of the shards, because "a flow that runs
@@ -76,7 +77,8 @@
 #     runMaestroFlows.sh shard-selection <index> <count> [<name>=true|false …] # reads MAESTRO_PLATFORM
 #     runMaestroFlows.sh platform-flows <platform> <flow> …
 #     runMaestroFlows.sh exclusions <platform>
-#     runMaestroFlows.sh plan | verticals | platforms | max-shards | weights | default-weight
+#     runMaestroFlows.sh erasure-subject <flow>                  # reads MAESTRO_FIXTURE_ENV_FILE
+#     runMaestroFlows.sh plan | verticals | platforms | max-shards | erasure-shard | erasing-flows | weights | default-weight
 set -uo pipefail
 
 APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk
@@ -290,6 +292,20 @@ MAESTRO_IOS_DRIVER_BUNDLE='dev.mobile.maestro-driver-iosUITests.xctrunner'
 # lease fails with "run poolAdmin --apply".
 MAESTRO_MAX_SHARDS=2
 
+# ── THE ERASURE LANE — which shard erases, and which flows erase ───────────────────────────────────────────
+#
+# ⛔ `MAESTRO_ERASURE_SHARD` IS A COPY OF `MAESTRO_ERASURE_SHARD` in testPool.ts, asserted equal from disk by
+# `maestroShardPartition.test.ts`. That module gives EVERY erasure subject to this one shard
+# (`maestroErasureSlots` states the lease contract), so every flow that erases is PINNED here rather than packed:
+# this shard's concurrency group is the only thing that keeps two jobs from leasing the same subject, and a flow
+# packed onto another shard would erase on another lane. It is shard 1 because shard 1 is the only index every
+# matrix holds — Android's and iOS's are sized separately, so "the last shard" would differ between them.
+MAESTRO_ERASURE_SHARD=1
+
+# The flows that REALLY erase a pool slot — each interpolates `${E2E_ERASURE_EMAIL}`. Space-padded, whole-token
+# membership. The guard derives this set from the flows' own YAML and holds this list to it in both directions.
+MAESTRO_ERASING_FLOWS=' accountErasure '
+
 # What each flow COSTS, in seconds, measured on run 35220684252 (23 flows, 32.2m of flow execution). The
 # packing below is least-loaded-first over these, which is what keeps `recipes/collectionsPagination` — 432s,
 # a fifth of the whole suite — from deciding the wall clock on its own.
@@ -403,6 +419,39 @@ maestro_load_fixture_env_args() {
         [ -n "$pair" ] || continue
         MAESTRO_FIXTURE_ENV_ARGS+=(-e "$pair")
     done <"$MAESTRO_FIXTURE_ENV_FILE"
+}
+
+# maestro_erasure_subject_check <flow>
+#
+# Exit 0 when <flow> may run against the manifest at MAESTRO_FIXTURE_ENV_FILE; exit 1, with an `::error::` line,
+# when <flow> is an ERASING flow and the manifest names no erasure subject (absent file, absent key, or a blank
+# value). Reads the manifest; touches no device and no network.
+#
+# ⛔ It exists because only `MAESTRO_ERASURE_SHARD` leases a subject, so every other shard's manifest omits
+# `E2E_ERASURE_EMAIL` — and what Maestro does with an unresolved `${E2E_ERASURE_EMAIL}` in `signinHome.yaml`'s `env:`
+# override is not something this script controls. If it fell back to the parent's `E2E_SIGNIN_EMAIL`, the flow
+# would erase the SIGNER. So the runner refuses first, rather than trusting the pin alone.
+maestro_erasure_subject_check() {
+    local flow="${1-}" line subject=''
+
+    case "$MAESTRO_ERASING_FLOWS" in
+        *" ${flow} "*) ;;
+        *) return 0 ;;
+    esac
+
+    if [ -f "$MAESTRO_FIXTURE_ENV_FILE" ]; then
+        while IFS= read -r line; do
+            case "$line" in
+                E2E_ERASURE_EMAIL=*) subject="${line#E2E_ERASURE_EMAIL=}" ;;
+            esac
+        done <"$MAESTRO_FIXTURE_ENV_FILE"
+    fi
+
+    if [ -z "$subject" ]; then
+        echo "::error::${flow} ERASES a pool slot, but the fixture manifest names no erasure subject — only maestro shard ${MAESTRO_ERASURE_SHARD} leases one. Refusing to run it, so it cannot erase anyone else."
+
+        return 1
+    fi
 }
 
 # maestro_select_flows <plan> [<name>=true|false …]
@@ -674,6 +723,10 @@ maestro_flow_weight() {
 # that did not re-establish a session from cleared state would run every later flow signed out. That is also
 # what makes an empty shard impossible for any selection the selector can produce.
 #
+# ⛔ AN ERASING FLOW IS PINNED TO `MAESTRO_ERASURE_SHARD`, never packed (see the erasure lane above). Its weight is
+# charged to that shard BEFORE the packing starts, so the packer balances the rest around it, and it keeps its plan
+# position — `accountErasure` is last in the plan, so it stays last on its shard.
+#
 # ⛔ The packing is LEAST-LOADED-FIRST over `MAESTRO_FLOW_WEIGHTS`, walked in plan order, and it is
 # DETERMINISTIC — every shard of a run computes the identical assignment from the identical inputs, so no
 # shard has to be told what the others took. Round-robin was rejected on the measurement: it lands the 432s
@@ -726,11 +779,32 @@ maestro_shard_flows() {
         loads+=(0)
     done
 
-    local mine=() theirs=() flow weight lightest owner
+    local flow weight
+    for flow in "$@"; do
+        case "$MAESTRO_ERASING_FLOWS" in
+            *" ${flow} "*)
+                weight="$(maestro_flow_weight "$flow")"
+                loads[MAESTRO_ERASURE_SHARD - 1]=$((loads[MAESTRO_ERASURE_SHARD - 1] + weight))
+                ;;
+        esac
+    done
+
+    local mine=() theirs=() lightest owner
     for flow in "$@"; do
         case "$spine" in
             *" ${flow} "*)
                 mine+=("$flow")
+                continue
+                ;;
+        esac
+
+        case "$MAESTRO_ERASING_FLOWS" in
+            *" ${flow} "*)
+                if [ "$index" -eq "$MAESTRO_ERASURE_SHARD" ]; then
+                    mine+=("$flow")
+                else
+                    theirs+=("$flow")
+                fi
                 continue
                 ;;
         esac
@@ -1175,6 +1249,12 @@ maestro_run_flow_list() {
         echo "driver port ${MAESTRO_DRIVER_PORT} (pinned below the ephemeral range) for flow ${f}"
         maestro_reset_driver
         maestro_scope_device_log # so a failing flow's dump is scoped to just this flow
+        # ⛔ Before the reset AND before Maestro: an erasing flow with no leased subject is not run at all.
+        if ! maestro_erasure_subject_check "$f"; then
+            rc=1
+            echo "::endgroup::"
+            continue
+        fi
         case "$EMPTY_LIBRARY_FLOWS" in
             *" ${f} "*) reseed_mode=empty ;;
             *) reseed_mode=seeded ;;
@@ -1254,6 +1334,17 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         max-shards)
             printf '%s\n' "$MAESTRO_MAX_SHARDS"
             ;;
+        erasure-shard)
+            printf '%s\n' "$MAESTRO_ERASURE_SHARD"
+            ;;
+        erasing-flows)
+            # shellcheck disable=SC2086 # one flow name per word
+            printf '%s\n' $MAESTRO_ERASING_FLOWS
+            ;;
+        erasure-subject)
+            shift
+            maestro_erasure_subject_check "$@"
+            ;;
         weights)
             printf '%s\n' "$MAESTRO_FLOW_WEIGHTS"
             ;;
@@ -1279,7 +1370,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|weights|default-weight|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

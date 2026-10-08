@@ -667,12 +667,13 @@ jobs:
                 shard: ${{ fromJSON(needs.resolve-mobile-target.outputs.maestro_shards || '[1]') }}
         # ⛔ THE TEST-POOL LEASE, PER SHARD (owner ruling 2026-09-13: "We should have a pool of test users for clerk
         # so that we don't need to create ones"). This job signs in as the Maestro tier's FIXED pool slots — a signer,
-        # a co-author and a consumable erasure subject — so two runs at once would reset each other's data mid-flow
-        # and could lease the same erasure subject.
+        # a co-author and, on the erasure shard, a consumable erasure subject — so two runs at once would reset each
+        # other's data mid-flow and could lease the same erasure subject.
         #
         # ⚠️ THE GROUP NAMES THE SLOT, NOT THE TIER, and that is what REPLACES the protection the old tier-wide
         # `test-pool-sandbox-maestro` group gave rather than weakening it. Shard 2 of this run holds different Clerk
-        # users than shard 1 (`maestroSlotForShard` / `maestroConsumableSlots` partition the roster), so what must be
+        # users than shard 1 (`maestroSlotForShard` partitions the signers and co-authors; every erasure subject
+        # belongs to shard 1, whose lane is therefore the only one that erases — `maestroErasureSlots`), so what must be
         # mutually excluded is "two runs' shard 2", not "two shards". A tier-wide group would run the matrix one shard
         # at a time and buy nothing; a shard-wide group excludes exactly the runs that share a user. This is the same
         # shape `deployedE2eTiers.yml`'s 8-way `test-pool-sandbox-web-${{ matrix.shard }}` already uses, and
@@ -923,10 +924,23 @@ jobs:
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
               run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --shard "${SHARD_INDEX}"
-            # `COMMISE_E2E_SHARD` is LOAD-BEARING here, not decoration: `provision` leases THIS shard's signer,
-            # co-author and (strided) erasure subject from it, `deriveRunKey` appends it so the two shards' recipe
-            # TITLES differ, and `deriveFixtureManifest` puts this shard's signer address in the manifest the
-            # DEVICE types into the login form. Without it both shards would drive one user.
+            # ⛔ REFILL THE ERASURE SUBJECTS, then provision (owner ruling 2026-10-08 — `poolAdmin.ts`'s header states
+            # it). Each real erasure destroys its subject, so the pool tops itself up here, through the single writer,
+            # scoped to the subjects THIS shard may lease: all of them on the erasure shard, none on any other
+            # (`maestroErasureSlots`), so the other shard's step reconciles nothing. It runs inside this shard's lease,
+            # right before provisioning, and a refill that cannot make every subject leasable FAILS the job rather
+            # than provisioning over an empty pool. `CLERK_SECRET_KEY` comes from the masked job environment
+            # `load-secrets` wrote, and `poolAdmin` refuses a key that is not a development-instance key.
+            # `runtimeUserCreation.test.ts` pins this command line and `testPoolWorkflowWiring.test.ts` its position.
+            - name: Refill the Maestro erasure subjects before provisioning (shard ${{ matrix.shard }}, poolAdmin)
+              if: steps.secrets.outcome == 'success'
+              env:
+                  SHARD_INDEX: ${{ matrix.shard }}
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --shard "${SHARD_INDEX}"
+            # `COMMISE_E2E_SHARD` is LOAD-BEARING here, not decoration: `provision` leases THIS shard's signer and
+            # co-author from it (and, on the erasure shard only, the erasure subject), `deriveRunKey` appends it so the
+            # two shards' recipe TITLES differ, and `deriveFixtureManifest` puts this shard's signer address in the
+            # manifest the DEVICE types into the login form. Without it both shards would drive one user.
             - name: Lease the shard's Maestro pool slots and seed its world (shard ${{ matrix.shard }}, e2e-seed provision)
               if: steps.secrets.outcome == 'success'
               env:
@@ -1429,8 +1443,13 @@ jobs:
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
               run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --shard "${SHARD_INDEX}"
-            # ⚠️ This leases one CONSUMABLE erasure subject per run, like the Android shard does — so with both
-            # platforms the pool's consumables drain twice as fast between `poolAdmin --apply` replenishments.
+            # ⛔ REFILL THE ERASURE SUBJECTS, then provision — the Android job's note says why. Both platforms' erasure
+            # shards hold the SAME lane, so this refill and the Android one never run at once.
+            - name: Refill the Maestro erasure subjects before provisioning (shard ${{ matrix.shard }}, poolAdmin)
+              if: steps.secrets.outcome == 'success'
+              env:
+                  SHARD_INDEX: ${{ matrix.shard }}
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --shard "${SHARD_INDEX}"
             - name: Lease the shard's Maestro pool slots and seed its world (shard ${{ matrix.shard }}, e2e-seed provision)
               if: steps.secrets.outcome == 'success'
               env:

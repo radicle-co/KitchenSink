@@ -5,10 +5,11 @@
  * Prints the fixture manifest as `KEY=VALUE` lines on stdout and nothing else, so the runner script can
  * read it without parsing prose; diagnostics go to stderr.
  *
- * ⛔ IT CREATES NO CLERK USER (owner ruling 2026-09-13). The signer, the co-author and the erasure subject are
- * the Maestro tier's FIXED pool slots, provisioned by `poolAdmin` and serialized across runs by the job's
- * `test-pool-sandbox-maestro` concurrency group. A slot that is absent or unmarked fails this step — the fix is
- * `poolAdmin --apply`, never a user minted here. The data those slots own is emptied by `resetPool --tier
+ * ⛔ IT CREATES NO CLERK USER. The signer, the co-author and the erasure subject are the Maestro tier's FIXED pool
+ * slots, provisioned by `poolAdmin` and serialized across runs by the job's per-shard `test-pool-sandbox-maestro-N`
+ * concurrency group. The job's refill step tops up the erasure subjects through `poolAdmin` just before this runs
+ * (`poolAdmin.ts` records that ruling); a slot that is still absent or unmarked fails this step, and nothing here
+ * mints a user. The data those slots own is emptied by `resetPool --tier
  * maestro` before this runs and again after the flows.
  *
  * ⛔ THE SIGN-INS HAPPEN HERE AND ONLY HERE. FAPI sign-in is per-IP rate limited; every later token comes
@@ -17,8 +18,8 @@
  * @sideEffect Looks up pool users, signs two of them in, writes a credential file, authors foods, and creates recipes.
  */
 import { resolveRunKey } from '@kitchensink/e2e-fixtures';
-import { clerkLeasePort, firstAvailableSlot, leaseSession } from '@kitchensink/e2e-fixtures/lease';
-import { maestroConsumableSlots, maestroShardCapacity, maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
+import { clerkLeasePort, leaseErasureSubject, leaseSession } from '@kitchensink/e2e-fixtures/lease';
+import { maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
 
 import { clientFor, foodClientFor } from './client.js';
 import { readFoodOrigin, readSeedEnvironment } from './env.js';
@@ -40,7 +41,6 @@ const foodOrigin = readFoodOrigin(process.env);
 // `COMMISE_E2E_SHARD` to scope this shard's fixture TITLES apart from its sibling's, and the three identities
 // leased below are the shard's own. An unsharded run is shard 1 and byte-identical to what ran before.
 const shard = resolveShard(process.env);
-const shardCount = maestroShardCapacity();
 const runKey = resolveRunKey();
 const manifest = deriveFixtureManifest(runKey, shard);
 const port = clerkLeasePort(env.clerkSecretKey);
@@ -50,12 +50,16 @@ console.error(`e2e-seed provision: run ${runKey} (maestro shard ${shard}) agains
 // The erasure subject signs in on the DEVICE and is destroyed by the flow itself, so it needs no session here —
 // only to exist, marked, with an `external_id`. The first such slot still standing is this run's; none standing
 // is an error, never a skipped flow.
-// ⛔ A STRIDE OVER THE CONSUMABLES, not the whole list (`maestroConsumableSlots`): two shards asking for "the
-// first available" would both get the SAME subject, and one shard would then really erase the account the
-// other had just leased. The stride is disjoint whatever has already been consumed.
-const erasure = await firstAvailableSlot(maestroConsumableSlots(shard, shardCount), port);
+// ⛔ ONLY THE ERASURE SHARD LEASES ONE, from every subject (`maestroErasureSlots` states the lease contract): the
+// runner pins every erasing flow to that shard, and its concurrency lane is what keeps two runs off one subject.
+// Every other shard leases none, and its manifest names none.
+const erasure = await leaseErasureSubject(shard, port);
 
-console.error(`e2e-seed provision: erasure subject is pool slot ${erasure.slot.id}`);
+console.error(
+    erasure === null
+        ? `e2e-seed provision: maestro shard ${shard} runs no erasing flow, so it leases no erasure subject`
+        : `e2e-seed provision: erasure subject is pool slot ${erasure.slot.id}`,
+);
 
 // ⚠️ The SIGNER slot carries `premium` (the roster declares it), so the recipe service accepts the two PRIVATE
 // recipes the seeded world contains. Without it `evaluateVisibility` denies a free-tier `user_created` private
@@ -130,6 +134,6 @@ for (const recipe of coAuthored) {
 }
 
 // stdout is the CONTRACT.
-for (const line of manifestToEnvLines(manifest, erasure.slot.email)) {
+for (const line of manifestToEnvLines(manifest, erasure?.slot.email ?? null)) {
     console.log(line);
 }

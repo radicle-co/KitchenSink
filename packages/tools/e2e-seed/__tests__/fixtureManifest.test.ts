@@ -368,6 +368,21 @@ describe('manifestToEnvLines', () => {
         );
     });
 
+    /**
+     * Only the ERASURE shard leases a subject (`maestroErasureSlots`, 2026-10-08), so every other shard's manifest
+     * names none. Omitted rather than blank: a blank would render as the literal `${VAR}`, and the runner refuses an
+     * erasing flow on a manifest that names no subject (`maestroShardPartition.test.ts`).
+     */
+    it('OMITS the erasure key when this shard leased no subject, and keeps every other key', () => {
+        const manifest = deriveFixtureManifest(RUN, SHARD);
+        const withSubject = manifestToEnvLines(manifest, ERASURE);
+        const without = manifestToEnvLines(manifest, null);
+
+        expect(without.some((line) => line.startsWith(`${FIXTURE_ENV_KEYS.erasureEmail}=`))).toBe(false);
+        expect(without).toEqual(withSubject.filter((line) => !line.startsWith(`${FIXTURE_ENV_KEYS.erasureEmail}=`)));
+        expect(without.every((line) => line.split('=')[1] !== '')).toBe(true);
+    });
+
     it('never emits an empty value — a blank renders as the literal ${VAR} on screen', () => {
         expect(
             manifestToEnvLines(deriveFixtureManifest(RUN, SHARD), ERASURE).every((line) => line.split('=')[1] !== ''),

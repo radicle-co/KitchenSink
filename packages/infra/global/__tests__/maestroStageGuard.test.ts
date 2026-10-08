@@ -188,6 +188,19 @@ describe.each(provisioningJobs().map((job) => [job.id, job] as const))(
             expect(outcome.status, `sandbox refused: ${outcome.stderr}${outcome.stdout}`).toBe(0);
         });
 
+        /**
+         * The 2026-10-08 refill (`poolAdmin.ts` records the ruling) CREATES Clerk users, so it is held to the same
+         * rule as provisioning: a non-sandbox stage is refused before it can run. `poolAdmin` also refuses a
+         * non-development key itself; this is the workflow's half of that belt.
+         */
+        it('refuses BEFORE the erasure refill, which creates Clerk users', () => {
+            const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
+            const refill = steps.findIndex((step) => /e2e-fixtures\/src\/poolAdmin\.ts/u.test(step.run ?? ''));
+
+            expect(refill, `${id} has no erasure refill step`).toBeGreaterThan(-1);
+            expect(refusing[0]?.index, 'the refusal sits after the refill').toBeLessThan(refill);
+        });
+
         it('refuses BEFORE any stage secret is loaded, so a refused run never holds a production credential', () => {
             const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
 

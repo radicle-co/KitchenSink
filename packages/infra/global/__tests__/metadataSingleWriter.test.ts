@@ -2,6 +2,10 @@
 /**
  * Repo-wide guard: exactly ONE module writes a Clerk user's `public_metadata` — `poolAdmin`.
  *
+ * The 2026-10-08 amendment (recorded in `poolAdmin.ts`'s header) lets the Maestro job RUN that module, scoped to the
+ * erasure subjects; it adds no writer, so this scan is unchanged. Which invocations of it CI may make is pinned by
+ * `runtimeUserCreation.test.ts`.
+ *
  * `public_metadata` is where every grant the services authorize on lives (`scopes`, `permissions`) and where the
  * fixed test pool's `testPrincipal` marker lives. Two writers are one too many, for a measured reason:
  * `updateUser({ publicMetadata })` REPLACES the whole object (the installed `@clerk/backend` deprecates that use in

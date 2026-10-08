@@ -399,11 +399,19 @@ export function deriveFixtureManifest(runKey: string, shard: number): FixtureMan
  *
  * Pure, and the ONLY place a manifest becomes environment: a second formatter would be a second answer to
  * "what does the flow see".
+ *
+ * @param manifest - This run's world.
+ * @param erasureEmail - The subject `provision` leased, or `null` on a shard that leases none — only the erasure
+ *     shard does (`maestroErasureSlots`). REQUIRED, with no default: `null` omits the key, and a default would decide
+ *     that silently for a caller that had not thought about which shard it is.
  */
-export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: string): readonly string[] {
+export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: string | null): readonly string[] {
     // ⛔ `accountErasure.yaml` REALLY erases whoever this names. Anything but a consumable pool slot — the signer
     // every later flow signs in as, or an address off the roster — is refused here, before it reaches a flow.
-    if (!consumableSlots('maestro').some((slot) => slot.email === erasureEmail.toLowerCase())) {
+    if (
+        erasureEmail !== null &&
+        !consumableSlots('maestro').some((slot) => slot.email === erasureEmail.toLowerCase())
+    ) {
         throw new Error(`${erasureEmail} is not a consumable maestro pool slot, so no flow may erase it`);
     }
 
@@ -413,7 +421,7 @@ export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: stri
         `${FIXTURE_ENV_KEYS.signInEmail}=${manifest.signInEmail}`,
         `${FIXTURE_ENV_KEYS.signInPassword}=${manifest.password}`,
         `${FIXTURE_ENV_KEYS.coAuthorEmail}=${manifest.coAuthorEmail}`,
-        `${FIXTURE_ENV_KEYS.erasureEmail}=${erasureEmail}`,
+        ...(erasureEmail === null ? [] : [`${FIXTURE_ENV_KEYS.erasureEmail}=${erasureEmail}`]),
         `${FIXTURE_ENV_KEYS.probeIngredient}=${manifest.probeIngredient}`,
         `${FIXTURE_ENV_KEYS.lamb}=${byKey.get('lamb') ?? ''}`,
         `${FIXTURE_ENV_KEYS.asparagus}=${byKey.get('asparagus') ?? ''}`,

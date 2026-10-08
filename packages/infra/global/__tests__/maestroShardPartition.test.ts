@@ -22,7 +22,8 @@
  *
  *   - the shell's `MAESTRO_MAX_SHARDS` and the TypeScript roster's capacity agree (neither can typecheck the
  *     other, so the contract is asserted from disk — the posture `maestroFixtureVariables.test.ts` takes);
- *   - every shard's signer, co-author and erasure subject differ from every other shard's;
+ *   - every shard's signer and co-author differ from every other shard's, and only the ERASURE shard holds erasure
+ *     subjects — the runner pins every erasing flow to that shard (`maestroErasureSlots` states the lease contract);
  *   - the workflow leases per SHARD (`test-pool-sandbox-maestro-{shard}`), not per tier, so the protection the
  *     single `test-pool-sandbox-maestro` group used to give is preserved one lane down rather than dropped.
  *
@@ -43,16 +44,18 @@
  * reds the refusal case.
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import {
     consumableSlots,
-    maestroConsumableSlots,
+    MAESTRO_ERASURE_SHARD,
+    maestroErasureSlots,
     maestroShardCapacity,
     maestroSlotForShard,
 } from '@kitchensink/e2e-fixtures/testPool';
@@ -161,16 +164,20 @@ describe('the shell shard ceiling and the Clerk pool roster agree', () => {
         expect(shellMaxShards()).toBe(maestroShardCapacity());
     });
 
-    it('bounds capacity by the SCARCEST identity a shard needs, never by one of them', () => {
+    /**
+     * REWRITTEN 2026-10-08 with the erasure lane: a shard no longer needs an erasure subject of its own, so only the
+     * signer and the co-author bound capacity, and the erasure shard alone must hold subjects.
+     */
+    it('bounds capacity by the scarcer identity EVERY shard needs, and gives the erasure shard its subjects', () => {
         const capacity = maestroShardCapacity();
 
         expect(capacity).toBeGreaterThanOrEqual(1);
+        expect(MAESTRO_ERASURE_SHARD).toBeLessThanOrEqual(capacity);
+        expect(maestroErasureSlots(MAESTRO_ERASURE_SHARD).length).toBeGreaterThan(0);
 
-        // Each of the three must resolve for every shard inside capacity …
         for (let shard = 1; shard <= capacity; shard += 1) {
             expect(() => maestroSlotForShard('signer', shard)).not.toThrow();
             expect(() => maestroSlotForShard('coauthor', shard)).not.toThrow();
-            expect(maestroConsumableSlots(shard, capacity).length).toBeGreaterThan(0);
         }
 
         // … and the first shard PAST capacity must be unrepresentable, not silently wrapped onto shard 1.
@@ -182,25 +189,176 @@ describe('the shell shard ceiling and the Clerk pool roster agree', () => {
         const addresses = Array.from({ length: capacity }, (_, index) => index + 1).flatMap((shard) => [
             maestroSlotForShard('signer', shard).email,
             maestroSlotForShard('coauthor', shard).email,
-            ...maestroConsumableSlots(shard, capacity).map((slot) => slot.email),
+            ...maestroErasureSlots(shard).map((slot) => slot.email),
         ]);
 
         expect(new Set(addresses).size).toBe(addresses.length);
     });
 
-    it('draws every consumable stride from the roster, losing none and inventing none', () => {
+    it('⛔ hands EVERY erasure subject to the erasure shard and none to any other — all ten usable, one eraser', () => {
         const capacity = maestroShardCapacity();
         const declared = consumableSlots('maestro').map((slot) => slot.id);
-        const strided = Array.from({ length: capacity }, (_, index) =>
-            maestroConsumableSlots(index + 1, capacity).map((slot) => slot.id),
-        ).flat();
+        const held = Array.from({ length: capacity }, (_, index) => ({
+            shard: index + 1,
+            ids: maestroErasureSlots(index + 1).map((slot) => slot.id),
+        }));
 
-        expect([...strided].sort()).toStrictEqual([...declared].sort());
+        expect(held.find(({ shard }) => shard === MAESTRO_ERASURE_SHARD)?.ids).toStrictEqual(declared);
+        expect(held.filter(({ shard }) => shard !== MAESTRO_ERASURE_SHARD).flatMap(({ ids }) => ids)).toStrictEqual([]);
     });
 
     it('keeps shard 1 on the ORIGINAL addresses, so sharding re-provisions nobody already in Clerk', () => {
         expect(maestroSlotForShard('signer', 1).id).toBe('signer');
         expect(maestroSlotForShard('coauthor', 1).id).toBe('coauthor');
+    });
+});
+
+/**
+ * THE ERASURE LANE, the runner's side (2026-10-08). `testPool.ts`'s `maestroErasureSlots` gives every erasure subject
+ * to ONE shard, and that is safe only if every flow that erases runs on THAT shard and nowhere else: the shard's
+ * concurrency lane is the only thing keeping two jobs from leasing the same subject. Least-loaded packing used to
+ * decide where `accountErasure` landed — always shard 2 on a full run, and on whichever shard was lightest on a
+ * narrowed one, which differs between platforms because their exclusions differ.
+ */
+describe('maestro_shard_flows — every erasing flow is pinned to the erasure shard', () => {
+    const shell = (...args: readonly string[]): string =>
+        (spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf8' }).stdout ?? '').trim();
+    const erasing = shell('erasing-flows')
+        .split('\n')
+        .filter((line) => line.length > 0);
+
+    /** A planned flow ERASES when its own YAML — comments aside — interpolates the leased erasure subject. */
+    const derivedErasing = PLANNED.filter((flow) =>
+        readFileSync(join(REPO_ROOT, 'packages/apps/commise/mobile/.maestro', `${flow}.yaml`), 'utf8')
+            .split('\n')
+            .filter((line) => !line.trimStart().startsWith('#'))
+            .some((line) => line.includes('${E2E_ERASURE_EMAIL}')),
+    );
+
+    it('finds its subject (non-vacuity: the plan has an erasing flow, and the shell names it)', () => {
+        expect(derivedErasing).toContain('accountErasure');
+        expect(erasing.length).toBeGreaterThan(0);
+    });
+
+    it('⛔ names exactly the flows whose YAML erases — in both directions, so none can be packed loose', () => {
+        expect([...erasing].sort()).toStrictEqual([...derivedErasing].sort());
+    });
+
+    it('declares the same erasure shard on both sides of the language boundary', () => {
+        expect(Number(shell('erasure-shard'))).toBe(MAESTRO_ERASURE_SHARD);
+    });
+
+    const platforms = shell('platforms').split('\n');
+    const selectors: readonly (readonly string[])[] = [
+        ['full=true'],
+        ...shell('verticals')
+            .split('\n')
+            .map((vertical) => [`${vertical}=true`]),
+    ];
+    const cases = platforms.flatMap((platform) =>
+        selectors.flatMap((selector) =>
+            Array.from({ length: shellMaxShards() }, (_, index) => [platform, selector.join(' '), index + 1] as const),
+        ),
+    );
+
+    it.each(cases)(
+        '⛔ %s, selector %s, %i shard(s): an erasing flow runs ONLY on the erasure shard, and runs LAST there',
+        (platform, selector, count) => {
+            const shards = Array.from({ length: count }, (_, index) => {
+                const outcome = spawnSync(
+                    'bash',
+                    [SCRIPT, 'shard-selection', String(index + 1), String(count), ...selector.split(' ')],
+                    { encoding: 'utf8', env: { ...process.env, MAESTRO_PLATFORM: platform } },
+                );
+
+                expect(outcome.status, outcome.stderr ?? '').toBe(0);
+
+                return (outcome.stdout ?? '')
+                    .split('\n')
+                    .flatMap((line) => (line.startsWith('flow=') ? [line.slice('flow='.length)] : []));
+            });
+
+            for (const flow of erasing) {
+                const holders = shards.flatMap((flows, index) => (flows.includes(flow) ? [index + 1] : []));
+
+                if (holders.length === 0) {
+                    continue;
+                }
+
+                expect(holders, `${flow} ran on shard(s) ${holders.join(',')}`).toStrictEqual([MAESTRO_ERASURE_SHARD]);
+                expect(shards[MAESTRO_ERASURE_SHARD - 1]?.at(-1)).toBe(flow);
+            }
+        },
+    );
+
+    it('is exercised: a full run on every platform does select an erasing flow', () => {
+        for (const platform of platforms) {
+            const outcome = spawnSync('bash', [SCRIPT, 'shard-selection', '1', String(shellMaxShards()), 'full=true'], {
+                encoding: 'utf8',
+                env: { ...process.env, MAESTRO_PLATFORM: platform },
+            });
+
+            expect(outcome.stdout ?? '', platform).toMatch(new RegExp(`^flow=${erasing[0] ?? '-'}$`, 'mu'));
+        }
+    });
+});
+
+/**
+ * ⛔ THE RUNNER REFUSES AN ERASING FLOW WHEN THE MANIFEST NAMES NO SUBJECT. Only the erasure shard leases one, so every
+ * other shard's manifest omits `E2E_ERASURE_EMAIL`. What Maestro does with an unresolved `${E2E_ERASURE_EMAIL}` inside
+ * `signinHome.yaml`'s `env:` override is not something this repository can verify — and if it fell back to the
+ * parent's `E2E_SIGNIN_EMAIL`, the flow would erase the SIGNER every later flow signs in as. So the runner decides
+ * first, by EXECUTING the subcommand the loop calls (`maestroDriverLifecycle.integration.test.ts` proves the loop
+ * calls it before the reset and before `maestro test`).
+ */
+describe('runMaestroFlows.sh erasure-subject — the refusal', () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'maestro-erasure-subject-'));
+
+    afterAll(() => {
+        rmSync(scratch, { recursive: true, force: true });
+    });
+
+    const manifest = (lines: readonly string[]): string => {
+        const file = join(scratch, `fixture-${lines.length}-${Math.random().toString(36).slice(2)}.env`);
+
+        writeFileSync(file, `${lines.join('\n')}\n`, 'utf8');
+
+        return file;
+    };
+
+    const check = (flow: string, file: string) =>
+        spawnSync('bash', [SCRIPT, 'erasure-subject', flow], {
+            encoding: 'utf8',
+            env: { ...process.env, MAESTRO_FIXTURE_ENV_FILE: file },
+        });
+    const signer = 'E2E_SIGNIN_EMAIL=test-signer02+clerk_test@radcile.com';
+
+    it('⛔ refuses an erasing flow on a manifest that names no subject', () => {
+        const outcome = check('accountErasure', manifest([signer]));
+
+        expect(outcome.status).not.toBe(0);
+        expect(`${outcome.stdout ?? ''}${outcome.stderr ?? ''}`).toMatch(/::error::/u);
+    });
+
+    it('⛔ refuses an erasing flow on a manifest whose subject is BLANK', () => {
+        expect(check('accountErasure', manifest([signer, 'E2E_ERASURE_EMAIL='])).status).not.toBe(0);
+    });
+
+    it('⛔ refuses an erasing flow when there is no manifest at all', () => {
+        expect(check('accountErasure', join(scratch, 'absent.env')).status).not.toBe(0);
+    });
+
+    it('admits an erasing flow on a manifest that names its subject', () => {
+        const outcome = check(
+            'accountErasure',
+            manifest([signer, 'E2E_ERASURE_EMAIL=test-erasure07+clerk_test@radcile.com']),
+        );
+
+        expect(outcome.status, `${outcome.stdout ?? ''}${outcome.stderr ?? ''}`).toBe(0);
+    });
+
+    it('admits every non-erasing flow whatever the manifest says', () => {
+        expect(check('recipes/delete', manifest([signer])).status).toBe(0);
     });
 });
 

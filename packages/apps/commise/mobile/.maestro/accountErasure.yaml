@@ -27,13 +27,15 @@
 # path a viewer's would take: identity, the deletion queue, the worker, Clerk.
 #
 # What makes that safe is the SUBJECT, not the stub. `@kitchensink/e2e-seed` leases a CONSUMABLE test-pool slot
-# that exists only to be erased (owner ruling 2026-09-13: no test run creates a Clerk user), and this flow
-# overrides the signer to be that identity. It owns no recipes, no other flow signs in as it, and it is gone by
-# design when the flow ends; `poolAdmin --apply` replenishes consumed slots.
+# that exists only to be erased (no test creates a Clerk user), and this flow overrides the signer to be that
+# identity. It owns no recipes, no other flow signs in as it, and it is gone by design when the flow ends; the
+# Maestro job's refill step recreates consumed subjects through `poolAdmin` before it provisions (owner ruling
+# 2026-10-08, recorded in `poolAdmin.ts`).
 #
-#   - `${E2E_ERASURE_EMAIL}` is this RUN's erasure subject: the first consumable slot still standing. The
-#     Maestro job's `test-pool-sandbox-maestro` concurrency group is what keeps two runs from leasing the same
-#     one, and every slot consumed turns `provision` RED rather than skipping this flow.
+#   - `${E2E_ERASURE_EMAIL}` is this RUN's erasure subject: the first consumable slot still standing. Only the
+#     erasure shard leases one (`maestroErasureSlots`), the runner pins this flow to that shard and refuses it on a
+#     manifest naming no subject, and that shard's `test-pool-sandbox-maestro-1` concurrency group is what keeps
+#     two runs from leasing the same one. Every slot consumed turns `provision` RED rather than skipping this flow.
 #   - The flow is LAST in `FLOW_PLAN` on purpose, after `recipes/delete`. Nothing composes it, and nothing
 #     after it needs a session — so the signed-out state it leaves is the end of the run rather than a
 #     precondition for the next flow.

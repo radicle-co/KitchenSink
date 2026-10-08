@@ -8,8 +8,9 @@
  * on the roster; this adds the two facts only Clerk can answer — that the user carries the
  * `public_metadata.testPrincipal` marker `poolAdmin` writes, and that the webhook has given it the
  * `external_id` every service authorizes on. A slot failing either is a pool nobody provisioned, and the fix
- * is an owner run of `poolAdmin --apply`, never a user created by the test run (owner ruling 2026-09-13: "We
- * should have a pool of test users for clerk so that we don't need to create ones").
+ * is `poolAdmin --apply`, never a user created by the test (owner ruling 2026-09-13: "We should have a pool of
+ * test users for clerk so that we don't need to create ones"; amended 2026-10-08 so the Maestro job refills the
+ * erasure subjects through `poolAdmin` before it leases — `poolAdmin.ts` records the amendment).
  *
  * The marker is not only a tooling check: the services read the same `public_metadata.testPrincipal` claim as an
  * authorization input (ADR-0040) — containment on an enforcing stage, and the self-purge `resetPool` issues — so a
@@ -29,7 +30,7 @@ import {
     withClerkBackendRetry,
     type SessionHandle,
 } from './clerkSession.js';
-import { assertPoolMember, type PoolSlot } from './testPool.js';
+import { assertPoolMember, maestroErasureSlots, type PoolSlot } from './testPool.js';
 
 /** A Clerk user reduced to the facts a lease decides on. */
 export interface PoolUserRecord {
@@ -54,10 +55,15 @@ export interface LeasedSession {
 }
 
 /** Why a resolution failed, as data, so {@link firstAvailableSlot} can tell "consumed" from "broken". */
-type Resolution = { readonly user: PoolUserRecord } | { readonly refusal: string; readonly absent: boolean };
+export type SlotResolution = { readonly user: PoolUserRecord } | { readonly refusal: string; readonly absent: boolean };
 
-/** Decide whether the users holding a slot's address make a leasable slot. Pure. */
-function judge(slot: PoolSlot, users: readonly PoolUserRecord[]): Resolution {
+/**
+ * Decide whether the users holding a slot's address make a leasable slot. Pure.
+ *
+ * THE definition of "leasable": `poolAdmin` judges its own result by this same function, so a refill that reports
+ * healthy has proved exactly what the next lease will check.
+ */
+export function judgePoolSlot(slot: PoolSlot, users: readonly PoolUserRecord[]): SlotResolution {
     const [user, ...others] = users;
 
     if (user === undefined) {
@@ -102,7 +108,7 @@ function judge(slot: PoolSlot, users: readonly PoolUserRecord[]): Resolution {
 export async function resolvePoolUser(slot: PoolSlot, port: LeasePort): Promise<PoolUserRecord> {
     assertPoolMember(slot.email);
 
-    const verdict = judge(slot, await port.findUsers(slot.email));
+    const verdict = judgePoolSlot(slot, await port.findUsers(slot.email));
 
     if ('refusal' in verdict) {
         throw new Error(verdict.refusal);
@@ -162,7 +168,7 @@ export async function firstAvailableSlot(
     for (const slot of slots) {
         assertPoolMember(slot.email);
 
-        const verdict = judge(slot, await port.findUsers(slot.email));
+        const verdict = judgePoolSlot(slot, await port.findUsers(slot.email));
 
         if (!('refusal' in verdict)) {
             return { slot, user: verdict.user };
@@ -177,6 +183,24 @@ export async function firstAvailableSlot(
             ? `test pool: all ${slots.length} consumable slots are consumed — replenish them with poolAdmin --apply`
             : `test pool: none of ${slots.length} slots is leasable:\n  ${refusals.join('\n  ')}`,
     );
+}
+
+/**
+ * The erasure subject a 1-based Maestro shard leases, or `null` when that shard leases none.
+ *
+ * Only the erasure shard leases one, from EVERY consumable subject (`maestroErasureSlots` states the lease contract
+ * and why it is safe under concurrency). `null` here is "this shard erases nothing" — the empty list is NOT handed to
+ * {@link firstAvailableSlot}, which rightly treats an empty list as an error.
+ *
+ * @sideEffect One Backend API lookup per slot inspected; none on a shard that leases nothing.
+ */
+export async function leaseErasureSubject(
+    shard: number,
+    port: LeasePort,
+): Promise<{ readonly slot: PoolSlot; readonly user: PoolUserRecord } | null> {
+    const slots = maestroErasureSlots(shard);
+
+    return slots.length === 0 ? null : firstAvailableSlot(slots, port);
 }
 
 /**

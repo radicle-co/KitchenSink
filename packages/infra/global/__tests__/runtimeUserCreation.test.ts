@@ -1,12 +1,17 @@
 // @vitest-environment node
 /**
- * Repo-wide guard: NOTHING that runs during a test creates a Clerk user — except the two creators this file argues.
+ * Repo-wide guard: NOTHING that runs during a test creates a Clerk user — except the creators this file argues — and
+ * the one module that provisions the pool is reached from CI through exactly one door.
  *
  * Owner ruling 2026-09-13, verbatim: "We should have a pool of test users for clerk so that we don't need to create
  * ones". Every tier used to mint its own users — web per shard in `globalSetup`, Maestro three per run, the k6 pool
  * find-or-create, the linkage profile on demand, the legacy food harness per run — and delete them afterwards.
  * Deleting a Clerk user is not data cleanup (its public content survives, pseudonymised) and a cancelled run never
  * deletes at all, so the tiers now LEASE slots of a fixed pool that only `poolAdmin` provisions.
+ *
+ * ⚠️ AMENDED by owner ruling 2026-10-08, which is stated once, in `poolAdmin.ts`'s header: the Maestro job now runs
+ * `poolAdmin` itself, scoped to the erasure subjects, right before it provisions. That changes WHO may invoke the
+ * writer, not WHICH code creates — so the file scan below is unchanged, and the second suite pins the one CI door.
  *
  * ## Derived, never enumerated
  *
@@ -25,9 +30,12 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-import { isUnitTestFile, repoRoot } from './serviceSources.js';
+import { WORKFLOWS_DIR } from './cdkApps.js';
+import { isUnitTestFile, repoRoot, trackedFiles } from './serviceSources.js';
+import { scalarText } from './workflowScalar.js';
 
 /** The files permitted to create a Clerk user, each with the reason. */
 const CREATORS: Readonly<Record<string, string>> = {
@@ -156,5 +164,100 @@ describe('isUnitTestFile — the scan scope', () => {
         ['packages/tools/latest.ts', false],
     ] as const)('%s → %s', (file, unit) => {
         expect(isUnitTestFile(file)).toBe(unit);
+    });
+});
+
+/**
+ * ⛔ THE WRITER'S ONLY CI DOOR (owner ruling 2026-10-08, recorded in `poolAdmin.ts`). A run may top the pool up, but
+ * only as the Maestro job's scoped erasure refill. Every other provisioning — a new lane, a re-marked grant, the
+ * drift audit — stays the owner's out-of-band run, because a CI step that reconciled the whole roster would create
+ * and re-grant users on every push.
+ *
+ * Discovered, not listed: every workflow step and every tracked shell script whose COMMANDS (comment lines dropped —
+ * a comment naming the writer is not a call) invoke `poolAdmin`.
+ */
+describe('the pool writer is reached from CI only as the scoped Maestro erasure refill', () => {
+    /** An invocation of the writer: the script by path, or the workspace script that wraps it. */
+    const INVOKES_WRITER = /poolAdmin\.ts\b|pool:admin\b/u;
+    /** The one admitted spelling: apply, scoped to one shard's erasure subjects, the shard from the matrix. */
+    const REFILL =
+        'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --shard "${SHARD_INDEX}"';
+    /** The jobs that refill — one per Maestro platform. */
+    const REFILLING_JOBS = ['_ci-heavy.yml::e2e-mobile-maestro', '_ci-heavy.yml::e2e-mobile-maestro-ios'];
+
+    const commands = (text: string): string =>
+        text
+            .split('\n')
+            .filter((line) => !line.trimStart().startsWith('#'))
+            .join('\n');
+
+    interface Invocation {
+        readonly where: string;
+        readonly run: string;
+        readonly shardIndex: string;
+    }
+
+    const invocations = (): readonly Invocation[] => {
+        const fromWorkflows = trackedFiles(WORKFLOWS_DIR)
+            .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
+            .flatMap((file) => {
+                const doc = parse(readFileSync(path.join(repoRoot, file), 'utf8')) as {
+                    jobs?: Record<string, { steps?: readonly { run?: unknown; env?: Record<string, unknown> }[] }>;
+                } | null;
+
+                return Object.entries(doc?.jobs ?? {}).flatMap(([job, body]) =>
+                    (body.steps ?? [])
+                        .filter((step) => INVOKES_WRITER.test(commands(scalarText(step.run))))
+                        .map((step) => ({
+                            where: `${path.basename(file)}::${job}`,
+                            run: commands(scalarText(step.run)).trim(),
+                            shardIndex: scalarText(step.env?.['SHARD_INDEX']),
+                        })),
+                );
+            });
+        const fromScripts = execFileSync('git', ['ls-files', '--', '*.sh'], { cwd: repoRoot, encoding: 'utf8' })
+            .split('\n')
+            .filter((file) => file !== '')
+            .flatMap((file) => {
+                let source: string;
+
+                try {
+                    source = readFileSync(path.join(repoRoot, file), 'utf8');
+                } catch {
+                    return [];
+                }
+
+                return INVOKES_WRITER.test(commands(source))
+                    ? [{ where: file, run: '(shell script)', shardIndex: '' }]
+                    : [];
+            });
+
+        return [...fromWorkflows, ...fromScripts];
+    };
+
+    const found = invocations();
+
+    it('finds the refill in both Maestro jobs (non-vacuity — discovery still sees an invocation)', () => {
+        expect(found.map((invocation) => invocation.where)).toStrictEqual(REFILLING_JOBS);
+    });
+
+    it('⛔ every CI invocation is the scoped refill, with its shard from the matrix — never the whole roster', () => {
+        for (const invocation of found) {
+            expect(invocation.run, invocation.where).toBe(REFILL);
+            expect(invocation.shardIndex, `${invocation.where} does not take SHARD_INDEX from the matrix`).toMatch(
+                /^\$\{\{\s*matrix\.shard\s*\}\}$/u,
+            );
+        }
+    });
+
+    it('the matcher sees each spelling of an invocation and ignores a comment (mutation check)', () => {
+        for (const sample of [
+            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply',
+            'npm run pool:admin --workspace=packages/tools/e2e-fixtures -- --apply',
+        ]) {
+            expect(INVOKES_WRITER.test(commands(sample)), sample).toBe(true);
+        }
+
+        expect(INVOKES_WRITER.test(commands('# the refill runs poolAdmin.ts before provision'))).toBe(false);
     });
 });

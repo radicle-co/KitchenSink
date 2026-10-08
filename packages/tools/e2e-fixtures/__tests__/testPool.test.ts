@@ -19,7 +19,8 @@ import {
     consumableSlots,
     k6VuLanes,
     k6VuSlots,
-    maestroConsumableSlots,
+    MAESTRO_ERASURE_SHARD,
+    maestroErasureSlots,
     maestroShardCapacity,
     maestroSlotForShard,
     POOL_PASSWORD,
@@ -290,22 +291,25 @@ describe('password-bearing slots', () => {
  * `packages/infra/global/__tests__/maestroShardPartition.test.ts` owns the workflow's side.
  */
 describe('maestro shard allocation', () => {
-    it('reaches exactly as far as the SCARCEST identity a shard needs', () => {
+    /**
+     * REWRITTEN 2026-10-08: the erasure subjects no longer bound the shard count. They used to be STRIDED across the
+     * shards, so each shard needed at least one; they now all belong to the ERASURE shard (see the erasure-lane
+     * suite below), so a shard needs only its signer and co-author.
+     */
+    it('reaches exactly as far as the scarcer of the two identities every shard needs', () => {
         expect(maestroShardCapacity()).toBe(
             Math.min(
                 POOL_ROSTER.maestro.filter((lane) => lane.id.startsWith('signer')).length,
                 POOL_ROSTER.maestro.filter((lane) => lane.id.startsWith('coauthor')).length,
-                consumableSlots('maestro').length,
             ),
         );
     });
 
-    it('⛔ never hands two shards the same identity', () => {
-        const capacity = maestroShardCapacity();
-        const emails = Array.from({ length: capacity }, (_, index) => index + 1).flatMap((shard) => [
+    it('⛔ never hands two shards the same identity, erasure subjects included', () => {
+        const emails = Array.from({ length: maestroShardCapacity() }, (_, index) => index + 1).flatMap((shard) => [
             maestroSlotForShard('signer', shard).email,
             maestroSlotForShard('coauthor', shard).email,
-            ...maestroConsumableSlots(shard, capacity).map((slot) => slot.email),
+            ...maestroErasureSlots(shard).map((slot) => slot.email),
         ]);
 
         expect(new Set(emails).size).toBe(emails.length);
@@ -321,7 +325,7 @@ describe('maestro shard allocation', () => {
     it('refuses a shard index that is not a positive integer', () => {
         for (const shard of [0, -1, 1.5, Number.NaN]) {
             expect(() => maestroSlotForShard('signer', shard), String(shard)).toThrow(/positive integer/u);
-            expect(() => maestroConsumableSlots(shard, 2), String(shard)).toThrow(/positive integers/u);
+            expect(() => maestroErasureSlots(shard), String(shard)).toThrow(/positive integer/u);
         }
     });
 
@@ -329,30 +333,37 @@ describe('maestro shard allocation', () => {
         expect(maestroSlotForShard('signer', 1)).toEqual(slotFor('maestro', 'signer'));
         expect(maestroSlotForShard('coauthor', 1)).toEqual(slotFor('maestro', 'coauthor'));
     });
+});
 
-    /**
-     * ⛔ A STRIDE, NOT A SLICE, and this is the case that distinguishes them. `firstAvailableSlot` skips a
-     * CONSUMED slot, so "skip the first k, then take the first available" collapses both shards onto the same
-     * next-surviving subject the moment an early slot has been erased — and a shared erasure subject is one
-     * shard really erasing the account the other has just leased.
-     */
-    it('partitions the consumables, losing none and inventing none', () => {
-        for (const count of [1, 2, 3, 4]) {
-            const strides = Array.from({ length: count }, (_, index) =>
-                maestroConsumableSlots(index + 1, count).map((slot) => slot.id),
-            );
+/**
+ * THE ERASURE LANE (2026-10-08). It REPLACES the per-shard stride, which split the ten subjects five and five: the
+ * flow plan always packed `accountErasure` onto shard 2, so shard 2 drained its five while shard 1's five were never
+ * used, and provisioning went red with "all 5 consumable slots are consumed".
+ *
+ * ⛔ What keeps two concurrent runs off one subject is now the LANE, not a partition. Every subject belongs to ONE
+ * shard, the runner pins every erasing flow to that shard, and that shard's concurrency group
+ * (`test-pool-sandbox-maestro-1`) admits one job at a time across both platforms and every run. So one job at a time
+ * can lease a subject, and `firstAvailableSlot` over all ten cannot collide.
+ */
+describe('maestro erasure lane', () => {
+    it('is shard 1 — the only index every matrix holds, the `[1]` fallback included', () => {
+        expect(MAESTRO_ERASURE_SHARD).toBe(1);
+    });
 
-            expect(strides.flat().sort()).toEqual(
-                consumableSlots('maestro')
-                    .map((slot) => slot.id)
-                    .sort(),
-            );
-            // Disjoint, and every shard inside capacity gets at least one to lease.
-            expect(new Set(strides.flat()).size).toBe(strides.flat().length);
+    it('gives the erasure shard EVERY consumable subject, in declared order', () => {
+        expect(maestroErasureSlots(MAESTRO_ERASURE_SHARD)).toEqual(consumableSlots('maestro'));
+        expect(maestroErasureSlots(MAESTRO_ERASURE_SHARD)).toHaveLength(10);
+    });
 
-            for (let shard = 1; shard <= Math.min(count, maestroShardCapacity()); shard += 1) {
-                expect(strides[shard - 1]?.length, `shard ${shard}/${count}`).toBeGreaterThan(0);
+    it('⛔ gives every OTHER shard none — a second shard leasing a subject is a second eraser on another lane', () => {
+        for (let shard = 1; shard <= maestroShardCapacity() + 2; shard += 1) {
+            if (shard !== MAESTRO_ERASURE_SHARD) {
+                expect(maestroErasureSlots(shard), `shard ${shard}`).toEqual([]);
             }
         }
+    });
+
+    it('needs at least one subject, or the erasure story could never run', () => {
+        expect(consumableSlots('maestro').length).toBeGreaterThan(0);
     });
 });

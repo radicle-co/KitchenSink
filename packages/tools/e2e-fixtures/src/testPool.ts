@@ -8,9 +8,10 @@
  * Every tier used to MINT its users — web per shard, Maestro three per run, the linkage suite on demand — and
  * delete them afterwards. That made cleanup a Clerk delete, which is not data cleanup: a deleted Clerk user's
  * PUBLIC content survives, pseudonymised, and a crashed run's teardown never ran at all. With a fixed pool no
- * run creates a user, so what a run owes is resetting the DATA its slot authored — which `resetPool` does —
- * and the pool itself is provisioned once, out of band, by `poolAdmin` (the ONLY Clerk user-creation writer
- * in test tooling).
+ * test creates a user, so what a run owes is resetting the DATA its slot authored — which `resetPool` does —
+ * and the pool itself is provisioned by `poolAdmin` (the ONLY Clerk user-creation writer in test tooling): out of
+ * band by the owner, except that the Maestro job tops the erasure subjects up through it before each run (owner
+ * ruling 2026-10-08, which `poolAdmin.ts`'s header records).
  *
  * ## Allocation is by DECLARED ORDER, never by hash
  *
@@ -150,8 +151,8 @@ const K6_VU_IDS = [
 const K6_VU_ID_SET: ReadonlySet<string> = new Set(K6_VU_IDS);
 
 /**
- * THE roster. Adding a slot is a commit here plus an owner run of `poolAdmin --apply`; nothing creates a user
- * at test time.
+ * THE roster. Adding a slot is a commit here plus an owner run of `poolAdmin --apply`; no test creates a user (the
+ * Maestro job's refill only recreates consumed erasure subjects — `poolAdmin.ts`).
  *
  * ⚠️ Lane ORDER is part of the contract: a shard is its index and k6 takes a prefix. Append; never reorder or
  * insert, or every later shard signs in as a different user than the one its data was reset for.
@@ -192,7 +193,7 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
  *
  * ⚠️ Shard 1 keeps the ORIGINAL ids (`signer`, `coauthor`) on purpose — their Clerk users already exist, so
  * sharding re-provisions nobody and an unsharded run addresses byte-identical slots. Adding a shard is an
- * append here plus an owner run of `poolAdmin --apply`; nothing creates a user at test time.
+ * append here plus an owner run of `poolAdmin --apply`; the Maestro refill reconciles erasure subjects only.
  *
  * ⛔ The two lists are the same length BY OBLIGATION, not by accident: a shard needs BOTH a signer and a
  * co-author, and {@link maestroShardCapacity} takes the minimum so a half-declared shard is unrepresentable
@@ -209,17 +210,13 @@ export type MaestroShardRole = keyof typeof MAESTRO_SHARD_LANES;
 /**
  * How many Maestro shards the roster can give DISJOINT identities to. Pure.
  *
- * Bounded by the SCARCEST of the three a shard needs — a signer, a co-author and at least one consumable
- * erasure subject — never by one of them. `runMaestroFlows.sh`'s `MAESTRO_MAX_SHARDS` is the shell-side copy
- * of this number, and `maestroShardPartition.test.ts` asserts the two agree from disk (neither language can
- * typecheck the other).
+ * Bounded by the scarcer of the two identities EVERY shard needs — a signer and a co-author. The erasure subjects
+ * do not bound it: they all belong to {@link MAESTRO_ERASURE_SHARD}, so no other shard needs one.
+ * `runMaestroFlows.sh`'s `MAESTRO_MAX_SHARDS` is the shell-side copy of this number, and
+ * `maestroShardPartition.test.ts` asserts the two agree from disk (neither language can typecheck the other).
  */
 export function maestroShardCapacity(): number {
-    return Math.min(
-        MAESTRO_SHARD_LANES.signer.length,
-        MAESTRO_SHARD_LANES.coauthor.length,
-        consumableSlots('maestro').length,
-    );
+    return Math.min(MAESTRO_SHARD_LANES.signer.length, MAESTRO_SHARD_LANES.coauthor.length);
 }
 
 /**
@@ -252,28 +249,55 @@ export function maestroSlotForShard(role: MaestroShardRole, shard: number): Pool
 }
 
 /**
- * The consumable erasure slots one Maestro shard may draw its subject from, in declared order. Pure.
+ * The ONE Maestro shard that erases. `runMaestroFlows.sh`'s `MAESTRO_ERASURE_SHARD` is the shell-side copy, which
+ * pins every erasing flow here, and `maestroShardPartition.test.ts` asserts the two agree from disk.
  *
- * ⛔ A STRIDE, not a slice. A slice (`skip the first k`) collides the moment an early slot has already been
- * consumed — both shards then fall through to the same next-available one — and a shared erasure subject is
- * one shard really erasing the account the other is about to sign in as. Striding partitions the declared
- * list, so the sets are disjoint whatever has already been consumed.
+ * ⛔ It is shard 1 because shard 1 is the only index EVERY matrix holds — the `'[1]'` fallback, a narrowed
+ * selection, and a platform whose exclusions leave it fewer shards than the other. Pinning to "the last shard"
+ * would not do: Android's matrix and iOS's are sized separately, so one run's two platforms could then erase on
+ * two different lanes at once.
+ */
+export const MAESTRO_ERASURE_SHARD = 1;
+
+/**
+ * The erasure subjects a 1-based Maestro shard may lease, in declared order: EVERY consumable slot for
+ * {@link MAESTRO_ERASURE_SHARD}, and none for any other shard. Pure.
+ *
+ * ## The lease contract (2026-10-08 — it REPLACES the per-shard stride)
+ *
+ * The stride split the ten subjects across the shards, which was safe but wasted half of them: the flow plan always
+ * packed `accountErasure` onto shard 2, so shard 1's five were leased and never erased while shard 2's five ran dry.
+ * Now one shard holds all ten and the runner pins every erasing flow to it, so what keeps two runs off one subject
+ * is the LANE that shard leases, not a partition of the slots:
+ *
+ *   - only the erasure shard leases a subject, refills the subjects, or runs an erasing flow;
+ *   - in CI its concurrency group, `test-pool-sandbox-maestro-1`, is shared by the Android and iOS jobs and by every
+ *     run of every caller (a group name is repository-wide), and it admits one job at a time;
+ *   - so at any moment at most one CI job can lease, refill or erase, and `firstAvailableSlot` taking the first
+ *     subject still standing cannot collide with another. A run cancelled mid-flow has either erased its subject
+ *     (gone; the next holder's refill recreates it) or not (standing; the next holder may take it) — both are safe.
+ *
+ * ⚠️ Two hazards this does NOT close. Both can only fail a run — every candidate is a consumable subject that owns
+ * nothing, so neither can erase the wrong KIND of account:
+ *
+ *   - **A local run holds no lane.** `local-sandbox`'s `localMaestro.sh` runs as shard 1 against the same sandbox
+ *     Clerk instance and leases from the same ten, so a local run concurrent with a CI lane-1 job can lease the same
+ *     subject, and one of the two erasures fails. The stride used to keep them apart only by accident (local drew
+ *     the odd subjects, CI's erasing shard the even ones); this hazard is new with the erasure lane.
+ *   - **Erasure is asynchronous** (identity, the deletion queue, the worker, then Clerk), so a subject a cancelled
+ *     run had started erasing can still exist when the next holder leases it, and be deleted under that holder's
+ *     flow. That predates the lane, and the refill does not buffer it: it recreates the first subject, which the
+ *     next lease takes again.
  *
  * @param shard - The 1-based shard index.
- * @param shardCount - The stride modulus. ⛔ WHAT GUARANTEES DISJOINTNESS IS THAT EVERY SHARD USES THE
- *     SAME MODULUS, not that it equals the matrix size — which is why callers pass the static
- *     `maestroShardCapacity()` rather than a matrix dimension read from a workflow. Two callers reading
- *     the count from different places is how two shards end up sharing a Clerk identity.
- * @returns This shard's consumable slots; empty when the roster cannot reach that far.
+ * @returns Every consumable maestro slot for the erasure shard; empty for every other shard.
  */
-export function maestroConsumableSlots(shard: number, shardCount: number): readonly PoolSlot[] {
-    if (!Number.isInteger(shard) || shard < 1 || !Number.isInteger(shardCount) || shardCount < 1) {
-        throw new Error(
-            `test pool: a Maestro consumable stride needs positive integers, got ${String(shard)}/${String(shardCount)}`,
-        );
+export function maestroErasureSlots(shard: number): readonly PoolSlot[] {
+    if (!Number.isInteger(shard) || shard < 1) {
+        throw new Error(`test pool: a Maestro shard must be a positive integer, got ${String(shard)}`);
     }
 
-    return consumableSlots('maestro').filter((_, index) => index % shardCount === shard - 1);
+    return shard === MAESTRO_ERASURE_SHARD ? consumableSlots('maestro') : [];
 }
 
 /** The sandbox tenant's address for a slot id. The `+clerk_test` subaddress is what makes it a Clerk test user. */
